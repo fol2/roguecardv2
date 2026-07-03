@@ -4,7 +4,7 @@ import {
   newRun, startCombat, playCard, endTurn, makeCard, cardData, availableNodes, genMap,
   rollEncounter, rollEvent, applyEventOps, genCombatRewards, genShop, gainRelic, randomRelic,
   rollBossRelics, addCardToDeck, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
-  MAP_ROWS, runRng, healPlayer,
+  MAP_ROWS, runRng, healPlayer, previewPlay,
 } from '../src/engine.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS } from '../src/data.js';
 
@@ -54,6 +54,66 @@ function forceHand(run, cb, ids) {
   const hp1 = e.hp;
   playCard(run, cb, cb.hand[0].uid, 0);
   assert.equal(hp1 - e.hp, Math.floor(Math.floor((6 + 2) * 0.75) * 1.5), 'weak math');
+}
+{
+  // previewPlay predicts exactly what playCard then does, without touching state
+  const { run, cb } = freshCombat(['gravewarden']);
+  const e = cb.enemies[0];
+  e.statuses.vulnerable = 2;
+  e.block = 5;
+  cb.player.statuses.str = 3;
+  forceHand(run, cb, ['strike']);
+  const snap = JSON.stringify({ e, p: cb.player, hand: cb.hand });
+  const pv = previewPlay(run, cb, cb.hand[0], 0);
+  assert.equal(JSON.stringify({ e, p: cb.player, hand: cb.hand }), snap, 'preview is pure');
+  assert.equal(pv.total, Math.floor((6 + 3) * 1.5), 'preview total matches math');
+  assert.equal(pv.loss, pv.total - 5, 'preview subtracts target block');
+  assert.equal(pv.lethal, pv.loss >= e.hp, 'lethal flag consistent');
+  const hp0 = e.hp, b0 = e.block;
+  playCard(run, cb, cb.hand[0].uid, 0);
+  assert.equal(hp0 - e.hp, pv.loss, 'engine agrees with its own preview');
+  assert.ok(b0 > e.block, 'block was consumed');
+  // block preview obeys dex + frail
+  forceHand(run, cb, ['defend']);
+  cb.player.statuses.dex = 2;
+  cb.player.statuses.frail = 1;
+  const pvb = previewPlay(run, cb, cb.hand[0], null);
+  assert.equal(pvb.block, Math.floor((5 + 2) * 0.75), 'block preview dex+frail');
+}
+{
+  // killing blows say so, overkill is measured, untouched wins are perfect
+  const { run, cb } = freshCombat(['sporeling']);
+  const e = cb.enemies[0];
+  e.hp = 4;
+  forceHand(run, cb, ['strike']);
+  cb.queue.length = 0;
+  playCard(run, cb, cb.hand[0].uid, 0);
+  const hit = cb.queue.find((ev) => ev.t === 'hitEnemy');
+  assert.ok(hit.killingBlow, 'killing blow flagged');
+  assert.equal(hit.overkill, 2, 'overkill = damage past zero');
+  const win = cb.queue.find((ev) => ev.t === 'victory');
+  assert.ok(win && win.perfect, 'no damage taken = perfect');
+}
+{
+  // a scratched win is not perfect
+  const { run, cb } = freshCombat(['sporeling']);
+  const e = cb.enemies[0];
+  cb.player.hp -= 0; // sanity: damage must come through the engine
+  e.hp = 1;
+  forceHand(run, cb, ['strike']);
+  // engine-inflicted chip damage first
+  cb.player.block = 0;
+  cb.counters.hpLost = 0;
+  // simulate a poison tick through the real path
+  cb.player.statuses.poison = 1;
+  endTurn(run, cb); // enemy acts, poison ticks at player turn start
+  if (!cb.over) {
+    forceHand(run, cb, ['strike']);
+    playCard(run, cb, cb.hand[0].uid, 0);
+    const win = cb.queue.find((ev) => ev.t === 'victory');
+    assert.ok(win, 'combat won');
+    assert.equal(win.perfect, false, 'damage taken spoils perfect');
+  }
 }
 {
   // block + frail

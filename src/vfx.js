@@ -5,12 +5,15 @@ let flashes = [];
 let shakeV = 0, shakeX = 0, shakeY = 0;
 let hitstopUntil = 0;
 
+// a DPR-3 phone doesn't need a 9x pixel canvas for sparks — cap at 2
+const DPR = () => Math.min(devicePixelRatio, 2);
+
 export function initVfx() {
   canvas = document.getElementById('vfx');
   ctx2 = canvas.getContext('2d');
   floatLayer = document.getElementById('floaties');
   shakeEl = document.getElementById('shake');
-  const fit = () => { canvas.width = innerWidth * devicePixelRatio; canvas.height = innerHeight * devicePixelRatio; };
+  const fit = () => { canvas.width = innerWidth * DPR(); canvas.height = innerHeight * DPR(); };
   fit();
   addEventListener('resize', fit);
   requestAnimationFrame(tick);
@@ -22,7 +25,7 @@ function tick(t) {
   const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016);
   lastT = t;
   if (t < hitstopUntil) return; // freeze frame
-  const dpr = devicePixelRatio;
+  const dpr = DPR();
   ctx2.clearRect(0, 0, canvas.width, canvas.height);
   ctx2.save();
   ctx2.scale(dpr, dpr);

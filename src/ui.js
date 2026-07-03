@@ -6,7 +6,12 @@ import * as V from './vfx.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise } from './scene3d.js';
 
-const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null };
+const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
+// one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
+// ?input=touch|mouse overrides detection (simulators lie; debugging wants both)
+const FORCE_INPUT = new URLSearchParams(location.search).get('input');
+const COARSE = FORCE_INPUT ? FORCE_INPUT === 'touch' : matchMedia('(pointer: coarse)').matches;
+const FINE = FORCE_INPUT ? FORCE_INPUT === 'mouse' : matchMedia('(hover: hover) and (pointer: fine)').matches;
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -30,25 +35,61 @@ const KEYWORDS = {
 };
 
 // ------------------------------------------------------------ tooltip
+// mouse: hover, as ever. touch: press and hold anything to ask what it is.
 function initTooltip() {
   const tip = $('#tooltip');
-  document.addEventListener('mouseover', (e) => {
-    let n = e.target;
+  const tipFor = (n) => {
+    const t = n._tip;
+    tip.innerHTML = `${t.title ? `<div class="tt-title">${t.title}</div>` : ''}<div class="tt-body">${t.body || ''}</div>${t.sub ? `<div class="tt-sub">${t.sub}</div>` : ''}`;
+    tip.style.display = 'block';
+  };
+  const findTipped = (target) => {
+    let n = target;
     while (n && n !== document.body && !n._tip) n = n.parentElement;
-    if (n && n._tip) {
-      const t = n._tip;
-      tip.innerHTML = `${t.title ? `<div class="tt-title">${t.title}</div>` : ''}<div class="tt-body">${t.body || ''}</div>${t.sub ? `<div class="tt-sub">${t.sub}</div>` : ''}`;
-      tip.style.display = 'block';
-      moveTip(e);
-    } else tip.style.display = 'none';
-  });
-  document.addEventListener('mousemove', moveTip);
-  function moveTip(e) {
+    return n && n._tip ? n : null;
+  };
+  const place = (x, y, touch) => {
     if (tip.style.display !== 'block') return;
     const w = tip.offsetWidth, h = tip.offsetHeight;
-    tip.style.left = `${Math.min(innerWidth - w - 12, e.clientX + 16)}px`;
-    tip.style.top = `${Math.max(8, Math.min(innerHeight - h - 12, e.clientY - h / 2))}px`;
-  }
+    if (touch) {
+      tip.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, x - w / 2))}px`;
+      tip.style.top = `${Math.max(8, y - h - 26)}px`;
+    } else {
+      tip.style.left = `${Math.min(innerWidth - w - 12, x + 16)}px`;
+      tip.style.top = `${Math.max(8, Math.min(innerHeight - h - 12, y - h / 2))}px`;
+    }
+  };
+  document.addEventListener('pointerover', (e) => {
+    // hover is only real on devices that hover — iOS replays a tap as mouse
+    // events onto whatever screen renders next, so touch never gets this path
+    if (!FINE || e.pointerType !== 'mouse') return;
+    const n = findTipped(e.target);
+    if (n) { tipFor(n); place(e.clientX, e.clientY, false); }
+    else tip.style.display = 'none';
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (FINE && e.pointerType === 'mouse') place(e.clientX, e.clientY, false);
+    else if (lpT && Math.hypot(e.clientX - lpX, e.clientY - lpY) > 12) { clearTimeout(lpT); lpT = 0; }
+  });
+  let lpT = 0, lpX = 0, lpY = 0, hideT = 0;
+  document.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return;
+    tip.style.display = 'none';
+    clearTimeout(hideT);
+    const n = findTipped(e.target);
+    if (!n) return;
+    lpX = e.clientX; lpY = e.clientY;
+    clearTimeout(lpT);
+    lpT = setTimeout(() => { lpT = 0; tipFor(n); place(lpX, lpY, true); }, 380);
+  }, true);
+  const lpEnd = (e) => {
+    if (e.pointerType === 'mouse') return;
+    if (lpT) { clearTimeout(lpT); lpT = 0; }
+    clearTimeout(hideT);
+    hideT = setTimeout(() => (tip.style.display = 'none'), 1700);
+  };
+  document.addEventListener('pointerup', lpEnd);
+  document.addEventListener('pointercancel', lpEnd);
 }
 
 // ------------------------------------------------------------ card rendering
@@ -89,8 +130,8 @@ function cardEl(inst, { inCombat = false, size = null } = {}) {
     <div class="card-rarity"></div>
   </div>`;
   $$('.kw', c).forEach((k) => (k._tip = { title: k.textContent, body: KEYWORDS[k.textContent] || '' }));
-  // 3D tilt + mouse-tracked glare/foil
-  c.addEventListener('mousemove', (e) => {
+  // 3D tilt + mouse-tracked glare/foil (a hovering pointer only)
+  if (FINE) c.addEventListener('mousemove', (e) => {
     const r = c.getBoundingClientRect();
     const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
     const inner = $('.card-inner', c);
@@ -298,9 +339,20 @@ function showHelp() {
 }
 
 // ------------------------------------------------------------ screens
+// ceremony: a band of lantern light sweeps the glass between scenes
+function wipe() {
+  if (REDUCED) return;
+  const w = $('#wipe');
+  w.classList.remove('go');
+  void w.offsetWidth;
+  w.classList.add('go');
+  setTimeout(() => w.classList.remove('go'), 620);
+}
 export function show(name, data) {
+  if (S.screen !== name && S.run) wipe(); // travel is lit; in-place rerenders aren't
   S.screen = name;
   closeMenus();
+  $('#tooltip').style.display = 'none'; // a parked cursor shouldn't strand a tip across screens
   if (name !== 'map') { exitMapMode(); clearOverlay(); }
   const sc = screenEl();
   sc.className = '';
@@ -392,8 +444,9 @@ function renderMap() {
       n.id === run.nodeId ? 'current' : '',
       avail.has(n.id) ? 'avail' : '',
     ].join(' ');
-    const r = n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 19 : 16;
-    const isz = n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 20 : 17;
+    const tf = COARSE ? 1.3 : 1; // lanterns grow to meet a fingertip
+    const r = (n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 19 : 16) * tf;
+    const isz = Math.round((n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 20 : 17) * tf);
     dots += `<g class="${cls}" data-node="${n.id}" style="--d:${n.row * 34}ms">
       <g class="nwrap"><circle class="bg" r="${r}"/><g class="icg">${iconInline(NODE_ICONS[n.type], isz)}</g></g>
     </g>`;
@@ -403,10 +456,12 @@ function renderMap() {
     <div class="map-title">ACT ${run.act + 1} — <b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits</div>
     <div class="map-screen screen-enter">
       <svg class="map-svg" width="100%" height="100%">${edges}${dots}</svg>
-      <div class="map-hint">scroll to survey the Spire</div>
+      <div class="map-hint">${COARSE ? 'drag' : 'scroll'} to survey the Spire</div>
     </div>`;
   const svg = $('.map-svg');
+  let panEaten = false;
   svg.onclick = (e) => {
+    if (panEaten) return; // that tap was a drag
     const g = e.target.closest('.mnode.avail');
     if (!g || S.busy) return;
     unlock();
@@ -416,7 +471,7 @@ function renderMap() {
   $$('.mnode', svg).forEach((g) => {
     const n = nodes.find((x) => x.id === g.dataset.node);
     const names = { monster: 'Monster', elite: 'Elite — beware', event: 'Unknown event', rest: 'Rest site', shop: 'Merchant', treasure: 'Treasure', boss: ACTS[run.act].bossName };
-    g._tip = { title: names[n.type], body: avail.has(n.id) ? 'Click to travel here.' : '' };
+    g._tip = { title: names[n.type], body: avail.has(n.id) ? `${COARSE ? 'Tap' : 'Click'} to travel here.` : '' };
   });
   // 3D wiring: anchors on the tower, camera dollies to the current row
   const anchors = nodes.map((n) => ({ id: n.id, pos: mapNodePos(run.act, n) }));
@@ -438,10 +493,41 @@ function renderMap() {
       p.style.opacity = Math.min(A.fade, B.fade).toFixed(3);
     }
   });
-  $('.map-screen').addEventListener('wheel', (e) => {
+  const ms = $('.map-screen');
+  ms.addEventListener('wheel', (e) => {
     e.preventDefault();
     peekMap(-e.deltaY * 0.006);
   }, { passive: false });
+  // touch: drag the tower past you, with a little momentum on release
+  let panY = null, panV = 0, panRaf = 0, panDist = 0;
+  ms.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return;
+    cancelAnimationFrame(panRaf);
+    panY = e.clientY; panV = 0; panDist = 0; panEaten = false;
+  });
+  ms.addEventListener('pointermove', (e) => {
+    if (panY == null || e.pointerType === 'mouse') return;
+    const dy = e.clientY - panY;
+    panY = e.clientY;
+    panDist += Math.abs(dy);
+    if (panDist > 14) panEaten = true;
+    panV = dy;
+    peekMap(dy * 0.014);
+  });
+  const panEnd = (e) => {
+    if (panY == null || e.pointerType === 'mouse') return;
+    panY = null;
+    const coast = () => {
+      panV *= 0.93;
+      if (Math.abs(panV) < 0.5 || S.screen !== 'map') return;
+      peekMap(panV * 0.014);
+      panRaf = requestAnimationFrame(coast);
+    };
+    panRaf = requestAnimationFrame(coast);
+    setTimeout(() => (panEaten = false), 80);
+  };
+  ms.addEventListener('pointerup', panEnd);
+  ms.addEventListener('pointercancel', panEnd);
 }
 function enterNode(node) {
   const run = S.run;
@@ -465,11 +551,18 @@ function enterNode(node) {
 function startCombatUI(enemyIds, kind) {
   exitMapMode(); // combat can start without going through show()
   clearOverlay();
+  $('#tooltip').style.display = 'none';
+  if (S.screen !== 'combat') wipe();
   S.cb = E.startCombat(S.run, enemyIds, kind);
   S.screen = 'combat';
   renderCombat();
   renderHud();
   if (kind === 'boss') {
+    // the boss is announced through a rose window: spokes of leaded light
+    // bloom behind the name, hold one breath, and dissolve
+    const rw = el('div', 'rose-window', '<div class="rw-rings"></div><div class="rw-spokes"></div>');
+    screenEl().appendChild(rw);
+    setTimeout(() => rw.remove(), 2300);
     const b = el('div', 'turn-banner boss-banner', S.cb.enemies[0].name.toUpperCase());
     screenEl().appendChild(b);
     setTimeout(() => b.remove(), 2100);
@@ -506,26 +599,25 @@ function renderCombat() {
   const ce = { enemies: [], root: $('.combat-screen', sc) };
   cb.enemies.forEach((en, i) => {
     const d = ENEMIES[en.key];
-    const base = d.boss ? 280 : d.elite ? 230 : 185;
-    const raw = base * (d.art.size >= 1.4 ? 1 : d.art.size < 0.8 ? 0.86 : 0.95) * Math.min(d.art.size, 1.45);
-    const size = Math.round(Math.min(raw, innerHeight * (d.boss ? 0.34 : 0.3)));
+    const size = enemyArtSize(d, cb.enemies.length);
     const box = el('div', `enemy${d.elite ? ' elite-e' : ''}${d.boss ? ' boss-e' : ''}`);
     box.dataset.idx = i;
     box.style.animationDelay = `${160 + i * 130}ms`;
     box.innerHTML = `<div class="intent"></div>
-      <div class="enemy-art" style="width:${size}px;height:${size}px">${enemySvg(d.art)}</div>
+      <div class="enemy-art" style="width:${size}px;height:${size}px">${enemySvg(d.art)}<div class="dmg-preview"></div></div>
       <div class="name">${en.name.toUpperCase()}</div>
-      <div class="hpbar-wrap"><span class="block-chip zero">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div></div><span class="hp-label"></span></div>
+      <div class="hpbar-wrap"><span class="block-chip zero">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div><span class="hp-label"></span></div>
       <div class="status-row"></div>`;
     zone.appendChild(box);
     ce.enemies.push({
       root: box, art: $('.enemy-art', box), intent: $('.intent', box),
       fill: $('.fill', box), ghost: $('.ghost', box), hp: $('.hp-label', box),
       block: $('.block-chip', box), statuses: $('.status-row', box),
+      pv: $('.pv', box), prev: $('.dmg-preview', box),
     });
     box.onclick = () => onEnemyClick(i);
-    box.onmouseenter = () => { if (S.targeting) box.classList.add('target-hover'); };
-    box.onmouseleave = () => box.classList.remove('target-hover');
+    box.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && S.targeting) { box.classList.add('target-hover'); updatePreviews(); } });
+    box.addEventListener('pointerleave', () => { box.classList.remove('target-hover'); updatePreviews(); });
   });
   ce.pHp = $('.p-hp', sc); ce.pFill = $('.player-zone .fill', sc); ce.pGhost = $('.player-zone .ghost', sc);
   ce.pBlock = $('.p-block', sc); ce.pStatus = $('.p-status', sc); ce.hero = $('.hero-wrap', sc);
@@ -540,13 +632,39 @@ function renderCombat() {
   ce.discard.onclick = () => { sfx.click(); showCardGrid('Discard Pile', cb.discard, { inCombat: true }); };
   ce.exhaust.onclick = () => { sfx.click(); showCardGrid('Exhausted', cb.exhaust, { inCombat: true }); };
   ce.root.addEventListener('pointerdown', (e) => {
-    if (S.targeting && !e.target.closest('.enemy') && !e.target.closest('.card')) clearTargeting();
+    if (e.target.closest('.enemy') || e.target.closest('.card')) return;
+    if (S.targeting) clearTargeting();
+    else if (S.hoveredCard != null) { S.hoveredCard = null; layoutHand(); } // tap the stage to set the pane back down
   });
   syncCombat();
   syncHand();
 }
 const enemyCenter = (i) => V.centerOf(S.ce.enemies[i].art);
 const heroCenter = () => V.centerOf(S.ce.hero);
+
+// width budget: the hero's zone and padding come off the top, the rest splits
+// between foes — on a phone the whole line must still stand on the ledge
+function enemyArtSize(d, count) {
+  const heroW = Math.min(innerWidth * 0.31, 240);
+  const wBudget = (innerWidth - heroW - innerWidth * 0.08) / count - 12;
+  const base = d.boss ? 280 : d.elite ? 230 : 185;
+  const raw = base * (d.art.size >= 1.4 ? 1 : d.art.size < 0.8 ? 0.86 : 0.95) * Math.min(d.art.size, 1.45);
+  return Math.round(Math.min(raw, innerHeight * (d.boss ? 0.34 : 0.3), Math.max(72, wBudget * (d.boss ? 1.12 : 1))));
+}
+// rotate the phone mid-fight and the stage re-fits itself
+let fitT = 0;
+addEventListener('resize', () => {
+  clearTimeout(fitT);
+  fitT = setTimeout(() => {
+    const cb = S.cb, ce = S.ce;
+    if (!cb || !ce || S.screen !== 'combat') return;
+    cb.enemies.forEach((en, i) => {
+      const size = enemyArtSize(ENEMIES[en.key], cb.enemies.length);
+      ce.enemies[i].art.style.width = ce.enemies[i].art.style.height = `${size}px`;
+    });
+    layoutHand();
+  }, 120);
+});
 
 function statusChips(container, statuses, isPlayer) {
   container.innerHTML = '';
@@ -637,8 +755,11 @@ function syncHand() {
       c.classList.add('draw-in');
       setTimeout(() => c.classList.remove('draw-in'), 400);
       c.onclick = (e) => { e.stopPropagation(); onCardClick(inst.uid); };
-      c.onmouseenter = () => { S.hoveredCard = inst.uid; sfx.hover(); layoutHand(); };
-      c.onmouseleave = () => { if (S.hoveredCard === inst.uid) S.hoveredCard = null; layoutHand(); };
+      if (FINE) {
+        c.onmouseenter = () => { S.hoveredCard = inst.uid; sfx.hover(); layoutHand(); };
+        c.onmouseleave = () => { if (S.hoveredCard === inst.uid) S.hoveredCard = null; layoutHand(); };
+      }
+      bindCardDrag(c, inst.uid);
       wrap.appendChild(c);
     } else {
       // refresh cost/text (str/dex/duskmirror can change display)
@@ -647,8 +768,10 @@ function syncHand() {
       old.replaceChildren(...fresh.childNodes);
       old.className = fresh.className + (old.classList.contains('armed') ? ' armed' : '');
       old.onclick = (e) => { e.stopPropagation(); onCardClick(inst.uid); };
-      old.onmouseenter = () => { S.hoveredCard = inst.uid; layoutHand(); };
-      old.onmouseleave = () => { if (S.hoveredCard === inst.uid) S.hoveredCard = null; layoutHand(); };
+      if (FINE) {
+        old.onmouseenter = () => { S.hoveredCard = inst.uid; layoutHand(); };
+        old.onmouseleave = () => { if (S.hoveredCard === inst.uid) S.hoveredCard = null; layoutHand(); };
+      }
     }
   }
   layoutHand();
@@ -659,7 +782,9 @@ function layoutHand() {
   const cards = cb.hand.map((c) => String(c.uid));
   const els = new Map($$('.card', ce.hand).map((c) => [c.dataset.uid, c]));
   const n = cards.length;
-  const gap = Math.min(112, 640 / Math.max(n, 1));
+  // the fan never outgrows the screen: on a phone it stacks deep between two
+  // chrome gutters (energy orb left, end-turn right) instead of spreading
+  const gap = Math.min(112, 640 / Math.max(n, 1), (innerWidth - 246) / Math.max(n - 1, 1));
   cards.forEach((uid, i) => {
     const c = els.get(uid);
     if (!c) return;
@@ -678,12 +803,140 @@ function layoutHand() {
     else c.style.transform = `translateX(calc(-50% + ${x}px)) translateY(${y + 26}px) rotate(${rot}deg)`;
     c.style.zIndex = hovered || armed ? 40 : 20 + i;
   });
+  updatePreviews();
 }
+// ---- drag-to-play: press a pane, drag it up, the arc springs from your hand;
+// release on a foe to strike, release low to think better of it. One motion.
+let dragConsumedAt = 0;
+function bindCardDrag(c, uid) {
+  c.addEventListener('pointerdown', (e) => {
+    if (S.busy || !S.cb || S.cb.over || !e.isPrimary || S.drag) return;
+    S.drag = { uid, id: e.pointerId, x0: e.clientX, y0: e.clientY, live: false, free: false };
+    try { c.setPointerCapture(e.pointerId); } catch { /* card may vanish mid-gesture */ }
+  });
+  c.addEventListener('pointermove', (e) => {
+    const st = S.drag;
+    if (!st || st.uid !== uid || e.pointerId !== st.id) return;
+    if (!st.live) {
+      if (st.y0 - e.clientY > 26) beginCardDrag(st, c);
+      return;
+    }
+    if (st.free) {
+      c.style.transform = `translate(calc(-50% + ${e.clientX - innerWidth / 2}px), ${e.clientY - innerHeight + 130}px) scale(1.12)`;
+      c.classList.toggle('will-cast', e.clientY < castLine());
+    } else {
+      aimMove(e);
+      hoverEnemyAt(e.clientX, e.clientY);
+    }
+  });
+  const finish = (e, cancelled) => {
+    const st = S.drag;
+    if (!st || st.uid !== uid || e.pointerId !== st.id) return;
+    S.drag = null;
+    if (!st.live) return;
+    dragConsumedAt = performance.now();
+    c.classList.remove('dragging', 'will-cast');
+    if (cancelled) { clearTargeting(); layoutHand(); return; }
+    if (st.free) {
+      if (e.clientY < castLine()) doPlay(uid, null);
+      else { S.hoveredCard = null; layoutHand(); }
+      return;
+    }
+    const en = document.elementFromPoint(e.clientX, e.clientY)?.closest('.enemy');
+    const idx = en ? +en.dataset.idx : -1;
+    const living = S.cb.enemies.filter((x) => x.hp > 0);
+    if (idx >= 0 && S.cb.enemies[idx].hp > 0) doPlay(uid, idx);
+    else if (living.length === 1 && e.clientY < castLine()) doPlay(uid, living[0].idx); // one foe: releasing high is aim enough
+    else { clearTargeting(); layoutHand(); }
+  };
+  c.addEventListener('pointerup', (e) => finish(e, false));
+  c.addEventListener('pointercancel', (e) => finish(e, true));
+}
+const castLine = () => (S.ce?.hand ? S.ce.hand.getBoundingClientRect().top - 24 : innerHeight - 260);
+function beginCardDrag(st, c) {
+  const cb = S.cb;
+  const inst = cb.hand.find((x) => x.uid === st.uid);
+  if (!inst) { S.drag = null; return; }
+  const d = E.cardData(inst);
+  if (d.unplayable || E.effCost(S.run, cb, inst) > cb.player.energy) {
+    S.drag = null;
+    c.classList.add('nope');
+    setTimeout(() => c.classList.remove('nope'), 350);
+    sfx.debuff();
+    return;
+  }
+  st.live = true;
+  S.hoveredCard = null;
+  sfx.hover();
+  if (d.target === 'enemy') setTargeting({ kind: 'card', uid: st.uid });
+  else {
+    st.free = true;
+    clearTargeting();
+    c.classList.add('dragging');
+  }
+}
+function hoverEnemyAt(x, y) {
+  const en = document.elementFromPoint(x, y)?.closest('.enemy');
+  S.ce?.enemies.forEach((it) => it.root.classList.toggle('target-hover', it.root === en && it.root.classList.contains('targetable')));
+  updatePreviews();
+}
+
+// the consequence, spelled out: while a card is armed or inspected, each foe
+// shows exactly what it would lose — block-eaten, vulnerability-multiplied —
+// with a ghost segment on its bar and a death-mark when the number is lethal
+function updatePreviews() {
+  const ce = S.ce, cb = S.cb;
+  if (!ce || !cb) return;
+  let inst = null;
+  if (S.targeting?.kind === 'card') inst = cb.hand.find((c) => c.uid === S.targeting.uid);
+  else if (S.drag?.live) inst = cb.hand.find((c) => c.uid === S.drag.uid);
+  else if (S.hoveredCard != null && !S.busy) inst = cb.hand.find((c) => c.uid === S.hoveredCard);
+  const d = inst ? E.cardData(inst) : null;
+  const aiming = S.targeting?.kind === 'card' || (S.drag?.live && !S.drag.free);
+  const living = cb.enemies.filter((e) => e.hp > 0).length;
+  cb.enemies.forEach((en, i) => {
+    const x = ce.enemies[i];
+    let pv = null, dim = false;
+    if (inst && !cb.over && en.hp > 0 && !d.unplayable) {
+      if (d.target === 'allEnemies') pv = E.previewPlay(S.run, cb, inst, i);
+      else if (d.target === 'enemy' && (aiming || living === 1)) {
+        pv = E.previewPlay(S.run, cb, inst, i);
+        dim = aiming && living > 1 && !x.root.classList.contains('target-hover');
+      }
+    }
+    if (pv && pv.total > 0) {
+      const h = pv.hits[0];
+      const label = pv.hits.length === 1 && h.times > 1 ? `${h.dmg}×${h.times}` : `${pv.total}`;
+      x.prev.innerHTML = pv.lethal ? `${iconSvg('skull', 15)} ${label}` : label;
+      x.prev.classList.add('show');
+      x.prev.classList.toggle('dim', dim);
+      x.prev.classList.toggle('lethal', pv.lethal);
+      x.root.classList.toggle('marked', pv.lethal && !dim);
+      const lossFrac = Math.min(en.hp, pv.loss) / en.maxHp;
+      x.pv.style.left = `${(Math.max(0, en.hp - pv.loss) / en.maxHp) * 100}%`;
+      x.pv.style.width = `${lossFrac * 100}%`;
+      x.pv.classList.add('show');
+    } else {
+      x.prev.classList.remove('show', 'lethal', 'dim');
+      x.root.classList.remove('marked');
+      x.pv.classList.remove('show');
+    }
+  });
+}
+
 function onCardClick(uid) {
   if (S.busy || !S.cb || S.cb.over) return;
+  if (performance.now() - dragConsumedAt < 350) return; // that click was the tail of a drag
   const cb = S.cb;
   const inst = cb.hand.find((c) => c.uid === uid);
   if (!inst) return;
+  // phones: the first tap lifts the pane so you can read it, the second commits
+  if (COARSE && S.hoveredCard !== uid && !(S.targeting?.kind === 'card' && S.targeting.uid === uid)) {
+    S.hoveredCard = uid;
+    sfx.hover();
+    layoutHand();
+    return;
+  }
   const d = E.cardData(inst);
   const cost = E.effCost(S.run, cb, inst);
   const elc = $(`.card[data-uid="${uid}"]`, S.ce.hand);
@@ -713,21 +966,27 @@ function setTargeting(t) {
   S.ce.root.classList.add('targeting');
   S.cb.enemies.forEach((e, i) => S.ce.enemies[i].root.classList.toggle('targetable', e.hp > 0));
   layoutHand();
-  document.addEventListener('mousemove', aimMove);
-  aimMove._last && aimMove(aimMove._last);
+  document.addEventListener('pointermove', aimMove);
+  if (aimMove._last) aimMove(aimMove._last);
+  else {
+    // touch has no cursor between taps: open the arc onto the nearest foe
+    const living = S.cb.enemies.findIndex((x) => x.hp > 0);
+    if (living >= 0) { const c = enemyCenter(living); aimMove({ clientX: c.x, clientY: c.y, synthetic: true }); }
+  }
 }
 function clearTargeting() {
   S.targeting = null;
   $('#aim').innerHTML = '';
-  document.removeEventListener('mousemove', aimMove);
+  document.removeEventListener('pointermove', aimMove);
   if (S.ce) {
     S.ce.root.classList.remove('targeting');
     S.ce.enemies.forEach((x) => x.root.classList.remove('targetable', 'target-hover'));
     layoutHand();
   }
+  updateLantern(); // hand the light back to the lantern
 }
 function aimMove(e) {
-  aimMove._last = e;
+  if (!e.synthetic) aimMove._last = e;
   if (!S.targeting) return;
   let from;
   if (S.targeting.kind === 'card') {
@@ -738,9 +997,17 @@ function aimMove(e) {
   const cx = (from.x + mx) / 2, cy = Math.min(from.y, my) - 120;
   $('#aim').innerHTML = `<path d="M${from.x} ${from.y - 80} Q${cx} ${cy} ${mx} ${my}" fill="none" stroke="rgba(255,89,100,.85)" stroke-width="4" stroke-dasharray="4 10" stroke-linecap="round"/>
     <circle cx="${mx}" cy="${my}" r="9" fill="none" stroke="rgba(255,89,100,.95)" stroke-width="3"/>`;
+  // the lantern leans toward where you mean to strike: intent illuminates
+  if (S.ce?.hero) {
+    const h = V.centerOf(S.ce.hero);
+    const L = $('#lantern');
+    L.style.setProperty('--lx', `${Math.round(h.x + (mx - h.x) * 0.3)}px`);
+    L.style.setProperty('--ly', `${Math.round(h.y + (my - h.y) * 0.3)}px`);
+  }
 }
 async function doPlay(uid, targetIdx) {
   clearTargeting();
+  S.hoveredCard = null;
   if (!E.playCard(S.run, S.cb, uid, targetIdx)) return;
   await drain(targetIdx);
   afterAction();
@@ -757,6 +1024,34 @@ function banner(text) {
   const b = el('div', 'turn-banner', text);
   screenEl().appendChild(b);
   setTimeout(() => b.remove(), 1150);
+}
+
+// ceremony: things travel — coins to the purse, relics to the bar, card-backs
+// from the discard to the draw pile. One arc-flight helper for all of it.
+function flyTo(x0, y0, x1, y1, { n = 6, color = '#ffe9ac', size = 8, dur = 640, glyph = '', cls = 'flymote', done = null } = {}) {
+  const layer = $('#floaties');
+  for (let i = 0; i < n; i++) {
+    const m = el('div', cls, glyph);
+    m.style.left = `${x0}px`;
+    m.style.top = `${y0}px`;
+    if (!glyph) {
+      m.style.width = `${size}px`;
+      m.style.height = `${size}px`;
+      m.style.background = `radial-gradient(circle at 35% 30%, #fff, ${color} 55%, transparent 85%)`;
+    } else m.style.color = color;
+    layer.appendChild(m);
+    const mx = (x0 + x1) / 2 + (Math.random() - 0.5) * 140;
+    const my = Math.min(y0, y1) - 50 - Math.random() * 80;
+    const anim = m.animate(
+      [
+        { transform: 'translate(-50%,-50%) scale(0.5)', opacity: 0 },
+        { transform: `translate(calc(-50% + ${mx - x0}px), calc(-50% + ${my - y0}px)) scale(1.05)`, opacity: 1, offset: 0.45 },
+        { transform: `translate(calc(-50% + ${x1 - x0}px), calc(-50% + ${y1 - y0}px)) scale(0.55)`, opacity: 0.95 },
+      ],
+      { duration: dur, delay: i * 46, easing: 'cubic-bezier(.32,.05,.35,1)' }
+    );
+    anim.onfinish = () => { m.remove(); if (i === n - 1 && done) done(); };
+  }
 }
 
 // --------- the living-glass rig: one rAF drives eyes, inner fire and light pools
@@ -857,9 +1152,12 @@ async function handleEvent(ev, targetIdx) {
       break;
     }
     case 'reshuffle': {
+      // the ritual of the turned deck: card-backs arc from discard to draw
       sfx.card();
-      V.floatText(...Object.values(V.centerOf(ce.draw)), 'Reshuffle', 'notice');
-      await sleep(240);
+      const d0 = V.centerOf(ce.discard), d1 = V.centerOf(ce.draw);
+      flyTo(d0.x, d0.y, d1.x, d1.y, { n: 6, cls: 'flycard', dur: 520 });
+      V.floatText(d1.x, d1.y - 46, 'Reshuffle', 'notice');
+      await sleep(420);
       break;
     }
     case 'play': {
@@ -914,6 +1212,16 @@ async function handleEvent(ev, targetIdx) {
         V.shake(Math.min(4 + ev.amount * 0.5, 15));
         kick(Math.min(0.2 + ev.amount / 26, 1));
         if (big) { V.hitstop(70); V.ring(ex, ey, '#ffd8a0', 10, 620, 5); }
+        if (ev.killingBlow) {
+          // the blow that ends a life lands heavier — and overkill heavier still
+          V.hitstop(ev.overkill >= 8 ? 130 : 90);
+          kick(Math.min(1.6, 0.6 + ev.overkill * 0.06));
+          V.ring(ex, ey, '#ffffff', 8, 780, 5);
+          if (ev.overkill >= 8) {
+            V.flash('#ffffff', 0.1, 0.22);
+            V.burst(ex, ey, { color: '#fff3d6', n: 18, speed: 520, size: 2.4, grav: 200, kind: 'spark' });
+          }
+        }
         if (ev.amount > 0) addCrack(x.art, big);
       }
       x.root.classList.add('hurt');
@@ -1081,11 +1389,28 @@ async function handleEvent(ev, targetIdx) {
       break;
     }
     case 'potion': sfx.potion(); await sleep(120); break;
-    case 'powerConsumed': break;
+    case 'powerConsumed': {
+      // a power doesn't get discarded — it settles into the glass
+      const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
+      const from = c ? V.centerOf(c) : { x: innerWidth / 2, y: innerHeight - 180 };
+      const { x: hx, y: hy } = heroCenter();
+      flyTo(from.x, from.y, hx, hy, { n: 7, color: '#c9a8ff', size: 7, dur: 560 });
+      sfx.buff();
+      setTimeout(() => { V.ring(hx, hy, '#c9a8ff', 12, 460, 4); V.motes(hx, hy, '#c9a8ff', 8); }, 560);
+      await sleep(300);
+      break;
+    }
     case 'victory': {
+      S.lastPerfect = !!ev.perfect;
       await sleep(320);
       sfx.victory();
       V.flash('#ffe9ac', 0.16, 0.6);
+      if (ev.perfect) {
+        const b = el('div', 'turn-banner perfect-banner', 'PERFECT');
+        screenEl().appendChild(b);
+        setTimeout(() => b.remove(), 1400);
+        await sleep(500);
+      }
       break;
     }
     case 'defeat': {
@@ -1129,9 +1454,11 @@ function renderReward({ kind, rewards }) {
   const run = S.run;
   const sc = screenEl();
   const title = kind === 'boss' ? 'BOSS VANQUISHED' : kind === 'elite' ? 'ELITE SLAIN' : 'VICTORY';
+  const seal = S.lastPerfect ? '<div class="perfect-seal">✦ PERFECT — the glass untouched ✦</div>' : '<div class="ornament">✦ ✦ ✦</div>';
+  S.lastPerfect = false;
   sc.innerHTML = `<div class="center-panel screen-enter"><div class="panel">
     <div class="ov-title">${title}</div>
-    <div class="ornament">✦ ✦ ✦</div>
+    ${seal}
     <div class="reward-list"></div>
     <div class="ov-actions"><button class="btn" data-a="continue">Continue</button></div>
   </div></div>`;
@@ -1147,7 +1474,13 @@ function renderReward({ kind, rewards }) {
     run.player.gold += rewards.gold;
     run.stats.goldEarned += rewards.gold;
     sfx.coin();
-    V.floatText(innerWidth / 2, innerHeight / 2 - 60, `+${rewards.gold} gold`, 'goldf');
+    // the coins travel to the purse
+    requestAnimationFrame(() => {
+      const purse = $('#hud .gold-num');
+      const from = { x: innerWidth / 2, y: innerHeight / 2 - 40 };
+      const to = purse ? V.centerOf(purse) : { x: 120, y: 24 };
+      flyTo(from.x, from.y, to.x, to.y, { n: Math.min(9, 4 + Math.floor(rewards.gold / 12)), color: '#ffd76e', dur: 600, done: () => sfx.coin() });
+    });
   });
   if (rewards.potion) {
     const p = POTIONS[rewards.potion];
@@ -1164,6 +1497,16 @@ function renderReward({ kind, rewards }) {
     addRow(`<span style="color:${r.tone};text-shadow:0 0 8px ${r.tone}">${r.glyph}</span>`, `<b>${r.name}</b>`, () => {
       E.gainRelic(run, rewards.relic);
       sfx.relic();
+      // the relic takes its seat on the bar
+      requestAnimationFrame(() => {
+        const chip = $(`.relic-chip[data-relic="${rewards.relic}"]`);
+        if (!chip) return;
+        const to = V.centerOf(chip);
+        flyTo(innerWidth / 2, innerHeight / 2 - 40, to.x, to.y, {
+          n: 1, glyph: r.glyph, color: r.tone, dur: 680,
+          done: () => { chip.classList.remove('proc'); void chip.offsetWidth; chip.classList.add('proc'); },
+        });
+      });
     }, { title: r.name, body: r.text });
   }
   addRow(iconSvg('cards', 26), 'Add a card to your deck', () => {
@@ -1246,10 +1589,13 @@ function renderRest() {
     $('[data-a="smith"]').disabled = true;
     sfx.heal();
     const healed = E.healPlayer(run, Math.round(run.player.maxHp * 0.3));
+    // the fire answers: a swell of warmth, embers rising off the hearth
+    V.flash('#ff9a4d', 0.12, 0.8);
     V.floatText(innerWidth / 2, innerHeight / 2 - 40, `+${healed} HP`, 'healf');
     V.motes(innerWidth / 2, innerHeight / 2, '#8fe8a0', 22);
+    V.motes(innerWidth / 2, innerHeight / 2 + 60, '#ffb066', 16);
     E.saveRun(run);
-    setTimeout(() => { if (S.screen === 'rest') show('map'); }, 700);
+    setTimeout(() => { if (S.screen === 'rest') show('map'); }, 900);
   };
   $('[data-a="smith"]').onclick = () => {
     sfx.click();

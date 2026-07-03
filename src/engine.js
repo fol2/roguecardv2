@@ -250,7 +250,7 @@ export function startCombat(run, enemyIds, kind = 'normal') {
       };
     }),
     draw: [], hand: [], discard: [], exhaust: [],
-    counters: { played: 0, attacks: 0, firstCardPlayed: false },
+    counters: { played: 0, attacks: 0, firstCardPlayed: false, hpLost: 0 },
   };
   cb.enemies.forEach((e) => (e.hp = e.maxHp));
   // deck
@@ -314,7 +314,10 @@ function hitEnemy(run, cb, e, base, { isAttack = true, mult = 1 } = {}) {
   const loss = dmg - blocked;
   e.hp -= loss;
   run.stats.dmgDealt += loss;
-  cb.queue.push({ t: 'hitEnemy', idx: e.idx, amount: loss, blocked, hpAfter: Math.max(0, e.hp), dead: e.hp <= 0 });
+  cb.queue.push({
+    t: 'hitEnemy', idx: e.idx, amount: loss, blocked, hpAfter: Math.max(0, e.hp), dead: e.hp <= 0,
+    killingBlow: e.hp <= 0 && loss > 0, overkill: Math.max(0, -e.hp),
+  });
   if (isAttack && e.statuses.thorns && e.hp > 0) damagePlayer(run, cb, e.statuses.thorns, { source: 'thorns', isAttack: false });
   if (e.hp <= 0) onEnemyDeath(run, cb, e);
   return loss;
@@ -354,6 +357,7 @@ function damagePlayer(run, cb, base, { source = 'self', isAttack = false, attack
   const loss = dmg - blocked;
   P.hp -= loss;
   run.stats.dmgTaken += Math.max(0, loss);
+  cb.counters.hpLost += Math.max(0, loss);
   cb.queue.push({ t: 'hitPlayer', amount: loss, blocked, hpAfter: Math.max(0, P.hp), source });
   if (isAttack && P.statuses.thorns && attacker && attacker.hp > 0) hitEnemy(run, cb, attacker, P.statuses.thorns, { isAttack: false });
   if (P.hp <= 0) loseCombat(run, cb);
@@ -648,7 +652,7 @@ function winCombat(run, cb) {
   else if (hasRelic(run, 'emberHeart')) { healPlayer(run, 6); proc(cb, 'emberHeart'); }
   if (hasRelic(run, 'gravebloom') && run.player.hp <= run.player.maxHp * 0.5) { healPlayer(run, 10); proc(cb, 'gravebloom'); }
   run.player.hp = clamp(run.player.hp, 1, run.player.maxHp);
-  cb.queue.push({ t: 'victory' });
+  cb.queue.push({ t: 'victory', perfect: cb.counters.hpLost === 0 }); // an untouched fight is worth saying so
 }
 function loseCombat(run, cb) {
   cb.over = true;
@@ -680,6 +684,47 @@ export function previewEnemyDmg(cb, e) {
   if (e.statuses.weak) dmg = Math.floor(dmg * 0.75);
   if (cb.player.statuses.vulnerable) dmg = Math.floor(dmg * 1.5);
   return { dmg: Math.max(0, dmg), times: mv.times || 1 };
+}
+// what would this card actually do to this target? pure arithmetic mirroring
+// hitEnemy/gainBlock (str, weak, vulnerable, seal, specials) — no state touched
+export function previewPlay(run, cb, inst, targetIdx = null) {
+  const d = cardData(inst);
+  const P = cb.player;
+  const target = targetIdx != null ? cb.enemies[targetIdx] : null;
+  const sealMult = hasRelic(run, 'executionersSeal') && d.type === 'attack' && (cb.counters.attacks + 1) % 10 === 0 ? 2 : 1;
+  const hit = (base) => {
+    let dmg = base + (P.statuses.str || 0);
+    if (P.statuses.weak) dmg = Math.floor(dmg * 0.75);
+    if (target && target.statuses.vulnerable) dmg = Math.floor(dmg * 1.5);
+    return Math.max(0, Math.floor(dmg * sealMult));
+  };
+  const hits = [];
+  let block = 0;
+  for (const fx of d.effects) {
+    if (fx.kind === 'dmg') hits.push({ dmg: hit(fx.n), times: fx.times || 1 });
+    else if (fx.kind === 'block') block += previewBlock(cb, fx.n);
+    else if (fx.kind === 'special') {
+      if (fx.id === 'leech' || fx.id === 'devour') hits.push({ dmg: hit(fx.n), times: 1 });
+      else if (fx.id === 'execute') hits.push({ dmg: hit(fx.n + (target?.statuses.vulnerable ? fx.bonus : 0)), times: 1 });
+      else if (fx.id === 'momentum') hits.push({ dmg: hit(fx.n + (inst.bonus || 0)), times: 1 });
+      else if (fx.id === 'phantom') hits.push({ dmg: hit(fx.n * Math.max(0, cb.hand.length - (cb.hand.includes(inst) ? 1 : 0))), times: 1 });
+      else if (fx.id === 'doubleBlock') block += P.block;
+    }
+  }
+  if (!hits.length && !block) return null;
+  const total = hits.reduce((s, h) => s + h.dmg * h.times, 0);
+  let loss = total, lethal = false;
+  if (target) {
+    let b = target.block;
+    loss = 0;
+    for (const h of hits) for (let i = 0; i < h.times; i++) {
+      const soak = Math.min(b, h.dmg);
+      b -= soak;
+      loss += h.dmg - soak;
+    }
+    lethal = loss >= target.hp;
+  }
+  return { hits, total, loss, lethal, block };
 }
 
 // deck ops -----------------------------------------------------------------

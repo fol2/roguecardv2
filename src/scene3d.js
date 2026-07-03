@@ -101,17 +101,21 @@ function makePoints(count, size, spreadX, spreadY, spreadZ, opacity) {
   return new THREE.Points(geo, mat);
 }
 
+// mobile tier: a phone GPU gets the same night, thinner — fewer motes, no MSAA
+// (bloom soft-blurs everything anyway), a lower DPR ceiling, half-res bloom
+const LITE = new URLSearchParams(location.search).get('input') === 'touch' || matchMedia('(pointer: coarse)').matches;
+
 export function initScene() {
   const canvas = document.getElementById('bg3d');
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: !LITE, alpha: false });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, LITE ? 1.35 : 1.75));
   scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(cur.fog.getHex(), 0.055);
   camera = new THREE.PerspectiveCamera(58, 1, 0.1, 120);
   camera.position.set(0, alt, 10);
 
-  ptsMain = makePoints(900, 0.16, 46, 26, 40, 0.75);
-  ptsAccent = makePoints(240, 0.32, 46, 26, 34, 0.5);
+  ptsMain = makePoints(LITE ? 480 : 900, 0.16, 46, 26, 40, 0.75);
+  ptsAccent = makePoints(LITE ? 130 : 240, 0.32, 46, 26, 34, 0.5);
   scene.add(ptsMain, ptsAccent);
 
   // nebulae ride skyGroup: they track the camera's altitude with a slight lag
@@ -119,7 +123,7 @@ export function initScene() {
   skyGroup = new THREE.Group();
   scene.add(skyGroup);
   const nebTex = spriteTex([[0, 'rgba(255,255,255,.75)'], [0.4, 'rgba(255,255,255,.25)'], [1, 'rgba(255,255,255,0)']]);
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < (LITE ? 5 : 7); i++) {
     const mat = new THREE.SpriteMaterial({ map: nebTex, transparent: true, opacity: 0.1 + Math.random() * 0.1, depthWrite: false, blending: THREE.AdditiveBlending });
     const s = new THREE.Sprite(mat);
     const sc = 14 + Math.random() * 22;
@@ -151,7 +155,7 @@ export function initScene() {
 
   // window lights scattered up the tower face — the lives inside the Spire
   {
-    const n = 120;
+    const n = LITE ? 70 : 120;
     windowMat = new THREE.SpriteMaterial({
       map: spriteTex([[0, 'rgba(255,255,255,.95)'], [0.4, 'rgba(255,255,255,.35)'], [1, 'rgba(255,255,255,0)']]),
       transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending,
@@ -186,7 +190,7 @@ export function initScene() {
   scene.add(ground);
   treeMat = new THREE.MeshBasicMaterial({ color: 0x060a10 });
   const treeGeo = new THREE.ConeGeometry(1, 1, 6);
-  for (let i = 0; i < 52; i++) {
+  for (let i = 0; i < (LITE ? 32 : 52); i++) {
     const t = new THREE.Mesh(treeGeo, treeMat);
     let a, d, z;
     do {
@@ -206,7 +210,7 @@ export function initScene() {
     for (const deckY of [actBaseY(1) - 2.2, actBaseY(2) - 2.2]) {
       const mat = new THREE.SpriteMaterial({ map: cloudTex, transparent: true, opacity: 0.34, depthWrite: false });
       cloudMats.push(mat);
-      for (let i = 0; i < 16; i++) {
+      for (let i = 0; i < (LITE ? 10 : 16); i++) {
         const s = new THREE.Sprite(mat);
         const sc = 10 + Math.random() * 14;
         s.scale.set(sc, sc * 0.32, 1);
@@ -227,7 +231,7 @@ export function initScene() {
 
   // weather: one field, three behaviors — ash falls in the Woods, drowned light
   // sinks through the City, storm embers streak sideways up the Obsidian Spire
-  weather = makePoints(300, 0.13, 44, 26, 34, 0.5);
+  weather = makePoints(LITE ? 170 : 300, 0.13, 44, 26, 34, 0.5);
   scene.add(weather);
 
   // near-foreground silhouettes: dark shards and hanging chains that frame the
@@ -261,6 +265,7 @@ export function initScene() {
   const fit = () => {
     renderer.setSize(innerWidth, innerHeight);
     composer.setSize(innerWidth, innerHeight);
+    if (LITE) bloom.setSize(innerWidth / 2, innerHeight / 2); // bloom is a blur; half-res is free glow
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
   };
@@ -372,11 +377,14 @@ function loop(t) {
   // ---- camera state machine --------------------------------------------
   alt += (altT - alt) * Math.min(1, dt * 1.6);
   skyGroup.position.y = cy * 0.93 + Math.sin(time * 0.3) * 0.2;
+  // narrow screens see a narrower slice of the world: back the camera off in
+  // proportion so the lantern route never falls out of frame on a phone
+  const af = Math.max(1, 1.05 / camera.aspect);
   if (mode === 'map') {
     const viewRow = THREE.MathUtils.clamp(mapViewRow + 1.6 + peek, 1.2, ROWS + 0.4);
     const camH = actBaseY(mapAct) + viewRow * TOWER.rowH;
     const rp = Math.max(radiusAt(camH), 3.1);
-    const d = rp + 8.2 - kickV * 0.4;
+    const d = (rp + 8.2) * af - kickV * 0.4;
     const az = TOWER.azBase + mouse.x * 0.06;
     _posT.set(TOWER.x + Math.cos(az) * d, camH + 1.1 - mouse.y * 0.5, TOWER.z + Math.sin(az) * d);
     _lookT.set(TOWER.x, camH + 1.9, TOWER.z);
@@ -406,8 +414,8 @@ function loop(t) {
         id: a.id,
         x: (_v.x * 0.5 + 0.5) * innerWidth,
         y: (-_v.y * 0.5 + 0.5) * innerHeight,
-        s: THREE.MathUtils.clamp(9 / dist, 0.4, 1.3),
-        fade: _v.z > 1 ? 0 : THREE.MathUtils.clamp(1.3 - Math.abs(a.pos.y - camLookCur.y) / 7.5, 0.1, 1),
+        s: THREE.MathUtils.clamp((9 * af) / dist, 0.4, 1.3),
+        fade: _v.z > 1 ? 0 : THREE.MathUtils.clamp(1.3 - Math.abs(a.pos.y - camLookCur.y) / (7.5 * af), 0.1, 1),
       });
     }
     overlayCb(out);

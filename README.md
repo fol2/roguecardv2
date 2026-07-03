@@ -18,6 +18,8 @@ npm run dev      # http://localhost:5173
 - **Combat**: draw 5, spend energy, read enemy intents, stack Block, Poison, Strength, Vulnerable and friends. Click a card, aim the arrow, strike.
 - **Build**: 44 cards across attacks / skills / powers with upgrades, 25 relics with passive hooks, 7 potions, 11 narrative events, card removal / duplication / transformation.
 - **Roguelite**: procedural maps and encounters, permadeath, autosave (close the tab mid-run and continue later — unfinished fights restart), lifetime stats on the title screen.
+- **Consequence, spelled out**: while you aim, every foe shows exactly what it would lose — block-eaten, vulnerability-multiplied — as a number and a ghost segment on its bar, with a death-mark when the answer is lethal. Killing blows land heavier, overkill heavier still, and a fight won without a scratch is sealed **PERFECT**.
+- **Plays in your palm**: the whole game recomposes for a phone. Portrait gets a one-line HUD, a thumb-tuned card fan between two chrome gutters, and a camera that pulls back so the full lantern route stays in frame; landscape ducks everything under a low sill. Cards play by drag — press a pane, the arc springs from your hand, release on a foe — or tap once to read, twice to commit. Long-press anything for its tooltip, drag the tower to survey it. Add to Home Screen on iOS for fullscreen play.
 
 ### The look: glass & ink
 
@@ -25,7 +27,9 @@ Spirebound is an ink-black world climbed by lantern light, where every living th
 
 And the glass is alive. No two creatures breathe alike; their eyes turn to follow whoever they mean to kill, the fire inside them flares as they wind up to strike and gutters as they die, and each one casts a pool of its own colored light on the ledge it stands on — a lit line of tower-stone underfoot, so every fight is visibly fought *on* the Spire. Each act has weather: ash sifts down through the Woods, drowned light sinks through the City, and storm embers streak past the Obsidian Spire between silent flashes of heat lightning. Enemy intents are chips of lit glass that blaze in the beat before the blow lands, damage numbers wear ink outlines like the leading on the glass, and the title itself is a stained-glass inscription.
 
-Keyboard: `E` ends the turn, `Esc` cancels targeting / closes panels. Right-click cancels aiming.
+And the game has ceremony. A band of lantern light sweeps the glass between scenes; bosses are announced through a rose window — spokes of leaded light blooming behind the name; the deck visibly re-shuffles as card-backs arc from the discard to the draw pile; powers dissolve into motes that settle into the hero's glass; coins fly to the purse and relics take their seat on the bar; exhausted cards burn away edge-inward, embers rising.
+
+Keyboard: `E` ends the turn, `Esc` cancels targeting / closes panels. Right-click cancels aiming. On touch, everything answers the finger: drag cards to play them, long-press for tooltips, drag the map, tap the stage to cancel.
 
 ## Tech
 
