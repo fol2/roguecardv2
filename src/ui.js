@@ -1,10 +1,10 @@
 // SPIREBOUND UI — screens, combat playback, interactions.
 import * as E from './engine.js';
 import { CARDS, CARD_POOLS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, PLAYER } from './data.js';
-import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg } from './art.js';
+import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg } from './art.js';
 import * as V from './vfx.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
-import { setTheme, kick } from './scene3d.js';
+import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise } from './scene3d.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null };
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -89,12 +89,16 @@ function cardEl(inst, { inCombat = false, size = null } = {}) {
     <div class="card-rarity"></div>
   </div>`;
   $$('.kw', c).forEach((k) => (k._tip = { title: k.textContent, body: KEYWORDS[k.textContent] || '' }));
-  // 3D tilt
+  // 3D tilt + mouse-tracked glare/foil
   c.addEventListener('mousemove', (e) => {
     const r = c.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
     const inner = $('.card-inner', c);
-    inner.style.setProperty('--ry', `${((e.clientX - r.left) / r.width - 0.5) * 16}deg`);
-    inner.style.setProperty('--rx', `${(0.5 - (e.clientY - r.top) / r.height) * 12}deg`);
+    inner.style.setProperty('--ry', `${(px - 0.5) * 16}deg`);
+    inner.style.setProperty('--rx', `${(0.5 - py) * 12}deg`);
+    inner.style.setProperty('--mx', `${px * 100}%`);
+    inner.style.setProperty('--my', `${py * 100}%`);
+    inner.style.setProperty('--gx', (px - 0.5) * 60);
   });
   c.addEventListener('mouseleave', () => {
     const inner = $('.card-inner', c);
@@ -105,7 +109,32 @@ function cardEl(inst, { inCombat = false, size = null } = {}) {
 }
 
 // ------------------------------------------------------------ HUD
+// the light economy: your HP is your lantern — the world itself darkens as you
+// bleed, closing to a guttering circle of light at death's door.
+function updateLantern() {
+  const L = $('#lantern');
+  if (!S.run || S.screen === 'title' || S.screen === 'end') {
+    L.style.setProperty('--la', 0);
+    L.classList.remove('gutter');
+    return;
+  }
+  const p = S.run.player;
+  const hp = S.cb && !S.cb.over ? S.cb.player.hp : p.hp;
+  const t = Math.max(0, Math.min(1, (0.68 - hp / p.maxHp) / 0.53));
+  L.style.setProperty('--la', (t * 0.82).toFixed(3)); // capped: intents stay readable in the dark
+  L.style.setProperty('--lr', `${Math.round(1500 - t * 1000)}px`);
+  let x = '50%', y = '55%';
+  if (S.screen === 'combat' && S.ce?.hero) {
+    const c = V.centerOf(S.ce.hero);
+    x = `${Math.round(c.x)}px`;
+    y = `${Math.round(c.y)}px`;
+  }
+  L.style.setProperty('--lx', x);
+  L.style.setProperty('--ly', y);
+  L.classList.toggle('gutter', t > 0.55);
+}
 function renderHud() {
+  updateLantern();
   const hud = $('#hud');
   if (!S.run || S.screen === 'title' || S.screen === 'end') { hud.classList.remove('show'); document.body.classList.remove('low-hp'); return; }
   hud.classList.add('show');
@@ -122,7 +151,7 @@ function renderHud() {
       <div class="hud-mid"><b>${act.name.toUpperCase()}</b> &nbsp;·&nbsp; Act ${S.run.act + 1} &nbsp;·&nbsp; Floor ${S.run.floorsClimbed} &nbsp;·&nbsp; ${act.bossName}</div>
       <div class="hud-right">
         ${p.potions.map((id, i) => `<button class="potion-slot ${id ? 'full' : ''}" data-slot="${i}">${id ? potionSvg(POTIONS[id].tone) : ''}</button>`).join('')}
-        <button class="icon-btn" data-act="deck">🂠<span style="font-size:11px">${p.deck.length}</span></button>
+        <button class="icon-btn" data-act="deck">${iconSvg('cards', 19)}<span style="font-size:11px">${p.deck.length}</span></button>
         <button class="icon-btn" data-act="menu">≡</button>
       </div>
     </div>
@@ -260,7 +289,7 @@ function showHelp() {
   openOverlay(`<div class="panel ov-panel howto">
     <div class="ov-title">How to Play</div>
     <h3>The Climb</h3>Choose a path up the map. Fight monsters, gather cards, relics and potions, and defeat the boss of each of the <b>3 acts</b>.
-    <h3>Combat</h3>Each turn you draw <b>5 cards</b> and gain <b>3 Energy</b> (⬤). Click a card to play it — attacks need a target when several enemies remain. Enemies telegraph their <b>intent</b> above their heads: ⚔ numbers show incoming damage. End your turn when you're done.
+    <h3>Combat</h3>Each turn you draw <b>5 cards</b> and gain <b>3 Energy</b> (⬤). Click a card to play it — attacks need a target when several enemies remain. Enemies telegraph their <b>intent</b> above their heads: sword icons with numbers show incoming damage. End your turn when you're done.
     <h3>Block & Statuses</h3><b>Block</b> absorbs damage but expires each turn. <b>Vulnerable</b> ×1.5 damage taken · <b>Weak</b> −25% damage dealt · <b>Frail</b> −25% Block · <b>Poison</b> damages each turn.
     <h3>Cards</h3>Your deck reshuffles when the draw pile empties. <b>Exhaust</b> removes a card for the combat. Keep your deck lean — every reward is optional.
     <h3>The Fires & The Merchant</h3>Rest sites heal <b>30%</b> or upgrade a card. Shops sell cards, relics, potions — and can <b>remove</b> a card from your deck.
@@ -272,6 +301,7 @@ function showHelp() {
 export function show(name, data) {
   S.screen = name;
   closeMenus();
+  if (name !== 'map') { exitMapMode(); clearOverlay(); }
   const sc = screenEl();
   sc.className = '';
   sc.onclick = null; // screens share #screen — never let a stale delegate survive
@@ -316,6 +346,8 @@ function startRun(run, resumed = false) {
   S.run = run;
   S.cb = null;
   setTheme(run.act);
+  const curNode = run.nodeId ? run.map.nodes.find((n) => n.id === run.nodeId) : null;
+  setAltitude(run.act, curNode ? curNode.row : 0);
   setAmbience(run.act);
   if (!resumed) E.saveRun(run);
   if (resumed && run.pendingCombat) {
@@ -329,7 +361,7 @@ function startRun(run, resumed = false) {
   show('map');
 }
 
-const NODE_ICONS = { monster: '⚔', elite: '☠', event: '?', rest: '♨', shop: '¤', treasure: '▣', boss: '♛' };
+const NODE_ICONS = { monster: 'sword', elite: 'skull', event: 'question', rest: 'flame', shop: 'coin', treasure: 'chest', boss: 'crown' };
 function renderMap() {
   const run = S.run;
   if (run.pendingCombat) { // invariant: an unresolved fight always resumes
@@ -342,37 +374,37 @@ function renderMap() {
   S.cb = null;
   const { nodes } = run.map;
   const avail = new Set(E.availableNodes(run).map((n) => n.id));
-  const W = 900, rowH = 84, pad = 60;
-  const H = pad * 2 + (E.MAP_ROWS - 1) * rowH;
-  const px = (n) => 90 + n.col * ((W - 180) / (E.MAP_COLS - 1)) + n.jx * 46;
-  const py = (n) => H - pad - n.row * rowH + n.jy * 30;
+  const visited = new Set(run.map.visited);
+  const curRow = run.nodeId ? nodes.find((n) => n.id === run.nodeId).row : -1;
+  // the map lives ON the Spire: lanterns hang off the tower in 3D, and these
+  // DOM nodes ride their projected screen positions every frame.
   let edges = '', dots = '';
   for (const n of nodes) {
     for (const nid of n.next) {
-      const m = nodes.find((x) => x.id === nid);
-      const walked = run.map.visited.includes(n.id) && run.map.visited.includes(m.id) ? 'walked' : '';
-      edges += `<path class="medge ${walked}" d="M${px(n)} ${py(n)} Q${(px(n) + px(m)) / 2 + 12} ${(py(n) + py(m)) / 2} ${px(m)} ${py(m)}"/>`;
+      const walked = visited.has(n.id) && visited.has(nid) ? 'walked' : '';
+      edges += `<path class="medge ${walked}" style="--d:${n.row * 34}ms" data-a="${n.id}" data-b="${nid}" d="M0 0"/>`;
     }
   }
   for (const n of nodes) {
     const cls = [
       'mnode', `type-${n.type}`,
-      run.map.visited.includes(n.id) ? 'visited' : '',
+      visited.has(n.id) ? 'visited' : '',
       n.id === run.nodeId ? 'current' : '',
       avail.has(n.id) ? 'avail' : '',
-      !avail.has(n.id) && !run.map.visited.includes(n.id) ? 'dim' : '',
     ].join(' ');
     const r = n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 19 : 16;
-    dots += `<g class="${cls}" data-node="${n.id}" transform="translate(${px(n)},${py(n)})">
-      <circle class="bg" r="${r}"/><text class="ic" ${n.type === 'boss' ? 'font-size="22"' : ''}>${NODE_ICONS[n.type]}</text>
+    const isz = n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 20 : 17;
+    dots += `<g class="${cls}" data-node="${n.id}" style="--d:${n.row * 34}ms">
+      <g class="nwrap"><circle class="bg" r="${r}"/><g class="icg">${iconInline(NODE_ICONS[n.type], isz)}</g></g>
     </g>`;
   }
   const act = ACTS[run.act];
   screenEl().innerHTML = `
     <div class="map-title">ACT ${run.act + 1} — <b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits</div>
-    <div class="map-screen screen-enter"><div class="map-scroll">
-      <svg class="map-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${edges}${dots}</svg>
-    </div></div>`;
+    <div class="map-screen screen-enter">
+      <svg class="map-svg" width="100%" height="100%">${edges}${dots}</svg>
+      <div class="map-hint">scroll to survey the Spire</div>
+    </div>`;
   const svg = $('.map-svg');
   svg.onclick = (e) => {
     const g = e.target.closest('.mnode.avail');
@@ -386,13 +418,35 @@ function renderMap() {
     const names = { monster: 'Monster', elite: 'Elite — beware', event: 'Unknown event', rest: 'Rest site', shop: 'Merchant', treasure: 'Treasure', boss: ACTS[run.act].bossName };
     g._tip = { title: names[n.type], body: avail.has(n.id) ? 'Click to travel here.' : '' };
   });
-  const scroll = $('.map-scroll');
-  const curRow = run.nodeId ? nodes.find((n) => n.id === run.nodeId).row : 0;
-  scroll.scrollTop = Math.max(0, H - pad - curRow * rowH - scroll.clientHeight * 0.62);
+  // 3D wiring: anchors on the tower, camera dollies to the current row
+  const anchors = nodes.map((n) => ({ id: n.id, pos: mapNodePos(run.act, n) }));
+  const nodeEls = new Map($$('.mnode', svg).map((g) => [g.dataset.node, g]));
+  const dimIds = new Set(nodes.filter((n) => !avail.has(n.id) && !visited.has(n.id)).map((n) => n.id));
+  const edgeEls = $$('.medge', svg).map((p) => ({ p, a: p.dataset.a, b: p.dataset.b }));
+  enterMapMode(run.act, Math.max(0, curRow));
+  setOverlay(anchors, (pts) => {
+    const P = new Map(pts.map((pt) => [pt.id, pt]));
+    for (const [id, g] of nodeEls) {
+      const pt = P.get(id);
+      g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)}) scale(${pt.s.toFixed(3)})`);
+      g.style.opacity = (pt.fade * (dimIds.has(id) ? 0.4 : 1)).toFixed(3);
+    }
+    for (const { p, a, b } of edgeEls) {
+      const A = P.get(a), B = P.get(b);
+      const sag = 9 * (A.s + B.s) / 2; // chains between lanterns hang a little
+      p.setAttribute('d', `M${A.x.toFixed(1)} ${A.y.toFixed(1)} Q${((A.x + B.x) / 2).toFixed(1)} ${((A.y + B.y) / 2 + sag).toFixed(1)} ${B.x.toFixed(1)} ${B.y.toFixed(1)}`);
+      p.style.opacity = Math.min(A.fade, B.fade).toFixed(3);
+    }
+  });
+  $('.map-screen').addEventListener('wheel', (e) => {
+    e.preventDefault();
+    peekMap(-e.deltaY * 0.006);
+  }, { passive: false });
 }
 function enterNode(node) {
   const run = S.run;
   sfx.map();
+  setAltitude(run.act, node.row);
   run.nodeId = node.id;
   run.floorsClimbed = node.row + 1;
   run.map.visited.push(node.id);
@@ -409,27 +463,37 @@ function enterNode(node) {
 
 // ------------------------------------------------------------ combat
 function startCombatUI(enemyIds, kind) {
+  exitMapMode(); // combat can start without going through show()
+  clearOverlay();
   S.cb = E.startCombat(S.run, enemyIds, kind);
   S.screen = 'combat';
   renderCombat();
   renderHud();
+  if (kind === 'boss') {
+    const b = el('div', 'turn-banner boss-banner', S.cb.enemies[0].name.toUpperCase());
+    screenEl().appendChild(b);
+    setTimeout(() => b.remove(), 2100);
+    V.flash('#1a0a20', 0.5, 0.9);
+    kick(1.6);
+    sfx.bigDeath();
+  }
   drain().then(afterAction);
 }
 function renderCombat() {
   const cb = S.cb;
   const sc = screenEl();
   sc.onclick = null;
-  sc.innerHTML = `<div class="combat-screen screen-enter">
+  sc.innerHTML = `<div class="combat-screen screen-enter intro">
     <div class="battlefield">
       <div class="player-zone">
         <div class="hero-wrap">${heroSvg()}</div>
-        <div class="hpbar-wrap"><span class="block-chip zero p-block">⛨ 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div></div><span class="hp-label p-hp"></span></div>
+        <div class="hpbar-wrap"><span class="block-chip zero p-block">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div></div><span class="hp-label p-hp"></span></div>
         <div class="status-row p-status"></div>
         <div class="name">${PLAYER.name.toUpperCase()}</div>
       </div>
       <div class="enemy-zone"></div>
     </div>
-    <div class="energy-orb"><div class="num">0</div><div class="lbl">ENERGY</div></div>
+    <div class="energy-orb"><div class="num">0</div><div class="lbl">ENERGY</div><div class="candles"></div></div>
     <button class="btn end-turn">End Turn</button>
     <button class="pile-btn pile-draw"><span class="cnt">0</span><span class="lbl">DRAW</span></button>
     <button class="pile-btn pile-discard"><span class="cnt">0</span><span class="lbl">DISCARD</span></button>
@@ -445,10 +509,11 @@ function renderCombat() {
     const size = Math.round(Math.min(raw, innerHeight * (d.boss ? 0.34 : 0.3)));
     const box = el('div', `enemy${d.elite ? ' elite-e' : ''}${d.boss ? ' boss-e' : ''}`);
     box.dataset.idx = i;
+    box.style.animationDelay = `${160 + i * 130}ms`;
     box.innerHTML = `<div class="intent"></div>
       <div class="enemy-art" style="width:${size}px;height:${size}px">${enemySvg(d.art)}</div>
       <div class="name">${en.name.toUpperCase()}</div>
-      <div class="hpbar-wrap"><span class="block-chip zero">⛨ 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div></div><span class="hp-label"></span></div>
+      <div class="hpbar-wrap"><span class="block-chip zero">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div></div><span class="hp-label"></span></div>
       <div class="status-row"></div>`;
     zone.appendChild(box);
     ce.enemies.push({
@@ -465,6 +530,8 @@ function renderCombat() {
   ce.energy = $('.energy-orb', sc); ce.endTurn = $('.end-turn', sc); ce.hand = $('.hand-zone', sc);
   ce.draw = $('.pile-draw', sc); ce.discard = $('.pile-discard', sc); ce.exhaust = $('.pile-exhaust', sc);
   S.ce = ce;
+  // drop the intro class once entrances finish so .acting doesn't retrigger them
+  setTimeout(() => ce.root.classList.remove('intro'), 1300);
   ce.endTurn.onclick = onEndTurn;
   ce.draw.onclick = () => { sfx.click(); showCardGrid('Draw Pile', cb.draw, { sub: 'Order hidden — shown alphabetically', inCombat: true }); };
   ce.discard.onclick = () => { sfx.click(); showCardGrid('Discard Pile', cb.discard, { inCombat: true }); };
@@ -493,14 +560,14 @@ function intentFor(e) {
   const cb = S.cb;
   const mv = E.enemyMove(e);
   const p = E.previewEnemyDmg(cb, e);
-  let icon = { attack: '⚔', block: '⛨', buff: '▲', debuff: '☁', heal: '✚' }[mv.intent] || '⚔';
+  let icon = { attack: iconSvg('sword', 19), block: iconSvg('shield', 19), buff: iconSvg('up', 19), debuff: iconSvg('cloud', 19), heal: iconSvg('plus', 19) }[mv.intent] || iconSvg('sword', 19);
   let txt = '';
   if (mv.intent.startsWith('attack')) {
-    icon = '⚔';
+    icon = iconSvg('sword', 19);
     txt = p.times > 1 ? `${p.dmg}×${p.times}` : `${p.dmg}`;
-    if (mv.intent === 'attack_debuff') icon = '⚔☁';
-    if (mv.intent === 'attack_block') icon = '⚔⛨';
-    if (mv.intent === 'attack_buff') icon = '⚔▲';
+    if (mv.intent === 'attack_debuff') icon += iconSvg('cloud', 14);
+    if (mv.intent === 'attack_block') icon += iconSvg('shield', 14);
+    if (mv.intent === 'attack_buff') icon += iconSvg('up', 14);
   }
   const tipBits = [];
   if (p) tipBits.push(`attack for <b>${p.dmg}${p.times > 1 ? `×${p.times}` : ''}</b>`);
@@ -521,7 +588,8 @@ function syncCombat() {
     x.ghost.style.width = pct;
     x.hp.textContent = `${Math.max(0, en.hp)}/${en.maxHp}`;
     x.block.classList.toggle('zero', en.block <= 0);
-    x.block.innerHTML = `⛨ ${en.block}`;
+    x.block.innerHTML = `${iconSvg('shield', 13)} ${en.block}`;
+    x.art.classList.toggle('warded', en.block > 0);
     statusChips(x.statuses, en.statuses, false);
     if (en.hp <= 0) x.root.classList.add('gone');
     if (en.hp > 0 && en.moveKey) {
@@ -537,10 +605,16 @@ function syncCombat() {
   ce.pGhost.style.width = pct;
   ce.pHp.textContent = `${Math.max(0, P.hp)}/${P.maxHp}`;
   ce.pBlock.classList.toggle('zero', P.block <= 0);
-  ce.pBlock.innerHTML = `⛨ ${P.block}`;
+  ce.pBlock.innerHTML = `${iconSvg('shield', 13)} ${P.block}`;
+  ce.hero.classList.toggle('warded', P.block > 0);
   statusChips(ce.pStatus, P.statuses, true);
   $('.num', ce.energy).textContent = P.energy;
   ce.energy.classList.toggle('spent', P.energy === 0);
+  // candles gutter as energy is spent
+  const cd = $('.candles', ce.energy);
+  const maxE = Math.max(P.energyMax, P.energy);
+  if (cd.children.length !== maxE) cd.innerHTML = Array.from({ length: maxE }, () => '<span class="candle"></span>').join('');
+  [...cd.children].forEach((c, i) => c.classList.toggle('lit', i < P.energy));
   $('.cnt', ce.draw).textContent = cb.draw.length;
   $('.cnt', ce.discard).textContent = cb.discard.length;
   $('.cnt', ce.exhaust).textContent = cb.exhaust.length;
@@ -681,6 +755,12 @@ function banner(text) {
 }
 
 // --------- the playback loop: engine queue -> animations
+let heroActing = false; // true between a card play and end of turn — gates the hero lunge
+// glass damage language: every landed hit scores a crack into the body
+function addCrack(artEl, big) {
+  const layer = artEl && $('.cracks', artEl);
+  if (layer && layer.children.length < 8) layer.insertAdjacentHTML('beforeend', crackSvg(big));
+}
 async function drain(targetIdx = null) {
   const cb = S.cb, ce = S.ce;
   S.busy = true;
@@ -705,7 +785,7 @@ async function handleEvent(ev, targetIdx) {
       await sleep(ev.n > 1 ? 500 : 120);
       break;
     }
-    case 'endTurn': banner('ENEMY TURN'); await sleep(480); break;
+    case 'endTurn': heroActing = false; banner('ENEMY TURN'); await sleep(480); break;
     case 'draw': {
       syncHand(); syncCombat(); sfx.draw();
       await sleep(75);
@@ -720,7 +800,20 @@ async function handleEvent(ev, targetIdx) {
     case 'play': {
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
       sfx.card();
-      if (c) {
+      heroActing = true;
+      if (c && targetIdx != null && cb.enemies[targetIdx]) {
+        // targeted attacks: the card itself streaks into the enemy
+        const r = c.getBoundingClientRect();
+        const { x: tx, y: ty } = enemyCenter(targetIdx);
+        const ghost = c.cloneNode(true);
+        Object.assign(ghost.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, margin: 0, transform: 'none', zIndex: 56, pointerEvents: 'none' });
+        document.getElementById('floaties').appendChild(ghost);
+        c.remove();
+        ghost.animate(
+          [{ transform: 'none', opacity: 1 }, { transform: `translate(${tx - r.left - r.width / 2}px,${ty - r.top - r.height / 2}px) scale(0.22) rotate(14deg)`, opacity: 0 }],
+          { duration: 270, easing: 'cubic-bezier(.45,0,.9,.5)' }
+        ).onfinish = () => ghost.remove();
+      } else if (c) {
         c.classList.add('played-up');
         setTimeout(() => c.remove(), 320);
       }
@@ -737,16 +830,22 @@ async function handleEvent(ev, targetIdx) {
         V.floatText(ex, ey - 20, `${ev.amount}`, 'poisonf');
       } else {
         const big = ev.amount >= 16;
+        if (heroActing) {
+          ce.hero.classList.remove('lunge');
+          void ce.hero.offsetWidth;
+          ce.hero.classList.add('lunge');
+        }
         sfx.slash();
         if (ev.amount > 0) sfx.hit();
         V.slashArc(ex, ey, big ? '#ffd8a0' : '#ffffff');
         V.burst(ex, ey, { color: '#ff9a6a', n: big ? 30 : 14, speed: big ? 420 : 260 });
-        if (ev.blocked > 0) { sfx.blocked(); V.floatText(ex, ey + 26, `⛨${ev.blocked}`, 'blockedf'); }
+        if (ev.blocked > 0) { sfx.blocked(); V.floatText(ex, ey + 26, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf'); }
         if (ev.amount > 0) V.floatText(ex, ey - 24, `${ev.amount}`, big ? 'crit' : 'dmg');
         else if (!ev.blocked) V.floatText(ex, ey - 24, '0', 'blockedf');
         V.shake(Math.min(4 + ev.amount * 0.5, 15));
         kick(Math.min(0.2 + ev.amount / 26, 1));
         if (big) { V.hitstop(70); V.ring(ex, ey, '#ffd8a0', 10, 620, 5); }
+        if (ev.amount > 0) addCrack(x.art, big);
       }
       x.root.classList.add('hurt');
       setTimeout(() => x.root.classList.remove('hurt'), 320);
@@ -758,8 +857,20 @@ async function handleEvent(ev, targetIdx) {
       const x = ce.enemies[ev.idx];
       const en = cb.enemies[ev.idx];
       const { x: ex, y: ey } = enemyCenter(ev.idx);
+      if (en.boss) {
+        // world-stop: color drains, the cracks blaze with inner light, one
+        // silent beat — then the glass gives way
+        document.body.classList.add('worldstop');
+        x.root.classList.add('doomed');
+        V.hitstop(110);
+        await sleep(820);
+        document.body.classList.remove('worldstop');
+        x.root.classList.remove('doomed');
+      }
       (en.boss || en.elite ? sfx.bigDeath : sfx.death)();
-      V.burst(ex, ey, { color: '#c9b0ff', n: 44, speed: 460, size: 3.6, grav: 60 });
+      V.shatter(x.art); // the glass body breaks apart
+      V.burst(ex, ey, { color: '#dfeaff', n: 30, speed: 480, size: 2.6, grav: 340, kind: 'spark' });
+      V.burst(ex, ey, { color: '#c9b0ff', n: 26, speed: 380, size: 3.2, grav: 60 });
       V.ring(ex, ey, '#e8dcff', 12, 720, 6);
       V.flash('#ffffff', en.boss ? 0.24 : 0.1, 0.3);
       V.shake(en.boss ? 22 : 12);
@@ -779,11 +890,12 @@ async function handleEvent(ev, targetIdx) {
         if (ev.amount > 0) { sfx.hit(); V.flash('#ff2233', Math.min(0.05 + ev.amount * 0.012, 0.3), 0.3); }
         V.slashArc(hx, hy, '#ff8888');
       }
-      if (ev.blocked > 0) { sfx.blocked(); V.floatText(hx, hy + 30, `⛨${ev.blocked}`, 'blockedf'); }
+      if (ev.blocked > 0) { sfx.blocked(); V.floatText(hx, hy + 30, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf'); }
       if (ev.amount > 0) {
         V.floatText(hx, hy - 30, `${ev.amount}`, ev.amount >= 16 ? 'crit' : 'dmg');
         V.shake(Math.min(5 + ev.amount * 0.6, 18));
         kick(Math.min(0.3 + ev.amount / 22, 1.2));
+        addCrack(ce.hero, ev.amount >= 16);
       } else if (!ev.blocked) V.floatText(hx, hy - 30, '0', 'blockedf');
       syncCombat(); renderHud();
       await sleep(240);
@@ -793,7 +905,7 @@ async function handleEvent(ev, targetIdx) {
       const isP = ev.who === 'player';
       const { x, y } = isP ? heroCenter() : enemyCenter(ev.who);
       sfx.block();
-      V.floatText(x, y - 10, `⛨ ${ev.n}`, 'blockf');
+      V.floatText(x, y - 10, `${iconSvg('shield', 22)} ${ev.n}`, 'blockf');
       const chip = isP ? ce.pBlock : ce.enemies[ev.who].block;
       chip.classList.remove('pulse');
       void chip.offsetWidth;
@@ -827,7 +939,24 @@ async function handleEvent(ev, targetIdx) {
     case 'energy': syncCombat(); ce.energy.classList.remove('pop'); void ce.energy.offsetWidth; ce.energy.classList.add('pop'); break;
     case 'exhaust': {
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
-      if (c) { c.classList.add('exhausting'); setTimeout(() => c.remove(), 520); await sleep(240); }
+      if (c) {
+        // the card burns away edge-inward, embers rising off it
+        const r = c.getBoundingClientRect();
+        const ghost = c.cloneNode(true);
+        Object.assign(ghost.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, margin: 0, transform: 'none', zIndex: 56, pointerEvents: 'none' });
+        document.getElementById('floaties').appendChild(ghost);
+        c.remove();
+        ghost.animate(
+          [
+            { clipPath: 'circle(80% at 50% 55%)', filter: 'brightness(1)' },
+            { clipPath: 'circle(44% at 50% 55%)', filter: 'brightness(1.8) saturate(1.6) sepia(0.45)', offset: 0.45 },
+            { clipPath: 'circle(0% at 50% 55%)', filter: 'brightness(2.6) saturate(2) sepia(0.85)' },
+          ],
+          { duration: 540, easing: 'ease-in' }
+        ).onfinish = () => ghost.remove();
+        V.burst(r.left + r.width / 2, r.top + r.height / 2, { color: '#ffb066', n: 22, speed: 190, grav: -150, size: 2.4, life: 0.85 });
+        await sleep(260);
+      }
       syncCombat();
       break;
     }
@@ -886,6 +1015,12 @@ async function handleEvent(ev, targetIdx) {
       await sleep(400);
       sfx.defeat();
       V.flash('#300', 0.5, 1.2);
+      // the lantern snuffs out: the world collapses to a dying point of light
+      const L = $('#lantern');
+      L.classList.add('gutter');
+      L.style.setProperty('--la', '1');
+      L.style.setProperty('--lr', '160px');
+      await sleep(900);
       break;
     }
   }
@@ -954,7 +1089,7 @@ function renderReward({ kind, rewards }) {
       sfx.relic();
     }, { title: r.name, body: r.text });
   }
-  addRow('🂡', 'Add a card to your deck', () => {
+  addRow(iconSvg('cards', 26), 'Add a card to your deck', () => {
     pickCardReward(rewards.cards, () => {});
     return false; // taken handled by picker
   });
@@ -1008,6 +1143,7 @@ function advanceAct() {
   run.map = E.genMap(run);
   E.healPlayer(run, Math.round(run.player.maxHp * 0.35));
   setTheme(run.act);
+  setAltitude(run.act, 0);
   setAmbience(run.act);
   E.saveRun(run);
   show('map');
@@ -1024,8 +1160,8 @@ function renderRest() {
     <div class="art-lg">${campfireSvg()}</div>
     <div class="ov-sub">The fire crackles. For a moment, the Spire is quiet.</div>
     <div class="big-choices">
-      <button class="btn" data-a="rest">♨ Rest <span style="font-size:13px;opacity:.8">— heal ${Math.round(run.player.maxHp * 0.3)} HP</span></button>
-      <button class="btn" data-a="smith" ${canUp ? '' : 'disabled'}>⚒ Smith <span style="font-size:13px;opacity:.8">— upgrade a card</span></button>
+      <button class="btn" data-a="rest">${iconSvg('flame', 18)} Rest <span style="font-size:13px;opacity:.8">— heal ${Math.round(run.player.maxHp * 0.3)} HP</span></button>
+      <button class="btn" data-a="smith" ${canUp ? '' : 'disabled'}>${iconSvg('hammer', 18)} Smith <span style="font-size:13px;opacity:.8">— upgrade a card</span></button>
     </div>
   </div></div>`;
   $('[data-a="rest"]').onclick = (e) => {
@@ -1160,7 +1296,7 @@ function renderShop() {
     }
     // card removal service
     const wrap = el('div', `shop-item ${st.removed ? 'sold' : ''} ${gold() < st.removeCost ? 'cant' : ''}`);
-    const b = el('button', 'shop-relic', `<span style="font-size:26px">✂</span><b>Card Removal</b>Remove a card from your deck forever.`);
+    const b = el('button', 'shop-relic', `<span style="width:34px;display:inline-flex;justify-content:center">${iconSvg('scissors', 26)}</span><b>Card Removal</b>Remove a card from your deck forever.`);
     b.onclick = () => {
       if (st.removed || gold() < st.removeCost) return sfx.debuff();
       showCardGrid('Remove a Card', run.player.deck, {
@@ -1261,10 +1397,7 @@ function renderEnd({ won }) {
   const st = run.stats;
   const mins = Math.max(1, Math.round((Date.now() - st.start) / 60000));
   const totalFloor = run.act * E.MAP_ROWS + run.floorsClimbed;
-  screenEl().innerHTML = `<div class="end-screen screen-enter">
-    <div class="end-title ${won ? 'win' : 'lose'}">${won ? 'ASCENDED' : 'FALLEN'}</div>
-    <div class="ov-sub" style="font-size:17px">${won ? 'The Eternal Sovereign is dust. The Spire kneels to you.' : `The Spire claims another soul on floor ${totalFloor}.`}</div>
-    <div class="stats-grid">
+  const stats = `<div class="stats-grid">
       <div class="stat-cell"><div class="v">${totalFloor}</div><div class="k">Floors</div></div>
       <div class="stat-cell"><div class="v">${st.slain}</div><div class="k">Slain</div></div>
       <div class="stat-cell"><div class="v">${st.elites + st.bosses}</div><div class="k">Elites & Bosses</div></div>
@@ -1273,18 +1406,36 @@ function renderEnd({ won }) {
       <div class="stat-cell"><div class="v">${st.dmgTaken}</div><div class="k">Damage Taken</div></div>
       <div class="stat-cell"><div class="v">${st.cardsPlayed}</div><div class="k">Cards Played</div></div>
       <div class="stat-cell"><div class="v">${mins}m</div><div class="k">Run Time</div></div>
-    </div>
-    <div style="display:flex;gap:14px">
+    </div>`;
+  const btns = `<div style="display:flex;gap:14px">
       <button class="btn" data-a="deck">View Final Deck</button>
       <button class="btn" data-a="new">New Run</button>
       <button class="btn ghost" data-a="title">Title</button>
-    </div>
-  </div>`;
+    </div>`;
   if (won) {
+    screenEl().innerHTML = `<div class="end-screen screen-enter">
+      <div class="end-title win">ASCENDED</div>
+      <div class="ov-sub" style="font-size:17px">The Eternal Sovereign is dust. Dawn breaks over the Spire — the first in an age.</div>
+      ${stats}${btns}
+    </div>`;
+    sunrise(); // the only warm daylight in the game
     sfx.victory();
     V.flash('#ffe9ac', 0.25, 1);
     const conf = setInterval(() => V.burst(Math.random() * innerWidth, innerHeight * 0.2, { color: ['#ffd97a', '#c9b0ff', '#8fe8a0'][(Math.random() * 3) | 0], n: 16, speed: 300, grav: 260, life: 1.2 }), 400);
     setTimeout(() => clearInterval(conf), 4200);
+  } else {
+    // no game-over panel: a monument in the dark, embers drifting off it
+    const embers = Array.from({ length: 14 }, () =>
+      `<span class="ember" style="left:${(8 + Math.random() * 84).toFixed(1)}%;--ex:${((Math.random() - 0.5) * 90).toFixed(0)}px;animation-delay:${(Math.random() * 4).toFixed(2)}s;animation-duration:${(3 + Math.random() * 3).toFixed(2)}s"></span>`).join('');
+    screenEl().innerHTML = `<div class="end-screen grave">
+      <div class="monument">
+        <div class="mon-flame"></div>
+        <div class="end-title lose">FALLEN</div>
+        <div class="ov-sub" style="font-size:16px">Here ended a climb, on floor ${totalFloor}.<br>The Spire keeps what it takes.</div>
+        ${stats}${btns}
+      </div>
+      <div class="embers">${embers}</div>
+    </div>`;
   }
   screenEl().onclick = (e) => {
     const a = e.target.dataset?.a;

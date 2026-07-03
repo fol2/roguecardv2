@@ -119,19 +119,57 @@ export function motes(x, y, color, n = 10) {
 export function floatText(x, y, text, cls = '') {
   const el = document.createElement('div');
   el.className = `floaty ${cls}`;
-  el.textContent = text;
+  el.innerHTML = text; // trusted: only our own strings/icons ever flow here
   el.style.left = `${x}px`;
   el.style.top = `${y}px`;
   floatLayer.appendChild(el);
   const drift = (Math.random() - 0.5) * 40;
+  const rot = cls.includes('crit') ? (Math.random() - 0.5) * 16 : 0;
   el.animate(
     [
       { transform: 'translate(-50%,-50%) scale(0.6)', opacity: 0 },
-      { transform: 'translate(-50%,-90%) scale(1.15)', opacity: 1, offset: 0.18 },
-      { transform: `translate(calc(-50% + ${drift}px),-230%) scale(0.95)`, opacity: 0 },
+      { transform: `translate(-50%,-90%) scale(1.15) rotate(${rot}deg)`, opacity: 1, offset: 0.18 },
+      { transform: `translate(calc(-50% + ${drift}px),-230%) scale(0.95) rotate(${rot}deg)`, opacity: 0 },
     ],
     { duration: 1100, easing: 'cubic-bezier(.2,.7,.3,1)' }
   ).onfinish = () => el.remove();
+}
+
+// glass death: clone the creature's svg into a fan of clip-path shards and
+// throw them outward — the body literally breaks apart along the light.
+export function shatter(el) {
+  const svg = el.querySelector('svg');
+  const r = el.getBoundingClientRect();
+  if (!svg || !r.width) return;
+  const html = svg.outerHTML;
+  const cx = 50 + (Math.random() - 0.5) * 14, cy = 52 + (Math.random() - 0.5) * 14;
+  const K = 11;
+  const ring = [];
+  for (let i = 0; i < K; i++) {
+    const a = (i / K) * Math.PI * 2 + (Math.random() - 0.5) * 0.34;
+    const rr = 78 + Math.random() * 22;
+    ring.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, a]);
+  }
+  for (let i = 0; i < K; i++) {
+    const [x1, y1] = ring[i], [x2, y2] = ring[(i + 1) % K];
+    const w = document.createElement('div');
+    w.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;pointer-events:none;z-index:57;clip-path:polygon(${cx}% ${cy}%,${x1.toFixed(1)}% ${y1.toFixed(1)}%,${x2.toFixed(1)}% ${y2.toFixed(1)}%);`;
+    w.innerHTML = html;
+    floatLayer.appendChild(w);
+    const midA = ring[i][2] + Math.PI / K;
+    const dist = 55 + Math.random() * 120;
+    const dx = Math.cos(midA) * dist, dy = Math.sin(midA) * dist * 0.7;
+    const rot = (Math.random() - 0.5) * 110;
+    w.animate(
+      [
+        { transform: 'translate(0,0) rotate(0deg)', opacity: 1 },
+        { transform: `translate(${(dx * 0.55).toFixed(0)}px,${(dy * 0.55 - 16).toFixed(0)}px) rotate(${(rot * 0.5).toFixed(0)}deg)`, opacity: 0.95, offset: 0.4 },
+        { transform: `translate(${dx.toFixed(0)}px,${(dy + 110).toFixed(0)}px) rotate(${rot.toFixed(0)}deg)`, opacity: 0 },
+      ],
+      { duration: 780 + Math.random() * 300, easing: 'cubic-bezier(.3,.3,.6,1)' }
+    ).onfinish = () => w.remove();
+  }
+  el.style.visibility = 'hidden';
 }
 
 export const centerOf = (el) => {

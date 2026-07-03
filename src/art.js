@@ -4,16 +4,48 @@ const uid = () => `g${++uidc}`;
 const hsl = (h, s, l, a = 1) => `hsla(${h},${s}%,${l}%,${a})`;
 
 function defs(id, hue, glowColor) {
+  // glass & ink: panes are backlit — saturated, brighter toward the light source
   return `<defs>
     <linearGradient id="${id}b" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="${hsl(hue, 32, 26)}"/><stop offset="1" stop-color="${hsl(hue, 40, 10)}"/>
+      <stop offset="0" stop-color="${hsl(hue, 55, 38)}"/><stop offset="0.55" stop-color="${hsl(hue, 50, 20)}"/><stop offset="1" stop-color="${hsl(hue, 55, 9)}"/>
     </linearGradient>
     <linearGradient id="${id}d" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="${hsl(hue, 30, 16)}"/><stop offset="1" stop-color="${hsl(hue, 38, 6)}"/>
+      <stop offset="0" stop-color="${hsl(hue, 45, 24)}"/><stop offset="1" stop-color="${hsl(hue, 50, 5)}"/>
     </linearGradient>
     <radialGradient id="${id}g"><stop offset="0" stop-color="${glowColor}" stop-opacity="1"/><stop offset="1" stop-color="${glowColor}" stop-opacity="0"/></radialGradient>
     <filter id="${id}f" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
   </defs>`;
+}
+
+// glass & ink: every filled pane gets a dark lead outline drawn *behind* its
+// fill (paint-order), turning the procedural bodies into leaded glasswork.
+// Eyes/halos (plain-color circles) are skipped — light doesn't get leading.
+const LEAD = 'stroke="#070a12" stroke-width="3.6" paint-order="stroke" stroke-linejoin="round"';
+function leadGlass(s) {
+  return s
+    .replace(/<path(?![^>]*stroke=)(?![^>]*fill="none")([^>]*?)\/>/g, `<path$1 ${LEAD}/>`)
+    .replace(/<(circle|ellipse)([^>]*fill="url\(#[^"]+[bd]\)"[^>]*?)\/>/g, (m, tag, attrs) =>
+      attrs.includes('stroke=') ? m : `<${tag}${attrs} ${LEAD}/>`);
+}
+
+// a jagged glass crack from an impact point: dark score + bright refraction
+export function crackSvg(big = false) {
+  const cx = 58 + Math.random() * 84, cy = 55 + Math.random() * 80;
+  let d = '';
+  const branches = big ? 5 : 3;
+  for (let b = 0; b < branches; b++) {
+    let a = Math.random() * Math.PI * 2, x = cx, y = cy;
+    d += `M${x.toFixed(1)} ${y.toFixed(1)}`;
+    const segs = 3 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < segs; i++) {
+      const len = (big ? 15 : 10) * (0.6 + Math.random());
+      a += (Math.random() - 0.5) * 1.15;
+      x += Math.cos(a) * len;
+      y += Math.sin(a) * len;
+      d += `L${x.toFixed(1)} ${y.toFixed(1)}`;
+    }
+  }
+  return `<g class="crack"><path d="${d}" stroke="#0a0d18" stroke-width="3" fill="none" opacity=".75"/><path d="${d}" stroke="#dfeaff" stroke-width="1.3" fill="none" opacity=".8"/></g>`;
 }
 const eye = (x, y, r, c) => `<circle class="eye" cx="${x}" cy="${y}" r="${r}" fill="${c}"/><circle cx="${x}" cy="${y}" r="${r * 2.2}" fill="${c}" opacity="0.18"/>`;
 
@@ -234,11 +266,13 @@ const BODIES = {
 export function enemySvg(art) {
   const id = uid();
   const glow = hsl(art.hue, 90, 66);
-  const body = (BODIES[art.kind] || BODIES.slime)(id, art.hue, glow);
+  const body = leadGlass((BODIES[art.kind] || BODIES.slime)(id, art.hue, glow));
   return `<svg class="enemy-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
     ${defs(id, art.hue, glow)}
     <ellipse cx="100" cy="192" rx="62" ry="9" fill="#000" opacity=".45"/>
+    <ellipse cx="100" cy="112" rx="64" ry="70" fill="url(#${id}g)" opacity=".14"/>
     ${body}
+    <g class="cracks"></g>
   </svg>`;
 }
 
@@ -248,7 +282,8 @@ export function heroSvg() {
   return `<svg class="hero-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
     ${defs(id, hue, glow)}
     <ellipse cx="100" cy="192" rx="56" ry="9" fill="#000" opacity=".45"/>
-    <g class="breathe">
+    <ellipse cx="100" cy="118" rx="58" ry="66" fill="url(#${id}g)" opacity=".12"/>
+    ${leadGlass(`<g class="breathe">
       <path d="M66 188 q-10-70 8-104 q10-20 26-24 q16 4 26 24 q18 34 8 104 q-17 7 -34 7 q-17 0 -34-7Z" fill="url(#${id}b)"/>
       <path d="M74 72 q26-16 52 0 q-4-24 -26-28 q-22 4 -26 28Z" fill="url(#${id}d)"/>
       <path d="M78 78 q22 10 44 0 q-2 24 -22 28 q-20-4 -22-28Z" fill="#0b0e18"/>
@@ -257,7 +292,8 @@ export function heroSvg() {
       <path d="M141 124 l14-8 4 8 -12 8Z" fill="${hsl(45, 60, 50)}"/>
       <path d="M56 112 q-14 20 -8 46" stroke="${hsl(hue, 26, 20)}" stroke-width="11" fill="none"/>
       <path d="M64 120 q36 18 72 0" stroke="${hsl(hue, 40, 30)}" stroke-width="5" fill="none" opacity=".6"/>
-    </g>
+    </g>`)}
+    <g class="cracks"></g>
   </svg>`;
 }
 
@@ -384,4 +420,31 @@ export function eventArtSvg(glyph, hue) {
     <circle cx="110" cy="76" r="56" fill="none" stroke="${g}" stroke-width="1" opacity=".25" stroke-dasharray="4 8"/>
     <text x="110" y="100" text-anchor="middle" font-size="64" fill="${g}" filter="url(#${id}f)" font-family="serif">${glyph}</text>
   </svg>`;
+}
+
+// ------- structural UI icons — drawn, not font glyphs, so they render identically everywhere
+const ICONS = {
+  sword: `<path d="M18.5 5 L10 13.5" stroke-width="3"/><path d="M6.8 11.6 L12.4 17.2" stroke-width="2.2"/><path d="M8.6 15.4 L4.8 19.2" stroke-width="2.6"/>`,
+  skull: `<path d="M12 3.2 a6.8 6.8 0 0 1 6.8 6.8 c0 2.6-1.4 4.4-3 5.5 V18.5 h-7.6 V15.5 c-1.6-1.1-3-2.9-3-5.5 A6.8 6.8 0 0 1 12 3.2 Z" fill="currentColor" stroke="none"/><circle cx="9.4" cy="10" r="1.7" fill="rgba(0,0,0,.8)" stroke="none"/><circle cx="14.6" cy="10" r="1.7" fill="rgba(0,0,0,.8)" stroke="none"/><path d="M10.5 20.8 v-2 M13.5 20.8 v-2" stroke-width="1.8"/>`,
+  crown: `<path d="M4.5 17.5 L5.2 8.5 L9 12 L12 6 L15 12 L18.8 8.5 L19.5 17.5 Z" fill="currentColor" stroke="none"/><path d="M4.5 20 h15" stroke-width="2.2"/>`,
+  chest: `<rect x="4" y="6.5" width="16" height="13" rx="2.2" fill="none" stroke-width="2.2"/><path d="M4 12 h16" stroke-width="1.8"/><rect x="10.4" y="10.2" width="3.2" height="4.4" rx="1" fill="currentColor" stroke="none"/>`,
+  flame: `<path d="M12 2.8 C9.4 7.4 6.8 9.8 6.8 13.6 a5.2 5.2 0 0 0 10.4 0 C17.2 9.8 14.6 7.4 12 2.8 Z" fill="currentColor" stroke="none"/><path d="M12 11.4 c-1.7 2.3-1.7 3.9 0 5.4 1.7-1.5 1.7-3.1 0-5.4 Z" fill="rgba(0,0,0,.5)" stroke="none"/>`,
+  coin: `<circle cx="12" cy="12" r="5.6" fill="none" stroke-width="2.2"/><path d="M5.4 5.4 L8 8 M18.6 5.4 L16 8 M5.4 18.6 L8 16 M18.6 18.6 L16 16" stroke-width="2"/>`,
+  shield: `<path d="M12 2.8 L19 5.8 v5.6 c0 4.6-3.1 7.6-7 9.8 -3.9-2.2-7-5.2-7-9.8 V5.8 Z" fill="none" stroke-width="2.3"/><path d="M12 6.4 v11" stroke-width="1.6" opacity=".55"/>`,
+  cloud: `<path d="M7.2 16.5 a3.9 3.9 0 1 1 .7-7.7 A4.9 4.9 0 0 1 17.4 9.6 a3.4 3.4 0 0 1 -.6 6.9 Z" fill="currentColor" stroke="none"/>`,
+  plus: `<path d="M12 5.2 v13.6 M5.2 12 h13.6" stroke-width="3.4"/>`,
+  up: `<path d="M12 4 L19 12 h-4.1 v8 h-5.8 v-8 H5 Z" fill="currentColor" stroke="none"/>`,
+  cards: `<rect x="4.4" y="5.6" width="9.4" height="13.4" rx="1.8" transform="rotate(-8 9 12.5)" fill="none" stroke-width="2"/><rect x="10.6" y="5" width="9.4" height="13.4" rx="1.8" transform="rotate(7 15.5 11.5)" fill="none" stroke-width="2"/>`,
+  hammer: `<rect x="9.6" y="3.4" width="9.6" height="5.4" rx="1.2" transform="rotate(22 14.5 6)" fill="currentColor" stroke="none"/><path d="M11.6 10.2 L5.2 20" stroke-width="2.6"/>`,
+  scissors: `<path d="M7.6 7.6 L17.5 17.8 M16.4 7.6 L6.5 17.8" stroke-width="2.2"/><circle cx="6" cy="19.2" r="2.2" fill="none" stroke-width="1.8"/><circle cx="18" cy="19.2" r="2.2" fill="none" stroke-width="1.8"/>`,
+  question: `<path d="M8.6 8.6 a3.4 3.4 0 1 1 5 3 c-1.1 .7-1.6 1.4-1.6 2.8" fill="none" stroke-width="2.6"/><circle cx="12" cy="18.6" r="1.7" fill="currentColor" stroke="none"/>`,
+};
+const iconBody = (name) => `<g fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</g>`;
+export function iconSvg(name, size = 18) {
+  return `<svg class="gicon" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${iconBody(name)}</svg>`;
+}
+// for embedding inside an existing <svg> (the map): centered at 0,0 at the given pixel size
+export function iconInline(name, size = 18) {
+  const s = size / 24;
+  return `<g transform="translate(${-size / 2},${-size / 2}) scale(${s})">${iconBody(name)}</g>`;
 }

@@ -13,10 +13,15 @@ npm run dev      # http://localhost:5173
 
 ## The game
 
-- **Climb a branching map** through 3 themed acts (The Ashen Woods, The Sunken City, The Obsidian Spire), choosing between monsters, elites, events, shops, treasures and rest sites, with a boss at each summit.
+- **Climb the Spire itself** — the map is not a flat chart but a real 3D tower: your route is a helix of burning lanterns bolted to its face, the camera dollies upward as you climb, and each new act punches through a sea of moonlit clouds. Combat is fought at the altitude you've earned, with the forest floor of Act 1 far below by the end.
+- **3 themed acts** (The Ashen Woods, The Sunken City, The Obsidian Spire) of monsters, elites, events, shops, treasures and rest sites, with a boss at each summit.
 - **Combat**: draw 5, spend energy, read enemy intents, stack Block, Poison, Strength, Vulnerable and friends. Click a card, aim the arrow, strike.
 - **Build**: 44 cards across attacks / skills / powers with upgrades, 25 relics with passive hooks, 7 potions, 11 narrative events, card removal / duplication / transformation.
 - **Roguelite**: procedural maps and encounters, permadeath, autosave (close the tab mid-run and continue later — unfinished fights restart), lifetime stats on the title screen.
+
+### The look: glass & ink
+
+Spirebound is an ink-black world climbed by lantern light, where every living thing is glass with fire inside it. Creatures are leaded stained glass — every landed hit scores a visible crack into the body, and death shatters it into flying shards. Your HP is your lantern: the world itself darkens as you bleed, closing to a guttering circle of light at death's door. Energy is a row of candles that go out as they're spent; Block is a visible ward of held light. Boss kills stop the world — color drains, the cracks blaze, one silent beat, then the glass gives way. Defeat carves your run into a monument in the dark; victory floods the Spire with the only sunrise in the game.
 
 Keyboard: `E` ends the turn, `Esc` cancels targeting / closes panels. Right-click cancels aiming.
 
@@ -24,8 +29,8 @@ Keyboard: `E` ends the turn, `Esc` cancels targeting / closes panels. Right-clic
 
 | Layer | Choice |
 |---|---|
-| Rendering | DOM + CSS 3D for cards/UI, `three.js` for the living background (per-act themes, particles, monoliths), 2D canvas for combat VFX |
-| Art | Procedural SVG — enemies, hero, card sigils, props are all generated in `src/art.js` |
+| Rendering | DOM + CSS 3D for cards/UI (mouse-tracked tilt + holographic foil), `three.js` with bloom post-processing for the world (one continuous climbable Spire, cloud decks, altitude-tracking camera — map nodes are DOM elements projected onto the 3D tower every frame), 2D canvas for combat VFX, film grain overlay |
+| Art | Procedural SVG — enemies, hero, card sigils, props and all UI icons are generated in `src/art.js` |
 | Audio | WebAudio-synthesized SFX + ambient drone per act (`src/audio.js`), mute persists |
 | Engine | Pure DOM-free game logic in `src/engine.js` + `src/data.js`, animated via an event queue the UI plays back |
 | Build | Vite, vanilla JS, zero UI frameworks |
