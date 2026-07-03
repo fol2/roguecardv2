@@ -483,7 +483,9 @@ function renderCombat() {
   const cb = S.cb;
   const sc = screenEl();
   sc.onclick = null;
+  const ledge = `#${ACTS[S.run.act].theme.glow.toString(16).padStart(6, '0')}`;
   sc.innerHTML = `<div class="combat-screen screen-enter intro">
+    <div class="stage-ledge" style="--ledge:${ledge}"></div>
     <div class="battlefield">
       <div class="player-zone">
         <div class="hero-wrap">${heroSvg()}</div>
@@ -530,6 +532,7 @@ function renderCombat() {
   ce.energy = $('.energy-orb', sc); ce.endTurn = $('.end-turn', sc); ce.hand = $('.hand-zone', sc);
   ce.draw = $('.pile-draw', sc); ce.discard = $('.pile-discard', sc); ce.exhaust = $('.pile-exhaust', sc);
   S.ce = ce;
+  rigCombatants();
   // drop the intro class once entrances finish so .acting doesn't retrigger them
   setTimeout(() => ce.root.classList.remove('intro'), 1300);
   ce.endTurn.onclick = onEndTurn;
@@ -590,6 +593,7 @@ function syncCombat() {
     x.block.classList.toggle('zero', en.block <= 0);
     x.block.innerHTML = `${iconSvg('shield', 13)} ${en.block}`;
     x.art.classList.toggle('warded', en.block > 0);
+    x.root.classList.toggle('lowhp', en.hp > 0 && en.hp / en.maxHp <= 0.3);
     statusChips(x.statuses, en.statuses, false);
     if (en.hp <= 0) x.root.classList.add('gone');
     if (en.hp > 0 && en.moveKey) {
@@ -607,6 +611,7 @@ function syncCombat() {
   ce.pBlock.classList.toggle('zero', P.block <= 0);
   ce.pBlock.innerHTML = `${iconSvg('shield', 13)} ${P.block}`;
   ce.hero.classList.toggle('warded', P.block > 0);
+  ce.hero.classList.toggle('lowhp', P.hp / P.maxHp <= 0.3);
   statusChips(ce.pStatus, P.statuses, true);
   $('.num', ce.energy).textContent = P.energy;
   ce.energy.classList.toggle('spent', P.energy === 0);
@@ -754,6 +759,66 @@ function banner(text) {
   setTimeout(() => b.remove(), 1150);
 }
 
+// --------- the living-glass rig: one rAF drives eyes, inner fire and light pools
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function rigCombatants() {
+  const ce = S.ce, cb = S.cb;
+  ce.rig = [];
+  const add = (root, art, glow, isHero, idx) => {
+    const svg = $('svg', art);
+    if (!svg) return;
+    const seed = Math.random() * 100;
+    // seeded idle: no two creatures breathe alike
+    const br = $('.breathe', svg);
+    if (br) {
+      br.style.animationDuration = `${(2.5 + (seed % 1.9)).toFixed(2)}s`;
+      br.style.animationDelay = `${(-(seed % 3.1)).toFixed(2)}s`;
+      br.style.setProperty('--brY', (1.022 + (seed % 0.024)).toFixed(3));
+      br.style.setProperty('--sw', `${(((seed * 7) % 1.7) - 0.85).toFixed(2)}deg`);
+    }
+    $$('.hover-float', svg).forEach((h) => (h.style.animationDelay = `${(-(seed % 2.7)).toFixed(2)}s`));
+    // stained glass casts its light: the creature's color pooled on the ground
+    const pool = el('div', 'lightpool');
+    pool.style.background = `radial-gradient(ellipse at 50% 50%, ${glow}, transparent 72%)`;
+    art.appendChild(pool);
+    ce.rig.push({ root, art, svg, eyes: $$('.eye', svg), fire: $('.innerfire', svg), pool, seed, isHero, idx, dx: 0, dy: 0 });
+  };
+  cb.enemies.forEach((en, i) => add(ce.enemies[i].root, ce.enemies[i].art, `hsla(${ENEMIES[en.key].art.hue},90%,66%,.72)`, false, i));
+  add(ce.hero, ce.hero, 'rgba(127,212,255,.62)', true, 0);
+}
+function rigTick(t) {
+  requestAnimationFrame(rigTick);
+  const ce = S.ce, cb = S.cb;
+  if (REDUCED || !cb || S.screen !== 'combat' || !ce?.rig) return;
+  // where the hero's gaze goes: your aim while targeting, else the nearest foe
+  let heroTgt = null;
+  const living = cb.enemies.findIndex((e) => e.hp > 0);
+  if (S.targeting && aimMove._last) heroTgt = { x: aimMove._last.clientX, y: aimMove._last.clientY };
+  else if (living >= 0) heroTgt = enemyCenter(living);
+  const hc = heroCenter();
+  for (const it of ce.rig) {
+    const unit = it.isHero ? cb.player : cb.enemies[it.idx];
+    if (!it.isHero && unit.hp <= 0) { it.pool.style.opacity = 0; continue; }
+    const tgt = it.isHero ? heroTgt : hc;
+    if (tgt && it.eyes.length) {
+      const c = V.centerOf(it.art);
+      const a = Math.atan2(tgt.y - c.y, tgt.x - c.x);
+      it.dx += (Math.cos(a) * 2.4 - it.dx) * 0.08;
+      it.dy += (Math.sin(a) * 1.6 - it.dy) * 0.08;
+      const tr = `translate(${it.dx.toFixed(2)}px,${it.dy.toFixed(2)}px)`;
+      for (const e of it.eyes) e.style.transform = tr;
+    }
+    // inner fire: flares on the windup, blazes with Strength, gutters as HP falls
+    const hpFrac = Math.max(0, unit.hp) / unit.maxHp;
+    let f = 0.45 + 0.55 * hpFrac;
+    if (it.root.classList.contains(it.isHero ? 'lunge' : 'acting')) f += 1.1;
+    if ((unit.statuses?.str || 0) > 0) f += 0.3;
+    const flick = 0.86 + 0.14 * Math.sin(t * 0.006 + it.seed) * Math.sin(t * 0.0021 + it.seed * 3);
+    if (it.fire) it.fire.style.opacity = Math.min(0.55, (0.05 + 0.13 * f) * flick).toFixed(3);
+    it.pool.style.opacity = Math.min(0.85, (0.3 + 0.4 * f) * flick).toFixed(3);
+  }
+}
+
 // --------- the playback loop: engine queue -> animations
 let heroActing = false; // true between a card play and end of turn — gates the hero lunge
 // glass damage language: every landed hit scores a crack into the body
@@ -839,7 +904,11 @@ async function handleEvent(ev, targetIdx) {
         if (ev.amount > 0) sfx.hit();
         V.slashArc(ex, ey, big ? '#ffd8a0' : '#ffffff');
         V.burst(ex, ey, { color: '#ff9a6a', n: big ? 30 : 14, speed: big ? 420 : 260 });
-        if (ev.blocked > 0) { sfx.blocked(); V.floatText(ex, ey + 26, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf'); }
+        if (ev.blocked > 0) {
+          sfx.blocked();
+          V.floatText(ex, ey + 26, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf');
+          V.burst(ex, ey + 8, { color: '#9fd4ff', n: 9, speed: 210, size: 2, grav: 260, kind: 'spark' }); // ward chips off
+        }
         if (ev.amount > 0) V.floatText(ex, ey - 24, `${ev.amount}`, big ? 'crit' : 'dmg');
         else if (!ev.blocked) V.floatText(ex, ey - 24, '0', 'blockedf');
         V.shake(Math.min(4 + ev.amount * 0.5, 15));
@@ -890,7 +959,11 @@ async function handleEvent(ev, targetIdx) {
         if (ev.amount > 0) { sfx.hit(); V.flash('#ff2233', Math.min(0.05 + ev.amount * 0.012, 0.3), 0.3); }
         V.slashArc(hx, hy, '#ff8888');
       }
-      if (ev.blocked > 0) { sfx.blocked(); V.floatText(hx, hy + 30, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf'); }
+      if (ev.blocked > 0) {
+        sfx.blocked();
+        V.floatText(hx, hy + 30, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf');
+        V.burst(hx, hy + 8, { color: '#9fd4ff', n: 9, speed: 210, size: 2, grav: 260, kind: 'spark' });
+      }
       if (ev.amount > 0) {
         V.floatText(hx, hy - 30, `${ev.amount}`, ev.amount >= 16 ? 'crit' : 'dmg');
         V.shake(Math.min(5 + ev.amount * 0.6, 18));
@@ -976,10 +1049,14 @@ async function handleEvent(ev, targetIdx) {
     case 'enemyAct': {
       const x = ce.enemies[ev.idx];
       const { x: ex, y: ey } = enemyCenter(ev.idx);
+      // telegraph: the intent chip blazes in the beat before the strike
+      x.intent.classList.remove('telegraph');
+      void x.intent.offsetWidth;
+      x.intent.classList.add('telegraph');
       x.root.classList.add('acting');
-      setTimeout(() => x.root.classList.remove('acting'), 420);
+      setTimeout(() => { x.root.classList.remove('acting'); x.intent.classList.remove('telegraph'); }, 650);
       V.floatText(ex, ey - 90, ev.name, 'notice');
-      await sleep(430);
+      await sleep(620);
       break;
     }
     case 'intent': syncCombat(); break;
@@ -1463,5 +1540,6 @@ export function initUI() {
     if (e.target === $('#overlay') && $('#overlay')._closable) closeOverlay();
   });
   window.spirebound = { S, E, startCombatUI, show }; // ponytail: console debug hook, harmless in prod
+  requestAnimationFrame(rigTick); // living-glass rig: no-op outside combat
   show('title');
 }

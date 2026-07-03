@@ -11,6 +11,8 @@ import { ACTS } from './data.js';
 let renderer, scene, camera, composer, bloom;
 let ptsMain, ptsAccent, nebulae = [], skyGroup;
 let spireMat, beacon, beaconGlow, windowMat, treeMat, groundMat, cloudMats = [];
+let weather, weatherAct = 0, weatherOp = 0.5, lightningV = 0, fgGroup, fgMat, chains = [];
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let cur = { sky: new THREE.Color(0x0b0e1a), fog: new THREE.Color(0x141a2e), particles: new THREE.Color(0xffa04d), glow: new THREE.Color(0x66ff9e) };
 let tgt = { sky: cur.sky.clone(), fog: cur.fog.clone(), particles: cur.particles.clone(), glow: cur.glow.clone() };
 let mouse = { x: 0, y: 0 };
@@ -53,6 +55,7 @@ let altT = actBaseY(0);       // target altitude
 let mapAct = 0, mapViewRow = 0, peek = 0;
 const camLookCur = new THREE.Vector3(0, actBaseY(0), -6);
 const _posT = new THREE.Vector3(), _lookT = new THREE.Vector3(), _v = new THREE.Vector3(), _white = new THREE.Color(0xffffff);
+const _sky = new THREE.Color(), _lightC = new THREE.Color(0xbfd4ff);
 
 export function setAltitude(act, row) { altT = actBaseY(act) + Math.max(0, row) * TOWER.rowH; }
 export function enterMapMode(act, curRow) { mode = 'map'; mapAct = act; mapViewRow = Math.max(0, curRow); peek = 0; }
@@ -222,6 +225,32 @@ export function initScene() {
     }
   }
 
+  // weather: one field, three behaviors — ash falls in the Woods, drowned light
+  // sinks through the City, storm embers streak sideways up the Obsidian Spire
+  weather = makePoints(300, 0.13, 44, 26, 34, 0.5);
+  scene.add(weather);
+
+  // near-foreground silhouettes: dark shards and hanging chains that frame the
+  // fight and parallax against the camera's drift (faded out in map mode)
+  fgGroup = new THREE.Group();
+  fgGroup.position.y = alt;
+  fgMat = new THREE.MeshBasicMaterial({ color: 0x020308, transparent: true, opacity: 0.96, fog: false });
+  const mkFg = (geo, x, y, z, rz) => {
+    const m = new THREE.Mesh(geo, fgMat);
+    m.position.set(x, y, z);
+    m.rotation.z = rz;
+    fgGroup.add(m);
+    return m;
+  };
+  const shardGeo = new THREE.ConeGeometry(0.55, 7.5, 5);
+  mkFg(shardGeo, -4.5, -3.1, 5.3, 0.42);
+  mkFg(shardGeo, -5.3, -2.6, 4.5, 0.78);
+  mkFg(shardGeo, 4.7, -3.3, 5.1, -0.4);
+  mkFg(shardGeo, 5.5, -2.4, 4.3, -0.82);
+  const chainGeo = new THREE.CylinderGeometry(0.032, 0.032, 8, 5);
+  chains = [mkFg(chainGeo, -4.1, 5.9, 5.7, 0.05), mkFg(chainGeo, 4.7, 6.1, 5.5, -0.07)];
+  scene.add(fgGroup);
+
   // post: bloom makes the additive particles, monoliths and beacon actually glow
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
@@ -253,6 +282,8 @@ export function setTheme(actIdx, instant = false) {
   tgt.particles.setHex(th.particles);
   tgt.glow.setHex(th.glow);
   bloomBase = 0.85;
+  weatherAct = Math.min(actIdx, 2);
+  weatherOp = [0.5, 0.42, 0.62][weatherAct];
   if (instant) for (const k of Object.keys(cur)) cur[k].copy(tgt[k]);
 }
 // victory: dawn floods in from behind the Spire — the only daylight in the game
@@ -262,6 +293,7 @@ export function sunrise() {
   tgt.particles.setHex(0xffd9a0);
   tgt.glow.setHex(0xffc478);
   bloomBase = 1.2;
+  weatherOp = 0.12; // the storm is over
 }
 export function kick(power = 1) { kickV = Math.min(2.2, kickV + power); speedMul = Math.min(7, speedMul + power * 2.4); }
 
@@ -272,8 +304,11 @@ function loop(t) {
   lt = t;
   const time = t / 1000;
   for (const k of Object.keys(cur)) cur[k].lerp(tgt[k], Math.min(1, dt * 1.4));
-  scene.background = cur.sky;
-  scene.fog.color.copy(cur.fog);
+  // heat lightning on the Obsidian Spire: a silent flash silhouettes the tower
+  if (weatherAct === 2 && !REDUCED && Math.random() < dt / 11) lightningV = 0.7 + Math.random() * 0.5;
+  lightningV *= Math.pow(0.008, dt);
+  scene.background = _sky.copy(cur.sky).lerp(_lightC, Math.min(0.6, lightningV * 0.5));
+  scene.fog.color.copy(cur.fog).lerp(_lightC, Math.min(0.4, lightningV * 0.3));
   ptsMain.material.color.copy(cur.particles);
   ptsAccent.material.color.copy(cur.glow);
   for (const n of nebulae) {
@@ -310,6 +345,30 @@ function loop(t) {
   }
   kickV *= Math.pow(0.02, dt);
 
+  // ---- weather ----------------------------------------------------------
+  {
+    weather.material.opacity += (weatherOp - weather.material.opacity) * Math.min(1, dt * 1.2);
+    if (weatherAct === 0) weather.material.color.copy(cur.particles).lerp(_white, 0.55);      // pale ash
+    else if (weatherAct === 1) weather.material.color.copy(cur.glow).lerp(_white, 0.25);      // drowned motes
+    else weather.material.color.copy(cur.particles);                                          // storm embers
+    const pos = weather.geometry.attributes.position;
+    const seeds = weather.geometry.userData.seeds;
+    for (let i = 0; i < pos.count; i++) {
+      let x = pos.getX(i), y = pos.getY(i);
+      const s = seeds[i] % 1;
+      if (weatherAct === 0) { y -= dt * (0.45 + s * 0.55); x += Math.sin(time * 0.7 + seeds[i]) * dt * 0.5; }
+      else if (weatherAct === 1) { y -= dt * (0.14 + s * 0.2); x += Math.sin(time * 0.35 + seeds[i]) * dt * 0.9; }
+      else { x -= dt * (3.4 + s * 2.8); y -= dt * (0.5 + s * 0.5); }
+      if (y < cy - 14) y += 28;
+      if (y > cy + 14) y -= 28;
+      if (x < -23) x += 46;
+      if (x > 23) x -= 46;
+      pos.setX(i, x);
+      pos.setY(i, y);
+    }
+    pos.needsUpdate = true;
+  }
+
   // ---- camera state machine --------------------------------------------
   alt += (altT - alt) * Math.min(1, dt * 1.6);
   skyGroup.position.y = cy * 0.93 + Math.sin(time * 0.3) * 0.2;
@@ -322,9 +381,16 @@ function loop(t) {
     _posT.set(TOWER.x + Math.cos(az) * d, camH + 1.1 - mouse.y * 0.5, TOWER.z + Math.sin(az) * d);
     _lookT.set(TOWER.x, camH + 1.9, TOWER.z);
   } else {
-    _posT.set(mouse.x * 0.9, alt - mouse.y * 0.55 + Math.sin(time * 0.22) * 0.25, 10 - kickV * 0.55);
+    // slow breathing dolly + a push-in on big hits
+    _posT.set(mouse.x * 0.9, alt - mouse.y * 0.55 + Math.sin(time * 0.22) * 0.25, 10 + Math.sin(time * 0.1) * 0.3 - kickV * 0.9);
     _lookT.set(0, alt, -6);
   }
+  // foreground silhouettes ride the camera's altitude with a lag (= parallax
+  // on climbs) and get out of the way while the map orbits the tower
+  fgGroup.position.y += (cy - fgGroup.position.y) * Math.min(1, dt * 2.2);
+  fgMat.opacity += ((mode === 'map' ? 0 : 0.96) - fgMat.opacity) * Math.min(1, dt * 3);
+  chains[0].rotation.z = 0.05 + Math.sin(time * 0.5) * 0.028;
+  chains[1].rotation.z = -0.07 + Math.sin(time * 0.42 + 2) * 0.024;
   camera.position.lerp(_posT, Math.min(1, dt * 2.2));
   camLookCur.lerp(_lookT, Math.min(1, dt * 2.2));
   camera.lookAt(camLookCur);
@@ -347,6 +413,6 @@ function loop(t) {
     overlayCb(out);
   }
 
-  bloom.strength = bloomBase + kickV * 0.55; // big hits make the whole world flare
+  bloom.strength = bloomBase + kickV * 0.55 + lightningV * 0.45; // big hits (and lightning) make the world flare
   composer.render();
 }

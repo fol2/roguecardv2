@@ -270,7 +270,7 @@ export function enemySvg(art) {
   return `<svg class="enemy-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
     ${defs(id, art.hue, glow)}
     <ellipse cx="100" cy="192" rx="62" ry="9" fill="#000" opacity=".45"/>
-    <ellipse cx="100" cy="112" rx="64" ry="70" fill="url(#${id}g)" opacity=".14"/>
+    <ellipse class="innerfire" cx="100" cy="112" rx="64" ry="70" fill="url(#${id}g)" opacity=".14"/>
     ${body}
     <g class="cracks"></g>
   </svg>`;
@@ -282,7 +282,7 @@ export function heroSvg() {
   return `<svg class="hero-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
     ${defs(id, hue, glow)}
     <ellipse cx="100" cy="192" rx="56" ry="9" fill="#000" opacity=".45"/>
-    <ellipse cx="100" cy="118" rx="58" ry="66" fill="url(#${id}g)" opacity=".12"/>
+    <ellipse class="innerfire" cx="100" cy="118" rx="58" ry="66" fill="url(#${id}g)" opacity=".12"/>
     ${leadGlass(`<g class="breathe">
       <path d="M66 188 q-10-70 8-104 q10-20 26-24 q16 4 26 24 q18 34 8 104 q-17 7 -34 7 q-17 0 -34-7Z" fill="url(#${id}b)"/>
       <path d="M74 72 q26-16 52 0 q-4-24 -26-28 q-22 4 -26 28Z" fill="url(#${id}d)"/>

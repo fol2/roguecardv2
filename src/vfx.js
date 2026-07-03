@@ -124,15 +124,33 @@ export function floatText(x, y, text, cls = '') {
   el.style.top = `${y}px`;
   floatLayer.appendChild(el);
   const drift = (Math.random() - 0.5) * 40;
-  const rot = cls.includes('crit') ? (Math.random() - 0.5) * 16 : 0;
-  el.animate(
-    [
+  const isCrit = cls.includes('crit');
+  const rot = isCrit ? (Math.random() - 0.5) * 16 : cls.includes('dmg') ? (Math.random() - 0.5) * 8 : 0;
+  let kf, dur = 1100;
+  if (isCrit) {
+    // crits blaze: white-hot overshoot, a held beat, then the drift
+    dur = 1250;
+    kf = [
+      { transform: 'translate(-50%,-50%) scale(0.5)', opacity: 0, filter: 'brightness(3)' },
+      { transform: `translate(-50%,-92%) scale(1.45) rotate(${rot}deg)`, opacity: 1, filter: 'brightness(1.9)', offset: 0.13 },
+      { transform: `translate(-50%,-110%) scale(1.05) rotate(${rot}deg)`, opacity: 1, filter: 'brightness(1)', offset: 0.34 },
+      { transform: `translate(calc(-50% + ${drift}px),-230%) scale(0.98) rotate(${rot}deg)`, opacity: 0, filter: 'brightness(1)' },
+    ];
+  } else if (cls.includes('poisonf')) {
+    // poison drips down instead of floating up
+    kf = [
+      { transform: 'translate(-50%,-50%) scale(0.7)', opacity: 0 },
+      { transform: 'translate(-50%,-26%) scale(1.05)', opacity: 1, offset: 0.2 },
+      { transform: `translate(calc(-50% + ${drift * 0.4}px),80%) scale(0.88)`, opacity: 0 },
+    ];
+  } else {
+    kf = [
       { transform: 'translate(-50%,-50%) scale(0.6)', opacity: 0 },
       { transform: `translate(-50%,-90%) scale(1.15) rotate(${rot}deg)`, opacity: 1, offset: 0.18 },
       { transform: `translate(calc(-50% + ${drift}px),-230%) scale(0.95) rotate(${rot}deg)`, opacity: 0 },
-    ],
-    { duration: 1100, easing: 'cubic-bezier(.2,.7,.3,1)' }
-  ).onfinish = () => el.remove();
+    ];
+  }
+  el.animate(kf, { duration: dur, easing: 'cubic-bezier(.2,.7,.3,1)' }).onfinish = () => el.remove();
 }
 
 // glass death: clone the creature's svg into a fan of clip-path shards and
