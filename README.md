@@ -1,6 +1,6 @@
 # SPIREBOUND
 
-A complete roguelite deckbuilder for the browser, inspired by Slay the Spire. Three acts, three bosses, 44 cards, 25 relics, 27 enemy species — every visual procedurally generated, every sound synthesized. No assets, no framework.
+A complete roguelite deckbuilder for the browser: a tower of glass creatures with fire inside, climbed by lantern light. Three acts, three bosses, 60 cards, 31 relics, 27 enemy species, 2 playable aspects, and a meta-progression vigil that remembers every fall — every visual procedurally generated, every sound synthesized. No assets, no framework.
 
 ## Play
 
@@ -15,9 +15,13 @@ npm run dev      # http://localhost:5173
 
 - **Climb the Spire itself** — the map is not a flat chart but a real 3D tower: your route is a helix of burning lanterns bolted to its face, the camera dollies upward as you climb, and each new act punches through a sea of moonlit clouds. Combat is fought at the altitude you've earned, with the forest floor of Act 1 far below by the end.
 - **3 themed acts** (The Ashen Woods, The Sunken City, The Obsidian Spire) of monsters, elites, events, shops, treasures and rest sites, with a boss at each summit.
-- **Combat**: draw 5, spend energy, read enemy intents, stack Block, Poison, Strength, Vulnerable and friends. Click a card, aim the arrow, strike.
-- **Build**: 44 cards across attacks / skills / powers with upgrades, 25 relics with passive hooks, 7 potions, 11 narrative events, card removal / duplication / transformation.
-- **Roguelite**: procedural maps and encounters, permadeath, autosave (close the tab mid-run and continue later — unfinished fights restart), lifetime stats on the title screen.
+- **Combat**: draw 5, spend energy, read enemy intents, stack Ward, Smolder, Fervor, Cracked and friends. Click a card, aim the arrow, strike.
+- **SHATTER — the signature system**: every creature is glass with a **Facet** gauge under its lifebar. Attacks that draw unblocked blood chip a facet (heavy cards chip more). Fill the gauge and the glass **shatters** — the creature loses its next action, is Cracked, and spills **Embers** into your lantern. Timing a shatter to deny a boss's killing blow is the core tactical layer.
+- **The Lantern**: Embers fuel your **Lantern Art**, one always-available signature power (6 arts). Drag any card onto the lantern to **kindle** it — the card burns away and feeds the lantern an ember. When smoldering glass dies or shatters, its Smolder leaps to another enemy.
+- **Run variance**: each act climbs under an **Omen** (a double-edged rule twist), some map lanterns hang **unlit** (their keeper hidden until you pay the walking-bounty), and elites arrive wearing one of six named **affixes**.
+- **The Vigil — meta-progression**: a run-start **Lamplighter** offers a boon and your Lantern Art. Death lets you carve a **monument** your next climb recovers. Lifetime **Deeds** (shatters, kindles, perfects, smolder-kills…) unlock 10 cards, 4 relics, and a second aspect — **the Ashwarden**, a smolder/kindle kit. Reach the dawn once and the **Vows** open: a 5-step optional difficulty ladder.
+- **Build**: 60 cards across attacks / skills / powers with upgrades, 31 relics with passive hooks (including 5 rule-rewriting **Crowns**), 7 phials, 11 narrative events, card removal / duplication / transformation.
+- **Roguelite**: procedural maps and encounters, permadeath that leaves a mark, autosave (close the tab mid-run and continue later — unfinished fights restart), and a Vigil ledger that persists across every climb.
 - **Consequence, spelled out**: while you aim, every foe shows exactly what it would lose — block-eaten, vulnerability-multiplied — as a number and a ghost segment on its bar, with a death-mark when the answer is lethal. Killing blows land heavier, overkill heavier still, and a fight won without a scratch is sealed **PERFECT**.
 - **Plays in your palm**: the whole game recomposes for a phone. Portrait gets a one-line HUD, a thumb-tuned card fan between two chrome gutters, and a camera that pulls back so the full lantern route stays in frame; landscape ducks everything under a low sill. Cards play by drag — press a pane, the arc springs from your hand, release on a foe — or tap once to read, twice to commit. Long-press anything for its tooltip, drag the tower to survey it. Add to Home Screen on iOS for fullscreen play.
 
@@ -38,7 +42,7 @@ Keyboard: `E` ends the turn, `Esc` cancels targeting / closes panels. Right-clic
 | Rendering | DOM + CSS 3D for cards/UI (mouse-tracked tilt + holographic foil), `three.js` with bloom post-processing for the world (one continuous climbable Spire, cloud decks, altitude-tracking camera — map nodes are DOM elements projected onto the 3D tower every frame), 2D canvas for combat VFX, film grain overlay |
 | Art | Procedural SVG — enemies, hero, card sigils, props and all UI icons are generated in `src/art.js` |
 | Audio | WebAudio-synthesized SFX + ambient drone per act (`src/audio.js`), mute persists |
-| Engine | Pure DOM-free game logic in `src/engine.js` + `src/data.js`, animated via an event queue the UI plays back |
+| Engine | Pure DOM-free game logic in `src/engine.js` + `src/data.js`, animated via an event queue the UI plays back; meta-progression in `src/vigil.js` (Node-safe storage adapter) |
 | Build | Vite, vanilla JS, zero UI frameworks |
 
 ## Tests
@@ -47,4 +51,4 @@ Keyboard: `E` ends the turn, `Esc` cancels targeting / closes panels. Right-clic
 npm test
 ```
 
-Runs unit checks on the combat math (strength/vulnerable/weak/frail stacking, poison ticks, exhaust, upgrades, map connectivity, enemy AI validity) plus a 300-run monte-carlo in which a random agent plays complete runs through the real engine to prove termination and invariants.
+Runs unit checks on the combat math (Fervor/Cracked/Dimmed/Brittle stacking, Smolder ticks and jumps, kindle, upgrades, map connectivity, enemy AI validity), the SHATTER system (facet chips, shatter/stagger, embers, Lantern Arts), run variance (all 7 omens, 6 affixes, unlit nodes), and the whole Vigil (deed round-trips, monuments, bequests, aspects, vows, boons) — plus a 300-run monte-carlo in which a random agent plays complete runs (mixed aspects, vows and boons, claiming monuments) through the real engine to prove termination and invariants.

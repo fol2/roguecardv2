@@ -276,9 +276,12 @@ export function enemySvg(art) {
   </svg>`;
 }
 
-export function heroSvg() {
+// each aspect wears its own fire: the Duskblade cold-blue, the Ashwarden ember-amber
+const HERO_LOOKS = [{ hue: 225, glow: '#7fd4ff' }, { hue: 26, glow: '#ffb15a' }];
+export function heroSvg(aspect = 0) {
   const id = uid();
-  const hue = 225, glow = '#7fd4ff';
+  const look = HERO_LOOKS[aspect] || HERO_LOOKS[0];
+  const hue = look.hue, glow = look.glow;
   return `<svg class="hero-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
     ${defs(id, hue, glow)}
     <ellipse cx="100" cy="192" rx="56" ry="9" fill="#000" opacity=".45"/>
@@ -307,6 +310,8 @@ const CARD_GLYPHS = {
   regrowth: '❋', oblivionStrike: '✸', phantomBlades: '⚚', devour: '♅', annihilate: '✹',
   aegis: '⛨', offering: '♱', limitBreak: '⚡', catalyst: '⚗', ascension: '☽', bastion: '♜',
   frenzy: '※', virulence: '☣', wound: '✂', burn: '✹', hex: '♄',
+  chisel: '◬', firstSpark: '✧', ashBite: '☄', smother: '☁', quakeblow: '⬲', resonantLance: '↟', tithe: '⚖', pyreheart: '♥',
+  ashenChoir: '♬', flawlessForm: '❖', nightSight: '☾', novaflare: '✺', emberdance: '❂', shardstorm: '❉',
 };
 const hash = (s) => { let h = 9; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 387420489); return (h ^ (h >>> 9)) >>> 0; };
 
@@ -438,6 +443,12 @@ const ICONS = {
   hammer: `<rect x="9.6" y="3.4" width="9.6" height="5.4" rx="1.2" transform="rotate(22 14.5 6)" fill="currentColor" stroke="none"/><path d="M11.6 10.2 L5.2 20" stroke-width="2.6"/>`,
   scissors: `<path d="M7.6 7.6 L17.5 17.8 M16.4 7.6 L6.5 17.8" stroke-width="2.2"/><circle cx="6" cy="19.2" r="2.2" fill="none" stroke-width="1.8"/><circle cx="18" cy="19.2" r="2.2" fill="none" stroke-width="1.8"/>`,
   question: `<path d="M8.6 8.6 a3.4 3.4 0 1 1 5 3 c-1.1 .7-1.6 1.4-1.6 2.8" fill="none" stroke-width="2.6"/><circle cx="12" cy="18.6" r="1.7" fill="currentColor" stroke="none"/>`,
+  facet: `<path d="M12 3.4 L20 12 L12 20.6 L4 12 Z" fill="none" stroke-width="2.3"/><path d="M12 3.4 v17.2 M4 12 h16" stroke-width="1.2" opacity=".55"/>`,
+  ember: `<path d="M12 3.4 C10 7 8.2 8.8 8.2 11.6 a3.8 3.8 0 0 0 7.6 0 C15.8 8.8 14 7 12 3.4 Z" fill="currentColor" stroke="none"/><circle cx="7" cy="18.4" r="1.4" fill="currentColor" stroke="none" opacity=".8"/><circle cx="12" cy="20" r="1.7" fill="currentColor" stroke="none"/><circle cx="17" cy="18.4" r="1.4" fill="currentColor" stroke="none" opacity=".8"/>`,
+  lantern: `<path d="M9 6.2 h6 M8 6.2 L8 15.6 a4 3 0 0 0 8 0 V6.2" fill="none" stroke-width="2"/><path d="M12 8.4 c-1.5 2-1.5 3.4 0 4.7 1.5-1.3 1.5-2.7 0-4.7 Z" fill="currentColor" stroke="none"/><path d="M10.6 3.6 h2.8 v2.6 h-2.8 Z M10 19.8 h4" stroke-width="1.8"/>`,
+  stagger: `<path d="M12 2.8 L13.8 8.6 L19.8 7 L15.6 11.6 L21 14.8 L14.6 14.9 L15.8 21 L11.9 16.2 L8 21 L9.2 14.9 L3 14.8 L8.4 11.6 L4.2 7 L10.2 8.6 Z" fill="currentColor" stroke="none"/>`,
+  unlitLantern: `<path d="M9 6.2 h6 M8 6.2 L8 15.6 a4 3 0 0 0 8 0 V6.2" fill="none" stroke-width="2" opacity=".65"/><path d="M10.6 3.6 h2.8 v2.6 h-2.8 Z M10 19.8 h4" stroke-width="1.8" opacity=".65"/><path d="M10 10 L14 14 M14 10 L10 14" stroke-width="1.6" opacity=".8"/>`,
+  monument: `<path d="M9.5 20 L10.2 6.5 L12 3.4 L13.8 6.5 L14.5 20 Z" fill="currentColor" stroke="none"/><path d="M6 20.6 h12" stroke-width="2.2"/><path d="M12 8.6 c-1.2 1.6-1.2 2.7 0 3.8 1.2-1.1 1.2-2.2 0-3.8 Z" fill="rgba(0,0,0,.55)" stroke="none"/>`,
 };
 const iconBody = (name) => `<g fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</g>`;
 export function iconSvg(name, size = 18) {

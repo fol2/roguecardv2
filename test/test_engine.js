@@ -4,9 +4,12 @@ import {
   newRun, startCombat, playCard, endTurn, makeCard, cardData, availableNodes, genMap,
   rollEncounter, rollEvent, applyEventOps, genCombatRewards, genShop, gainRelic, randomRelic,
   rollBossRelics, addCardToDeck, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
-  MAP_ROWS, runRng, healPlayer, previewPlay,
+  MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, cardPool, relicPool,
+  gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
+  previewBlock, previewEnemyDmg, rollCardReward, vowMods,
 } from '../src/engine.js';
-import { CARDS, ENEMIES, EVENTS, CARD_POOLS } from '../src/data.js';
+import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS } from '../src/data.js';
+import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from '../src/vigil.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -162,8 +165,263 @@ function forceHand(run, cb, ids) {
 {
   // card data upgrade merge
   const c = makeCard(newRun(2), 'strike', true);
-  assert.equal(cardData(c).effects[0].n, 9, 'upgraded strike 9');
-  assert.equal(cardData(c).name, 'Strike+');
+  assert.equal(cardData(c).effects[0].n, 9, 'upgraded edge 9');
+  assert.equal(cardData(c).name, 'Edge+');
+  const q = makeCard(newRun(2), 'heavyBlow', true);
+  assert.equal(cardData(q).chip, 2, 'upgrade merges chip bonus');
+}
+{
+  // locked content stays out of base pools and enters with its unlock token
+  assert.ok(!CARD_POOLS.uncommon.includes('quakeblow'), 'locked card out of pool');
+  assert.ok(!RELIC_POOLS.rare.includes('prismCharm'), 'locked relic out of pool');
+  const run = newRun(48, { unlocks: ['card:quakeblow', 'relic:prismCharm'] });
+  assert.ok(cardPool(run, 'uncommon').includes('quakeblow'), 'deed pays out into the pool');
+  assert.ok(relicPool(run, 'rare').includes('prismCharm'), 'relic unlock reaches the pool');
+}
+{
+  // Crowns rewrite rules
+  const runA = newRun(49);
+  gainRelic(runA, 'crownOfCinders');
+  const cbA = startCombat(runA, ['gravewarden']);
+  assert.equal(cbA.emberCap, 12, 'cinders: deeper lantern');
+  assert.equal(cbA.embers, 2, 'cinders: starts lit');
+  const runB = newRun(50);
+  gainRelic(runB, 'crownOfTithes');
+  const cbB = startCombat(runB, ['gravewarden']);
+  forceHand(runB, cbB, ['strike', 'strike', 'strike']);
+  const b0 = cbB.player.block;
+  assert.ok(kindleFromHand(runB, cbB, cbB.hand[0].uid), 'first kindle');
+  assert.ok(kindleFromHand(runB, cbB, cbB.hand[0].uid), 'tithes: second kindle');
+  assert.equal(kindleFromHand(runB, cbB, cbB.hand[0].uid), false, 'but not a third');
+  assert.equal(cbB.player.block, b0 + 6, 'each kindling grants 3 Ward');
+  const runC = newRun(51);
+  gainRelic(runC, 'crownOfTheHearth');
+  const cbC = startCombat(runC, ['sporeling']);
+  cbC.player.hp = 30;
+  runC.player.hp = 30;
+  cbC.embers = 5;
+  cbC.enemies[0].hp = 1;
+  forceHand(runC, cbC, ['strike']);
+  playCard(runC, cbC, cbC.hand[0].uid, 0);
+  assert.equal(cbC.result, 'win');
+  // emberHeart 6 + hearth 5*3+1(death ember? death ember granted before win... enemy died => win first) — hearth heals embers*3
+  assert.ok(runC.player.hp >= 30 + 6 + 15, 'hearth: unspent embers become blood');
+  const runD = newRun(52);
+  gainRelic(runD, 'shatterersCrown');
+  const cbD = startCombat(runD, ['gravewarden']);
+  assert.equal(cbD.enemies[0].facetMax, 4, 'shatterer: thinner glass');
+  assert.equal(cbD.enemies[0].statuses.str, 1, 'shatterer: angrier glass');
+  const runE = newRun(53);
+  gainRelic(runE, 'hollowCrown');
+  assert.equal(runE.player.energyMax, 4, 'hollow: +1 energy');
+  assert.equal(runE.player.maxHp, 62, 'hollow: -10 maxHp');
+}
+{
+  // new specials: shatterEcho doubles vs Cracked/Staggered and previews it
+  const { run, cb } = freshCombat(['gravewarden']);
+  forceHand(run, cb, ['resonantLance']);
+  const e = cb.enemies[0];
+  const pv0 = previewPlay(run, cb, cb.hand[0], 0);
+  assert.equal(pv0.total, 7, 'quiet glass: base 7');
+  e.statuses.vulnerable = 1;
+  const pv1 = previewPlay(run, cb, cb.hand[0], 0);
+  assert.equal(pv1.total, Math.floor(14 * 1.5), 'cracked glass: doubled then ×1.5');
+  const hp0 = e.hp;
+  playCard(run, cb, cb.hand[0].uid, 0);
+  assert.equal(hp0 - e.hp, pv1.loss, 'echo preview parity');
+  // emberNova scales with the lantern
+  const { run: r2, cb: c2 } = freshCombat(['gravewarden']);
+  c2.embers = 4;
+  forceHand(r2, c2, ['novaflare']);
+  const pv2 = previewPlay(r2, c2, c2.hand[0], 0);
+  assert.equal(pv2.total, 12, 'nova: 3 × 4 embers');
+  const h0 = c2.enemies[0].hp;
+  playCard(r2, c2, c2.hand[0].uid, 0);
+  assert.equal(h0 - c2.enemies[0].hp, pv2.loss, 'nova preview parity');
+}
+{
+  // pyre tithe burns the rest of the hand, feeds the lantern, draws anew
+  const { run, cb } = freshCombat(['gravewarden']);
+  forceHand(run, cb, ['offering', 'wound', 'strike', 'hex']);
+  cb.embers = 0;
+  cb.draw = [makeCard(run, 'strike'), makeCard(run, 'strike'), makeCard(run, 'strike')];
+  playCard(run, cb, cb.hand[0].uid);
+  // 3 others burned (hex CAN burn by pyre — the card's power) + the tithe itself kindles
+  assert.equal(cb.embers, 4, 'three panes + the tithe itself fed the lantern');
+  assert.equal(cb.hand.length, 3, 'drew 3 fresh cards');
+  assert.equal(cb.exhaust.length, 4, 'ashes hold them all');
+}
+{
+  // eat the flame: a kill swallows fire even as the fight ends
+  const { run, cb } = freshCombat(['sporeling', 'sporeling']);
+  cb.enemies[0].hp = 5;
+  forceHand(run, cb, ['devour']);
+  playCard(run, cb, cb.hand[0].uid, 0);
+  assert.ok(cb.embers >= 4, 'devour embers (3) + death ember (1)');
+  // flawless form doubles while untouched
+  const { run: r2, cb: c2 } = freshCombat(['gravewarden']);
+  forceHand(r2, c2, ['flawlessForm']);
+  playCard(r2, c2, c2.hand[0].uid);
+  assert.equal(c2.player.block, 16, 'untouched: 8 + 8');
+  c2.counters.hpLost = 3;
+  forceHand(r2, c2, ['flawlessForm']);
+  playCard(r2, c2, c2.hand[0].uid);
+  assert.equal(c2.player.block, 16 + 8, 'scratched: just 8');
+  // emberdance converts the lantern to ward
+  const { run: r3, cb: c3 } = freshCombat(['gravewarden']);
+  c3.embers = 4;
+  forceHand(r3, c3, ['emberdance']);
+  playCard(r3, c3, c3.hand[0].uid);
+  // 4 embers × 3 ward, then the kindle of emberdance itself re-lights 1 ember
+  assert.equal(c3.player.block, 12, 'emberdance ward');
+  assert.equal(c3.embers, 1, 'lantern spilled, then fed by its own burning');
+}
+{
+  // omens: every entry's mods actually hook the engine — and its previews
+  const withOmen = (id, enemies = ['gravewarden']) => {
+    const run = newRun(60);
+    run.omens = [id];
+    const cb = startCombat(run, enemies);
+    return { run, cb };
+  };
+  { // ashfall: enemies start smoldering; their blows leave ash on you
+    const { run, cb } = withOmen('ashfall', ['sporeling']);
+    assert.equal(cb.enemies[0].statuses.poison, 2, 'ashfall smolders them');
+    cb.enemies[0].moveKey = 'spit';
+    cb.queue.length = 0;
+    endTurn(run, cb);
+    assert.ok(cb.queue.find((ev) => ev.t === 'status' && ev.who === 'player' && ev.id === 'poison'), 'their blows smolder you');
+  }
+  { // heavy air: ward swells identically in play and preview
+    const { run, cb } = withOmen('heavyAir');
+    assert.equal(previewBlock(run, cb, 5), Math.round(5 * 1.25), 'preview holds the light');
+    forceHand(run, cb, ['defend']);
+    playCard(run, cb, cb.hand[0].uid);
+    assert.equal(cb.player.block, Math.round(5 * 1.25), 'play agrees');
+  }
+  { // thin glass: smaller gauges, harder blows (mirrored in the intent preview)
+    const { run, cb } = withOmen('thinGlass', ['sporeling']);
+    assert.equal(cb.enemies[0].facetMax, 2, 'sporeling glass thinned to the floor');
+    cb.enemies[0].moveKey = 'spit';
+    const p = previewEnemyDmg(run, cb, cb.enemies[0]);
+    const hp0 = cb.player.hp;
+    endTurn(run, cb);
+    assert.equal(hp0 - cb.player.hp, p.dmg, 'intent preview tells the omen truth');
+  }
+  { // hungry dark: dearer shops, richer choices
+    const runA = newRun(61); runA.omens = ['hungryDark'];
+    const runB = newRun(61); runB.omens = [];
+    assert.equal(rollCardReward(runB).length + 1, (runB.omens = ['hungryDark'], rollCardReward(runA).length), 'one more choice');
+    const runC = newRun(61); runC.omens = ['hungryDark'];
+    const runD = newRun(61); runD.omens = [];
+    const shopC = genShop(runC), shopD = genShop(runD);
+    assert.equal(shopC.cards[0].price, Math.round(shopD.cards[0].price * 1.25), 'the dark eats coin');
+  }
+  { // ember wind: a lit lantern, a lighter hand
+    const { cb } = withOmen('emberWind');
+    assert.equal(cb.embers, 2, 'sparks ride the wind');
+    assert.equal(cb.hand.length, 4, 'draw 4');
+  }
+  { // long night: tougher glass, richer purses
+    const runA = newRun(63); runA.omens = ['longNight'];
+    const runB = newRun(63); runB.omens = [];
+    const cbA = startCombat(runA, ['gravewarden']);
+    const cbB = startCombat(runB, ['gravewarden']);
+    assert.equal(cbA.enemies[0].maxHp, Math.round(cbB.enemies[0].maxHp * 1.12), 'they carry more life');
+    const runC = newRun(63); runC.omens = ['longNight'];
+    const runD = newRun(63); runD.omens = [];
+    assert.equal(genCombatRewards(runC, 'normal').gold, Math.round(genCombatRewards(runD, 'normal').gold * 1.4), 'victory pays more');
+  }
+  { // waning moon: the first card is cheap, the fire heals less
+    const { run, cb } = withOmen('waningMoon');
+    forceHand(run, cb, ['strike', 'strike']);
+    assert.equal(effCost(run, cb, cb.hand[0]), 0, 'first card discounted');
+    playCard(run, cb, cb.hand[0].uid, 0);
+    assert.equal(effCost(run, cb, cb.hand[0]), 1, 'only the first');
+    assert.equal(restHealFrac(run), 0.2, 'rest sites dimmed');
+  }
+}
+{
+  // elite affixes: each title keeps its promise
+  const withAffix = (affix) => {
+    const run = newRun(62);
+    run.omens = [];
+    return { run, cb: startCombat(run, ['gravewarden'], 'elite', { affix }) };
+  };
+  const { cb: rolled } = (() => { const run = newRun(65); run.omens = []; return { cb: startCombat(run, ['gravewarden'], 'elite') }; })();
+  assert.ok(AFFIXES[rolled.affix], 'every elite wears a title');
+  const { cb: vit } = withAffix('vitrified');
+  assert.equal(vit.facetMax, undefined); // affix lives on enemies, not cb
+  assert.equal(vit.enemies[0].facetMax, 7, 'vitrified: thicker glass');
+  const runP = newRun(62); runP.omens = [];
+  const plain = startCombat(runP, ['gravewarden'], 'normal');
+  assert.equal(vit.enemies[0].maxHp, Math.round(plain.enemies[0].maxHp * 1.15), 'vitrified: +15% HP');
+  assert.equal(withAffix('veiled').cb.enemies[0].block, 15, 'veiled: starts warded');
+  assert.equal(withAffix('fervent').cb.enemies[0].statuses.str, 2, 'fervent: starts stoked');
+  { // adamant: the first shatter holds, the second lands
+    const { run, cb } = withAffix('adamant');
+    const e = cb.enemies[0];
+    e.chips = e.facetMax - 1;
+    forceHand(run, cb, ['strike']);
+    cb.queue.length = 0;
+    playCard(run, cb, cb.hand[0].uid, 0);
+    assert.ok(cb.queue.find((ev) => ev.t === 'adamantHold'), 'the glass holds');
+    assert.ok(!e.flags.staggered, 'no stagger the first time');
+    assert.equal(cb.embers, 0, 'no embers spill');
+    e.chips = e.facetMax - 1;
+    forceHand(run, cb, ['strike']);
+    playCard(run, cb, cb.hand[0].uid, 0);
+    assert.ok(e.flags.staggered, 'the second shatter lands');
+  }
+  { // ember-fat: double gold
+    const runA = newRun(66); runA.omens = [];
+    const runB = newRun(66); runB.omens = [];
+    assert.equal(genCombatRewards(runA, 'elite', 'emberFat').gold, genCombatRewards(runB, 'elite').gold * 2, 'slaying it pays double');
+  }
+  { // cinder-veined: its blows leave smolder
+    const { run, cb } = withAffix('cinderVeined');
+    cb.enemies[0].moveKey = 'crush';
+    cb.queue.length = 0;
+    endTurn(run, cb);
+    assert.ok(cb.queue.find((ev) => ev.t === 'status' && ev.who === 'player' && ev.id === 'poison'), 'cinders cling');
+  }
+}
+{
+  // unlit lanterns: sane fraction, never on protected rows, bounty attached
+  let unlit = 0, total = 0;
+  for (let s = 0; s < 60; s++) {
+    const run = newRun(9000 + s * 13);
+    for (const n of run.map.nodes) {
+      total++;
+      if (n.unlit) {
+        unlit++;
+        assert.ok(n.row > 0 && n.row !== 8 && n.row < MAP_ROWS - 2, 'unlit stays off protected rows');
+        assert.ok(n.bounty >= 12, 'the dark owes a bounty');
+      }
+    }
+  }
+  const frac = unlit / total;
+  assert.ok(frac > 0.05 && frac < 0.25, `unlit fraction sane (${frac.toFixed(3)})`);
+  // every omen rolled at run start is a real omen
+  for (let s = 0; s < 20; s++) assert.ok(OMENS[newRun(700 + s).omens[0]], 'run begins under a real sky');
+}
+{
+  // smoldering coal + bell of endings + prism charm
+  const run = newRun(54, { unlocks: ['relic:smolderingCoal'] });
+  gainRelic(run, 'smolderingCoal');
+  const cb = startCombat(run, ['sporeling', 'sporeling']);
+  assert.ok(cb.enemies.every((e) => e.statuses.poison === 2), 'coal: enemies smolder from the start');
+  const run2 = newRun(55);
+  gainRelic(run2, 'bellOfEndings');
+  gainRelic(run2, 'prismCharm');
+  const cb2 = startCombat(run2, ['gravewarden', 'gravewarden']);
+  const [a, b] = cb2.enemies;
+  const bHp = b.hp;
+  a.chips = a.facetMax - 1;
+  forceHand(run2, cb2, ['strike']);
+  playCard(run2, cb2, cb2.hand[0].uid, 0);
+  assert.equal(bHp - b.hp, 4, 'the bell tolls for the other glass');
+  assert.equal(cb2.embers, 4, 'prism: first shatter spills double');
 }
 {
   // events all resolvable
@@ -192,17 +450,347 @@ function forceHand(run, cb, ids) {
   }
 }
 {
+  // chips: an attack that draws unblocked blood chips once per card
+  const { run, cb } = freshCombat(['gravewarden']); // 5 facets
+  const e = cb.enemies[0];
+  assert.equal(e.facetMax, 5, 'elite facets');
+  assert.equal(e.chips, 0);
+  forceHand(run, cb, ['twinFangs']); // 4×2 — multi-hit still chips once
+  playCard(run, cb, cb.hand[0].uid, 0);
+  assert.equal(e.chips, 1, 'multi-hit chips once');
+  e.block = 99;
+  forceHand(run, cb, ['strike']);
+  playCard(run, cb, cb.hand[0].uid, 0);
+  assert.equal(e.chips, 1, 'a fully-warded blow chips nothing');
+  e.block = 0;
+  cb.player.statuses.beacon = 1;
+  forceHand(run, cb, ['strike']);
+  playCard(run, cb, cb.hand[0].uid, 0);
+  assert.equal(e.chips, 3, 'beacon chips +1');
+  endTurn(run, cb);
+  assert.ok(!cb.player.statuses.beacon, 'beacon burns out at end of turn');
+}
+{
+  // shatter: stagger + Cracked + embers, gauge resets, glass anneals harder
+  const { run, cb } = freshCombat(['gravewarden']);
+  const e = cb.enemies[0];
+  e.chips = e.facetMax - 1;
+  forceHand(run, cb, ['strike']);
+  cb.queue.length = 0;
+  playCard(run, cb, cb.hand[0].uid, 0);
+  assert.ok(cb.queue.find((ev) => ev.t === 'shatter'), 'shatter event');
+  assert.ok(e.flags.staggered, 'staggered');
+  assert.equal(e.statuses.vulnerable, 2, 'shattered glass is Cracked');
+  assert.equal(e.chips, 0, 'gauge reset');
+  assert.equal(e.facetMax, 6, 'glass anneals: threshold +1');
+  assert.equal(cb.embers, 2, 'embers spill to the lantern');
+  assert.equal(run.stats.shatters, 1);
+  // the staggered enemy loses its action but its pattern still advances
+  const hp0 = cb.player.hp, moves0 = e.lastMoves.length;
+  e.statuses.ritual = 2;
+  cb.queue.length = 0;
+  endTurn(run, cb);
+  assert.equal(cb.player.hp, hp0, 'staggered enemy deals nothing');
+  assert.ok(cb.queue.find((ev) => ev.t === 'staggered'), 'stagger played back');
+  assert.ok(!cb.queue.find((ev) => ev.t === 'enemyAct'), 'no move executed');
+  assert.equal(e.lastMoves.length, moves0 + 1, 'skipped move still recorded');
+  assert.ok((e.statuses.str || 0) >= 2, 'litany still ticked while staggered');
+  assert.ok(!e.flags.staggered, 'stagger spent');
+  assert.ok(e.moveKey, 'next intent computed');
+}
+{
+  // embers cap; kindling is once a turn, curses refuse, junk burns fine
+  const { run, cb } = freshCombat(['gravewarden']);
+  cb.embers = 0;
+  const g1 = gainEmbers(run, cb, 4);
+  assert.equal(g1, 4);
+  assert.equal(gainEmbers(run, cb, 99), 5, 'gain clamps at the cap');
+  assert.equal(cb.embers, 9);
+  cb.queue.length = 0;
+  assert.equal(gainEmbers(run, cb, 5), 0, 'no gain at cap');
+  assert.ok(!cb.queue.find((ev) => ev.t === 'ember'), 'no phantom ember event');
+  forceHand(run, cb, ['wound', 'hex', 'strike']);
+  const [wound, hex, strike] = cb.hand;
+  assert.equal(kindleFromHand(run, cb, hex.uid), false, 'hexes cling to the hand');
+  cb.embers = 0;
+  assert.ok(kindleFromHand(run, cb, wound.uid), 'junk burns fine');
+  assert.equal(cb.embers, 1, 'kindling feeds the lantern');
+  assert.ok(cb.exhaust.find((c) => c.uid === wound.uid), 'kindled = burned away');
+  assert.equal(kindleFromHand(run, cb, strike.uid), false, 'once per turn');
+  assert.equal(run.stats.kindles, 1, 'deed counted');
+  endTurn(run, cb);
+  if (!cb.over) assert.ok(kindleFromHand(run, cb, cb.hand[0]?.uid), 'the rite renews next turn');
+}
+{
+  // exhaust itself feeds the lantern (preparation exhausts on play)
+  const { run, cb } = freshCombat(['gravewarden']);
+  forceHand(run, cb, ['preparation']);
+  playCard(run, cb, cb.hand[0].uid);
+  assert.equal(cb.embers, 1, 'exhaust grants an ember');
+}
+{
+  // smolder jumps on shatter (other host) and on death; lost with the last
+  const { run, cb } = freshCombat(['sporeling', 'sporeling']);
+  const [a, b] = cb.enemies;
+  a.statuses.poison = 4;
+  a.chips = a.facetMax - 1;
+  forceHand(run, cb, ['strike']);
+  cb.queue.length = 0;
+  playCard(run, cb, cb.hand[0].uid, 0);
+  if (a.hp > 0) { // survived the strike: shatter moved the smolder
+    assert.ok(!a.statuses.poison, 'smolder left the shattered host');
+    assert.equal(b.statuses.poison, 4, 'smolder found new glass');
+    assert.ok(cb.queue.find((ev) => ev.t === 'smolderJump'), 'jump played back');
+  }
+  // death jump
+  const { run: r2, cb: c2 } = freshCombat(['sporeling', 'sporeling']);
+  c2.enemies[0].hp = 1;
+  c2.enemies[0].statuses.poison = 3;
+  forceHand(r2, c2, ['strike']);
+  playCard(r2, c2, c2.hand[0].uid, 0);
+  assert.equal(c2.enemies[1].statuses.poison, 3, 'smolder outlives its vessel');
+  assert.equal(c2.embers, 1, 'a death spills one ember');
+  // last host: the fire dies with it
+  const { run: r3, cb: c3 } = freshCombat(['sporeling']);
+  c3.enemies[0].hp = 1;
+  c3.enemies[0].statuses.poison = 5;
+  forceHand(r3, c3, ['strike']);
+  playCard(r3, c3, c3.hand[0].uid, 0);
+  assert.equal(c3.result, 'win', 'combat over, nothing to jump to');
+}
+{
+  // Lantern Arts: every art fires, pays its embers, and keeps to once a turn
+  for (const [id, art] of Object.entries(ARTS)) {
+    const { run, cb } = freshCombat(['gravewarden', 'sporeling']);
+    run.art = id;
+    cb.embers = 9;
+    assert.ok(canUseArt(run, cb), `${id} usable at 9 embers`);
+    const hp0 = cb.enemies.map((e) => e.hp);
+    const php0 = cb.player.hp;
+    assert.ok(useArt(run, cb), `${id} fires`);
+    assert.equal(cb.embers, 9 - art.cost, `${id} paid ${art.cost}`);
+    assert.equal(run.stats.embersSpent, art.cost, `${id} deed counted`);
+    assert.equal(useArt(run, cb), false, `${id} once per turn`);
+    for (const fx of art.effects) {
+      if (fx.kind === 'dmg') cb.enemies.forEach((e, i) => assert.ok(e.hp <= hp0[i] - fx.n || e.hp <= 0, `${id} hurt all`));
+      if (fx.kind === 'status' && fx.who !== 'self') cb.enemies.forEach((e) => e.hp > 0 && assert.ok(e.statuses[fx.id] >= fx.n, `${id} afflicted all`));
+      if (fx.kind === 'status' && fx.who === 'self') assert.ok(cb.player.statuses[fx.id] >= fx.n, `${id} self status`);
+      if (fx.kind === 'block') assert.ok(cb.player.block >= fx.n, `${id} warded`);
+      if (fx.kind === 'heal') assert.ok(cb.player.hp >= php0, `${id} healed`);
+    }
+  }
+  // too poor: the lantern refuses
+  const { run, cb } = freshCombat(['gravewarden']);
+  run.art = 'flare';
+  cb.embers = ARTS.flare.cost - 1;
+  assert.equal(canUseArt(run, cb), false, 'not enough embers');
+  // beacon: the art's status actually chips extra
+  const { run: r2, cb: c2 } = freshCombat(['gravewarden']);
+  r2.art = 'beacon';
+  c2.embers = 9;
+  useArt(r2, c2);
+  forceHand(r2, c2, ['strike']);
+  playCard(r2, c2, c2.hand[0].uid, 0);
+  assert.equal(c2.enemies[0].chips, 2, 'beacon-lit attack chips twice');
+}
+{
+  // previewPlay predicts the shatter it then delivers
+  const { run, cb } = freshCombat(['gravewarden']);
+  const e = cb.enemies[0];
+  e.chips = e.facetMax - 1;
+  forceHand(run, cb, ['strike']);
+  const snap = JSON.stringify({ e, p: cb.player, embers: cb.embers });
+  const pv = previewPlay(run, cb, cb.hand[0], 0);
+  assert.equal(JSON.stringify({ e, p: cb.player, embers: cb.embers }), snap, 'shatter preview is pure');
+  assert.equal(pv.chips, 1, 'one chip predicted');
+  assert.ok(pv.willShatter, 'shatter predicted');
+  playCard(run, cb, cb.hand[0].uid, 0);
+  assert.ok(e.facetMax === 6 && e.chips === 0, 'and delivered');
+  // a warded target predicts no chips
+  e.block = 99;
+  forceHand(run, cb, ['strike']);
+  const pv2 = previewPlay(run, cb, cb.hand[0], 0);
+  assert.equal(pv2.chips, 0, 'no blood, no chip');
+  assert.ok(!pv2.willShatter);
+}
+{
   // every card's effects reference valid kinds/statuses
-  const kinds = new Set(['dmg', 'block', 'draw', 'energy', 'heal', 'loseHp', 'status', 'special', 'addCard']);
+  const kinds = new Set(['dmg', 'block', 'draw', 'energy', 'heal', 'loseHp', 'status', 'special', 'addCard', 'chip', 'ember']);
   for (const [id, c] of Object.entries(CARDS)) {
     for (const fx of c.effects) assert.ok(kinds.has(fx.kind), `${id} fx kind`);
     if (c.up && c.up.effects) for (const fx of c.up.effects) assert.ok(kinds.has(fx.kind), `${id}+ fx kind`);
   }
 }
+{
+  // the vigil: deeds accumulate, thresholds unlock, storage is Node-safe
+  _setStore(null);
+  assert.equal(loadVigil().deeds.runs, 0, 'fresh vigil');
+  const run = newRun(42);
+  run.stats.shatters = 15;
+  run.floorsClimbed = 9;
+  const { vigil, newUnlocks } = commitRunToVigil(run, false);
+  assert.equal(vigil.deeds.runs, 1, 'run counted');
+  assert.equal(vigil.deeds.shatters, 15, 'deed stat folded in');
+  assert.ok(newUnlocks.includes('card:quakeblow'), 'shatter deed pays out');
+  assert.equal(commitRunToVigil(run, false).newUnlocks.length, 0, 'commit is idempotent');
+  assert.equal(loadVigil().deeds.runs, 1, 'no double count');
+  // a win unlocks the second aspect and the first vow
+  const run2 = newRun(43);
+  const w = commitRunToVigil(run2, true);
+  assert.ok(w.vigil.unlocks.includes('aspect2'), 'first dawn unlocks the Ashwarden');
+  assert.equal(w.vigil.vowUnlocked, 1, 'vow I offered after a win');
+  assert.deepEqual(syncVigil().unlocks, w.vigil.unlocks, 'sync finds nothing more owed');
+  // bequests round-trip
+  setBequest(1, 7, { kind: 'gold', amount: 50 });
+  assert.deepEqual(loadVigil().lastFall, { act: 1, row: 7, bequest: { kind: 'gold', amount: 50 } });
+  clearBequest();
+  assert.equal(loadVigil().lastFall, null, 'monument claimed and cleared');
+  _setStore(null);
+}
+{
+  // pools: base content without unlocks, unknown unlock tokens ignored
+  const run = newRun(44);
+  assert.deepEqual(cardPool(run, 'common'), CARD_POOLS.common);
+  assert.deepEqual(relicPool(run, 'boss'), RELIC_POOLS.boss);
+  const run2 = newRun(44, { unlocks: ['card:doesNotExist', 'relic:alsoNot'] });
+  assert.deepEqual(cardPool(run2, 'common'), CARD_POOLS.common, 'unknown card unlock ignored');
+  assert.deepEqual(relicPool(run2, 'common'), RELIC_POOLS.common, 'unknown relic unlock ignored');
+}
+{
+  // monuments: a bequest is claimed exactly once
+  const run = newRun(45, { monument: { act: 0, row: 5, bequest: { kind: 'gold', amount: 60 } } });
+  const g0 = run.player.gold;
+  const b = claimMonument(run);
+  assert.equal(b.kind, 'gold');
+  assert.equal(run.player.gold, g0 + 60, 'gold bequest paid');
+  assert.equal(claimMonument(run), null, 'stone gives only once');
+  const run3 = newRun(45, { monument: { act: 1, row: 3, bequest: { kind: 'card', id: 'oblivionStrike', up: true } } });
+  claimMonument(run3);
+  const got = run3.player.deck.find((c) => c.id === 'oblivionStrike');
+  assert.ok(got && got.up, 'card bequest arrives upgraded');
+}
+{
+  // bequestOptions offers the best of what was carried
+  const run = newRun(46);
+  gainRelic(run, 'duskmirror');
+  gainRelic(run, 'basaltIdol');
+  addCardToDeck(run, 'oblivionStrike', true);
+  const opts = bequestOptions(run);
+  assert.ok(opts.find((o) => o.kind === 'relic' && o.id === 'duskmirror'), 'rarest relic offered');
+  assert.ok(opts.find((o) => o.kind === 'card' && o.id === 'oblivionStrike'), 'best card offered');
+  assert.ok(opts.find((o) => o.kind === 'gold'), 'gold cache offered');
+}
+{
+  // visitNode pays unlit bounties exactly once
+  const run = newRun(47);
+  const node = run.map.nodes.find((n) => n.row === 0);
+  node.unlit = true;
+  node.bounty = 20;
+  const g0 = run.player.gold;
+  const { type, bounty } = visitNode(run, node);
+  assert.equal(type, node.type, 'true face revealed');
+  assert.equal(bounty, 20);
+  assert.equal(run.player.gold, g0 + 20, 'bounty paid');
+  assert.equal(run.stats.unlitVisited, 1, 'deed counted');
+  assert.equal(visitNode(run, node).bounty, 0, 'a lit lantern pays nothing');
+}
+{
+  // aspects: the Ashwarden is a distinct kit
+  assert.equal(ASPECTS.length, 2, 'two aspects');
+  assert.equal(ASPECTS[0].id, 'duskblade');
+  assert.equal(ASPECTS[1].id, 'ashwarden');
+  const ash = newRun(50, { aspect: 1 });
+  assert.equal(ash.player.maxHp, 80, 'Ashwarden is tankier');
+  assert.equal(ash.player.hp, 80);
+  assert.ok(ash.player.relics.includes('ashenCore'), 'Ashwarden starts with the Ashen Core');
+  assert.equal(ash.art, 'ashfall', 'Ashwarden favors Ashfall');
+  assert.equal(ash.player.deck.length, 10, 'Ashwarden deck is 10');
+  assert.ok(ash.player.deck.some((c) => c.id === 'ashBite'), 'Ashwarden brings Ashbite');
+  assert.ok(RELICS.ashenCore, 'Ashen Core relic exists');
+  // ashenCore steeps every enemy in Smolder at the bell
+  const acb = startCombat(ash, ['sporeling', 'sporeling']);
+  for (const e of acb.enemies) assert.ok(e.statuses.poison >= 3, 'Ashen Core smolders the field');
+  // an out-of-range aspect index is clamped, never a crash
+  assert.equal(newRun(50, { aspect: 9 }).aspect, ASPECTS.length - 1, 'aspect clamped');
+}
+{
+  // vows: the difficulty ladder stacks cumulatively
+  assert.equal(VOWS.length, 5, 'five vows');
+  assert.equal(vowMods({ vow: 0 }).hpMult, 1, 'no vow, no burden');
+  assert.ok(Math.abs(vowMods({ vow: 1 }).hpMult - 1.12) < 1e-9, 'Vow I hardens the glass');
+  assert.equal(vowMods({ vow: 2 }).enemyDmgBonus, 1, 'Vow II sharpens their blows');
+  assert.equal(vowMods({ vow: 3 }).bossFacetDelta, 1, 'Vow III armors the boss');
+  assert.equal(vowMods({ vow: 4 }).startHex, true, 'Vow IV marks the climber');
+  assert.equal(vowMods({ vow: 5 }).restHealFrac, 0.2, 'Vow V wanes the rest');
+  assert.equal(vowMods({ vow: 9 }).startHex, true, 'vow level clamps to the ladder');
+  // Vow II adds exactly +1 to what an enemy hits for (mirrored in the intent preview)
+  const base = newRun(51), hard = newRun(51, { vow: 2 });
+  const eb = startCombat(base, ['sporeling']), eh = startCombat(hard, ['sporeling']);
+  const db = previewEnemyDmg(base, eb, eb.enemies[0]), dh = previewEnemyDmg(hard, eh, eh.enemies[0]);
+  if (db) assert.equal(dh.dmg, db.dmg + 1, 'Vow II preview shows +1 damage');
+  // Vow III thickens the boss facet gauge by one
+  const bb = newRun(52), bh = newRun(52, { vow: 3 });
+  const cbb = startCombat(bb, ['rootheart'], 'boss'), cbh = startCombat(bh, ['rootheart'], 'boss');
+  assert.equal(cbh.enemies[0].facetMax, cbb.enemies[0].facetMax + 1, 'Vow III boss holds one more facet');
+  // Vow IV seeds a Hex into the starting deck
+  const marked = newRun(53, { vow: 4 });
+  assert.equal(marked.player.deck.length, 11, 'the marked climb one card heavier');
+  assert.ok(marked.player.deck.some((c) => c.id === 'hex'), 'and it is a Hex');
+  // Vow V drains the campfire
+  assert.ok(restHealFrac(newRun(54, { vow: 5 })) <= 0.2, 'Vow V rest heals no more than a fifth');
+}
+{
+  // boons: every Lamplighter gift resolves cleanly through the event-op executor
+  for (const [id, boon] of Object.entries(BOONS)) {
+    const run = newRun(55);
+    assert.doesNotThrow(() => applyEventOps(run, boon.ops), `boon ${id} applies`);
+  }
+  const purse = newRun(55);
+  const g0 = purse.player.gold;
+  applyEventOps(purse, BOONS.fullPurse.ops);
+  assert.equal(purse.player.gold, g0 + 120, 'A Full Purse pays out');
+  const glass = newRun(55);
+  const hp0 = glass.player.maxHp;
+  applyEventOps(glass, BOONS.temperedGlass.ops);
+  assert.equal(glass.player.maxHp, hp0 + 14, 'Tempered Glass raises Max HP');
+}
+{
+  // monuments in the map: the last fall stands in its own act, nowhere else
+  const run = newRun(56, { monument: { act: 0, row: 6, bequest: { kind: 'gold', amount: 60 } } });
+  const mons = run.map.nodes.filter((n) => n.type === 'monument');
+  assert.equal(mons.length, 1, 'exactly one monument node');
+  const m = mons[0];
+  assert.ok(m.row > 0 && m.row < MAP_ROWS - 2 && m.row !== 8, 'monument on a lawful row');
+  assert.ok(!m.unlit, 'a monument is never hidden');
+  // a monument bound to a later act does not litter this one
+  const early = newRun(56, { monument: { act: 2, row: 5, bequest: { kind: 'gold', amount: 60 } } });
+  assert.equal(early.map.nodes.filter((n) => n.type === 'monument').length, 0, 'act-2 monument absent on act 0');
+  // and the bequest→setBequest→next-run→claim loop pays exactly once
+  _setStore(null);
+  const fallen = newRun(56);
+  fallen.player.gold = 50;
+  const offer = bequestOptions(fallen).find((o) => o.kind === 'gold');
+  setBequest(0, 6, offer);
+  const next = newRun(57, { monument: loadVigil().lastFall });
+  const g0 = next.player.gold;
+  const claimed = claimMonument(next);
+  assert.equal(claimed.kind, 'gold', 'gold recovered from the stone');
+  assert.equal(next.player.gold, g0 + offer.amount, 'the exact cache returns');
+  assert.equal(claimMonument(next), null, 'the stone gives once');
+  clearBequest();
+  _setStore(null);
+}
 
 // ---- monte-carlo: random agent plays full runs -----------------------------
 function randomAgentRun(seed) {
-  const run = newRun(seed);
+  // a real climber picks an aspect, swears some vows, takes a boon, and may
+  // walk into a monument left by a past self — exercise all of it
+  const aspect = seed % 2;
+  const vow = seed % 3;
+  const boonIds = Object.keys(BOONS);
+  const monument = seed % 4 === 0 ? { act: 0, row: 5, bequest: { kind: 'gold', amount: 40 } } : null;
+  const run = newRun(seed, { aspect, vow, monument });
+  applyEventOps(run, BOONS[boonIds[seed % boonIds.length]].ops);
   const rnd = (() => { let s = seed ^ 0x9e3779b9; const r = () => { s = (s * 1664525 + 1013904223) | 0; return ((s >>> 0) / 4294967296); }; return r; })();
   const choice = (arr) => arr[Math.floor(rnd() * arr.length)];
   let guard = 0;
@@ -210,9 +798,7 @@ function randomAgentRun(seed) {
     const options = availableNodes(run);
     assert.ok(options.length > 0, 'always somewhere to go');
     const node = choice(options);
-    run.nodeId = node.id;
-    run.floorsClimbed = node.row + 1;
-    let type = node.type;
+    const { type } = visitNode(run, node);
     if (type === 'monster' || type === 'elite' || type === 'boss') {
       const enc = rollEncounter(run, type, node.row);
       const cb = startCombat(run, enc, type);
@@ -234,12 +820,17 @@ function randomAgentRun(seed) {
             played = ok;
           }
         }
+        // the agent kindles and uses its art sometimes, like a player would
+        if (!cb.over && cb.hand.length && rnd() < 0.25) kindleFromHand(run, cb, choice(cb.hand).uid);
+        if (!cb.over && canUseArt(run, cb) && rnd() < 0.4) useArt(run, cb);
         if (!cb.over) endTurn(run, cb);
+        assert.ok(cb.embers >= 0 && cb.embers <= cb.emberCap, 'embers in range');
+        for (const e of cb.enemies) if (e.hp > 0) assert.ok(e.chips < e.facetMax, 'chips below threshold');
         cb.queue.length = 0; // drain
       }
       assert.ok(cb.over, `combat terminates (${enc.join()},turns=${turnGuard})`);
       if (cb.result === 'loss') return { dead: true, run };
-      const rw = genCombatRewards(run, type);
+      const rw = genCombatRewards(run, type, cb.affix);
       run.player.gold += rw.gold;
       if (rw.cards.length && rnd() < 0.8) addCardToDeck(run, choice(rw.cards));
       if (rw.potion) gainPotion(run, rw.potion);
@@ -283,6 +874,8 @@ function randomAgentRun(seed) {
     } else if (type === 'treasure') {
       const r = randomRelic(run);
       if (r) gainRelic(run, r);
+    } else if (type === 'monument') {
+      claimMonument(run); // recover what a past self left in the stone
     }
     assert.ok(run.player.hp > 0, 'alive after node');
     assert.ok(run.player.hp <= run.player.maxHp, 'hp <= maxHp');

@@ -1,12 +1,15 @@
 // SPIREBOUND — all game content. Pure data, no DOM.
 
 export const PLAYER = {
+  id: 'duskblade',
   name: 'The Duskblade',
+  blurb: 'Glass honed to a killing edge. Strikes, shatters, and turns broken facets into fuel — a versatile climber for any night.',
+  hue: 225, art: 'flare',
   maxHp: 72,
   energy: 3,
   handSize: 5,
   potionSlots: 3,
-  startDeck: ['strike', 'strike', 'strike', 'strike', 'strike', 'defend', 'defend', 'defend', 'defend', 'eclipseSlash'],
+  startDeck: ['strike', 'strike', 'strike', 'strike', 'defend', 'defend', 'defend', 'eclipseSlash', 'chisel', 'firstSpark'],
   startRelic: 'emberHeart',
   startGold: 99,
 };
@@ -34,138 +37,161 @@ export const ACTS = [
 export const CARDS = {
   // ---- starters
   strike: {
-    name: 'Strike', type: 'attack', rarity: 'starter', cost: 1, target: 'enemy',
+    name: 'Edge', type: 'attack', rarity: 'starter', cost: 1, target: 'enemy',
     text: 'Deal @6@ damage.', effects: [{ kind: 'dmg', n: 6 }],
     up: { text: 'Deal @9@ damage.', effects: [{ kind: 'dmg', n: 9 }] },
   },
   defend: {
-    name: 'Defend', type: 'skill', rarity: 'starter', cost: 1, target: 'self',
-    text: 'Gain #5# Block.', effects: [{ kind: 'block', n: 5 }],
-    up: { text: 'Gain #8# Block.', effects: [{ kind: 'block', n: 8 }] },
+    name: 'Ward', type: 'skill', rarity: 'starter', cost: 1, target: 'self',
+    text: 'Gain #5# Ward.', effects: [{ kind: 'block', n: 5 }],
+    up: { text: 'Gain #8# Ward.', effects: [{ kind: 'block', n: 8 }] },
   },
   eclipseSlash: {
     name: 'Eclipse Slash', type: 'attack', rarity: 'starter', cost: 1, target: 'enemy',
-    text: 'Deal @7@ damage. Apply 1 Vulnerable.',
+    text: 'Deal @7@ damage. Apply 1 Cracked.',
     effects: [{ kind: 'dmg', n: 7 }, { kind: 'status', who: 'target', id: 'vulnerable', n: 1 }],
     up: {
-      text: 'Deal @9@ damage. Apply 2 Vulnerable.',
+      text: 'Deal @9@ damage. Apply 2 Cracked.',
       effects: [{ kind: 'dmg', n: 9 }, { kind: 'status', who: 'target', id: 'vulnerable', n: 2 }],
     },
+  },
+  chisel: {
+    name: 'Chisel', type: 'attack', rarity: 'starter', cost: 1, target: 'enemy', chip: 1,
+    text: 'Deal @4@ damage. Chip 1 extra Facet.',
+    effects: [{ kind: 'dmg', n: 4 }],
+    up: { text: 'Deal @7@ damage. Chip 1 extra Facet.', effects: [{ kind: 'dmg', n: 7 }] },
+  },
+  firstSpark: {
+    name: 'First Spark', type: 'skill', rarity: 'starter', cost: 0, target: 'self',
+    text: 'Draw 1 card. Kindle.', exhaust: true, effects: [{ kind: 'draw', n: 1 }],
+    up: { text: 'Draw 2 cards. Kindle.', effects: [{ kind: 'draw', n: 2 }] },
+  },
+  // ---- Ashwarden starters
+  ashBite: {
+    name: 'Ashbite', type: 'attack', rarity: 'starter', cost: 1, target: 'enemy',
+    text: 'Deal @5@ damage. Apply 2 Smolder.',
+    effects: [{ kind: 'dmg', n: 5 }, { kind: 'status', who: 'target', id: 'poison', n: 2 }],
+    up: { text: 'Deal @7@ damage. Apply 3 Smolder.', effects: [{ kind: 'dmg', n: 7 }, { kind: 'status', who: 'target', id: 'poison', n: 3 }] },
+  },
+  smother: {
+    name: 'Smother', type: 'skill', rarity: 'starter', cost: 1, target: 'enemy',
+    text: 'Gain #5# Ward. Apply 2 Smolder.',
+    effects: [{ kind: 'block', n: 5 }, { kind: 'status', who: 'target', id: 'poison', n: 2 }],
+    up: { text: 'Gain #8# Ward. Apply 3 Smolder.', effects: [{ kind: 'block', n: 8 }, { kind: 'status', who: 'target', id: 'poison', n: 3 }] },
   },
 
   // ---- common attacks
   twinFangs: {
-    name: 'Twin Fangs', type: 'attack', rarity: 'common', cost: 1, target: 'enemy',
+    name: 'Twin Shards', type: 'attack', rarity: 'common', cost: 1, target: 'enemy',
     text: 'Deal @4@ damage twice.', effects: [{ kind: 'dmg', n: 4, times: 2 }],
     up: { text: 'Deal @6@ damage twice.', effects: [{ kind: 'dmg', n: 6, times: 2 }] },
   },
   quickSlash: {
-    name: 'Quick Slash', type: 'attack', rarity: 'common', cost: 0, target: 'enemy',
+    name: 'Flicker', type: 'attack', rarity: 'common', cost: 0, target: 'enemy',
     text: 'Deal @4@ damage. Draw 1 card.', effects: [{ kind: 'dmg', n: 4 }, { kind: 'draw', n: 1 }],
     up: { text: 'Deal @6@ damage. Draw 1 card.', effects: [{ kind: 'dmg', n: 6 }, { kind: 'draw', n: 1 }] },
   },
   heavyBlow: {
-    name: 'Heavy Blow', type: 'attack', rarity: 'common', cost: 2, target: 'enemy',
-    text: 'Deal @14@ damage.', effects: [{ kind: 'dmg', n: 14 }],
-    up: { text: 'Deal @20@ damage.', effects: [{ kind: 'dmg', n: 20 }] },
+    name: 'Quarry Maul', type: 'attack', rarity: 'common', cost: 2, target: 'enemy', chip: 1,
+    text: 'Deal @12@ damage. Chip 1 extra Facet.',
+    effects: [{ kind: 'dmg', n: 12 }],
+    up: { text: 'Deal @16@ damage. Chip 2 extra Facets.', chip: 2, effects: [{ kind: 'dmg', n: 16 }] },
   },
   cleave: {
-    name: 'Cleave', type: 'attack', rarity: 'common', cost: 1, target: 'allEnemies',
+    name: 'Fan of Glass', type: 'attack', rarity: 'common', cost: 1, target: 'allEnemies',
     text: 'Deal @6@ damage to ALL enemies.', effects: [{ kind: 'dmg', n: 6 }],
     up: { text: 'Deal @9@ damage to ALL enemies.', effects: [{ kind: 'dmg', n: 9 }] },
   },
   venomStrike: {
-    name: 'Venom Strike', type: 'attack', rarity: 'common', cost: 1, target: 'enemy',
-    text: 'Deal @4@ damage. Apply 3 Poison.',
+    name: 'Emberbite', type: 'attack', rarity: 'common', cost: 1, target: 'enemy',
+    text: 'Deal @4@ damage. Apply 3 Smolder.',
     effects: [{ kind: 'dmg', n: 4 }, { kind: 'status', who: 'target', id: 'poison', n: 3 }],
     up: {
-      text: 'Deal @6@ damage. Apply 4 Poison.',
+      text: 'Deal @6@ damage. Apply 4 Smolder.',
       effects: [{ kind: 'dmg', n: 6 }, { kind: 'status', who: 'target', id: 'poison', n: 4 }],
     },
   },
   lunge: {
-    name: 'Lunge', type: 'attack', rarity: 'common', cost: 1, target: 'enemy',
-    text: 'Deal @6@ damage. Apply 1 Weak.',
+    name: 'Dimming Cut', type: 'attack', rarity: 'common', cost: 1, target: 'enemy',
+    text: 'Deal @6@ damage. Apply 1 Dimmed.',
     effects: [{ kind: 'dmg', n: 6 }, { kind: 'status', who: 'target', id: 'weak', n: 1 }],
     up: {
-      text: 'Deal @9@ damage. Apply 2 Weak.',
+      text: 'Deal @9@ damage. Apply 2 Dimmed.',
       effects: [{ kind: 'dmg', n: 9 }, { kind: 'status', who: 'target', id: 'weak', n: 2 }],
     },
   },
   guardedStrike: {
-    name: 'Guarded Strike', type: 'attack', rarity: 'common', cost: 1, target: 'enemy',
-    text: 'Deal @5@ damage. Gain #4# Block.',
+    name: "Warden's Edge", type: 'attack', rarity: 'common', cost: 1, target: 'enemy',
+    text: 'Deal @5@ damage. Gain #4# Ward.',
     effects: [{ kind: 'dmg', n: 5 }, { kind: 'block', n: 4 }],
     up: {
-      text: 'Deal @7@ damage. Gain #6# Block.',
+      text: 'Deal @7@ damage. Gain #6# Ward.',
       effects: [{ kind: 'dmg', n: 7 }, { kind: 'block', n: 6 }],
     },
   },
 
   // ---- common skills
   brace: {
-    name: 'Brace', type: 'skill', rarity: 'common', cost: 1, target: 'self',
-    text: 'Gain #8# Block.', effects: [{ kind: 'block', n: 8 }],
-    up: { text: 'Gain #11# Block.', effects: [{ kind: 'block', n: 11 }] },
+    name: 'Held Light', type: 'skill', rarity: 'common', cost: 1, target: 'self',
+    text: 'Gain #8# Ward.', effects: [{ kind: 'block', n: 8 }],
+    up: { text: 'Gain #11# Ward.', effects: [{ kind: 'block', n: 11 }] },
   },
   sidestep: {
-    name: 'Sidestep', type: 'skill', rarity: 'common', cost: 0, target: 'self',
-    text: 'Gain #3# Block. Draw 1 card.', effects: [{ kind: 'block', n: 3 }, { kind: 'draw', n: 1 }],
-    up: { text: 'Gain #5# Block. Draw 1 card.', effects: [{ kind: 'block', n: 5 }, { kind: 'draw', n: 1 }] },
+    name: 'Glasstep', type: 'skill', rarity: 'common', cost: 0, target: 'self',
+    text: 'Gain #3# Ward. Draw 1 card.', effects: [{ kind: 'block', n: 3 }, { kind: 'draw', n: 1 }],
+    up: { text: 'Gain #5# Ward. Draw 1 card.', effects: [{ kind: 'block', n: 5 }, { kind: 'draw', n: 1 }] },
   },
   preparation: {
-    name: 'Preparation', type: 'skill', rarity: 'common', cost: 0, target: 'self',
-    text: 'Draw 2 cards. Exhaust.', exhaust: true, effects: [{ kind: 'draw', n: 2 }],
+    name: 'Tinder', type: 'skill', rarity: 'common', cost: 0, target: 'self',
+    text: 'Draw 2 cards. Kindle.', exhaust: true, effects: [{ kind: 'draw', n: 2 }],
     up: { text: 'Draw 2 cards.', exhaust: false, effects: [{ kind: 'draw', n: 2 }] },
   },
   deflect: {
-    name: 'Deflect', type: 'skill', rarity: 'common', cost: 1, target: 'self',
-    text: 'Gain #6# Block. Draw 1 card.', effects: [{ kind: 'block', n: 6 }, { kind: 'draw', n: 1 }],
-    up: { text: 'Gain #9# Block. Draw 1 card.', effects: [{ kind: 'block', n: 9 }, { kind: 'draw', n: 1 }] },
+    name: 'Refract', type: 'skill', rarity: 'common', cost: 1, target: 'self',
+    text: 'Gain #6# Ward. Draw 1 card.', effects: [{ kind: 'block', n: 6 }, { kind: 'draw', n: 1 }],
+    up: { text: 'Gain #9# Ward. Draw 1 card.', effects: [{ kind: 'block', n: 9 }, { kind: 'draw', n: 1 }] },
   },
 
   // ---- uncommon attacks
   leechBlade: {
-    name: 'Leech Blade', type: 'attack', rarity: 'uncommon', cost: 2, target: 'enemy',
+    name: 'Thirsting Shard', type: 'attack', rarity: 'uncommon', cost: 2, target: 'enemy',
     text: 'Deal @9@ damage. Heal for half the unblocked damage.',
     effects: [{ kind: 'special', id: 'leech', n: 9 }],
     up: { text: 'Deal @13@ damage. Heal for half the unblocked damage.', effects: [{ kind: 'special', id: 'leech', n: 13 }] },
   },
   tempest: {
-    name: 'Tempest', type: 'attack', rarity: 'uncommon', cost: 2, target: 'allEnemies',
+    name: 'Hailglass', type: 'attack', rarity: 'uncommon', cost: 2, target: 'allEnemies',
     text: 'Deal @4@ damage to ALL enemies twice.', effects: [{ kind: 'dmg', n: 4, times: 2 }],
     up: { text: 'Deal @6@ damage to ALL enemies twice.', effects: [{ kind: 'dmg', n: 6, times: 2 }] },
   },
   uppercut: {
-    name: 'Uppercut', type: 'attack', rarity: 'uncommon', cost: 2, target: 'enemy',
-    text: 'Deal @10@ damage. Apply 1 Weak and 1 Vulnerable.',
+    name: 'Ringing Blow', type: 'attack', rarity: 'uncommon', cost: 2, target: 'enemy', chip: 1,
+    text: 'Deal @10@ damage. Chip 1 extra Facet. Apply 1 Dimmed.',
     effects: [
       { kind: 'dmg', n: 10 },
       { kind: 'status', who: 'target', id: 'weak', n: 1 },
-      { kind: 'status', who: 'target', id: 'vulnerable', n: 1 },
     ],
     up: {
-      text: 'Deal @13@ damage. Apply 2 Weak and 2 Vulnerable.',
+      text: 'Deal @13@ damage. Chip 2 extra Facets. Apply 2 Dimmed.', chip: 2,
       effects: [
         { kind: 'dmg', n: 13 },
         { kind: 'status', who: 'target', id: 'weak', n: 2 },
-        { kind: 'status', who: 'target', id: 'vulnerable', n: 2 },
       ],
     },
   },
   flurry: {
-    name: 'Flurry', type: 'attack', rarity: 'uncommon', cost: 1, target: 'enemy',
+    name: 'Splinterstorm', type: 'attack', rarity: 'uncommon', cost: 1, target: 'enemy',
     text: 'Deal @2@ damage 3 times.', effects: [{ kind: 'dmg', n: 2, times: 3 }],
     up: { text: 'Deal @3@ damage 3 times.', effects: [{ kind: 'dmg', n: 3, times: 3 }] },
   },
   executioner: {
-    name: 'Executioner', type: 'attack', rarity: 'uncommon', cost: 1, target: 'enemy',
-    text: 'Deal @8@ damage. Vulnerable enemies take 6 more.',
+    name: 'Faultline', type: 'attack', rarity: 'uncommon', cost: 1, target: 'enemy',
+    text: 'Deal @8@ damage. Cracked enemies take 6 more.',
     effects: [{ kind: 'special', id: 'execute', n: 8, bonus: 6 }],
-    up: { text: 'Deal @11@ damage. Vulnerable enemies take 8 more.', effects: [{ kind: 'special', id: 'execute', n: 11, bonus: 8 }] },
+    up: { text: 'Deal @11@ damage. Cracked enemies take 8 more.', effects: [{ kind: 'special', id: 'execute', n: 11, bonus: 8 }] },
   },
   momentum: {
-    name: 'Momentum', type: 'attack', rarity: 'uncommon', cost: 1, target: 'enemy',
+    name: 'Honing Edge', type: 'attack', rarity: 'uncommon', cost: 1, target: 'enemy',
     text: 'Deal @6@ damage. Each play, this card gains +4 damage this combat.',
     effects: [{ kind: 'special', id: 'momentum', n: 6, grow: 4 }],
     up: { text: 'Deal @8@ damage. Each play, this card gains +6 damage this combat.', effects: [{ kind: 'special', id: 'momentum', n: 8, grow: 6 }] },
@@ -173,37 +199,37 @@ export const CARDS = {
 
   // ---- uncommon skills
   bulwark: {
-    name: 'Bulwark', type: 'skill', rarity: 'uncommon', cost: 2, target: 'self',
-    text: 'Gain #13# Block.', effects: [{ kind: 'block', n: 13 }],
-    up: { text: 'Gain #18# Block.', effects: [{ kind: 'block', n: 18 }] },
+    name: 'Glasswall', type: 'skill', rarity: 'uncommon', cost: 2, target: 'self',
+    text: 'Gain #13# Ward.', effects: [{ kind: 'block', n: 13 }],
+    up: { text: 'Gain #18# Ward.', effects: [{ kind: 'block', n: 18 }] },
   },
   surge: {
-    name: 'Surge', type: 'skill', rarity: 'uncommon', cost: 0, target: 'self',
-    text: 'Gain 1 Energy. Draw 1 card. Exhaust.', exhaust: true,
+    name: 'Struck Match', type: 'skill', rarity: 'uncommon', cost: 0, target: 'self',
+    text: 'Gain 1 Energy. Draw 1 card. Kindle.', exhaust: true,
     effects: [{ kind: 'energy', n: 1 }, { kind: 'draw', n: 1 }],
-    up: { text: 'Gain 2 Energy. Draw 1 card. Exhaust.', effects: [{ kind: 'energy', n: 2 }, { kind: 'draw', n: 1 }] },
+    up: { text: 'Gain 2 Energy. Draw 1 card. Kindle.', effects: [{ kind: 'energy', n: 2 }, { kind: 'draw', n: 1 }] },
   },
   toxicMist: {
-    name: 'Toxic Mist', type: 'skill', rarity: 'uncommon', cost: 1, target: 'allEnemies',
-    text: 'Apply 3 Poison to ALL enemies.',
+    name: 'Ashcloud', type: 'skill', rarity: 'uncommon', cost: 1, target: 'allEnemies',
+    text: 'Apply 3 Smolder to ALL enemies.',
     effects: [{ kind: 'status', who: 'allEnemies', id: 'poison', n: 3 }],
-    up: { text: 'Apply 5 Poison to ALL enemies.', effects: [{ kind: 'status', who: 'allEnemies', id: 'poison', n: 5 }] },
+    up: { text: 'Apply 5 Smolder to ALL enemies.', effects: [{ kind: 'status', who: 'allEnemies', id: 'poison', n: 5 }] },
   },
   cripple: {
-    name: 'Cripple', type: 'skill', rarity: 'uncommon', cost: 1, target: 'enemy',
-    text: "Reduce an enemy's Strength by 2. Exhaust.", exhaust: true,
+    name: 'Gutter', type: 'skill', rarity: 'uncommon', cost: 1, target: 'enemy',
+    text: "Snuff an enemy's fire: it loses 2 Fervor. Kindle.", exhaust: true,
     effects: [{ kind: 'status', who: 'target', id: 'str', n: -2 }],
-    up: { text: "Reduce an enemy's Strength by 3. Exhaust.", effects: [{ kind: 'status', who: 'target', id: 'str', n: -3 }] },
+    up: { text: "Snuff an enemy's fire: it loses 3 Fervor. Kindle.", effects: [{ kind: 'status', who: 'target', id: 'str', n: -3 }] },
   },
   warCry: {
-    name: 'War Cry', type: 'skill', rarity: 'uncommon', cost: 1, target: 'allEnemies',
-    text: 'Apply 1 Weak and 1 Vulnerable to ALL enemies.',
+    name: 'Shatterhymn', type: 'skill', rarity: 'uncommon', cost: 1, target: 'allEnemies',
+    text: 'Apply 1 Dimmed and 1 Cracked to ALL enemies.',
     effects: [
       { kind: 'status', who: 'allEnemies', id: 'weak', n: 1 },
       { kind: 'status', who: 'allEnemies', id: 'vulnerable', n: 1 },
     ],
     up: {
-      text: 'Apply 2 Weak and 2 Vulnerable to ALL enemies.',
+      text: 'Apply 2 Dimmed and 2 Cracked to ALL enemies.',
       effects: [
         { kind: 'status', who: 'allEnemies', id: 'weak', n: 2 },
         { kind: 'status', who: 'allEnemies', id: 'vulnerable', n: 2 },
@@ -211,12 +237,12 @@ export const CARDS = {
     },
   },
   fortify: {
-    name: 'Fortify', type: 'skill', rarity: 'uncommon', cost: 2, target: 'self',
-    text: 'Double your Block.', effects: [{ kind: 'special', id: 'doubleBlock' }],
-    up: { cost: 1, text: 'Double your Block.' },
+    name: 'Mirrorlight', type: 'skill', rarity: 'uncommon', cost: 2, target: 'self',
+    text: 'Double your Ward.', effects: [{ kind: 'special', id: 'doubleBlock' }],
+    up: { cost: 1, text: 'Double your Ward.' },
   },
   bloodRite: {
-    name: 'Blood Rite', type: 'skill', rarity: 'uncommon', cost: 0, target: 'self',
+    name: 'Blood for Oil', type: 'skill', rarity: 'uncommon', cost: 0, target: 'self',
     text: 'Lose 3 HP. Gain 2 Energy.',
     effects: [{ kind: 'loseHp', n: 3 }, { kind: 'energy', n: 2 }],
     up: { text: 'Lose 3 HP. Gain 3 Energy.', effects: [{ kind: 'loseHp', n: 3 }, { kind: 'energy', n: 3 }] },
@@ -224,23 +250,23 @@ export const CARDS = {
 
   // ---- uncommon powers
   empower: {
-    name: 'Empower', type: 'power', rarity: 'uncommon', cost: 1, target: 'self',
-    text: 'Gain 2 Strength.', effects: [{ kind: 'status', who: 'self', id: 'str', n: 2 }],
-    up: { text: 'Gain 3 Strength.', effects: [{ kind: 'status', who: 'self', id: 'str', n: 3 }] },
+    name: 'Inner Blaze', type: 'power', rarity: 'uncommon', cost: 1, target: 'self',
+    text: 'Gain 2 Fervor.', effects: [{ kind: 'status', who: 'self', id: 'str', n: 2 }],
+    up: { text: 'Gain 3 Fervor.', effects: [{ kind: 'status', who: 'self', id: 'str', n: 3 }] },
   },
   agility: {
-    name: 'Agility', type: 'power', rarity: 'uncommon', cost: 1, target: 'self',
-    text: 'Gain 2 Dexterity.', effects: [{ kind: 'status', who: 'self', id: 'dex', n: 2 }],
-    up: { text: 'Gain 3 Dexterity.', effects: [{ kind: 'status', who: 'self', id: 'dex', n: 3 }] },
+    name: "Glazier's Poise", type: 'power', rarity: 'uncommon', cost: 1, target: 'self',
+    text: 'Gain 2 Poise.', effects: [{ kind: 'status', who: 'self', id: 'dex', n: 2 }],
+    up: { text: 'Gain 3 Poise.', effects: [{ kind: 'status', who: 'self', id: 'dex', n: 3 }] },
   },
   ironSkin: {
-    name: 'Iron Skin', type: 'power', rarity: 'uncommon', cost: 1, target: 'self',
-    text: 'At the end of your turn, gain 3 Block.',
+    name: 'Vitrify', type: 'power', rarity: 'uncommon', cost: 1, target: 'self',
+    text: 'At the end of your turn, gain 3 Ward.',
     effects: [{ kind: 'status', who: 'self', id: 'metallicize', n: 3 }],
-    up: { text: 'At the end of your turn, gain 4 Block.', effects: [{ kind: 'status', who: 'self', id: 'metallicize', n: 4 }] },
+    up: { text: 'At the end of your turn, gain 4 Ward.', effects: [{ kind: 'status', who: 'self', id: 'metallicize', n: 4 }] },
   },
   regrowth: {
-    name: 'Regrowth', type: 'power', rarity: 'uncommon', cost: 1, target: 'self',
+    name: 'Hearthglow', type: 'power', rarity: 'uncommon', cost: 1, target: 'self',
     text: 'At the end of your turn, heal 2 HP.',
     effects: [{ kind: 'status', who: 'self', id: 'regen', n: 2 }],
     up: { text: 'At the end of your turn, heal 3 HP.', effects: [{ kind: 'status', who: 'self', id: 'regen', n: 3 }] },
@@ -248,9 +274,9 @@ export const CARDS = {
 
   // ---- rare attacks
   oblivionStrike: {
-    name: 'Oblivion Strike', type: 'attack', rarity: 'rare', cost: 3, target: 'enemy',
-    text: 'Deal @30@ damage.', effects: [{ kind: 'dmg', n: 30 }],
-    up: { text: 'Deal @40@ damage.', effects: [{ kind: 'dmg', n: 40 }] },
+    name: 'Bellstrike', type: 'attack', rarity: 'rare', cost: 3, target: 'enemy', chip: 2,
+    text: 'Deal @30@ damage. Chip 2 extra Facets.', effects: [{ kind: 'dmg', n: 30 }],
+    up: { text: 'Deal @40@ damage. Chip 3 extra Facets.', chip: 3, effects: [{ kind: 'dmg', n: 40 }] },
   },
   phantomBlades: {
     name: 'Phantom Blades', type: 'attack', rarity: 'rare', cost: 1, target: 'enemy',
@@ -259,71 +285,71 @@ export const CARDS = {
     up: { text: 'Deal @4@ damage for each card in your hand.', effects: [{ kind: 'special', id: 'phantom', n: 4 }] },
   },
   devour: {
-    name: 'Devour', type: 'attack', rarity: 'rare', cost: 1, target: 'enemy',
-    text: 'Deal @10@ damage. If this kills the enemy, gain 3 Max HP. Exhaust.', exhaust: true,
-    effects: [{ kind: 'special', id: 'devour', n: 10, maxHp: 3 }],
-    up: { text: 'Deal @13@ damage. If this kills the enemy, gain 4 Max HP. Exhaust.', effects: [{ kind: 'special', id: 'devour', n: 13, maxHp: 4 }] },
+    name: 'Eat the Flame', type: 'attack', rarity: 'rare', cost: 1, target: 'enemy',
+    text: 'Deal @10@ damage. If this kills, swallow its fire: gain 3 Embers and heal 4. Kindle.', exhaust: true,
+    effects: [{ kind: 'special', id: 'devour', n: 10, embers: 3, heal: 4 }],
+    up: { text: 'Deal @13@ damage. If this kills, swallow its fire: gain 4 Embers and heal 6. Kindle.', effects: [{ kind: 'special', id: 'devour', n: 13, embers: 4, heal: 6 }] },
   },
   annihilate: {
-    name: 'Annihilate', type: 'attack', rarity: 'rare', cost: 2, target: 'allEnemies',
-    text: 'Deal @9@ damage and apply 3 Poison to ALL enemies.',
+    name: 'Requiem', type: 'attack', rarity: 'rare', cost: 2, target: 'allEnemies',
+    text: 'Deal @9@ damage and apply 3 Smolder to ALL enemies.',
     effects: [{ kind: 'dmg', n: 9 }, { kind: 'status', who: 'allEnemies', id: 'poison', n: 3 }],
     up: {
-      text: 'Deal @12@ damage and apply 4 Poison to ALL enemies.',
+      text: 'Deal @12@ damage and apply 4 Smolder to ALL enemies.',
       effects: [{ kind: 'dmg', n: 12 }, { kind: 'status', who: 'allEnemies', id: 'poison', n: 4 }],
     },
   },
 
   // ---- rare skills
   aegis: {
-    name: 'Aegis', type: 'skill', rarity: 'rare', cost: 2, target: 'self',
-    text: 'Gain #30# Block. Exhaust.', exhaust: true, effects: [{ kind: 'block', n: 30 }],
-    up: { text: 'Gain #40# Block. Exhaust.', effects: [{ kind: 'block', n: 40 }] },
+    name: 'Cathedral Glass', type: 'skill', rarity: 'rare', cost: 2, target: 'self',
+    text: 'Gain #30# Ward. Kindle.', exhaust: true, effects: [{ kind: 'block', n: 30 }],
+    up: { text: 'Gain #40# Ward. Kindle.', effects: [{ kind: 'block', n: 40 }] },
   },
   offering: {
-    name: 'Offering', type: 'skill', rarity: 'rare', cost: 0, target: 'self',
-    text: 'Lose 6 HP. Gain 2 Energy. Draw 3 cards. Exhaust.', exhaust: true,
-    effects: [{ kind: 'loseHp', n: 6 }, { kind: 'energy', n: 2 }, { kind: 'draw', n: 3 }],
+    name: 'Pyre Tithe', type: 'skill', rarity: 'rare', cost: 1, target: 'self',
+    text: 'Burn every other card in your hand — each feeds the lantern. Draw 3 cards. Kindle.', exhaust: true,
+    effects: [{ kind: 'special', id: 'pyreTithe', draw: 3 }],
     up: {
-      text: 'Lose 6 HP. Gain 2 Energy. Draw 5 cards. Exhaust.',
-      effects: [{ kind: 'loseHp', n: 6 }, { kind: 'energy', n: 2 }, { kind: 'draw', n: 5 }],
+      text: 'Burn every other card in your hand — each feeds the lantern. Draw 4 cards. Kindle.',
+      effects: [{ kind: 'special', id: 'pyreTithe', draw: 4 }],
     },
   },
   limitBreak: {
-    name: 'Limit Break', type: 'skill', rarity: 'rare', cost: 1, target: 'self',
-    text: 'Double your Strength. Exhaust.', exhaust: true,
-    effects: [{ kind: 'special', id: 'limitBreak' }],
-    up: { text: 'Double your Strength.', exhaust: false },
+    name: 'Annealing Rite', type: 'skill', rarity: 'rare', cost: 1, target: 'allEnemies',
+    text: 'Chip 2 Facets of every enemy. Kindle.', exhaust: true,
+    effects: [{ kind: 'chip', n: 2 }],
+    up: { text: 'Chip 3 Facets of every enemy. Kindle.', effects: [{ kind: 'chip', n: 3 }] },
   },
   catalyst: {
-    name: 'Catalyst', type: 'skill', rarity: 'rare', cost: 1, target: 'enemy',
-    text: "Double an enemy's Poison. Exhaust.", exhaust: true,
+    name: 'Bellows', type: 'skill', rarity: 'rare', cost: 1, target: 'enemy',
+    text: "Double an enemy's Smolder. Kindle.", exhaust: true,
     effects: [{ kind: 'special', id: 'catalyst', n: 2 }],
-    up: { text: "Triple an enemy's Poison. Exhaust.", effects: [{ kind: 'special', id: 'catalyst', n: 3 }] },
+    up: { text: "Triple an enemy's Smolder. Kindle.", effects: [{ kind: 'special', id: 'catalyst', n: 3 }] },
   },
 
   // ---- rare powers
   ascension: {
-    name: 'Dark Ascension', type: 'power', rarity: 'rare', cost: 3, target: 'self',
-    text: 'At the start of each turn, gain 2 Strength.',
+    name: 'Rising Litany', type: 'power', rarity: 'rare', cost: 3, target: 'self',
+    text: 'At the start of each turn, gain 2 Fervor.',
     effects: [{ kind: 'status', who: 'self', id: 'ritual', n: 2 }],
-    up: { text: 'At the start of each turn, gain 3 Strength.', effects: [{ kind: 'status', who: 'self', id: 'ritual', n: 3 }] },
+    up: { text: 'At the start of each turn, gain 3 Fervor.', effects: [{ kind: 'status', who: 'self', id: 'ritual', n: 3 }] },
   },
   bastion: {
-    name: 'Bastion', type: 'power', rarity: 'rare', cost: 3, target: 'self',
-    text: 'Block no longer expires at the start of your turn.',
+    name: 'Anneal', type: 'power', rarity: 'rare', cost: 3, target: 'self',
+    text: 'Ward no longer expires at the start of your turn.',
     effects: [{ kind: 'status', who: 'self', id: 'barricade', n: 1 }],
     up: { cost: 2 },
   },
   frenzy: {
-    name: 'Frenzy', type: 'power', rarity: 'rare', cost: 2, target: 'self',
-    text: 'Gain 2 Vulnerable. At the start of each turn, gain 1 Energy.',
+    name: 'Overglow', type: 'power', rarity: 'rare', cost: 2, target: 'self',
+    text: 'Your glass runs too hot: gain 2 Cracked. At the start of each turn, gain 1 Energy.',
     effects: [
       { kind: 'status', who: 'self', id: 'vulnerable', n: 2 },
       { kind: 'status', who: 'self', id: 'energized', n: 1 },
     ],
     up: {
-      text: 'Gain 1 Vulnerable. At the start of each turn, gain 1 Energy.',
+      text: 'Your glass runs too hot: gain 1 Cracked. At the start of each turn, gain 1 Energy.',
       effects: [
         { kind: 'status', who: 'self', id: 'vulnerable', n: 1 },
         { kind: 'status', who: 'self', id: 'energized', n: 1 },
@@ -331,102 +357,177 @@ export const CARDS = {
     },
   },
   virulence: {
-    name: 'Virulence', type: 'power', rarity: 'rare', cost: 2, target: 'self',
-    text: 'Whenever you play an Attack, apply 1 Poison to the enemy.',
+    name: 'Emberfang', type: 'power', rarity: 'rare', cost: 2, target: 'self',
+    text: 'Whenever you play an Attack, apply 1 Smolder to the enemy.',
     effects: [{ kind: 'status', who: 'self', id: 'venomous', n: 1 }],
     up: { cost: 1 },
   },
 
+  // ---- the vigil's unlockables (locked out of pools until their deed is done)
+  quakeblow: {
+    name: 'Quakeblow', type: 'attack', rarity: 'uncommon', cost: 2, target: 'enemy', chip: 2, locked: 'paneBreaker',
+    text: 'Deal @8@ damage. Chip 2 extra Facets.',
+    effects: [{ kind: 'dmg', n: 8 }],
+    up: { text: 'Deal @11@ damage. Chip 3 extra Facets.', chip: 3, effects: [{ kind: 'dmg', n: 11 }] },
+  },
+  resonantLance: {
+    name: 'Resonant Lance', type: 'attack', rarity: 'rare', cost: 1, target: 'enemy', locked: 'paneBreaker',
+    text: 'Deal @7@ damage. Deals double to Staggered or Cracked glass.',
+    effects: [{ kind: 'special', id: 'shatterEcho', n: 7 }],
+    up: { text: 'Deal @10@ damage. Deals double to Staggered or Cracked glass.', effects: [{ kind: 'special', id: 'shatterEcho', n: 10 }] },
+  },
+  tithe: {
+    name: 'Tithe of Panes', type: 'skill', rarity: 'uncommon', cost: 1, target: 'self', locked: 'lanternFed',
+    text: 'Gain 2 Embers. Draw 1 card.',
+    effects: [{ kind: 'ember', n: 2 }, { kind: 'draw', n: 1 }],
+    up: { text: 'Gain 3 Embers. Draw 1 card.', effects: [{ kind: 'ember', n: 3 }, { kind: 'draw', n: 1 }] },
+  },
+  pyreheart: {
+    name: 'Pyreheart', type: 'power', rarity: 'rare', cost: 2, target: 'self', locked: 'lanternFed',
+    text: 'At the start of each turn, gain 1 Ember.',
+    effects: [{ kind: 'status', who: 'self', id: 'emberflow', n: 1 }],
+    up: { cost: 1 },
+  },
+  ashenChoir: {
+    name: 'Ashen Choir', type: 'skill', rarity: 'uncommon', cost: 1, target: 'enemy', locked: 'ashSermon',
+    text: 'Apply 4 Smolder. When smoldering glass dies, its fire leaps on.',
+    effects: [{ kind: 'status', who: 'target', id: 'poison', n: 4 }],
+    up: { text: 'Apply 6 Smolder. When smoldering glass dies, its fire leaps on.', effects: [{ kind: 'status', who: 'target', id: 'poison', n: 6 }] },
+  },
+  flawlessForm: {
+    name: 'Flawless Form', type: 'skill', rarity: 'rare', cost: 1, target: 'self', locked: 'untouched',
+    text: 'Gain #8# Ward. If your glass is untouched this combat, gain #8# more.',
+    effects: [{ kind: 'special', id: 'flawless', n: 8 }],
+    up: { text: 'Gain #11# Ward. If your glass is untouched this combat, gain #11# more.', effects: [{ kind: 'special', id: 'flawless', n: 11 }] },
+  },
+  nightSight: {
+    name: 'Night Sight', type: 'power', rarity: 'uncommon', cost: 1, target: 'self', locked: 'darkWalker',
+    text: 'At the start of each turn, draw 1 extra card.',
+    effects: [{ kind: 'status', who: 'self', id: 'nightsight', n: 1 }],
+    up: { cost: 0 },
+  },
+  novaflare: {
+    name: 'Novaflare', type: 'attack', rarity: 'rare', cost: 2, target: 'enemy', locked: 'spendthrift',
+    text: 'Deal @3@ damage for every Ember in your lantern.',
+    effects: [{ kind: 'special', id: 'emberNova', n: 3 }],
+    up: { text: 'Deal @4@ damage for every Ember in your lantern.', effects: [{ kind: 'special', id: 'emberNova', n: 4 }] },
+  },
+  emberdance: {
+    name: 'Emberdance', type: 'skill', rarity: 'uncommon', cost: 0, target: 'self', locked: 'spendthrift',
+    text: 'Spill your lantern: gain 3 Ward for each Ember spent. Kindle.', exhaust: true,
+    effects: [{ kind: 'special', id: 'emberdance', n: 3 }],
+    up: { text: 'Spill your lantern: gain 4 Ward for each Ember spent. Kindle.', effects: [{ kind: 'special', id: 'emberdance', n: 4 }] },
+  },
+  shardstorm: {
+    name: 'Shardstorm', type: 'attack', rarity: 'rare', cost: 3, target: 'allEnemies',
+    locked: 'hundredShards',
+    text: 'Deal @5@ damage to ALL enemies twice.',
+    effects: [{ kind: 'dmg', n: 5, times: 2 }],
+    up: { text: 'Deal @7@ damage to ALL enemies twice.', effects: [{ kind: 'dmg', n: 7, times: 2 }] },
+  },
+
   // ---- statuses / curses
   wound: {
-    name: 'Wound', type: 'status', rarity: 'special', cost: null, target: 'none',
-    text: 'Unplayable.', unplayable: true, effects: [],
+    name: 'Shard', type: 'status', rarity: 'special', cost: null, target: 'none',
+    text: 'Unplayable. Broken glass rattling in your deck.', unplayable: true, effects: [],
   },
   burn: {
-    name: 'Burn', type: 'status', rarity: 'special', cost: null, target: 'none',
+    name: 'Cinder', type: 'status', rarity: 'special', cost: null, target: 'none',
     text: 'Unplayable. At the end of your turn, take 2 damage if this is in your hand.',
     unplayable: true, endTurnDmg: 2, effects: [],
   },
   hex: {
     name: 'Hex', type: 'curse', rarity: 'special', cost: null, target: 'none',
-    text: 'Unplayable. At the end of your turn, lose 1 HP if this is in your hand.',
+    text: 'Unplayable. At the end of your turn, lose 1 HP if this is in your hand. Refuses the fire.',
     unplayable: true, endTurnLoseHp: 1, effects: [],
   },
 };
 
 export const CARD_POOLS = (() => {
   const pools = { common: [], uncommon: [], rare: [] };
-  for (const [id, c] of Object.entries(CARDS)) if (pools[c.rarity]) pools[c.rarity].push(id);
+  for (const [id, c] of Object.entries(CARDS)) if (pools[c.rarity] && !c.locked) pools[c.rarity].push(id);
   return pools;
 })();
 
 // ---------------------------------------------------------------- STATUSES (display metadata)
+// The native tongue: internal keys are engine plumbing, the names are the game's own.
 export const STATUS_INFO = {
-  str: { name: 'Strength', icon: '⚔', kind: 'buff', desc: 'Attacks deal +N damage.' },
-  dex: { name: 'Dexterity', icon: '🛡', kind: 'buff', desc: 'Block cards grant +N Block.' },
-  vulnerable: { name: 'Vulnerable', icon: '◎', kind: 'debuff', desc: 'Takes 50% more attack damage. Wears off each turn.' },
-  weak: { name: 'Weak', icon: '↓', kind: 'debuff', desc: 'Deals 25% less attack damage. Wears off each turn.' },
-  frail: { name: 'Frail', icon: '✖', kind: 'debuff', desc: 'Block gained reduced 25%. Wears off each turn.' },
-  poison: { name: 'Poison', icon: '☠', kind: 'debuff', desc: 'Loses N HP at the start of its turn, then Poison drops by 1.' },
-  thorns: { name: 'Thorns', icon: '❈', kind: 'buff', desc: 'Attackers take N damage back.' },
-  ritual: { name: 'Ritual', icon: '☽', kind: 'buff', desc: 'Gains N Strength at the start of each turn.' },
-  metallicize: { name: 'Iron Skin', icon: '⬡', kind: 'buff', desc: 'Gains N Block at the end of each turn.' },
-  regen: { name: 'Regen', icon: '❋', kind: 'buff', desc: 'Heals N HP at the end of each turn.' },
-  barricade: { name: 'Bastion', icon: '☗', kind: 'buff', desc: 'Block no longer expires.' },
-  energized: { name: 'Energized', icon: '✦', kind: 'buff', desc: 'Gain N extra Energy at the start of each turn.' },
-  venomous: { name: 'Venomous', icon: '☠', kind: 'buff', desc: 'Attacks apply N Poison.' },
-  rampage: { name: 'Rampage', icon: '⤴', kind: 'buff', desc: 'Attack grows stronger with each use.' },
+  str: { name: 'Fervor', icon: '⚔', kind: 'buff', desc: 'The inner fire stoked: attacks deal +N damage.' },
+  dex: { name: 'Poise', icon: '🛡', kind: 'buff', desc: 'Ward cards grant +N Ward.' },
+  vulnerable: { name: 'Cracked', icon: '◎', kind: 'debuff', desc: 'The glass is scored: takes 50% more attack damage. Wears off each turn.' },
+  weak: { name: 'Dimmed', icon: '↓', kind: 'debuff', desc: 'The fire gutters: deals 25% less attack damage. Wears off each turn.' },
+  frail: { name: 'Brittle', icon: '✖', kind: 'debuff', desc: 'Ward gained reduced 25%. Wears off each turn.' },
+  poison: { name: 'Smolder', icon: '☠', kind: 'debuff', desc: 'Burns from within: loses N HP at the start of its turn, then Smolder falls by 1. When smoldering glass shatters or dies, the Smolder leaps to another enemy.' },
+  thorns: { name: 'Splinters', icon: '❈', kind: 'buff', desc: 'Attackers take N damage back.' },
+  ritual: { name: 'Litany', icon: '☽', kind: 'buff', desc: 'Gains N Fervor at the start of each turn.' },
+  metallicize: { name: 'Vitrified', icon: '⬡', kind: 'buff', desc: 'Gains N Ward at the end of each turn.' },
+  regen: { name: 'Warmth', icon: '❋', kind: 'buff', desc: 'Heals N HP at the end of each turn.' },
+  barricade: { name: 'Annealed', icon: '☗', kind: 'buff', desc: 'Ward no longer expires.' },
+  energized: { name: 'Alight', icon: '✦', kind: 'buff', desc: 'Gain N extra Energy at the start of each turn.' },
+  venomous: { name: 'Emberfang', icon: '☠', kind: 'buff', desc: 'Attacks apply N Smolder.' },
+  rampage: { name: 'Crescendo', icon: '⤴', kind: 'buff', desc: 'Attack grows stronger with each use.' },
+  beacon: { name: 'Beacon', icon: '☀', kind: 'buff', desc: 'Attacks chip N extra Facet(s). Fades at end of turn.' },
+  emberflow: { name: 'Pyreheart', icon: '♥', kind: 'buff', desc: 'Gain N Ember(s) at the start of each turn.' },
+  nightsight: { name: 'Night Sight', icon: '☾', kind: 'buff', desc: 'Draw N extra card(s) at the start of each turn.' },
 };
 
 // ---------------------------------------------------------------- RELICS
 export const RELICS = {
   emberHeart: { name: 'Emberheart', rarity: 'starter', glyph: '♥', tone: '#ff5964', text: 'At the end of combat, heal 6 HP.' },
+  ashenCore: { name: 'Ashen Core', rarity: 'starter', glyph: '☁', tone: '#d3a15a', text: 'Enemies begin each combat with 3 Smolder.' },
 
-  basaltIdol: { name: 'Basalt Idol', rarity: 'common', glyph: '☗', tone: '#9aa7b8', text: 'Begin each combat with 10 Block.' },
-  warFetish: { name: 'War Fetish', rarity: 'common', glyph: '⚔', tone: '#ff8c5a', text: 'Begin each combat with 1 Strength.' },
-  riverPearl: { name: 'River Pearl', rarity: 'common', glyph: '◉', tone: '#6fd6e8', text: 'Begin each combat with 1 Dexterity.' },
+  basaltIdol: { name: 'Basalt Idol', rarity: 'common', glyph: '☗', tone: '#9aa7b8', text: 'Begin each combat with 10 Ward.' },
+  warFetish: { name: 'War Fetish', rarity: 'common', glyph: '⚔', tone: '#ff8c5a', text: 'Begin each combat with 1 Fervor.' },
+  riverPearl: { name: 'River Pearl', rarity: 'common', glyph: '◉', tone: '#6fd6e8', text: 'Begin each combat with 1 Poise.' },
   travelersPack: { name: "Traveler's Pack", rarity: 'common', glyph: '⌘', tone: '#c9a86a', text: 'Draw 2 extra cards on your first turn.' },
   emberLantern: { name: 'Ember Lantern', rarity: 'common', glyph: '☀', tone: '#ffd166', text: 'Gain 1 extra Energy on your first turn.' },
   vialOfLife: { name: 'Vial of Life', rarity: 'common', glyph: '♣', tone: '#7ddb8f', text: 'Heal 2 HP at the start of each combat.' },
-  thornBand: { name: 'Thorn Band', rarity: 'common', glyph: '❈', tone: '#a3e06c', text: 'Begin each combat with 2 Thorns.' },
+  thornBand: { name: 'Thorn Band', rarity: 'common', glyph: '❈', tone: '#a3e06c', text: 'Begin each combat with 2 Splinters.' },
   sweetRoot: { name: 'Sweet Root', rarity: 'common', glyph: '✿', tone: '#ff9ecb', text: 'On pickup: gain 8 Max HP.', instant: true },
 
   gravebloom: { name: 'Gravebloom', rarity: 'uncommon', glyph: '❀', tone: '#b18cff', text: 'After combat, if at or below 50% HP, heal 10.' },
-  silkFan: { name: 'Silk Fan', rarity: 'uncommon', glyph: '⛉', tone: '#8fd0ff', text: 'Every 3rd card you play each combat grants 3 Block.' },
+  silkFan: { name: 'Silk Fan', rarity: 'uncommon', glyph: '⛉', tone: '#8fd0ff', text: 'Every 3rd card you play each combat grants 3 Ward.' },
   reapersBell: { name: "Reaper's Bell", rarity: 'uncommon', glyph: '♫', tone: '#d8c27a', text: 'When an enemy dies, gain 1 Energy and draw 1 card.' },
   executionersSeal: { name: "Executioner's Seal", rarity: 'uncommon', glyph: '✠', tone: '#ff6b6b', text: 'Every 10th Attack you play deals double damage.' },
-  ironTalisman: { name: 'Iron Talisman', rarity: 'uncommon', glyph: '◈', tone: '#c0c8d4', text: 'Every 3rd Attack you play grants 1 Strength.' },
+  ironTalisman: { name: 'Iron Talisman', rarity: 'uncommon', glyph: '◈', tone: '#c0c8d4', text: 'Every 3rd Attack you play grants 1 Fervor.' },
   merchantsMark: { name: "Merchant's Mark", rarity: 'uncommon', glyph: '¤', tone: '#f2c14e', text: 'Shop prices are 25% lower.' },
   seersOrb: { name: "Seer's Orb", rarity: 'uncommon', glyph: '☉', tone: '#9be8d8', text: 'Card rewards offer 1 additional choice.' },
 
   frozenCore: { name: 'Frozen Core', rarity: 'rare', glyph: '❆', tone: '#a8e6ff', text: 'Unspent Energy carries over between turns.' },
-  verdantBranch: { name: 'Verdant Branch', rarity: 'rare', glyph: '⚕', tone: '#7ddb8f', text: 'Whenever a card is Exhausted, draw 1 card.' },
+  verdantBranch: { name: 'Verdant Branch', rarity: 'rare', glyph: '⚕', tone: '#7ddb8f', text: 'Whenever a card is Kindled or burned away, draw 1 card.' },
   sunBlossom: { name: 'Sun Blossom', rarity: 'rare', glyph: '❂', tone: '#ffd166', text: 'All healing is increased by 50%.' },
   wardingCharm: { name: 'Warding Charm', rarity: 'rare', glyph: '⛨', tone: '#8fa8ff', text: 'Enemy attacks that would deal 5 or less damage deal 1.' },
   duskmirror: { name: 'Duskmirror', rarity: 'rare', glyph: '◐', tone: '#c99aff', text: 'The first card you play each turn costs 0.' },
 
-  obsidianHeart: { name: 'Obsidian Heart', rarity: 'boss', glyph: '♦', tone: '#b18cff', text: 'Gain 1 Energy each turn. On pickup: lose 8 Max HP.', instant: true },
-  philosophersStone: { name: "Philosopher's Stone", rarity: 'boss', glyph: '▣', tone: '#ffd166', text: 'Gain 1 Energy each turn. All enemies start with 1 Strength.' },
-  blackBlood: { name: 'Black Blood', rarity: 'boss', glyph: '♥', tone: '#8c1d2f', text: 'Replaces Emberheart. At the end of combat, heal 12 HP.', replaces: 'emberHeart' },
-  pandorasBox: { name: "Pandora's Box", rarity: 'boss', glyph: '▩', tone: '#d8a0ff', text: 'On pickup: transform all Strikes and Defends into random cards.', instant: true },
-  voidCrown: { name: 'Void Crown', rarity: 'boss', glyph: '♛', tone: '#ff4fd8', text: 'Gain 1 Energy each turn. Start each combat with a Wound in your draw pile.' },
+  // the vigil's unlockables
+  smolderingCoal: { name: 'Smoldering Coal', rarity: 'uncommon', glyph: '♨', tone: '#ff9a4d', locked: 'ashSermon', text: 'Enemies begin each combat with 2 Smolder.' },
+  thiefOfWicks: { name: 'Thief of Wicks', rarity: 'uncommon', glyph: '☄', tone: '#c9a86a', locked: 'darkWalker', text: 'Unlit lanterns pay double bounty.' },
+  prismCharm: { name: 'Prism Charm', rarity: 'rare', glyph: '◬', tone: '#9be8d8', locked: 'untouched', text: 'Your first Shatter each combat spills 2 extra Embers.' },
+  bellOfEndings: { name: 'Bell of Endings', rarity: 'rare', glyph: '♪', tone: '#dfeaff', locked: 'hundredShards', text: 'Whenever glass Shatters, every other enemy takes 4 damage.' },
+
+  // Crowns: each act-boss offers one, and each rewrites a rule of the climb
+  crownOfCinders: { name: 'Crown of Cinders', rarity: 'boss', glyph: '♛', tone: '#ff9a4d', text: 'Your lantern holds 12 Embers and begins each combat holding 2.' },
+  hollowCrown: { name: 'Hollow Crown', rarity: 'boss', glyph: '♕', tone: '#b18cff', text: 'Gain 1 Energy each turn. The glass dims: on pickup, lose 10 Max HP.', instant: true },
+  crownOfTithes: { name: 'Crown of Tithes', rarity: 'boss', glyph: '♜', tone: '#d8c27a', text: 'You may kindle twice each turn, and each kindling grants 3 Ward.' },
+  shatterersCrown: { name: "Shatterer's Crown", rarity: 'boss', glyph: '♚', tone: '#8fd0ff', text: 'Enemy glass runs thin: all facet gauges are 1 smaller. Enemies begin with 1 Fervor.' },
+  crownOfTheHearth: { name: 'Crown of the Hearth', rarity: 'boss', glyph: '♥', tone: '#ff5964', text: 'At the end of combat, heal 3 HP for every Ember still in your lantern.' },
 };
 
 export const RELIC_POOLS = (() => {
   const pools = { common: [], uncommon: [], rare: [], boss: [] };
-  for (const [id, r] of Object.entries(RELICS)) if (pools[r.rarity]) pools[r.rarity].push(id);
+  for (const [id, r] of Object.entries(RELICS)) if (pools[r.rarity] && !r.locked) pools[r.rarity].push(id);
   return pools;
 })();
 
-// ---------------------------------------------------------------- POTIONS
+// ---------------------------------------------------------------- PHIALS
 export const POTIONS = {
-  healing: { name: 'Healing Potion', tone: '#ff6b81', glyph: '♥', text: 'Heal 20 HP.', combatOnly: false },
-  strength: { name: 'Potion of Might', tone: '#ff8c5a', glyph: '⚔', text: 'Gain 2 Strength.', combatOnly: true },
-  swift: { name: 'Swiftness Draught', tone: '#8fd0ff', glyph: '»', text: 'Draw 3 cards.', combatOnly: true },
-  block: { name: 'Stoneskin Tonic', tone: '#9aa7b8', glyph: '☗', text: 'Gain 12 Block.', combatOnly: true },
-  fire: { name: 'Flask of Fire', tone: '#ffd166', glyph: '✹', text: 'Deal 20 damage to an enemy.', combatOnly: true, needsTarget: true },
-  venom: { name: 'Venom Vial', tone: '#a3e06c', glyph: '☠', text: 'Apply 7 Poison to an enemy.', combatOnly: true, needsTarget: true },
-  energy: { name: 'Aether Philter', tone: '#c99aff', glyph: '✦', text: 'Gain 2 Energy.', combatOnly: true },
+  healing: { name: 'Phial of Dawn', tone: '#ff6b81', glyph: '♥', text: 'Heal 20 HP.', combatOnly: false },
+  strength: { name: 'Phial of Fervor', tone: '#ff8c5a', glyph: '⚔', text: 'Gain 2 Fervor.', combatOnly: true },
+  swift: { name: 'Inkdraught', tone: '#8fd0ff', glyph: '»', text: 'Draw 3 cards.', combatOnly: true },
+  block: { name: 'Phial of Held Light', tone: '#9aa7b8', glyph: '☗', text: 'Gain 12 Ward.', combatOnly: true },
+  fire: { name: 'Stormglass Phial', tone: '#ffd166', glyph: '✹', text: 'Deal 20 damage to an enemy.', combatOnly: true, needsTarget: true },
+  venom: { name: 'Smolderphial', tone: '#a3e06c', glyph: '☠', text: 'Apply 7 Smolder to an enemy.', combatOnly: true, needsTarget: true },
+  energy: { name: 'Emberphial', tone: '#ff9a4d', glyph: '✦', text: 'Gain 3 Embers.', combatOnly: true },
 };
 
 // ---------------------------------------------------------------- ENEMIES
@@ -436,7 +537,7 @@ export const POTIONS = {
 export const ENEMIES = {
   // ============ ACT 1
   sporeling: {
-    name: 'Sporeling', hp: [13, 17], art: { kind: 'wisp', hue: 95, size: 0.72 },
+    name: 'Sporeling', hp: [13, 17], facets: 3, art: { kind: 'wisp', hue: 95, size: 0.72 },
     moves: {
       spit: { name: 'Spore Spit', intent: 'attack', dmg: 4 },
       grow: { name: 'Bloom', intent: 'buff', fx: [{ who: 'self', id: 'str', n: 1 }] },
@@ -475,7 +576,7 @@ export const ENEMIES = {
     ai: ({ turn, rng }) => (turn === 1 ? 'trick' : rng() < 0.55 ? 'stab' : rng() < 0.5 ? 'smoke' : 'trick'),
   },
   thornling: {
-    name: 'Thornling', hp: [18, 22], art: { kind: 'plant', hue: 80, size: 0.85 },
+    name: 'Thornling', hp: [18, 22], facets: 3, art: { kind: 'plant', hue: 80, size: 0.85 },
     startStatus: { thorns: 2 },
     moves: {
       prick: { name: 'Prick', intent: 'attack', dmg: 6 },
@@ -614,7 +715,7 @@ export const ENEMIES = {
 
   // ============ ACT 3
   voidWisp: {
-    name: 'Void Wisp', hp: [26, 30], art: { kind: 'wisp', hue: 275, size: 0.78 },
+    name: 'Void Wisp', hp: [26, 30], facets: 3, art: { kind: 'wisp', hue: 275, size: 0.78 },
     moves: {
       zap: { name: 'Void Zap', intent: 'attack', dmg: 7 },
       siphon: { name: 'Siphon', intent: 'attack_buff', dmg: 5, heal: 5 },
@@ -775,7 +876,7 @@ export const EVENTS = {
     text: 'Liquid light pools in a cracked basin, throwing sparks that do not burn. It smells of summer and old victories.',
     choices: [
       { label: 'Bathe', sub: 'Heal 35% of your Max HP.', ops: [{ heal: 0.35 }] },
-      { label: 'Bottle it', sub: 'Gain a Healing Potion.', ops: [{ potion: 'healing' }] },
+      { label: 'Bottle it', sub: 'Gain a Phial of Dawn.', ops: [{ potion: 'healing' }] },
       { label: 'Leave', sub: '', ops: [] },
     ],
   },
@@ -852,4 +953,153 @@ export const SHOP = {
   cardPrice: { common: [45, 55], uncommon: [68, 82], rare: [135, 160] },
   relicPrice: { common: [140, 160], uncommon: [220, 250], rare: [270, 300] },
   potionPrice: [48, 62],
+};
+
+// ---------------------------------------------------------------- OMENS
+// One rolled per act: a rule the night imposes on everyone. Every omen gives
+// with one hand and takes with the other. The engine reads only `mods`.
+export const OMENS = {
+  ashfall: {
+    name: 'Ashfall', glyph: '☁', tone: '#d3f2a1',
+    text: 'Ash chokes every fire: enemies begin combat with 2 Smolder, but their blows leave 1 Smolder on you.',
+    mods: { enemyStartStatus: { poison: 2 }, playerHitApplies: { poison: 1 } },
+  },
+  heavyAir: {
+    name: 'Heavy Air', glyph: '☗', tone: '#8fd0ff',
+    text: 'The air holds light like water: all Ward gained is increased by a quarter — yours and theirs.',
+    mods: { wardMult: 1.25 },
+  },
+  thinGlass: {
+    name: 'Thin Glass', glyph: '◬', tone: '#dfeaff',
+    text: 'Tonight all glass runs thin: every facet gauge is 1 smaller, but enemy blows strike 2 harder.',
+    mods: { facetDelta: -1, enemyDmgBonus: 2 },
+  },
+  hungryDark: {
+    name: 'The Hungry Dark', glyph: '☾', tone: '#c99aff',
+    text: 'The dark eats coin but sharpens choice: shop prices are a quarter higher, and card rewards offer 1 more choice.',
+    mods: { shopMult: 1.25, rewardChoiceBonus: 1 },
+  },
+  emberWind: {
+    name: 'Ember Wind', glyph: '✦', tone: '#ff9a4d',
+    text: 'Sparks ride the wind into your lantern: begin each combat with 2 Embers, but draw 4 cards instead of 5.',
+    mods: { startEmbers: 2, drawDelta: -1 },
+  },
+  longNight: {
+    name: 'The Long Night', glyph: '★', tone: '#b18cff',
+    text: 'The climb stretches on: enemies carry 12% more life, but every victory pays 40% more gold.',
+    mods: { hpMult: 1.12, goldMult: 1.4 },
+  },
+  waningMoon: {
+    name: 'Waning Moon', glyph: '◐', tone: '#ffe9ac',
+    text: 'The moon spends her last light on you: your first card each turn costs 1 less, but rest sites heal only 20%.',
+    mods: { firstCardDiscount: 1, restHealFrac: 0.2 },
+  },
+};
+
+// ---------------------------------------------------------------- ELITE AFFIXES
+// Every elite arrives wearing a title. The title is a promise.
+export const AFFIXES = {
+  vitrified: { name: 'Vitrified', tone: '#8fd0ff', text: 'Thicker glass: +2 facets and +15% HP.', mods: { facetDelta: 2, hpMult: 1.15 } },
+  cinderVeined: { name: 'Cinder-Veined', tone: '#ff9a4d', text: 'Its blows leave 1 Smolder on you.', mods: { attackApplies: { poison: 1 } } },
+  adamant: { name: 'Adamant', tone: '#d8c27a', text: 'The first time its glass would shatter, it holds.', mods: { adamant: true } },
+  emberFat: { name: 'Ember-Fat', tone: '#ffe9ac', text: 'Slaying it pays double gold.', mods: { goldMult: 2 } },
+  veiled: { name: 'Veiled', tone: '#9aa7b8', text: 'Begins the fight behind 15 Ward.', mods: { startBlock: 15 } },
+  fervent: { name: 'Fervent', tone: '#ff8d8d', text: 'Begins the fight with 2 Fervor.', mods: { startStatus: { str: 2 } } },
+};
+
+// ---------------------------------------------------------------- LANTERN ARTS
+// The hero's own voice: one Art per run, always at hand, paid in Embers,
+// once per turn. All target-free by design — the lantern doesn't aim, it answers.
+export const ARTS = {
+  flare: {
+    name: 'Flare', glyph: '✹', tone: '#ff9a4d', cost: 3,
+    text: 'The lantern vents. Deal 7 damage to ALL enemies and apply 2 Smolder.',
+    effects: [{ kind: 'dmg', n: 7 }, { kind: 'status', who: 'allEnemies', id: 'poison', n: 2 }],
+  },
+  mendglass: {
+    name: 'Mendglass', glyph: '❋', tone: '#8fe8a0', cost: 4,
+    text: 'Warm light knits the cracks. Heal 8 HP.',
+    effects: [{ kind: 'heal', n: 8 }],
+  },
+  beacon: {
+    name: 'Beacon', glyph: '☀', tone: '#ffe9ac', cost: 2,
+    text: 'Raise the light. Your attacks chip 1 extra facet this turn.',
+    effects: [{ kind: 'status', who: 'self', id: 'beacon', n: 1 }],
+  },
+  emberveil: {
+    name: 'Emberveil', glyph: '⛨', tone: '#8fd0ff', cost: 3,
+    text: 'A curtain of held fire. Gain 12 Ward.',
+    effects: [{ kind: 'block', n: 12 }],
+  },
+  stoke: {
+    name: 'Stoke', glyph: '✦', tone: '#c99aff', cost: 4,
+    text: 'Feed the flame to the hand that carries it. Gain 1 Energy and draw 2 cards.',
+    effects: [{ kind: 'energy', n: 1 }, { kind: 'draw', n: 2 }],
+  },
+  ashfall: {
+    name: 'Ashfall', glyph: '☁', tone: '#d3f2a1', cost: 3,
+    text: "The Ashwarden's breath. Apply 3 Smolder to ALL enemies and gain 5 Ward.",
+    effects: [{ kind: 'status', who: 'allEnemies', id: 'poison', n: 3 }, { kind: 'block', n: 5 }],
+  },
+};
+
+// ---------------------------------------------------------------- THE VIGIL: DEEDS
+// Lifetime feats, tallied across every climb. Crossing a threshold unlocks
+// content into the pools ('card:id' / 'relic:id') or the second Aspect.
+// stat = key in the vigil's deed counters (fed from run.stats at run end).
+export const DEEDS = {
+  paneBreaker: { name: 'Breaker of Panes', desc: 'Shatter 15 facets', stat: 'shatters', n: 15, unlocks: ['card:quakeblow', 'card:resonantLance'] },
+  lanternFed: { name: 'The Lantern Fed', desc: 'Kindle 20 cards by hand', stat: 'kindles', n: 20, unlocks: ['card:tithe', 'card:pyreheart'] },
+  ashSermon: { name: 'Sermon of Ash', desc: 'Let Smolder claim 10 lives', stat: 'smolderKills', n: 10, unlocks: ['card:ashenChoir', 'relic:smolderingCoal'] },
+  untouched: { name: 'The Glass Untouched', desc: 'Win 3 fights without a scratch', stat: 'perfects', n: 3, unlocks: ['card:flawlessForm', 'relic:prismCharm'] },
+  darkWalker: { name: 'Walker of Unlit Ways', desc: 'Enter 6 unlit lanterns', stat: 'unlitVisited', n: 6, unlocks: ['card:nightSight', 'relic:thiefOfWicks'] },
+  spendthrift: { name: 'Fire Given Freely', desc: 'Spend 30 embers on Lantern Arts', stat: 'embersSpent', n: 30, unlocks: ['card:novaflare', 'card:emberdance'] },
+  hundredShards: { name: 'A Hundred Shards', desc: 'Slay 100 creatures', stat: 'slain', n: 100, unlocks: ['card:shardstorm', 'relic:bellOfEndings'] },
+  firstDawn: { name: 'The First Dawn', desc: 'Reach the sunrise once', stat: 'wins', n: 1, unlocks: ['aspect2'] },
+};
+
+// ---------------------------------------------------------------- THE VIGIL: ASPECTS
+// Who carries the lantern. Each aspect is a whole kit — HP, starting deck, relic,
+// and the Lantern Art it favors. ASPECTS[0] is the Duskblade (== PLAYER); the
+// Ashwarden is earned by reaching the first dawn (deed 'firstDawn' → 'aspect2').
+export const ASPECTS = [
+  PLAYER,
+  {
+    id: 'ashwarden',
+    name: 'The Ashwarden',
+    blurb: 'Smoke given a shape. Lets the Smolder do the killing and kindles its own hand to feed the lantern. Slower, but it endures — and everything it touches burns.',
+    hue: 26, art: 'ashfall', unlock: 'aspect2',
+    maxHp: 80,
+    energy: 3,
+    handSize: 5,
+    potionSlots: 3,
+    startDeck: ['ashBite', 'ashBite', 'ashBite', 'ashBite', 'defend', 'defend', 'defend', 'smother', 'smother', 'firstSpark'],
+    startRelic: 'ashenCore',
+    startGold: 99,
+  },
+];
+
+// ---------------------------------------------------------------- THE VIGIL: VOWS
+// The difficulty ladder. Running at Vow N imposes vows 1..N, cumulatively.
+// Winning at Vow N unlocks Vow N+1. Mods are read by the engine's vowMods().
+export const VOWS = [
+  { name: 'Vow of Iron', desc: 'Every creature is harder to break — enemy HP +12%.', mods: { hpMult: 1.12 } },
+  { name: 'Vow of Malice', desc: 'Their blows land heavier — enemy attacks deal +1.', mods: { enemyDmgBonus: 1 } },
+  { name: 'Vow of the Deep', desc: 'Bosses armor their cores — boss Facets +1.', mods: { bossFacetDelta: 1 } },
+  { name: 'Vow of the Mark', desc: 'You climb already cursed — begin every run with a Hex.', mods: { startHex: true } },
+  { name: 'Vow of the Waning', desc: 'The dark drinks your rest — campfires heal 20%, not 30%.', mods: { restHealFrac: 0.2 } },
+];
+
+// ---------------------------------------------------------------- THE VIGIL: BOONS
+// The Lamplighter's gift. At run start, choose 1 of 3 drawn from this pool.
+// ops reuse the event-op executor; kept non-interactive so the gift resolves at once.
+export const BOONS = {
+  fullPurse: { name: 'A Full Purse', text: 'Set out with 120 extra gold.', ops: [{ gold: 120 }] },
+  temperedGlass: { name: 'Tempered Glass', text: 'Raise your Max HP by 14.', ops: [{ maxHp: 14 }] },
+  keenEye: { name: 'A Keeper\'s Eye', text: 'Begin with a random relic.', ops: [{ addRelic: 'random' }] },
+  warmHearth: { name: 'A Warm Hearth', text: 'Mend to full and gain 6 Max HP.', ops: [{ maxHp: 6 }, { heal: 1 }] },
+  emberFlask: { name: 'Ember Flask', text: 'Pack a Fire Phial and a Draught of Vigor.', ops: [{ potion: 'fire' }, { potion: 'healing' }] },
+  twinPhials: { name: 'Twin Phials', text: 'Pack a Swift Phial and an Energy Phial.', ops: [{ potion: 'swift' }, { potion: 'energy' }] },
+  pilgrimsCache: { name: "Pilgrim's Cache", text: 'Gain 60 gold and a Ward Phial.', ops: [{ gold: 60 }, { potion: 'block' }] },
+  venomPouch: { name: 'A Pouch of Ash', text: 'Gain 40 gold and a Venom Phial.', ops: [{ gold: 40 }, { potion: 'venom' }] },
 };

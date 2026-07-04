@@ -1,8 +1,9 @@
 // SPIREBOUND UI — screens, combat playback, interactions.
 import * as E from './engine.js';
-import { CARDS, CARD_POOLS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, PLAYER } from './data.js';
+import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
 import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg } from './art.js';
 import * as V from './vfx.js';
+import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise } from './scene3d.js';
 
@@ -24,14 +25,22 @@ function el(tag, cls = '', html = '') {
   return e;
 }
 
+const FACET_DESC = 'Every creature is glass with a Facet gauge. Fill it and the glass Shatters — the creature loses its next action, is Cracked, and spills Embers into your lantern.';
 const KEYWORDS = {
-  Vulnerable: STATUS_INFO.vulnerable.desc, Weak: STATUS_INFO.weak.desc, Frail: STATUS_INFO.frail.desc,
-  Poison: STATUS_INFO.poison.desc, Strength: STATUS_INFO.str.desc, Dexterity: STATUS_INFO.dex.desc,
-  Exhaust: 'Removed from your deck for the rest of this combat.',
-  Block: 'Prevents damage. Expires at the start of your turn.',
+  Cracked: STATUS_INFO.vulnerable.desc, Dimmed: STATUS_INFO.weak.desc, Brittle: STATUS_INFO.frail.desc,
+  Smolder: STATUS_INFO.poison.desc, Fervor: STATUS_INFO.str.desc, Poise: STATUS_INFO.dex.desc,
+  Kindle: 'Burned away for the rest of this combat — and the lantern gains 1 Ember.',
+  Ward: 'Held light that prevents damage. Expires at the start of your turn.',
   Energy: 'Spent to play cards. Refreshes each turn.',
+  Ember: 'Fuel for your Lantern Art. Spilled by shatters, deaths and kindling; held in the lantern.',
+  Embers: 'Fuel for your Lantern Art. Spilled by shatters, deaths and kindling; held in the lantern.',
+  Chip: 'Strike at the glass itself: adds toward a Shatter, no blood required.',
+  Facet: FACET_DESC, Facets: FACET_DESC, Shatter: FACET_DESC, Shatters: FACET_DESC,
+  Staggered: 'Shattered glass loses its next action while it reseams.',
   Unplayable: 'This card cannot be played.',
-  Wound: 'Unplayable junk card.', Hex: 'Curse: lose 1 HP at end of turn while in hand.', Burn: 'Take 2 damage at end of turn while in hand.',
+  Shard: 'Unplayable junk glass. It can still be kindled.',
+  Hex: 'Curse: lose 1 HP at end of turn while in hand. Cannot be kindled.',
+  Cinder: 'Take 2 damage at end of turn while in hand.',
 };
 
 // ------------------------------------------------------------ tooltip
@@ -103,11 +112,11 @@ function fmtText(text, inCombat) {
     })
     .replace(/#(\d+)#/g, (_, n) => {
       const base = +n;
-      const v = inCombat && S.cb ? E.previewBlock(S.cb, base) : base;
+      const v = inCombat && S.cb ? E.previewBlock(S.run, S.cb, base) : base;
       const cls = v > base ? 'boosted' : v < base ? 'reduced' : '';
       return `<span class="val ${cls}">${v}</span>`;
     });
-  t = t.replace(/\b(Vulnerable|Weak|Frail|Poison|Strength|Dexterity|Exhaust|Block|Energy|Unplayable)\b/g, '<span class="kw">$1</span>');
+  t = t.replace(/\b(Cracked|Dimmed|Brittle|Smolder|Fervor|Poise|Kindle|Ward|Energy|Embers?|Chip|Facets?|Shatters?|Staggered|Unplayable|Shard|Hex|Cinder)\b/g, '<span class="kw">$1</span>');
   return t;
 }
 function cardEl(inst, { inCombat = false, size = null } = {}) {
@@ -154,7 +163,7 @@ function cardEl(inst, { inCombat = false, size = null } = {}) {
 // bleed, closing to a guttering circle of light at death's door.
 function updateLantern() {
   const L = $('#lantern');
-  if (!S.run || S.screen === 'title' || S.screen === 'end') {
+  if (!S.run || S.screen === 'title' || S.screen === 'end' || S.screen === 'lamplighter') {
     L.style.setProperty('--la', 0);
     L.classList.remove('gutter');
     return;
@@ -177,7 +186,7 @@ function updateLantern() {
 function renderHud() {
   updateLantern();
   const hud = $('#hud');
-  if (!S.run || S.screen === 'title' || S.screen === 'end') { hud.classList.remove('show'); document.body.classList.remove('low-hp'); return; }
+  if (!S.run || S.screen === 'title' || S.screen === 'end' || S.screen === 'lamplighter') { hud.classList.remove('show'); document.body.classList.remove('low-hp'); return; }
   hud.classList.add('show');
   const p = S.run.player;
   const hp = S.cb && !S.cb.over ? S.cb.player.hp : p.hp;
@@ -198,6 +207,14 @@ function renderHud() {
     </div>
     <div id="relicbar"></div>`;
   const bar = $('#relicbar', hud);
+  // the act's omen leads the bar: the rule the night imposed
+  const omen = OMENS[S.run.omens?.[S.run.act]];
+  if (omen) {
+    const oc = el('div', 'relic-chip omen-chip', omen.glyph);
+    oc.style.setProperty('--tone', omen.tone);
+    oc._tip = { title: `Omen — ${omen.name}`, body: omen.text, sub: `hangs over Act ${S.run.act + 1}` };
+    bar.appendChild(oc);
+  }
   for (const rid of p.relics) {
     const r = RELICS[rid];
     const chip = el('div', 'relic-chip', r.glyph);
@@ -329,11 +346,13 @@ function showCardGrid(title, instances, { sub = '', pick = null, canSkip = false
 function showHelp() {
   openOverlay(`<div class="panel ov-panel howto">
     <div class="ov-title">How to Play</div>
-    <h3>The Climb</h3>Choose a path up the map. Fight monsters, gather cards, relics and potions, and defeat the boss of each of the <b>3 acts</b>.
-    <h3>Combat</h3>Each turn you draw <b>5 cards</b> and gain <b>3 Energy</b> (⬤). Click a card to play it — attacks need a target when several enemies remain. Enemies telegraph their <b>intent</b> above their heads: sword icons with numbers show incoming damage. End your turn when you're done.
-    <h3>Block & Statuses</h3><b>Block</b> absorbs damage but expires each turn. <b>Vulnerable</b> ×1.5 damage taken · <b>Weak</b> −25% damage dealt · <b>Frail</b> −25% Block · <b>Poison</b> damages each turn.
-    <h3>Cards</h3>Your deck reshuffles when the draw pile empties. <b>Exhaust</b> removes a card for the combat. Keep your deck lean — every reward is optional.
-    <h3>The Fires & The Merchant</h3>Rest sites heal <b>30%</b> or upgrade a card. Shops sell cards, relics, potions — and can <b>remove</b> a card from your deck.
+    <h3>The Climb</h3>Choose a path of lanterns up the Spire. Fight monsters, gather cards, relics and phials, and defeat the boss of each of the <b>3 acts</b>. Unlit lanterns hide what they hold — but pay a bounty for the walking.
+    <h3>Combat</h3>Each turn you draw <b>5 cards</b> and gain <b>3 Energy</b> (⬤). Play a card by clicking or dragging — attacks need a target when several enemies remain. Enemies telegraph their <b>intent</b> above their heads.
+    <h3>The Glass</h3>Every creature is glass with a row of <b>Facets</b> under its lifebar. Attacks that draw unblocked blood chip a facet (heavy cards chip more). Fill the gauge and the glass <b>SHATTERS</b>: it loses its next action, is Cracked, and spills <b>Embers</b> into your lantern. Time a shatter to deny the blow you can't survive.
+    <h3>The Lantern</h3>Embers fuel your <b>Lantern Art</b> — one signature power, always available, once a turn (press <b>A</b>). Drag any card onto the lantern to <b>kindle</b> it: the card burns away and feeds the lantern 1 ember. Once a turn; curses refuse the fire.
+    <h3>Ward & Statuses</h3><b>Ward</b> is held light that absorbs damage but expires each turn. <b>Cracked</b> ×1.5 damage taken · <b>Dimmed</b> −25% damage dealt · <b>Brittle</b> −25% Ward · <b>Smolder</b> burns each turn, and leaps to another enemy when its host dies or shatters.
+    <h3>The Fires & The Merchant</h3>Rest sites heal <b>30%</b> or upgrade a card. Shops sell cards, relics, phials — and can <b>remove</b> a card from your deck. Keep your deck lean; every reward is optional.
+    <h3>The Vigil — What Death Leaves Behind</h3>Nothing is wasted. At the foot of each climb the <b>Lamplighter</b> offers a boon and lets you choose your Lantern Art. When you fall, carve one thing into the stone — a <b>monument</b> your next climb can recover in that same act. Every shatter, kindle and slaying feeds lifetime <b>Deeds</b> that unlock new cards, relics, and a second aspect, the <b>Ashwarden</b>. Reach the dawn once and the <b>Vows</b> open: an optional difficulty ladder for those who'd climb a crueler Spire.
     <div class="ov-actions"><button class="btn" data-a="ok">Fight On</button></div>
   </div>`, (root) => { $('[data-a="ok"]', root).onclick = () => { sfx.click(); closeOverlay(); }; }, true);
 }
@@ -364,35 +383,89 @@ export function show(name, data) {
   renderHud();
 }
 
+const ROMAN = ['0', 'I', 'II', 'III', 'IV', 'V'];
 function renderTitle() {
   stopAmbience();
   setTheme(0);
-  const stats = E.loadStats();
+  const vigil = syncVigil(); // reconcile any owed unlocks (e.g. seeded from old stats)
   const saved = E.loadRun();
+  const sel = (S.title ||= { aspect: 0, vow: 0 });
+  if (sel.aspect > 0 && ASPECTS[sel.aspect].unlock && !vigil.unlocks.includes(ASPECTS[sel.aspect].unlock)) sel.aspect = 0;
+  sel.vow = Math.max(0, Math.min(sel.vow | 0, vigil.vowUnlocked));
+  const d = vigil.deeds;
+  const aspectCards = ASPECTS.map((a, i) => {
+    const locked = i > 0 && a.unlock && !vigil.unlocks.includes(a.unlock);
+    return `<button class="aspect-card${sel.aspect === i ? ' on' : ''}${locked ? ' locked' : ''}" data-a="asp" data-i="${i}"${locked ? ' disabled' : ''}>
+      <div class="asp-hero">${heroSvg(i)}</div>
+      <div class="asp-name">${a.name}${locked ? ' 🔒' : ''}</div>
+      <div class="asp-blurb">${locked ? 'Reach the first dawn to walk as the Ashwarden.' : a.blurb}</div>
+    </button>`;
+  }).join('');
+  const vowLine = sel.vow === 0
+    ? 'The Spire as it is. No vows sworn.'
+    : VOWS.slice(0, sel.vow).map((v) => `<b style="color:#ff9a4d">${v.name}</b> — ${v.desc}`).join('<br>');
+  const vowBlock = vigil.vowUnlocked > 0 ? `<div class="vow-block">
+      <div class="vow-stepper">
+        <button class="vow-btn" data-a="vow-"${sel.vow === 0 ? ' disabled' : ''}>−</button>
+        <div class="vow-level">VOW ${ROMAN[sel.vow]}<span class="vow-max"> / ${ROMAN[vigil.vowUnlocked] || '0'}</span></div>
+        <button class="vow-btn" data-a="vow+"${sel.vow < vigil.vowUnlocked ? '' : ' disabled'}>+</button>
+      </div>
+      <div class="vow-desc">${vowLine}</div>
+    </div>` : '';
   const sc = screenEl();
   sc.innerHTML = `<div class="title-screen screen-enter">
     <div class="logo">SPIREBOUND</div>
-    <div class="tagline">A Roguelite Deckbuilder · Three Acts of the Void</div>
+    <div class="tagline">A Roguelite Deckbuilder · The Vigil Remembers</div>
+    <div class="aspect-row">${aspectCards}</div>
+    ${vowBlock}
     <div class="title-btns">
       ${saved ? '<button class="btn" data-a="continue">Continue Climb</button>' : ''}
-      <button class="btn" data-a="new">New Run</button>
+      <button class="btn" data-a="new">${saved ? 'Begin Anew' : 'Begin the Climb'}</button>
+      <button class="btn ghost" data-a="vigil">The Vigil</button>
       <button class="btn ghost" data-a="help">How to Play</button>
-      <button class="btn ghost" data-a="mute">${isMuted() ? 'Unmute' : 'Mute'} Sound</button>
+      <button class="btn ghost" data-a="mute">${isMuted() ? 'Unmute' : 'Mute'}</button>
     </div>
-    <div class="title-stats">${stats.runs} runs · ${stats.wins} victories · deepest climb: floor ${stats.best}</div>
+    <div class="title-stats">${d.runs} climbs · ${d.wins} dawns · ${d.slain} slain${vigil.unlocks.length ? ` · ${vigil.unlocks.length} secrets unearthed` : ''}</div>
   </div>`;
   sc.onclick = (e) => {
-    const a = e.target.dataset?.a;
-    if (!a) return;
+    const t = e.target.closest('[data-a]');
+    if (!t || t.disabled) return;
+    const a = t.dataset.a;
     unlock(); sfx.click();
-    if (a === 'new') {
-      if (saved) E.clearSave();
-      startRun(E.newRun());
-    }
-    if (a === 'continue' && saved) startRun(saved, true);
-    if (a === 'help') showHelp();
-    if (a === 'mute') { toggleMute(); renderTitle(); }
+    if (a === 'asp') { sel.aspect = +t.dataset.i; renderTitle(); }
+    else if (a === 'vow-') { sel.vow = Math.max(0, sel.vow - 1); renderTitle(); }
+    else if (a === 'vow+') { sel.vow = Math.min(vigil.vowUnlocked, sel.vow + 1); renderTitle(); }
+    else if (a === 'new') { if (saved) E.clearSave(); startRun(E.newRun(undefined, { aspect: sel.aspect, vow: sel.vow, lamplighter: true, monument: vigil.lastFall })); }
+    else if (a === 'continue' && saved) startRun(saved, true);
+    else if (a === 'vigil') showVigil();
+    else if (a === 'help') showHelp();
+    else if (a === 'mute') { toggleMute(); renderTitle(); }
   };
+}
+// the vigil ledger: lifetime deeds and the content they've unearthed
+function showVigil() {
+  const v = loadVigil();
+  const deedRows = Object.values(DEEDS).map((deed) => {
+    const cur = v.deeds[deed.stat] || 0;
+    const done = cur >= deed.n;
+    const pct = Math.min(100, Math.round((cur / deed.n) * 100));
+    const rewards = deed.unlocks.map((u) => {
+      if (u === 'aspect2') return 'The Ashwarden';
+      const [k, id] = u.split(':');
+      return k === 'card' ? (CARDS[id]?.name || id) : (RELICS[id]?.name || id);
+    }).join(', ');
+    return `<div class="deed-row${done ? ' done' : ''}">
+      <div class="deed-head"><span class="deed-name">${done ? '✦ ' : ''}${deed.name}</span><span class="deed-count">${Math.min(cur, deed.n)}/${deed.n}</span></div>
+      <div class="deed-desc">${deed.desc} → <i>${rewards}</i></div>
+      <div class="deed-bar"><span style="width:${pct}%"></span></div>
+    </div>`;
+  }).join('');
+  openOverlay(`<div class="panel ov-panel vigil-panel">
+    <div class="ov-title">The Vigil</div>
+    <div class="ov-sub">${v.deeds.runs} climbs · ${v.deeds.wins} dawns · deepest Vow: ${ROMAN[v.deeds.bestVow] || '—'}</div>
+    <div class="deed-list">${deedRows}</div>
+    <div class="ov-actions"><button class="btn" data-a="ok">Close</button></div>
+  </div>`, (root) => { $('[data-a="ok"]', root).onclick = () => { sfx.click(); closeOverlay(); }; }, true);
 }
 function startRun(run, resumed = false) {
   S.run = run;
@@ -410,10 +483,79 @@ function startRun(run, resumed = false) {
     renderHud();
     return;
   }
+  if (run.pendingLamplighter) { renderLamplighter(); return; } // the gift comes before the first step
   show('map');
+  if (!resumed) setTimeout(() => omenBanner(run), 900);
+}
+// THE LAMPLIGHTER — run start: one boon of three, and the fire the lantern carries.
+function renderLamplighter() {
+  const run = S.run;
+  if (S.screen !== 'lamplighter') wipe();
+  S.screen = 'lamplighter';
+  closeMenus();
+  clearOverlay();
+  setTheme(0);
+  screenEl().className = '';
+  if (!S.lamp) {
+    const rng = E.runRng(run);
+    const pool = Object.keys(BOONS);
+    const boons = [];
+    while (boons.length < 3 && pool.length) boons.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+    S.lamp = { boons, boon: null, art: run.art };
+    E.saveRun(run); // the draw is now fixed for this run
+  }
+  const L = S.lamp;
+  const asp = ASPECTS[run.aspect];
+  const boonCards = L.boons.map((id) => {
+    const b = BOONS[id];
+    return `<button class="lamp-boon${L.boon === id ? ' on' : ''}" data-a="boon" data-i="${id}">
+      <div class="lb-name">${b.name}</div><div class="lb-text">${fmtText(b.text)}</div>
+    </button>`;
+  }).join('');
+  const artChips = Object.keys(ARTS).map((id) => {
+    const a = ARTS[id];
+    return `<button class="lamp-art${L.art === id ? ' on' : ''}" data-a="art" data-i="${id}">
+      <span class="la-glyph" style="color:${a.tone}">${a.glyph}</span><span class="la-name">${a.name}</span>
+    </button>`;
+  }).join('');
+  const chosen = ARTS[L.art];
+  const sc = screenEl();
+  sc.innerHTML = `<div class="lamp-screen screen-enter">
+    <div class="lamp-hero">${heroSvg(run.aspect)}</div>
+    <div class="lamp-title">THE LAMPLIGHTER</div>
+    <div class="lamp-sub">${asp.name} stands at the foot of the Spire. Take one parting gift — and choose the fire your lantern will carry.</div>
+    <div class="lamp-label">A Boon for the Road</div>
+    <div class="lamp-boons">${boonCards}</div>
+    <div class="lamp-label">Your Lantern Art <span class="lamp-hint">(press A in combat)</span></div>
+    <div class="lamp-arts">${artChips}</div>
+    <div class="lamp-art-desc">${chosen ? `<b style="color:${chosen.tone}">${chosen.glyph} ${chosen.name}</b> · ${fmtText(chosen.text)}` : ''}</div>
+    <div class="lamp-actions"><button class="btn" data-a="begin"${L.boon ? '' : ' disabled'}>${L.boon ? 'Light the Way' : 'Choose a boon'}</button></div>
+  </div>`;
+  renderHud();
+  sc.onclick = (e) => {
+    const t = e.target.closest('[data-a]');
+    if (!t || t.disabled) return;
+    const a = t.dataset.a;
+    unlock(); sfx.click();
+    if (a === 'boon') { L.boon = t.dataset.i; renderLamplighter(); }
+    else if (a === 'art') { L.art = t.dataset.i; sfx.hover(); renderLamplighter(); }
+    else if (a === 'begin' && L.boon) beginFromLamplighter();
+  };
+}
+function beginFromLamplighter() {
+  const run = S.run, L = S.lamp;
+  run.art = L.art;
+  run.boon = L.boon;
+  E.applyEventOps(run, BOONS[L.boon].ops);
+  delete run.pendingLamplighter;
+  S.lamp = null;
+  sfx.relic();
+  E.saveRun(run);
+  show('map');
+  setTimeout(() => omenBanner(run), 900);
 }
 
-const NODE_ICONS = { monster: 'sword', elite: 'skull', event: 'question', rest: 'flame', shop: 'coin', treasure: 'chest', boss: 'crown' };
+const NODE_ICONS = { monster: 'sword', elite: 'skull', event: 'question', rest: 'flame', shop: 'coin', treasure: 'chest', boss: 'crown', monument: 'monument' };
 function renderMap() {
   const run = S.run;
   if (run.pendingCombat) { // invariant: an unresolved fight always resumes
@@ -438,8 +580,9 @@ function renderMap() {
     }
   }
   for (const n of nodes) {
+    const dark = n.unlit && !visited.has(n.id); // an unlit lantern keeps its secret
     const cls = [
-      'mnode', `type-${n.type}`,
+      'mnode', `type-${n.type}`, dark ? 'unlit' : '',
       visited.has(n.id) ? 'visited' : '',
       n.id === run.nodeId ? 'current' : '',
       avail.has(n.id) ? 'avail' : '',
@@ -448,12 +591,13 @@ function renderMap() {
     const r = (n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 19 : 16) * tf;
     const isz = Math.round((n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 20 : 17) * tf);
     dots += `<g class="${cls}" data-node="${n.id}" style="--d:${n.row * 34}ms">
-      <g class="nwrap"><circle class="bg" r="${r}"/><g class="icg">${iconInline(NODE_ICONS[n.type], isz)}</g></g>
+      <g class="nwrap"><circle class="bg" r="${dark ? 16 * tf : r}"/><g class="icg">${iconInline(dark ? 'unlitLantern' : NODE_ICONS[n.type], dark ? Math.round(17 * tf) : isz)}</g></g>
     </g>`;
   }
   const act = ACTS[run.act];
+  const omen = OMENS[run.omens?.[run.act]];
   screenEl().innerHTML = `
-    <div class="map-title">ACT ${run.act + 1} — <b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits</div>
+    <div class="map-title">ACT ${run.act + 1} — <b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits${omen ? ` &nbsp;·&nbsp; <span class="mt-omen" style="color:${omen.tone}">${omen.glyph} ${omen.name}</span>` : ''}</div>
     <div class="map-screen screen-enter">
       <svg class="map-svg" width="100%" height="100%">${edges}${dots}</svg>
       <div class="map-hint">${COARSE ? 'drag' : 'scroll'} to survey the Spire</div>
@@ -471,7 +615,9 @@ function renderMap() {
   $$('.mnode', svg).forEach((g) => {
     const n = nodes.find((x) => x.id === g.dataset.node);
     const names = { monster: 'Monster', elite: 'Elite — beware', event: 'Unknown event', rest: 'Rest site', shop: 'Merchant', treasure: 'Treasure', boss: ACTS[run.act].bossName };
-    g._tip = { title: names[n.type], body: avail.has(n.id) ? `${COARSE ? 'Tap' : 'Click'} to travel here.` : '' };
+    g._tip = n.unlit && !visited.has(n.id)
+      ? { title: 'An unlit lantern', body: `What waits here is unknown — but first light pays a bounty of gold.${avail.has(n.id) ? ` ${COARSE ? 'Tap' : 'Click'} to travel here.` : ''}` }
+      : { title: names[n.type], body: avail.has(n.id) ? `${COARSE ? 'Tap' : 'Click'} to travel here.` : '' };
   });
   // 3D wiring: anchors on the tower, camera dollies to the current row
   const anchors = nodes.map((n) => ({ id: n.id, pos: mapNodePos(run.act, n) }));
@@ -533,18 +679,42 @@ function enterNode(node) {
   const run = S.run;
   sfx.map();
   setAltitude(run.act, node.row);
-  run.nodeId = node.id;
-  run.floorsClimbed = node.row + 1;
-  run.map.visited.push(node.id);
+  const { type, bounty } = E.visitNode(run, node);
   E.saveRun(run);
-  if (node.type === 'monster' || node.type === 'elite' || node.type === 'boss') {
-    run.pendingCombat = node.type;
+  if (bounty) {
+    // first light: the dark lantern pays for the walking
+    sfx.coin();
+    const g = $(`.mnode[data-node="${node.id}"]`);
+    const from = g ? (() => { const r = g.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })() : { x: innerWidth / 2, y: innerHeight / 2 };
+    V.floatText(from.x, from.y - 34, `+${bounty} ¤`, 'goldf');
+    flyTo(from.x, from.y, 120, 30, { n: 5, color: '#ffe9ac', size: 7, dur: 620 });
+  }
+  if (type === 'monster' || type === 'elite' || type === 'boss') {
+    run.pendingCombat = type;
     E.saveRun(run);
-    startCombatUI(E.rollEncounter(run, node.type, node.row), node.type);
-  } else if (node.type === 'rest') show('rest');
-  else if (node.type === 'shop') show('shop');
-  else if (node.type === 'treasure') show('treasure');
-  else if (node.type === 'event') show('event', E.rollEvent(run));
+    startCombatUI(E.rollEncounter(run, type, node.row), type);
+  } else if (type === 'rest') show('rest');
+  else if (type === 'shop') show('shop');
+  else if (type === 'treasure') show('treasure');
+  else if (type === 'event') show('event', E.rollEvent(run));
+  else if (type === 'monument') claimMonumentNode(node);
+}
+// stepping onto the stone a past self left behind
+function claimMonumentNode(node) {
+  const run = S.run;
+  const b = E.claimMonument(run);
+  if (b) clearBequest(); // recovered once — the stone is spent
+  E.saveRun(run);
+  if (b) {
+    sfx.relic();
+    const label = b.kind === 'relic' ? RELICS[b.id]?.name : b.kind === 'card' ? CARDS[b.id]?.name : `${b.amount} gold`;
+    const g = $(`.mnode[data-node="${node.id}"]`);
+    const from = g ? (() => { const r = g.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })() : { x: innerWidth / 2, y: innerHeight / 2 };
+    V.floatText(from.x, from.y - 34, `✦ ${label}`, 'goldf');
+    flyTo(from.x, from.y, innerWidth / 2, innerHeight * 0.5, { n: 8, color: '#ffe9ac', size: 8, dur: 720 });
+    banner('THE STONE REMEMBERS');
+  }
+  show('map');
 }
 
 // ------------------------------------------------------------ combat
@@ -581,40 +751,49 @@ function renderCombat() {
     <div class="stage-ledge" style="--ledge:${ledge}"></div>
     <div class="battlefield">
       <div class="player-zone">
-        <div class="hero-wrap">${heroSvg()}</div>
+        <div class="hero-wrap">${heroSvg(S.run.aspect)}</div>
         <div class="hpbar-wrap"><span class="block-chip zero p-block">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div></div><span class="hp-label p-hp"></span></div>
         <div class="status-row p-status"></div>
-        <div class="name">${PLAYER.name.toUpperCase()}</div>
+        <div class="name">${ASPECTS[S.run.aspect].name.toUpperCase()}</div>
       </div>
       <div class="enemy-zone"></div>
     </div>
     <div class="energy-orb"><div class="num">0</div><div class="lbl">ENERGY</div><div class="candles"></div></div>
+    <button class="lantern-btn"><span class="lb-ic">${iconSvg('lantern', 26)}</span><span class="lb-count">0</span><div class="lb-pips"></div><span class="lb-art"></span></button>
     <button class="btn end-turn">End Turn</button>
     <button class="pile-btn pile-draw"><span class="cnt">0</span><span class="lbl">DRAW</span></button>
     <button class="pile-btn pile-discard"><span class="cnt">0</span><span class="lbl">DISCARD</span></button>
-    <button class="pile-btn pile-exhaust"><span class="cnt">0</span><span class="lbl">EXHAUST</span></button>
+    <button class="pile-btn pile-exhaust"><span class="cnt">0</span><span class="lbl">ASHES</span></button>
     <div class="hand-zone"></div>
   </div>`;
   const zone = $('.enemy-zone', sc);
   const ce = { enemies: [], root: $('.combat-screen', sc) };
+  const afx = cb.affix ? AFFIXES[cb.affix] : null;
   cb.enemies.forEach((en, i) => {
     const d = ENEMIES[en.key];
     const size = enemyArtSize(d, cb.enemies.length);
-    const box = el('div', `enemy${d.elite ? ' elite-e' : ''}${d.boss ? ' boss-e' : ''}`);
+    const box = el('div', `enemy${d.elite ? ' elite-e' : ''}${d.boss ? ' boss-e' : ''}${afx ? ' affixed' : ''}`);
+    if (afx) box.style.setProperty('--affix-tone', afx.tone);
     box.dataset.idx = i;
     box.style.animationDelay = `${160 + i * 130}ms`;
     box.innerHTML = `<div class="intent"></div>
       <div class="enemy-art" style="width:${size}px;height:${size}px">${enemySvg(d.art)}<div class="dmg-preview"></div></div>
-      <div class="name">${en.name.toUpperCase()}</div>
+      <div class="name">${afx ? `<span class="affix-name" style="color:${afx.tone}">${afx.name.toUpperCase()}</span> ` : ''}${en.name.toUpperCase()}</div>
       <div class="hpbar-wrap"><span class="block-chip zero">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div><span class="hp-label"></span></div>
+      <div class="facet-row"></div>
       <div class="status-row"></div>`;
     zone.appendChild(box);
     ce.enemies.push({
       root: box, art: $('.enemy-art', box), intent: $('.intent', box),
       fill: $('.fill', box), ghost: $('.ghost', box), hp: $('.hp-label', box),
       block: $('.block-chip', box), statuses: $('.status-row', box),
-      pv: $('.pv', box), prev: $('.dmg-preview', box),
+      pv: $('.pv', box), prev: $('.dmg-preview', box), facets: $('.facet-row', box),
     });
+    ce.enemies[i].facets._tip = {
+      title: 'Facets',
+      body: 'Every creature is glass. Attacks that draw unblocked blood chip a facet; fill the gauge and the glass <b>shatters</b> — it loses its next action, is Cracked, and spills Embers into your lantern.',
+    };
+    if (afx) $('.name', box)._tip = { title: `${afx.name} — an elite's title`, body: afx.text };
     box.onclick = () => onEnemyClick(i);
     box.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && S.targeting) { box.classList.add('target-hover'); updatePreviews(); } });
     box.addEventListener('pointerleave', () => { box.classList.remove('target-hover'); updatePreviews(); });
@@ -623,6 +802,31 @@ function renderCombat() {
   ce.pBlock = $('.p-block', sc); ce.pStatus = $('.p-status', sc); ce.hero = $('.hero-wrap', sc);
   ce.energy = $('.energy-orb', sc); ce.endTurn = $('.end-turn', sc); ce.hand = $('.hand-zone', sc);
   ce.draw = $('.pile-draw', sc); ce.discard = $('.pile-discard', sc); ce.exhaust = $('.pile-exhaust', sc);
+  ce.lantern = $('.lantern-btn', sc);
+  const art = ARTS[S.run.art];
+  if (art) {
+    $('.lb-art', ce.lantern).innerHTML = `<i>${art.glyph}</i>${art.cost}`;
+    $('.lb-art', ce.lantern).style.color = art.tone;
+  }
+  ce.lantern._tip = {
+    title: art ? `Lantern Art — ${art.name}` : 'The Lantern',
+    body: `${art ? `<b>${art.cost} Embers, once a turn:</b> ${art.text}<br><br>` : ''}The lantern holds the <b>Embers</b> spilled by shattered and slain glass. Drag any card onto it to <b>kindle</b> — burn the card away for an ember, once a turn. Curses refuse the fire.`,
+    sub: 'A · use Art',
+  };
+  ce.lantern.onclick = async () => {
+    if (S.busy || !S.cb || S.cb.over) return;
+    unlock();
+    if (!E.canUseArt(S.run, S.cb)) {
+      ce.lantern.classList.add('nope');
+      setTimeout(() => ce.lantern.classList.remove('nope'), 350);
+      sfx.debuff();
+      return;
+    }
+    clearTargeting();
+    E.useArt(S.run, S.cb);
+    await drain();
+    afterAction();
+  };
   S.ce = ce;
   rigCombatants();
   // drop the intro class once entrances finish so .acting doesn't retrigger them
@@ -630,7 +834,7 @@ function renderCombat() {
   ce.endTurn.onclick = onEndTurn;
   ce.draw.onclick = () => { sfx.click(); showCardGrid('Draw Pile', cb.draw, { sub: 'Order hidden — shown alphabetically', inCombat: true }); };
   ce.discard.onclick = () => { sfx.click(); showCardGrid('Discard Pile', cb.discard, { inCombat: true }); };
-  ce.exhaust.onclick = () => { sfx.click(); showCardGrid('Exhausted', cb.exhaust, { inCombat: true }); };
+  ce.exhaust.onclick = () => { sfx.click(); showCardGrid('The Ashes', cb.exhaust, { sub: 'Burned away — each fed the lantern an ember', inCombat: true }); };
   ce.root.addEventListener('pointerdown', (e) => {
     if (e.target.closest('.enemy') || e.target.closest('.card')) return;
     if (S.targeting) clearTargeting();
@@ -680,7 +884,7 @@ function statusChips(container, statuses, isPlayer) {
 function intentFor(e) {
   const cb = S.cb;
   const mv = E.enemyMove(e);
-  const p = E.previewEnemyDmg(cb, e);
+  const p = E.previewEnemyDmg(S.run, cb, e);
   let icon = { attack: iconSvg('sword', 19), block: iconSvg('shield', 19), buff: iconSvg('up', 19), debuff: iconSvg('cloud', 19), heal: iconSvg('plus', 19) }[mv.intent] || iconSvg('sword', 19);
   let txt = '';
   if (mv.intent.startsWith('attack')) {
@@ -692,12 +896,24 @@ function intentFor(e) {
   }
   const tipBits = [];
   if (p) tipBits.push(`attack for <b>${p.dmg}${p.times > 1 ? `×${p.times}` : ''}</b>`);
-  if (mv.block) tipBits.push('gain Block');
+  if (mv.block) tipBits.push('gain Ward');
   if (mv.heal) tipBits.push('heal itself');
   if (mv.fx?.some((f) => f.who === 'player')) tipBits.push('afflict you');
   if (mv.fx?.some((f) => f.who !== 'player')) tipBits.push('empower');
   if (mv.addCards) tipBits.push(`add ${mv.addCards.n} ${CARDS[mv.addCards.id].name}s to your discard`);
   return { icon, txt, tip: { title: mv.name, body: `Intends to ${tipBits.join(', ') || 'act'}.` } };
+}
+// the facet gauge: diamond pips, filled as the glass is chipped; a text
+// fallback once boss glass has annealed past what a row can hold
+function facetPips(en, ghost = 0) {
+  if (en.facetMax > 8) {
+    return `<span class="pipnum">${iconSvg('facet', 11)} ${en.chips}${ghost ? `<i>+${ghost}</i>` : ''}/${en.facetMax}</span>`;
+  }
+  let h = '';
+  for (let i = 0; i < en.facetMax; i++) {
+    h += `<span class="pip${i < en.chips ? ' filled' : i < en.chips + ghost ? ' willchip' : ''}"></span>`;
+  }
+  return h;
 }
 function syncCombat() {
   const cb = S.cb, ce = S.ce;
@@ -713,14 +929,29 @@ function syncCombat() {
     x.art.classList.toggle('warded', en.block > 0);
     x.root.classList.toggle('lowhp', en.hp > 0 && en.hp / en.maxHp <= 0.3);
     statusChips(x.statuses, en.statuses, false);
+    if (en.hp > 0) x.facets.innerHTML = facetPips(en);
+    else x.facets.innerHTML = '';
     if (en.hp <= 0) x.root.classList.add('gone');
-    if (en.hp > 0 && en.moveKey) {
+    if (en.hp > 0 && en.flags.staggered) {
+      x.intent.className = 'intent i-staggered';
+      x.intent.innerHTML = `<span class="ic">${iconSvg('stagger', 19)}</span>STAGGERED`;
+      x.intent._tip = { title: 'Staggered', body: 'The glass has shattered — this creature loses its next action while it reseams.' };
+    } else if (en.hp > 0 && en.moveKey) {
       const it = intentFor(en);
       x.intent.className = `intent i-${E.enemyMove(en).intent}`;
       x.intent.innerHTML = `<span class="ic">${it.icon}</span>${it.txt}`;
       x.intent._tip = it.tip;
     } else x.intent.innerHTML = '';
   });
+  // the lantern: ember count + a ring of sparks; glows when its Art can answer
+  if (ce.lantern) {
+    $('.lb-count', ce.lantern).textContent = cb.embers;
+    $('.lb-pips', ce.lantern).innerHTML = Array.from({ length: cb.emberCap }, (_, i) =>
+      `<span class="lbp${i < cb.embers ? ' lit' : ''}" style="--a:${Math.round((i / (cb.emberCap - 1)) * 280 - 140)}deg"></span>`).join('');
+    ce.lantern.classList.toggle('unlit', cb.embers === 0);
+    ce.lantern.classList.toggle('ready', E.canUseArt(S.run, cb));
+    ce.lantern.classList.toggle('art-spent', cb.artUsedTurn === cb.turn && !cb.over);
+  }
   const P = cb.player;
   const pct = `${(100 * Math.max(0, P.hp)) / P.maxHp}%`;
   ce.pFill.style.width = pct;
@@ -823,7 +1054,9 @@ function bindCardDrag(c, uid) {
     }
     if (st.free) {
       c.style.transform = `translate(calc(-50% + ${e.clientX - innerWidth / 2}px), ${e.clientY - innerHeight + 130}px) scale(1.12)`;
-      c.classList.toggle('will-cast', e.clientY < castLine());
+      const overL = !!underPointer(e.clientX, e.clientY)?.closest('.lantern-btn');
+      c.classList.toggle('will-burn', overL);
+      c.classList.toggle('will-cast', !st.kindleOnly && !overL && e.clientY < castLine());
     } else {
       aimMove(e);
       hoverEnemyAt(e.clientX, e.clientY);
@@ -835,8 +1068,17 @@ function bindCardDrag(c, uid) {
     S.drag = null;
     if (!st.live) return;
     dragConsumedAt = performance.now();
-    c.classList.remove('dragging', 'will-cast');
+    c.classList.remove('dragging', 'will-cast', 'will-burn');
+    S.ce?.lantern?.classList.remove('kindle-target');
     if (cancelled) { clearTargeting(); layoutHand(); return; }
+    // the lantern is always listening: release a card on it to kindle
+    const overLantern = underPointer(e.clientX, e.clientY)?.closest('.lantern-btn');
+    if (overLantern) {
+      const inst = S.cb.hand.find((x) => x.uid === uid);
+      if (inst && E.canKindle(S.run, S.cb, inst)) { clearTargeting(); doKindle(uid); return; }
+      clearTargeting(); layoutHand(); return;
+    }
+    if (st.kindleOnly) { S.hoveredCard = null; layoutHand(); return; } // nowhere else to go
     if (st.free) {
       if (e.clientY < castLine()) doPlay(uid, null);
       else { S.hoveredCard = null; layoutHand(); }
@@ -853,12 +1095,25 @@ function bindCardDrag(c, uid) {
   c.addEventListener('pointercancel', (e) => finish(e, true));
 }
 const castLine = () => (S.ce?.hand ? S.ce.hand.getBoundingClientRect().top - 24 : innerHeight - 260);
+// what's under the finger, looking through the card being dragged
+const underPointer = (x, y) => document.elementsFromPoint(x, y).find((el) => !el.closest('.card'));
 function beginCardDrag(st, c) {
   const cb = S.cb;
   const inst = cb.hand.find((x) => x.uid === st.uid);
   if (!inst) { S.drag = null; return; }
   const d = E.cardData(inst);
   if (d.unplayable || E.effCost(S.run, cb, inst) > cb.player.energy) {
+    // unplayable panes can still be fuel: the drag lives, but only the lantern will take it
+    if (E.canKindle(S.run, cb, inst)) {
+      st.live = true;
+      st.free = true;
+      st.kindleOnly = true;
+      S.hoveredCard = null;
+      sfx.hover();
+      c.classList.add('dragging');
+      S.ce?.lantern?.classList.add('kindle-target');
+      return;
+    }
     S.drag = null;
     c.classList.add('nope');
     setTimeout(() => c.classList.remove('nope'), 350);
@@ -868,12 +1123,19 @@ function beginCardDrag(st, c) {
   st.live = true;
   S.hoveredCard = null;
   sfx.hover();
+  if (E.canKindle(S.run, cb, inst)) S.ce?.lantern?.classList.add('kindle-target');
   if (d.target === 'enemy') setTargeting({ kind: 'card', uid: st.uid });
   else {
     st.free = true;
     clearTargeting();
     c.classList.add('dragging');
   }
+}
+async function doKindle(uid) {
+  S.hoveredCard = null;
+  if (!E.kindleFromHand(S.run, S.cb, uid)) { layoutHand(); return; }
+  await drain();
+  afterAction();
 }
 function hoverEnemyAt(x, y) {
   const en = document.elementFromPoint(x, y)?.closest('.enemy');
@@ -904,10 +1166,12 @@ function updatePreviews() {
         dim = aiming && living > 1 && !x.root.classList.contains('target-hover');
       }
     }
-    if (pv && pv.total > 0) {
+    if (pv && (pv.total > 0 || pv.chips > 0)) {
       const h = pv.hits[0];
-      const label = pv.hits.length === 1 && h.times > 1 ? `${h.dmg}×${h.times}` : `${pv.total}`;
-      x.prev.innerHTML = pv.lethal ? `${iconSvg('skull', 15)} ${label}` : label;
+      const label = pv.hits.length === 1 && h && h.times > 1 ? `${h.dmg}×${h.times}` : `${pv.total}`;
+      // the preview speaks shatter as plainly as it speaks lethal
+      x.prev.innerHTML = (pv.lethal ? `${iconSvg('skull', 15)} ` : '') + (pv.total > 0 ? label : '')
+        + (pv.willShatter && !dim ? ` <span class="pv-shatter">${iconSvg('stagger', 14)}</span>` : '');
       x.prev.classList.add('show');
       x.prev.classList.toggle('dim', dim);
       x.prev.classList.toggle('lethal', pv.lethal);
@@ -915,11 +1179,15 @@ function updatePreviews() {
       const lossFrac = Math.min(en.hp, pv.loss) / en.maxHp;
       x.pv.style.left = `${(Math.max(0, en.hp - pv.loss) / en.maxHp) * 100}%`;
       x.pv.style.width = `${lossFrac * 100}%`;
-      x.pv.classList.add('show');
+      x.pv.classList.toggle('show', pv.loss > 0);
+      x.facets.innerHTML = facetPips(en, dim ? 0 : pv.chips);
+      x.facets.classList.toggle('willshatter', pv.willShatter && !dim);
     } else {
       x.prev.classList.remove('show', 'lethal', 'dim');
       x.root.classList.remove('marked');
       x.pv.classList.remove('show');
+      if (en.hp > 0) x.facets.innerHTML = facetPips(en);
+      x.facets.classList.remove('willshatter');
     }
   });
 }
@@ -1136,9 +1404,105 @@ async function drain(targetIdx = null) {
   syncHand();
   renderHud();
 }
+let emberFrom = null; // where the last fire spilled from (shatter/death/kindle)
 async function handleEvent(ev, targetIdx) {
   const cb = S.cb, ce = S.ce;
   switch (ev.t) {
+    case 'chip': {
+      const x = ce.enemies[ev.idx];
+      const { x: ex, y: ey } = enemyCenter(ev.idx);
+      sfx.chip();
+      V.burst(ex, ey, { color: '#e8f4ff', n: 5, speed: 190, size: 1.8, grav: 240, kind: 'spark' });
+      syncCombat();
+      x.facets.classList.remove('pop');
+      void x.facets.offsetWidth;
+      x.facets.classList.add('pop');
+      await sleep(110);
+      break;
+    }
+    case 'shatter': {
+      const x = ce.enemies[ev.idx];
+      const { x: ex, y: ey } = enemyCenter(ev.idx);
+      emberFrom = { x: ex, y: ey };
+      sfx.shatter();
+      V.hitstop(90);
+      V.ring(ex, ey, '#dfeaff', 10, 700, 5);
+      V.burst(ex, ey, { color: '#dfeaff', n: 26, speed: 430, size: 2.4, grav: 300, kind: 'spark' });
+      V.floatText(ex, ey - 58, `${iconSvg('stagger', 20)} SHATTER`, 'shatterf');
+      V.shake(10);
+      kick(0.9);
+      addCrack(x.art, true);
+      x.root.classList.add('hurt');
+      setTimeout(() => x.root.classList.remove('hurt'), 320);
+      syncCombat();
+      await sleep(380);
+      break;
+    }
+    case 'adamantHold': {
+      const { x: ex, y: ey } = enemyCenter(ev.idx);
+      sfx.blocked();
+      V.floatText(ex, ey - 52, 'THE GLASS HOLDS', 'blockedf');
+      V.ring(ex, ey, '#d8c27a', 8, 480, 4);
+      syncCombat();
+      await sleep(260);
+      break;
+    }
+    case 'ember': {
+      if (ev.n > 0 && ce.lantern) {
+        const from = emberFrom || heroCenter();
+        const to = V.centerOf(ce.lantern);
+        flyTo(from.x, from.y, to.x, to.y, { n: Math.min(ev.n * 2, 5), color: '#ffb35a', size: 6, dur: 460 });
+        sfx.ember();
+        setTimeout(() => {
+          ce.lantern.classList.remove('pop');
+          void ce.lantern.offsetWidth;
+          ce.lantern.classList.add('pop');
+          syncCombat();
+        }, 440);
+        await sleep(300);
+      } else syncCombat();
+      emberFrom = null;
+      break;
+    }
+    case 'kindle': {
+      const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
+      if (c) emberFrom = V.centerOf(c);
+      sfx.kindle();
+      await sleep(60);
+      break;
+    }
+    case 'art': {
+      const art = ARTS[ev.id];
+      const { x: hx, y: hy } = heroCenter();
+      const lc = ce.lantern ? V.centerOf(ce.lantern) : { x: hx, y: hy };
+      sfx.art();
+      V.flash(art.tone, 0.12, 0.5);
+      V.ring(lc.x, lc.y, art.tone, 10, 620, 5);
+      V.motes(hx, hy, art.tone, 12);
+      V.floatText(hx, hy - 84, art.name.toUpperCase(), 'artf');
+      kick(0.7);
+      syncCombat();
+      await sleep(420);
+      break;
+    }
+    case 'staggered': {
+      const x = ce.enemies[ev.idx];
+      const { x: ex, y: ey } = enemyCenter(ev.idx);
+      sfx.stagger();
+      V.floatText(ex, ey - 76, 'STAGGERED', 'staggerf');
+      x.root.classList.add('reseaming');
+      setTimeout(() => x.root.classList.remove('reseaming'), 720);
+      syncCombat();
+      await sleep(520);
+      break;
+    }
+    case 'smolderJump': {
+      const a = enemyCenter(ev.from), b = enemyCenter(ev.to);
+      sfx.poison();
+      flyTo(a.x, a.y, b.x, b.y, { n: 5, color: '#a3e06c', size: 7, dur: 460 });
+      await sleep(400);
+      break;
+    }
     case 'turn': {
       if (ev.n > 1) { banner('YOUR TURN'); sfx.turn(); }
       syncCombat();
@@ -1234,6 +1598,7 @@ async function handleEvent(ev, targetIdx) {
       const x = ce.enemies[ev.idx];
       const en = cb.enemies[ev.idx];
       const { x: ex, y: ey } = enemyCenter(ev.idx);
+      emberFrom = { x: ex, y: ey }; // the fire inside spills toward the lantern
       if (en.boss) {
         // world-stop: color drains, the cracks blaze with inner light, one
         // silent beat — then the glass gives way
@@ -1434,19 +1799,25 @@ function afterAction() {
   else defeatFlow();
 }
 function victoryFlow() {
-  const run = S.run, kind = S.cb.kind;
+  const run = S.run, kind = S.cb.kind, affix = S.cb.affix;
   S.cb = null;
   run.pendingCombat = null;
   if (kind === 'boss' && run.act >= 2) {
+    const { newUnlocks } = commitRunToVigil(run, true); // the dawn is remembered
     E.recordRunEnd(run, true);
-    show('end', { won: true });
+    show('end', { won: true, newUnlocks });
     return;
   }
-  show('reward', { kind, rewards: E.genCombatRewards(run, kind) });
+  show('reward', { kind, rewards: E.genCombatRewards(run, kind, affix) });
 }
 function defeatFlow() {
-  E.recordRunEnd(S.run, false);
-  show('end', { won: false });
+  const run = S.run;
+  const offers = bequestOptions(run); // what the stone could keep — read before the deck is gone
+  const node = run.map.nodes.find((n) => n.id === run.nodeId);
+  const fallRow = node ? node.row : Math.max(1, run.floorsClimbed - 1);
+  const { newUnlocks } = commitRunToVigil(run, false);
+  E.recordRunEnd(run, false);
+  show('end', { won: false, newUnlocks, offers, fallAct: run.act, fallRow });
 }
 
 // ------------------------------------------------------------ rewards
@@ -1559,6 +1930,7 @@ function renderBossRelic() {
 function advanceAct() {
   const run = S.run;
   run.act++;
+  run.omens.push(E.rollOmen(run)); // each act climbs under its own sky
   run.nodeId = null;
   run.map = E.genMap(run);
   E.healPlayer(run, Math.round(run.player.maxHp * 0.35));
@@ -1569,6 +1941,16 @@ function advanceAct() {
   show('map');
   banner(`ACT ${run.act + 1}`);
   sfx.victory();
+  setTimeout(() => omenBanner(run), 1400);
+}
+// the night declares itself: the omen blooms over the map on act entry
+function omenBanner(run) {
+  const omen = OMENS[run.omens?.[run.act]];
+  if (!omen || S.screen !== 'map') return;
+  const b = el('div', 'turn-banner omen-banner', `<span class="ob-glyph" style="color:${omen.tone}">${omen.glyph}</span> OMEN — ${omen.name.toUpperCase()}<div class="ob-sub">${omen.text}</div>`);
+  screenEl().appendChild(b);
+  sfx.omen();
+  setTimeout(() => b.remove(), 4200);
 }
 
 // ------------------------------------------------------------ rest / shop / treasure / event
@@ -1580,7 +1962,7 @@ function renderRest() {
     <div class="art-lg">${campfireSvg()}</div>
     <div class="ov-sub">The fire crackles. For a moment, the Spire is quiet.</div>
     <div class="big-choices">
-      <button class="btn" data-a="rest">${iconSvg('flame', 18)} Rest <span style="font-size:13px;opacity:.8">— heal ${Math.round(run.player.maxHp * 0.3)} HP</span></button>
+      <button class="btn" data-a="rest">${iconSvg('flame', 18)} Rest <span style="font-size:13px;opacity:.8">— heal ${Math.round(run.player.maxHp * E.restHealFrac(run))} HP</span></button>
       <button class="btn" data-a="smith" ${canUp ? '' : 'disabled'}>${iconSvg('hammer', 18)} Smith <span style="font-size:13px;opacity:.8">— upgrade a card</span></button>
     </div>
   </div></div>`;
@@ -1588,7 +1970,7 @@ function renderRest() {
     e.currentTarget.disabled = true;
     $('[data-a="smith"]').disabled = true;
     sfx.heal();
-    const healed = E.healPlayer(run, Math.round(run.player.maxHp * 0.3));
+    const healed = E.healPlayer(run, Math.round(run.player.maxHp * E.restHealFrac(run)));
     // the fire answers: a swell of warmth, embers rising off the hearth
     V.flash('#ff9a4d', 0.12, 0.8);
     V.floatText(innerWidth / 2, innerHeight / 2 - 40, `+${healed} HP`, 'healf');
@@ -1744,17 +2126,6 @@ function renderShop() {
   refresh();
   $('[data-a="leave"]', sc).onclick = () => { sfx.click(); show('map'); };
 }
-function rollEventCards(run, n) {
-  const rng = E.runRng(run);
-  const out = [];
-  const all = [...CARD_POOLS.common, ...CARD_POOLS.common, ...CARD_POOLS.uncommon, ...CARD_POOLS.uncommon, ...CARD_POOLS.rare];
-  let guard = 0;
-  while (out.length < n && guard++ < 60) {
-    const id = all[Math.floor(rng() * all.length)];
-    if (!out.includes(id)) out.push(id);
-  }
-  return out;
-}
 function renderEvent(eventId) {
   const run = S.run;
   const ev = EVENTS[eventId];
@@ -1804,7 +2175,7 @@ function renderEvent(eventId) {
       } else if (p === 'duplicate') {
         showCardGrid('Duplicate a Card', run.player.deck, { sub: 'The mirror remembers.', pick: (inst) => { if (inst) { E.duplicateCardInDeck(run, inst.uid); sfx.upgrade(); } resolve(); } });
       } else if (p.pickCard) {
-        showCardGrid('Choose a Card', rollEventCards(run, p.pickCard).map((id) => ({ id, up: false, uid: null })), {
+        showCardGrid('Choose a Card', E.rollEventCards(run, p.pickCard).map((id) => ({ id, up: false, uid: null })), {
           sub: 'One page still glows.',
           pick: (inst) => { if (inst) { E.addCardToDeck(run, inst.id); sfx.upgrade(); } resolve(); }, canSkip: true,
         });
@@ -1814,7 +2185,33 @@ function renderEvent(eventId) {
 }
 
 // ------------------------------------------------------------ end screens
-function renderEnd({ won }) {
+function bequestLabel(o) {
+  if (o.kind === 'relic') return { icon: RELICS[o.id]?.glyph || '◈', name: RELICS[o.id]?.name || o.id, note: 'your rarest relic' };
+  if (o.kind === 'card') return { icon: '🂠', name: (CARDS[o.id]?.name || o.id) + (o.up ? '+' : ''), note: 'your finest card' };
+  return { icon: '¤', name: `${o.amount} gold`, note: 'a cache of gold' };
+}
+function unlockToastInfo(u) {
+  if (u === 'aspect2') return { kind: 'Aspect Unlocked', name: 'The Ashwarden' };
+  const [k, id] = u.split(':');
+  if (k === 'card') return { kind: 'Card Unlocked', name: CARDS[id]?.name || id };
+  return { kind: 'Relic Unlocked', name: RELICS[id]?.name || id };
+}
+function showUnlockToasts(list = []) {
+  if (!list.length) return;
+  let host = $('#toasts');
+  if (!host) { host = el('div'); host.id = 'toasts'; document.body.appendChild(host); }
+  list.forEach((u, i) => {
+    const info = unlockToastInfo(u);
+    setTimeout(() => {
+      const t = el('div', 'unlock-toast', `<div class="ut-kind">✦ ${info.kind}</div><div class="ut-name">${info.name}</div>`);
+      host.appendChild(t);
+      requestAnimationFrame(() => t.classList.add('in'));
+      sfx.relic();
+      setTimeout(() => { t.classList.remove('in'); setTimeout(() => t.remove(), 500); }, 3800);
+    }, 700 + i * 800);
+  });
+}
+function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1 }) {
   const run = S.run;
   stopAmbience();
   const st = run.stats;
@@ -1830,10 +2227,9 @@ function renderEnd({ won }) {
       <div class="stat-cell"><div class="v">${st.cardsPlayed}</div><div class="k">Cards Played</div></div>
       <div class="stat-cell"><div class="v">${mins}m</div><div class="k">Run Time</div></div>
     </div>`;
-  const btns = `<div style="display:flex;gap:14px">
+  const btns = `<div class="end-btns">
       <button class="btn" data-a="deck">View Final Deck</button>
-      <button class="btn" data-a="new">New Run</button>
-      <button class="btn ghost" data-a="title">Title</button>
+      <button class="btn" data-a="title">Return to the Vigil</button>
     </div>`;
   if (won) {
     screenEl().innerHTML = `<div class="end-screen screen-enter">
@@ -1847,27 +2243,43 @@ function renderEnd({ won }) {
     const conf = setInterval(() => V.burst(Math.random() * innerWidth, innerHeight * 0.2, { color: ['#ffd97a', '#c9b0ff', '#8fe8a0'][(Math.random() * 3) | 0], n: 16, speed: 300, grav: 260, life: 1.2 }), 400);
     setTimeout(() => clearInterval(conf), 4200);
   } else {
-    // no game-over panel: a monument in the dark, embers drifting off it
+    // the fallen may carve one thing into the stone for the next climber to find
+    const bequestHtml = offers.length ? `<div class="bequest" id="bequest">
+        <div class="bequest-title">Carve one thing into the stone — the next climb may recover it in <b>${ACTS[fallAct].name}</b>.</div>
+        <div class="bequest-opts">${offers.map((o, i) => {
+      const L = bequestLabel(o);
+      return `<button class="bequest-opt" data-a="bequest" data-i="${i}"><span class="bq-icon">${L.icon}</span><span class="bq-name">${L.name}</span><span class="bq-note">${L.note}</span></button>`;
+    }).join('')}</div>
+      </div>` : '';
     const embers = Array.from({ length: 14 }, () =>
       `<span class="ember" style="left:${(8 + Math.random() * 84).toFixed(1)}%;--ex:${((Math.random() - 0.5) * 90).toFixed(0)}px;animation-delay:${(Math.random() * 4).toFixed(2)}s;animation-duration:${(3 + Math.random() * 3).toFixed(2)}s"></span>`).join('');
     screenEl().innerHTML = `<div class="end-screen grave">
       <div class="monument">
         <div class="mon-flame"></div>
         <div class="end-title lose">FALLEN</div>
-        <div class="ov-sub" style="font-size:16px">Here ended a climb, on floor ${totalFloor}.<br>The Spire keeps what it takes.</div>
-        ${stats}${btns}
+        <div class="ov-sub" style="font-size:16px">Here ended a climb, on floor ${totalFloor}.<br>The Spire keeps what it takes — but the Vigil remembers.</div>
+        ${stats}${bequestHtml}${btns}
       </div>
       <div class="embers">${embers}</div>
     </div>`;
   }
   screenEl().onclick = (e) => {
-    const a = e.target.dataset?.a;
-    if (!a) return;
+    const t = e.target.closest('[data-a]');
+    if (!t) return;
+    const a = t.dataset.a;
+    if (a === 'bequest') {
+      sfx.relic();
+      const o = offers[+t.dataset.i];
+      setBequest(fallAct, fallRow, o);
+      const L = bequestLabel(o);
+      $('#bequest').innerHTML = `<div class="bequest-done">✦ The stone keeps your <b>${L.name}</b>.<br>It will wait for you in ${ACTS[fallAct].name}.</div>`;
+      return;
+    }
     sfx.click();
     if (a === 'deck') showCardGrid('Final Deck', run.player.deck, {});
-    if (a === 'new') { S.run = null; startRun(E.newRun()); }
-    if (a === 'title') { S.run = null; show('title'); }
+    if (a === 'title') { S.run = null; S.lamp = null; show('title'); }
   };
+  showUnlockToasts(newUnlocks);
 }
 
 // ------------------------------------------------------------ boot
@@ -1881,6 +2293,7 @@ export function initUI() {
       else if ($('#overlay').classList.contains('open') && $('#overlay')._closable) closeOverlay();
     }
     if ((e.key === 'e' || e.key === 'E') && S.screen === 'combat' && !S.busy) onEndTurn();
+    if ((e.key === 'a' || e.key === 'A') && S.screen === 'combat' && !S.busy) S.ce?.lantern?.click();
   });
   $('#overlay').addEventListener('pointerdown', (e) => {
     if (e.target === $('#overlay') && $('#overlay')._closable) closeOverlay();

@@ -78,6 +78,14 @@ export const sfx = {
   relic: () => { [659, 831, 988].forEach((f, i) => tone(f, { type: 'sine', d: 0.3, peak: 0.12, delay: i * 0.09 })); },
   upgrade: () => { tone(440, { type: 'triangle', d: 0.15, peak: 0.14 }); tone(880, { type: 'triangle', d: 0.3, peak: 0.12, delay: 0.1 }); },
   map: () => { noise({ d: 0.25, f0: 500, f1: 1500, peak: 0.06 }); tone(330, { type: 'sine', d: 0.2, peak: 0.08 }); },
+  // the glass economy: chips tick, shatters break, embers sing, kindling breathes
+  chip: () => { tone(1420, { type: 'triangle', d: 0.05, peak: 0.14 }); noise({ d: 0.06, f0: 5200, f1: 3200, peak: 0.1, q: 5 }); },
+  shatter: () => { noise({ d: 0.42, f0: 4200, f1: 260, peak: 0.3, q: 3.5 }); tone(220, { type: 'sine', d: 0.3, peak: 0.24, slide: -140 }); tone(1760, { type: 'triangle', d: 0.18, peak: 0.1, delay: 0.03 }); },
+  ember: () => { tone(520, { type: 'sine', d: 0.12, peak: 0.12, slide: 220 }); },
+  kindle: () => { noise({ d: 0.3, f0: 900, f1: 2600, peak: 0.1 }); tone(392, { type: 'sine', d: 0.22, peak: 0.1, slide: 140 }); },
+  stagger: () => { tone(233, { type: 'sawtooth', d: 0.38, peak: 0.1 }); tone(247, { type: 'sawtooth', d: 0.38, peak: 0.1, delay: 0.02 }); },
+  art: () => { [392, 494, 587].forEach((f, i) => tone(f, { type: 'triangle', d: 0.28, peak: 0.13, delay: i * 0.07 })); noise({ d: 0.35, f0: 1400, f1: 3200, peak: 0.07 }); },
+  omen: () => { tone(98, { type: 'sine', d: 1.1, peak: 0.2 }); tone(196, { type: 'sine', d: 0.9, peak: 0.1, delay: 0.12 }); tone(147, { type: 'triangle', d: 0.8, peak: 0.06, delay: 0.3 }); },
 };
 
 const ACT_ROOTS = [55, 49, 41.2]; // A1, G1, E1

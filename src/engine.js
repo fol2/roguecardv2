@@ -1,5 +1,5 @@
 // SPIREBOUND engine — pure game logic, no DOM. UI consumes cb.queue for animation.
-import { PLAYER, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP } from './data.js';
+import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES } from './data.js';
 
 // ---------------------------------------------------------------- RNG (mulberry32)
 export function makeRng(state) {
@@ -17,20 +17,51 @@ const irange = (rng, [a, b]) => a + Math.floor(rng() * (b - a + 1));
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 // ---------------------------------------------------------------- run lifecycle
-export function newRun(seed = (Math.random() * 2 ** 31) | 0) {
+// opts: { aspect, vow, unlocks (vigil snapshot), monument (last fall), lamplighter }
+export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
+  const aspect = clamp(opts.aspect || 0, 0, ASPECTS.length - 1);
+  const A = ASPECTS[aspect];
+  const vow = clamp(opts.vow || 0, 0, VOWS.length);
   const run = {
-    seed, rngState: seed, uid: 1, act: 0, nodeId: null, floorsClimbed: 0,
+    v: 2, seed, rngState: seed, uid: 1, act: 0, nodeId: null, floorsClimbed: 0,
+    aspect, vow, art: opts.art || A.art || 'flare', omens: [], boon: opts.boon || null,
+    unlocks: [...(opts.unlocks || [])],
+    monument: opts.monument ? { ...opts.monument, claimed: false } : null,
     player: {
-      hp: PLAYER.maxHp, maxHp: PLAYER.maxHp, gold: PLAYER.startGold, energyMax: PLAYER.energy,
-      relics: [PLAYER.startRelic], potions: [null, null, null], deck: [],
+      hp: A.maxHp, maxHp: A.maxHp, gold: A.startGold, energyMax: A.energy,
+      relics: [A.startRelic], potions: Array(A.potionSlots || 3).fill(null), deck: [],
     },
-    stats: { slain: 0, elites: 0, bosses: 0, dmgDealt: 0, dmgTaken: 0, cardsPlayed: 0, goldEarned: 0, start: Date.now() },
+    stats: {
+      slain: 0, elites: 0, bosses: 0, dmgDealt: 0, dmgTaken: 0, cardsPlayed: 0, goldEarned: 0,
+      shatters: 0, kindles: 0, perfects: 0, smolderKills: 0, unlitVisited: 0, embersSpent: 0, start: Date.now(),
+    },
     map: null,
   };
-  for (const id of PLAYER.startDeck) run.player.deck.push(makeCard(run, id));
+  if (opts.lamplighter) run.pendingLamplighter = true;
+  for (const id of A.startDeck) run.player.deck.push(makeCard(run, id));
+  if (vowMods(run).startHex) run.player.deck.push(makeCard(run, 'hex'));
+  run.omens.push(rollOmen(run));
   run.map = genMap(run);
   return run;
 }
+// vows stack: at Vow N, vows 1..N are all in force. Reads VOWS[i].mods.
+export function vowMods(run) {
+  const m = { hpMult: 1, enemyDmgBonus: 0, bossFacetDelta: 0, startHex: false };
+  const lvl = clamp(run.vow || 0, 0, VOWS.length);
+  for (let i = 0; i < lvl; i++) {
+    const vm = VOWS[i].mods;
+    if (vm.hpMult) m.hpMult *= vm.hpMult;
+    if (vm.enemyDmgBonus) m.enemyDmgBonus += vm.enemyDmgBonus;
+    if (vm.bossFacetDelta) m.bossFacetDelta += vm.bossFacetDelta;
+    if (vm.startHex) m.startHex = true;
+    if (vm.restHealFrac != null) m.restHealFrac = Math.min(m.restHealFrac ?? 1, vm.restHealFrac);
+  }
+  return m;
+}
+// omens: one rule per act, imposed on everyone
+export function rollOmen(run) { return pick(runRng(run), Object.keys(OMENS)); }
+export function omenMods(run) { return OMENS[run.omens?.[run.act]]?.mods || {}; }
+export function restHealFrac(run) { return Math.min(0.3, omenMods(run).restHealFrac ?? 0.3, vowMods(run).restHealFrac ?? 0.3); }
 export function makeCard(run, id, up = false) {
   return { uid: run.uid++, id, up, bonus: 0 };
 }
@@ -91,6 +122,28 @@ export function genMap(run) {
     const cand = nodes.filter((n) => n.type === 'monster' && n.row >= 5 && n.row <= 11);
     if (cand.length) pick(rng, cand).type = 'shop';
   }
+  // some lanterns hang dark: their keeper is unknown until you step to them,
+  // but first light always pays a bounty
+  for (const n of nodes) {
+    if (n.row === 0 || n.row === 8 || n.row >= MAP_ROWS - 2) continue;
+    if (rng() < 0.15) {
+      n.unlit = true;
+      n.bounty = irange(rng, [12, 22]) + run.act * 6;
+    }
+  }
+  // the monument of the last fall stands in the act where that climber died,
+  // near the row of the fall — never on rows 0/8/rest/boss, never the sole shop
+  if (run.monument && !run.monument.claimed && run.monument.act === run.act) {
+    const targetRow = clamp(run.monument.row || 5, 1, MAP_ROWS - 3);
+    const onlyShop = nodes.filter((n) => n.type === 'shop').length === 1;
+    const cand = nodes.filter((n) =>
+      n.row > 0 && n.row < MAP_ROWS - 2 && n.row !== 8 && n.type !== 'boss' && !(onlyShop && n.type === 'shop'));
+    if (cand.length) {
+      const best = cand.reduce((a, b) => (Math.abs(b.row - targetRow) < Math.abs(a.row - targetRow) ? b : a));
+      best.type = 'monument';
+      delete best.unlit; delete best.bounty;
+    }
+  }
   return { nodes, visited: [] };
 }
 export function availableNodes(run) {
@@ -99,9 +152,50 @@ export function availableNodes(run) {
   const cur = nodes.find((n) => n.id === run.nodeId);
   return nodes.filter((n) => cur.next.includes(n.id));
 }
+// stepping onto a node: bookkeeping + unlit bounty. Returns the node's true face.
+export function visitNode(run, node) {
+  run.nodeId = node.id;
+  run.floorsClimbed = node.row + 1;
+  if (!run.map.visited.includes(node.id)) run.map.visited.push(node.id);
+  let bounty = 0;
+  if (node.unlit) {
+    delete node.unlit;
+    bounty = (node.bounty || 0) * (hasRelic(run, 'thiefOfWicks') ? 2 : 1);
+    delete node.bounty;
+    run.player.gold += bounty;
+    run.stats.goldEarned += bounty;
+    run.stats.unlitVisited++;
+  }
+  return { type: node.type, bounty };
+}
+// recover what the last Duskblade left in the stone
+export function claimMonument(run) {
+  const m = run.monument;
+  if (!m || m.claimed || !m.bequest) return null;
+  m.claimed = true;
+  const b = m.bequest;
+  if (b.kind === 'card') addCardToDeck(run, b.id, b.up);
+  else if (b.kind === 'relic') gainRelic(run, b.id);
+  else if (b.kind === 'gold') { run.player.gold += b.amount; run.stats.goldEarned += b.amount; }
+  return b;
+}
 
 // ---------------------------------------------------------------- helpers
 export const hasRelic = (run, id) => run.player.relics.includes(id);
+// content pools honor the run's vigil unlocks ('card:id' / 'relic:id' tokens);
+// unknown ids are ignored so deeds can promise content before it ships
+export function cardPool(run, tier) {
+  const extra = (run.unlocks || [])
+    .filter((u) => u.startsWith('card:')).map((u) => u.slice(5))
+    .filter((id) => CARDS[id] && CARDS[id].rarity === tier);
+  return extra.length ? [...CARD_POOLS[tier], ...extra] : CARD_POOLS[tier];
+}
+export function relicPool(run, tier) {
+  const extra = (run.unlocks || [])
+    .filter((u) => u.startsWith('relic:')).map((u) => u.slice(6))
+    .filter((id) => RELICS[id] && RELICS[id].rarity === tier);
+  return extra.length ? [...RELIC_POOLS[tier], ...extra] : RELIC_POOLS[tier];
+}
 export function healPlayer(run, n, cb = null) {
   if (hasRelic(run, 'sunBlossom')) n = Math.round(n * 1.5);
   const p = cb ? cb.player : run.player;
@@ -121,14 +215,10 @@ export function gainRelic(run, id, cb = null) {
   run.player.relics.push(id);
   // instant / permanent pickup effects
   if (id === 'sweetRoot') { run.player.maxHp += 8; run.player.hp += 8; }
-  if (id === 'obsidianHeart') { run.player.energyMax += 1; run.player.maxHp = Math.max(1, run.player.maxHp - 8); run.player.hp = Math.min(run.player.hp, run.player.maxHp); }
-  if (id === 'philosophersStone' || id === 'voidCrown') run.player.energyMax += 1;
-  if (id === 'pandorasBox') {
-    const rng = runRng(run);
-    const all = [...CARD_POOLS.common, ...CARD_POOLS.uncommon, ...CARD_POOLS.rare];
-    for (const c of run.player.deck) {
-      if (c.id === 'strike' || c.id === 'defend') { c.id = pick(rng, all); c.up = false; }
-    }
+  if (id === 'hollowCrown') {
+    run.player.energyMax += 1;
+    run.player.maxHp = Math.max(1, run.player.maxHp - 10);
+    run.player.hp = Math.min(run.player.hp, run.player.maxHp);
   }
 }
 export function randomRelic(run, weights = { common: 0.5, uncommon: 0.35, rare: 0.15 }) {
@@ -140,7 +230,7 @@ export function randomRelic(run, weights = { common: 0.5, uncommon: 0.35, rare: 
   const idx = order.indexOf(tier);
   for (let i = 0; i < order.length; i++) {
     const t = order[(idx + i) % order.length];
-    const avail = RELIC_POOLS[t].filter((id) => !owned.has(id));
+    const avail = relicPool(run, t).filter((id) => !owned.has(id));
     if (avail.length) return pick(rng, avail);
   }
   return null;
@@ -154,7 +244,7 @@ export function gainPotion(run, id) {
 }
 export function rollCardReward(run, kind = 'normal') {
   const rng = runRng(run);
-  const n = 3 + (hasRelic(run, 'seersOrb') ? 1 : 0);
+  const n = 3 + (hasRelic(run, 'seersOrb') ? 1 : 0) + (omenMods(run).rewardChoiceBonus || 0);
   const out = [];
   const guard = new Set();
   while (out.length < n && guard.size < 40) {
@@ -166,15 +256,31 @@ export function rollCardReward(run, kind = 'normal') {
         ? (r < 0.45 ? 'common' : r < 0.85 ? 'uncommon' : 'rare')
         : (r < 0.6 ? 'common' : r < 0.92 ? 'uncommon' : 'rare');
     }
-    const id = pick(rng, CARD_POOLS[pool]);
+    const id = pick(rng, cardPool(run, pool));
     guard.add(id + Math.floor(rng() * 4));
     if (!out.includes(id)) out.push(id);
   }
   return out;
 }
-export function genCombatRewards(run, kind) {
+// events that offer cards draw from the same unlock-aware pools
+export function rollEventCards(run, n) {
   const rng = runRng(run);
-  const gold = irange(rng, REWARD_GOLD[run.act][kind === 'boss' ? 'boss' : kind === 'elite' ? 'elite' : 'normal']);
+  const all = [
+    ...cardPool(run, 'common'), ...cardPool(run, 'common'),
+    ...cardPool(run, 'uncommon'), ...cardPool(run, 'uncommon'), ...cardPool(run, 'rare'),
+  ];
+  const out = [];
+  let guard = 0;
+  while (out.length < n && guard++ < 60) {
+    const id = all[Math.floor(rng() * all.length)];
+    if (!out.includes(id)) out.push(id);
+  }
+  return out;
+}
+export function genCombatRewards(run, kind, affix = null) {
+  const rng = runRng(run);
+  let gold = irange(rng, REWARD_GOLD[run.act][kind === 'boss' ? 'boss' : kind === 'elite' ? 'elite' : 'normal']);
+  gold = Math.round(gold * (omenMods(run).goldMult || 1) * (AFFIXES[affix]?.mods.goldMult || 1));
   const rw = { gold, cards: rollCardReward(run, kind), potion: null, relic: null };
   if (kind !== 'boss' && rng() < 0.4) rw.potion = pick(rng, Object.keys(POTIONS));
   if (kind === 'elite') rw.relic = randomRelic(run);
@@ -183,7 +289,7 @@ export function genCombatRewards(run, kind) {
 export function rollBossRelics(run) {
   const rng = runRng(run);
   const owned = new Set(run.player.relics);
-  const avail = RELIC_POOLS.boss.filter((id) => !owned.has(id));
+  const avail = relicPool(run, 'boss').filter((id) => !owned.has(id));
   const out = [];
   while (out.length < Math.min(3, avail.length)) {
     const id = pick(rng, avail);
@@ -194,18 +300,18 @@ export function rollBossRelics(run) {
 export function genShop(run) {
   const rng = runRng(run);
   const price = ([a, b], disc) => Math.round(irange(rng, [a, b]) * disc);
-  const disc = hasRelic(run, 'merchantsMark') ? 0.75 : 1;
+  const disc = (hasRelic(run, 'merchantsMark') ? 0.75 : 1) * (omenMods(run).shopMult || 1);
   const cardIds = [];
   const wants = ['common', 'common', 'uncommon', 'uncommon', 'rare'];
   for (const t of wants) {
     let id, tries = 0;
-    do { id = pick(rng, CARD_POOLS[t]); } while (cardIds.some((c) => c.id === id) && ++tries < 20);
+    do { id = pick(rng, cardPool(run, t)); } while (cardIds.some((c) => c.id === id) && ++tries < 20);
     cardIds.push({ id, price: price(SHOP.cardPrice[t], disc), sold: false });
   }
   const owned = new Set(run.player.relics);
   const relics = [];
   for (const t of ['common', 'uncommon']) {
-    const avail = RELIC_POOLS[t].filter((id) => !owned.has(id) && !relics.some((r) => r.id === id));
+    const avail = relicPool(run, t).filter((id) => !owned.has(id) && !relics.some((r) => r.id === id));
     if (avail.length) relics.push({ id: pick(rng, avail), price: price(SHOP.relicPrice[t], disc), sold: false });
   }
   const potions = [];
@@ -233,10 +339,15 @@ export function rollEncounter(run, type, row) {
 }
 
 // ---------------------------------------------------------------- combat
-export function startCombat(run, enemyIds, kind = 'normal') {
+export function startCombat(run, enemyIds, kind = 'normal', opts = {}) {
   const rng = runRng(run);
+  const om = omenMods(run);
+  const vm = vowMods(run);
+  // every elite arrives wearing a title; the title is a promise
+  const affix = kind === 'elite' ? (opts.affix || pick(rng, Object.keys(AFFIXES))) : null;
+  const af = affix ? AFFIXES[affix].mods : {};
   const cb = {
-    kind, turn: 0, over: false, result: null, queue: [],
+    kind, affix, turn: 0, over: false, result: null, queue: [],
     player: {
       hp: run.player.hp, maxHp: run.player.maxHp, block: 0, energy: 0, energyMax: run.player.energyMax,
       statuses: {},
@@ -244,15 +355,26 @@ export function startCombat(run, enemyIds, kind = 'normal') {
     enemies: enemyIds.map((id, i) => {
       const d = ENEMIES[id];
       return {
-        key: id, idx: i, name: d.name, maxHp: irange(rng, d.hp), block: 0,
-        statuses: { ...(d.startStatus || {}) }, flags: {}, lastMoves: [], moveKey: null,
+        key: id, idx: i, name: d.name,
+        maxHp: Math.round(irange(rng, d.hp) * (om.hpMult || 1) * (af.hpMult || 1) * (vm.hpMult || 1)), block: af.startBlock || 0,
+        statuses: { ...(d.startStatus || {}) }, flags: af.adamant ? { adamant: true } : {}, lastMoves: [], moveKey: null,
         elite: !!d.elite, boss: !!d.boss,
+        // every creature is glass: fill its facet gauge and it shatters
+        facetMax: Math.max(2, (d.facets ?? (d.boss ? 6 : d.elite ? 5 : 4)) + (om.facetDelta || 0) + (af.facetDelta || 0) + (d.boss ? (vm.bossFacetDelta || 0) : 0)), chips: 0,
       };
     }),
     draw: [], hand: [], discard: [], exhaust: [],
+    embers: 0, emberCap: 9, artUsedTurn: 0, kindledTurn: 0, kindlesThisTurn: 0, pendingChips: null,
     counters: { played: 0, attacks: 0, firstCardPlayed: false, hpLost: 0 },
   };
   cb.enemies.forEach((e) => (e.hp = e.maxHp));
+  // what the night and the title impose on the glass
+  for (const e of cb.enemies) {
+    for (const [sid, n] of Object.entries({ ...(om.enemyStartStatus || {}), ...(af.startStatus || {}) })) {
+      e.statuses[sid] = (e.statuses[sid] || 0) + n;
+    }
+  }
+  if (om.startEmbers) cb.embers = clamp(om.startEmbers, 0, cb.emberCap);
   // deck
   cb.draw = run.player.deck.map((c) => ({ ...c, bonus: 0 }));
   shuffle(rng, cb.draw);
@@ -263,10 +385,18 @@ export function startCombat(run, enemyIds, kind = 'normal') {
   if (hasRelic(run, 'riverPearl')) { addStatus(cb, P, 'dex', 1); proc(cb, 'riverPearl'); }
   if (hasRelic(run, 'thornBand')) { addStatus(cb, P, 'thorns', 2); proc(cb, 'thornBand'); }
   if (hasRelic(run, 'vialOfLife')) { healPlayer(run, 2, cb); proc(cb, 'vialOfLife'); }
-  if (hasRelic(run, 'philosophersStone')) cb.enemies.forEach((e) => (e.statuses.str = (e.statuses.str || 0) + 1));
-  if (hasRelic(run, 'voidCrown')) {
-    const w = { uid: run.uid++, id: 'wound', up: false, bonus: 0 };
-    cb.draw.splice(Math.floor(rng() * (cb.draw.length + 1)), 0, w);
+  if (hasRelic(run, 'crownOfCinders')) { cb.emberCap = 12; cb.embers = clamp(cb.embers + 2, 0, cb.emberCap); proc(cb, 'crownOfCinders'); }
+  if (hasRelic(run, 'shatterersCrown')) {
+    cb.enemies.forEach((e) => { e.facetMax = Math.max(2, e.facetMax - 1); e.statuses.str = (e.statuses.str || 0) + 1; });
+    proc(cb, 'shatterersCrown');
+  }
+  if (hasRelic(run, 'smolderingCoal')) {
+    cb.enemies.forEach((e) => (e.statuses.poison = (e.statuses.poison || 0) + 2));
+    proc(cb, 'smolderingCoal');
+  }
+  if (hasRelic(run, 'ashenCore')) {
+    cb.enemies.forEach((e) => (e.statuses.poison = (e.statuses.poison || 0) + 3));
+    proc(cb, 'ashenCore');
   }
   computeIntents(run, cb);
   startPlayerTurn(run, cb);
@@ -298,6 +428,126 @@ function computeIntents(run, cb) {
 }
 export function enemyMove(e) { return ENEMIES[e.key].moves[e.moveKey]; }
 
+// ---------------------------------------------------------------- shatter & embers
+// spilled fire, caught by your lantern. Negative n = spent.
+export function gainEmbers(run, cb, n) {
+  const next = clamp(cb.embers + n, 0, cb.emberCap);
+  const delta = next - cb.embers;
+  if (!delta) return 0;
+  cb.embers = next;
+  cb.queue.push({ t: 'ember', n: delta, total: cb.embers });
+  return delta;
+}
+// facet chips land after the card that earned them resolves (see playCard);
+// overflow carries into the next, harder pane
+function applyChips(run, cb, e, n) {
+  if (cb.over || e.hp <= 0 || n <= 0) return;
+  e.chips += n;
+  cb.queue.push({ t: 'chip', idx: e.idx, n, chips: Math.min(e.chips, e.facetMax), facetMax: e.facetMax });
+  while (e.chips >= e.facetMax && e.hp > 0) {
+    e.chips -= e.facetMax;
+    shatterEnemy(run, cb, e);
+  }
+}
+function shatterEnemy(run, cb, e) {
+  e.facetMax += 1; // annealed: each pane reseams harder than the last
+  if (e.flags.adamant && !e.flags.adamantSpent) {
+    e.flags.adamantSpent = true;
+    cb.queue.push({ t: 'adamantHold', idx: e.idx });
+    return;
+  }
+  run.stats.shatters++;
+  e.flags.staggered = true;
+  cb.queue.push({ t: 'shatter', idx: e.idx, facetMax: e.facetMax });
+  addStatus(cb, e, 'vulnerable', 2);
+  gainEmbers(run, cb, 2);
+  if (hasRelic(run, 'prismCharm') && !cb.prismProcd) {
+    cb.prismProcd = true;
+    gainEmbers(run, cb, 2);
+    proc(cb, 'prismCharm');
+  }
+  const sm = e.statuses.poison || 0;
+  if (sm && cb.enemies.some((o) => o !== e && o.hp > 0)) {
+    delete e.statuses.poison;
+    jumpSmolder(run, cb, e, sm);
+  }
+  if (hasRelic(run, 'bellOfEndings')) {
+    proc(cb, 'bellOfEndings');
+    for (const o of cb.enemies.filter((x) => x !== e && x.hp > 0)) {
+      if (cb.over) break;
+      hitEnemy(run, cb, o, 4, { isAttack: false });
+    }
+  }
+}
+// smolder is faithful to the fire, not the vessel: when its host shatters or
+// dies, it leaps to another living enemy (or is lost with the last one)
+function jumpSmolder(run, cb, from, amount) {
+  if (!amount) return;
+  const others = cb.enemies.filter((x) => x !== from && x.hp > 0);
+  if (!others.length) return;
+  const to = pick(runRng(run), others);
+  addStatus(cb, to, 'poison', amount);
+  cb.queue.push({ t: 'smolderJump', from: from.idx, to: to.idx, n: amount });
+}
+// the Lantern Art: the hero's one always-available answer, paid in embers
+export function canUseArt(run, cb) {
+  const art = ARTS[run.art];
+  return !!art && !cb.over && cb.artUsedTurn !== cb.turn && cb.embers >= art.cost;
+}
+export function useArt(run, cb) {
+  if (!canUseArt(run, cb)) return false;
+  const art = ARTS[run.art];
+  cb.artUsedTurn = cb.turn;
+  run.stats.embersSpent += art.cost;
+  gainEmbers(run, cb, -art.cost);
+  cb.queue.push({ t: 'art', id: run.art });
+  for (const fx of art.effects) {
+    if (cb.over) break;
+    applyArtEffect(run, cb, fx);
+  }
+  return true;
+}
+// lantern fire is not a blade: it ignores Fervor/Dimmed/Cracked and strikes everyone
+function applyArtEffect(run, cb, fx) {
+  const P = cb.player;
+  const living = () => cb.enemies.filter((e) => e.hp > 0);
+  switch (fx.kind) {
+    case 'dmg': for (const e of living()) { if (!cb.over) hitEnemy(run, cb, e, fx.n, { isAttack: false }); } break;
+    case 'status': {
+      if (fx.who === 'self') addStatus(cb, P, fx.id, fx.n);
+      else for (const e of living()) addStatus(cb, e, fx.id, fx.n);
+      break;
+    }
+    case 'block': gainBlock(run, cb, P, fx.n, false); break;
+    case 'heal': healPlayer(run, fx.n, cb); break;
+    case 'energy': P.energy += fx.n; cb.queue.push({ t: 'energy', n: P.energy }); break;
+    case 'draw': drawCards(run, cb, fx.n); break;
+    case 'chip': for (const e of living()) applyChips(run, cb, e, fx.n); break;
+    case 'ember': gainEmbers(run, cb, fx.n); break;
+  }
+}
+// the universal rite: once per turn, feed any hand card to the lantern
+export function canKindle(run, cb, inst) {
+  if (!inst || cb.over) return false;
+  if (cardData(inst).type === 'curse') return false; // hexes cling to the hand
+  return !(cb.kindledTurn === cb.turn && cb.kindlesThisTurn >= kindleLimit(run));
+}
+function kindleLimit(run) { return hasRelic(run, 'crownOfTithes') ? 2 : 1; }
+export function kindleFromHand(run, cb, uid) {
+  const i = cb.hand.findIndex((c) => c.uid === uid);
+  if (i < 0) return false;
+  const inst = cb.hand[i];
+  if (!canKindle(run, cb, inst)) return false;
+  if (cb.kindledTurn !== cb.turn) { cb.kindledTurn = cb.turn; cb.kindlesThisTurn = 0; }
+  cb.kindlesThisTurn++;
+  cb.hand.splice(i, 1);
+  run.stats.kindles++;
+  cb.queue.push({ t: 'kindle', uid: inst.uid, id: inst.id });
+  exhaustCard(run, cb, inst);
+  if (hasRelic(run, 'crownOfTithes')) { gainBlock(run, cb, cb.player, 3, false); proc(cb, 'crownOfTithes'); }
+  return true;
+}
+
 // damage an enemy from the player. returns actual hp loss
 function hitEnemy(run, cb, e, base, { isAttack = true, mult = 1 } = {}) {
   if (e.hp <= 0 || cb.over) return 0;
@@ -318,18 +568,28 @@ function hitEnemy(run, cb, e, base, { isAttack = true, mult = 1 } = {}) {
     t: 'hitEnemy', idx: e.idx, amount: loss, blocked, hpAfter: Math.max(0, e.hp), dead: e.hp <= 0,
     killingBlow: e.hp <= 0 && loss > 0, overkill: Math.max(0, -e.hp),
   });
+  // an attack card that draws unblocked blood earns its facet chip (once per card)
+  if (cb.pendingChips && isAttack && loss > 0) {
+    const rec = cb.pendingChips.get(e.idx) || { hit: false, extra: 0 };
+    rec.hit = true;
+    cb.pendingChips.set(e.idx, rec);
+  }
   if (isAttack && e.statuses.thorns && e.hp > 0) damagePlayer(run, cb, e.statuses.thorns, { source: 'thorns', isAttack: false });
   if (e.hp <= 0) onEnemyDeath(run, cb, e);
   return loss;
 }
 function onEnemyDeath(run, cb, e) {
   e.hp = 0;
+  const smolder = e.statuses.poison || 0; // capture before the vessel empties
   e.statuses = {};
+  e.flags.staggered = false;
   cb.queue.push({ t: 'die', idx: e.idx });
   run.stats.slain++;
   if (e.elite) run.stats.elites++;
   if (e.boss) run.stats.bosses++;
   if (cb.enemies.every((x) => x.hp <= 0)) { winCombat(run, cb); return; }
+  gainEmbers(run, cb, 1); // the fire inside spills to your lantern
+  jumpSmolder(run, cb, e, smolder);
   if (hasRelic(run, 'reapersBell')) {
     cb.player.energy += 1;
     drawCards(run, cb, 1);
@@ -343,7 +603,7 @@ function damagePlayer(run, cb, base, { source = 'self', isAttack = false, attack
   const P = cb.player;
   let dmg = base;
   if (isAttack && attacker) {
-    dmg += (attacker.statuses.str || 0) + (attacker.flags.rampBonus || 0);
+    dmg += (attacker.statuses.str || 0) + (attacker.flags.rampBonus || 0) + (omenMods(run).enemyDmgBonus || 0) + (vowMods(run).enemyDmgBonus || 0);
     if (attacker.statuses.weak) dmg = Math.floor(dmg * 0.75);
     if (P.statuses.vulnerable) dmg = Math.floor(dmg * 1.5);
     if (hasRelic(run, 'wardingCharm') && dmg <= 5 && dmg > 0) { dmg = 1; proc(cb, 'wardingCharm'); }
@@ -359,17 +619,22 @@ function damagePlayer(run, cb, base, { source = 'self', isAttack = false, attack
   run.stats.dmgTaken += Math.max(0, loss);
   cb.counters.hpLost += Math.max(0, loss);
   cb.queue.push({ t: 'hitPlayer', amount: loss, blocked, hpAfter: Math.max(0, P.hp), source });
-  if (isAttack && P.statuses.thorns && attacker && attacker.hp > 0) hitEnemy(run, cb, attacker, P.statuses.thorns, { isAttack: false });
-  if (P.hp <= 0) loseCombat(run, cb);
+  if (P.hp <= 0) { loseCombat(run, cb); return loss; }
+  if (isAttack && attacker) {
+    // what clings to their blows: omen ash, affix cinders
+    const applies = { ...(omenMods(run).playerHitApplies || {}), ...(cb.affix ? AFFIXES[cb.affix].mods.attackApplies || {} : {}) };
+    for (const [sid, n] of Object.entries(applies)) addStatus(cb, P, sid, n);
+    if (P.statuses.thorns && attacker.hp > 0) hitEnemy(run, cb, attacker, P.statuses.thorns, { isAttack: false });
+  }
   return loss;
 }
-function gainBlock(cb, who, base, withDex = true) {
+function gainBlock(run, cb, who, base, withDex = true) {
   let b = base;
   if (who === cb.player && withDex) {
     b += who.statuses.dex || 0;
     if (who.statuses.frail) b = Math.floor(b * 0.75);
   }
-  b = Math.max(0, b);
+  b = Math.round(Math.max(0, b) * (omenMods(run).wardMult || 1)); // heavy air holds the light
   who.block += b;
   cb.queue.push({ t: 'blockGain', who: who === cb.player ? 'player' : who.idx, n: b, total: who.block });
   return b;
@@ -393,6 +658,7 @@ export function drawCards(run, cb, n) {
 function exhaustCard(run, cb, inst) {
   cb.exhaust.push(inst);
   cb.queue.push({ t: 'exhaust', uid: inst.uid });
+  gainEmbers(run, cb, 1); // everything burned feeds the lantern
   if (hasRelic(run, 'verdantBranch')) { drawCards(run, cb, 1); proc(cb, 'verdantBranch'); }
 }
 
@@ -410,20 +676,24 @@ function startPlayerTurn(run, cb) {
   }
   if (!P.statuses.barricade) P.block = 0;
   if (P.statuses.ritual) addStatus(cb, P, 'str', P.statuses.ritual);
+  if (P.statuses.emberflow) gainEmbers(run, cb, P.statuses.emberflow);
   let energy = P.energyMax + (P.statuses.energized || 0);
   if (cb.turn === 1 && hasRelic(run, 'emberLantern')) { energy += 1; proc(cb, 'emberLantern'); }
   P.energy = (hasRelic(run, 'frozenCore') ? P.energy : 0) + energy;
   cb.counters.firstCardPlayed = false;
   cb.queue.push({ t: 'energy', n: P.energy });
-  let draws = 5;
+  let draws = 5 + (P.statuses.nightsight || 0) + (omenMods(run).drawDelta || 0);
   if (cb.turn === 1 && hasRelic(run, 'travelersPack')) { draws += 2; proc(cb, 'travelersPack'); }
-  drawCards(run, cb, draws);
+  drawCards(run, cb, Math.max(1, draws));
 }
 
 export function effCost(run, cb, inst) {
   const d = cardData(inst);
   if (d.cost == null) return null;
   if (hasRelic(run, 'duskmirror') && !cb.counters.firstCardPlayed) return 0;
+  if (omenMods(run).firstCardDiscount && !cb.counters.firstCardPlayed) {
+    return Math.max(0, d.cost - omenMods(run).firstCardDiscount); // the waning moon's last light
+  }
   return d.cost;
 }
 export function canPlay(run, cb, inst, targetIdx) {
@@ -462,17 +732,28 @@ export function playCard(run, cb, uid, targetIdx = null) {
   const target = targetIdx != null ? cb.enemies[targetIdx] : null;
   const livingTargets = () => cb.enemies.filter((e) => e.hp > 0);
 
+  cb.pendingChips = new Map(); // facet chips land after the whole card resolves
   for (const fx of d.effects) {
     if (cb.over) break;
     applyEffect(run, cb, inst, d, fx, target, sealMult);
   }
+  if (cb.pendingChips && !cb.over) {
+    const per = d.type === 'attack' ? 1 + (d.chip || 0) + (P.statuses.beacon || 0) : 0;
+    for (const [idx, rec] of cb.pendingChips) {
+      const e = cb.enemies[idx];
+      if (!e || e.hp <= 0 || cb.over) continue;
+      const n = (rec.hit ? per : 0) + rec.extra;
+      if (n > 0) applyChips(run, cb, e, n);
+    }
+  }
+  cb.pendingChips = null;
   // venomous power: attacks apply poison
   if (!cb.over && d.type === 'attack' && P.statuses.venomous) {
     const vs = d.target === 'allEnemies' ? livingTargets() : target && target.hp > 0 ? [target] : [];
     for (const e of vs) addStatus(cb, e, 'poison', P.statuses.venomous);
   }
   // silk fan
-  if (!cb.over && hasRelic(run, 'silkFan') && cb.counters.played % 3 === 0) { gainBlock(cb, P, 3, false); proc(cb, 'silkFan'); }
+  if (!cb.over && hasRelic(run, 'silkFan') && cb.counters.played % 3 === 0) { gainBlock(run, cb, P, 3, false); proc(cb, 'silkFan'); }
 
   if (d.type === 'power') cb.queue.push({ t: 'powerConsumed', uid: inst.uid });
   else if (d.exhaust) exhaustCard(run, cb, inst);
@@ -494,7 +775,7 @@ function applyEffect(run, cb, inst, d, fx, target, sealMult) {
       }
       break;
     }
-    case 'block': gainBlock(cb, P, fx.n); break;
+    case 'block': gainBlock(run, cb, P, fx.n); break;
     case 'draw': drawCards(run, cb, fx.n); break;
     case 'energy': P.energy += fx.n; cb.queue.push({ t: 'energy', n: P.energy }); break;
     case 'heal': healPlayer(run, fx.n, cb); break;
@@ -513,6 +794,18 @@ function applyEffect(run, cb, inst, d, fx, target, sealMult) {
       }
       break;
     }
+    case 'chip': { // strikes at the glass itself, no blood needed
+      for (const e of each) {
+        if (e.hp <= 0) continue;
+        if (cb.pendingChips) {
+          const rec = cb.pendingChips.get(e.idx) || { hit: false, extra: 0 };
+          rec.extra += fx.n;
+          cb.pendingChips.set(e.idx, rec);
+        } else applyChips(run, cb, e, fx.n); // arts/phials chip immediately
+      }
+      break;
+    }
+    case 'ember': gainEmbers(run, cb, fx.n); break;
     case 'special': applySpecial(run, cb, inst, d, fx, target, sealMult);
   }
 }
@@ -536,19 +829,47 @@ function applySpecial(run, cb, inst, d, fx, target, sealMult) {
       break;
     }
     case 'phantom': hitEnemy(run, cb, target, fx.n * cb.hand.length, { mult: sealMult }); break;
-    case 'devour': {
+    case 'devour': { // swallow the fire of whatever this kills
       hitEnemy(run, cb, target, fx.n, { mult: sealMult });
       if (target.hp <= 0) {
-        run.player.maxHp += fx.maxHp;
-        cb.player.maxHp += fx.maxHp;
-        cb.player.hp += fx.maxHp;
-        cb.queue.push({ t: 'maxHp', n: fx.maxHp });
+        if (!cb.over) { gainEmbers(run, cb, fx.embers); healPlayer(run, fx.heal, cb); }
+        else healPlayer(run, fx.heal); // the kill ended the fight; the warmth still lands
       }
       break;
     }
-    case 'doubleBlock': gainBlock(cb, P, P.block, false); break;
-    case 'limitBreak': if (P.statuses.str > 0) addStatus(cb, P, 'str', P.statuses.str); break;
+    case 'doubleBlock': gainBlock(run, cb, P, P.block, false); break;
     case 'catalyst': if (target.statuses.poison) addStatus(cb, target, 'poison', target.statuses.poison * (fx.n - 1)); break;
+    case 'shatterEcho': { // rings loudest against broken glass
+      const echo = target.flags.staggered || target.statuses.vulnerable ? 2 : 1;
+      hitEnemy(run, cb, target, fx.n * echo, { mult: sealMult });
+      break;
+    }
+    case 'emberNova': hitEnemy(run, cb, target, fx.n * cb.embers, { mult: sealMult }); break;
+    case 'pyreTithe': { // burn the rest of the hand; every pane feeds the lantern
+      for (const c of [...cb.hand]) {
+        if (c === inst) continue;
+        const i = cb.hand.indexOf(c);
+        cb.hand.splice(i, 1);
+        cb.queue.push({ t: 'kindle', uid: c.uid, id: c.id });
+        exhaustCard(run, cb, c);
+      }
+      drawCards(run, cb, fx.draw);
+      break;
+    }
+    case 'flawless': {
+      gainBlock(run, cb, P, fx.n);
+      if (cb.counters.hpLost === 0) gainBlock(run, cb, P, fx.n);
+      break;
+    }
+    case 'emberdance': { // spill the lantern into held light
+      const spent = cb.embers;
+      if (spent > 0) {
+        run.stats.embersSpent += spent;
+        gainEmbers(run, cb, -spent);
+        gainBlock(run, cb, P, fx.n * spent, false);
+      }
+      break;
+    }
   }
 }
 
@@ -564,10 +885,10 @@ export function usePotion(run, cb, slot, targetIdx = null) {
     case 'healing': healPlayer(run, 20, cb); if (!cb) run.player.hp = clamp(run.player.hp, 0, run.player.maxHp); break;
     case 'strength': addStatus(cb, cb.player, 'str', 2); break;
     case 'swift': drawCards(run, cb, 3); break;
-    case 'block': gainBlock(cb, cb.player, 12, false); break;
+    case 'block': gainBlock(run, cb, cb.player, 12, false); break;
     case 'fire': hitEnemy(run, cb, cb.enemies[targetIdx], 20, { isAttack: false }); break;
     case 'venom': addStatus(cb, cb.enemies[targetIdx], 'poison', 7); break;
-    case 'energy': cb.player.energy += 2; cb.queue.push({ t: 'energy', n: cb.player.energy }); break;
+    case 'energy': gainEmbers(run, cb, 3); break; // the Emberphial feeds the lantern
   }
   return true;
 }
@@ -583,14 +904,14 @@ export function endTurn(run, cb) {
     if (d.endTurnLoseHp) damagePlayer(run, cb, d.endTurnLoseHp, { source: 'burn' });
     if (cb.over) return;
   }
-  if (P.statuses.metallicize) gainBlock(cb, P, P.statuses.metallicize, false);
+  if (P.statuses.metallicize) gainBlock(run, cb, P, P.statuses.metallicize, false);
   if (P.statuses.regen) healPlayer(run, P.statuses.regen, cb);
   // discard hand
   cb.discard.push(...cb.hand);
   cb.hand = [];
   cb.queue.push({ t: 'discardHand' });
-  // player debuffs tick down at end of your turn
-  for (const s of ['vulnerable', 'weak', 'frail']) {
+  // player debuffs (and turn-scoped buffs) tick down at end of your turn
+  for (const s of ['vulnerable', 'weak', 'frail', 'beacon']) {
     if (P.statuses[s]) { P.statuses[s]--; if (!P.statuses[s]) delete P.statuses[s]; }
   }
   // ---- enemy phase
@@ -603,36 +924,44 @@ export function endTurn(run, cb) {
       cb.queue.push({ t: 'hitEnemy', idx: e.idx, amount: pd, blocked: 0, hpAfter: Math.max(0, e.hp), dead: e.hp <= 0, poison: true });
       e.statuses.poison--;
       if (!e.statuses.poison) delete e.statuses.poison;
-      if (e.hp <= 0) { onEnemyDeath(run, cb, e); continue; }
+      if (e.hp <= 0) { run.stats.smolderKills++; onEnemyDeath(run, cb, e); continue; }
     }
     e.block = 0;
-    const mv = enemyMove(e);
-    cb.queue.push({ t: 'enemyAct', idx: e.idx, move: e.moveKey, name: mv.name });
-    e.lastMoves.push(e.moveKey);
-    if (mv.dmg != null) {
-      for (let t = 0; t < (mv.times || 1); t++) {
-        if (cb.over) break;
-        damagePlayer(run, cb, mv.dmg, { source: e.idx, isAttack: true, attacker: e });
+    if (e.flags.staggered) {
+      // a shattered pane spends its turn reseaming: the move is skipped, but
+      // its key still enters lastMoves so rotation scripts don't repeat-lock
+      e.flags.staggered = false;
+      e.lastMoves.push(e.moveKey);
+      cb.queue.push({ t: 'staggered', idx: e.idx });
+    } else {
+      const mv = enemyMove(e);
+      cb.queue.push({ t: 'enemyAct', idx: e.idx, move: e.moveKey, name: mv.name });
+      e.lastMoves.push(e.moveKey);
+      if (mv.dmg != null) {
+        for (let t = 0; t < (mv.times || 1); t++) {
+          if (cb.over) break;
+          damagePlayer(run, cb, mv.dmg, { source: e.idx, isAttack: true, attacker: e });
+        }
+        if (mv.ramp) e.flags.rampBonus = (e.flags.rampBonus || 0) + mv.ramp;
       }
-      if (mv.ramp) e.flags.rampBonus = (e.flags.rampBonus || 0) + mv.ramp;
-    }
-    if (cb.over) return;
-    if (mv.block) gainBlock(cb, e, mv.block, false);
-    if (mv.heal) { e.hp = Math.min(e.maxHp, e.hp + mv.heal); cb.queue.push({ t: 'heal', who: e.idx, n: mv.heal }); }
-    if (mv.fx) {
-      for (const s of mv.fx) {
-        if (s.who === 'player') addStatus(cb, P, s.id, s.n);
-        else if (s.who === 'self') addStatus(cb, e, s.id, s.n);
-        else if (s.who === 'allies') for (const a of cb.enemies.filter((x) => x.hp > 0)) addStatus(cb, a, s.id, s.n);
+      if (cb.over) return;
+      if (mv.block) gainBlock(run, cb, e, mv.block, false);
+      if (mv.heal) { e.hp = Math.min(e.maxHp, e.hp + mv.heal); cb.queue.push({ t: 'heal', who: e.idx, n: mv.heal }); }
+      if (mv.fx) {
+        for (const s of mv.fx) {
+          if (s.who === 'player') addStatus(cb, P, s.id, s.n);
+          else if (s.who === 'self') addStatus(cb, e, s.id, s.n);
+          else if (s.who === 'allies') for (const a of cb.enemies.filter((x) => x.hp > 0)) addStatus(cb, a, s.id, s.n);
+        }
+      }
+      if (mv.addCards) {
+        for (let i = 0; i < mv.addCards.n; i++) {
+          cb.discard.push({ uid: run.uid++, id: mv.addCards.id, up: false, bonus: 0 });
+          cb.queue.push({ t: 'addCard', id: mv.addCards.id, where: 'discard' });
+        }
       }
     }
-    if (mv.addCards) {
-      for (let i = 0; i < mv.addCards.n; i++) {
-        cb.discard.push({ uid: run.uid++, id: mv.addCards.id, up: false, bonus: 0 });
-        cb.queue.push({ t: 'addCard', id: mv.addCards.id, where: 'discard' });
-      }
-    }
-    // enemy end-of-action: ritual, debuff tick
+    // enemy end-of-action: ritual, debuff tick (a staggered turn still ticks)
     if (e.statuses.ritual) addStatus(cb, e, 'str', e.statuses.ritual);
     for (const s of ['vulnerable', 'weak']) {
       if (e.statuses[s]) { e.statuses[s]--; if (!e.statuses[s]) delete e.statuses[s]; }
@@ -648,8 +977,8 @@ function winCombat(run, cb) {
   cb.result = 'win';
   // write back
   run.player.hp = clamp(cb.player.hp, 1, run.player.maxHp);
-  if (hasRelic(run, 'blackBlood')) { healPlayer(run, 12); proc(cb, 'blackBlood'); }
-  else if (hasRelic(run, 'emberHeart')) { healPlayer(run, 6); proc(cb, 'emberHeart'); }
+  if (hasRelic(run, 'emberHeart')) { healPlayer(run, 6); proc(cb, 'emberHeart'); }
+  if (hasRelic(run, 'crownOfTheHearth') && cb.embers > 0) { healPlayer(run, cb.embers * 3); proc(cb, 'crownOfTheHearth'); }
   if (hasRelic(run, 'gravebloom') && run.player.hp <= run.player.maxHp * 0.5) { healPlayer(run, 10); proc(cb, 'gravebloom'); }
   run.player.hp = clamp(run.player.hp, 1, run.player.maxHp);
   cb.queue.push({ t: 'victory', perfect: cb.counters.hpLost === 0 }); // an untouched fight is worth saying so
@@ -671,16 +1000,16 @@ export function previewAttack(cb, base, targetIdx = null) {
   if (e && e.statuses.vulnerable) dmg = Math.floor(dmg * 1.5);
   return Math.max(0, dmg);
 }
-export function previewBlock(cb, base) {
+export function previewBlock(run, cb, base) {
   const P = cb.player;
   let b = base + (P.statuses.dex || 0);
   if (P.statuses.frail) b = Math.floor(b * 0.75);
-  return Math.max(0, b);
+  return Math.round(Math.max(0, b) * (omenMods(run).wardMult || 1));
 }
-export function previewEnemyDmg(cb, e) {
+export function previewEnemyDmg(run, cb, e) {
   const mv = enemyMove(e);
   if (mv.dmg == null) return null;
-  let dmg = mv.dmg + (e.statuses.str || 0) + (e.flags.rampBonus || 0);
+  let dmg = mv.dmg + (e.statuses.str || 0) + (e.flags.rampBonus || 0) + (omenMods(run).enemyDmgBonus || 0) + (vowMods(run).enemyDmgBonus || 0);
   if (e.statuses.weak) dmg = Math.floor(dmg * 0.75);
   if (cb.player.statuses.vulnerable) dmg = Math.floor(dmg * 1.5);
   return { dmg: Math.max(0, dmg), times: mv.times || 1 };
@@ -702,18 +1031,24 @@ export function previewPlay(run, cb, inst, targetIdx = null) {
   let block = 0;
   for (const fx of d.effects) {
     if (fx.kind === 'dmg') hits.push({ dmg: hit(fx.n), times: fx.times || 1 });
-    else if (fx.kind === 'block') block += previewBlock(cb, fx.n);
+    else if (fx.kind === 'block') block += previewBlock(run, cb, fx.n);
     else if (fx.kind === 'special') {
       if (fx.id === 'leech' || fx.id === 'devour') hits.push({ dmg: hit(fx.n), times: 1 });
       else if (fx.id === 'execute') hits.push({ dmg: hit(fx.n + (target?.statuses.vulnerable ? fx.bonus : 0)), times: 1 });
       else if (fx.id === 'momentum') hits.push({ dmg: hit(fx.n + (inst.bonus || 0)), times: 1 });
       else if (fx.id === 'phantom') hits.push({ dmg: hit(fx.n * Math.max(0, cb.hand.length - (cb.hand.includes(inst) ? 1 : 0))), times: 1 });
+      else if (fx.id === 'shatterEcho') hits.push({ dmg: hit(fx.n * (target && (target.flags.staggered || target.statuses.vulnerable) ? 2 : 1)), times: 1 });
+      else if (fx.id === 'emberNova') hits.push({ dmg: hit(fx.n * cb.embers), times: 1 });
       else if (fx.id === 'doubleBlock') block += P.block;
+      else if (fx.id === 'flawless') block += previewBlock(run, cb, fx.n) * (cb.counters.hpLost === 0 ? 2 : 1);
+      else if (fx.id === 'emberdance') block += fx.n * cb.embers;
     }
   }
-  if (!hits.length && !block) return null;
+  let fxChips = 0;
+  for (const fx of d.effects) if (fx.kind === 'chip') fxChips += fx.n;
+  if (!hits.length && !block && !fxChips) return null;
   const total = hits.reduce((s, h) => s + h.dmg * h.times, 0);
-  let loss = total, lethal = false;
+  let loss = total, lethal = false, chips = 0, willShatter = false;
   if (target) {
     let b = target.block;
     loss = 0;
@@ -723,8 +1058,13 @@ export function previewPlay(run, cb, inst, targetIdx = null) {
       loss += h.dmg - soak;
     }
     lethal = loss >= target.hp;
+    // facet arithmetic mirrors playCard: an attack that draws unblocked blood
+    // chips once (plus card/beacon bonuses); explicit chip effects always land
+    const per = d.type === 'attack' ? 1 + (d.chip || 0) + (P.statuses.beacon || 0) : 0;
+    chips = (hits.length && loss > 0 ? per : 0) + fxChips;
+    willShatter = chips > 0 && target.chips + chips >= target.facetMax && !lethal;
   }
-  return { hits, total, loss, lethal, block };
+  return { hits, total, loss, lethal, block, chips, willShatter };
 }
 
 // deck ops -----------------------------------------------------------------
@@ -747,7 +1087,7 @@ export function duplicateCardInDeck(run, uid) {
 }
 
 // save / load ---------------------------------------------------------------
-const SAVE_KEY = 'spirebound_save_v1';
+const SAVE_KEY = 'spirebound_save_v2';
 const STATS_KEY = 'spirebound_stats_v1';
 export function saveRun(run) {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(run)); } catch { /* private mode */ }
@@ -757,10 +1097,29 @@ export function loadRun() {
     const s = localStorage.getItem(SAVE_KEY);
     if (!s) return null;
     const run = JSON.parse(s);
-    return run && run.player && run.map ? run : null;
+    if (!run || run.v !== 2 || !run.player || !run.map) return null;
+    // stale-content shield: a save referencing ids this build no longer ships
+    // (dev churn, old versions) is unresumable — drop it rather than crash mid-run
+    if (!run.player.deck.every((c) => CARDS[c.id])) return null;
+    if (!run.player.relics.every((id) => RELICS[id])) return null;
+    if (!run.player.potions.every((id) => id == null || POTIONS[id])) return null;
+    if (run.art != null && !ARTS[run.art]) return null;
+    if (!(run.omens || []).every((id) => OMENS[id])) return null;
+    // additive fields self-heal: a save from an older v2 build stays playable
+    run.art ??= 'flare';
+    run.aspect = clamp(run.aspect ?? 0, 0, ASPECTS.length - 1); run.vow = clamp(run.vow ?? 0, 0, VOWS.length);
+    run.unlocks ??= []; run.omens ??= []; run.boon ??= null;
+    while (run.omens.length <= run.act) run.omens.push(rollOmen(run));
+    for (const k of ['shatters', 'kindles', 'perfects', 'smolderKills', 'unlitVisited', 'embersSpent']) run.stats[k] ??= 0;
+    return run;
   } catch { return null; }
 }
-export function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch { /* noop */ } }
+export function clearSave() {
+  try {
+    localStorage.removeItem(SAVE_KEY);
+    localStorage.removeItem('spirebound_save_v1'); // pre-vigil saves are unresumable
+  } catch { /* noop */ }
+}
 export function loadStats() {
   try { return JSON.parse(localStorage.getItem(STATS_KEY)) || { runs: 0, wins: 0, best: 0 }; }
   catch { return { runs: 0, wins: 0, best: 0 }; }
