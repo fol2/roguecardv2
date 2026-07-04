@@ -5,6 +5,9 @@
   --sar: env(safe-area-inset-right, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
   --sal: env(safe-area-inset-left, 0px);
+  /* shared motion curves — premium settle + physical overshoot */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --gold: #f2c14e;
   --gold-dim: #9c7c34;
   --ink: #0b0e1a;
@@ -99,11 +102,13 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 #overlay.open { display: flex; animation: fadein 0.22s ease-out; }
 #tooltip { position: fixed; z-index: 70; pointer-events: none; max-width: 300px; display: none;
   background: var(--panel); border: 1px solid var(--panel-line); border-radius: 8px; padding: 10px 12px;
-  font-size: 14px; line-height: 1.45; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6); }
+  font-size: 14px; line-height: 1.45; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  animation: tipIn 0.12s var(--ease-spring) both; }
 #tooltip .tt-title { font-family: 'Cinzel', serif; color: var(--gold); font-size: 14px; margin-bottom: 3px; }
 #tooltip .tt-body { color: var(--text); }
 #tooltip .tt-sub { color: var(--text-dim); font-size: 12.5px; margin-top: 4px; }
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tipIn { from { opacity: 0; transform: translateY(6px) scale(0.96); } }
 
 /* ============ generic UI */
 .screen-enter { animation: screenIn 0.45s cubic-bezier(0.2, 0.7, 0.25, 1); }
@@ -142,6 +147,8 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .hud-hpbar { height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
 .hud-hpbar > div { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #c22f43, #ff7060); transition: width 0.4s cubic-bezier(0.3, 1, 0.4, 1); }
 .hp-num { color: #ff9aa0; } .gold-num { color: var(--gold); }
+.gold-num.tick { animation: goldTick 0.34s var(--ease-out-soft); }
+@keyframes goldTick { 40% { transform: scale(1.28); color: #fff3c0; text-shadow: 0 0 12px rgba(242, 193, 78, 0.8); } }
 .hud-mid { flex: 1; text-align: center; font-family: 'Cinzel', serif; letter-spacing: 0.14em; font-size: 14px; color: var(--text-dim); }
 .hud-mid b { color: var(--parchment); letter-spacing: 0.2em; }
 .hud-right { display: flex; align-items: center; gap: 10px; }
@@ -224,7 +231,13 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .mnode.current circle.bg { stroke: var(--gold); stroke-width: 2.5; filter: drop-shadow(0 0 8px rgba(242, 193, 78, 0.8)); }
 .mnode.avail { cursor: pointer; }
 .mnode.avail circle.bg { stroke: var(--gold); stroke-width: 2; animation: nodePulse 1.6s ease-in-out infinite; }
-.mnode.avail .icg { color: var(--parchment); }
+/* desync the beckon so the tower shimmers organically, not in lockstep */
+.mnode:nth-child(4n) circle.bg   { animation-delay: -0.4s; }
+.mnode:nth-child(4n+1) circle.bg { animation-delay: -0.8s; }
+.mnode:nth-child(4n+2) circle.bg { animation-delay: -1.2s; }
+.mnode:nth-child(4n+3) circle.bg { animation-delay: -1.55s; }
+.mnode.avail .icg { color: var(--parchment); animation: beckonIcon 1.6s ease-in-out infinite; }
+@keyframes beckonIcon { 0%, 100% { opacity: 0.9; } 50% { opacity: 1; filter: drop-shadow(0 0 5px currentColor); } }
 .mnode.avail:hover circle.bg { fill: #38301a; transform: scale(1.15); transform-origin: center; transform-box: fill-box; }
 @keyframes nodePulse {
   0%, 100% { filter: drop-shadow(0 0 3px rgba(242, 193, 78, 0.5)); }
@@ -316,7 +329,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 
 /* hand */
 .hand-zone { position: absolute; left: 0; right: 0; bottom: calc(-12px + var(--sab)); height: 260px; z-index: 22; pointer-events: none; }
-.hand-zone .card { position: absolute; left: 50%; bottom: 8px; pointer-events: auto; transition: transform 0.28s cubic-bezier(0.25, 0.9, 0.3, 1.2), filter 0.2s; transform-origin: 50% 100%; touch-action: none; }
+.hand-zone .card { position: absolute; left: 50%; bottom: 8px; pointer-events: auto; transition: transform 0.28s cubic-bezier(0.25, 0.9, 0.3, 1.2), bottom 0.22s var(--ease-spring), filter 0.2s; transform-origin: 50% 100%; touch-action: none; }
 /* mid-drag: the pane rides the finger, no easing between it and the hand */
 .hand-zone .card.dragging { transition: none; z-index: 46 !important; }
 .hand-zone .card.dragging .card-inner { box-shadow: 0 24px 54px rgba(0, 0, 0, 0.75), 0 0 30px color-mix(in srgb, var(--tint) 45%, transparent); }
@@ -324,6 +337,10 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .hand-zone .card .card-inner { transition: box-shadow 0.2s, transform 0.12s ease-out; }
 .hand-zone .card:hover, .hand-zone .card.armed { z-index: 40 !important; }
 .hand-zone .card:hover .card-inner, .hand-zone .card.armed .card-inner { box-shadow: 0 18px 44px rgba(0, 0, 0, 0.7), 0 0 24px color-mix(in srgb, var(--tint) 40%, transparent); }
+/* desktop: a hovered card rises out of the fan (bottom, not transform — the fan owns transform) */
+@media (hover: hover) and (pointer: fine) {
+  .hand-zone .card:hover { bottom: 26px; }
+}
 .hand-zone .card.draw-in { animation: drawIn 0.34s cubic-bezier(0.2, 0.8, 0.3, 1.1); }
 @keyframes drawIn { from { transform: translate(-320px, 130px) rotate(-24deg) scale(0.5); opacity: 0; } }
 .card.played-up { transition: transform 0.3s ease-in, opacity 0.3s ease-in !important; transform: translate(-50%, -240px) scale(0.72) !important; opacity: 0; }
@@ -770,6 +787,20 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .reward-row .ric { font-size: 24px; width: 36px; text-align: center; }
 .reward-row.taken { opacity: 0.4; pointer-events: none; text-decoration: line-through; }
 .reward-row svg { width: 30px; height: 38px; }
+/* crafted cascade: list children arrive lit, row by row */
+@keyframes listIn { from { opacity: 0; transform: translateY(10px); filter: blur(6px); } }
+.reward-list .reward-row, .shop-row .shop-item, .deed-list .deed-row {
+  animation: listIn 0.42s var(--ease-spring) both;
+  animation-delay: calc(var(--si, 0) * 45ms);
+}
+.reward-list .reward-row:nth-child(1), .shop-row .shop-item:nth-child(1), .deed-list .deed-row:nth-child(1) { --si: 0; }
+.reward-list .reward-row:nth-child(2), .shop-row .shop-item:nth-child(2), .deed-list .deed-row:nth-child(2) { --si: 1; }
+.reward-list .reward-row:nth-child(3), .shop-row .shop-item:nth-child(3), .deed-list .deed-row:nth-child(3) { --si: 2; }
+.reward-list .reward-row:nth-child(4), .shop-row .shop-item:nth-child(4), .deed-list .deed-row:nth-child(4) { --si: 3; }
+.reward-list .reward-row:nth-child(5), .shop-row .shop-item:nth-child(5), .deed-list .deed-row:nth-child(5) { --si: 4; }
+.reward-list .reward-row:nth-child(6), .shop-row .shop-item:nth-child(6), .deed-list .deed-row:nth-child(6) { --si: 5; }
+.reward-list .reward-row:nth-child(7), .shop-row .shop-item:nth-child(7), .deed-list .deed-row:nth-child(7) { --si: 6; }
+.reward-list .reward-row:nth-child(n+8), .shop-row .shop-item:nth-child(n+8), .deed-list .deed-row:nth-child(n+8) { --si: 7; }
 
 /* shop */
 .shop-grid { display: flex; flex-direction: column; gap: 18px; }
@@ -986,6 +1017,9 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   .logo, .card.r-rare .card-inner::after, .energy-orb::before { animation: none; }
   #lantern.gutter, .candle.lit, .hero-wrap.warded::before, .enemy-art.warded::before { animation: none; }
   .ember, .mon-flame, .enemy.doomed .enemy-art { animation: none; }
+  #tooltip { animation: fadein 0.1s both; }
+  .mnode.avail circle.bg, .mnode.avail .icg { animation: none; }
+  .reward-list .reward-row, .shop-row .shop-item, .deed-list .deed-row { animation: none; }
 }
 
 @media (max-width: 1100px) {

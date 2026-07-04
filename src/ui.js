@@ -1324,6 +1324,20 @@ function flyTo(x0, y0, x1, y1, { n = 6, color = '#ffe9ac', size = 8, dur = 640, 
 
 // --------- the living-glass rig: one rAF drives eyes, inner fire and light pools
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// count a number element up/down to a target (ease-out cubic), with a set-pulse
+function tweenNum(node, from, to, ms = 640) {
+  from = Math.round(from); to = Math.round(to);
+  if (REDUCED || from === to) { node.textContent = to; return; }
+  const t0 = performance.now();
+  const step = (now) => {
+    const p = Math.min(1, (now - t0) / ms);
+    const e = 1 - Math.pow(1 - p, 3);
+    node.textContent = Math.round(from + (to - from) * e);
+    if (p < 1) requestAnimationFrame(step);
+    else { node.textContent = to; node.classList.remove('tick'); void node.offsetWidth; node.classList.add('tick'); }
+  };
+  requestAnimationFrame(step);
+}
 function rigCombatants() {
   const ce = S.ce, cb = S.cb;
   ce.rig = [];
@@ -1571,7 +1585,7 @@ async function handleEvent(ev, targetIdx) {
           V.floatText(ex, ey + 26, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf');
           V.burst(ex, ey + 8, { color: '#9fd4ff', n: 9, speed: 210, size: 2, grav: 260, kind: 'spark' }); // ward chips off
         }
-        if (ev.amount > 0) V.floatText(ex, ey - 24, `${ev.amount}`, big ? 'crit' : 'dmg');
+        if (ev.amount > 0) V.floatText(ex, ey - 24, `${ev.amount}`, (ev.killingBlow || big) ? 'crit' : 'dmg');
         else if (!ev.blocked) V.floatText(ex, ey - 24, '0', 'blockedf');
         V.shake(Math.min(4 + ev.amount * 0.5, 15));
         kick(Math.min(0.2 + ev.amount / 26, 1));
@@ -1581,9 +1595,12 @@ async function handleEvent(ev, targetIdx) {
           V.hitstop(ev.overkill >= 8 ? 130 : 90);
           kick(Math.min(1.6, 0.6 + ev.overkill * 0.06));
           V.ring(ex, ey, '#ffffff', 8, 780, 5);
+          V.ring(ex, ey, '#ffd8a0', 14, 900, 4);   // warm shockwave layered under the white
+          V.flash('#ffe6b0', 0.09, 0.28);          // a beat of gold ceremony on every kill
           if (ev.overkill >= 8) {
-            V.flash('#ffffff', 0.1, 0.22);
-            V.burst(ex, ey, { color: '#fff3d6', n: 18, speed: 520, size: 2.4, grav: 200, kind: 'spark' });
+            V.flash('#ffffff', 0.12, 0.24);
+            V.burst(ex, ey, { color: '#fff3d6', n: 26, speed: 620, size: 2.6, grav: 200, kind: 'spark' });
+            V.burst(ex, ey, { color: '#ffd76e', n: 12, speed: 300, size: 3.4, grav: 120, kind: 'spark' }); // slow gold embers rising
           }
         }
         if (ev.amount > 0) addCrack(x.art, big);
@@ -1850,7 +1867,10 @@ function renderReward({ kind, rewards }) {
       const purse = $('#hud .gold-num');
       const from = { x: innerWidth / 2, y: innerHeight / 2 - 40 };
       const to = purse ? V.centerOf(purse) : { x: 120, y: 24 };
+      const before = run.player.gold - rewards.gold;
+      if (purse) purse.textContent = before; // hold the old total; the coins bring the rest
       flyTo(from.x, from.y, to.x, to.y, { n: Math.min(9, 4 + Math.floor(rewards.gold / 12)), color: '#ffd76e', dur: 600, done: () => sfx.coin() });
+      if (purse) tweenNum(purse, before, run.player.gold, 640);
     });
   });
   if (rewards.potion) {
