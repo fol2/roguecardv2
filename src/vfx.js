@@ -1,4 +1,5 @@
 // 2D canvas VFX overlay + floating text + screen shake.
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let canvas, ctx2, floatLayer, shakeEl;
 let parts = [];
 let flashes = [];
@@ -95,11 +96,12 @@ function tick(t) {
   }
 }
 
-export function shake(power = 8) { shakeV = Math.max(shakeV, power); }
-export function hitstop(ms = 60) { hitstopUntil = performance.now() + ms; }
-export function flash(color = '#fff', alpha = 0.18, dur = 0.25) { flashes.push({ color, alpha, dur, life: dur }); }
+export function shake(power = 8) { if (REDUCED) return; shakeV = Math.max(shakeV, power); }
+export function hitstop(ms = 60) { if (REDUCED) return; hitstopUntil = performance.now() + ms; }
+export function flash(color = '#fff', alpha = 0.18, dur = 0.25) { if (REDUCED) return; flashes.push({ color, alpha, dur, life: dur }); }
 
 export function burst(x, y, { color = '#ffd166', n = 18, speed = 260, spread = Math.PI * 2, angle = 0, size = 3, grav = 300, kind = 'spark', add = true, life = 0.5 } = {}) {
+  if (REDUCED) return;
   for (let i = 0; i < n; i++) {
     const a = angle + (Math.random() - 0.5) * spread;
     const v = speed * (0.35 + Math.random() * 0.75);
@@ -107,13 +109,16 @@ export function burst(x, y, { color = '#ffd166', n = 18, speed = 260, spread = M
   }
 }
 export function ring(x, y, color, r0 = 8, speed = 420, size = 4) {
+  if (REDUCED) return;
   parts.push({ kind: 'ring', x, y, r: r0, vr: speed, size, color, life: 0.45, fade: 0.45, add: true });
 }
 export function slashArc(x, y, color = '#fff') {
+  if (REDUCED) return;
   const a0 = -Math.PI * 0.85 + (Math.random() - 0.5) * 0.6;
   parts.push({ kind: 'slash', x, y, r: 46 + Math.random() * 18, a0, arc: Math.PI * 0.8, prog: 0, dur: 0.14, size: 13, color, life: 0.3, fade: 0.18, add: true });
 }
 export function motes(x, y, color, n = 10) {
+  if (REDUCED) return;
   for (let i = 0; i < n; i++) {
     parts.push({ kind: 'dot', x: x + (Math.random() - 0.5) * 60, y: y + (Math.random() - 0.5) * 40, vx: (Math.random() - 0.5) * 30, vy: -40 - Math.random() * 60, size: 2.5 + Math.random() * 2.5, color, grav: -20, life: 0.9 + Math.random() * 0.5, fade: 0.5, add: true, alpha: 0.9 });
   }
@@ -162,6 +167,7 @@ export function shatter(el) {
   const svg = el.querySelector('svg');
   const r = el.getBoundingClientRect();
   if (!svg || !r.width) return;
+  if (REDUCED) { el.style.visibility = 'hidden'; return; }
   const html = svg.outerHTML;
   const cx = 50 + (Math.random() - 0.5) * 14, cy = 52 + (Math.random() - 0.5) * 14;
   const K = 11;

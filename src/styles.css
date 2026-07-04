@@ -146,7 +146,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .hud-hp-wrap { display: flex; flex-direction: column; gap: 3px; min-width: 170px; }
 .hud-hpbar { height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
 .hud-hpbar > div { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #c22f43, #ff7060); transition: width 0.4s cubic-bezier(0.3, 1, 0.4, 1); }
-.hp-num { color: #ff9aa0; } .gold-num { color: var(--gold); }
+.hp-num { color: #ff9aa0; } .gold-num { color: var(--gold); font-variant-numeric: tabular-nums; }
 .gold-num.tick { animation: goldTick 0.34s var(--ease-out-soft); }
 @keyframes goldTick { 40% { transform: scale(1.28); color: #fff3c0; text-shadow: 0 0 12px rgba(242, 193, 78, 0.8); } }
 .hud-mid { flex: 1; text-align: center; font-family: 'Cinzel', serif; letter-spacing: 0.14em; font-size: 14px; color: var(--text-dim); }
@@ -801,6 +801,8 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .reward-list .reward-row:nth-child(6), .shop-row .shop-item:nth-child(6), .deed-list .deed-row:nth-child(6) { --si: 5; }
 .reward-list .reward-row:nth-child(7), .shop-row .shop-item:nth-child(7), .deed-list .deed-row:nth-child(7) { --si: 6; }
 .reward-list .reward-row:nth-child(n+8), .shop-row .shop-item:nth-child(n+8), .deed-list .deed-row:nth-child(n+8) { --si: 7; }
+/* shop refreshes rebuild rows — skip re-cascade after the first entrance */
+.list-seq-done .shop-item { animation: none; }
 
 /* shop */
 .shop-grid { display: flex; flex-direction: column; gap: 18px; }

@@ -2071,9 +2071,12 @@ function renderShop() {
     </div>
   </div></div>`;
   const cardsRow = $('.cards-row', sc), miscRow = $('.misc-row', sc);
+  const shopGrid = $('.shop-grid', sc);
+  let shopSeeded = false;
   const gold = () => run.player.gold;
   const buy = (price) => { run.player.gold -= price; sfx.coin(); E.saveRun(run); renderHud(); refresh(); };
   function refresh() {
+    if (shopGrid) shopGrid.classList.toggle('list-seq-done', shopSeeded);
     cardsRow.innerHTML = '';
     miscRow.innerHTML = '';
     for (const it of st.cards) {
@@ -2142,6 +2145,7 @@ function renderShop() {
     wrap.appendChild(b);
     wrap.appendChild(el('div', 'price', `¤ ${st.removeCost}`));
     miscRow.appendChild(wrap);
+    shopSeeded = true;
   }
   refresh();
   $('[data-a="leave"]', sc).onclick = () => { sfx.click(); show('map'); };
