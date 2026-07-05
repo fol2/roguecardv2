@@ -3,6 +3,10 @@
 Locked art direction for all `src/assets/` PNGs. Current generation workflow is
 documented in [`generated-art-workflow.md`](./generated-art-workflow.md):
 `gpt-image-2 -> Nano Banana Pro -> alpha cutout -> gallery review`.
+The longer study notes, prop constraints, prompt rationale, and external design
+references are captured in [`art-study-bible.md`](./art-study-bible.md).
+Prop type, rarity language, and the first pitch demos are captured in
+[`prop-taxonomy.md`](./prop-taxonomy.md).
 
 ## Master reference
 
