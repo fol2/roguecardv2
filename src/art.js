@@ -7,6 +7,8 @@ export const ASSET_SETS = {
   'readable-baseline': { label: 'Readable baseline', root: 'assets-readable-baseline' },
   'readable-next': { label: 'Readable next', root: 'assets-readable-next' },
   'readable-next-v2': { label: 'Readable next v2', root: 'assets-readable-next-v2' },
+  'readable-act2': { label: 'Readable act 2', root: 'assets-readable-act2' },
+  'readable-act2-v2': { label: 'Readable act 2 v2', root: 'assets-readable-act2-v2' },
 };
 const DEFAULT_ASSET_SET = 'live';
 const assetSet = (set = DEFAULT_ASSET_SET) => ASSET_SETS[set] ?? ASSET_SETS[DEFAULT_ASSET_SET];

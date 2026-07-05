@@ -18,6 +18,9 @@ Council-approved baseline assets:
 - `enemies/gravewarden.png`
 - `enemies/alphaFang.png`
 - `enemies/rootheart.png`
+- `enemies/drownedOne.png`
+- `enemies/voltEel.png`
+- `enemies/mirelurker.png`
 
 Asset source decisions:
 
@@ -28,6 +31,10 @@ Asset source decisions:
   gpt-image-2 framed candidates from the batch-2 elite/boss pass.
 - `enemies/alphaFang.png` uses the approved v3 gpt-image-2 framed candidate;
   v2 was rejected because the mouth read like a generation failure.
+- `enemies/drownedOne.png`, `enemies/voltEel.png`, and
+  `enemies/mirelurker.png` use the approved Act 2 v2 gpt-image-2 framed
+  candidates. Act 2 v1 remains available as rejected comparison evidence in
+  `assets-readable-act2`.
 
 These are runtime-ready PNGs normalised to a maximum edge of 1024px with alpha
 preserved. Source and review artefacts remain in

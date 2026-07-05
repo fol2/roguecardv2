@@ -39,13 +39,264 @@ Selection rule:
 - Batch-2 approved additions are Gravewarden v2, Rootheart v2, and Alpha
   Duskfang v3. These were promoted as framed GPT-clean candidates into
   `src/assets-readable-baseline/`.
+- Act 2 Batch 1 approved additions are Drowned One v2, Voltaic Eel v2, and
+  Mirelurker v2. These were promoted as framed GPT-clean candidates into
+  `src/assets-readable-baseline/`.
 - Batch-2 rejected comparison sets are kept in `src/assets-readable-next/` and
   `src/assets-readable-next-v2/`; scratch folders keep all source, alpha,
   Nano Banana, and prompt evidence.
+- Act 2 v1 comparison candidates are kept in `src/assets-readable-act2/`; Act 2
+  v2 approved candidates are also kept in `src/assets-readable-act2-v2/`.
 
 Earlier temporary runtime review folders `src/assets-readable-baseline-v4/` and
 `src/assets-readable-gpt-clean/` were removed after promotion. Scratch source
 folders remain as prompt and generation evidence.
+
+## Act 2 Batch 1 V2 Approved: Drowned One
+
+Status: approved. Promoted to
+`src/assets-readable-baseline/enemies/drownedOne.png` and retained in
+`src/assets-readable-act2-v2/enemies/drownedOne.png`. V1 remains available in
+`src/assets-readable-act2/` as comparison evidence. The selected file is the
+gpt-image-2 source alpha after chroma removal, warm outer-rim cleanup, and
+deterministic 1024px transparent framing.
+
+Generated image id:
+`ig_05e370144e91c3fb016a4ac0f9e6288191bb478f36598b260e`
+
+Source:
+`enemy-drownedOne-v2/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-drownedOne-v2/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-drownedOne-v2/04-no-yellow-outline.png`
+
+Selected review candidate:
+`enemy-drownedOne-v2/05-gpt-framed.png`
+
+Nano Banana evidence:
+`enemy-drownedOne-v2/02-nanobanana-pro-cleaned.jpg`
+`enemy-drownedOne-v2/03-alpha.png`
+`enemy-drownedOne-v2/06-nanobanana-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 enemy alpha-ready source
+Primary request: Drowned One v2, a funny but threatening drowned diving-bell ghoul made of black lead, deep sea-teal glass, pale corpse-blue panes, and one sickly green lantern glow. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: an oversized drooping diving-bell head with one huge round bubble eye and a tiny pouty gurgle-mouth, two absurdly long dripping hook-claws, a glowing anchor-stone belly, and tiny wobbling puddle feet. It should feel like a soaked little troublemaker trying to look scary, weirdly charming but still dangerous.
+Readability priority: silhouette first, pose second, face/weapon/core symbol third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed. Use game-character readability principles: defining primary characteristic, clear value pattern, coherent limited palette, rest/detail balance, high contrast at eye/anchor belly/claws, no visual noise.
+Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable black silhouette first; one iconic primary shape, weapon, or pose; chunky hand-inked outer contour; simplified exaggerated proportions; 3-5 large stained-glass colour masses only, with very few thick lead dividers; matte painterly brush texture; restrained cathedral motifs as broad shapes, not filigree; thumbnail-readable at 128px; dramatic and grave, with enemy personality carried by bold proportions and expression; no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic fantasy.
+Composition/framing: normal enemy full body, fully inside frame, menacing idle pose, facing slightly left, about 14% clean margin; single complete subject; generous padding; no cropped claws; no action blur. Large readable silhouette: oversized diving-bell head, one bubble eye, tiny pout mouth, long dripping hook-claws, glowing anchor belly, tiny puddle feet.
+Lighting/mood: sober drowned-gothic mood; single warm amber rim light defining the silhouette; soft restrained inner glow limited to 1-2 focal panes such as bubble eye and anchor belly; high value contrast on the main read; no scattered sparkles, no multi-source glow, no noisy bloom, no haze touching the silhouette.
+Palette: deep sea teal glass, pale corpse blue, black lead, sickly green glow, dull ivory claws.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; do not use #ff00ff in the subject.
+```
+
+## Act 2 Batch 1 V2 Approved: Voltaic Eel
+
+Status: approved. Promoted to
+`src/assets-readable-baseline/enemies/voltEel.png` and retained in
+`src/assets-readable-act2-v2/enemies/voltEel.png`. V1 remains available in
+`src/assets-readable-act2/` as comparison evidence. The selected file is the
+gpt-image-2 source alpha after chroma removal, warm outer-rim cleanup, and
+deterministic 1024px transparent framing.
+
+Generated image id:
+`ig_05e370144e91c3fb016a4ac13dfcfc8191a744b9bdb73fb629`
+
+Source:
+`enemy-voltEel-v2/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-voltEel-v2/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-voltEel-v2/04-no-yellow-outline.png`
+
+Selected review candidate:
+`enemy-voltEel-v2/05-gpt-framed.png`
+
+Nano Banana evidence:
+`enemy-voltEel-v2/02-nanobanana-pro-cleaned.jpg`
+`enemy-voltEel-v2/03-alpha.png`
+`enemy-voltEel-v2/06-nanobanana-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 enemy alpha-ready source
+Primary request: Voltaic Eel v2, a funny but threatening electric eel enemy made of black lead, electric cyan glass, deep blue shadow panes, and hot yellow lightning core. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: a plump S-shaped eel curled into a lightning-bolt question mark, with a smug tiny squinting eye, a short blunt snout, two oversized fin-spikes like silly storm ears, and a bright jagged lightning belly stripe. It should feel like an overconfident live wire showing off, comic attitude but still sharp and dangerous.
+Readability priority: silhouette first, pose second, face/weapon/core symbol third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed. Use game-character readability principles: defining primary characteristic, clear value pattern, coherent limited palette, rest/detail balance, high contrast at eye/lightning stripe/fins, no visual noise.
+Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable black silhouette first; one iconic primary shape, weapon, or pose; chunky hand-inked outer contour; simplified exaggerated proportions; 3-5 large stained-glass colour masses only, with very few thick lead dividers; matte painterly brush texture; restrained cathedral motifs as broad shapes, not filigree; thumbnail-readable at 128px; dramatic and grave, with enemy personality carried by bold proportions and expression; no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic fantasy.
+Composition/framing: small fast enemy full body, fully inside frame, menacing idle pose, facing slightly left, about 16% clean margin; single complete subject; generous padding; no cropped tail; no action blur. Large readable silhouette: plump S-curve question-mark body, lightning belly stripe, two oversized fin-spikes, tiny smug eye, blunt snout, tail kept inside frame.
+Lighting/mood: sober storm-gothic mood; single warm amber rim light defining the silhouette; soft restrained inner glow limited to 1-2 focal panes such as lightning belly stripe and tiny eye; high value contrast on the main read; no scattered sparkles, no multi-source glow, no noisy bloom, no haze touching the silhouette.
+Palette: electric cyan glass, hot yellow core, black lead, deep blue shadow, small white spark highlights.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; do not use #ff00ff in the subject.
+```
+
+## Act 2 Batch 1 V2 Approved: Mirelurker
+
+Status: approved. Promoted to
+`src/assets-readable-baseline/enemies/mirelurker.png` and retained in
+`src/assets-readable-act2-v2/enemies/mirelurker.png`. V1 remains available in
+`src/assets-readable-act2/` as comparison evidence. The selected file is the
+gpt-image-2 source alpha after chroma removal, warm outer-rim cleanup, and
+deterministic 1024px transparent framing.
+
+Generated image id:
+`ig_05e370144e91c3fb016a4ac185d28481919d958ef79619d1e9`
+
+Source:
+`enemy-mirelurker-v2/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-mirelurker-v2/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-mirelurker-v2/04-no-yellow-outline.png`
+
+Selected review candidate:
+`enemy-mirelurker-v2/05-gpt-framed.png`
+
+Nano Banana evidence:
+`enemy-mirelurker-v2/02-nanobanana-pro-cleaned.jpg`
+`enemy-mirelurker-v2/03-alpha.png`
+`enemy-mirelurker-v2/06-nanobanana-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 enemy alpha-ready source
+Primary request: Mirelurker v2, a funny but threatening swamp-burrow crawler made of black lead, murky jade glass, acid green panes, and dull mud-brown shell glass. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: a squat grumpy mud-bug hiding under an oversized cracked turtle-shell helmet, with one giant squinting lantern eye, two tiny shovel claws held too seriously, and one enormous hooked venom barb tail raised over its back like a question mark. It should feel like a ridiculous angry swamp trap that thinks it is a knight, cute and interesting but still poisonous and dangerous.
+Readability priority: silhouette first, pose second, face/weapon/core symbol third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed. Use game-character readability principles: defining primary characteristic, clear value pattern, coherent limited palette, rest/detail balance, high contrast at eye/barb/claws, no visual noise.
+Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable black silhouette first; one iconic primary shape, weapon, or pose; chunky hand-inked outer contour; simplified exaggerated proportions; 3-5 large stained-glass colour masses only, with very few thick lead dividers; matte painterly brush texture; restrained cathedral motifs as broad shapes, not filigree; thumbnail-readable at 128px; dramatic and grave, with enemy personality carried by bold proportions and expression; no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic fantasy.
+Composition/framing: normal enemy full body, fully inside frame, menacing idle pose, facing slightly left, about 16% clean margin; single complete subject; generous padding; no cropped barb tail; no action blur. Large readable silhouette: oversized cracked shell helmet, one giant squinting eye, tiny shovel claws, raised hooked barb tail, low squat mudbug body.
+Lighting/mood: sober swamp-gothic mood; single warm amber rim light defining the silhouette; soft restrained inner glow limited to 1-2 focal panes such as giant swamp-lantern eye and venom barb; high value contrast on the main read; no scattered sparkles, no multi-source glow, no noisy bloom, no haze touching the silhouette.
+Palette: murky jade glass, acid green glow, black lead, dull mud brown shell, pale barb tip.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; do not use #ff00ff in the subject.
+```
+
+## Act 2 Batch 1 Review: Drowned One
+
+Status: superseded by approved v2. Kept in
+`src/assets-readable-act2/enemies/drownedOne.png` as comparison evidence only.
+The candidate is the gpt-image-2 source alpha after chroma removal, warm
+outer-rim cleanup, and deterministic 1024px transparent framing.
+
+Generated image id:
+`ig_0f81a2e65989a619016a4abb50e0948191838913614037e315`
+
+Source:
+`enemy-drownedOne/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-drownedOne/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-drownedOne/04-no-yellow-outline.png`
+
+Selected review candidate:
+`enemy-drownedOne/05-gpt-framed.png`
+
+Nano Banana evidence:
+`enemy-drownedOne/02-nanobanana-pro-cleaned.jpg`
+`enemy-drownedOne/03-alpha.png`
+`enemy-drownedOne/06-nanobanana-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 enemy alpha-ready source
+Primary request: Drowned One, a soggy drowned bell-ghoul made of black lead, deep sea-teal glass, pale corpse-blue panes, and one sickly green lantern glow. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: a drooping bell-shaped wet hood/head with one round bubble eye, two long dripping claw arms, and a little anchor-stone belly, like a sad soaked troublemaker that can suddenly frenzy.
+Readability priority: silhouette first, pose second, face/weapon/core symbol third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed. Use game-character readability principles: defining primary characteristic, clear value pattern, coherent limited palette, rest/detail balance, high contrast at eye/anchor belly, no visual noise.
+Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable black silhouette first; one iconic primary shape, weapon, or pose; chunky hand-inked outer contour; simplified exaggerated proportions; 3-5 large stained-glass colour masses only, with very few thick lead dividers; matte painterly brush texture; restrained cathedral motifs as broad shapes, not filigree; thumbnail-readable at 128px; dramatic and grave, with enemy personality carried by bold proportions and expression; no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic fantasy.
+Composition/framing: normal enemy full body, fully inside frame, menacing idle pose, facing slightly left, about 12% clean margin; single complete subject; generous padding; no cropped claws; no action blur. Large readable silhouette: drooping bell hood head, one bubble eye, long dripping claws, anchor-stone belly, tiny puddle feet.
+Lighting/mood: sober drowned-gothic mood; single warm amber rim light defining the silhouette; soft restrained inner glow limited to 1-2 focal panes such as bubble eye and anchor belly; high value contrast on the main read; no scattered sparkles, no multi-source glow, no noisy bloom, no haze touching the silhouette.
+Palette: deep sea teal glass, pale corpse blue, black lead, sickly green glow, dull ivory claws.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; do not use #ff00ff in the subject.
+```
+
+## Act 2 Batch 1 Review: Voltaic Eel
+
+Status: superseded by approved v2. Kept in
+`src/assets-readable-act2/enemies/voltEel.png` as comparison evidence only. The
+candidate is the gpt-image-2 source alpha after chroma removal, warm outer-rim
+cleanup, and deterministic 1024px transparent framing.
+
+Generated image id:
+`ig_0f81a2e65989a619016a4abb7851dc81919359a73a4878ba27`
+
+Source:
+`enemy-voltEel/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-voltEel/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-voltEel/04-no-yellow-outline.png`
+
+Selected review candidate:
+`enemy-voltEel/05-gpt-framed.png`
+
+Nano Banana evidence:
+`enemy-voltEel/02-nanobanana-pro-cleaned.jpg`
+`enemy-voltEel/03-alpha.png`
+`enemy-voltEel/06-nanobanana-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 enemy alpha-ready source
+Primary request: Voltaic Eel, a crackling electric eel enemy made of black lead, electric cyan glass, deep blue shadow panes, and hot yellow lightning core. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: a thick S-shaped eel body curled like a question mark, one tiny angry eye, two short fin-spikes, and a bright lightning-bolt belly stripe, like a smug live wire with fins.
+Readability priority: silhouette first, pose second, face/weapon/core symbol third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed. Use game-character readability principles: defining primary characteristic, clear value pattern, coherent limited palette, rest/detail balance, high contrast at eye/lightning stripe, no visual noise.
+Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable black silhouette first; one iconic primary shape, weapon, or pose; chunky hand-inked outer contour; simplified exaggerated proportions; 3-5 large stained-glass colour masses only, with very few thick lead dividers; matte painterly brush texture; restrained cathedral motifs as broad shapes, not filigree; thumbnail-readable at 128px; dramatic and grave, with enemy personality carried by bold proportions and expression; no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic fantasy.
+Composition/framing: small fast enemy full body, fully inside frame, menacing idle pose, facing slightly left, about 14% clean margin; single complete subject; generous padding; no cropped tail; no action blur. Large readable silhouette: S-curve question-mark eel body, lightning belly stripe, two fin-spikes, tiny angry eye, blunt snout, tail kept inside frame.
+Lighting/mood: sober storm-gothic mood; single warm amber rim light defining the silhouette; soft restrained inner glow limited to 1-2 focal panes such as lightning belly stripe and tiny eye; high value contrast on the main read; no scattered sparkles, no multi-source glow, no noisy bloom, no haze touching the silhouette.
+Palette: electric cyan glass, hot yellow core, black lead, deep blue shadow, small white spark highlights.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; do not use #ff00ff in the subject.
+```
+
+## Act 2 Batch 1 Review: Mirelurker
+
+Status: superseded by approved v2. Kept in
+`src/assets-readable-act2/enemies/mirelurker.png` as comparison evidence only.
+The candidate is the gpt-image-2 source alpha after chroma removal, warm
+outer-rim cleanup, and deterministic 1024px transparent framing.
+
+Generated image id:
+`ig_0f81a2e65989a619016a4abba30ebc81918a1a99e947f00f49`
+
+Source:
+`enemy-mirelurker/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-mirelurker/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-mirelurker/04-no-yellow-outline.png`
+
+Selected review candidate:
+`enemy-mirelurker/05-gpt-framed.png`
+
+Nano Banana evidence:
+`enemy-mirelurker/02-nanobanana-pro-cleaned.jpg`
+`enemy-mirelurker/03-alpha.png`
+`enemy-mirelurker/06-nanobanana-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 enemy alpha-ready source
+Primary request: Mirelurker, a swamp-burrow crawler made of black lead, murky jade glass, acid green panes, and dull mud-brown shell glass. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: a low crab-larva body hunched forward, one oversized venom barb tail raised like a hooked question mark, two tiny shovel claws, and a squinting swamp-lantern eye, like a grumpy mud bug about to sting then burrow.
+Readability priority: silhouette first, pose second, face/weapon/core symbol third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed. Use game-character readability principles: defining primary characteristic, clear value pattern, coherent limited palette, rest/detail balance, high contrast at eye/barb, no visual noise.
+Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable black silhouette first; one iconic primary shape, weapon, or pose; chunky hand-inked outer contour; simplified exaggerated proportions; 3-5 large stained-glass colour masses only, with very few thick lead dividers; matte painterly brush texture; restrained cathedral motifs as broad shapes, not filigree; thumbnail-readable at 128px; dramatic and grave, with enemy personality carried by bold proportions and expression; no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic fantasy.
+Composition/framing: normal enemy full body, fully inside frame, menacing idle pose, facing slightly left, about 14% clean margin; single complete subject; generous padding; no cropped barb tail; no action blur. Large readable silhouette: low oval shell, raised hooked barb tail, two shovel claws, one squinting lantern eye, squat mudbug feet.
+Lighting/mood: sober swamp-gothic mood; single warm amber rim light defining the silhouette; soft restrained inner glow limited to 1-2 focal panes such as swamp-lantern eye and venom barb; high value contrast on the main read; no scattered sparkles, no multi-source glow, no noisy bloom, no haze touching the silhouette.
+Palette: murky jade glass, acid green glow, black lead, dull mud brown shell, pale barb tip.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; do not use #ff00ff in the subject.
+```
 
 ## Approved Hero: Duskblade
 
