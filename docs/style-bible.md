@@ -60,12 +60,15 @@ upright protagonist poses, clean symmetry, and knight/priest/warden silhouettes.
 `src/data.js` (`ENEMIES` key, `ASPECTS[i].id`, card id, potion id, event id).
 Never rename keys for art. Props use: `campfire`, `chest`, `chest-open`, `merchant`.
 
-Inactive candidate sets can mirror the same structure under a folder such as
+Inactive candidate sets can mirror the same structure under
 `src/assets-readable-baseline/`. Normal gameplay continues to select the `live`
 set from `src/assets`; only use folder swaps once the candidate set is complete.
 
-The dev gallery can inspect candidate sets with `?gallery=1&set=<asset-set-id>`;
-registered set ids live in `ASSET_SETS` in `src/art.js`.
+The dev gallery should stay clean after promotion: keep only `live` and
+`readable-baseline` registered in `ASSET_SETS` in `src/art.js`. Temporary
+runtime review folders can be registered during an active council pass, but
+remove them after approval or rejection; keep the source prompts and comparison
+evidence in scratch instead.
 
 ## Animation note
 

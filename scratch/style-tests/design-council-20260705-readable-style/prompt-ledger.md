@@ -45,17 +45,315 @@ Selection rule:
 - Act 2 Batch 2 approved additions are Tidecaller, Shellback, and Deepmaw.
   These were promoted as framed GPT-clean candidates into
   `src/assets-readable-baseline/`.
-- Batch-2 rejected comparison sets are kept in `src/assets-readable-next/` and
-  `src/assets-readable-next-v2/`; scratch folders keep all source, alpha,
-  Nano Banana, and prompt evidence.
-- Act 2 v1 comparison candidates are kept in `src/assets-readable-act2/`; Act 2
-  v2 approved candidates are also kept in `src/assets-readable-act2-v2/`.
+- Act 2 Finale approved additions are Abyssal Knight v3, Siren v3, and
+  Leviathan's Maw v2. These were promoted as framed GPT-clean candidates into
+  `src/assets-readable-baseline/`.
+- The Act 2 Finale v1 review candidates were rejected as comparison evidence:
+  Abyssal Knight v2, Siren, and Leviathan's Maw. They were readable but drifted
+  too serious, noble, and high-fantasy compared with the first approved
+  enemies.
+- The approved Act 2 Finale v2 pass corrected prompt drift by returning to the
+  first approved enemy structure: funny but threatening, one iconic primary
+  read, compact left-facing pose, limited palette, and fewer hero/enemy ban
+  clauses. Elites and bosses may have a little heroic attitude, but their body
+  language must remain enemy-like, odd, and funny.
+- Runtime gallery registration now only exposes `live` and
+  `readable-baseline`. Temporary runtime review folders were removed after
+  promotion to avoid duplicate packaged assets.
+- Scratch folders keep all source, alpha, Nano Banana, contact-sheet, rejected
+  comparison, and prompt evidence.
 
-Earlier temporary runtime review folders `src/assets-readable-baseline-v4/` and
-`src/assets-readable-gpt-clean/` were removed after promotion. The temporary
-gallery folder `src/assets-readable-act2-batch2/` was also removed after Act 2
-Batch 2 promotion so duplicate assets do not remain in gallery/build output.
-Scratch source folders remain as prompt and generation evidence.
+Earlier temporary runtime review folders `src/assets-readable-baseline-v4/`,
+`src/assets-readable-gpt-clean/`, `src/assets-readable-next/`,
+`src/assets-readable-next-v2/`, `src/assets-readable-act2/`,
+`src/assets-readable-act2-v2/`, `src/assets-readable-act2-finale/`, and
+`src/assets-readable-act2-finale-v2/` were removed after promotion or
+comparison. Scratch source folders remain as prompt and generation evidence.
+
+## Approved Act 2 Finale Prompt Pattern
+
+The approved finale prompt uses the first-three-enemies structure instead of a
+long ban list:
+
+```text
+Primary request: <enemy>, a funny but threatening <monster/role> made of <3-5 palette materials>. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: <single large silhouette hook>, <small expressive face/core>, <one or two funny threat props>. It should feel like <comic enemy personality>, funny in proportion but still an elite/boss enemy.
+Readability priority: silhouette first, pose second, <main read> third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral motifs; thumbnail-readable at 128px; funny, dramatic, grave, and dangerous through bold proportions and expression.
+Composition/framing: <normal/elite/boss> enemy full body, fully inside frame, facing slightly left, generous padding, no cropped silhouette hooks, no action blur.
+Lighting/mood: sober gothic mood; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to 1-2 focal panes; high value contrast on the main read.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #ff00ff in the subject.
+```
+
+## Act 2 Finale Approved: Abyssal Knight v3
+
+Status: approved. Promoted to
+`src/assets-readable-baseline/enemies/abyssalKnight.png`. This version
+reduces the noble-knight read from the previous finale pass and pushes the
+enemy personality closer to the first approved monster prompts.
+
+Generated image id:
+`ig_079f681283b69a3d016a4ad2db89c481918066cba77c9c424c`
+
+Source:
+`enemy-abyssalKnight-v3/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-abyssalKnight-v3/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-abyssalKnight-v3/04-no-yellow-outline.png`
+
+Selected review candidate:
+`enemy-abyssalKnight-v3/05-gpt-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 elite enemy alpha-ready source
+Primary request: Abyssal Knight v3, a funny but threatening cursed sea-floor tin-can knight made of black lead, abyss navy glass, cold cyan oath-glow, and dull barnacle-bone panes. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: an oversized bucket-bell helmet with one tiny glowing slit-eye, a crab-shell shoulder shield, tiny stubborn boots, and a ridiculous anchor-axe dragging behind because it is clearly too heavy. It should feel like a pompous little drowned knight trying to look grand, heroic only in attitude, but still a hostile elite enemy.
+Readability priority: silhouette first, pose second, helmet/anchor/eye third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral motifs; thumbnail-readable at 128px; funny, dramatic, grave, and dangerous through bold proportions and expression.
+Composition/framing: elite enemy full body, larger than normal enemies but compact, fully inside frame, facing slightly left, generous padding, no cropped helmet, boots, shield, or anchor-axe, no action blur.
+Lighting/mood: sober drowned-gothic mood; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the eye slit and oath-core pane; high value contrast on the main read.
+Palette: abyss navy, black lead, cold cyan glow, dull barnacle bone, muted steel blue.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #ff00ff in the subject.
+```
+
+## Act 2 Finale Approved: Siren v3
+
+Status: approved. Promoted to
+`src/assets-readable-baseline/enemies/siren.png`. The first corrected Siren
+attempt still read too elegant and dragon-like, so v3 makes the body squatter
+and funnier while preserving the elite role.
+
+Generated image id:
+`ig_06dfb9acb9df135a016a4ad3ecd80481918369777b2b441808`
+
+Source:
+`enemy-siren-v3/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-siren-v3/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-siren-v3/04-no-yellow-outline.png`
+
+Selected review candidate:
+`enemy-siren-v3/05-gpt-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 elite enemy alpha-ready source
+Primary request: Siren v3, a funny but threatening sea-dirge monster made of black lead, violet storm glass, pale shell-ivory panes, and toxic teal song-glow. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: a squat round shell-horn body with a huge open trumpet throat, one tiny furious diva eye tucked under the shell lip, two short ragged fin-sleeves, tiny hooked talons, and a chubby curled eel tail. It should feel like a cursed opera fish with stage fright trying to scream a debuff, funny in proportion but still an elite enemy.
+Readability priority: silhouette first, pose second, huge shell horn/tiny eye/tail third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral motifs; thumbnail-readable at 128px; funny, dramatic, eerie, grave, and dangerous through bold proportions and expression.
+Composition/framing: elite enemy full body, compact and rounded, larger than normal enemies, fully inside frame, facing slightly left, generous padding, no cropped horn, fin-sleeves, talons, or tail, no action blur. Avoid a long elegant dragon body; keep the silhouette squat, odd, and readable.
+Lighting/mood: sober haunted-opera gothic mood; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the tiny eye and teal song-core inside the shell throat; high value contrast on the main read.
+Palette: violet storm glass, toxic teal song-glow, black lead, pale shell ivory, muted deep-sea blue.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #ff00ff in the subject.
+```
+
+## Act 2 Finale Approved: Leviathan's Maw v2
+
+Status: approved. Promoted to
+`src/assets-readable-baseline/enemies/leviathan.png`. This version keeps
+the boss size but makes the main read less severe: a huge cathedral-gate mouth,
+tiny grumpy eyes, and a silly lure.
+
+Generated image id:
+`ig_06dfb9acb9df135a016a4ad38d095081919100f06e32694f22`
+
+Source:
+`enemy-leviathan-v2/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-leviathan-v2/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-leviathan-v2/04-no-yellow-outline.png`
+
+Selected review candidate:
+`enemy-leviathan-v2/05-gpt-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 boss enemy alpha-ready source
+Primary request: Leviathans Maw v2, a huge funny but threatening deep-sea cathedral beast made of black lead, abyss teal glass, cold cyan brine glow, dull whale-bone panes, and one tiny amber lure. Menacing idle boss pose, facing slightly left toward the hero. One iconic primary read: a gigantic cathedral-gate mouth as the whole body, two tiny grumpy eyes above the gate, a silly dangling lighthouse lure, stubby fin-claws, a heavy round eel-whale back, and a crooked crown of broken ship ribs. It should feel like an ancient sea monster pretending to be a grand cathedral door, absurdly hungry and dramatic, funny in shape but still the Act 2 boss.
+Readability priority: silhouette first, pose second, huge mouth/tiny eyes/lure third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral motifs; thumbnail-readable at 128px; funny, dramatic, grave, and dangerous through bold proportions and expression.
+Composition/framing: boss enemy full body, visibly larger and heavier than elites, fully inside frame, facing slightly left, generous padding, no cropped jaw, crown, fins, lure, or tail, no action blur. Keep the mouth as one clean huge dark gate shape with a thick readable rim.
+Lighting/mood: sober abyssal boss mood; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the cyan brine mouth-core and tiny amber lure; high value contrast on the main read.
+Palette: abyss teal, deep navy, black lead, cold cyan brine glow, dull whale bone, tiny amber lure.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #ff00ff in the subject.
+```
+
+Contact sheets:
+
+- `act2-finale-v1-v2-gpt-contact.png`
+- `act2-finale-v2-gpt-review-contact.png`
+
+## Act 2 Finale Rejected Comparison: Abyssal Knight v2
+
+Status: rejected comparison after v2 approval. The candidate is retained in
+scratch only; the temporary runtime gallery folder was removed after promotion.
+The selected file was the v2 gpt-image-2 source alpha after chroma removal,
+warm outer-rim cleanup, and deterministic 1024px transparent framing. It was
+readable but still too serious and noble compared with the approved v3.
+
+Generated image id:
+`ig_084ca6e241937ce2016a4acffa03548191a237fdf3752657da`
+
+Source:
+`enemy-abyssalKnight-v2/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-abyssalKnight-v2/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-abyssalKnight-v2/04-no-yellow-outline.png`
+
+Selected review candidate:
+`enemy-abyssalKnight-v2/05-gpt-framed.png`
+
+Nano Banana evidence:
+`enemy-abyssalKnight-v2/02-nanobanana-pro-cleaned.jpg`
+`enemy-abyssalKnight-v2/03-alpha.png`
+`enemy-abyssalKnight-v2/03-alpha-no-yellow-outline.png`
+`enemy-abyssalKnight-v2/06-nanobanana-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 elite enemy alpha-ready source
+Primary request: Abyssal Knight v2, an elite cursed sea-floor knight enemy made of black lead, abyss navy glass, cold cyan oath-glow, and dull barnacle-bone panes. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: a squat top-heavy hollow bell-helmet almost bigger than the body, one narrow cyan eye slit, tiny stubborn plated feet, a ridiculously oversized anchor-cleaver dragging low like it is too heavy, and a barnacle-crab shield fused onto one shoulder. It should feel elite-sized, strong, funny, dramatic, and dangerous: a pompous cursed tin-can executioner from the drowned cathedral trying to look noble but clearly a hostile monster, not a player hero.
+Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable black silhouette first; one iconic primary shape; chunky hand-inked outer contour; simplified exaggerated proportions; 3-5 large stained-glass colour masses only, with very few thick lead dividers; matte painterly brush texture; restrained cathedral motifs as broad shapes, not filigree; thumbnail-readable at 128px; dramatic, fun, and grave, not cute plush, not comedic mascot; no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic fantasy.
+Composition/framing: single complete subject, centred, generous padding on all sides, no cropped helmet, anchor-cleaver, shield, or feet; elite enemy scale larger than normal enemies but smaller than boss; compact hunched enemy posture, not tall heroic stance; readable silhouette: huge bell-helmet, one eye slit, dragging oversized anchor-cleaver, shoulder crab-shield, tiny plated feet; no action blur.
+Lighting/mood: sober abyssal gothic mood; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the eye slit and oath-core pane; high value contrast on the main read; no scattered sparkles, no multi-source glow, no noisy bloom, no haze touching the silhouette.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Color palette: abyss navy, black lead, cold cyan glow, dull barnacle bone, muted steel blue; do not use #ff00ff in the subject.
+Readability priority: silhouette first, pose second, helmet/anchor-cleaver/eye third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; no tall noble knight stance; no handsome human face; no clean heroic armour anatomy; no extra characters.
+```
+
+## Act 2 Finale Comparison: Abyssal Knight v1
+
+Status: comparison only. Kept in scratch because it was too noble and hero-like
+for the enemy-elite brief.
+
+Generated image id:
+`ig_05feb5b8ad8abec9016a4ace35ab008191bc056fb6e5543073`
+
+Source:
+`enemy-abyssalKnight/01-gpt-image-2-source.png`
+
+Selected comparison candidate:
+`enemy-abyssalKnight/05-gpt-framed.png`
+
+Nano Banana evidence:
+`enemy-abyssalKnight/02-nanobanana-pro-cleaned.jpg`
+`enemy-abyssalKnight/03-alpha.png`
+`enemy-abyssalKnight/03-alpha-no-yellow-outline.png`
+`enemy-abyssalKnight/06-nanobanana-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 elite enemy alpha-ready source
+Primary request: Abyssal Knight, an elite cursed sea-floor knight enemy made of black lead, abyss navy glass, cold cyan oath-glow, and dull barnacle-bone panes. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: a top-heavy hollow bell-helmet armour with one narrow cyan eye slit, an absurdly oversized anchor-cleaver sword held low, a barnacle shield-shoulder, tiny stubborn plated legs, and a pompous condemned posture. It should feel elite-sized, strong, funny, dramatic, and dangerous: a self-important cursed tin-can knight from the drowned cathedral, not a player hero.
+Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable black silhouette first; one iconic primary shape; chunky hand-inked outer contour; simplified exaggerated proportions; 3-5 large stained-glass colour masses only, with very few thick lead dividers; matte painterly brush texture; restrained cathedral motifs as broad shapes, not filigree; thumbnail-readable at 128px; dramatic, fun, and grave, not cute plush, not comedic mascot; no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic fantasy.
+Composition/framing: single complete subject, centred, generous padding on all sides, no cropped helmet, sword, shield, or feet; elite enemy scale larger than normal enemies but smaller than boss; readable silhouette: huge hollow bell-helmet, one cyan eye slit, oversized anchor-cleaver sword, barnacle shield-shoulder, tiny plated legs; no action blur.
+Lighting/mood: sober abyssal gothic mood; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the eye slit and oath-core pane; high value contrast on the main read; no scattered sparkles, no multi-source glow, no noisy bloom, no haze touching the silhouette.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Color palette: abyss navy, black lead, cold cyan glow, dull barnacle bone, muted steel blue; do not use #ff00ff in the subject.
+Readability priority: silhouette first, pose second, helmet/sword/eye third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; no noble heroic champion stance; no handsome human face; no extra characters.
+```
+
+## Act 2 Finale Rejected Comparison: Siren
+
+Status: rejected comparison after v2 approval. The candidate is retained in
+scratch only; the temporary runtime gallery folder was removed after promotion.
+The selected file was the gpt-image-2 source alpha after chroma removal, warm
+outer-rim cleanup, and deterministic 1024px transparent framing. It drifted too
+elegant and dragon-like compared with the approved squat shell-horn v3.
+
+Generated image id:
+`ig_05feb5b8ad8abec9016a4ace726a8081918755b7f11a2b6978`
+
+Source:
+`enemy-siren/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-siren/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-siren/04-no-yellow-outline.png`
+
+Selected review candidate:
+`enemy-siren/05-gpt-framed.png`
+
+Nano Banana evidence:
+`enemy-siren/02-nanobanana-pro-cleaned.jpg`
+`enemy-siren/03-alpha.png`
+`enemy-siren/03-alpha-no-yellow-outline.png`
+`enemy-siren/06-nanobanana-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 elite enemy alpha-ready source
+Primary request: Siren, an elite sea-dirge monster enemy made of black lead, violet storm glass, pale shell ivory panes, and toxic teal song-glow. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: a theatrical shell-megaphone throat and mask as the main head shape, a hunched eel-tail body, two ragged fin-wings like opera sleeves, hooked talon hands, and a tiny furious diva eye. It should feel elite-sized, funny, dramatic, eerie, and dangerous: a cursed drowned opera singer that debuffs with a dirge, heals itself, and shrieks; monster first, not a pretty human mermaid or hero.
+Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable black silhouette first; one iconic primary shape; chunky hand-inked outer contour; simplified exaggerated proportions; 3-5 large stained-glass colour masses only, with very few thick lead dividers; matte painterly brush texture; restrained cathedral motifs as broad shapes, not filigree; thumbnail-readable at 128px; dramatic, fun, and grave, not cute plush, not comedic mascot; no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic fantasy.
+Composition/framing: single complete subject, centred, generous padding on all sides, no cropped wings, talons, tail, or shell throat; elite enemy scale larger than normal enemies but smaller than boss; readable silhouette: huge shell-megaphone throat, hunched eel body, ragged fin-wings, hooked talons, tiny diva eye; no action blur.
+Lighting/mood: sober haunted-opera gothic mood; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the eye and teal song-core in the shell throat; high value contrast on the main read; no scattered sparkles, no multi-source glow, no noisy bloom, no haze touching the silhouette.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Color palette: violet storm glass, toxic teal song-glow, black lead, pale shell ivory, muted deep-sea blue; do not use #ff00ff in the subject.
+Readability priority: silhouette first, pose second, shell throat/wings/talons third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; no attractive human face; no mermaid pin-up pose; no heroic upright champion pose; no extra characters.
+```
+
+## Act 2 Finale Rejected Comparison: Leviathan's Maw
+
+Status: rejected comparison after v2 approval. The candidate is retained in
+scratch only; the temporary runtime gallery folder was removed after promotion.
+The selected file was the gpt-image-2 source alpha after chroma removal, warm
+outer-rim cleanup, and deterministic 1024px transparent framing. It used a
+larger boss framing target than normal enemies but read too severe compared
+with the approved v2.
+
+Generated image id:
+`ig_05feb5b8ad8abec9016a4aceb5afdc81918af502f159782b0a`
+
+Source:
+`enemy-leviathan/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-leviathan/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-leviathan/04-no-yellow-outline.png`
+
+Selected review candidate:
+`enemy-leviathan/05-gpt-framed.png`
+
+Nano Banana evidence:
+`enemy-leviathan/02-nanobanana-pro-cleaned.jpg`
+`enemy-leviathan/03-alpha.png`
+`enemy-leviathan/03-alpha-no-yellow-outline.png`
+`enemy-leviathan/06-nanobanana-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 boss enemy alpha-ready source
+Primary request: Leviathan's Maw, the Act 2 boss, a huge funny but terrifying deep-sea cathedral beast made of black lead, abyss teal glass, cold cyan brine glow, and dull whale-bone panes. Menacing idle boss pose, facing slightly left toward the hero. One iconic primary read: a gigantic cathedral-gate mouth as the whole body, tiny angry eyes above the gate, a crown of broken ship ribs, two squat fin-claws gripping the water, a heavy eel-whale back, and a ridiculous dangling lighthouse-lure like bait. It should feel boss-sized, unique, dramatic, strong, and interesting: an ancient sea monster that thinks it is a cathedral door and wants to swallow the whole stage, funny in shape but genuinely dangerous.
+Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable black silhouette first; one iconic primary shape; chunky hand-inked outer contour; simplified exaggerated proportions; 3-5 large stained-glass colour masses only, with very few thick lead dividers; matte painterly brush texture; restrained cathedral motifs as broad shapes, not filigree; thumbnail-readable at 128px; dramatic, fun, and grave, not cute plush, not comedic mascot; no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic fantasy.
+Composition/framing: single complete subject, centred, generous padding on all sides, no cropped jaw, crown, fins, lure, or tail; boss scale visibly larger and heavier than elites; readable silhouette: massive cathedral-gate mouth, tiny angry eyes, ship-rib crown, squat fin-claws, heavy eel-whale back, dangling lighthouse-lure; no action blur.
+Lighting/mood: sober abyssal boss mood; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the cyan brine mouth-core and lighthouse-lure; high value contrast on the main read; no scattered sparkles, no multi-source glow, no noisy bloom, no haze touching the silhouette.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Color palette: abyss teal, deep navy, black lead, cold cyan brine glow, dull whale bone, tiny amber lure; do not use #ff00ff in the subject.
+Readability priority: silhouette first, pose second, mouth/crown/lure third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Constraints: mouth must be a clean huge dark gate shape with a thick readable rim, not a broken generation artifact; no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; no heroic upright champion pose; no human anatomy; no extra characters.
+```
 
 ## Act 2 Batch 2 Approved: Tidecaller
 
@@ -186,11 +484,11 @@ Constraints: the mouth must be a clean single dark oval with a thick rim, not a 
 ## Act 2 Batch 1 V2 Approved: Drowned One
 
 Status: approved. Promoted to
-`src/assets-readable-baseline/enemies/drownedOne.png` and retained in
-`src/assets-readable-act2-v2/enemies/drownedOne.png`. V1 remains available in
-`src/assets-readable-act2/` as comparison evidence. The selected file is the
-gpt-image-2 source alpha after chroma removal, warm outer-rim cleanup, and
-deterministic 1024px transparent framing.
+`src/assets-readable-baseline/enemies/drownedOne.png`. The temporary runtime
+review folders were removed after gallery cleanup; v1/v2 comparison evidence
+remains in scratch. The selected file is the gpt-image-2 source alpha after
+chroma removal, warm outer-rim cleanup, and deterministic 1024px transparent
+framing.
 
 Generated image id:
 `ig_05e370144e91c3fb016a4ac0f9e6288191bb478f36598b260e`
@@ -228,11 +526,11 @@ Constraints: no ground plane; no floor; no shadows; no reflections; no haze touc
 ## Act 2 Batch 1 V2 Approved: Voltaic Eel
 
 Status: approved. Promoted to
-`src/assets-readable-baseline/enemies/voltEel.png` and retained in
-`src/assets-readable-act2-v2/enemies/voltEel.png`. V1 remains available in
-`src/assets-readable-act2/` as comparison evidence. The selected file is the
-gpt-image-2 source alpha after chroma removal, warm outer-rim cleanup, and
-deterministic 1024px transparent framing.
+`src/assets-readable-baseline/enemies/voltEel.png`. The temporary runtime
+review folders were removed after gallery cleanup; v1/v2 comparison evidence
+remains in scratch. The selected file is the gpt-image-2 source alpha after
+chroma removal, warm outer-rim cleanup, and deterministic 1024px transparent
+framing.
 
 Generated image id:
 `ig_05e370144e91c3fb016a4ac13dfcfc8191a744b9bdb73fb629`
@@ -270,11 +568,11 @@ Constraints: no ground plane; no floor; no shadows; no reflections; no haze touc
 ## Act 2 Batch 1 V2 Approved: Mirelurker
 
 Status: approved. Promoted to
-`src/assets-readable-baseline/enemies/mirelurker.png` and retained in
-`src/assets-readable-act2-v2/enemies/mirelurker.png`. V1 remains available in
-`src/assets-readable-act2/` as comparison evidence. The selected file is the
-gpt-image-2 source alpha after chroma removal, warm outer-rim cleanup, and
-deterministic 1024px transparent framing.
+`src/assets-readable-baseline/enemies/mirelurker.png`. The temporary runtime
+review folders were removed after gallery cleanup; v1/v2 comparison evidence
+remains in scratch. The selected file is the gpt-image-2 source alpha after
+chroma removal, warm outer-rim cleanup, and deterministic 1024px transparent
+framing.
 
 Generated image id:
 `ig_05e370144e91c3fb016a4ac185d28481919d958ef79619d1e9`
@@ -311,10 +609,10 @@ Constraints: no ground plane; no floor; no shadows; no reflections; no haze touc
 
 ## Act 2 Batch 1 Review: Drowned One
 
-Status: superseded by approved v2. Kept in
-`src/assets-readable-act2/enemies/drownedOne.png` as comparison evidence only.
-The candidate is the gpt-image-2 source alpha after chroma removal, warm
-outer-rim cleanup, and deterministic 1024px transparent framing.
+Status: superseded by approved v2. Kept in scratch as comparison evidence only;
+the temporary runtime gallery folder was removed after promotion. The candidate
+is the gpt-image-2 source alpha after chroma removal, warm outer-rim cleanup,
+and deterministic 1024px transparent framing.
 
 Generated image id:
 `ig_0f81a2e65989a619016a4abb50e0948191838913614037e315`
@@ -351,10 +649,10 @@ Constraints: no ground plane; no floor; no shadows; no reflections; no haze touc
 
 ## Act 2 Batch 1 Review: Voltaic Eel
 
-Status: superseded by approved v2. Kept in
-`src/assets-readable-act2/enemies/voltEel.png` as comparison evidence only. The
-candidate is the gpt-image-2 source alpha after chroma removal, warm outer-rim
-cleanup, and deterministic 1024px transparent framing.
+Status: superseded by approved v2. Kept in scratch as comparison evidence only;
+the temporary runtime gallery folder was removed after promotion. The candidate
+is the gpt-image-2 source alpha after chroma removal, warm outer-rim cleanup,
+and deterministic 1024px transparent framing.
 
 Generated image id:
 `ig_0f81a2e65989a619016a4abb7851dc81919359a73a4878ba27`
@@ -391,10 +689,10 @@ Constraints: no ground plane; no floor; no shadows; no reflections; no haze touc
 
 ## Act 2 Batch 1 Review: Mirelurker
 
-Status: superseded by approved v2. Kept in
-`src/assets-readable-act2/enemies/mirelurker.png` as comparison evidence only.
-The candidate is the gpt-image-2 source alpha after chroma removal, warm
-outer-rim cleanup, and deterministic 1024px transparent framing.
+Status: superseded by approved v2. Kept in scratch as comparison evidence only;
+the temporary runtime gallery folder was removed after promotion. The candidate
+is the gpt-image-2 source alpha after chroma removal, warm outer-rim cleanup,
+and deterministic 1024px transparent framing.
 
 Generated image id:
 `ig_0f81a2e65989a619016a4abba30ebc81918a1a99e947f00f49`

@@ -24,6 +24,9 @@ Council-approved baseline assets:
 - `enemies/tidecaller.png`
 - `enemies/shellback.png`
 - `enemies/deepmaw.png`
+- `enemies/abyssalKnight.png`
+- `enemies/siren.png`
+- `enemies/leviathan.png`
 
 Asset source decisions:
 
@@ -37,14 +40,35 @@ Asset source decisions:
 - `enemies/drownedOne.png`, `enemies/voltEel.png`, and
   `enemies/mirelurker.png` use the approved Act 2 v2 gpt-image-2 framed
   candidates. Act 2 v1 remains available as rejected comparison evidence in
-  `assets-readable-act2`.
+  scratch.
 - `enemies/tidecaller.png`, `enemies/shellback.png`, and
   `enemies/deepmaw.png` use the approved Act 2 batch 2 gpt-image-2 framed
   candidates. Nano Banana Pro comparisons remain in scratch only.
+- `enemies/abyssalKnight.png`, `enemies/siren.png`, and
+  `enemies/leviathan.png` use the approved Act 2 finale drift-correction
+  gpt-image-2 framed candidates: Abyssal Knight v3, Siren v3, and
+  Leviathan's Maw v2.
+
+Prompt decision:
+
+- The approved Act 2 finale prompt shape is the first-three-enemies pattern:
+  funny but threatening, one iconic primary read, compact left-facing enemy
+  pose, limited palette, and fewer hero/enemy ban clauses.
+- The rejected finale v1 prompt drifted too serious because it overused
+  elite/boss/noble-danger language, long frame-discipline clauses, and too many
+  no-hero/no-human constraints. The approved v2 allows a little heroic attitude
+  for elites and bosses, but keeps the body language enemy-like and funny.
 
 These are runtime-ready PNGs normalised to a maximum edge of 1024px with alpha
 preserved. Source and review artefacts remain in
 `scratch/style-tests/design-council-20260705-readable-style/`.
+
+Gallery cleanup:
+
+- Runtime gallery registration now only exposes `live` and `readable-baseline`.
+- Temporary runtime review folders were removed after promotion. Scratch source
+  folders, exact prompts, generated ids, alpha outputs, and contact sheets are
+  retained as evidence.
 
 When the whole set has passed review, activate it with a folder swap:
 

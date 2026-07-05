@@ -233,12 +233,17 @@ Only promote or activate assets whose `<id>` matches the internal key in
 `src/data.js`. After activation, check `http://localhost:5174/?gallery=1` or
 the active dev-server gallery URL.
 
-The gallery can inspect parked sets before activation. Add the set to
-`ASSET_SETS` in `src/art.js`, then open:
+During an active council pass, the gallery can inspect a temporary parked set.
+Add the set to `ASSET_SETS` in `src/art.js`, then open:
 
 ```text
 http://localhost:5174/?gallery=1&set=readable-baseline
 ```
+
+After approval or rejection, remove temporary runtime review folders and their
+`ASSET_SETS` entries. The steady-state gallery should expose only `live` and
+`readable-baseline`; keep prompts, generated ids, alpha outputs, and comparison
+contact sheets in scratch.
 
 ## Workflow Test Log
 
