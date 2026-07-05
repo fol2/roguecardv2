@@ -11,7 +11,7 @@ id="${2:?usage: genasset.sh <category> <id> \"<subject>\" [ref.png ...]}"
 subject="${3:?usage: genasset.sh <category> <id> \"<subject>\" [ref.png ...]}"
 shift 3 || true
 
-STYLE="Illuminated stained-glass painterly style: bold dark leaded outlines dividing the figure into glass panels, jewel-tone translucent colours, warm amber lantern rim light, subtle inner glow. Fully transparent background (alpha channel). No text, no labels, no watermark"
+STYLE="Serious cartoon-gothic stained-glass game art: chunky dark outer silhouette, simplified exaggerated proportions, one iconic readable prop or pose, 3-5 large jewel-tone glass colour masses with very few thick lead dividers, matte painterly texture, warm amber rim light, soft controlled inner glow. Designed to remain readable at 128px. Readability priority: silhouette first, pose second, face/weapon/core symbol third, colour fourth, texture last. Fully transparent background (alpha channel). No text, no labels, no watermark"
 
 case "$cat" in
   heroes)  comp="Full body, calm idle pose, facing slightly right, feet grounded, ~10% margin:"; size=1024 ;;

@@ -1,20 +1,31 @@
 # Style bible — generated raster assets
 
-Locked art direction for all `src/assets/` PNGs. Every generation goes through
-`tools/genasset.sh`, which prepends the style block and attaches the master
-reference — do not free-hand prompts.
+Locked art direction for all `src/assets/` PNGs. Current generation workflow is
+documented in [`generated-art-workflow.md`](./generated-art-workflow.md):
+`gpt-image-2 -> Nano Banana Pro -> alpha cutout -> gallery review`.
 
 ## Master reference
 
-`docs/refs/style-master.png` — the approved Duskblade portrait (spike `c1_hero_full`).
-Always passed as `--image` so gpt-image-2 matches palette, lead-line weight and lighting.
+`docs/refs/style-master.png` — the approved Duskblade portrait (spike
+`c1_hero_full`). Use it as a style reference when matching palette, lead-line
+weight, glass texture, and lantern lighting.
 
 ## Style block (prepended to every prompt)
 
-> Illuminated stained-glass painterly style: bold dark leaded outlines dividing
-> the figure into glass panels, jewel-tone translucent colours, warm amber
-> lantern rim light, subtle inner glow. Fully transparent background (alpha
-> channel). No text, no labels, no watermark.
+> Serious cartoon-gothic stained-glass game art: chunky dark outer silhouette,
+> simplified exaggerated proportions, one iconic readable prop or pose, 3-5
+> large jewel-tone glass colour masses with very few thick lead dividers, matte
+> painterly texture, warm amber rim light, soft controlled inner glow. Designed
+> to remain readable at 128px. Fully transparent background (alpha channel). No
+> text, no labels, no watermark.
+
+## Readability priority
+
+Silhouette first, pose second, face/weapon/core symbol third, colour fourth,
+texture last. The subject must still be recognisable as a black shadow with all
+internal details removed. Avoid lacework, micro-panels, complex anatomy
+segmentation, ornate armour noise, scattered sparkles, noisy bloom, and glossy
+3D rendering.
 
 ## Per-category composition
 

@@ -1,5 +1,10 @@
 # Image generation via the Codex CLI
 
+> Historical note: this Codex CLI bridge is no longer the primary workflow for
+> Spirebound art. Current raster asset work uses built-in Codex image generation
+> directly, then Nano Banana Pro, then alpha cutout. See
+> [`generated-art-workflow.md`](./generated-art-workflow.md).
+
 How we generate/edit raster images (PNGs) for Spirebound — e.g. title art, promo
 shots, texture references — without adding any binary-asset pipeline or paying
 per-image API bills. Claude Code shells out to the **Codex CLI**, which has a

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Minimal static server for scratch/cutout-spike — independent of the game dev server.
+// Minimal static server for scratch spikes — independent of the game dev server.
 import { createServer } from 'node:http';
 import { readFileSync, statSync, existsSync } from 'node:fs';
 import { join, extname } from 'node:path';
@@ -19,5 +19,5 @@ createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': types[extname(path)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
   res.end(readFileSync(path));
 }).listen(port, '127.0.0.1', () => {
-  console.log(`cutout spike: http://127.0.0.1:${port}/rig.html`);
+  console.log(`mesh spike: http://127.0.0.1:${port}/`);
 });
