@@ -30,6 +30,9 @@ Council-approved baseline assets:
 - `enemies/voidWisp.png`
 - `enemies/obsidianGolem.png`
 - `enemies/starCultist.png`
+- `enemies/shade.png`
+- `enemies/chaosHound.png`
+- `enemies/watcherEye.png`
 
 Asset source decisions:
 
@@ -58,6 +61,11 @@ Asset source decisions:
   (`modulate 116,118` plus gamma `0.93`) so the stained-glass masses read on
   dark combat backgrounds. The source prompt used `#00ff00` chroma-key instead
   of `#ff00ff` because Act 3 requires hot magenta judgement cores.
+- `enemies/shade.png`, `enemies/chaosHound.png`, and
+  `enemies/watcherEye.png` use the council-approved Act 3 second-batch v1
+  colour-lift candidates. They follow the approved Act 3 first batch
+  dark-background colour baseline and the same outer-rim cleanup plus light
+  colour-lift pass.
 
 Prompt decision:
 

@@ -89,12 +89,15 @@ Use these as subject notes, not rigid prompts.
 - `starCultist`: approved v2 colour-lift direction; a ridiculous little
   astrologer clutching an oversized star chart or orbit disc, more nervous court
   clerk than elegant priest. Keep the bright orbit chart as the primary read.
-- `shade`: a tattered court cloak with almost no body, a broken crescent orbit
-  clasp and a sneaky magenta face void.
-- `chaosHound`: a broken comet dog with a jagged orbit collar, tiny mad eyes,
-  and a magenta chest spark; feral, not noble.
-- `watcherEye`: a pompous floating judgement eye with the orbit ring as its
-  eyelid frame, annoyed and over-official.
+- `shade`: approved v1 colour-lift direction; a tattered court cloak with
+  almost no body, a large broken crescent orbit clasp, and a sneaky magenta face
+  void. Keep the enemy read as an empty cloak rather than a robed hero.
+- `chaosHound`: approved v1 colour-lift direction; a broken comet dog with a
+  jagged orbit collar, tiny mad eyes, and a magenta chest spark; feral, not
+  noble. Keep the bright comet head and oversized tail as the funny threat read.
+- `watcherEye`: approved v1 colour-lift direction; a pompous floating judgement
+  eye with the orbit ring as its eyelid frame, annoyed and over-official. Keep
+  the giant eye as the single primary shape even when court tassels are present.
 - `voidColossus`: an oversized royal statue or court pillar that is too heavy
   to move properly, with a huge cracked orbit seal in its chest.
 - `heraldOfEnd`: a melodramatic doomsday announcer with a giant horn, banner,

@@ -360,6 +360,143 @@ Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
 Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #00ff00 in the subject.
 ```
 
+## Act 3 Batch 2 v1 Colour-Lift Review Contact Sheet
+
+Status: approved by council. Current gallery candidates are parked at
+`src/assets-readable-baseline/enemies/shade.png`,
+`src/assets-readable-baseline/enemies/chaosHound.png`, and
+`src/assets-readable-baseline/enemies/watcherEye.png`.
+
+Contact sheet:
+`act3-batch2-v1-colour-lift-review-contact.png`
+
+Decision note: this batch follows the approved Act 3 first-batch colour
+correction directly: sharp bright glass masses for dark backgrounds, `#00ff00`
+chroma key, gpt-image-2 source alpha, warm outer-rim cleanup, and the light
+colour-lift pass. Council approved all three v1 colour-lift candidates:
+
+```text
+magick <04-no-yellow-outline.png> -colorspace sRGB -modulate 116,118,100 -gamma 0.93 <05-colour-lift.png>
+```
+
+## Act 3 Batch 2 v1: Shade Colour-Lift
+
+Status: approved. Parked at
+`src/assets-readable-baseline/enemies/shade.png`.
+
+Generated image id:
+`ig_05ce97b0282906b7016a4ae1ed08bc8191937e77787d4d8f20`
+
+Source:
+`enemy-shade/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-shade/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-shade/04-no-yellow-outline.png`
+
+Colour-lift alpha:
+`enemy-shade/05-colour-lift.png`
+
+Exact prompt:
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 3 normal enemy alpha-ready source, approved dark-background colour baseline
+Primary request: Shade, a funny but threatening tattered astral-court cloak enemy made for a dark game background. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: an almost-empty ragged cloak shaped like a sneaky falling curtain, a huge broken crescent orbit clasp pinning the hood, tiny suspicious magenta eyes floating in the empty face void, and two absurdly small claw hands peeking out like it is trying too hard to look scary. It should feel like a cowardly royal-court shadow pretending to be an executioner, funny in proportion but still dangerous.
+Colour/readability baseline: use sharp bright stained-glass colours that read against a near-black combat background: electric violet cloak panes, saturated sapphire blue folds, cold cyan-white moon-glass highlights, and hot magenta face/core glow. Keep obsidian black only for chunky outer silhouette and thick lead dividers, not as large unlit body panels. Large visible colour masses should dominate the subject. Avoid dull smoky navy, low-contrast charcoal slabs, and all-over black fill.
+Act 3 faction read: include one broken orbit halo fragment and one hot magenta judgement core, adapted to this creature's silhouette; add only tiny tarnished-gold court accents.
+Readability priority: silhouette first, pose second, ragged cloak plus crescent clasp third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large bright stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral/court motifs; thumbnail-readable at 128px; funny, dramatic, grave, and dangerous through bold proportions and expression.
+Composition/framing: normal enemy full body, fully inside frame, facing slightly left, generous padding, no cropped silhouette hooks, no action blur.
+Lighting/mood: sober astral-court gothic mood with strong internal glass brightness; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the hot magenta face/core and one cyan-white crescent pane; high value contrast on the main read.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #00ff00 in the subject.
+```
+
+Review note: clear cloak/crescent silhouette and strong dark-background colour.
+It is the most humanoid of the batch, but reads as an empty cloak enemy rather
+than a hero.
+
+## Act 3 Batch 2 v1: Chaos Hound Colour-Lift
+
+Status: approved. Parked at
+`src/assets-readable-baseline/enemies/chaosHound.png`.
+
+Generated image id:
+`ig_05ce97b0282906b7016a4ae22fbe1c81918d89834e6b18eaef`
+
+Source:
+`enemy-chaosHound/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-chaosHound/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-chaosHound/04-no-yellow-outline.png`
+
+Colour-lift alpha:
+`enemy-chaosHound/05-colour-lift.png`
+
+Exact prompt:
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 3 normal enemy alpha-ready source, approved dark-background colour baseline
+Primary request: Chaos Hound, a funny but threatening broken comet dog made for a dark game background. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: squat feral dog body with an oversized comet-head, tiny mad magenta eyes, jagged broken orbit collar like a cracked royal cone, a hot magenta chest spark, and a crooked star-fire tail that looks too big for its little legs. It should feel like a spoiled astral court guard dog that ate a falling star, funny in proportion but still dangerous.
+Colour/readability baseline: use sharp bright stained-glass colours that read against a near-black combat background: electric violet flank panes, saturated sapphire blue legs and tail, cold cyan-white comet shards, and hot magenta chest/eyes. Keep obsidian black only for chunky outer silhouette, claws, and thick lead dividers, not as large unlit body panels. Large visible colour masses should dominate the subject. Avoid dull smoky navy, low-contrast charcoal slabs, and all-over black fill.
+Act 3 faction read: include one broken orbit halo fragment as a jagged collar and one hot magenta judgement core in the chest, adapted to this creature's silhouette; add only tiny tarnished-gold court accents.
+Readability priority: silhouette first, pose second, comet dog body plus orbit collar third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large bright stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral/court motifs; thumbnail-readable at 128px; funny, dramatic, grave, and dangerous through bold proportions and expression.
+Composition/framing: normal enemy full body, fully inside frame, facing slightly left, generous padding, no cropped silhouette hooks, no action blur.
+Lighting/mood: sober astral-court gothic mood with strong internal glass brightness; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the hot magenta chest core and one cyan-white comet shard; high value contrast on the main read.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #00ff00 in the subject.
+```
+
+Review note: strongest enemy-body read in this batch. The orbit collar, comet
+head, tail, and magenta chest core all remain legible on the dark review sheet.
+
+## Act 3 Batch 2 v1: Watcher Eye Colour-Lift
+
+Status: approved. Parked at
+`src/assets-readable-baseline/enemies/watcherEye.png`.
+
+Generated image id:
+`ig_05ce97b0282906b7016a4ae27d7d988191b4fd44dfae02178c`
+
+Source:
+`enemy-watcherEye/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-watcherEye/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-watcherEye/04-no-yellow-outline.png`
+
+Colour-lift alpha:
+`enemy-watcherEye/05-colour-lift.png`
+
+Exact prompt:
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 3 normal enemy alpha-ready source, approved dark-background colour baseline
+Primary request: Watcher Eye, a funny but threatening pompous floating judgement eye made for a dark game background. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: one huge annoyed eyeball inside a broken orbit ring eyelid-frame, a hot magenta judgement pupil/core, tiny over-official court tassels and miniature pointing hands that make it look like a bossy clerk, not a noble boss. It should feel like an irritated royal observatory inspector stamping everyone guilty, funny in proportion but still dangerous.
+Colour/readability baseline: use sharp bright stained-glass colours that read against a near-black combat background: electric violet eyelid panes, saturated sapphire blue orbit frame, cold cyan-white sclera/star glass, and hot magenta pupil/core. Keep obsidian black only for chunky outer silhouette and thick lead dividers, not as large unlit body panels. Large visible colour masses should dominate the subject. Avoid dull smoky navy, low-contrast charcoal slabs, and all-over black fill.
+Act 3 faction read: include one broken orbit halo fragment as the giant eyelid frame and one hot magenta judgement core as the pupil, adapted to this creature's silhouette; add only tiny tarnished-gold court accents.
+Readability priority: silhouette first, pose second, giant eye plus broken orbit frame third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large bright stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral/court motifs; thumbnail-readable at 128px; funny, dramatic, grave, and dangerous through bold proportions and expression.
+Composition/framing: normal enemy full body floating subject, fully inside frame, facing slightly left, generous padding, no cropped silhouette hooks, no action blur.
+Lighting/mood: sober astral-court gothic mood with strong internal glass brightness; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the hot magenta pupil/core and one cyan-white eye pane; high value contrast on the main read.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #00ff00 in the subject.
+```
+
+Review note: strongest faction-read in this batch through the giant eye and
+broken orbit frame. It is ornate, but the single-eye silhouette remains clear.
+
 ## Act 2 Finale Approved: Abyssal Knight v3
 
 Status: approved. Promoted to
