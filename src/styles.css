@@ -95,6 +95,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 }
 #screen { position: absolute; inset: 0; overflow: hidden; }
 #vfx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 50; pointer-events: none; }
+#mesh { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 48; pointer-events: none; }
 #floaties { position: fixed; inset: 0; z-index: 55; pointer-events: none; }
 #aim { position: fixed; inset: 0; z-index: 45; pointer-events: none; width: 100%; height: 100%; }
 #overlay { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center;
@@ -186,6 +187,10 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 
 /* ============ Title */
 .title-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: max(3vh, 24px) 16px; overflow-y: auto; }
+.title-banner { position: absolute; inset: 0; opacity: 0.35; pointer-events: none; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 18vh; z-index: 0; }
+.title-banner-frame { max-height: 55vh; max-width: 90vw; }
+.title-banner .raster-art { max-height: 55vh; width: auto; max-width: 90vw; object-fit: contain; filter: drop-shadow(0 12px 40px rgba(0,0,0,.6)); }
+.title-screen > :not(.title-banner) { position: relative; z-index: 1; }
 .logo {
   /* the logotype is itself leaded glass: ink stroke behind gold panes, faint lead lines through the letters */
   font-size: clamp(52px, 9vw, 108px); font-weight: 800; letter-spacing: 0.16em; line-height: 1;
@@ -252,6 +257,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   width: var(--cw); height: calc(var(--cw) * 1.42); position: relative; cursor: pointer;
   perspective: 700px; -webkit-tap-highlight-color: transparent;
 }
+.card-lift { position: absolute; inset: 0; transform-origin: 50% 100%; }
 .card-inner {
   /* a pane of leaded glass: ink border, lit inner rim, light falling from the top */
   position: absolute; inset: 0; border-radius: 11px; overflow: hidden;
@@ -270,7 +276,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .card.t-status, .card.t-curse { --edge: #47584f; --tint: var(--sts); }
 .card.t-curse { --edge: #5c3a5c; --tint: #c77bd4; }
 .card-cost {
-  position: absolute; top: -7px; left: -7px; z-index: 3; width: 34px; height: 34px; border-radius: 50%;
+  position: absolute; top: -7px; left: -7px; z-index: 4; width: 34px; height: 34px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-weight: 800; font-size: 17px;
   background: radial-gradient(circle at 35% 30%, #ffe9ac, var(--gold) 45%, #7a5417 95%);
   color: #241a05; border: 1.5px solid #ffe9ac; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6), 0 0 10px rgba(242, 193, 78, 0.45);
@@ -329,17 +335,21 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 
 /* hand */
 .hand-zone { position: absolute; left: 0; right: 0; bottom: calc(-12px + var(--sab)); height: 260px; z-index: 22; pointer-events: none; }
-.hand-zone .card { position: absolute; left: 50%; bottom: 8px; pointer-events: auto; transition: transform 0.28s cubic-bezier(0.25, 0.9, 0.3, 1.2), bottom 0.22s var(--ease-spring), filter 0.2s; transform-origin: 50% 100%; touch-action: none; }
+.hand-zone .card { position: absolute; left: 50%; bottom: 8px; pointer-events: auto; transition: transform 0.28s cubic-bezier(0.25, 0.9, 0.3, 1.2), filter 0.2s; transform-origin: 50% 100%; touch-action: none; }
+/* lift animates .card-lift (cost + pane together); hit-testing stays on the fixed .card slot */
+.hand-zone .card .card-lift, .hand-zone .card .card-lift * { pointer-events: none; }
+.hand-zone .card .card-text .kw { pointer-events: auto; }
 /* mid-drag: the pane rides the finger, no easing between it and the hand */
 .hand-zone .card.dragging { transition: none; z-index: 46 !important; }
 .hand-zone .card.dragging .card-inner { box-shadow: 0 24px 54px rgba(0, 0, 0, 0.75), 0 0 30px color-mix(in srgb, var(--tint) 45%, transparent); }
 .hand-zone .card.will-cast .card-inner { box-shadow: 0 24px 54px rgba(0, 0, 0, 0.75), 0 0 44px color-mix(in srgb, var(--tint) 75%, transparent), inset 0 0 22px color-mix(in srgb, var(--tint) 35%, transparent); }
-.hand-zone .card .card-inner { transition: box-shadow 0.2s, transform 0.12s ease-out; }
-.hand-zone .card:hover, .hand-zone .card.armed { z-index: 40 !important; }
-.hand-zone .card:hover .card-inner, .hand-zone .card.armed .card-inner { box-shadow: 0 18px 44px rgba(0, 0, 0, 0.7), 0 0 24px color-mix(in srgb, var(--tint) 40%, transparent); }
-/* desktop: a hovered card rises out of the fan (bottom, not transform — the fan owns transform) */
-@media (hover: hover) and (pointer: fine) {
-  .hand-zone .card:hover { bottom: 26px; }
+.hand-zone .card .card-inner { transition: box-shadow 0.2s; }
+.hand-zone .card .card-lift { transition: transform 0.28s cubic-bezier(0.25, 0.9, 0.3, 1.2); }
+.hand-zone .card.lifted .card-lift { transform: translateY(-92px) scale(1.38); }
+.hand-zone .card.armed .card-lift { transform: translateY(-118px) scale(1.24); }
+.hand-zone .card:hover, .hand-zone .card.armed, .hand-zone .card.lifted { z-index: 40 !important; }
+.hand-zone .card:hover .card-inner, .hand-zone .card.armed .card-inner, .hand-zone .card.lifted .card-inner {
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.7), 0 0 24px color-mix(in srgb, var(--tint) 40%, transparent);
 }
 .hand-zone .card.draw-in { animation: drawIn 0.34s cubic-bezier(0.2, 0.8, 0.3, 1.1); }
 @keyframes drawIn { from { transform: translate(-320px, 130px) rotate(-24deg) scale(0.5); opacity: 0; } }
@@ -368,24 +378,31 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .combat-screen.intro .player-zone { animation: heroIn 0.55s cubic-bezier(0.2, 0.75, 0.3, 1) backwards; }
 .combat-screen.intro .enemy { animation: enemyIn 0.55s cubic-bezier(0.2, 0.75, 0.3, 1) backwards; }
 .combat-screen.intro .energy-orb, .combat-screen.intro .end-turn, .combat-screen.intro .pile-btn, .combat-screen.intro .lantern-btn { animation: chromeIn 0.5s 0.4s cubic-bezier(0.2, 0.75, 0.3, 1) backwards; }
-@keyframes heroIn { from { opacity: 0; transform: translateX(-70px); } }
+@keyframes heroIn { from { opacity: 0; transform: translate(-70px, 25px); } to { transform: translateY(25px); } }
 @keyframes enemyIn { from { opacity: 0; transform: translateX(90px); } }
 @keyframes chromeIn { from { opacity: 0; transform: translateY(44px); } }
 .hero-wrap.lunge { animation: heroLunge 0.38s cubic-bezier(0.2, 0.8, 0.3, 1); }
 @keyframes heroLunge { 20% { transform: translateX(-14px) rotate(-1.6deg); } 48% { transform: translateX(52px) rotate(2deg); } }
 .battlefield { position: absolute; inset: 96px 0 232px 0; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 5vw; }
-.player-zone { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 240px; }
-.hero-wrap { position: relative; width: 190px; height: 190px; }
+.player-zone { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 240px; transform: translateY(25px); }
+.hero-wrap { position: relative; width: 190px; height: 285px; }
+.hero-wrap .hero-name {
+  position: absolute; top: -11px; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: none;
+  font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: 0.12em; color: #c8d0ea; white-space: nowrap;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.95), 0 0 16px rgba(0, 0, 0, 0.7);
+}
 .hero-wrap svg { width: 100%; height: 100%; }
 .enemy-zone { display: flex; align-items: flex-end; justify-content: flex-end; gap: 3vw; }
 .enemy { display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; transition: filter 0.2s, transform 0.25s; }
 .enemy-art { position: relative; }
+.enemy-sprite { position: relative; width: 100%; height: 100%; }
 .enemy-art svg { width: 100%; height: 100%; display: block; }
 /* grounding shadows */
 .enemy-art::after, .hero-wrap::after {
   content: ''; position: absolute; left: 8%; right: 8%; bottom: -5px; height: 15px; z-index: -2;
   background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.55), transparent 68%);
 }
+.enemy-art::after { bottom: -51px; }
 /* acting: coil back (anticipation, fire flaring) — strike — follow-through */
 .enemy.acting { animation: enemyStrike 0.62s cubic-bezier(0.36, 0.4, 0.3, 1); }
 @keyframes enemyStrike {
@@ -751,12 +768,41 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 @keyframes breathe { 0%, 100% { transform: scaleY(1) scaleX(1) rotate(0deg); } 50% { transform: scaleY(var(--brY, 1.035)) scaleX(0.99) rotate(var(--sw, 0deg)); } }
 /* stained glass casts its light: each creature's color pooled on the ground */
 .lightpool { position: absolute; left: 2%; right: 2%; bottom: -19px; height: 42px; z-index: -1; pointer-events: none; filter: blur(8px); opacity: 0.55; }
+.enemy-art > .lightpool { bottom: -65px; }
 /* low HP: the glass slumps, the fire inside it gutters (rig dims .innerfire) */
 .enemy-art svg, .hero-wrap svg { transition: transform 0.9s ease; }
 .enemy.lowhp .enemy-art svg { transform: rotate(2.4deg) translateY(4px) scale(0.985); }
 .hero-wrap.lowhp svg { transform: rotate(-2deg) translateY(4px); }
 .enemy-svg .hover-float { animation: hoverFloat 3s ease-in-out infinite; }
 @keyframes hoverFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+/* raster enemy idle — mesh-live syncs to this box motion each frame */
+.enemy-sprite.idle-wisp { animation: idleFloat 3.1s ease-in-out infinite; --float-y: 16px; }
+.enemy-sprite.idle-eye { animation: idleFloat 3.4s ease-in-out infinite; --float-y: 18px; }
+.enemy-sprite.idle-siren, .enemy-sprite.idle-shade { animation: idleFloat 3.6s ease-in-out infinite; --float-y: 12px; }
+.enemy-sprite.idle-plant { animation: idleFloat 3.8s ease-in-out infinite; --float-y: 9px; }
+.enemy-sprite.idle-slime { animation: idleSlime 4.2s ease-in-out infinite; }
+.enemy-sprite.idle-serpent { animation: idleSway 3.5s ease-in-out infinite; }
+.enemy-sprite.idle-beast, .enemy-sprite.idle-rogue, .enemy-sprite.idle-cultist, .enemy-sprite.idle-knight, .enemy-sprite.idle-zombie, .enemy-sprite.idle-crawler {
+  animation: idleBreathe 3.6s ease-in-out infinite;
+}
+@keyframes idleFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(calc(-1 * var(--float-y, 12px))); } }
+@keyframes idleSlime { 0%, 100% { transform: translateY(0) scaleX(1); } 33% { transform: translateY(-4px) scaleX(1.04); } 66% { transform: translateY(2px) scaleX(0.97); } }
+@keyframes idleSway { 0%, 100% { transform: translateX(0) rotate(0deg); } 50% { transform: translateX(5px) rotate(1.8deg); } }
+@keyframes idleBreathe { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.025); } }
+.idle-motes {
+  position: absolute; inset: -8% 0 0; pointer-events: none; z-index: 2; overflow: visible;
+}
+.idle-motes::before, .idle-motes::after {
+  content: ''; position: absolute; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--mote, rgba(140, 255, 120, 0.55)); filter: blur(0.5px);
+  box-shadow: 0 0 10px var(--mote, rgba(140, 255, 120, 0.45));
+}
+.idle-motes::before { left: 18%; top: 42%; animation: moteDrift 2.6s ease-in-out infinite; }
+.idle-motes::after { right: 16%; top: 28%; animation: moteDrift 3.1s ease-in-out infinite reverse; animation-delay: -1.2s; }
+@keyframes moteDrift {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.35; }
+  50% { transform: translate(6px, -18px) scale(1.15); opacity: 0.85; }
+}
 .enemy-svg .eye, .hero-svg .eye { animation: eyeGlow 2.6s ease-in-out infinite; }
 @keyframes eyeGlow { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 .flame { animation: flicker 0.5s ease-in-out infinite alternate; transform-origin: 100px 130px; }
@@ -1019,6 +1065,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   .logo, .card.r-rare .card-inner::after, .energy-orb::before { animation: none; }
   #lantern.gutter, .candle.lit, .hero-wrap.warded::before, .enemy-art.warded::before { animation: none; }
   .ember, .mon-flame, .enemy.doomed .enemy-art { animation: none; }
+  .enemy-sprite[class*="idle-"], .idle-motes::before, .idle-motes::after { animation: none; }
   #tooltip { animation: fadein 0.1s both; }
   .mnode.avail circle.bg, .mnode.avail .icg { animation: none; }
   .reward-list .reward-row, .shop-row .shop-item, .deed-list .deed-row { animation: none; }
@@ -1073,14 +1120,15 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   .battlefield { inset: calc(56px + var(--sat)) 0 218px 0; padding: 0 2vw; }
   .stage-ledge { bottom: 172px; height: 90px; }
   .player-zone { width: 31vw; }
-  .hero-wrap { width: min(150px, 33vw); height: min(150px, 33vw); }
+  .hero-wrap { width: min(150px, 33vw); height: min(225px, 49.5vw); }
   .player-zone .hpbar-wrap { width: min(150px, 33vw); }
   .hpbar-wrap { width: 118px; }
   .status-row { max-width: 34vw; }
-  .enemy .name, .player-zone .name { font-size: 10.5px; letter-spacing: 0.06em; }
+  .enemy .name, .hero-wrap .hero-name { font-size: 10.5px; letter-spacing: 0.06em; }
   .enemy.boss-e .name { font-size: 12px; }
   .intent { height: 26px; font-size: 14px; padding: 0 8px; gap: 4px; }
   .lightpool { bottom: -14px; height: 30px; }
+  .enemy-art > .lightpool { bottom: -60px; }
   /* the fan */
   .card { --cw: 118px; }
   .card-text { font-size: 11.5px; padding: 3px 7px 8px; }
@@ -1151,11 +1199,12 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   .battlefield { inset: calc(44px + var(--sat)) 0 132px 0; padding: 0 5vw; }
   .stage-ledge { bottom: 96px; height: 70px; }
   .player-zone { width: 22vw; }
-  .hero-wrap { width: min(128px, 32vh); height: min(128px, 32vh); }
+  .hero-wrap { width: min(128px, 32vh); height: min(192px, 48vh); }
   .player-zone .hpbar-wrap, .hpbar-wrap { width: 118px; }
-  .enemy .name, .player-zone .name { font-size: 10.5px; }
+  .enemy .name, .hero-wrap .hero-name { font-size: 10.5px; }
   .intent { height: 24px; font-size: 13px; }
   .lightpool { bottom: -12px; height: 26px; }
+  .enemy-art > .lightpool { bottom: -58px; }
   .card { --cw: 104px; }
   .card-text { font-size: 10.5px; }
   .card-name { font-size: 11px; }
@@ -1197,3 +1246,18 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   .end-title { font-size: clamp(30px, 11vh, 56px); }
   .monument { padding: 22px 30px 20px; gap: 10px; }
 }
+
+/* ---------- generated raster assets + dev gallery (?gallery=1) ---------- */
+.raster-art { width: 100%; height: 100%; object-fit: contain; display: block; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45)); }
+.hero-flip { transform: scaleX(-1); }
+.mesh-live > .raster-art { opacity: 0; }
+.g-head { font-family: Cinzel, serif; color: #cfd6ee; margin: 22px 16px 10px; font-size: 18px; }
+.gallery { display: flex; flex-wrap: wrap; gap: 10px; padding: 0 16px; }
+.g-cell { width: 128px; background: #10152a; border: 1px solid #222a44; border-radius: 8px; padding: 8px; }
+.g-cell.g-png { border-color: #3a6b48; }
+.g-art { height: 110px; display: flex; align-items: center; justify-content: center; }
+.g-art svg { max-width: 100%; max-height: 100%; }
+.g-label { font-size: 11px; color: #9aa7c8; margin-top: 6px; display: flex; justify-content: space-between; align-items: center; word-break: break-all; }
+.g-badge { font-size: 9px; padding: 1px 5px; border-radius: 4px; background: #33406a; color: #cfd6ee; }
+.g-png .g-badge { background: #2c5e3c; }
+#screen.gallery-mode { overflow-y: auto; padding-bottom: 40px; }

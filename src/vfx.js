@@ -164,11 +164,13 @@ export function floatText(x, y, text, cls = '') {
 // glass death: clone the creature's svg into a fan of clip-path shards and
 // throw them outward — the body literally breaks apart along the light.
 export function shatter(el) {
-  const svg = el.querySelector('svg');
+  const vis = el.querySelector('svg') || el.querySelector('img.raster-art');
   const r = el.getBoundingClientRect();
-  if (!svg || !r.width) return;
+  if (!vis || !r.width) return;
   if (REDUCED) { el.style.visibility = 'hidden'; return; }
-  const html = svg.outerHTML;
+  const html = vis.tagName === 'svg'
+    ? vis.outerHTML
+    : `<img src="${vis.src}" alt="" style="width:100%;height:100%;object-fit:contain;display:block">`;
   const cx = 50 + (Math.random() - 0.5) * 14, cy = 52 + (Math.random() - 0.5) * 14;
   const K = 11;
   const ring = [];

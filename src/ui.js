@@ -1,11 +1,12 @@
 // SPIREBOUND UI — screens, combat playback, interactions.
 import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
-import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg } from './art.js';
+import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, assetUrl, assetList } from './art.js';
 import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise } from './scene3d.js';
+import { meshBind, meshClear, meshEnabled, meshDebug } from './mesh.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
@@ -23,6 +24,23 @@ function el(tag, cls = '', html = '') {
   if (cls) e.className = cls;
   if (html) e.innerHTML = html;
   return e;
+}
+
+// generated raster asset if it exists, procedural SVG otherwise
+const rasterOr = (cat, id, svg) => {
+  const u = assetUrl(cat, id);
+  return u ? `<img class="raster-art" src="${u}" alt="">` : svg;
+};
+const heroArt = (i) => {
+  const u = assetUrl('heroes', ASPECTS[i].id);
+  return u ? `<img class="raster-art hero-flip" src="${u}" alt="">` : heroSvg(i);
+};
+
+let assetsWarmed = false;
+function warmAssets() { // pre-decode combat art so fights never pop in
+  if (assetsWarmed) return;
+  assetsWarmed = true;
+  for (const u of [...assetList('enemies'), ...assetList('heroes')]) new Image().src = u;
 }
 
 const FACET_DESC = 'Every creature is glass with a Facet gauge. Fill it and the glass Shatters — the creature loses its next action, is Cracked, and spills Embers into your lantern.';
@@ -131,13 +149,13 @@ function cardEl(inst, { inCombat = false, size = null } = {}) {
   }
   let txt = fmtText(d.text, inCombat);
   if (inst.bonus) txt = txt.replace(/<span class="val[^"]*">(\d+)<\/span>/, (m, v) => m.replace(v, +v + inst.bonus));
-  c.innerHTML = `${costHtml}<div class="card-inner">
-    <div class="card-art">${cardArtSvg(inst.id, d.type)}</div>
+  c.innerHTML = `<div class="card-lift">${costHtml}<div class="card-inner">
+    <div class="card-art">${rasterOr('cards', inst.id, cardArtSvg(inst.id, d.type))}</div>
     <div class="card-name">${d.name}</div>
     <div class="card-type">${d.type}</div>
     <div class="card-text"><span class="ct-inner">${txt}</span></div>
     <div class="card-rarity"></div>
-  </div>`;
+  </div></div>`;
   $$('.kw', c).forEach((k) => (k._tip = { title: k.textContent, body: KEYWORDS[k.textContent] || '' }));
   // 3D tilt + mouse-tracked glare/foil (a hovering pointer only)
   if (FINE) c.addEventListener('mousemove', (e) => {
@@ -200,7 +218,7 @@ function renderHud() {
       <div class="hud-stat"><span style="color:var(--gold)">¤</span> <span class="gold-num">${p.gold}</span></div>
       <div class="hud-mid"><b>${act.name.toUpperCase()}</b> &nbsp;·&nbsp; Act ${S.run.act + 1} &nbsp;·&nbsp; Floor ${S.run.floorsClimbed} &nbsp;·&nbsp; ${act.bossName}</div>
       <div class="hud-right">
-        ${p.potions.map((id, i) => `<button class="potion-slot ${id ? 'full' : ''}" data-slot="${i}">${id ? potionSvg(POTIONS[id].tone) : ''}</button>`).join('')}
+        ${p.potions.map((id, i) => `<button class="potion-slot ${id ? 'full' : ''}" data-slot="${i}">${id ? rasterOr('potions', id, potionSvg(POTIONS[id].tone)) : ''}</button>`).join('')}
         <button class="icon-btn" data-act="deck">${iconSvg('cards', 19)}<span style="font-size:11px">${p.deck.length}</span></button>
         <button class="icon-btn" data-act="menu">≡</button>
       </div>
@@ -380,6 +398,8 @@ export function show(name, data) {
     title: renderTitle, map: renderMap, combat: () => {}, reward: renderReward, rest: renderRest,
     shop: renderShop, event: renderEvent, treasure: renderTreasure, bossRelic: renderBossRelic, end: renderEnd,
   })[name](data);
+  if (name === 'map') warmAssets();
+  if (name !== 'combat' && name !== 'title') meshClear();
   renderHud();
 }
 
@@ -396,7 +416,7 @@ function renderTitle() {
   const aspectCards = ASPECTS.map((a, i) => {
     const locked = i > 0 && a.unlock && !vigil.unlocks.includes(a.unlock);
     return `<button class="aspect-card${sel.aspect === i ? ' on' : ''}${locked ? ' locked' : ''}" data-a="asp" data-i="${i}"${locked ? ' disabled' : ''}>
-      <div class="asp-hero">${heroSvg(i)}</div>
+      <div class="asp-hero">${heroArt(i)}</div>
       <div class="asp-name">${a.name}${locked ? ' 🔒' : ''}</div>
       <div class="asp-blurb">${locked ? 'Reach the first dawn to walk as the Ashwarden.' : a.blurb}</div>
     </button>`;
@@ -412,8 +432,10 @@ function renderTitle() {
       </div>
       <div class="vow-desc">${vowLine}</div>
     </div>` : '';
+  const banner = assetUrl('title', 'banner');
   const sc = screenEl();
   sc.innerHTML = `<div class="title-screen screen-enter">
+    ${banner ? `<div class="title-banner"><div class="title-banner-frame"><img class="raster-art" src="${banner}" alt=""></div></div>` : ''}
     <div class="logo">SPIREBOUND</div>
     <div class="tagline">A Roguelite Deckbuilder · The Vigil Remembers</div>
     <div class="aspect-row">${aspectCards}</div>
@@ -441,6 +463,7 @@ function renderTitle() {
     else if (a === 'help') showHelp();
     else if (a === 'mute') { toggleMute(); renderTitle(); }
   };
+  meshBindTitle();
 }
 // the vigil ledger: lifetime deeds and the content they've unearthed
 function showVigil() {
@@ -521,7 +544,7 @@ function renderLamplighter() {
   const chosen = ARTS[L.art];
   const sc = screenEl();
   sc.innerHTML = `<div class="lamp-screen screen-enter">
-    <div class="lamp-hero">${heroSvg(run.aspect)}</div>
+    <div class="lamp-hero">${heroArt(run.aspect)}</div>
     <div class="lamp-title">THE LAMPLIGHTER</div>
     <div class="lamp-sub">${asp.name} stands at the foot of the Spire. Take one parting gift — and choose the fire your lantern will carry.</div>
     <div class="lamp-label">A Boon for the Road</div>
@@ -751,10 +774,12 @@ function renderCombat() {
     <div class="stage-ledge" style="--ledge:${ledge}"></div>
     <div class="battlefield">
       <div class="player-zone">
-        <div class="hero-wrap">${heroSvg(S.run.aspect)}</div>
+        <div class="hero-wrap">
+          <div class="hero-name">${ASPECTS[S.run.aspect].name.toUpperCase()}</div>
+          ${heroArt(S.run.aspect)}
+        </div>
         <div class="hpbar-wrap"><span class="block-chip zero p-block">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div></div><span class="hp-label p-hp"></span></div>
         <div class="status-row p-status"></div>
-        <div class="name">${ASPECTS[S.run.aspect].name.toUpperCase()}</div>
       </div>
       <div class="enemy-zone"></div>
     </div>
@@ -777,7 +802,7 @@ function renderCombat() {
     box.dataset.idx = i;
     box.style.animationDelay = `${160 + i * 130}ms`;
     box.innerHTML = `<div class="intent"></div>
-      <div class="enemy-art" style="width:${size}px;height:${size}px">${enemySvg(d.art)}<div class="dmg-preview"></div></div>
+      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${rasterOr('enemies', en.key, enemySvg(d.art))}</div><div class="dmg-preview"></div></div>
       <div class="name">${afx ? `<span class="affix-name" style="color:${afx.tone}">${afx.name.toUpperCase()}</span> ` : ''}${en.name.toUpperCase()}</div>
       <div class="hpbar-wrap"><span class="block-chip zero">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div><span class="hp-label"></span></div>
       <div class="facet-row"></div>
@@ -829,6 +854,7 @@ function renderCombat() {
   };
   S.ce = ce;
   rigCombatants();
+  scheduleMeshBind();
   // drop the intro class once entrances finish so .acting doesn't retrigger them
   setTimeout(() => ce.root.classList.remove('intro'), 1300);
   ce.endTurn.onclick = onEndTurn;
@@ -867,6 +893,7 @@ addEventListener('resize', () => {
       ce.enemies[i].art.style.width = ce.enemies[i].art.style.height = `${size}px`;
     });
     layoutHand();
+    scheduleMeshBind();
   }, 120);
 });
 
@@ -1029,9 +1056,8 @@ function layoutHand() {
     const x = (i - (n - 1) / 2) * gap;
     const y = Math.abs(rot) * 3.2;
     c.classList.toggle('armed', armed);
-    if (armed) c.style.transform = `translateX(calc(-50% + ${x * 0.4}px)) translateY(-150px) scale(1.24)`;
-    else if (hovered && !S.busy) c.style.transform = `translateX(calc(-50% + ${x}px)) translateY(-92px) scale(1.38)`;
-    else c.style.transform = `translateX(calc(-50% + ${x}px)) translateY(${y + 26}px) rotate(${rot}deg)`;
+    c.classList.toggle('lifted', hovered && !S.busy && !armed);
+    c.style.transform = `translateX(calc(-50% + ${armed ? x * 0.4 : x}px)) translateY(${y + 26}px) rotate(${armed ? rot * 0.5 : rot}deg)`;
     c.style.zIndex = hovered || armed ? 40 : 20 + i;
   });
   updatePreviews();
@@ -1341,27 +1367,64 @@ function tweenNum(node, from, to, ms = 640) {
 function rigCombatants() {
   const ce = S.ce, cb = S.cb;
   ce.rig = [];
-  const add = (root, art, glow, isHero, idx) => {
+  const add = (root, art, glow, isHero, idx, kind, hue = 0) => {
     const svg = $('svg', art);
-    if (!svg) return;
+    const sprite = $('.enemy-sprite', art) || art;
+    const raster = $('.raster-art', sprite);
+    if (!svg && !raster) return;
     const seed = Math.random() * 100;
-    // seeded idle: no two creatures breathe alike
-    const br = $('.breathe', svg);
-    if (br) {
-      br.style.animationDuration = `${(2.5 + (seed % 1.9)).toFixed(2)}s`;
-      br.style.animationDelay = `${(-(seed % 3.1)).toFixed(2)}s`;
-      br.style.setProperty('--brY', (1.022 + (seed % 0.024)).toFixed(3));
-      br.style.setProperty('--sw', `${(((seed * 7) % 1.7) - 0.85).toFixed(2)}deg`);
+    if (svg) {
+      const br = $('.breathe', svg);
+      if (br) {
+        br.style.animationDuration = `${(2.5 + (seed % 1.9)).toFixed(2)}s`;
+        br.style.animationDelay = `${(-(seed % 3.1)).toFixed(2)}s`;
+        br.style.setProperty('--brY', (1.022 + (seed % 0.024)).toFixed(3));
+        br.style.setProperty('--sw', `${(((seed * 7) % 1.7) - 0.85).toFixed(2)}deg`);
+      }
+      $$('.hover-float', svg).forEach((h) => (h.style.animationDelay = `${(-(seed % 2.7)).toFixed(2)}s`));
+    } else if (kind) {
+      sprite.classList.add(`idle-${kind}`);
+      sprite.style.animationDelay = `${(-(seed % 2.8)).toFixed(2)}s`;
+      if (kind === 'wisp' || kind === 'plant') {
+        const motes = el('div', 'idle-motes');
+        motes.style.setProperty('--mote', `hsla(${hue},85%,62%,0.6)`);
+        sprite.appendChild(motes);
+      }
     }
-    $$('.hover-float', svg).forEach((h) => (h.style.animationDelay = `${(-(seed % 2.7)).toFixed(2)}s`));
-    // stained glass casts its light: the creature's color pooled on the ground
     const pool = el('div', 'lightpool');
     pool.style.background = `radial-gradient(ellipse at 50% 50%, ${glow}, transparent 72%)`;
     art.appendChild(pool);
-    ce.rig.push({ root, art, svg, eyes: $$('.eye', svg), fire: $('.innerfire', svg), pool, seed, isHero, idx, dx: 0, dy: 0 });
+    ce.rig.push({
+      root, art, sprite, svg, eyes: svg ? $$('.eye', svg) : [], fire: svg ? $('.innerfire', svg) : null,
+      pool, seed, isHero, idx, dx: 0, dy: 0,
+    });
   };
-  cb.enemies.forEach((en, i) => add(ce.enemies[i].root, ce.enemies[i].art, `hsla(${ENEMIES[en.key].art.hue},90%,66%,.72)`, false, i));
-  add(ce.hero, ce.hero, 'rgba(127,212,255,.62)', true, 0);
+  cb.enemies.forEach((en, i) => {
+    const a = ENEMIES[en.key].art;
+    add(ce.enemies[i].root, ce.enemies[i].art, `hsla(${a.hue},90%,66%,.72)`, false, i, a.kind, a.hue);
+  });
+  add(ce.hero, ce.hero, 'rgba(127,212,255,.62)', true, 0, 'humanoid', 0);
+}
+function meshBindCombatants() {
+  if (!meshEnabled()) return;
+  const ce = S.ce, cb = S.cb;
+  if (!ce || !cb) return;
+  const entries = [];
+  const heroUrl = assetUrl('heroes', ASPECTS[S.run.aspect].id);
+  if (heroUrl && ce.hero) entries.push({ el: ce.hero, url: heroUrl, kind: 'humanoid', flip: true });
+  cb.enemies.forEach((en, i) => {
+    const url = assetUrl('enemies', en.key);
+    const art = ce.enemies[i]?.art;
+    const sprite = art && ($('.enemy-sprite', art) || art);
+    if (url && sprite) entries.push({ el: sprite, url, kind: ENEMIES[en.key].art.kind });
+  });
+  meshBind(entries);
+}
+function scheduleMeshBind() {
+  requestAnimationFrame(() => requestAnimationFrame(meshBindCombatants));
+}
+function meshBindTitle() {
+  meshClear(); // title stays static raster — #mesh sits above #screen, so warp planes cover the logo
 }
 function rigTick(t) {
   requestAnimationFrame(rigTick);
@@ -1875,7 +1938,7 @@ function renderReward({ kind, rewards }) {
   });
   if (rewards.potion) {
     const p = POTIONS[rewards.potion];
-    addRow(potionSvg(p.tone), `${p.name}`, () => {
+    addRow(rasterOr('potions', rewards.potion, potionSvg(p.tone)), `${p.name}`, () => {
       if (!E.gainPotion(run, rewards.potion)) {
         V.floatText(innerWidth / 2, innerHeight / 2, 'Potion slots full!', 'notice');
         return false;
@@ -1979,7 +2042,7 @@ function renderRest() {
   const canUp = run.player.deck.some((c) => !c.up && CARDS[c.id].up);
   screenEl().innerHTML = `<div class="center-panel screen-enter"><div class="panel">
     <div class="ov-title">REST SITE</div>
-    <div class="art-lg">${campfireSvg()}</div>
+    <div class="art-lg">${rasterOr('props', 'campfire', campfireSvg())}</div>
     <div class="ov-sub">The fire crackles. For a moment, the Spire is quiet.</div>
     <div class="big-choices">
       <button class="btn" data-a="rest">${iconSvg('flame', 18)} Rest <span style="font-size:13px;opacity:.8">— heal ${Math.round(run.player.maxHp * E.restHealFrac(run))} HP</span></button>
@@ -2020,13 +2083,13 @@ function renderTreasure() {
   const run = S.run;
   screenEl().innerHTML = `<div class="center-panel screen-enter"><div class="panel">
     <div class="ov-title">TREASURE</div>
-    <div class="art-lg" style="cursor:pointer" data-a="open">${chestSvg(false)}</div>
+    <div class="art-lg" style="cursor:pointer" data-a="open">${rasterOr('props', 'chest', chestSvg(false))}</div>
     <div class="ov-sub">A heavy chest, banded in gold. Open it?</div>
     <div class="big-choices"><button class="btn" data-a="open">Open the Chest</button></div>
   </div></div>`;
   const open = () => {
     const relicId = E.randomRelic(run, { common: 0.55, uncommon: 0.35, rare: 0.1 });
-    $('.art-lg').innerHTML = chestSvg(true);
+    $('.art-lg').innerHTML = rasterOr('props', 'chest-open', chestSvg(true));
     sfx.relic();
     V.flash('#ffe9ac', 0.2, 0.5);
     V.burst(innerWidth / 2, innerHeight / 2, { color: '#ffd97a', n: 36, speed: 380, grav: 160 });
@@ -2060,7 +2123,7 @@ function renderShop() {
   const sc = screenEl();
   sc.innerHTML = `<div class="center-panel screen-enter"><div class="panel ov-panel" style="width:min(980px,96vw)">
     <div style="display:flex;align-items:center;justify-content:center;gap:18px">
-      <div style="width:130px">${merchantSvg()}</div>
+      <div style="width:130px">${rasterOr('props', 'merchant', merchantSvg())}</div>
       <div><div class="ov-title" style="text-align:left">THE MERCHANT</div>
       <div class="ov-sub" style="text-align:left;margin:0">"Gold for glory, stranger. Everything's fair-priced — for the doomed."</div></div>
     </div>
@@ -2110,7 +2173,7 @@ function renderShop() {
     for (const it of st.potions) {
       const p = POTIONS[it.id];
       const wrap = el('div', `shop-item ${it.sold ? 'sold' : ''} ${gold() < it.price ? 'cant' : ''}`);
-      const b = el('button', 'shop-relic', `<span style="width:34px;height:44px">${potionSvg(p.tone)}</span><b>${p.name}</b>${p.text}`);
+      const b = el('button', 'shop-relic', `<span style="width:34px;height:44px">${rasterOr('potions', it.id, potionSvg(p.tone))}</span><b>${p.name}</b>${p.text}`);
       b.onclick = () => {
         if (it.sold || gold() < it.price) return sfx.debuff();
         if (!E.gainPotion(run, it.id)) { V.floatText(innerWidth / 2, innerHeight / 2, 'Potion slots full!', 'notice'); return; }
@@ -2156,7 +2219,7 @@ function renderEvent(eventId) {
   const sc = screenEl();
   sc.innerHTML = `<div class="center-panel screen-enter"><div class="panel event-panel">
     <div class="ov-title">${ev.name.toUpperCase()}</div>
-    <div class="event-art">${eventArtSvg(ev.glyph, ev.hue)}</div>
+    <div class="event-art">${rasterOr('events', eventId, eventArtSvg(ev.glyph, ev.hue))}</div>
     <div class="event-text">${ev.text}</div>
     <div class="event-log"></div>
     <div class="event-choices"></div>
@@ -2306,8 +2369,33 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
   showUnlockToasts(newUnlocks);
 }
 
+// ------------------------------------------------------------ dev asset gallery (?gallery=1)
+// contact sheet of every visual id: raster where generated, SVG fallback otherwise. QA gate.
+function renderGallery() {
+  const cats = {
+    heroes: ASPECTS.map((a, i) => [a.id, () => heroSvg(i)]),
+    enemies: Object.entries(ENEMIES).map(([k, d]) => [k, () => enemySvg(d.art)]),
+    cards: Object.entries(CARDS).map(([k, d]) => [k, () => cardArtSvg(k, d.type)]),
+    potions: Object.entries(POTIONS).map(([k, p]) => [k, () => potionSvg(p.tone)]),
+    props: [['campfire', campfireSvg], ['chest', () => chestSvg(false)], ['chest-open', () => chestSvg(true)], ['merchant', merchantSvg]],
+    events: Object.entries(EVENTS).map(([k, ev]) => [k, () => eventArtSvg(ev.glyph, ev.hue)]),
+    title: [['banner', () => '<div class="title-banner-ph">banner</div>']],
+  };
+  screenEl().className = 'gallery-mode';
+  screenEl().innerHTML = Object.entries(cats).map(([cat, items]) => {
+    const done = items.filter(([id]) => assetUrl(cat, id)).length;
+    return `<h2 class="g-head">${cat} — ${done}/${items.length} generated</h2>
+      <div class="gallery">${items.map(([id, svg]) => {
+        const u = assetUrl(cat, id);
+        return `<div class="g-cell ${u ? 'g-png' : 'g-svg'}"><div class="g-art">${u ? `<img class="raster-art" src="${u}" alt="">` : svg()}</div>
+          <div class="g-label">${id}<span class="g-badge">${u ? 'PNG' : 'SVG'}</span></div></div>`;
+      }).join('')}</div>`;
+  }).join('');
+}
+
 // ------------------------------------------------------------ boot
 export function initUI() {
+  if (new URLSearchParams(location.search).has('gallery')) return renderGallery();
   initTooltip();
   document.addEventListener('pointerdown', () => unlock(), { once: true });
   document.addEventListener('contextmenu', (e) => { if (S.targeting) { e.preventDefault(); clearTargeting(); } });
@@ -2322,7 +2410,7 @@ export function initUI() {
   $('#overlay').addEventListener('pointerdown', (e) => {
     if (e.target === $('#overlay') && $('#overlay')._closable) closeOverlay();
   });
-  window.spirebound = { S, E, startCombatUI, show }; // ponytail: console debug hook, harmless in prod
+  window.spirebound = { S, E, startCombatUI, show, meshEnabled, meshDebug }; // ponytail: console debug hook, harmless in prod
   requestAnimationFrame(rigTick); // living-glass rig: no-op outside combat
   show('title');
 }

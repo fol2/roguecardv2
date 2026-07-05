@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node test/test_engine.js"
+    "test": "node test/test_engine.js",
+    "spike:mesh": "node tools/spike-serve.mjs",
+    "gen:batch": "node tools/gen-batch.mjs",
+    "gen:icons": "tools/gen-icons.sh"
   },
   "dependencies": {
     "@fontsource/alegreya": "^5.2.8",

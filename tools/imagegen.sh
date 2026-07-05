@@ -12,10 +12,11 @@ out="${1:?usage: imagegen.sh <output-path> \"<prompt>\" [reference.png ...]}"
 prompt="${2:?usage: imagegen.sh <output-path> \"<prompt>\" [reference.png ...]}"
 shift 2 || true
 
-# Collect any reference images as absolute paths for `-i`.
+# Collect any reference images as absolute paths. NB: `-i` is variadic and
+# would swallow the prompt argument, so use the `--image=FILE` form instead.
 refs=()
 for r in "$@"; do
-  refs+=( -i "$(cd "$(dirname "$r")" && pwd)/$(basename "$r")" )
+  refs+=( "--image=$(cd "$(dirname "$r")" && pwd)/$(basename "$r")" )
 done
 
 # workspace-write only permits writes under the cwd, so run codex from the

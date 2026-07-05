@@ -7,8 +7,10 @@ import '@fontsource/alegreya/700.css';
 import './styles.css';
 import { initScene } from './scene3d.js';
 import { initVfx } from './vfx.js';
+import { initMesh } from './mesh.js';
 import { initUI } from './ui.js';
 
 initScene();
 initVfx();
+initMesh();
 initUI();
