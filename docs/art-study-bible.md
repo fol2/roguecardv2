@@ -211,6 +211,24 @@ The trade-off is that events become closer to staged object/figure clusters and
 less like full environment paintings. That is acceptable if the event still
 communicates the choice tension at panel size.
 
+Round 4 approved direction: the main subjects were finally strong enough, but
+events still need backgrounds and narrative. The approved narrative-background
+pitch artifacts live in `docs/artifacts/event-taxonomy-prototypes/`; the
+scratch working set lives in
+`scratch/style-tests/event-taxonomy-prototypes-20260706-round4/`. For event art,
+do not choose between "subject" and "background". Use a layered theatre scene:
+
+- foreground subject with the strongest black contour and highest contrast
+- one midground story prop that clarifies the event choice
+- two or three huge background shapes that identify the place
+- background line count lower than the subject line count
+- background contrast lower than the subject contrast
+- broad arches, furnaces, pillars, alcoves, banners, and light planes instead
+  of detailed window lattice or floor grids
+
+The background must deepen the event read without becoming the read. If the eye
+sees environment detail before the decision object, the prompt is too busy.
+
 ## Event Art Bible
 
 Events are the next most important art surface after combat because they set
