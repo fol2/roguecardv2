@@ -1,10 +1,23 @@
 // Procedural SVG art — plus the resolver for generated raster assets.
-// src/assets/<category>/<id>.png (ids = data.js internal keys); a missing file
-// resolves to null and callers fall back to the procedural SVG below.
-const ASSET_URLS = import.meta.glob('./assets/*/*.png', { eager: true, query: '?url', import: 'default' });
-export const assetUrl = (category, id) => ASSET_URLS[`./assets/${category}/${id}.png`] ?? null;
-export const assetList = (category) =>
-  Object.entries(ASSET_URLS).filter(([k]) => k.startsWith(`./assets/${category}/`)).map(([, u]) => u);
+// Asset folders mirror <root>/<category>/<id>.png (ids = data.js internal keys);
+// a missing file resolves to null and callers fall back to the SVG below.
+const ASSET_URLS = import.meta.glob('./assets*/*/*.png', { eager: true, query: '?url', import: 'default' });
+export const ASSET_SETS = {
+  live: { label: 'Live', root: 'assets' },
+  'readable-baseline': { label: 'Readable baseline', root: 'assets-readable-baseline' },
+};
+const DEFAULT_ASSET_SET = 'live';
+const assetSet = (set = DEFAULT_ASSET_SET) => ASSET_SETS[set] ?? ASSET_SETS[DEFAULT_ASSET_SET];
+export const assetSetIds = () => Object.keys(ASSET_SETS);
+export const assetSetLabel = (set = DEFAULT_ASSET_SET) => assetSet(set).label;
+export const assetUrl = (category, id, set = DEFAULT_ASSET_SET) => {
+  const { root } = assetSet(set);
+  return ASSET_URLS[`./${root}/${category}/${id}.png`] ?? null;
+};
+export const assetList = (category, set = DEFAULT_ASSET_SET) => {
+  const { root } = assetSet(set);
+  return Object.entries(ASSET_URLS).filter(([k]) => k.startsWith(`./${root}/${category}/`)).map(([, u]) => u);
+};
 
 let uidc = 0;
 const uid = () => `g${++uidc}`;

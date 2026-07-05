@@ -1,7 +1,7 @@
 // SPIREBOUND UI — screens, combat playback, interactions.
 import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
-import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, assetUrl, assetList } from './art.js';
+import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel } from './art.js';
 import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
@@ -2372,6 +2372,15 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
 // ------------------------------------------------------------ dev asset gallery (?gallery=1)
 // contact sheet of every visual id: raster where generated, SVG fallback otherwise. QA gate.
 function renderGallery() {
+  const params = new URLSearchParams(location.search);
+  const requestedSet = params.get('set') || params.get('assetSet') || 'live';
+  const gallerySet = assetSetIds().includes(requestedSet) ? requestedSet : 'live';
+  const setLinks = assetSetIds().map((set) => {
+    const q = new URLSearchParams(location.search);
+    q.set('gallery', '1');
+    q.set('set', set);
+    return `<a class="${set === gallerySet ? 'active' : ''}" href="?${q.toString()}">${assetSetLabel(set)}</a>`;
+  }).join('');
   const cats = {
     heroes: ASPECTS.map((a, i) => [a.id, () => heroSvg(i)]),
     enemies: Object.entries(ENEMIES).map(([k, d]) => [k, () => enemySvg(d.art)]),
@@ -2382,11 +2391,14 @@ function renderGallery() {
     title: [['banner', () => '<div class="title-banner-ph">banner</div>']],
   };
   screenEl().className = 'gallery-mode';
-  screenEl().innerHTML = Object.entries(cats).map(([cat, items]) => {
-    const done = items.filter(([id]) => assetUrl(cat, id)).length;
+  screenEl().innerHTML = `<div class="g-toolbar">
+    <div><b>Asset set:</b> ${assetSetLabel(gallerySet)}</div>
+    <nav>${setLinks}</nav>
+  </div>` + Object.entries(cats).map(([cat, items]) => {
+    const done = items.filter(([id]) => assetUrl(cat, id, gallerySet)).length;
     return `<h2 class="g-head">${cat} — ${done}/${items.length} generated</h2>
       <div class="gallery">${items.map(([id, svg]) => {
-        const u = assetUrl(cat, id);
+        const u = assetUrl(cat, id, gallerySet);
         return `<div class="g-cell ${u ? 'g-png' : 'g-svg'}"><div class="g-art">${u ? `<img class="raster-art" src="${u}" alt="">` : svg()}</div>
           <div class="g-label">${id}<span class="g-badge">${u ? 'PNG' : 'SVG'}</span></div></div>`;
       }).join('')}</div>`;

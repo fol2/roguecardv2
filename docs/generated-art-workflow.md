@@ -15,7 +15,7 @@ Current baseline style test:
 ## Pipeline
 
 ```text
-gpt-image-2 -> Nano Banana Pro -> alpha cutout -> gallery review
+gpt-image-2 -> Nano Banana Pro -> alpha cutout -> outer rim cleanup -> gallery review
 ```
 
 Rules:
@@ -26,9 +26,15 @@ Rules:
 - Step 2 uses Nano Banana Pro through
   `/Users/jamesto/.codex/skills/nanobanana/scripts/nanobanana.py`.
 - The Nano Banana prompt is fixed exactly as written below.
+- Every generated asset attempt must record the exact built-in image prompt,
+  generated image id, source path, selected alpha path, any rim-cleaned path,
+  and review outcome in the scratch set's `prompt-ledger.md` before another
+  variation is generated.
 - Keep both alpha outputs for final art decisions: the Step 1 `gpt-image-2`
-  alpha and the Step 2 Nano Banana alpha. Sometimes the raw gpt-image-2 result
-  has a cleaner silhouette, while Nano Banana has better detail.
+  source alpha after outer-rim cleanup and the Step 2 Nano Banana alpha. The
+  council may select either per asset. The current readable baseline uses the
+  Nano Banana version for Duskblade and the GPT-clean version for Ashwarden and
+  the approved enemies.
 - Final project-bound assets must be copied into the workspace. Do not leave a
   referenced asset only under `~/.codex/generated_images/`.
 
@@ -64,16 +70,25 @@ Primary request: <subject>
 Readability priority: silhouette first, pose second, face/weapon/core symbol
 third, colour fourth, texture last. The subject must still be recognisable as a
 black shadow with all internal details removed.
+Enemy-vs-hero read, for enemies only: humanoid monsters such as goblin, troll,
+orc, cultist, or imp silhouettes are allowed, but they must read as enemies:
+crooked, low, feral, asymmetrical, or grubby. Avoid heroic upright stance, noble
+cloak, elegant armour, clean symmetry, knight/priest/warden silhouette, or
+protagonist framing.
 Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable
 black silhouette first; one iconic primary shape, weapon, or pose; chunky
 hand-inked outer contour; simplified exaggerated proportions; 3-5 large
 stained-glass colour masses only, with very few thick lead dividers; matte
 painterly brush texture; restrained cathedral motifs as broad shapes, not
-filigree; thumbnail-readable at 128px; dramatic and grave, not cute or comedic;
-no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour
-noise, no glossy 3D render, no generic fantasy.
+filigree; thumbnail-readable at 128px; dramatic and grave; for enemies, allow
+cute, funny, and interesting personality through proportions and expression
+while keeping the threat readable; no lacework, no micro-panels, no complex
+anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic
+fantasy.
 Composition/framing: <category rule>; single complete subject; generous padding;
-no cropped limbs; no action blur.
+no cropped limbs; no action blur. For character sprites, keep enough clean
+chroma-key margin that ears, weapons, smoke, horns, claws, tails, and silhouette
+points do not feel out of frame.
 Lighting/mood: sober gothic mood; single warm amber rim light defining the
 silhouette; soft restrained inner glow limited to 1-2 focal panes such as face,
 chest, weapon, or core symbol; high value contrast on the main read; no
@@ -168,13 +183,62 @@ Validation:
 - silhouette remains readable at gallery size
 - no ground, shadow, text, labels, watermark, or UI chrome
 
+## Step 4: Outer Rim Cleanup
+
+For gpt-image-2 source-alpha outputs, run the warm outer-rim cleanup before
+putting the asset into a review set. gpt-image-2 often adds a thin amber/yellow
+outline around the whole alpha silhouette. That outline helps the first read, but
+it looks like an unwanted sticker stroke once the asset is in the game.
+
+Use `tools/strip-alpha-rim.py` on the alpha PNG:
+
+```bash
+python3 tools/strip-alpha-rim.py \
+  --input <source-alpha.png> \
+  --out <source-alpha-no-yellow-outline.png> \
+  --radius 6 \
+  --mode darken
+```
+
+The script only checks the alpha edge band and only mutes warm yellow/orange
+pixels there, so internal eyes, fire, sap, lanterns, and weapon glow stay intact.
+The default `darken` mode changes the rim to the normal dark lead colour instead
+of shrinking the silhouette. Use `--mode transparent` only for a true trim pass
+when a dark lead edge is still visibly too thick.
+
+Additional validation:
+
+- exterior yellow/amber sticker outline is gone or muted to dark lead
+- internal warm focal points remain unchanged
+- all four corners remain transparent
+- silhouette still reads cleanly at gallery size
+
 ## Review Gate
 
 Put workflow experiments under `scratch/style-tests/` until accepted.
 
-Only promote accepted assets into `src/assets/<category>/<id>.png`, where `<id>`
-matches the internal key in `src/data.js`. After promotion, check
-`http://localhost:5174/?gallery=1` or the active dev-server gallery URL.
+Park accepted-but-incomplete sets under a same-shape inactive folder such as
+`src/assets-readable-baseline/<category>/<id>.png`. Normal gameplay selects the
+`live` set from `src/assets`, while the dev gallery can inspect registered
+parked sets. When the whole set has passed review, activate it with a folder
+swap:
+
+```bash
+mv src/assets src/assets-previous
+mv src/assets-readable-baseline src/assets
+npm run build
+```
+
+Only promote or activate assets whose `<id>` matches the internal key in
+`src/data.js`. After activation, check `http://localhost:5174/?gallery=1` or
+the active dev-server gallery URL.
+
+The gallery can inspect parked sets before activation. Add the set to
+`ASSET_SETS` in `src/art.js`, then open:
+
+```text
+http://localhost:5174/?gallery=1&set=readable-baseline
+```
 
 ## Workflow Test Log
 

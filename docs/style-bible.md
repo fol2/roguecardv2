@@ -27,12 +27,17 @@ internal details removed. Avoid lacework, micro-panels, complex anatomy
 segmentation, ornate armour noise, scattered sparkles, noisy bloom, and glossy
 3D rendering.
 
+Enemy characters should still have personality. Keep them serious inside the
+world, but let them be cute, funny, or interesting through compact proportions,
+expressive faces, and one memorable threat shape. Do not push them into heroic
+stance, elegant armour, noble cloak, or protagonist framing.
+
 ## Per-category composition
 
 | Category | Composition | Max size (px, `sips -Z`) |
 |---|---|---|
 | `heroes` | full body, calm idle pose, **facing slightly right**, feet grounded, ~10% margin | 1024 |
-| `enemies` | full body, menacing idle, **facing slightly left** (toward the hero), ~10% margin | 1024 |
+| `enemies` | full body, menacing idle, **facing slightly left** (toward the hero), ~12-18% margin | 1024 |
 | `cards` | single centred emblem or moment, square crop, dark vignette edges | 512 |
 | `props` | single centred object (chest / campfire / merchant stall) | 512 |
 | `potions` | single centred phial, tone colour dominant | 256 |
@@ -43,11 +48,24 @@ Facing rule exists because combat lays hero left, enemies right. The master ref
 faces left — mirror heroes at generation time ("facing slightly right") rather
 than flipping the file, so lantern light stays consistent.
 
+Enemy art can be humanoid-monster, but should not read like a hero. Goblin,
+troll, orc, cultist, imp, and beast forms are allowed when they use enemy shape
+language: crooked posture, low centre of gravity, feral or grubby proportions,
+asymmetry, and one readable threat shape. Avoid noble cloaks, elegant armour,
+upright protagonist poses, clean symmetry, and knight/priest/warden silhouettes.
+
 ## Naming
 
 `src/assets/<category>/<id>.png` — `<id>` is the **internal key** from
 `src/data.js` (`ENEMIES` key, `ASPECTS[i].id`, card id, potion id, event id).
 Never rename keys for art. Props use: `campfire`, `chest`, `chest-open`, `merchant`.
+
+Inactive candidate sets can mirror the same structure under a folder such as
+`src/assets-readable-baseline/`. Normal gameplay continues to select the `live`
+set from `src/assets`; only use folder swaps once the candidate set is complete.
+
+The dev gallery can inspect candidate sets with `?gallery=1&set=<asset-set-id>`;
+registered set ids live in `ASSET_SETS` in `src/art.js`.
 
 ## Animation note
 

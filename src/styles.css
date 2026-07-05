@@ -1251,6 +1251,10 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .raster-art { width: 100%; height: 100%; object-fit: contain; display: block; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45)); }
 .hero-flip { transform: scaleX(-1); }
 .mesh-live > .raster-art { opacity: 0; }
+.g-toolbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 16px; background: rgba(8, 10, 18, 0.94); border-bottom: 1px solid #222a44; color: #cfd6ee; }
+.g-toolbar nav { display: flex; flex-wrap: wrap; gap: 8px; }
+.g-toolbar a { color: #9fb4ff; text-decoration: none; border: 1px solid #33406a; border-radius: 6px; padding: 5px 9px; }
+.g-toolbar a.active { color: #10152a; background: #f0c56a; border-color: #f0c56a; }
 .g-head { font-family: Cinzel, serif; color: #cfd6ee; margin: 22px 16px 10px; font-size: 18px; }
 .gallery { display: flex; flex-wrap: wrap; gap: 10px; padding: 0 16px; }
 .g-cell { width: 128px; background: #10152a; border: 1px solid #222a44; border-radius: 8px; padding: 8px; }

@@ -1,5 +1,9 @@
 # Design Council Prompt
 
+This file contains the original two-subject baseline prompt for Duskblade and
+Duskfang. The per-asset prompt history for later approved and rejected attempts
+is now tracked in `prompt-ledger.md`.
+
 ## Shared Readability Rule
 
 Readability priority: silhouette first, pose second, face/weapon/core symbol third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
@@ -9,7 +13,7 @@ Readability priority: silhouette first, pose second, face/weapon/core symbol thi
 Use case: stylized-concept
 Asset type: Spirebound <hero|enemy> alpha-ready source
 Primary request: <subject>
-Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable black silhouette first; one iconic primary shape, weapon, or pose; chunky hand-inked outer contour; simplified exaggerated proportions; 3-5 large stained-glass colour masses only, with very few thick lead dividers; matte painterly brush texture; restrained cathedral motifs as broad shapes, not filigree; thumbnail-readable at 128px; dramatic and grave, not cute or comedic; no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic fantasy.
+Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable black silhouette first; one iconic primary shape, weapon, or pose; chunky hand-inked outer contour; simplified exaggerated proportions; 3-5 large stained-glass colour masses only, with very few thick lead dividers; matte painterly brush texture; restrained cathedral motifs as broad shapes, not filigree; thumbnail-readable at 128px; dramatic and grave; for enemies, allow cute, funny, and interesting personality through proportions and expression while keeping the threat readable; no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic fantasy.
 Composition/framing: <category rule>; single complete subject; generous padding; no cropped limbs; no action blur.
 Lighting/mood: sober gothic mood; single warm amber rim light defining the silhouette; soft restrained inner glow limited to 1-2 focal panes such as face, chest, weapon, or core symbol; high value contrast on the main read; no scattered sparkles, no multi-source glow, no noisy bloom, no haze touching the silhouette.
 Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
