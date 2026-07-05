@@ -21,6 +21,9 @@ Council-approved baseline assets:
 - `enemies/drownedOne.png`
 - `enemies/voltEel.png`
 - `enemies/mirelurker.png`
+- `enemies/tidecaller.png`
+- `enemies/shellback.png`
+- `enemies/deepmaw.png`
 
 Asset source decisions:
 
@@ -35,6 +38,9 @@ Asset source decisions:
   `enemies/mirelurker.png` use the approved Act 2 v2 gpt-image-2 framed
   candidates. Act 2 v1 remains available as rejected comparison evidence in
   `assets-readable-act2`.
+- `enemies/tidecaller.png`, `enemies/shellback.png`, and
+  `enemies/deepmaw.png` use the approved Act 2 batch 2 gpt-image-2 framed
+  candidates. Nano Banana Pro comparisons remain in scratch only.
 
 These are runtime-ready PNGs normalised to a maximum edge of 1024px with alpha
 preserved. Source and review artefacts remain in

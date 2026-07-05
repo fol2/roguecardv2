@@ -42,6 +42,9 @@ Selection rule:
 - Act 2 Batch 1 approved additions are Drowned One v2, Voltaic Eel v2, and
   Mirelurker v2. These were promoted as framed GPT-clean candidates into
   `src/assets-readable-baseline/`.
+- Act 2 Batch 2 approved additions are Tidecaller, Shellback, and Deepmaw.
+  These were promoted as framed GPT-clean candidates into
+  `src/assets-readable-baseline/`.
 - Batch-2 rejected comparison sets are kept in `src/assets-readable-next/` and
   `src/assets-readable-next-v2/`; scratch folders keep all source, alpha,
   Nano Banana, and prompt evidence.
@@ -49,8 +52,136 @@ Selection rule:
   v2 approved candidates are also kept in `src/assets-readable-act2-v2/`.
 
 Earlier temporary runtime review folders `src/assets-readable-baseline-v4/` and
-`src/assets-readable-gpt-clean/` were removed after promotion. Scratch source
-folders remain as prompt and generation evidence.
+`src/assets-readable-gpt-clean/` were removed after promotion. The temporary
+gallery folder `src/assets-readable-act2-batch2/` was also removed after Act 2
+Batch 2 promotion so duplicate assets do not remain in gallery/build output.
+Scratch source folders remain as prompt and generation evidence.
+
+## Act 2 Batch 2 Approved: Tidecaller
+
+Status: approved. Promoted to
+`src/assets-readable-baseline/enemies/tidecaller.png`. The selected file is the
+gpt-image-2 source alpha after chroma removal, warm outer-rim cleanup, and
+deterministic 1024px transparent framing. Nano Banana Pro evidence was good but
+is retained for comparison only because council approved the GPT version.
+
+Generated image id:
+`ig_009d43f3738ece25016a4ac7e6578881919a6899634ffd70d9`
+
+Source:
+`enemy-tidecaller/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-tidecaller/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-tidecaller/04-no-yellow-outline.png`
+
+Selected review candidate:
+`enemy-tidecaller/05-gpt-framed.png`
+
+Nano Banana evidence:
+`enemy-tidecaller/02-nanobanana-pro-cleaned.jpg`
+`enemy-tidecaller/03-alpha.png`
+`enemy-tidecaller/03-alpha-no-yellow-outline.png`
+`enemy-tidecaller/06-nanobanana-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 enemy alpha-ready source
+Primary request: Tidecaller, a funny but threatening tide cultist enemy made of black lead, sea-cyan glass, storm-blue panes, and a small warm amber shell-lantern glow. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: a squat wobbling sea-priest wrapped in a huge spiral conch hood, one glowing eye peeking from the shell, a tiny robe body, tiny puddle feet, and an oversized crooked tide-staff shaped like a wave hook. It should feel like a bossy little beach prophet ordering waves around, weird and interesting but still dangerous; enemy token, not heroic.
+Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable black silhouette first; one iconic primary shape; chunky hand-inked outer contour; simplified exaggerated proportions; 3-5 large stained-glass colour masses only, with very few thick lead dividers; matte painterly brush texture; restrained cathedral motifs as broad shapes, not filigree; thumbnail-readable at 128px; dramatic, fun, and grave, not cute plush, not comedic mascot; no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic fantasy.
+Composition/framing: single complete subject, centred, generous padding on all sides, no cropped limbs or staff; normal enemy scale; readable silhouette: huge spiral conch hood, one eye, crooked wave-hook staff, tiny robe body, puddle feet; no action blur.
+Lighting/mood: sober gothic mood; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the eye and shell-lantern pane; high value contrast on the main read; no scattered sparkles, no multi-source glow, no noisy bloom, no haze touching the silhouette.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Color palette: sea cyan, storm blue, black lead, small amber shell-lantern, pale foam highlights; do not use #ff00ff in the subject.
+Readability priority: silhouette first, pose second, face/staff/core symbol third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; no heroic upright champion pose; no human-like handsome face; no extra characters.
+```
+
+## Act 2 Batch 2 Approved: Shellback
+
+Status: approved. Promoted to
+`src/assets-readable-baseline/enemies/shellback.png`. The selected file is the
+gpt-image-2 source alpha after chroma removal, warm outer-rim cleanup, and
+deterministic 1024px transparent framing. Nano Banana Pro evidence was good but
+is retained for comparison only because council approved the GPT version.
+
+Generated image id:
+`ig_009d43f3738ece25016a4ac82635048191bc7c6e38f3bb8540`
+
+Source:
+`enemy-shellback/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-shellback/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-shellback/04-no-yellow-outline.png`
+
+Selected review candidate:
+`enemy-shellback/05-gpt-framed.png`
+
+Nano Banana evidence:
+`enemy-shellback/02-nanobanana-pro-cleaned.jpg`
+`enemy-shellback/03-alpha.png`
+`enemy-shellback/03-alpha-no-yellow-outline.png`
+`enemy-shellback/06-nanobanana-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 enemy alpha-ready source
+Primary request: Shellback, a funny but threatening armoured crab-turtle enemy made of black lead, barnacle ivory glass, rust-red shell panes, and teal water glow. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: a huge domed fortress shell almost bigger than the body, tiny furious crab eyes under the shell rim, one oversized snapper claw held forward, one tiny shield-like claw tucked in, and squat sideways legs. It should feel like a grumpy old harbour bunker that snaps at ankles, cute and interesting but still durable and dangerous; enemy token, not heroic.
+Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable black silhouette first; one iconic primary shape; chunky hand-inked outer contour; simplified exaggerated proportions; 3-5 large stained-glass colour masses only, with very few thick lead dividers; matte painterly brush texture; restrained cathedral motifs as broad shapes, not filigree; thumbnail-readable at 128px; dramatic, fun, and grave, not cute plush, not comedic mascot; no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic fantasy.
+Composition/framing: single complete subject, centred, generous padding on all sides, no cropped limbs or claws; normal enemy scale but sturdier than the first Act 2 enemies; readable silhouette: huge domed shell, tiny angry eyes, one giant claw, short legs; no action blur.
+Lighting/mood: sober gothic mood; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the eyes and one teal shell-core pane; high value contrast on the main read; no scattered sparkles, no multi-source glow, no noisy bloom, no haze touching the silhouette.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Color palette: rust red shell, barnacle ivory, black lead, teal water glow, dull coral accents; do not use #ff00ff in the subject.
+Readability priority: silhouette first, pose second, face/claw/shell third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; no heroic upright champion pose; no human anatomy; no extra characters.
+```
+
+## Act 2 Batch 2 Approved: Deepmaw
+
+Status: approved. Promoted to
+`src/assets-readable-baseline/enemies/deepmaw.png`. The selected file is the
+gpt-image-2 source alpha after chroma removal, warm outer-rim cleanup, and
+deterministic 1024px transparent framing. Nano Banana Pro evidence was good but
+is retained for comparison only because council approved the GPT version.
+
+Generated image id:
+`ig_009d43f3738ece25016a4ac865b7e88191b3b63aed96751300`
+
+Source:
+`enemy-deepmaw/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-deepmaw/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-deepmaw/04-no-yellow-outline.png`
+
+Selected review candidate:
+`enemy-deepmaw/05-gpt-framed.png`
+
+Nano Banana evidence:
+`enemy-deepmaw/02-nanobanana-pro-cleaned.jpg`
+`enemy-deepmaw/03-alpha.png`
+`enemy-deepmaw/03-alpha-no-yellow-outline.png`
+`enemy-deepmaw/06-nanobanana-framed.png`
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 2 enemy alpha-ready source
+Primary request: Deepmaw, a funny but threatening deep-sea maw monster made of black lead, abyss blue glass, sickly cyan lure glow, and dull bone tooth panes. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: a huge round open bucket-mouth as the whole body, tiny angry eyes above it, a dangling luminous lure on a bent stalk, stubby fins, and two ridiculous little feet. It should feel like a greedy deep-sea trap with a silly oversized appetite, cute and interesting but still dangerous; enemy token, not heroic.
+Style/medium: serious cartoon-gothic dark-fantasy game art; instantly readable black silhouette first; one iconic primary shape; chunky hand-inked outer contour; simplified exaggerated proportions; 3-5 large stained-glass colour masses only, with very few thick lead dividers; matte painterly brush texture; restrained cathedral motifs as broad shapes, not filigree; thumbnail-readable at 128px; dramatic, fun, and grave, not cute plush, not comedic mascot; no lacework, no micro-panels, no complex anatomy segmentation, no ornate armour noise, no glossy 3D render, no generic fantasy.
+Composition/framing: single complete subject, centred, generous padding on all sides, no cropped fins, feet, teeth, or lure; bigger normal enemy scale; readable silhouette: one huge round bucket mouth, bent lure stalk, tiny eyes, stubby fins, tiny feet; no action blur.
+Lighting/mood: sober gothic mood; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the cyan lure and deep mouth core; high value contrast on the main read; no scattered sparkles, no multi-source glow, no noisy bloom, no haze touching the silhouette.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
+Color palette: abyss blue, black lead, sickly cyan lure glow, dull bone teeth, small cold violet shadows; do not use #ff00ff in the subject.
+Readability priority: silhouette first, pose second, mouth/lure/eyes third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Constraints: the mouth must be a clean single dark oval with a thick rim, not a broken generation artifact; simple readable teeth only, not scattered detached teeth; no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; no heroic upright champion pose; no human anatomy; no extra characters.
+```
 
 ## Act 2 Batch 1 V2 Approved: Drowned One
 
