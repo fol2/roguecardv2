@@ -23,6 +23,29 @@ enemy-vs-hero, frame-discipline, and personality clauses. The model followed
 those clauses by changing rendering vocabulary and character trope, while the
 approved prompts kept the stained-glass game-token style as the main instruction.
 
+## Next Planning Note: Act 3
+
+Approved small theme direction: **The Cracked Astral Court**.
+
+Act 3 should not become generic void, space, or purple magic. The Obsidian
+Spire top reads as a broken royal observatory: judgement eyes, crown shards,
+orbit rings, star-fire, black stone, and theatrical end-times ceremony.
+
+Common faction characteristic:
+
+- every Act 3 enemy includes a broken orbit halo fragment
+- every Act 3 enemy includes one hot magenta judgement core
+- tiny tarnished-gold court accents are allowed, but only sparingly
+- the orbit fragment must adapt to the creature and support the silhouette; it
+  must not become a tiny stamped badge
+
+Carry forward the successful first-three-enemies prompt structure: funny but
+threatening, short subject description, one iconic primary read, explicit
+left-facing enemy pose, simple body-shape language, limited palette, and no
+heavy ban list beyond baseline noise controls.
+
+Detailed Act 3 direction is recorded in `docs/act3-theme.md`.
+
 ## Current Baseline Decision
 
 Status: approved baseline after council review.
@@ -83,6 +106,258 @@ Composition/framing: <normal/elite/boss> enemy full body, fully inside frame, fa
 Lighting/mood: sober gothic mood; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to 1-2 focal panes; high value contrast on the main read.
 Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only.
 Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #ff00ff in the subject.
+```
+
+## Act 3 Batch 1 v1 Review Contact Sheet
+
+Status: superseded by the v2 colour-lift pass for current gallery review. These
+v1 candidates remain as comparison evidence.
+
+Contact sheet:
+`act3-batch1-gpt-review-contact.png`
+
+Act 3 note: these prompts use a flat `#00ff00` chroma-key backdrop, not
+`#ff00ff`, because the shared Act 3 motif requires a hot magenta judgement
+core.
+
+## Act 3 Batch 1 v1: Void Wisp
+
+Status: superseded by the v2 colour-lift pass. Kept in scratch as comparison
+evidence.
+
+Generated image id:
+`ig_09e410fb6d91828d016a4adc44a218819183af98de7d304395`
+
+Source:
+`enemy-voidWisp/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-voidWisp/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-voidWisp/04-no-yellow-outline.png`
+
+Exact prompt:
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 3 normal enemy alpha-ready source
+Primary request: Void Wisp, a funny but threatening tiny runaway court candle star-flame ghost made of obsidian black lead, bruised violet glass, cold blue-white star panes, and one hot magenta judgement core. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: small teardrop flame silhouette, cracked broken orbit halo used as a crooked little candlestick cage, tiny suspicious face floating above the magenta belly core. It should feel like a nervous royal observatory candle that escaped court duty, funny in proportion but still a dangerous Act 3 enemy.
+Act 3 faction read: include one broken orbit halo fragment and one hot magenta judgement core, adapted to this creature's silhouette; add only tiny tarnished-gold court accents.
+Readability priority: silhouette first, pose second, flame-candle silhouette third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral/court motifs; thumbnail-readable at 128px; funny, dramatic, grave, and dangerous through bold proportions and expression.
+Composition/framing: normal enemy full body, fully inside frame, facing slightly left, generous padding, no cropped silhouette hooks, no action blur.
+Lighting/mood: sober astral-court gothic mood; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the hot magenta judgement core and one blue-white star pane; high value contrast on the main read.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #00ff00 in the subject.
+```
+
+Review note: strongest cute/readable result in this batch. The orbit motif is
+large enough to read, but the result is slightly more noble than the target
+"runaway candle" personality.
+
+## Act 3 Batch 1 v1: Obsidian Golem
+
+Status: superseded by the v2 colour-lift pass. Kept in scratch as comparison
+evidence.
+
+Generated image id:
+`ig_09e410fb6d91828d016a4adc72d4888191910448994b9e9850`
+
+Source:
+`enemy-obsidianGolem/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-obsidianGolem/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-obsidianGolem/04-no-yellow-outline.png`
+
+Exact prompt:
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 3 normal enemy alpha-ready source
+Primary request: Obsidian Golem, a funny but threatening squat palace brick monster made of obsidian black lead, bruised violet glass, cold blue-white star panes, and one hot magenta judgement core. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: heavy square block body with tiny stubborn legs, one cracked star-core in the chest, a broken orbit ring wedged through one shoulder like a ruined arch it forgot to remove. It should feel like an overworked royal observatory doorstop trying to be scary, funny in proportion but still a dangerous Act 3 enemy.
+Act 3 faction read: include one broken orbit halo fragment and one hot magenta judgement core, adapted to this creature's silhouette; add only tiny tarnished-gold court accents.
+Readability priority: silhouette first, pose second, squat block body third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral/court motifs; thumbnail-readable at 128px; funny, dramatic, grave, and dangerous through bold proportions and expression.
+Composition/framing: normal enemy full body, fully inside frame, facing slightly left, generous padding, no cropped silhouette hooks, no action blur.
+Lighting/mood: sober astral-court gothic mood; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the hot magenta judgement core and one blue-white star pane; high value contrast on the main read.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #00ff00 in the subject.
+```
+
+Review note: strongest silhouette and physical threat in this batch. It kept the
+tiny legs and orbit-arch hook, but the final pose is more front-facing and more
+architectural than the prompt target.
+
+## Act 3 Batch 1 v1: Star Cultist
+
+Status: superseded by the v2 colour-lift pass. Kept in scratch as comparison
+evidence.
+
+Generated image id:
+`ig_09e410fb6d91828d016a4adc9afdec8191a711a43e831618cc`
+
+Source:
+`enemy-starCultist/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-starCultist/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-starCultist/04-no-yellow-outline.png`
+
+Exact prompt:
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 3 normal enemy alpha-ready source
+Primary request: Star Cultist, a funny but threatening ridiculous little astrologer enemy made of obsidian black lead, bruised violet glass, cold blue-white star panes, and one hot magenta judgement core. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: tiny hunched robed body almost hidden behind an oversized cracked orbit star-chart disc, anxious glowing eyes, and a too-large pointer staff clutched like a nervous court clerk. It should feel like a panicked royal observatory accountant who accidentally summoned judgement, funny in proportion but still a dangerous Act 3 enemy.
+Act 3 faction read: include one broken orbit halo fragment and one hot magenta judgement core, adapted to this creature's silhouette; add only tiny tarnished-gold court accents.
+Readability priority: silhouette first, pose second, oversized orbit-chart disc third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral/court motifs; thumbnail-readable at 128px; funny, dramatic, grave, and dangerous through bold proportions and expression.
+Composition/framing: normal enemy full body, fully inside frame, facing slightly left, generous padding, no cropped silhouette hooks, no action blur.
+Lighting/mood: sober astral-court gothic mood; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the hot magenta judgement core and one blue-white star pane; high value contrast on the main read.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #00ff00 in the subject.
+```
+
+Review note: clearest Act 3 faction read because the orbit-chart disc dominates
+the silhouette. It may still be slightly elegant compared with the first
+approved enemy personality, so a v2 should push the nervous clerk comedy if
+council rejects this direction.
+
+## Act 3 Batch 1 v2 Colour-Lift Review Contact Sheet
+
+Status: approved by council. Current gallery candidates are parked at
+`src/assets-readable-baseline/enemies/voidWisp.png`,
+`src/assets-readable-baseline/enemies/obsidianGolem.png`, and
+`src/assets-readable-baseline/enemies/starCultist.png`.
+
+Contact sheet:
+`act3-batch1-v2-colour-lift-review-contact.png`
+
+Decision note: council feedback on v1 was that the designs were good, but too
+dark for the game's dark backgrounds. The v2 prompts therefore preserve the
+same silhouettes and personalities while asking for sharper glass colour masses.
+Council approved the v2 colour-lift results. After alpha and rim cleanup, the
+selected review outputs received a light colour pass:
+
+```text
+magick <04-no-yellow-outline.png> -colorspace sRGB -modulate 116,118,100 -gamma 0.93 <05-colour-lift.png>
+```
+
+This lifts midtones and saturation while leaving the black leadline structure
+mostly intact.
+
+## Act 3 Batch 1 v2: Void Wisp Colour-Lift
+
+Status: approved. Parked at
+`src/assets-readable-baseline/enemies/voidWisp.png`.
+
+Generated image id:
+`ig_09f79c52a5fdfbfb016a4ade782e8c8191a3bf20a227897839`
+
+Source:
+`enemy-voidWisp-v2/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-voidWisp-v2/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-voidWisp-v2/04-no-yellow-outline.png`
+
+Colour-lift alpha:
+`enemy-voidWisp-v2/05-colour-lift.png`
+
+Exact prompt:
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 3 normal enemy alpha-ready source, v2 brighter colour pass
+Primary request: Void Wisp v2, a funny but threatening tiny runaway court candle star-flame ghost made for a dark game background. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: small teardrop candle-flame silhouette, cracked broken orbit halo used as a crooked candlestick cage, tiny suspicious face above a hot magenta belly judgement core. It should feel like a nervous royal observatory candle that escaped court duty, funny in proportion but still dangerous.
+Colour/readability correction: the previous pass was too dark. Use sharper brighter stained-glass colours that read against a near-black combat background: electric violet, saturated sapphire blue, cold cyan-white star glass, and hot magenta. Keep obsidian black only for chunky outer silhouette and thick lead dividers, not as large unlit body panels. Large visible colour masses should dominate the subject. Avoid dull smoky navy, low-contrast charcoal slabs, and all-over black fill.
+Act 3 faction read: include one broken orbit halo fragment and one hot magenta judgement core, adapted to this creature's silhouette; add only tiny tarnished-gold court accents.
+Readability priority: silhouette first, pose second, bright flame-candle colour masses third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large bright stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral/court motifs; thumbnail-readable at 128px; funny, dramatic, grave, and dangerous through bold proportions and expression.
+Composition/framing: normal enemy full body, fully inside frame, facing slightly left, generous padding, no cropped silhouette hooks, no action blur.
+Lighting/mood: sober astral-court gothic mood with strong internal glass brightness; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the hot magenta judgement core and one cyan-white star pane; high value contrast on the main read.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #00ff00 in the subject.
+```
+
+## Act 3 Batch 1 v2: Obsidian Golem Colour-Lift
+
+Status: approved. Parked at
+`src/assets-readable-baseline/enemies/obsidianGolem.png`.
+
+Generated image id:
+`ig_09f79c52a5fdfbfb016a4adeb53aa08191a6f690937fc4c905`
+
+Source:
+`enemy-obsidianGolem-v2/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-obsidianGolem-v2/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-obsidianGolem-v2/04-no-yellow-outline.png`
+
+Colour-lift alpha:
+`enemy-obsidianGolem-v2/05-colour-lift.png`
+
+Exact prompt:
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 3 normal enemy alpha-ready source, v2 brighter colour pass
+Primary request: Obsidian Golem v2, a funny but threatening squat palace brick monster made for a dark game background. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: heavy square block body with tiny stubborn legs, a hot magenta cracked star-core in the chest, and a broken orbit ring wedged through one shoulder like a ruined arch it forgot to remove. It should feel like an overworked royal observatory doorstop trying to be scary, funny in proportion but still dangerous.
+Colour/readability correction: the previous pass was too dark on a dark UI background. Use sharper brighter stained-glass colours: saturated amethyst violet, electric sapphire blue, cold cyan-white star panes, and hot magenta core. Keep obsidian black only for chunky outer silhouette, stone cracks, and thick lead dividers. Break up the body with broad bright glass panes instead of large black stone slabs. The golem must still read as obsidian, but not disappear against a near-black combat background.
+Act 3 faction read: include one broken orbit halo fragment and one hot magenta judgement core, adapted to this creature's silhouette; add only tiny tarnished-gold court accents.
+Readability priority: silhouette first, pose second, bright squat block body third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large bright stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral/court motifs; thumbnail-readable at 128px; funny, dramatic, grave, and dangerous through bold proportions and expression.
+Composition/framing: normal enemy full body, fully inside frame, facing slightly left, generous padding, no cropped silhouette hooks, no action blur.
+Lighting/mood: sober astral-court gothic mood with strong internal glass brightness; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the hot magenta judgement core and one cyan-white star pane; high value contrast on the main read.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #00ff00 in the subject.
+```
+
+## Act 3 Batch 1 v2: Star Cultist Colour-Lift
+
+Status: approved. Parked at
+`src/assets-readable-baseline/enemies/starCultist.png`.
+
+Generated image id:
+`ig_09f79c52a5fdfbfb016a4adf079c1c8191b39f7c21e288a836`
+
+Source:
+`enemy-starCultist-v2/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-starCultist-v2/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-starCultist-v2/04-no-yellow-outline.png`
+
+Colour-lift alpha:
+`enemy-starCultist-v2/05-colour-lift.png`
+
+Exact prompt:
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 3 normal enemy alpha-ready source, v2 brighter colour pass
+Primary request: Star Cultist v2, a funny but threatening ridiculous little astrologer enemy made for a dark game background. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: tiny hunched robed body almost hidden behind an oversized cracked orbit star-chart disc, anxious glowing eyes, a hot magenta judgement core on the chart, and a too-large pointer staff clutched like a nervous court clerk. It should feel like a panicked royal observatory accountant who accidentally summoned judgement, funny in proportion but still dangerous.
+Colour/readability correction: the previous pass was too dark and too elegant on a dark UI background. Use sharper brighter stained-glass colours: electric violet robe panes, saturated sapphire blue orbit chart, cold cyan-white star centre, and hot magenta judgement core. Keep obsidian black only for chunky outer silhouette and thick lead dividers. Avoid a mostly black cloak; make the large chart and robe read as bright colour blocks from far away.
+Act 3 faction read: include one broken orbit halo fragment and one hot magenta judgement core, adapted to this creature's silhouette; add only tiny tarnished-gold court accents.
+Readability priority: silhouette first, pose second, oversized bright orbit-chart disc third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large bright stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral/court motifs; thumbnail-readable at 128px; funny, dramatic, grave, and dangerous through bold proportions and expression.
+Composition/framing: normal enemy full body, fully inside frame, facing slightly left, generous padding, no cropped silhouette hooks, no action blur.
+Lighting/mood: sober astral-court gothic mood with strong internal glass brightness; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the hot magenta judgement core and one cyan-white star pane; high value contrast on the main read.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #00ff00 in the subject.
 ```
 
 ## Act 2 Finale Approved: Abyssal Knight v3

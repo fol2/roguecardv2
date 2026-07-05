@@ -27,6 +27,9 @@ Council-approved baseline assets:
 - `enemies/abyssalKnight.png`
 - `enemies/siren.png`
 - `enemies/leviathan.png`
+- `enemies/voidWisp.png`
+- `enemies/obsidianGolem.png`
+- `enemies/starCultist.png`
 
 Asset source decisions:
 
@@ -48,6 +51,13 @@ Asset source decisions:
   `enemies/leviathan.png` use the approved Act 2 finale drift-correction
   gpt-image-2 framed candidates: Abyssal Knight v3, Siren v3, and
   Leviathan's Maw v2.
+- `enemies/voidWisp.png`, `enemies/obsidianGolem.png`, and
+  `enemies/starCultist.png` use the council-approved Act 3 first-batch v2
+  colour-lift candidates. They use the gpt-image-2 source alpha after warm
+  outer-rim cleanup, then a light colour-lift pass
+  (`modulate 116,118` plus gamma `0.93`) so the stained-glass masses read on
+  dark combat backgrounds. The source prompt used `#00ff00` chroma-key instead
+  of `#ff00ff` because Act 3 requires hot magenta judgement cores.
 
 Prompt decision:
 
