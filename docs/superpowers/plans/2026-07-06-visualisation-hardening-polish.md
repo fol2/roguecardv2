@@ -19,6 +19,39 @@
 
 Task 1 onward still starts from the **documented red** geometry/battle suites.
 
+## Parallel-execution note (added 2026-07-06 — read before starting ANY task)
+
+The battlefield layout file + editor project
+(spec `docs/superpowers/specs/2026-07-06-battlefield-editor-design.md`,
+plan `docs/superpowers/plans/2026-07-06-battlefield-editor.md`, "the BF plan")
+runs concurrently with this plan. Rules of the road:
+
+- **Task 1 below is SUPERSEDED — do not execute it.** The BF plan's Tasks 2–3
+  deliver the same contract (feet/ledge/seam on one ground line,
+  `geometry.spec` green) through a data file instead of CSS tokens.
+- **Naming differences from Task 1's interface block:** the chrome plate class
+  is **`.cplate`** on both hero and enemies (not `.eplate`/`.pplate`).
+  `--ground-y` / `--ledge-lip` exist as specified, but JS sets them per shape
+  from `src/battlefield-layout.js` (`renderCombat` → `applyBattlefieldLayout`);
+  the CSS declarations on `.combat-screen` are fallbacks only. Task 5's
+  `.stage-breath` `calc(var(--ground-y) …)` rules work unchanged. After the BF
+  plan's Task 2, `.intent` is absolutely positioned above the art box.
+- **Never tune combat-stage geometry in `styles.css`** (battlefield insets,
+  ledge bottoms, hero/enemy sizes, `.sl` plate heights): that now lives in
+  `src/battlefield-layout.js` — edit the file or use `?bfedit=1` on the dev
+  server.
+- **Ordering:** Task 2 (mesh) and Task 4 (perf) may run any time. Task 3
+  (baselines) requires BOTH the BF plan's Task 3 (geometry green) AND Task 2
+  here (mesh corpse fix) to be committed first. Tasks 5–11 may run after
+  Task 3 as originally planned.
+- **`dist/` truce:** while both plans are in flight, SKIP the per-commit
+  `npm run build` + `dist/` commit from the Global Constraints (two streams
+  rebuilding `dist/` guarantees merge conflicts). Rebuild and commit `dist/`
+  once, in Task 12.
+- **Shared file:** both streams edit `src/ui.js` — this plan touches the
+  `drain()` cases and vfx call sites, the BF plan touches `renderCombat` and
+  the resize refit. Different regions; pull/rebase before each task.
+
 ## Global Constraints
 
 - `npm test` (engine + asset manifest) must pass at every task boundary. It must never import Playwright, `stage.js`, `audio.js` or any DOM-touching module.
@@ -36,6 +69,15 @@ Task 1 onward still starts from the **documented red** geometry/battle suites.
 ---
 
 ### Task 1: Ground-line unification (spec §1)
+
+> **SUPERSEDED (2026-07-06) — do not execute any step of this task.**
+> Implemented instead by the battlefield layout file: see
+> `docs/superpowers/specs/2026-07-06-battlefield-editor-design.md` and
+> `docs/superpowers/plans/2026-07-06-battlefield-editor.md` (its Tasks 2–3).
+> Same acceptance gate (`geometry.spec` green), different mechanism (data
+> file + `applyBattlefieldLayout()` instead of hand-tuned CSS tokens), and
+> the plate class is `.cplate` on both combatants, not `.eplate`/`.pplate`.
+> The steps below are kept for the historical record only.
 
 Every combatant's feet, the painted ledge lip, and the glow seam must sit on ONE ground line — the battlefield's bottom edge. Today the hero floats 27px and enemies ~100px above it because name/HP/status chrome hangs *below* the art inside the same flex box.
 
@@ -286,6 +328,11 @@ git add -A && git commit -m "Release mesh planes on death, flash them on hits (b
 ---
 
 ### Task 3: Capture and commit visual baselines (spec §3)
+
+**Prerequisites (updated 2026-07-06):** the BF plan's Task 3 committed
+(`geometry.spec` green — replaces this plan's superseded Task 1) AND this
+plan's Task 2 committed (mesh corpse fix, `battle.spec` fully green).
+Capturing earlier enshrines broken pixels.
 
 The visual suite deliberately skips until baselines exist; geometry is now fixed, so today's pixels are worth enshrining.
 

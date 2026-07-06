@@ -1359,19 +1359,14 @@ git commit -m "feat: battlefield editor persistence — serializer, vite save en
 - Modify: `docs/superpowers/plans/2026-07-06-visualisation-hardening-polish.md`
 - Modify: `AGENTS.md`
 
-- [ ] **Step 1: Mark the superseded hardening task.** In
-`docs/superpowers/plans/2026-07-06-visualisation-hardening-polish.md`, find
-the ground-line unification task (the first task; its Steps 1–8 around lines
-42–179 cover the ground tokens, battlefield/ledge derivation, the enemy
-chrome plate and the hero plate) and insert one line directly under that
-task's heading:
-
-> **SUPERSEDED (2026-07-06):** implemented via the battlefield layout file — see `docs/superpowers/specs/2026-07-06-battlefield-editor-design.md` and `docs/superpowers/plans/2026-07-06-battlefield-editor.md`. `geometry.spec` is green; do not execute these steps.
-
-(Check the checkboxes of those steps off as `- [x]` only if the tracker
-requires it; the note is the load-bearing part. Leave every other task —
-mesh lifecycle, baselines, perf, ambient, readability, transitions, map,
-non-combat, icons — untouched.)
+- [ ] **Step 1: Verify the hardening-plan bookkeeping (already applied
+2026-07-06).** `docs/superpowers/plans/2026-07-06-visualisation-hardening-polish.md`
+already carries a "Parallel-execution note" section after its "Already
+landed" table, a **SUPERSEDED** banner under its Task 1 heading, and updated
+prerequisites on its Task 3 (baselines). Confirm all three are present and
+that the class/var names they cite (`.cplate`, JS-set `--ground-y` /
+`--ledge-lip`) match what Tasks 2–3 of THIS plan actually shipped; fix any
+drift. Leave every other hardening task untouched.
 
 - [ ] **Step 2: AGENTS.md note.** In `AGENTS.md` under "Conventions that will
 bite you if unknown", add one bullet (and remember `CLAUDE.md` is a symlink —
