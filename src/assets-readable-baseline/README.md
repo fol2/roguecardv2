@@ -67,6 +67,9 @@ Council-approved baseline assets:
 - `cards/uppercut.png`
 - `cards/flurry.png`
 - `cards/executioner.png`
+- `cards/momentum.png`
+- `cards/toxicMist.png`
+- `cards/cripple.png`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -191,6 +194,14 @@ Asset source decisions:
   existing faultline. Final gallery PNGs are byte-for-byte copies of the
   approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-07-20260706/`.
+- `cards/momentum.png`, `cards/toxicMist.png`, and `cards/cripple.png` are
+  approved card production batch 08 generated sources. `momentum` locks the
+  crimson blade, amber whetstone arc, and two growing echo arcs. `toxicMist`
+  locks a wide green-grey Smolder cloud swallowing three separated target
+  shards. `cripple` locks a sapphire snuffer ring compressing a guttering red
+  enemy flame, with one tiny ember bead as the secondary Kindle cue. Final
+  gallery PNGs are byte-for-byte copies of the approved generated sources and
+  are recorded in `scratch/style-tests/card-production-batch-08-20260706/`.
 - The nine approved card images from `strike` through `twinFangs` are the
   current card-art baseline references. Their roles, hashes, and prompt ledgers
   are recorded in `docs/card-production/card-art-baselines.md`; the future
@@ -249,7 +260,8 @@ comparison sheets remain in
 `scratch/style-tests/card-production-batch-04-20260706/`, and
 `scratch/style-tests/card-production-batch-05-20260706/`, and
 `scratch/style-tests/card-production-batch-06-20260706/`, and
-`scratch/style-tests/card-production-batch-07-20260706/`.
+`scratch/style-tests/card-production-batch-07-20260706/`, and
+`scratch/style-tests/card-production-batch-08-20260706/`.
 Prop assets are normalised to the live runtime prop dimensions, with alpha
 preserved. Prop source, alpha, prompts, and contact sheets remain in
 `scratch/prop-art-production-20260706/`.
