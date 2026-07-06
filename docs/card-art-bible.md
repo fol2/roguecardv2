@@ -19,19 +19,22 @@ art object only, not a complete card design.
 
 - Path: `src/assets/cards/<card-id>.png`.
 - `<card-id>` must match the internal key in `src/data.js`.
-- Format: transparent PNG, 512 x 512.
+- Format: PNG. Current card-art candidates use full-bleed rectangular scene art
+  at `800 x 500`, because the runtime `.card-art` band is wide. Do not return
+  to square transparent badge/emblem art unless the card specifically needs a
+  token-like object.
 - Runtime fallback: if the PNG is missing, `cardArtSvg(cardId, type)` in
   `src/art.js` provides a procedural SVG fallback.
 - Card art is placed inside `.card-art` in `src/styles.css`.
-- Desktop display size is roughly 93 x 93 px inside the card art band.
-- Phone portrait display size is roughly 72 x 72 px.
-- Phone landscape display size is roughly 64 x 64 px.
-- The in-game view uses `object-fit: contain`, so square emblems are not
-  cropped, but they must survive very small display sizes.
+- Desktop display size is roughly 152 x 93 px inside the card art band.
+- Phone portrait display size is roughly 118 x 72 px.
+- Phone landscape display size is roughly 105 x 64 px.
+- The in-game view uses `object-fit: contain`, so art should match the wide
+  band ratio closely rather than sitting as a small square in the centre.
 
-Consequence: every card image should work as a large, simple, centred emblem or
-single readable gameplay moment. Fine illustration detail is allowed only after
-the main shape already reads at 64 px.
+Consequence: every card image should work as a compact rectangular scene with a
+themed background plus a clear foreground subject/action. Fine illustration
+detail is allowed only after the main action already reads at 64 px.
 
 ## Generation Workflow
 
@@ -39,8 +42,9 @@ Use the current project workflow from [`generated-art-workflow.md`](./generated-
 
 1. Generate the source image with built-in Codex Image Gen directly.
 2. Optionally clean up the selected source with Nano Banana Pro.
-3. Convert to alpha locally.
-4. Run outer rim cleanup when the source has a warm sticker-like edge.
+3. For card scenes, keep the full rectangular background. Do not chroma-key it
+   into a floating badge unless the card intentionally needs an object token.
+4. Run rim or colour cleanup only if the source creates a distracting edge.
 5. Review in `?gallery=1` before accepting.
 
 Do not make the shell wrappers the primary workflow for future card work. They
@@ -57,8 +61,8 @@ Use the same visual family as the character assets:
 - thick lead dividers, used sparingly
 - matte painterly glass texture
 - warm amber rim light, controlled rather than noisy
-- soft inner glow limited to the card's focal symbol
-- transparent background
+- soft inner glow limited to the card's focal action
+- full-bleed rectangular illustrated background
 - no text, labels, watermark, UI chrome, frame, cost, name, or type label
 
 Cards should feel like small relic windows from the same cathedral world, not
@@ -79,7 +83,7 @@ size. The top-level read should be visible in under a second.
 
 Treat the artwork like a gameplay diagram:
 
-1. Primary silhouette or emblem.
+1. Primary foreground action or subject silhouette.
 2. Direction or motion.
 3. One mechanic cue, such as Ward, Smolder, Kindle, Facet chip, Ember, draw, or
    Fervor.
@@ -99,7 +103,8 @@ the deck.
 Cards are fanned, hovered, dragged, and read on mobile. This makes the current
 top-left cost badge and text layout important, but the generated art should not
 compete with those UI elements. Avoid bright corners and heavy noise near the
-outer edges of the square image unless the central silhouette remains dominant.
+outer edges of the rectangular art band unless the central action remains
+dominant.
 
 ### Type Consistency
 
@@ -319,7 +324,7 @@ Approved Round 2 pitch artifacts live in
 
 These pitch sheets were created with built-in Codex Image Gen. They are not
 production card assets: they use review backgrounds and sheet layouts rather
-than final per-card transparent PNGs.
+than final per-card rectangular scene art.
 
 The exact Round 2 prompts are stored in
 [`artifacts/card-prototype-demos/prompt-ledger.md`](./artifacts/card-prototype-demos/prompt-ledger.md).
@@ -344,7 +349,7 @@ Cards:
 - `burn` / Cinder: status, special, harmful dead card.
 - `hex` / Hex: curse, special, refusal-to-burn curse.
 
-Pitch: a five-tile contact sheet with the same camera, same alpha, and no card
+Pitch: a five-tile contact sheet with a consistent scene-art camera and no card
 frame. This should answer the basic question: can a player tell attack, skill,
 power, status, and curse apart before reading text?
 
@@ -392,16 +397,25 @@ icons, the theme is not strong enough.
 
 ## Composition Rules For Cards
 
-- Square emblem or single moment, centred.
-- Dark vignette edges are allowed, but the file must keep transparent corners.
-- Leave generous alpha around any protruding shards or flame.
+- Full-bleed rectangular scene, not a floating badge.
+- Every card needs background theme plus foreground subject/action.
+- Foreground and background must separate at distance. Use value contrast, rim
+  light, silhouette, and quiet background detail so the main subject reads in
+  the card-art band before the viewer studies the scene.
+- Dark vignette edges are allowed, but the image should stay readable in the
+  full card-art band.
 - No whole card frame. No scroll, parchment, mana symbol, nameplate, text box,
   cost badge, rarity badge, or UI border.
-- Prefer one focal object over a full scene.
+- Prefer one strong action in a small scene over a symbolic emblem.
 - Avoid tiny repeated stained-glass panels; use 3-5 larger panes when possible.
 - Avoid photographic lighting, glossy 3D render, anime card-art tropes, and
   generic fantasy spell icons.
 - The black silhouette test must still identify the card family.
+
+Rejected direction: the first `strike`, `defend`, and `empower` pass produced
+clean badge-like emblems, but that failed the card-art requirement. Keep the
+material language, colour, and readability lessons; reject the badge
+composition.
 
 ## Prompt Template
 
@@ -409,15 +423,16 @@ Use this shape for a new card prompt:
 
 ```text
 Use case: stylized-concept
-Asset type: Spirebound card art alpha-ready source
-Primary request: <card name>, <one sentence that translates the card text into a single emblem or moment>.
-Gameplay read: <attack|skill|power|status|curse>; show <primary mechanic cue> first, <secondary cue> second. The image must read clearly at 64 px in the in-game card art window.
-Style/medium: serious cartoon-gothic stained-glass game art; chunky dark silhouette; simplified emblem-like composition; 3-5 large jewel-tone glass masses; very few thick lead dividers; matte painterly glass texture; warm amber rim light; controlled inner glow only at the focal symbol; no generic fantasy icon.
-Composition/framing: square transparent PNG source; single centred emblem or single compact gameplay moment; generous padding; no card frame; no cropped shards or flames; no action blur; dark vignette edge only if corners remain transparent.
+Asset type: Spirebound rectangular card art scene
+Primary request: <card name>, <one sentence that turns the card text into a foreground action inside a themed background>.
+Gameplay read: <attack|skill|power|status|curse>; show <primary mechanic cue> first, <secondary cue> second. The image must read clearly at 64 px in the in-game card art band.
+Story moment: <one sentence explaining what is happening in the world>.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky dark silhouettes; simplified theatrical scene; 3-5 large jewel-tone glass masses; very few thick lead dividers; matte painterly glass texture; warm amber rim light; controlled inner glow only at the focal action; no generic fantasy icon.
+Composition/framing: wide horizontal rectangle, about 16:10; full-bleed background; foreground subject/action; no card frame; no cropped main action; no action blur; no centred emblem, no isolated badge, no floating logo.
 Lighting/mood: sober gothic mood; high value contrast on the main shape; glow supports the mechanic but does not obscure the silhouette.
 Palette: <type palette plus one mechanic colour>.
-Scene/backdrop: transparent background or perfectly flat chroma-key background for alpha removal.
-Constraints: no text; no labels; no watermark; no cost icon; no nameplate; no UI chrome; no full card mockup; no ground plane; no shadows; no reflections.
+Scene/backdrop: <specific rectangular setting that belongs to the card>.
+Constraints: no text; no labels; no watermark; no cost icon; no nameplate; no UI chrome; no full card mockup; no decorative badge; no circular medallion.
 ```
 
 ## Prompt Examples
@@ -425,8 +440,8 @@ Constraints: no text; no labels; no watermark; no cost icon; no nameplate; no UI
 ### Attack
 
 ```text
-Primary request: Edge, a single crimson stained-glass blade cutting through a
-round red pane, with a clean fracture line and a few large shards.
+Primary request: Edge, a wide rectangular scene where the Duskblade's dark
+blade arm cuts diagonally across a cracked crimson chapel window.
 Gameplay read: attack; show direct damage first, sharp glass impact second.
 Palette: crimson glass, black lead, small amber impact core.
 ```
@@ -434,8 +449,8 @@ Palette: crimson glass, black lead, small amber impact core.
 ### Skill
 
 ```text
-Primary request: Ward, a blue cathedral shield pane holding back a thin red
-impact crack, with a steady lantern glow behind it.
+Primary request: Ward, a wide rectangular scene where the Duskblade lifts a
+small lantern behind a broad blue glass wall as a red impact crack hits it.
 Gameplay read: skill; show Ward first, protection from incoming damage second.
 Palette: deep blue, cyan, silver lead, warm amber core.
 ```
@@ -443,8 +458,8 @@ Palette: deep blue, cyan, silver lead, warm amber core.
 ### Power
 
 ```text
-Primary request: Inner Blaze, a persistent red-gold flame sealed inside a dark
-glass heart pane, surrounded by a restrained violet halo.
+Primary request: Inner Blaze, a wide rectangular scene where the Duskblade
+kneels before a dead altar as red-gold fire travels from chest to sword.
 Gameplay read: power; show ongoing Fervor first, lasting aura second.
 Palette: violet glass, black lead, red-gold inner fire.
 ```
@@ -477,7 +492,8 @@ Before promoting any new card asset:
 - Check `cards - 60/60 generated`.
 - Inspect the target card at gallery size.
 - Inspect the same card in actual hand/reward/deck views if possible.
-- Check alpha corners are transparent.
+- Check the full rectangular background reads as card art, not as a floating
+  badge or isolated icon.
 - Check the card is readable at 128 px and still recognisable around 64 px.
 - Check no text, labels, frame, cost badge, watermark, or UI chrome is baked in.
 - Check the art does not make the gameplay text harder to read.
@@ -485,8 +501,8 @@ Before promoting any new card asset:
 - Check the internal filename matches `src/data.js`.
 
 Reject and regenerate if the image only works as full-size art, if it needs the
-card name to be understood, or if the most memorable detail is not related to
-the card's mechanic.
+card name to be understood, if foreground and background merge at distance, or
+if the most memorable detail is not related to the card's mechanic.
 
 ## External Study Sources
 

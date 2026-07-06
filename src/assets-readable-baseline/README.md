@@ -40,6 +40,9 @@ Council-approved baseline assets:
 - `potions/fire.png`
 - `potions/venom.png`
 - `potions/energy.png`
+- `cards/strike.png`
+- `cards/defend.png`
+- `cards/empower.png`
 
 Asset source decisions:
 
@@ -80,6 +83,12 @@ Asset source decisions:
   Gen flat `#ff00ff` chroma-key sources, local chroma-key alpha removal, and
   final 256 x 256 potion-icon normalisation. The approved direction is fat,
   chunky, saturated, low-stroke stained-glass phials for HUD readability.
+- `cards/strike.png`, `cards/defend.png`, and `cards/empower.png` are the
+  approved first card-art milestone from the 60-card production sort in
+  `docs/card-art-bible.md`. Earlier badge-style cards were rejected because
+  they looked like floating emblems rather than card art. The approved
+  candidates use built-in Image Gen full-bleed rectangular scene sources with
+  strong foreground/background separation, normalised to `800 x 500`.
 
 Prompt decision:
 
@@ -93,10 +102,13 @@ Prompt decision:
 
 Enemy and hero assets are runtime-ready PNGs normalised to a maximum edge of
 1024px with alpha preserved. Potion assets are normalised to 256 x 256 with
-alpha preserved. Source and review artefacts remain in
+alpha preserved. Card assets are full-bleed rectangular PNGs normalised to
+800 x 500. Source and review artefacts remain in
 `scratch/style-tests/design-council-20260705-readable-style/`; potion source,
 alpha, prompts, and contact sheets remain in
-`scratch/potion-demos/20260706-current-seven-r1/`.
+`scratch/potion-demos/20260706-current-seven-r1/`; card source, prompts, and
+comparison sheets remain in
+`scratch/style-tests/card-first-three-separation-readable-baseline-20260706/`.
 
 Gallery cleanup:
 
