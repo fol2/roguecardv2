@@ -8,6 +8,8 @@ let hitstopUntil = 0;
 
 // a DPR-3 phone doesn't need a 9x pixel canvas for sparks — cap at 2
 const DPR = () => Math.min(devicePixelRatio, 2);
+export const LITE = matchMedia('(pointer: coarse)').matches;
+const cnt = (n) => (LITE ? Math.max(3, Math.round(n * 0.6)) : n);
 
 export function initVfx() {
   canvas = document.getElementById('vfx');
@@ -205,3 +207,78 @@ export const centerOf = (el) => {
   const r = el.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
 };
+
+// ---- archetype primitives ----
+export const ARCHETYPE_TONES = { slash: '#ffffff', pierce: '#cfe6ff', blunt: '#ffd8a0', fire: '#ff9a4d', poison: '#d3a15a', void: '#c99aff', ward: '#9fd4ff' };
+
+export function emberTrail(x0, y0, x1, y1, color = '#ff9a4d') {
+  if (REDUCED) return;
+  const n = cnt(14);
+  for (let i = 0; i < n; i++) {
+    const t = i / n, jx = (Math.random() - 0.5) * 26, jy = (Math.random() - 0.5) * 26;
+    parts.push({ kind: 'dot', x: x0 + (x1 - x0) * t + jx, y: y0 + (y1 - y0) * t + jy, vx: (Math.random() - 0.5) * 40, vy: -30 - Math.random() * 50, size: 2 + Math.random() * 2.4, color, grav: -30, life: 0.5 + t * 0.4, fade: 0.3, add: true, alpha: 0.9 });
+  }
+}
+export function droplets(x, y, color = '#d3a15a', n = 12) {
+  if (REDUCED) return;
+  for (let i = 0; i < cnt(n); i++) {
+    parts.push({ kind: 'dot', x: x + (Math.random() - 0.5) * 54, y: y - 10 + (Math.random() - 0.5) * 30, vx: (Math.random() - 0.5) * 26, vy: 60 + Math.random() * 120, size: 2 + Math.random() * 2, color, grav: 420, drag: 0.4, life: 0.6 + Math.random() * 0.3, fade: 0.35, add: true });
+  }
+}
+export function implosion(x, y, color = '#c99aff') {
+  if (REDUCED) return;
+  parts.push({ kind: 'ring', x, y, r: 64, vr: -160, size: 3.5, color, life: 0.4, fade: 0.4, add: true });
+  for (let i = 0; i < cnt(16); i++) {
+    const a = Math.random() * Math.PI * 2, d = 46 + Math.random() * 30;
+    parts.push({ kind: 'spark', x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, vx: -Math.cos(a) * (220 + Math.random() * 120), vy: -Math.sin(a) * (220 + Math.random() * 120), size: 2.2, color, grav: 0, drag: 2.4, life: 0.34, fade: 0.2, add: true });
+  }
+}
+export function shardSpray(x, y, color = '#dfeaff', n = 12) {
+  if (REDUCED) return;
+  for (let i = 0; i < cnt(n); i++) {
+    const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.8;
+    parts.push({ kind: 'spark', x, y, vx: Math.cos(a) * (200 + Math.random() * 260), vy: Math.sin(a) * (200 + Math.random() * 260), size: 2.6 + Math.random() * 1.6, color, grav: 520, drag: 0.6, life: 0.5 + Math.random() * 0.3, fade: 0.22, add: true });
+  }
+}
+
+// ---- archetype hit dispatch: one entry point per landed hit ----
+export function archetypeHit(x, y, archetype = 'slash', power = 0.3) {
+  if (REDUCED) return;
+  const tone = ARCHETYPE_TONES[archetype] || '#ffffff';
+  const big = power > 0.55;
+  switch (archetype) {
+    case 'slash':
+      slashArc(x, y, big ? '#ffd8a0' : '#ffffff');
+      burst(x, y, { color: '#ff9a6a', n: cnt(big ? 26 : 12), speed: big ? 420 : 260 });
+      break;
+    case 'pierce': {
+      const a0 = -Math.PI * 0.78;
+      for (let i = 0; i < (big ? 3 : 2); i++) {
+        parts.push({ kind: 'spark', x: x - Math.cos(a0) * 70, y: y - Math.sin(a0) * 70, vx: Math.cos(a0) * 900, vy: Math.sin(a0) * 900, size: 3.4, color: tone, grav: 0, drag: 0, life: 0.16 + i * 0.03, fade: 0.1, add: true });
+      }
+      burst(x, y, { color: tone, n: cnt(big ? 18 : 9), speed: 300, spread: 1.4, angle: a0 + Math.PI });
+      break;
+    }
+    case 'blunt':
+      ring(x, y, tone, 6, big ? 720 : 520, 6);
+      burst(x, y + 6, { color: '#e8d8b8', n: cnt(big ? 24 : 12), speed: big ? 380 : 240, spread: Math.PI, angle: -Math.PI / 2, grav: 620, kind: 'dot' });
+      shake(big ? 14 : 8);
+      break;
+    case 'fire':
+      burst(x, y, { color: '#ffd166', n: cnt(big ? 22 : 12), speed: 240, grav: -120, life: 0.7 });
+      burst(x, y, { color: '#ff6a3a', n: cnt(big ? 14 : 8), speed: 160, grav: -60, size: 3.6, kind: 'dot', life: 0.8 });
+      break;
+    case 'poison':
+      droplets(x, y, '#d3a15a', big ? 18 : 10);
+      motes(x, y, '#b8b0a0', cnt(8));
+      break;
+    case 'void':
+      implosion(x, y, tone);
+      if (big) flash('#c99aff', 0.08, 0.25);
+      break;
+    case 'ward':
+      ring(x, y, tone, 12, 460, 4);
+      motes(x, y, tone, cnt(8));
+      break;
+  }
+}
