@@ -17,3 +17,11 @@ This ledger records card art once it reaches the readable-baseline gallery.
 | `eclipseSlash` | approved | `src/assets-readable-baseline/cards/eclipseSlash.png` | `scratch/style-tests/card-production-batch-01-20260706/README.md` |
 | `chisel` | approved | `src/assets-readable-baseline/cards/chisel.png` | `scratch/style-tests/card-production-batch-01-20260706/README.md` |
 | `firstSpark` | approved | `src/assets-readable-baseline/cards/firstSpark.png` | `scratch/style-tests/card-production-batch-01-20260706/README.md` |
+
+## Batch 02
+
+| Card | Decision | Final gallery asset | Source record |
+|---|---|---|---|
+| `ashBite` | approved generated source | `src/assets-readable-baseline/cards/ashBite.png` | `scratch/style-tests/card-production-batch-02-20260706/README.md`; `scratch/style-tests/card-production-batch-02-20260706/prompt-ledger.md` |
+| `smother` | approved generated source | `src/assets-readable-baseline/cards/smother.png` | `scratch/style-tests/card-production-batch-02-20260706/README.md`; `scratch/style-tests/card-production-batch-02-20260706/prompt-ledger.md` |
+| `twinFangs` | approved generated source | `src/assets-readable-baseline/cards/twinFangs.png` | `scratch/style-tests/card-production-batch-02-20260706/README.md`; `scratch/style-tests/card-production-batch-02-20260706/prompt-ledger.md` |

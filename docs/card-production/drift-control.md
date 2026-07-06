@@ -20,6 +20,13 @@ Every new card must feel like it belongs to the same deck as those three cards.
 6. No black-on-black subject details.
 7. No busy micro-pane mosaics competing with the subject.
 8. The card must read by gameplay family before it reads as decoration.
+9. Do not accept an over-dark source only because it looks dramatic; the main
+   action must still separate from the background at `120 x 75`.
+10. Fix dark cards at generation time by adding scene light and visible
+    stained-glass midtones. Do not flatten shadows with a grey lift.
+11. Do not use local visual post-processing to rescue card art. Allowed local
+    handling is limited to source archiving, exact `800 x 500` normalisation,
+    metadata stripping, gallery copy, and contact-sheet generation.
 
 ## Batch Discipline
 
@@ -64,3 +71,10 @@ Every `revise` or `reject` needs a short reason.
 - Rarity drift: common cards become rare-level ceremonies.
 - Palette drift: attacks all become the same red slash; skills all become the
   same blue shield; powers all become the same violet halo.
+- Value drift: a source becomes too black overall, hiding the foreground action
+  and making the card unreadable in the gallery strip.
+- Contrast drift: an attempted brightness fix reduces the image to a grey wash
+  instead of increasing luminous subject light.
+- Post-process drift: local brightness, contrast, gamma, saturation, or colour
+  grading creates a separate style from the generated source. Regenerate
+  instead.

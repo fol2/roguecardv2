@@ -49,6 +49,9 @@ Council-approved baseline assets:
 - `cards/eclipseSlash.png`
 - `cards/chisel.png`
 - `cards/firstSpark.png`
+- `cards/ashBite.png`
+- `cards/smother.png`
+- `cards/twinFangs.png`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -111,6 +114,13 @@ Asset source decisions:
 - `cards/eclipseSlash.png`, `cards/chisel.png`, and `cards/firstSpark.png` are
   approved card production batch 01. They continue the rectangular scene rule
   and are recorded in `scratch/style-tests/card-production-batch-01-20260706/`.
+- `cards/ashBite.png`, `cards/smother.png`, and `cards/twinFangs.png` are
+  approved card production batch 02 generated sources. Earlier sources were
+  rejected because they were too dark, and a local brightness lift was rejected
+  because post-processing changed the contrast language. The approved files use
+  regenerated source art directly; local handling is limited to `800 x 500`
+  normalisation and gallery copy. They are recorded in
+  `scratch/style-tests/card-production-batch-02-20260706/`.
 - `props/campfire.png`, `props/chest.png`, `props/chest-open.png`, and
   `props/merchant.png` are the council-approved four live runtime props from
   `scratch/prop-art-production-20260706/`. They use built-in Image Gen flat
