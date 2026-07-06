@@ -30,8 +30,16 @@
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; overflow: hidden; }
+/* the game renders to a fixed virtual resolution and scales uniformly —
+   #stage is the whole world; the body only ever shows the letterbox bars.
+   Its transform also makes it the containing block for every position:fixed
+   layer inside ("fixed" = fixed to the stage, not the window), and it is a
+   size container: the old media breakpoints live on as @container queries,
+   and cq units replace vw/vh so lengths are stage-relative. */
+html { background: #000; }
+#stage { position: fixed; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; overflow: hidden; background: var(--ink); container-type: size; container-name: stage; }
 body {
-  background: var(--ink);
+  background: #000;
   color: var(--text);
   font-family: 'Alegreya', Georgia, serif;
   font-size: 16px;
@@ -201,14 +209,14 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .pop-menu button:hover { background: rgba(242, 193, 78, 0.14); color: var(--gold); }
 
 /* ============ Title */
-.title-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: max(3vh, 24px) 16px; overflow-y: auto; }
-.title-banner { position: absolute; inset: 0; opacity: 0.35; pointer-events: none; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 18vh; z-index: 0; }
-.title-banner-frame { max-height: 55vh; max-width: 90vw; }
-.title-banner .raster-art { max-height: 55vh; width: auto; max-width: 90vw; object-fit: contain; filter: drop-shadow(0 12px 40px rgba(0,0,0,.6)); }
+.title-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: max(3cqh, 24px) 16px; overflow-y: auto; }
+.title-banner { position: absolute; inset: 0; opacity: 0.35; pointer-events: none; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 18cqh; z-index: 0; }
+.title-banner-frame { max-height: 55cqh; max-width: 90cqw; }
+.title-banner .raster-art { max-height: 55cqh; width: auto; max-width: 90cqw; object-fit: contain; filter: drop-shadow(0 12px 40px rgba(0,0,0,.6)); }
 .title-screen > :not(.title-banner) { position: relative; z-index: 1; }
 .logo {
   /* the logotype is itself leaded glass: ink stroke behind gold panes, faint lead lines through the letters */
-  font-size: clamp(52px, 9vw, 108px); font-weight: 800; letter-spacing: 0.16em; line-height: 1;
+  font-size: clamp(52px, 9cqw, 108px); font-weight: 800; letter-spacing: 0.16em; line-height: 1;
   background:
     repeating-linear-gradient(112deg, transparent 0 26px, rgba(7, 10, 18, 0.4) 26px 28px),
     linear-gradient(180deg, #fff3d6 8%, var(--gold) 42%, #8a5a1d 75%, #f7dc9b 100%);
@@ -219,7 +227,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   animation: logoIn 1.1s cubic-bezier(0.2, 0.8, 0.25, 1), logoSheen 6s ease-in-out 1.1s infinite alternate;
 }
 .logo-raster {
-  width: min(780px, 88vw); line-height: 0; background: none; -webkit-text-stroke: 0; filter: none;
+  width: min(780px, 88cqw); line-height: 0; background: none; -webkit-text-stroke: 0; filter: none;
 }
 .title-wordmark {
   display: block; width: 100%; height: auto;
@@ -446,7 +454,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 @keyframes heroIn { from { opacity: 0; transform: translate(-70px, 25px); } to { transform: translateY(25px); } }
 @keyframes enemyIn { from { opacity: 0; transform: translateX(90px); } }
 @keyframes chromeIn { from { opacity: 0; transform: translateY(44px); } }
-.battlefield { position: absolute; inset: 96px 0 232px 0; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 5vw; }
+.battlefield { position: absolute; inset: 96px 0 232px 0; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 5cqw; }
 .player-zone { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 240px; transform: translateY(25px); }
 .hero-wrap { position: relative; width: 190px; height: 285px; }
 .hero-wrap .hero-name {
@@ -455,7 +463,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.95), 0 0 16px rgba(0, 0, 0, 0.7);
 }
 .hero-wrap svg { width: 100%; height: 100%; }
-.enemy-zone { display: flex; align-items: flex-end; justify-content: flex-end; gap: 3vw; }
+.enemy-zone { display: flex; align-items: flex-end; justify-content: flex-end; gap: 3cqw; }
 .enemy { display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; transition: filter 0.2s, transform 0.25s; }
 .enemy-art { position: relative; }
 .enemy-sprite { position: relative; width: 100%; height: 100%; }
@@ -738,7 +746,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   100% { opacity: 0; transform: translate(-50%, -60%) scale(1.02); }
 }
 .turn-banner.boss-banner {
-  font-size: clamp(38px, 5.4vw, 62px); letter-spacing: 0.22em; color: #ffb3ef; top: 38%;
+  font-size: clamp(38px, 5.4cqw, 62px); letter-spacing: 0.22em; color: #ffb3ef; top: 38%;
   text-shadow: 0 0 44px rgba(255, 79, 216, 0.7), 0 6px 16px #000;
   animation: bossBanner 2.05s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
 }
@@ -793,7 +801,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 /* the boss is announced through a rose window: rings and spokes of leaded light */
 .rose-window {
   position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%);
-  width: min(64vw, 440px); aspect-ratio: 1; z-index: 41; pointer-events: none;
+  width: min(64cqw, 440px); aspect-ratio: 1; z-index: 41; pointer-events: none;
   mix-blend-mode: screen; animation: roseIn 2.3s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
 }
 .rose-window .rw-rings, .rose-window .rw-spokes { position: absolute; inset: 0; border-radius: 50%; }
@@ -868,7 +876,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 @keyframes fireGlow { from { opacity: 0.4; } to { opacity: 0.65; } }
 
 /* ============ Overlay panels */
-.ov-panel { max-width: min(1080px, 94vw); max-height: 88vh; max-height: 88dvh; overflow-y: auto; touch-action: pan-y; }
+.ov-panel { max-width: min(1080px, 94cqw); max-height: 88cqh; overflow-y: auto; touch-action: pan-y; }
 .ov-title { font-family: 'Cinzel', serif; font-size: 26px; font-weight: 700; color: var(--parchment); text-align: center; letter-spacing: 0.12em; margin-bottom: 4px; }
 .ov-sub { text-align: center; color: var(--text-dim); margin-bottom: 18px; font-size: 15px; }
 .card-grid { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; padding: 8px; }
@@ -923,7 +931,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .shop-relic b { color: var(--parchment); font-family: 'Cinzel', serif; font-size: 12.5px; }
 
 /* event */
-.event-panel { width: min(660px, 92vw); }
+.event-panel { width: min(660px, 92cqw); }
 .event-art { display: flex; justify-content: center; margin-bottom: 14px; }
 .event-art svg { width: min(440px, 80%); height: auto; border-radius: 10px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5); }
 .event-text { font-size: 17px; line-height: 1.6; color: #cdd3e4; text-align: center; margin-bottom: 20px; font-style: italic; }
@@ -938,7 +946,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 
 /* rest / treasure center panels */
 .center-panel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 96px 12px 20px; }
-.center-panel .panel { width: min(560px, 92vw); text-align: center; max-height: calc(100vh - 116px); max-height: calc(100dvh - 116px); overflow-y: auto; touch-action: pan-y; }
+.center-panel .panel { width: min(560px, 92cqw); text-align: center; max-height: calc(100cqh - 116px); overflow-y: auto; touch-action: pan-y; }
 .center-panel .art-lg svg { width: min(340px, 70%); height: auto; margin: 6px auto 12px; display: block; }
 .big-choices { display: flex; gap: 14px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
 
@@ -955,7 +963,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 
 /* game over / victory */
 .end-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
-.end-title { font-size: clamp(44px, 7vw, 84px); font-weight: 800; letter-spacing: 0.2em; font-family: 'Cinzel', serif; }
+.end-title { font-size: clamp(44px, 7cqw, 84px); font-weight: 800; letter-spacing: 0.2em; font-family: 'Cinzel', serif; }
 .end-title.lose { color: #ff5964; text-shadow: 0 0 40px rgba(255, 89, 100, 0.5), 0 6px 14px #000; }
 .end-title.win {
   background: linear-gradient(180deg, #fff3d6, var(--gold) 55%, #8a5a1d);
@@ -992,7 +1000,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 @keyframes emberRise {
   0% { transform: translate(0, 0) scale(1); opacity: 0; }
   12% { opacity: 0.95; }
-  100% { transform: translate(var(--ex, 0px), -46vh) scale(0.4); opacity: 0; }
+  100% { transform: translate(var(--ex, 0px), -46cqh) scale(0.4); opacity: 0; }
 }
 .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 12px; }
 .stat-cell { background: rgba(255, 255, 255, 0.045); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 12px 16px; text-align: center; }
@@ -1034,7 +1042,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .vow-desc b { font-family: 'Cinzel', serif; }
 
 .vigil-panel { max-width: 560px; }
-.deed-list { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 4px; max-height: 56vh; overflow-y: auto; padding-right: 4px; }
+.deed-list { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 4px; max-height: 56cqh; overflow-y: auto; padding-right: 4px; }
 .deed-row { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 10px; padding: 9px 13px; }
 .deed-row.done { border-color: var(--panel-line); background: rgba(30, 26, 14, 0.42); }
 .deed-head { display: flex; justify-content: space-between; align-items: baseline; }
@@ -1048,10 +1056,10 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .deed-row.done .deed-bar span { background: linear-gradient(90deg, var(--gold), #fff3d6); }
 
 /* ============ THE LAMPLIGHTER — run-start boon + art picker */
-.lamp-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 4vh 16px; overflow-y: auto; }
+.lamp-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 4cqh 16px; overflow-y: auto; }
 .lamp-hero { width: 78px; height: 78px; }
 .lamp-hero svg { width: 100%; height: 100%; }
-.lamp-title { font-family: 'Cinzel', serif; font-size: clamp(24px, 4vw, 34px); letter-spacing: 0.14em; color: var(--gold); text-shadow: 0 0 18px rgba(242, 193, 78, 0.3); }
+.lamp-title { font-family: 'Cinzel', serif; font-size: clamp(24px, 4cqw, 34px); letter-spacing: 0.14em; color: var(--gold); text-shadow: 0 0 18px rgba(242, 193, 78, 0.3); }
 .lamp-sub { max-width: 540px; text-align: center; color: var(--text-dim); font-size: 14px; line-height: 1.55; margin-bottom: 6px; }
 .lamp-label { font-family: 'Cinzel', serif; letter-spacing: 0.18em; text-transform: uppercase; font-size: 12.5px; color: var(--gold-dim); margin-top: 8px; }
 .lamp-hint { color: var(--text-dim); letter-spacing: 0.04em; text-transform: none; font-family: inherit; }
@@ -1128,10 +1136,13 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   .reward-list .reward-row, .shop-row .shop-item, .deed-list .deed-row { animation: none; }
 }
 
-@media (max-width: 1100px) {
+/* breakpoints now query the fixed stage, not the window: pad shapes (1024/768)
+   take this tune (it was hand-built for ~1024 windows), phones fall through
+   to the two blocks below — exactly the cascade a real window that size got */
+@container stage (max-width: 1100px) {
   .card { --cw: 132px; }
   .choice-cards .card { --cw: 150px; }
-  .battlefield { padding: 0 2vw; inset: 88px 0 210px 0; }
+  .battlefield { padding: 0 2cqw; inset: 88px 0 210px 0; }
   .stage-ledge { bottom: 163px; }
   .hand-zone { height: 230px; }
   .energy-orb { width: 72px; height: 72px; bottom: calc(130px + var(--sab)); left: calc(20px + var(--sal)); }
@@ -1145,23 +1156,23 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 /* ============ phone portrait: the Spire in your palm.
    Not the desktop shrunk — recomposed: one compact HUD line, a smaller stage,
    a thumb-tuned fan, chrome at the screen's edges where hands actually are. */
-@media (max-width: 740px) {
-  .logo { font-size: clamp(30px, 8.4vw, 52px); -webkit-text-stroke: 1.6px #070a12; }
+@container stage (max-width: 740px) {
+  .logo { font-size: clamp(30px, 8.4cqw, 52px); -webkit-text-stroke: 1.6px #070a12; }
   .tagline { font-size: 11px; letter-spacing: 0.22em; padding: 0 18px; text-align: center; line-height: 1.6; margin-bottom: 12px; }
-  .title-btns { width: min(300px, 78vw); }
+  .title-btns { width: min(300px, 78cqw); }
   .title-screen { gap: 10px; justify-content: flex-start; padding: calc(64px + var(--sat)) 12px 20px; overflow-y: auto; }
   .aspect-row { gap: 10px; }
-  .aspect-card { width: min(300px, 82vw); padding: 10px 14px 12px; }
+  .aspect-card { width: min(300px, 82cqw); padding: 10px 14px 12px; }
   .asp-hero { width: 64px; height: 64px; }
   .asp-blurb { font-size: 12px; }
   .vow-desc { font-size: 12px; padding: 0 14px; }
   .title-stats { position: static; margin-top: 8px; }
   .lamp-boons { gap: 10px; }
-  .lamp-boon { width: min(300px, 82vw); min-height: 0; }
+  .lamp-boon { width: min(300px, 82cqw); min-height: 0; }
   .lamp-hero { width: 60px; height: 60px; }
   .lamp-arts { gap: 7px; }
   .lamp-art { padding: 6px 12px; font-size: 12.5px; }
-  .bequest-opt { width: 44vw; max-width: 160px; }
+  .bequest-opt { width: 44cqw; max-width: 160px; }
   .hud-bar { gap: 10px; padding: calc(6px + var(--sat)) calc(10px + var(--sar)) 5px calc(10px + var(--sal)); }
   .hud-stat { font-size: 14px; gap: 5px; }
   .hud-hp-wrap { min-width: 96px; }
@@ -1175,13 +1186,13 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   #relicbar { max-width: 100%; padding-top: 2px; gap: 6px; }
   .map-title { top: calc(58px + var(--sat)); font-size: 12px; letter-spacing: 0.16em; padding: 0 58px; line-height: 1.7; }
   /* stage */
-  .battlefield { inset: calc(56px + var(--sat)) 0 218px 0; padding: 0 2vw; }
+  .battlefield { inset: calc(56px + var(--sat)) 0 218px 0; padding: 0 2cqw; }
   .stage-ledge { bottom: 172px; height: 90px; }
-  .player-zone { width: 31vw; }
-  .hero-wrap { width: min(150px, 33vw); height: min(225px, 49.5vw); }
-  .player-zone .hpbar-wrap { width: min(150px, 33vw); }
+  .player-zone { width: 31cqw; }
+  .hero-wrap { width: min(150px, 33cqw); height: min(225px, 49.5cqw); }
+  .player-zone .hpbar-wrap { width: min(150px, 33cqw); }
   .hpbar-wrap { width: 118px; }
-  .status-row { max-width: 34vw; }
+  .status-row { max-width: 34cqw; }
   .enemy .name, .hero-wrap .hero-name { font-size: 10.5px; letter-spacing: 0.06em; }
   .enemy.boss-e .name { font-size: 12px; }
   .intent { height: 26px; font-size: 14px; padding: 0 8px; gap: 4px; }
@@ -1217,7 +1228,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   .pile-discard { right: calc(8px + var(--sar)); }
   .pile-exhaust { right: calc(8px + var(--sar)); bottom: calc(58px + var(--sab)); }
   .turn-banner { font-size: 27px; letter-spacing: 0.2em; }
-  .turn-banner.boss-banner { font-size: clamp(24px, 7vw, 38px); }
+  .turn-banner.boss-banner { font-size: clamp(24px, 7cqw, 38px); }
   .combat-msg { top: calc(78px + var(--sat)); font-size: 12px; }
   .floaty { font-size: 26px; }
   .floaty.crit { font-size: 36px; }
@@ -1225,15 +1236,15 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   .floaty.notice { font-size: 16px; }
   /* overlays become full-height sheets */
   #overlay { align-items: stretch; }
-  .ov-panel { max-width: 100vw; width: 100vw; max-height: none; height: 100%; border-radius: 0; border-left: none; border-right: none; padding: calc(16px + var(--sat)) 14px calc(18px + var(--sab)); }
+  .ov-panel { max-width: 100cqw; width: 100cqw; max-height: none; height: 100%; border-radius: 0; border-left: none; border-right: none; padding: calc(16px + var(--sat)) 14px calc(18px + var(--sab)); }
   .ov-title { font-size: 20px; }
   .ov-sub { font-size: 13px; margin-bottom: 12px; }
   .card-grid { gap: 10px; }
-  .card-grid .card { --cw: 27vw; }
-  .choice-cards .card { --cw: 29vw; }
+  .card-grid .card { --cw: 27cqw; }
+  .choice-cards .card { --cw: 29cqw; }
   .reward-list { min-width: 0; width: 100%; }
   .reward-row { font-size: 15px; padding: 11px 14px; }
-  .event-panel { width: 100vw; }
+  .event-panel { width: 100cqw; }
   .event-text { font-size: 15px; }
   .center-panel { padding: calc(70px + var(--sat)) 8px calc(12px + var(--sab)); }
   .stats-grid { grid-template-columns: repeat(2, minmax(110px, 1fr)); gap: 8px; }
@@ -1244,7 +1255,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 
 /* ============ phone landscape: a low wide window — everything ducks, the
    hand tucks below the sill and rises to meet a lifted finger */
-@media (max-height: 480px) and (min-width: 500px) {
+@container stage (max-height: 480px) and (min-width: 500px) {
   .hud-bar { gap: 10px; padding: calc(4px + var(--sat)) calc(12px + var(--sar)) 4px calc(12px + var(--sal)); }
   .hud-stat { font-size: 13.5px; }
   .hud-hp-wrap { min-width: 110px; }
@@ -1255,10 +1266,10 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   .hud-relic { width: 34px; height: 34px; }
   #relicbar { padding-top: 0; gap: 6px; }
   .map-title { top: calc(42px + var(--sat)); font-size: 11.5px; }
-  .battlefield { inset: calc(44px + var(--sat)) 0 132px 0; padding: 0 5vw; }
+  .battlefield { inset: calc(44px + var(--sat)) 0 132px 0; padding: 0 5cqw; }
   .stage-ledge { bottom: 96px; height: 70px; }
-  .player-zone { width: 22vw; }
-  .hero-wrap { width: min(128px, 32vh); height: min(192px, 48vh); }
+  .player-zone { width: 22cqw; }
+  .hero-wrap { width: min(128px, 32cqh); height: min(192px, 48cqh); }
   .player-zone .hpbar-wrap, .hpbar-wrap { width: 118px; }
   .enemy .name, .hero-wrap .hero-name { font-size: 10.5px; }
   .intent { height: 24px; font-size: 13px; }
@@ -1290,19 +1301,19 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   .turn-banner { font-size: 26px; }
   .floaty { font-size: 22px; }
   .floaty.crit { font-size: 32px; }
-  .logo { font-size: clamp(30px, 11vh, 64px); }
+  .logo { font-size: clamp(30px, 11cqh, 64px); }
   .tagline { margin-bottom: 10px; }
   .title-btns { gap: 8px; }
   .title-btns .btn { padding: 8px 22px; font-size: 14px; }
   #overlay { align-items: stretch; }
-  .ov-panel { max-width: 100vw; width: 100vw; max-height: none; height: 100%; border-radius: 0; border-left: none; border-right: none; padding: 12px calc(16px + var(--sar)) calc(10px + var(--sab)) calc(16px + var(--sal)); }
+  .ov-panel { max-width: 100cqw; width: 100cqw; max-height: none; height: 100%; border-radius: 0; border-left: none; border-right: none; padding: 12px calc(16px + var(--sar)) calc(10px + var(--sab)) calc(16px + var(--sal)); }
   .ov-title { font-size: 18px; margin-bottom: 2px; }
   .ov-sub { margin-bottom: 8px; font-size: 12.5px; }
   .card-grid { gap: 10px; }
-  .card-grid .card { --cw: 15vw; }
-  .choice-cards .card { --cw: 16vw; }
+  .card-grid .card { --cw: 15cqw; }
+  .choice-cards .card { --cw: 16cqw; }
   .center-panel { padding: calc(48px + var(--sat)) 8px calc(10px + var(--sab)); }
-  .end-title { font-size: clamp(30px, 11vh, 56px); }
+  .end-title { font-size: clamp(30px, 11cqh, 56px); }
   .monument { padding: 22px 30px 20px; gap: 10px; }
 }
 
@@ -1327,14 +1338,14 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .g-badge { font-size: 9px; padding: 1px 5px; border-radius: 4px; background: #33406a; color: #cfd6ee; }
 .g-png .g-badge { background: #2c5e3c; }
 #screen.gallery-mode { overflow-y: auto; padding-bottom: 40px; }
-.gallery-lightbox { position: relative; width: min(1120px, calc(100vw - 32px)); max-height: calc(100vh - 32px); display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; padding: 14px; border: 1px solid #33406a; border-radius: 8px; background: rgba(8, 10, 18, 0.96); box-shadow: 0 24px 90px rgba(0, 0, 0, 0.72); }
+.gallery-lightbox { position: relative; width: min(1120px, calc(100cqw - 32px)); max-height: calc(100cqh - 32px); display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; padding: 14px; border: 1px solid #33406a; border-radius: 8px; background: rgba(8, 10, 18, 0.96); box-shadow: 0 24px 90px rgba(0, 0, 0, 0.72); }
 .gallery-lightbox-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-right: 42px; color: #cfd6ee; font-size: 13px; }
 .gallery-lightbox-meta b { font-family: Cinzel, serif; color: #f0c56a; font-size: 18px; }
 .gallery-lightbox-meta span { color: #9aa7c8; }
 .gallery-lightbox-close { position: absolute; top: 8px; right: 8px; width: 34px; height: 34px; border: 1px solid #33406a; border-radius: 50%; background: #10152a; color: #cfd6ee; font-size: 24px; line-height: 1; cursor: pointer; }
 .gallery-lightbox-close:hover, .gallery-lightbox-close:focus-visible { border-color: #f0c56a; color: #f0c56a; outline: none; }
 .gallery-lightbox-art { min-height: 0; display: flex; align-items: center; justify-content: center; overflow: auto; border-radius: 6px; background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.06), rgba(8, 10, 18, 0.24) 48%, rgba(0, 0, 0, 0.28)); }
-.gallery-lightbox-art img, .gallery-lightbox-art svg, .gallery-lightbox-art .title-banner-ph { max-width: 100%; max-height: calc(100vh - 118px); width: auto; height: auto; object-fit: contain; filter: drop-shadow(0 14px 24px rgba(0, 0, 0, 0.55)); }
+.gallery-lightbox-art img, .gallery-lightbox-art svg, .gallery-lightbox-art .title-banner-ph { max-width: 100%; max-height: calc(100cqh - 118px); width: auto; height: auto; object-fit: contain; filter: drop-shadow(0 14px 24px rgba(0, 0, 0, 0.55)); }
 
 /* ---- test-harness freeze (window.__probe.freeze) ----
    deterministic screenshots: pause every CSS animation and hide the layers

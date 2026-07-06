@@ -7,6 +7,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ACTS } from './data.js';
+import { stageW, stageH, stageScale, toStage } from './stage.js';
 
 let renderer, scene, camera, composer, bloom;
 let ptsMain, ptsAccent, nebulae = [], skyGroup;
@@ -108,7 +109,6 @@ const LITE = new URLSearchParams(location.search).get('input') === 'touch' || ma
 export function initScene() {
   const canvas = document.getElementById('bg3d');
   renderer = new THREE.WebGLRenderer({ canvas, antialias: !LITE, alpha: false });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, LITE ? 1.35 : 1.75));
   scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(cur.fog.getHex(), 0.055);
   camera = new THREE.PerspectiveCamera(58, 1, 0.1, 120);
@@ -258,22 +258,26 @@ export function initScene() {
   // post: bloom makes the additive particles, monoliths and beacon actually glow
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.85, 0.55, 0.16);
+  bloom = new UnrealBloomPass(new THREE.Vector2(stageW(), stageH()), 0.85, 0.55, 0.16);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 
+  // fixed virtual stage: layout size and camera aspect are constants of the
+  // chosen shape — a bigger monitor gets more backing pixels, never more world
   const fit = () => {
-    renderer.setSize(innerWidth, innerHeight);
-    composer.setSize(innerWidth, innerHeight);
-    if (LITE) bloom.setSize(innerWidth / 2, innerHeight / 2); // bloom is a blur; half-res is free glow
-    camera.aspect = innerWidth / innerHeight;
+    renderer.setPixelRatio(Math.min(devicePixelRatio * stageScale(), LITE ? 1.35 : 1.75));
+    renderer.setSize(stageW(), stageH());
+    composer.setSize(stageW(), stageH());
+    if (LITE) bloom.setSize(stageW() / 2, stageH() / 2); // bloom is a blur; half-res is free glow
+    camera.aspect = stageW() / stageH();
     camera.updateProjectionMatrix();
   };
   fit();
   addEventListener('resize', fit);
   addEventListener('pointermove', (e) => {
-    mouse.x = (e.clientX / innerWidth - 0.5) * 2;
-    mouse.y = (e.clientY / innerHeight - 0.5) * 2;
+    const p = toStage(e.clientX, e.clientY);
+    mouse.x = (p.x / stageW() - 0.5) * 2;
+    mouse.y = (p.y / stageH() - 0.5) * 2;
   });
   setTheme(0, true);
   requestAnimationFrame(loop);
@@ -425,8 +429,8 @@ function frame(t) {
       const dist = camera.position.distanceTo(a.pos);
       out.push({
         id: a.id,
-        x: (_v.x * 0.5 + 0.5) * innerWidth,
-        y: (-_v.y * 0.5 + 0.5) * innerHeight,
+        x: (_v.x * 0.5 + 0.5) * stageW(),
+        y: (-_v.y * 0.5 + 0.5) * stageH(),
         s: THREE.MathUtils.clamp((9 * af) / dist, 0.4, 1.3),
         fade: _v.z > 1 ? 0 : THREE.MathUtils.clamp(1.3 - Math.abs(a.pos.y - camLookCur.y) / (7.5 * af), 0.1, 1),
       });

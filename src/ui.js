@@ -7,6 +7,9 @@ import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, beque
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
 import { meshBind, meshClear, meshEnabled, meshDebug } from './mesh.js';
+// fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
+// client px and cross over via toStage/stageRect at the handler boundary
+import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
@@ -87,15 +90,16 @@ function initTooltip() {
     while (n && n !== document.body && !n._tip) n = n.parentElement;
     return n && n._tip ? n : null;
   };
-  const place = (x, y, touch) => {
+  const place = (cx, cy, touch) => {
     if (tip.style.display !== 'block') return;
+    const { x, y } = toStage(cx, cy);
     const w = tip.offsetWidth, h = tip.offsetHeight;
     if (touch) {
-      tip.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, x - w / 2))}px`;
+      tip.style.left = `${Math.max(8, Math.min(stageW() - w - 8, x - w / 2))}px`;
       tip.style.top = `${Math.max(8, y - h - 26)}px`;
     } else {
-      tip.style.left = `${Math.min(innerWidth - w - 12, x + 16)}px`;
-      tip.style.top = `${Math.max(8, Math.min(innerHeight - h - 12, y - h / 2))}px`;
+      tip.style.left = `${Math.min(stageW() - w - 12, x + 16)}px`;
+      tip.style.top = `${Math.max(8, Math.min(stageH() - h - 12, y - h / 2))}px`;
     }
   };
   document.addEventListener('pointerover', (e) => {
@@ -262,12 +266,13 @@ function renderHud() {
   $('[data-act="menu"]', hud).onclick = (e) => { sfx.click(); openMenu(e.clientX, e.clientY); };
   $$('.potion-slot.full', hud).forEach((slot) => (slot.onclick = (e) => potionMenu(+slot.dataset.slot, e)));
 }
-function openMenu(x, y) {
+function openMenu(cx, cy) {
   closeMenus();
+  const { x, y } = toStage(cx, cy);
   const m = el('div', 'pop-menu');
   m.innerHTML = `<button data-m="help">How to Play</button><button data-m="mute">${isMuted() ? 'Unmute' : 'Mute'} Sound</button><button data-m="abandon" style="color:#ff8d8d">Abandon Run</button>`;
-  document.body.appendChild(m);
-  m.style.left = `${Math.min(x, innerWidth - 200)}px`;
+  stageEl().appendChild(m); // inside the stage so it scales with the game
+  m.style.left = `${Math.min(x, stageW() - 200)}px`;
   m.style.top = `${y + 8}px`;
   m.onclick = (e) => {
     const a = e.target.dataset.m;
@@ -290,9 +295,10 @@ function potionMenu(slot, e) {
   const canUse = !p.combatOnly || inCombat;
   const m = el('div', 'pop-menu');
   m.innerHTML = `<button data-m="use" ${canUse ? '' : 'disabled style="opacity:.4"'}>Use ${p.name}</button><button data-m="toss">Toss it</button>`;
-  document.body.appendChild(m);
-  m.style.left = `${Math.min(e.clientX - 60, innerWidth - 220)}px`;
-  m.style.top = `${e.clientY + 10}px`;
+  stageEl().appendChild(m);
+  const pt = toStage(e.clientX, e.clientY);
+  m.style.left = `${Math.min(pt.x - 60, stageW() - 220)}px`;
+  m.style.top = `${pt.y + 10}px`;
   m.onclick = async (ev) => {
     const a = ev.target.dataset.m;
     closeMenus();
@@ -721,7 +727,7 @@ function enterNode(node) {
     // first light: the dark lantern pays for the walking
     sfx.coin();
     const g = $(`.mnode[data-node="${node.id}"]`);
-    const from = g ? (() => { const r = g.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })() : { x: innerWidth / 2, y: innerHeight / 2 };
+    const from = g ? V.centerOf(g) : { x: stageW() / 2, y: stageH() / 2 };
     V.floatText(from.x, from.y - 34, `${iconSvg('coin', 12)} +${bounty}`, 'goldf');
     flyTo(from.x, from.y, 120, 30, { n: 5, color: '#ffe9ac', size: 7, dur: 620 });
   }
@@ -745,9 +751,9 @@ function claimMonumentNode(node) {
     sfx.relic();
     const label = b.kind === 'relic' ? RELICS[b.id]?.name : b.kind === 'card' ? CARDS[b.id]?.name : `${b.amount} gold`;
     const g = $(`.mnode[data-node="${node.id}"]`);
-    const from = g ? (() => { const r = g.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })() : { x: innerWidth / 2, y: innerHeight / 2 };
+    const from = g ? V.centerOf(g) : { x: stageW() / 2, y: stageH() / 2 };
     V.floatText(from.x, from.y - 34, `✦ ${label}`, 'goldf');
-    flyTo(from.x, from.y, innerWidth / 2, innerHeight * 0.5, { n: 8, color: '#ffe9ac', size: 8, dur: 720 });
+    flyTo(from.x, from.y, stageW() / 2, stageH() * 0.5, { n: 8, color: '#ffe9ac', size: 8, dur: 720 });
     banner('THE STONE REMEMBERS');
   }
   show('map');
@@ -892,11 +898,11 @@ const heroCenter = () => V.centerOf(S.ce.hero);
 // width budget: the hero's zone and padding come off the top, the rest splits
 // between foes — on a phone the whole line must still stand on the ledge
 function enemyArtSize(d, count) {
-  const heroW = Math.min(innerWidth * 0.31, 240);
-  const wBudget = (innerWidth - heroW - innerWidth * 0.08) / count - 12;
+  const heroW = Math.min(stageW() * 0.31, 240);
+  const wBudget = (stageW() - heroW - stageW() * 0.08) / count - 12;
   const base = d.boss ? 280 : d.elite ? 230 : 185;
   const raw = base * (d.art.size >= 1.4 ? 1 : d.art.size < 0.8 ? 0.86 : 0.95) * Math.min(d.art.size, 1.45);
-  return Math.round(Math.min(raw, innerHeight * (d.boss ? 0.34 : 0.3), Math.max(72, wBudget * (d.boss ? 1.12 : 1))));
+  return Math.round(Math.min(raw, stageH() * (d.boss ? 0.34 : 0.3), Math.max(72, wBudget * (d.boss ? 1.12 : 1))));
 }
 // rotate the phone mid-fight and the stage re-fits itself
 let fitT = 0;
@@ -1059,7 +1065,7 @@ function layoutHand() {
   const n = cards.length;
   // the fan never outgrows the screen: on a phone it stacks deep between two
   // chrome gutters (energy orb left, end-turn right) instead of spreading
-  const gap = Math.min(112, 640 / Math.max(n, 1), (innerWidth - 246) / Math.max(n - 1, 1));
+  const gap = Math.min(112, 640 / Math.max(n, 1), (stageW() - 246) / Math.max(n - 1, 1));
   cards.forEach((uid, i) => {
     const c = els.get(uid);
     if (!c) return;
@@ -1096,10 +1102,11 @@ function bindCardDrag(c, uid) {
       return;
     }
     if (st.free) {
-      c.style.transform = `translate(calc(-50% + ${e.clientX - innerWidth / 2}px), ${e.clientY - innerHeight + 130}px) scale(1.12)`;
+      const p = toStage(e.clientX, e.clientY);
+      c.style.transform = `translate(calc(-50% + ${p.x - stageW() / 2}px), ${p.y - stageH() + 130}px) scale(1.12)`;
       const overL = !!underPointer(e.clientX, e.clientY)?.closest('.lantern-btn');
       c.classList.toggle('will-burn', overL);
-      c.classList.toggle('will-cast', !st.kindleOnly && !overL && e.clientY < castLine());
+      c.classList.toggle('will-cast', !st.kindleOnly && !overL && p.y < castLine());
     } else {
       aimMove(e);
       hoverEnemyAt(e.clientX, e.clientY);
@@ -1123,7 +1130,7 @@ function bindCardDrag(c, uid) {
     }
     if (st.kindleOnly) { S.hoveredCard = null; layoutHand(); return; } // nowhere else to go
     if (st.free) {
-      if (e.clientY < castLine()) doPlay(uid, null);
+      if (toStage(e.clientX, e.clientY).y < castLine()) doPlay(uid, null);
       else { S.hoveredCard = null; layoutHand(); }
       return;
     }
@@ -1131,13 +1138,13 @@ function bindCardDrag(c, uid) {
     const idx = en ? +en.dataset.idx : -1;
     const living = S.cb.enemies.filter((x) => x.hp > 0);
     if (idx >= 0 && S.cb.enemies[idx].hp > 0) doPlay(uid, idx);
-    else if (living.length === 1 && e.clientY < castLine()) doPlay(uid, living[0].idx); // one foe: releasing high is aim enough
+    else if (living.length === 1 && toStage(e.clientX, e.clientY).y < castLine()) doPlay(uid, living[0].idx); // one foe: releasing high is aim enough
     else { clearTargeting(); layoutHand(); }
   };
   c.addEventListener('pointerup', (e) => finish(e, false));
   c.addEventListener('pointercancel', (e) => finish(e, true));
 }
-const castLine = () => (S.ce?.hand ? S.ce.hand.getBoundingClientRect().top - 24 : innerHeight - 260);
+const castLine = () => (S.ce?.hand ? stageRect(S.ce.hand).top - 24 : stageH() - 260); // stage px
 // what's under the finger, looking through the card being dragged
 const underPointer = (x, y) => document.elementsFromPoint(x, y).find((el) => !el.closest('.card'));
 function beginCardDrag(st, c) {
@@ -1302,9 +1309,10 @@ function aimMove(e) {
   let from;
   if (S.targeting.kind === 'card') {
     const c = $(`.card[data-uid="${S.targeting.uid}"]`);
-    from = c ? V.centerOf(c) : { x: innerWidth / 2, y: innerHeight - 200 };
-  } else from = { x: innerWidth / 2, y: 60 };
-  const mx = e.clientX, my = e.clientY;
+    from = c ? V.centerOf(c) : { x: stageW() / 2, y: stageH() - 200 };
+  } else from = { x: stageW() / 2, y: 60 };
+  // synthetic events already carry stage coords (built from centerOf)
+  const { x: mx, y: my } = e.synthetic ? { x: e.clientX, y: e.clientY } : toStage(e.clientX, e.clientY);
   const cx = (from.x + mx) / 2, cy = Math.min(from.y, my) - 120;
   $('#aim').innerHTML = `<path d="M${from.x} ${from.y - 80} Q${cx} ${cy} ${mx} ${my}" fill="none" stroke="rgba(255,89,100,.85)" stroke-width="4" stroke-dasharray="4 10" stroke-linecap="round"/>
     <circle cx="${mx}" cy="${my}" r="9" fill="none" stroke="rgba(255,89,100,.95)" stroke-width="3"/>`;
@@ -1452,7 +1460,7 @@ function rigTick(t) {
   // where the hero's gaze goes: your aim while targeting, else the nearest foe
   let heroTgt = null;
   const living = cb.enemies.findIndex((e) => e.hp > 0);
-  if (S.targeting && aimMove._last) heroTgt = { x: aimMove._last.clientX, y: aimMove._last.clientY };
+  if (S.targeting && aimMove._last) heroTgt = toStage(aimMove._last.clientX, aimMove._last.clientY);
   else if (living >= 0) heroTgt = enemyCenter(living);
   const hc = heroCenter();
   for (const it of ce.rig) {
@@ -1697,7 +1705,7 @@ async function handleEvent(ev, targetIdx) {
       }
       if (c && targetIdx != null && cb.enemies[targetIdx]) {
         // targeted attacks: the card itself streaks into the enemy
-        const r = c.getBoundingClientRect();
+        const r = stageRect(c); // ghost is fixed inside the stage
         const { x: tx, y: ty } = enemyCenter(targetIdx);
         const ghost = c.cloneNode(true);
         Object.assign(ghost.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, margin: 0, transform: 'none', zIndex: 56, pointerEvents: 'none' });
@@ -1861,7 +1869,7 @@ async function handleEvent(ev, targetIdx) {
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
       if (c) {
         // the card burns away edge-inward, embers rising off it
-        const r = c.getBoundingClientRect();
+        const r = stageRect(c);
         const ghost = c.cloneNode(true);
         Object.assign(ghost.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, margin: 0, transform: 'none', zIndex: 56, pointerEvents: 'none' });
         document.getElementById('floaties').appendChild(ghost);
@@ -1921,7 +1929,7 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'intent': syncCombat(); break;
     case 'addCard': {
-      V.floatText(innerWidth / 2, innerHeight * 0.62, `${CARDS[ev.id].name} added to ${ev.where === 'hand' ? 'hand' : 'discard'}`, 'notice');
+      V.floatText(stageW() / 2, stageH() * 0.62, `${CARDS[ev.id].name} added to ${ev.where === 'hand' ? 'hand' : 'discard'}`, 'notice');
       sfx.debuff();
       syncCombat(); syncHand();
       await sleep(240);
@@ -1944,7 +1952,7 @@ async function handleEvent(ev, targetIdx) {
     case 'powerConsumed': {
       // a power doesn't get discarded — it settles into the glass
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
-      const from = c ? V.centerOf(c) : { x: innerWidth / 2, y: innerHeight - 180 };
+      const from = c ? V.centerOf(c) : { x: stageW() / 2, y: stageH() - 180 };
       const { x: hx, y: hy } = heroCenter();
       flyTo(from.x, from.y, hx, hy, { n: 7, color: '#c9a8ff', size: 7, dur: 560 });
       sfx.buff();
@@ -2035,7 +2043,7 @@ function renderReward({ kind, rewards }) {
     // the coins travel to the purse
     requestAnimationFrame(() => {
       const purse = $('#hud .gold-num');
-      const from = { x: innerWidth / 2, y: innerHeight / 2 - 40 };
+      const from = { x: stageW() / 2, y: stageH() / 2 - 40 };
       const to = purse ? V.centerOf(purse) : { x: 120, y: 24 };
       const before = run.player.gold - rewards.gold;
       if (purse) purse.textContent = before; // hold the old total; the coins bring the rest
@@ -2047,7 +2055,7 @@ function renderReward({ kind, rewards }) {
     const p = POTIONS[rewards.potion];
     addRow(rasterOr('potions', rewards.potion, potionSvg(p.tone)), `${p.name}`, () => {
       if (!E.gainPotion(run, rewards.potion)) {
-        V.floatText(innerWidth / 2, innerHeight / 2, 'Potion slots full!', 'notice');
+        V.floatText(stageW() / 2, stageH() / 2, 'Potion slots full!', 'notice');
         return false;
       }
       sfx.potion();
@@ -2063,7 +2071,7 @@ function renderReward({ kind, rewards }) {
         const chip = $(`.hud-relic[data-relic="${rewards.relic}"]`);
         if (!chip) return;
         const to = V.centerOf(chip);
-        flyTo(innerWidth / 2, innerHeight / 2 - 40, to.x, to.y, {
+        flyTo(stageW() / 2, stageH() / 2 - 40, to.x, to.y, {
           n: 1, glyph: r.glyph, color: r.tone, dur: 680,
           done: () => { chip.classList.remove('proc'); void chip.offsetWidth; chip.classList.add('proc'); },
         });
@@ -2085,7 +2093,7 @@ function renderReward({ kind, rewards }) {
         if (inst) {
           E.addCardToDeck(run, inst.id);
           sfx.upgrade();
-          V.floatText(innerWidth / 2, innerHeight / 2, `${E.cardData(inst).name} added`, 'notice');
+          V.floatText(stageW() / 2, stageH() / 2, `${E.cardData(inst).name} added`, 'notice');
         }
         cardRow.classList.add('taken');
         E.saveRun(run);
@@ -2163,9 +2171,9 @@ function renderRest() {
     const healed = E.healPlayer(run, Math.round(run.player.maxHp * E.restHealFrac(run)));
     // the fire answers: a swell of warmth, embers rising off the hearth
     V.flash('#ff9a4d', 0.12, 0.8);
-    V.floatText(innerWidth / 2, innerHeight / 2 - 40, `+${healed} HP`, 'healf');
-    V.motes(innerWidth / 2, innerHeight / 2, '#8fe8a0', 22);
-    V.motes(innerWidth / 2, innerHeight / 2 + 60, '#ffb066', 16);
+    V.floatText(stageW() / 2, stageH() / 2 - 40, `+${healed} HP`, 'healf');
+    V.motes(stageW() / 2, stageH() / 2, '#8fe8a0', 22);
+    V.motes(stageW() / 2, stageH() / 2 + 60, '#ffb066', 16);
     E.saveRun(run);
     setTimeout(() => { if (S.screen === 'rest') show('map'); }, 900);
   };
@@ -2199,7 +2207,7 @@ function renderTreasure() {
     $('.art-lg').innerHTML = rasterOr('props', 'chest-open', chestSvg(true));
     sfx.relic();
     V.flash('#ffe9ac', 0.2, 0.5);
-    V.burst(innerWidth / 2, innerHeight / 2, { color: '#ffd97a', n: 36, speed: 380, grav: 160 });
+    V.burst(stageW() / 2, stageH() / 2, { color: '#ffd97a', n: 36, speed: 380, grav: 160 });
     const bc = $('.big-choices');
     if (relicId) {
       E.gainRelic(run, relicId);
@@ -2283,7 +2291,7 @@ function renderShop() {
       const b = el('button', 'shop-relic', `<span style="width:34px;height:44px">${rasterOr('potions', it.id, potionSvg(p.tone))}</span><b>${p.name}</b>${p.text}`);
       b.onclick = () => {
         if (it.sold || gold() < it.price) return sfx.debuff();
-        if (!E.gainPotion(run, it.id)) { V.floatText(innerWidth / 2, innerHeight / 2, 'Potion slots full!', 'notice'); return; }
+        if (!E.gainPotion(run, it.id)) { V.floatText(stageW() / 2, stageH() / 2, 'Potion slots full!', 'notice'); return; }
         it.sold = true;
         sfx.potion();
         buy(it.price);
@@ -2393,7 +2401,7 @@ function unlockToastInfo(u) {
 function showUnlockToasts(list = []) {
   if (!list.length) return;
   let host = $('#toasts');
-  if (!host) { host = el('div'); host.id = 'toasts'; document.body.appendChild(host); }
+  if (!host) { host = el('div'); host.id = 'toasts'; stageEl().appendChild(host); }
   list.forEach((u, i) => {
     const info = unlockToastInfo(u);
     setTimeout(() => {
@@ -2434,7 +2442,7 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
     sunrise(); // the only warm daylight in the game
     sfx.victory();
     V.flash('#ffe9ac', 0.25, 1);
-    const conf = setInterval(() => V.burst(Math.random() * innerWidth, innerHeight * 0.2, { color: ['#ffd97a', '#c9b0ff', '#8fe8a0'][(Math.random() * 3) | 0], n: 16, speed: 300, grav: 260, life: 1.2 }), 400);
+    const conf = setInterval(() => V.burst(Math.random() * stageW(), stageH() * 0.2, { color: ['#ffd97a', '#c9b0ff', '#8fe8a0'][(Math.random() * 3) | 0], n: 16, speed: 300, grav: 260, life: 1.2 }), 400);
     setTimeout(() => clearInterval(conf), 4200);
   } else {
     // the fallen may carve one thing into the stone for the next climber to find
@@ -2560,19 +2568,23 @@ function renderGallery() {
 // explicit test-state shims for scenario setup (the same trick the engine
 // self-test's forceHand uses). Never imported by engine.js/vigil.js.
 function installProbe() {
-  const rect = (sel) => document.querySelector(sel)?.getBoundingClientRect() ?? null;
+  // all probe geometry is STAGE px — resolution-independent by construction:
+  // the same run at 1280×800 and 1920×1080 must report identical numbers
+  const rect = (sel) => { const n = document.querySelector(sel); return n ? stageRect(n) : null; };
   window.__probe = {
     // -- readers --------------------------------------------------------
     // one ground line: combatant feet, painted ledge lip and glow seam all
     // measure against the battlefield's bottom edge (hardening spec §1)
+    stage: () => stageInfo(),
     geometry() {
       const bf = rect('.battlefield');
       if (!bf || !S.cb || !S.ce) return null;
       return {
-        viewport: { w: innerWidth, h: innerHeight },
+        stage: stageInfo(),
+        viewport: { w: stageW(), h: stageH() },
         groundY: bf.bottom,
         heroArtBottom: rect('.hero-wrap')?.bottom ?? null,
-        enemyArtBottoms: S.cb.enemies.map((en, i) => (en.hp > 0 && S.ce.enemies[i] ? S.ce.enemies[i].art.getBoundingClientRect().bottom : null)),
+        enemyArtBottoms: S.cb.enemies.map((en, i) => (en.hp > 0 && S.ce.enemies[i] ? stageRect(S.ce.enemies[i].art).bottom : null)),
         slLedgeTop: rect('.sl-ledge')?.top ?? null,
         seamY: rect('.stage-ledge')?.top ?? null,
       };

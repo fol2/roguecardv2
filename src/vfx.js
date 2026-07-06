@@ -1,4 +1,7 @@
 // 2D canvas VFX overlay + floating text + screen shake.
+// All coordinates are STAGE px (the fixed virtual resolution, src/stage.js);
+// the canvas backing store carries the real on-screen density.
+import { stageW, stageH, stageScale, stageRect } from './stage.js';
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let canvas, ctx2, floatLayer, shakeEl;
 let parts = [];
@@ -6,8 +9,9 @@ let flashes = [];
 let shakeV = 0, shakeX = 0, shakeY = 0;
 let hitstopUntil = 0;
 
-// a DPR-3 phone doesn't need a 9x pixel canvas for sparks — cap at 2
-const DPR = () => Math.min(devicePixelRatio, 2);
+// backing texels per stage px: real density (device DPR × stage scale), capped
+// — sparks don't need more, and a huge monitor shouldn't 4x the canvas
+const DPR = () => Math.min(devicePixelRatio * stageScale(), 2);
 export const LITE = matchMedia('(pointer: coarse)').matches;
 const cnt = (n) => (LITE ? Math.max(3, Math.round(n * 0.6)) : n);
 
@@ -16,9 +20,9 @@ export function initVfx() {
   ctx2 = canvas.getContext('2d');
   floatLayer = document.getElementById('floaties');
   shakeEl = document.getElementById('shake');
-  const fit = () => { canvas.width = innerWidth * DPR(); canvas.height = innerHeight * DPR(); };
+  const fit = () => { canvas.width = stageW() * DPR(); canvas.height = stageH() * DPR(); };
   fit();
-  addEventListener('resize', fit);
+  addEventListener('resize', fit); // registered after stage.js's — scale is fresh
   requestAnimationFrame(tick);
 }
 
@@ -94,7 +98,7 @@ function tick(t) {
   for (const f of flashes) {
     ctx2.globalAlpha = (f.life / f.dur) * f.alpha;
     ctx2.fillStyle = f.color;
-    ctx2.fillRect(0, 0, innerWidth, innerHeight);
+    ctx2.fillRect(0, 0, stageW(), stageH());
   }
   ctx2.restore();
   // shake spring
@@ -178,7 +182,7 @@ export function floatText(x, y, text, cls = '') {
 // throw them outward — the body literally breaks apart along the light.
 export function shatter(el) {
   const vis = el.querySelector('svg') || el.querySelector('img.raster-art');
-  const r = el.getBoundingClientRect();
+  const r = stageRect(el); // shard wrappers are fixed inside the stage
   if (!vis || !r.width) return;
   if (REDUCED) { el.style.visibility = 'hidden'; return; }
   const html = vis.tagName === 'svg'
@@ -214,8 +218,9 @@ export function shatter(el) {
   el.style.visibility = 'hidden';
 }
 
+// centre of an element in STAGE px — the coordinate every effect layer speaks
 export const centerOf = (el) => {
-  const r = el.getBoundingClientRect();
+  const r = stageRect(el);
   return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
 };
 

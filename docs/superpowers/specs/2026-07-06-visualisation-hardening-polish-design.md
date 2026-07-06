@@ -65,6 +65,66 @@ invisible under mesh (planes ignore CSS filters).
   the same trick `test_engine.js`'s own `forceHand` uses), `freeze()` only
   activates when explicitly called, and it must never be imported by
   `engine.js` / `vigil.js`.
+- **New (fixed stage):** the game renders to a fixed virtual resolution and
+  scales uniformly. The window size may only change the stage's scale and
+  letterbox, never its layout: the same combat at two window sizes of the same
+  orientation reports bit-identical probe geometry (stage px). Enforced by
+  `stage.spec`.
+
+## 1b. Fixed virtual stage (implemented 2026-07-06, same commit as the kit)
+
+The game is a game, not a responsive page. `src/stage.js` (imports nothing;
+imported by scene3d/vfx/mesh/ui) owns one `#stage` element that wraps every
+layer in `index.html`. Four canonical shapes, nothing else:
+
+| shape | stage px | picked when |
+|---|---|---|
+| `phone-portrait` | 390×844 | touch + window aspect < 0.567 |
+| `phone-landscape` | 844×390 | touch + aspect > 1.765 |
+| `pad-portrait` | 820×1180 | otherwise, aspect < 1 |
+| `pad-landscape` | 1180×820 | otherwise, aspect ≥ 1 |
+
+(splits are the geometric means of neighbouring supported aspects;
+`?shape=<name>` forces one for tests/dev.) `initStage()` runs before every
+other init so its resize listener fires first; it sizes `#stage` at stage px,
+centres it with `left/top`, and applies a uniform `transform: scale()` —
+bigger monitor = bigger pixels, never more world. The body behind it is the
+letterbox (black).
+
+Consequences the rest of the code relies on:
+
+- **The transform makes `#stage` the containing block for every
+  `position: fixed` layer inside it** — vfx/mesh/floaties/tooltip/overlay are
+  all "fixed to the stage" for free.
+- **Two coordinate spaces, one rule.** Layout/effects code speaks *stage px*;
+  pointer events and `getBoundingClientRect` speak *client px*. Cross over at
+  the boundary only: `toStage(x, y)` for pointers, `stageRect(el)` for rects
+  (`V.centerOf` is stage-native). `document.elementFromPoint` keeps client px.
+  Input *thresholds* (drag-start 26px, long-press slop 12px, map-pan velocity)
+  deliberately stay client px — physical feel should not change with scale.
+- **Canvases render at stage size × real density.** scene3d/vfx/mesh size
+  their backing stores from `stageW()/stageH()` with
+  `pixelRatio = min(devicePixelRatio × stageScale(), cap)` (caps unchanged:
+  1.35/1.75 scene, 2 vfx/mesh). The 3D camera aspect is a constant of the
+  shape — an ultrawide sees the same frustum, pillarboxed.
+- **CSS breakpoints query the stage, not the window.** The three layout
+  media queries became `@container stage (...)` blocks (`#stage` is a size
+  container); every `vw/vh/dvh` length became `cqw/cqh`. The cascade is
+  unchanged: pad-landscape gets the desktop layout, pad-portrait the ≤1100
+  tune, phone-portrait ≤740, phone-landscape the ≤480-height block. Input
+  media queries (`pointer: coarse`, `prefers-reduced-motion`) stay media
+  queries.
+- **Popups live inside the stage.** `.pop-menu` / `#toasts` append to
+  `#stage` (not `document.body`) so they scale with the game.
+- **The probe reports stage px** (`geometry()`, plus `stage()` →
+  `{ shape, w, h, scale }`), which makes every geometry assertion
+  resolution-independent by construction.
+
+`stage.spec` is the executable contract: shape mapping per Playwright
+project, uniform-scale + centred letterbox of the real `#stage` box, the
+`?shape=` override, and geometry bit-equality across a 1280×800 → 1920×1080
+resize. Safe-area insets still come from the window (`env()`); on real phones
+the stage fills the screen (scale ≈ 1) so the offsets remain correct.
 
 ## 1. Ground-line unification (fix)
 
@@ -115,9 +175,11 @@ Derivations (all `calc()`, no new magic numbers elsewhere):
 **Probe** (`window.__probe`, defined in `ui.js` beside `window.spirebound` —
 **as built 2026-07-06**):
 
-- Readers: `geometry()` → `{ viewport, groundY, heroArtBottom,
+- Readers: `geometry()` → `{ stage, viewport, groundY, heroArtBottom,
   enemyArtBottoms[], slLedgeTop, seamY }` (groundY := `.battlefield` bottom,
-  so the contract is measurable before `--ground-y` exists); `invariants()` →
+  so the contract is measurable before `--ground-y` exists; **all values in
+  stage px** — see §1b) and `stage()` → `{ shape, w, h, scale }`;
+  `invariants()` →
   `{ name, pass, detail }[]`: dead enemies leave the field (DOM) *and* release
   their mesh plane (`.mesh-live` must not sit on a corpse), HP labels / hand
   count / energy / embers all match engine `cb` state; `state()` → screen,
@@ -150,6 +212,9 @@ props id must have exactly one file in `src/assets/<cat>/`, both directions.
 
 Suites (`test/e2e/`):
 
+0. `stage.spec` — the §1b fixed-viewport contract: project → shape mapping,
+   uniform-scale centred letterbox, `?shape=` override, geometry bit-equality
+   across a desktop window resize. Green as of the §1b commit.
 1. `geometry.spec` — per act (1/2/3, canon encounters) and per viewport, plus
    a trio fight and a desktop live-resize check: seeded fight, `settle()`,
    assert hero + living-enemy art bottoms within ±2px of the ground line,

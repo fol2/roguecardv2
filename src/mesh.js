@@ -1,6 +1,8 @@
 // Mesh vertex-warp layer — one WebGL canvas, one plane per combatant/title hero.
 // Idle only (intensity ~0.45 combat default); hit/attack stays in vfx.js. Falls back to static <img>.
+// Plane positions/sizes are STAGE px (fixed virtual resolution, src/stage.js).
 import * as THREE from 'three';
+import { stageW, stageH, stageScale, stageRect } from './stage.js';
 
 const SEG_X = 24, SEG_Y = 36, INTENSITY = 0.45;
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -108,7 +110,7 @@ function deformPlane(p, t) {
 }
 
 function layoutPlane(p, t = 0) {
-  const r = p.el.getBoundingClientRect();
+  const r = stageRect(p.el);
   if (r.width < 2 || r.height < 2) { p.mesh.visible = false; return; }
   const img = p.el.querySelector('.raster-art');
   p.aspect = artAspect(img, p.mesh.material.map) || p.aspect || 1;
@@ -120,8 +122,9 @@ function layoutPlane(p, t = 0) {
 }
 
 function resize() {
-  W = innerWidth; H = innerHeight;
-  renderer.setSize(W, H, false);
+  W = stageW(); H = stageH();
+  renderer.setPixelRatio(Math.min(devicePixelRatio * stageScale(), 2));
+  renderer.setSize(W, H, false); // CSS stays 100% of the stage
   camera.left = -W / 2; camera.right = W / 2;
   camera.top = H / 2; camera.bottom = -H / 2;
   camera.updateProjectionMatrix();
@@ -142,7 +145,6 @@ export function initMesh() {
   if (!canvas || renderer) return;
   renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
   renderer.setClearColor(0, 0);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   scene = new THREE.Scene();
   camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
   camera.position.z = 10;

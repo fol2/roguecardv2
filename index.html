@@ -18,21 +18,23 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>🃏</text></svg>" />
 </head>
 <body>
-  <canvas id="bg3d"></canvas>
-  <div id="vignette"></div>
-  <div id="grain"></div>
-  <div id="shake">
-    <div id="screen"></div>
-    <div id="lantern"></div>
-    <div id="hud"></div>
+  <div id="stage">
+    <canvas id="bg3d"></canvas>
+    <div id="vignette"></div>
+    <div id="grain"></div>
+    <div id="shake">
+      <div id="screen"></div>
+      <div id="lantern"></div>
+      <div id="hud"></div>
+    </div>
+    <svg id="aim"></svg>
+    <canvas id="mesh"></canvas>
+    <canvas id="vfx"></canvas>
+    <div id="floaties"></div>
+    <div id="overlay"></div>
+    <div id="wipe"></div>
+    <div id="tooltip"></div>
   </div>
-  <svg id="aim"></svg>
-  <canvas id="mesh"></canvas>
-  <canvas id="vfx"></canvas>
-  <div id="floaties"></div>
-  <div id="overlay"></div>
-  <div id="wipe"></div>
-  <div id="tooltip"></div>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
