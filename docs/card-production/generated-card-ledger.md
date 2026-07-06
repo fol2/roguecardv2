@@ -109,3 +109,11 @@ reference roles, hashes, and prompt locations are collected in
 | `ironSkin` | approved generated source | `src/assets-readable-baseline/cards/ironSkin.png` | `scratch/style-tests/card-production-batch-12-20260706/README.md`; `scratch/style-tests/card-production-batch-12-20260706/prompt-ledger.md` |
 | `regrowth` | approved generated source | `src/assets-readable-baseline/cards/regrowth.png` | `scratch/style-tests/card-production-batch-12-20260706/README.md`; `scratch/style-tests/card-production-batch-12-20260706/prompt-ledger.md` |
 | `tithe` | approved generated source | `src/assets-readable-baseline/cards/tithe.png` | `scratch/style-tests/card-production-batch-12-20260706/README.md`; `scratch/style-tests/card-production-batch-12-20260706/prompt-ledger.md` |
+
+## Batch 13
+
+| Card | Decision | Final gallery asset | Source record |
+|---|---|---|---|
+| `nightSight` | approved generated source | `src/assets-readable-baseline/cards/nightSight.png` | `scratch/style-tests/card-production-batch-13-20260706/README.md`; `scratch/style-tests/card-production-batch-13-20260706/prompt-ledger.md` |
+| `emberdance` | approved generated source | `src/assets-readable-baseline/cards/emberdance.png` | `scratch/style-tests/card-production-batch-13-20260706/README.md`; `scratch/style-tests/card-production-batch-13-20260706/prompt-ledger.md` |
+| `oblivionStrike` | approved generated source | `src/assets-readable-baseline/cards/oblivionStrike.png` | `scratch/style-tests/card-production-batch-13-20260706/README.md`; `scratch/style-tests/card-production-batch-13-20260706/prompt-ledger.md` |

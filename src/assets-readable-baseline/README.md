@@ -297,7 +297,8 @@ comparison sheets remain in
 `scratch/style-tests/card-production-batch-09-20260706/`, and
 `scratch/style-tests/card-production-batch-10-20260706/`, and
 `scratch/style-tests/card-production-batch-11-20260706/`, and
-`scratch/style-tests/card-production-batch-12-20260706/`.
+`scratch/style-tests/card-production-batch-12-20260706/`, and
+`scratch/style-tests/card-production-batch-13-20260706/`.
 Prop assets are normalised to the live runtime prop dimensions, with alpha
 preserved. Prop source, alpha, prompts, and contact sheets remain in
 `scratch/prop-art-production-20260706/`.
