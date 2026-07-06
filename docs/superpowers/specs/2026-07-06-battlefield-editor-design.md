@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Goal:** Replace the hand-tuned combat-stage CSS magic numbers with one
-hand-editable, data-driven layout file (`src/battlefield.js`) covering hero,
+hand-editable, data-driven layout file (`src/battlefield-layout.js`) covering hero,
 enemies, the three background plates and the ground line — per viewport shape,
 with shared values where sharing makes sense — plus a dev-only in-game editor
 (`?bfedit=1`) with drag-to-move, drag-to-resize, a numeric parameter panel,
@@ -24,23 +24,31 @@ is untouched; `geometry.spec` remains the acceptance gate.
 | Editor scope | Battlefield only: hero, monsters (position/size/formation), 3 background layers, ground line. Combat chrome (energy orb, lantern, end turn, piles, hand) untouched |
 | Enemy positioning model | Formation slots per enemy count (1/2/3) + shared per-type modifiers (scale, footY) |
 | Viewport sharing | Global `shared` values + one `base` layout (pad-landscape) + per-shape overrides deep-merged over base |
-| Save workflow | Vite dev plugin, `POST /__bf-save` writes `src/battlefield.js`; HMR reloads. Copy-JS button as fallback |
+| Save workflow | Vite dev plugin, `POST /__bf-save` writes `src/battlefield-layout.js`; HMR reloads. Copy-JS button as fallback |
 | Relation to hardening plan | Layout file becomes the single source of truth for ground line / positions; plan Tasks 1/4/5 superseded, `geometry.spec` unchanged as validator |
 | Future-proofing | Extensible schema: open id-keyed maps for heroes/enemies; reserved optional `parts: {}` per actor for the parked rigging spike. No attachment implementation this pass |
 | Architecture | Approach A: runtime layout module + dev-only in-game editor overlay + Vite write-back endpoint |
 
 ## Invariants (violating any fails review)
 
-- `src/battlefield.js` imports nothing (same tier as `data.js`) and is
-  Node-importable — `npm test` gains a schema sanity check.
+- The layout lives in two files: `src/battlefield-layout.js` (pure data,
+  `export const BF`, the file the editor rewrites and the owner hand-edits)
+  and `src/battlefield.js` (the resolver, which imports only the data file).
+  Both import nothing else (same tier as `data.js`) and are Node-importable —
+  `npm test` gains a schema sanity check. Splitting data from code keeps the
+  serializer trivial: it only ever regenerates data.
 - `engine.js` / `vigil.js` never touch the layout file; layout is pure
   presentation. Engine tests unaffected.
 - The editor module (`src/dev/bf-editor.js`) loads only behind `?bfedit=1`
   via dynamic import and is excluded from the production bundle; the save
   endpoint exists only on the vite dev server. `npm run build` output
   contains neither.
-- First commit's layout values are transcribed from today's CSS: rendering
-  before/after the refactor is visually identical until the owner edits.
+- First commit's layout values are seeded from today's CSS and formulas so
+  sizes and horizontal placement approximate the current look — but feet are
+  corrected onto the ground line (that correction is the *point* of the
+  superseded hardening Tasks 1/4/5, and `geometry.spec` currently fails
+  against today's render). "Identical" is explicitly not the bar;
+  "geometry.spec green with a recognisably-same scene" is.
 - Feet-on-ground contract: hero art bottom and every living enemy art bottom
   within ±2px of the ground line at every shape (`geometry.spec`, unchanged).
 - `stage.spec` geometry bit-equality across window resizes still holds —
@@ -51,7 +59,7 @@ is untouched; `geometry.spec` remains the acceptance gate.
 - All numbers are stage px for their shape. Client px never enters the file
   (editor converts pointer input at the boundary via `toStage()`).
 
-## 1. The layout file — `src/battlefield.js`
+## 1. The layout file — `src/battlefield-layout.js` (+ resolver `src/battlefield.js`)
 
 One hand-editable JS module with a header comment ("owned by the battlefield
 editor — hand edits welcome, keep the shape"). Structure:
@@ -194,7 +202,7 @@ override; size/footY edits to shared. The panel always shows provenance
 
 A ~40-line plugin in `vite.config.js`, dev server only: `POST /__bf-save`
 receives the layout object, validates (known shape keys, known enemy/hero
-ids, all numbers finite, slots 1–3 present), and writes `src/battlefield.js`
+ids, all numbers finite, slots 1–3 present), and writes `src/battlefield-layout.js`
 via the deterministic serializer (fixed key order, fixed header,
 write-temp-then-rename so the file is never half-written). Vite HMR reloads
 the module. Invalid payload ⇒ 400 + editor toast; nothing written.
