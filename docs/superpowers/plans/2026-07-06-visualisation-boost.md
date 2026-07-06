@@ -17,7 +17,7 @@
 - Animate only `transform`, `opacity`, `filter`. Gate all motion behind the existing `REDUCED` flag (JS) / `prefers-reduced-motion` (CSS) patterns.
 - Reuse easing tokens `--ease-out-soft` and `--ease-spring` from `styles.css` `:root`; do not invent new curves.
 - Structural icons come from `art.js` (`iconSvg`/`iconInline`) — never font glyphs.
-- All raster generation follows `docs/generated-art-workflow.md` exactly (prompt ledger in `scratch/`, `#ff00ff` chroma-key, alpha validation, rim cleanup, `?gallery=1` review). Asset ids must equal internal keys from `data.js`.
+- All raster generation follows `docs/generated-art-workflow.md` (prompt ledger in `scratch/`, `#ff00ff` chroma-key, alpha validation, rim cleanup, `?gallery=1` review). Asset ids must equal internal keys from `data.js`. **Owner-approved deviation (2026-07-06): Step 1 source images are generated with the Cursor session's image-generation tool instead of Codex gpt-image-2** (executor environment lacks Codex built-in image_gen); Steps 2–4 (Nano Banana Pro → alpha → rim cleanup) unchanged.
 - Mobile budget: LITE tier (`matchMedia('(pointer: coarse)')` — the pattern used in `scene3d.js`) gets 0.6× particle counts and skips fullscreen impact frames.
 - `dist/` is committed and rebuilt; do not run `npm run build` per task — only in the final task.
 - Commit after every task with the message given in the task.
