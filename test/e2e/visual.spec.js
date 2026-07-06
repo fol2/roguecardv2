@@ -11,13 +11,26 @@
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { test } from '@playwright/test';
-import { boot, startFight, stable, freeze } from './helpers.js';
+import { boot, startFight, stable, freeze, settle } from './helpers.js';
 
 const SNAP_DIR = fileURLToPath(new URL('./visual.spec.js-snapshots', import.meta.url));
-test.beforeEach(() => {
-  test.skip(!fs.existsSync(SNAP_DIR),
+test.beforeEach(({}, testInfo) => {
+  const updating = testInfo.config.updateSnapshots !== 'none';
+  test.skip(!fs.existsSync(SNAP_DIR) && !updating,
     'no committed baselines yet — run `npm run test:e2e:update` after the geometry/mesh fixes land');
 });
+
+/** Map overlay projections keep moving until the tower camera dolly settles. */
+async function waitMapSettled(page) {
+  await page.waitForFunction(async () => {
+    const sample = () => [...document.querySelectorAll('.mnode')].map((g) => g.getAttribute('transform'));
+    const a = sample();
+    if (!a.length) return false;
+    await new Promise((r) => setTimeout(r, 220));
+    const b = sample();
+    return a.every((t, i) => t === b[i]);
+  }, null, { timeout: 12_000 });
+}
 
 async function shoot(page, name) {
   await stable(page);
@@ -33,8 +46,7 @@ test('title screen', async ({ page }) => {
 test('map screen', async ({ page }) => {
   await boot(page, { query: 'mesh=0' });
   await page.evaluate(() => window.spirebound.show('map'));
-  // let the tower camera finish its dolly before pinning the projection
-  await page.waitForTimeout(2800);
+  await waitMapSettled(page);
   await shoot(page, 'map');
 });
 
@@ -55,6 +67,7 @@ test('reward screen', async ({ page }) => {
     const [uid] = window.__probe.forceHand(['strike']);
     await window.__probe.play(uid, 0);
   });
+  await settle(page);
   await shoot(page, 'reward');
 });
 

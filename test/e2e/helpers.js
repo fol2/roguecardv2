@@ -58,7 +58,8 @@ export async function stable(page) {
   await page.waitForTimeout(1600);
 }
 
-export function freeze(page) {
+export async function freeze(page) {
+  await page.waitForFunction(() => window.__probe?.freeze);
   return page.evaluate(() => window.__probe.freeze());
 }
 
