@@ -479,7 +479,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 @keyframes enemyIn { from { opacity: 0; transform: translateX(90px); } }
 @keyframes chromeIn { from { opacity: 0; transform: translateY(44px); } }
 .battlefield { position: absolute; inset: 96px 0 232px 0; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 5cqw; }
-.player-zone { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 240px; transform: translateY(25px); }
+.player-zone { position: relative; width: 240px; transform: translateY(25px); }
 .hero-wrap { position: relative; width: 190px; height: 285px; }
 .hero-wrap .hero-name {
   position: absolute; top: -11px; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: none;
@@ -488,7 +488,11 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 }
 .hero-wrap svg { width: 100%; height: 100%; }
 .enemy-zone { display: flex; align-items: flex-end; justify-content: flex-end; gap: 3cqw; }
-.enemy { display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; transition: filter 0.2s, transform 0.25s; }
+.enemy { position: relative; transition: filter 0.2s, transform 0.25s; }
+/* the chrome plate: name/HP/facets/statuses hang below the art box, out of
+   flow, so the combatant's box bottom IS its feet (ground-line contract) */
+.cplate { position: absolute; top: 100%; left: 50%; translate: -50% 0; display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 3; padding-top: 6px; width: max-content; max-width: 260px; }
+.enemy .intent { position: absolute; bottom: calc(100% + 8px); left: 50%; translate: -50% 0; z-index: 3; }
 .enemy-art { position: relative; }
 .enemy-sprite { position: relative; width: 100%; height: 100%; }
 .enemy-art svg { width: 100%; height: 100%; display: block; }
@@ -497,7 +501,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   content: ''; position: absolute; left: 8%; right: 8%; bottom: -5px; height: 15px; z-index: -2;
   background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.55), transparent 68%);
 }
-.enemy-art::after { bottom: -51px; }
+.enemy-art::after { bottom: -5px; }
 .enemy.hurt .enemy-art { animation: hurtFlash 0.3s; }
 @keyframes hurtFlash { 30% { filter: brightness(2.6) saturate(0.4) drop-shadow(0 0 18px #fff); transform: translateX(7px); } 60% { transform: translateX(-5px); } }
 .enemy.dying { animation: dissolve 0.85s ease-in forwards; pointer-events: none; }
@@ -857,7 +861,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 @keyframes breathe { 0%, 100% { transform: scaleY(1) scaleX(1) rotate(0deg); } 50% { transform: scaleY(var(--brY, 1.035)) scaleX(0.99) rotate(var(--sw, 0deg)); } }
 /* stained glass casts its light: each creature's color pooled on the ground */
 .lightpool { position: absolute; left: 2%; right: 2%; bottom: -19px; height: 42px; z-index: -1; pointer-events: none; filter: blur(8px); opacity: 0.55; }
-.enemy-art > .lightpool { bottom: -65px; }
+.enemy-art > .lightpool { bottom: -14px; }
 /* low HP: the glass slumps, the fire inside it gutters (rig dims .innerfire) */
 .enemy-art svg, .hero-wrap svg { transition: transform 0.9s ease; }
 .enemy.lowhp .enemy-art svg { transform: rotate(2.4deg) translateY(4px) scale(0.985); }
@@ -1232,8 +1236,6 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   .enemy .name, .hero-wrap .hero-name { font-size: 10.5px; letter-spacing: 0.06em; }
   .enemy.boss-e .name { font-size: 12px; }
   .intent { height: 26px; font-size: 14px; padding: 0 8px; gap: 4px; }
-  .lightpool { bottom: -14px; height: 30px; }
-  .enemy-art > .lightpool { bottom: -60px; }
   /* the fan */
   .card { --cw: 118px; }
   .card-text { font-size: 11.5px; padding: 3px 7px 8px; }
@@ -1309,8 +1311,6 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   .player-zone .hpbar-wrap, .hpbar-wrap { width: 118px; }
   .enemy .name, .hero-wrap .hero-name { font-size: 10.5px; }
   .intent { height: 24px; font-size: 13px; }
-  .lightpool { bottom: -12px; height: 26px; }
-  .enemy-art > .lightpool { bottom: -58px; }
   .card { --cw: 104px; }
   .card-text { font-size: 10.5px; }
   .card-name { font-size: 11px; }
