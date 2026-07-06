@@ -57,15 +57,18 @@ invisible under mesh (planes ignore CSS filters).
 - **New:** zero console errors / unhandled rejections during any scripted
   battle scenario. Enforced by `battle.spec` via the probe error collector.
 - Playwright and the probe are test infrastructure: the probe must be tiny,
-  side-effect-free at runtime, and must never be imported by `engine.js` /
-  `vigil.js`.
+  purely observational (its `console.error` wrap is pass-through; `freeze()`
+  only activates when explicitly called or via `?freeze=1`), and must never be
+  imported by `engine.js` / `vigil.js`.
 
 ## 1. Ground-line unification (fix)
 
 One custom property `--ground-y` (px from screen bottom) defined on
-`.combat-screen`, redefined inside each existing combat media-query block,
-mirroring the current `.battlefield` bottom insets (desktop 232px; the ≤740px,
-≤1188-line landscape and short-landscape blocks mirror their current values).
+`.combat-screen`, redefined inside each existing combat media-query block.
+Rule for the plan: find every rule that sets a `.battlefield` bottom inset
+(base rule + every media query) and lift that block's bottom-inset value into
+`--ground-y` for the same block — values do not change, they become the single
+source of truth (desktop is 232px today).
 Derivations (all `calc()`, no new magic numbers elsewhere):
 
 - `.battlefield` bottom inset = `var(--ground-y)`.
