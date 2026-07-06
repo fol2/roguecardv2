@@ -343,6 +343,14 @@ Asset source decisions:
   narrative backdrop that fades to transparent instead of a full rectangular
   scene. `chest` and `chest-open` are a matched treasure-state pair for the
   treasure screen.
+- `props/chest.png` and `props/chest-open.png` were revisited after the first
+  live prop promotion to improve the treasure-state match. The closed chest uses
+  the new GPT -> Nano Banana -> alpha result recorded in
+  `scratch/prop-chest-nanobanana-20260706/`; the opened chest uses the approved
+  GPT-image-2 source alpha recorded in
+  `scratch/prop-chest-open-gpt-image-2-20260706/`. The GPT opened state was
+  selected over the later Nano Banana opened variant after a closed/open blink
+  validation because it better preserves the chest footprint.
 - `events/*.png` is the complete event-art production set from
   `scratch/style-tests/event-production-20260706/`. Event art uses full
   narrative backgrounds rather than alpha cutouts. Every event now has a GPT
