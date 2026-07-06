@@ -1013,7 +1013,10 @@ function syncCombat() {
     statusChips(x.statuses, en.statuses, false);
     if (en.hp > 0) x.facets.innerHTML = facetPips(en);
     else x.facets.innerHTML = '';
-    if (en.hp <= 0) x.root.classList.add('gone');
+    // the death rite (case 'die') owns the alive→dying→gone exit; only re-assert
+    // the hidden corpse here once that rite has finished, so a sync fired by the
+    // killing hit can't blank the body out before it staggers and shatters
+    if (en.hp <= 0 && x.reaped) x.root.classList.add('gone');
     if (en.hp > 0 && en.flags.staggered) {
       x.intent.className = 'intent i-staggered';
       x.intent.innerHTML = `<span class="ic">${iconSvg('stagger', 19)}</span>STAGGERED`;
@@ -1809,7 +1812,6 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'die': {
       const x = ce.enemies[ev.idx];
-      meshRelease(x.root); // the WebGL body hands back to the DOM for the death rite
       const en = cb.enemies[ev.idx];
       const { x: ex, y: ey } = enemyCenter(ev.idx);
       emberFrom = { x: ex, y: ey }; // the fire inside spills toward the lantern
@@ -1825,6 +1827,7 @@ async function handleEvent(ev, targetIdx) {
       }
       await choreoStagger(x.art);
       (en.boss || en.elite ? sfx.bigDeath : sfx.death)();
+      meshRelease(x.root); // the warp body hands off to the DOM shards on the shatter beat
       V.shatter(x.art); // the glass body breaks apart
       V.burst(ex, ey, { color: '#dfeaff', n: 30, speed: 480, size: 2.6, grav: 340, kind: 'spark' });
       V.burst(ex, ey, { color: '#c9b0ff', n: 26, speed: 380, size: 3.2, grav: 60 });
@@ -1833,7 +1836,7 @@ async function handleEvent(ev, targetIdx) {
       V.shake(en.boss ? 22 : 12);
       kick(en.boss ? 2 : 0.9);
       x.root.classList.add('dying');
-      setTimeout(() => { x.root.classList.remove('dying'); x.root.classList.add('gone'); }, 830);
+      setTimeout(() => { x.root.classList.remove('dying'); x.root.classList.add('gone'); x.reaped = true; }, 830);
       await sleep(en.boss ? 900 : 500);
       break;
     }
