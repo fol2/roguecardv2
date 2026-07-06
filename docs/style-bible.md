@@ -8,6 +8,11 @@ references are captured in [`art-study-bible.md`](./art-study-bible.md).
 Prop type, rarity language, and the first pitch demos are captured in
 [`prop-taxonomy.md`](./prop-taxonomy.md).
 
+Potion-specific study notes, prompt seeds, HUD constraints, approved shape
+language, and review gates live in
+[`potion-art-bible.md`](./potion-art-bible.md). Read that file before generating
+or replacing any `src/assets/potions/*.png` asset.
+
 ## Master reference
 
 `docs/refs/style-master.png` — the approved Duskblade portrait (spike

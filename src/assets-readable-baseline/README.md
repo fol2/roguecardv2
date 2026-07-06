@@ -33,6 +33,13 @@ Council-approved baseline assets:
 - `enemies/shade.png`
 - `enemies/chaosHound.png`
 - `enemies/watcherEye.png`
+- `potions/healing.png`
+- `potions/strength.png`
+- `potions/swift.png`
+- `potions/block.png`
+- `potions/fire.png`
+- `potions/venom.png`
+- `potions/energy.png`
 
 Asset source decisions:
 
@@ -66,6 +73,13 @@ Asset source decisions:
   colour-lift candidates. They follow the approved Act 3 first batch
   dark-background colour baseline and the same outer-rim cleanup plus light
   colour-lift pass.
+- `potions/healing.png`, `potions/strength.png`, `potions/swift.png`,
+  `potions/block.png`, `potions/fire.png`, `potions/venom.png`, and
+  `potions/energy.png` are the council-approved current potion set from
+  `scratch/potion-demos/20260706-current-seven-r1/`. They use built-in Image
+  Gen flat `#ff00ff` chroma-key sources, local chroma-key alpha removal, and
+  final 256 x 256 potion-icon normalisation. The approved direction is fat,
+  chunky, saturated, low-stroke stained-glass phials for HUD readability.
 
 Prompt decision:
 
@@ -77,9 +91,12 @@ Prompt decision:
   no-hero/no-human constraints. The approved v2 allows a little heroic attitude
   for elites and bosses, but keeps the body language enemy-like and funny.
 
-These are runtime-ready PNGs normalised to a maximum edge of 1024px with alpha
-preserved. Source and review artefacts remain in
-`scratch/style-tests/design-council-20260705-readable-style/`.
+Enemy and hero assets are runtime-ready PNGs normalised to a maximum edge of
+1024px with alpha preserved. Potion assets are normalised to 256 x 256 with
+alpha preserved. Source and review artefacts remain in
+`scratch/style-tests/design-council-20260705-readable-style/`; potion source,
+alpha, prompts, and contact sheets remain in
+`scratch/potion-demos/20260706-current-seven-r1/`.
 
 Gallery cleanup:
 
