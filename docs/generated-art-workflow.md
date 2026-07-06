@@ -246,7 +246,7 @@ parked sets. When the whole set has passed review, activate it with a folder
 swap:
 
 ```bash
-mv src/assets src/assets-previous
+mv src/assets src/assets-legacy
 mv src/assets-readable-baseline src/assets
 npm run build
 ```
@@ -254,6 +254,10 @@ npm run build
 Only promote or activate assets whose `<id>` matches the internal key in
 `src/data.js`. After activation, check `http://localhost:5174/?gallery=1` or
 the active dev-server gallery URL.
+
+For title art, keep the runtime folders distinct: `title/title.png` is the
+transparent `SPIREBOUND` wordmark, and `title-background/background.png` is the
+optional title-screen background.
 
 During an active council pass, the gallery can inspect a temporary parked set.
 Add the set to `ASSET_SETS` in `src/art.js`, then open:
@@ -263,9 +267,9 @@ http://localhost:5174/?gallery=1&set=readable-baseline
 ```
 
 After approval or rejection, remove temporary runtime review folders and their
-`ASSET_SETS` entries. The steady-state gallery should expose only `live` and
-`readable-baseline`; keep prompts, generated ids, alpha outputs, and comparison
-contact sheets in scratch.
+`ASSET_SETS` entries. The steady-state gallery should expose only stable
+comparison sets such as `live` and `legacy`; keep prompts, generated ids, alpha
+outputs, and comparison contact sheets in scratch.
 
 ## Workflow Test Log
 

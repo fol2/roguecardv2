@@ -8,10 +8,17 @@ references are captured in [`art-study-bible.md`](./art-study-bible.md).
 Prop type, rarity language, and the first pitch demos are captured in
 [`prop-taxonomy.md`](./prop-taxonomy.md).
 
-Potion-specific study notes, prompt seeds, HUD constraints, approved shape
-language, and review gates live in
-[`potion-art-bible.md`](./potion-art-bible.md). Read that file before generating
-or replacing any `src/assets/potions/*.png` asset.
+Card-specific study notes, prompt rules, mechanic cues, and review gates live in
+[`card-art-bible.md`](./card-art-bible.md). Read that file before generating or
+replacing any `src/assets/cards/*.png` asset.
+
+Potion-specific study notes, prompt seeds, HUD constraints, and review gates
+live in [`potion-art-bible.md`](./potion-art-bible.md). Read that file before
+generating or replacing any `src/assets/potions/*.png` asset.
+
+Act-specific direction for the current final act lives in
+[`act3-theme.md`](./act3-theme.md). Use that note before generating any Act 3
+enemy prompts.
 
 ## Master reference
 
@@ -41,6 +48,10 @@ world, but let them be cute, funny, or interesting through compact proportions,
 expressive faces, and one memorable threat shape. Do not push them into heroic
 stance, elegant armour, noble cloak, or protagonist framing.
 
+For Act 3 enemies, preserve that same successful enemy read. Their faction motif
+is a broken orbit halo plus a hot magenta judgement core, adapted to each
+creature's silhouette rather than stamped on as a small badge.
+
 ## Per-category composition
 
 | Category | Composition | Max size (px, `sips -Z`) |
@@ -51,7 +62,8 @@ stance, elegant armour, noble cloak, or protagonist framing.
 | `props` | single centred object (chest / campfire / merchant stall) | 512 |
 | `potions` | single centred phial, tone colour dominant | 256 |
 | `events` | wide scene, 3:2, focal point centre-right | 1024 |
-| `title` | wide hero banner, 16:9 | 1536 |
+| `title/title` | transparent single-word `SPIREBOUND` logotype | 1536 |
+| `title-background/background` | optional wide title-screen background, 16:9 | 1536 |
 
 Facing rule exists because combat lays hero left, enemies right. The master ref
 faces left — mirror heroes at generation time ("facing slightly right") rather
@@ -68,16 +80,20 @@ upright protagonist poses, clean symmetry, and knight/priest/warden silhouettes.
 `src/assets/<category>/<id>.png` — `<id>` is the **internal key** from
 `src/data.js` (`ENEMIES` key, `ASPECTS[i].id`, card id, potion id, event id).
 Never rename keys for art. Props use: `campfire`, `chest`, `chest-open`, `merchant`.
+Title assets are split deliberately: `title/title.png` is the transparent
+wordmark, while `title-background/background.png` is optional background art.
+Live currently ships the wordmark only; legacy keeps only the old background.
 
-Inactive candidate sets can mirror the same structure under
-`src/assets-readable-baseline/`. Normal gameplay continues to select the `live`
-set from `src/assets`; only use folder swaps once the candidate set is complete.
+Inactive candidate sets can mirror the same structure under a parked folder such
+as `src/assets-readable-baseline/`. Normal gameplay selects the `live` set from
+`src/assets`; only use folder swaps once the candidate set is complete. The
+previous live set is retained as `src/assets-legacy/`.
 
-The dev gallery should stay clean after promotion: keep only `live` and
-`readable-baseline` registered in `ASSET_SETS` in `src/art.js`. Temporary
-runtime review folders can be registered during an active council pass, but
-remove them after approval or rejection; keep the source prompts and comparison
-evidence in scratch instead.
+The dev gallery should stay clean after promotion: keep only stable comparison
+sets such as `live` and `legacy` registered in `ASSET_SETS` in `src/art.js`.
+Temporary runtime review folders can be registered during an active council
+pass, but remove them after approval or rejection; keep the source prompts and
+comparison evidence in scratch instead.
 
 ## Animation note
 

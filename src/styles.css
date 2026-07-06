@@ -203,6 +203,13 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   filter: drop-shadow(0 0 26px rgba(242, 193, 78, 0.35)) drop-shadow(0 4px 2px rgba(0, 0, 0, 0.8));
   animation: logoIn 1.1s cubic-bezier(0.2, 0.8, 0.25, 1), logoSheen 6s ease-in-out 1.1s infinite alternate;
 }
+.logo-raster {
+  width: min(780px, 88vw); line-height: 0; background: none; -webkit-text-stroke: 0; filter: none;
+}
+.title-wordmark {
+  display: block; width: 100%; height: auto;
+  filter: drop-shadow(0 0 26px rgba(242, 193, 78, 0.35)) drop-shadow(0 4px 2px rgba(0, 0, 0, 0.8));
+}
 @keyframes logoIn { from { opacity: 0; transform: translateY(24px) scale(0.96); letter-spacing: 0.3em; } to { opacity: 1; } }
 @keyframes logoSheen { from { background-position: 50% 0%; } to { background-position: 50% 100%; } }
 .tagline { color: var(--text-dim); letter-spacing: 0.34em; font-size: 14px; text-transform: uppercase; margin-bottom: 14px; font-family: 'Cinzel', serif; }

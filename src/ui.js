@@ -435,11 +435,12 @@ function renderTitle() {
       </div>
       <div class="vow-desc">${vowLine}</div>
     </div>` : '';
-  const banner = assetUrl('title', 'banner');
+  const banner = assetUrl('title-background', 'background');
+  const titleText = assetUrl('title', 'title');
   const sc = screenEl();
   sc.innerHTML = `<div class="title-screen screen-enter">
     ${banner ? `<div class="title-banner"><div class="title-banner-frame"><img class="raster-art" src="${banner}" alt=""></div></div>` : ''}
-    <div class="logo">SPIREBOUND</div>
+    <div class="logo${titleText ? ' logo-raster' : ''}">${titleText ? `<img class="title-wordmark" src="${titleText}" alt="SPIREBOUND">` : 'SPIREBOUND'}</div>
     <div class="tagline">A Roguelite Deckbuilder · The Vigil Remembers</div>
     <div class="aspect-row">${aspectCards}</div>
     ${vowBlock}
@@ -2423,7 +2424,8 @@ function renderGallery() {
     potions: Object.entries(POTIONS).map(([k, p]) => [k, () => potionSvg(p.tone)]),
     props: [['campfire', campfireSvg], ['chest', () => chestSvg(false)], ['chest-open', () => chestSvg(true)], ['merchant', merchantSvg]],
     events: Object.entries(EVENTS).map(([k, ev]) => [k, () => eventArtSvg(ev.glyph, ev.hue)]),
-    title: [['banner', () => '<div class="title-banner-ph">banner</div>']],
+    title: [['title', () => '<div class="title-banner-ph">title</div>']],
+    'title-background': [['background', () => '<div class="title-banner-ph">background</div>']],
   };
   screenEl().className = 'gallery-mode';
   screenEl().innerHTML = `<div class="g-toolbar">

@@ -4,7 +4,7 @@
 const ASSET_URLS = import.meta.glob('./assets*/*/*.png', { eager: true, query: '?url', import: 'default' });
 export const ASSET_SETS = {
   live: { label: 'Live', root: 'assets' },
-  'readable-baseline': { label: 'Readable baseline', root: 'assets-readable-baseline' },
+  legacy: { label: 'Legacy', root: 'assets-legacy' },
 };
 const DEFAULT_ASSET_SET = 'live';
 const assetSet = (set = DEFAULT_ASSET_SET) => ASSET_SETS[set] ?? ASSET_SETS[DEFAULT_ASSET_SET];

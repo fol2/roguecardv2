@@ -31,8 +31,8 @@ If an image is beautiful but unclear at runtime size, it has failed the brief.
 - `src/ui.js` is the only orchestrator that places art into screens.
 - Asset filenames must match internal keys from `src/data.js`.
 - Missing PNGs are allowed because SVG fallback remains valid.
-- `src/assets/` is the live set. `src/assets-readable-baseline/` is an inactive
-  review/reference set.
+- `src/assets/` is the live set. `src/assets-legacy/` is the previous live set
+  retained for review/reference comparison.
 - Final project-bound generated images must live inside the workspace, never
   only under `~/.codex/generated_images/`.
 
@@ -134,7 +134,8 @@ The prompt should make the image simpler, not more anxious.
 | `props` | location/object shorthand | single centred object |
 | `potions` | inventory phial read | one centred phial, dominant tone colour |
 | `events` | decision-scene mood and narrative hook | wide transparent scene, centre-right focal |
-| `title` | first impression | wide 16:9 banner, no UI clutter |
+| `title/title` | title identity | transparent single-word wordmark |
+| `title-background/background` | optional first impression | wide 16:9 background, no UI clutter |
 
 ## Event Taxonomy
 
