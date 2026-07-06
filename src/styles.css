@@ -183,6 +183,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   text-shadow: 0 0 8px var(--tone, var(--gold));
 }
 .relic-chip.proc { animation: relicProc 0.7s ease-out; }
+.relic-art { object-fit: contain; display: block; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6)); }
 @keyframes relicProc {
   0% { transform: scale(1); } 30% { transform: scale(1.35) rotate(-6deg); box-shadow: 0 0 26px var(--tone, var(--gold)); }
   100% { transform: scale(1); }
@@ -623,7 +624,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   background: rgba(10, 8, 14, 0.95); border: 1.5px solid currentColor;
   box-shadow: 0 0 10px color-mix(in srgb, currentColor 40%, transparent);
 }
-.lantern-btn .lb-art i { font-style: normal; font-size: 11px; line-height: 1; }
+.lantern-btn .lb-art i { font-style: normal; font-size: 11px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
 .lantern-btn .lb-art:empty { display: none; }
 .lantern-btn.ready { cursor: pointer; border-color: #ffe9ac; animation: artReady 1.6s ease-in-out infinite; }
 @keyframes artReady {

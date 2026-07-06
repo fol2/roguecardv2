@@ -1,7 +1,7 @@
 // SPIREBOUND UI — screens, combat playback, interactions.
 import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
-import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel } from './art.js';
+import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
 import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
@@ -33,6 +33,10 @@ const escHtml = (s) => String(s).replace(/[&<>"']/g, (ch) => ({
 const rasterOr = (cat, id, svg) => {
   const u = assetUrl(cat, id);
   return u ? `<img class="raster-art" src="${u}" alt="">` : svg;
+};
+const relicArt = (rid, size = 22) => {
+  const u = assetUrl('relics', rid);
+  return u ? `<img class="raster-art relic-art" src="${u}" alt="" style="width:${size}px;height:${size}px">` : (RELICS[rid]?.glyph || '◈');
 };
 const heroArt = (i) => {
   const u = assetUrl('heroes', ASPECTS[i].id);
@@ -231,14 +235,14 @@ function renderHud() {
   // the act's omen leads the bar: the rule the night imposed
   const omen = OMENS[S.run.omens?.[S.run.act]];
   if (omen) {
-    const oc = el('div', 'relic-chip omen-chip', omen.glyph);
+    const oc = el('div', 'relic-chip omen-chip', iconSvg(`omen-${S.run.omens[S.run.act]}`, 18));
     oc.style.setProperty('--tone', omen.tone);
     oc._tip = { title: `Omen — ${omen.name}`, body: omen.text, sub: `hangs over Act ${S.run.act + 1}` };
     bar.appendChild(oc);
   }
   for (const rid of p.relics) {
     const r = RELICS[rid];
-    const chip = el('div', 'relic-chip', r.glyph);
+    const chip = el('div', 'relic-chip', relicArt(rid, 20));
     chip.style.setProperty('--tone', r.tone);
     chip.dataset.relic = rid;
     chip._tip = { title: r.name, body: r.text, sub: r.rarity };
@@ -536,13 +540,13 @@ function renderLamplighter() {
   const boonCards = L.boons.map((id) => {
     const b = BOONS[id];
     return `<button class="lamp-boon${L.boon === id ? ' on' : ''}" data-a="boon" data-i="${id}">
-      <div class="lb-name">${b.name}</div><div class="lb-text">${fmtText(b.text)}</div>
+      <div class="lb-name">${iconSvg(`boon-${id}`, 20)} ${b.name}</div><div class="lb-text">${fmtText(b.text)}</div>
     </button>`;
   }).join('');
   const artChips = Object.keys(ARTS).map((id) => {
     const a = ARTS[id];
     return `<button class="lamp-art${L.art === id ? ' on' : ''}" data-a="art" data-i="${id}">
-      <span class="la-glyph" style="color:${a.tone}">${a.glyph}</span><span class="la-name">${a.name}</span>
+      <span class="la-glyph" style="color:${a.tone}">${iconSvg(`art-${id}`, 18)}</span><span class="la-name">${a.name}</span>
     </button>`;
   }).join('');
   const chosen = ARTS[L.art];
@@ -555,7 +559,7 @@ function renderLamplighter() {
     <div class="lamp-boons">${boonCards}</div>
     <div class="lamp-label">Your Lantern Art <span class="lamp-hint">(press A in combat)</span></div>
     <div class="lamp-arts">${artChips}</div>
-    <div class="lamp-art-desc">${chosen ? `<b style="color:${chosen.tone}">${chosen.glyph} ${chosen.name}</b> · ${fmtText(chosen.text)}` : ''}</div>
+    <div class="lamp-art-desc">${chosen ? `<b style="color:${chosen.tone}">${iconSvg(`art-${L.art}`, 15)} ${chosen.name}</b> · ${fmtText(chosen.text)}` : ''}</div>
     <div class="lamp-actions"><button class="btn" data-a="begin"${L.boon ? '' : ' disabled'}>${L.boon ? 'Light the Way' : 'Choose a boon'}</button></div>
   </div>`;
   renderHud();
@@ -624,7 +628,7 @@ function renderMap() {
   const act = ACTS[run.act];
   const omen = OMENS[run.omens?.[run.act]];
   screenEl().innerHTML = `
-    <div class="map-title">ACT ${run.act + 1} — <b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits${omen ? ` &nbsp;·&nbsp; <span class="mt-omen" style="color:${omen.tone}">${omen.glyph} ${omen.name}</span>` : ''}</div>
+    <div class="map-title">ACT ${run.act + 1} — <b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits${omen ? ` &nbsp;·&nbsp; <span class="mt-omen" style="color:${omen.tone}">${iconSvg(`omen-${run.omens[run.act]}`, 14)} ${omen.name}</span>` : ''}</div>
     <div class="map-screen screen-enter">
       <svg class="map-svg" width="100%" height="100%">${edges}${dots}</svg>
       <div class="map-hint">${COARSE ? 'drag' : 'scroll'} to survey the Spire</div>
@@ -838,7 +842,7 @@ function renderCombat() {
   ce.lantern = $('.lantern-btn', sc);
   const art = ARTS[S.run.art];
   if (art) {
-    $('.lb-art', ce.lantern).innerHTML = `<i>${art.glyph}</i>${art.cost}`;
+    $('.lb-art', ce.lantern).innerHTML = `<i>${iconSvg(`art-${S.run.art}`, 16)}</i>${art.cost}`;
     $('.lb-art', ce.lantern).style.color = art.tone;
   }
   ce.lantern._tip = {
@@ -911,7 +915,7 @@ function statusChips(container, statuses, isPlayer) {
     if (!n) continue;
     const info = STATUS_INFO[id] || { name: id, icon: '?', kind: 'buff', desc: '' };
     const kind = id === 'str' && n < 0 ? 'debuff' : info.kind;
-    const chip = el('span', `schip ${kind}`, `${info.icon} <span class="n">${n}</span>`);
+    const chip = el('span', `schip ${kind}`, `${hasIcon(`st-${id}`) ? iconSvg(`st-${id}`, 13) : info.icon} <span class="n">${n}</span>`);
     chip._tip = { title: info.name, body: info.desc.replace(/\bN\b/g, n), sub: kind === 'debuff' ? 'Debuff' : 'Buff' };
     container.appendChild(chip);
   }
@@ -2035,7 +2039,7 @@ function renderReward({ kind, rewards }) {
   }
   if (rewards.relic) {
     const r = RELICS[rewards.relic];
-    addRow(`<span style="color:${r.tone};text-shadow:0 0 8px ${r.tone}">${r.glyph}</span>`, `<b>${r.name}</b>`, () => {
+    addRow(`<span style="color:${r.tone};text-shadow:0 0 8px ${r.tone}">${relicArt(rewards.relic, 24)}</span>`, `<b>${r.name}</b>`, () => {
       E.gainRelic(run, rewards.relic);
       sfx.relic();
       // the relic takes its seat on the bar
@@ -2088,7 +2092,7 @@ function renderBossRelic() {
   for (const id of picks) {
     const r = RELICS[id];
     const b = el('button', 'relic-pick');
-    b.innerHTML = `<span class="relic-chip" style="--tone:${r.tone}">${r.glyph}</span><span><b>${r.name}</b><span class="rd">${r.text}</span></span>`;
+    b.innerHTML = `<span class="relic-chip" style="--tone:${r.tone}">${relicArt(id, 26)}</span><span><b>${r.name}</b><span class="rd">${r.text}</span></span>`;
     b.onclick = () => { sfx.relic(); E.gainRelic(run, id); advanceAct(); };
     wrap.appendChild(b);
   }
@@ -2117,7 +2121,7 @@ function advanceAct() {
 function omenBanner(run) {
   const omen = OMENS[run.omens?.[run.act]];
   if (!omen || S.screen !== 'map') return;
-  const b = el('div', 'turn-banner omen-banner', `<span class="ob-glyph" style="color:${omen.tone}">${omen.glyph}</span> OMEN — ${omen.name.toUpperCase()}<div class="ob-sub">${omen.text}</div>`);
+  const b = el('div', 'turn-banner omen-banner', `<span class="ob-glyph" style="color:${omen.tone}">${iconSvg(`omen-${run.omens[run.act]}`, 22)}</span> OMEN — ${omen.name.toUpperCase()}<div class="ob-sub">${omen.text}</div>`);
   screenEl().appendChild(b);
   sfx.omen();
   setTimeout(() => b.remove(), 4200);
@@ -2245,7 +2249,7 @@ function renderShop() {
     for (const it of st.relics) {
       const r = RELICS[it.id];
       const wrap = el('div', `shop-item ${it.sold ? 'sold' : ''} ${gold() < it.price ? 'cant' : ''}`);
-      const b = el('button', 'shop-relic', `<span class="relic-chip" style="--tone:${r.tone}">${r.glyph}</span><b>${r.name}</b>${r.text}`);
+      const b = el('button', 'shop-relic', `<span class="relic-chip" style="--tone:${r.tone}">${relicArt(it.id, 24)}</span><b>${r.name}</b>${r.text}`);
       b.onclick = () => {
         if (it.sold || gold() < it.price) return sfx.debuff();
         it.sold = true;
@@ -2360,7 +2364,7 @@ function renderEvent(eventId) {
 
 // ------------------------------------------------------------ end screens
 function bequestLabel(o) {
-  if (o.kind === 'relic') return { icon: RELICS[o.id]?.glyph || '◈', name: RELICS[o.id]?.name || o.id, note: 'your rarest relic' };
+  if (o.kind === 'relic') return { icon: relicArt(o.id, 20), name: RELICS[o.id]?.name || o.id, note: 'your rarest relic' };
   if (o.kind === 'card') return { icon: '🂠', name: (CARDS[o.id]?.name || o.id) + (o.up ? '+' : ''), note: 'your finest card' };
   return { icon: '¤', name: `${o.amount} gold`, note: 'a cache of gold' };
 }
@@ -2510,6 +2514,7 @@ function renderGallery() {
     title: [['title', () => '<div class="title-banner-ph">title</div>']],
     'title-background': [['background', () => '<div class="title-banner-ph">background</div>']],
     stage: ['act1', 'act2', 'act3'].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => [`${a}-${l}`, () => '<div class="title-banner-ph">stage</div>'])),
+    relics: Object.entries(RELICS).map(([k, r]) => [k, () => `<div class="title-banner-ph" style="color:${r.tone}">${r.glyph}</div>`]),
   };
   screenEl().className = 'gallery-mode';
   screenEl().innerHTML = `<div class="g-toolbar">

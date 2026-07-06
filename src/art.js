@@ -1,9 +1,12 @@
 // Procedural SVG art — plus the resolver for generated raster assets.
-// Asset folders mirror <root>/<category>/<id>.png (ids = data.js internal keys);
+// Asset folders mirror <root>/<category>/<id>.<png|jpg|jpeg|webp> (ids = data.js internal keys);
 // a missing file resolves to null and callers fall back to the SVG below.
-const ASSET_URLS = import.meta.glob('./assets*/*/*.png', { eager: true, query: '?url', import: 'default' });
+const ASSET_URLS = import.meta.glob(['./assets*/*/*.png', './assets*/*/*.jpg', './assets*/*/*.jpeg', './assets*/*/*.webp'], { eager: true, query: '?url', import: 'default' });
+const ASSET_EXTS = ['png', 'jpg', 'jpeg', 'webp'];
 export const ASSET_SETS = {
   live: { label: 'Live', root: 'assets' },
+  'nano-banana': { label: 'Nano Banana Pro', root: 'assets-nano-banana' },
+  'gpt-nano-pass': { label: 'GPT -> Nano Pass', root: 'assets-gpt-nano-pass' },
   legacy: { label: 'Legacy', root: 'assets-legacy' },
 };
 const DEFAULT_ASSET_SET = 'live';
@@ -12,7 +15,11 @@ export const assetSetIds = () => Object.keys(ASSET_SETS);
 export const assetSetLabel = (set = DEFAULT_ASSET_SET) => assetSet(set).label;
 export const assetUrl = (category, id, set = DEFAULT_ASSET_SET) => {
   const { root } = assetSet(set);
-  return ASSET_URLS[`./${root}/${category}/${id}.png`] ?? null;
+  for (const ext of ASSET_EXTS) {
+    const url = ASSET_URLS[`./${root}/${category}/${id}.${ext}`];
+    if (url) return url;
+  }
+  return null;
 };
 export const assetList = (category, set = DEFAULT_ASSET_SET) => {
   const { root } = assetSet(set);
@@ -469,7 +476,50 @@ const ICONS = {
   stagger: `<path d="M12 2.8 L13.8 8.6 L19.8 7 L15.6 11.6 L21 14.8 L14.6 14.9 L15.8 21 L11.9 16.2 L8 21 L9.2 14.9 L3 14.8 L8.4 11.6 L4.2 7 L10.2 8.6 Z" fill="currentColor" stroke="none"/>`,
   unlitLantern: `<path d="M9 6.2 h6 M8 6.2 L8 15.6 a4 3 0 0 0 8 0 V6.2" fill="none" stroke-width="2" opacity=".65"/><path d="M10.6 3.6 h2.8 v2.6 h-2.8 Z M10 19.8 h4" stroke-width="1.8" opacity=".65"/><path d="M10 10 L14 14 M14 10 L10 14" stroke-width="1.6" opacity=".8"/>`,
   monument: `<path d="M9.5 20 L10.2 6.5 L12 3.4 L13.8 6.5 L14.5 20 Z" fill="currentColor" stroke="none"/><path d="M6 20.6 h12" stroke-width="2.2"/><path d="M12 8.6 c-1.2 1.6-1.2 2.7 0 3.8 1.2-1.1 1.2-2.2 0-3.8 Z" fill="rgba(0,0,0,.55)" stroke="none"/>`,
+  // --- status (st-*) ---
+  'st-str': `<path d="M12 3 C9 8 7 10 7 13.6 a5 5 0 0 0 10 0 C17 10 15 8 12 3 Z" fill="currentColor" stroke="none"/><path d="M8.5 19.5 L15.5 15.5 M8.5 15.5 L15.5 19.5" stroke-width="2.4"/>`,
+  'st-dex': `<path d="M12 3.4 L18.5 6.2 v5.2 c0 4.2-2.9 7-6.5 9 -3.6-2-6.5-4.8-6.5-9 V6.2 Z" fill="none" stroke-width="2.2"/><path d="M12 7.5 L14 11 L12 14.5 L10 11 Z" fill="currentColor" stroke="none"/>`,
+  'st-vulnerable': `<path d="M12 3.4 L20 12 L12 20.6 L4 12 Z" fill="none" stroke-width="2.2"/><path d="M9 9 L15 15 M15 9 L9 15" stroke-width="1.8"/>`,
+  'st-weak': `<path d="M12 4 v10 M12 20 L7.5 14.5 M12 20 L16.5 14.5" stroke-width="2.6"/>`,
+  'st-frail': `<path d="M12 3.4 L20 12 L12 20.6 L4 12 Z" fill="none" stroke-width="2"/><path d="M12 3.4 L10 9 L14 13 L11 17 L12 20.6" fill="none" stroke-width="1.6"/>`,
+  'st-poison': `<path d="M12 3.6 C9.5 8 7.6 10.4 7.6 13.4 a4.4 4.4 0 0 0 8.8 0 C16.4 10.4 14.5 8 12 3.6 Z" fill="currentColor" stroke="none"/><circle cx="8" cy="19.6" r="1.5" fill="currentColor" stroke="none"/><circle cx="13" cy="20.4" r="1.2" fill="currentColor" stroke="none" opacity=".8"/>`,
+  'st-thorns': `<circle cx="12" cy="12" r="4.2" fill="none" stroke-width="2"/><path d="M12 7.8 V3.4 M12 16.2 V20.6 M7.8 12 H3.4 M16.2 12 H20.6 M9 9 L6 6 M15 15 L18 18 M15 9 L18 6 M9 15 L6 18" stroke-width="2"/>`,
+  'st-ritual': `<path d="M15.5 3.8 a8.6 8.6 0 1 0 4.7 12 a7 7 0 1 1 -4.7 -12 Z" fill="currentColor" stroke="none"/>`,
+  'st-metallicize': `<path d="M12 3.2 L19.4 7.5 v9 L12 20.8 L4.6 16.5 v-9 Z" fill="none" stroke-width="2.3"/><path d="M12 8 L15.5 10 v4 L12 16 L8.5 14 v-4 Z" fill="currentColor" stroke="none"/>`,
+  'st-regen': `<path d="M12 4.2 C8 8.4 6.2 10.6 6.2 13.8 a5.8 5.8 0 0 0 11.6 0 C17.8 10.6 16 8.4 12 4.2 Z" fill="none" stroke-width="2.2"/><path d="M12 9 v6 M9 12 h6" stroke-width="2"/>`,
+  'st-barricade': `<path d="M5 20 v-9 L12 4 l7 7 v9 h-4.6 v-5.4 h-4.8 V20 Z" fill="currentColor" stroke="none"/>`,
+  'st-energized': `<path d="M13.4 3 L6 13.4 h4.4 L10 21 L18 10.6 h-4.4 Z" fill="currentColor" stroke="none"/>`,
+  'st-venomous': `<path d="M7 5 q5 3 10 0 q-1 5 -3.4 7 L15 19 a3 3 0 1 1 -6 0 l1.4-7 Q8 10 7 5 Z" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.4" fill="rgba(0,0,0,.7)" stroke="none"/>`,
+  'st-rampage': `<path d="M4 18 L10 12 L13 15 L20 7" fill="none" stroke-width="2.6"/><path d="M15.5 6.5 H20.5 V11.5" fill="none" stroke-width="2.4"/>`,
+  'st-beacon': `<circle cx="12" cy="12" r="3.4" fill="currentColor" stroke="none"/><path d="M12 5.4 V2.8 M12 21.2 V18.6 M5.4 12 H2.8 M21.2 12 H18.6 M7.4 7.4 L5.6 5.6 M16.6 16.6 L18.4 18.4 M16.6 7.4 L18.4 5.6 M7.4 16.6 L5.6 18.4" stroke-width="2"/>`,
+  'st-emberflow': `<path d="M12 4 C10 7.4 8.6 9.2 8.6 11.6 a3.4 3.4 0 0 0 6.8 0 C15.4 9.2 14 7.4 12 4 Z" fill="currentColor" stroke="none"/><path d="M7 17.5 q2.5 2 5 0 q2.5 -2 5 0 M7 20.5 q2.5 2 5 0 q2.5 -2 5 0" fill="none" stroke-width="1.7"/>`,
+  'st-nightsight': `<path d="M16.8 4 a9 9 0 1 0 3.4 13 a7.4 7.4 0 1 1 -3.4 -13 Z" fill="currentColor" stroke="none"/><circle cx="15.6" cy="9" r="1.6" fill="currentColor" stroke="none"/>`,
+  // --- lantern arts (art-*) ---
+  'art-flare': `<circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/><path d="M12 6.6 L13.4 9.4 M12 6.6 L10.6 9.4 M12 6.6 V2.8 M17.4 12 h3.8 M12 17.4 v3.8 M2.8 12 h3.8 M15.8 8.2 L18.4 5.6 M15.8 15.8 L18.4 18.4 M8.2 15.8 L5.6 18.4 M8.2 8.2 L5.6 5.6" stroke-width="2"/>`,
+  'art-mendglass': `<path d="M12 3.4 L19 12 L12 20.6 L5 12 Z" fill="none" stroke-width="2"/><path d="M12 8.4 v7.2 M8.4 12 h7.2" stroke-width="2.2"/>`,
+  'art-beacon': `<path d="M9 6 h6 M8 6 v9.4 a4 3.2 0 0 0 8 0 V6" fill="none" stroke-width="2"/><path d="M12 8.2 c-1.6 2.1-1.6 3.6 0 5 1.6-1.4 1.6-2.9 0-5 Z" fill="currentColor" stroke="none"/><path d="M4.5 10 L2.5 9 M19.5 10 L21.5 9 M10 20 h4" stroke-width="1.8"/>`,
+  'art-emberveil': `<path d="M12 3.2 L19 6 v5.6 c0 4.6-3.1 7.6-7 9.8 -3.9-2.2-7-5.2-7-9.8 V6 Z" fill="none" stroke-width="2.2"/><path d="M12 8 c-1.8 2.4-1.8 4 0 5.6 1.8-1.6 1.8-3.2 0-5.6 Z" fill="currentColor" stroke="none"/>`,
+  'art-stoke': `<path d="M12 3.4 C9.2 8 7.4 10.2 7.4 13.4 a4.6 4.6 0 0 0 9.2 0 C16.6 10.2 14.8 8 12 3.4 Z" fill="currentColor" stroke="none"/><path d="M6 20.6 h12" stroke-width="2.4"/><path d="M9 17.8 L7 20.6 M15 17.8 L17 20.6" stroke-width="1.8"/>`,
+  'art-ashfall': `<path d="M7.4 13.5 a3.9 3.9 0 1 1 .7-7.7 A4.9 4.9 0 0 1 17.6 6.6 a3.4 3.4 0 0 1 -.6 6.9 Z" fill="currentColor" stroke="none"/><path d="M8 16.5 v1.6 M12 16.5 v2.6 M16 16.5 v1.6 M10 20.2 v1 M14 20.2 v1" stroke-width="1.9"/>`,
+  // --- boons (boon-*) ---
+  'boon-fullPurse': `<path d="M8 7 q4 -4 8 0 l2.4 8.6 a3 3 0 0 1 -2.9 3.8 H8.5 a3 3 0 0 1 -2.9 -3.8 Z" fill="currentColor" stroke="none"/><path d="M9.5 7 h5" stroke-width="2"/><circle cx="12" cy="13.5" r="2.2" fill="rgba(0,0,0,.6)" stroke="none"/>`,
+  'boon-temperedGlass': `<path d="M12 3.4 L20 12 L12 20.6 L4 12 Z" fill="none" stroke-width="2.4"/><path d="M12 7 L16.5 12 L12 17 L7.5 12 Z" fill="currentColor" stroke="none"/>`,
+  'boon-keenEye': `<path d="M2.8 12 q4.6 -6.4 9.2 -6.4 q4.6 0 9.2 6.4 q-4.6 6.4 -9.2 6.4 q-4.6 0 -9.2 -6.4 Z" fill="none" stroke-width="2"/><circle cx="12" cy="12" r="2.8" fill="currentColor" stroke="none"/>`,
+  'boon-warmHearth': `<path d="M5 20 v-8.5 L12 5 l7 6.5 V20 h-5 v-5 h-4 v5 Z" fill="none" stroke-width="2.2"/><path d="M12 11.4 c-1.2 1.6-1.2 2.8 0 4 1.2-1.2 1.2-2.4 0-4 Z" fill="currentColor" stroke="none"/>`,
+  'boon-emberFlask': `<path d="M10 3.4 h4 M11 3.4 v4.2 L6.8 15 a3.6 3.6 0 0 0 3.2 5.4 h4 A3.6 3.6 0 0 0 17.2 15 L13 7.6 V3.4" fill="none" stroke-width="2"/><path d="M12 11 c-1.4 1.8-1.4 3.2 0 4.6 1.4-1.4 1.4-2.8 0-4.6 Z" fill="currentColor" stroke="none"/>`,
+  'boon-twinPhials': `<path d="M7.6 3.8 h3 M9.1 3.8 v3.4 L6.4 13 a2.8 2.8 0 0 0 2.5 4.1 h0.4 A2.8 2.8 0 0 0 11.8 13 L9.1 7.2" fill="none" stroke-width="1.8"/><path d="M13.4 6.8 h3 M14.9 6.8 v3.4 L12.2 16 a2.8 2.8 0 0 0 2.5 4.1 h0.4 A2.8 2.8 0 0 0 17.6 16 L14.9 10.2" fill="none" stroke-width="1.8"/>`,
+  'boon-pilgrimsCache': `<rect x="4.5" y="8" width="15" height="11" rx="2" fill="none" stroke-width="2.2"/><path d="M4.5 12.5 h15 M9 8 q3 -5 6 0" fill="none" stroke-width="1.8"/><rect x="10.6" y="11" width="2.8" height="3.6" rx="0.8" fill="currentColor" stroke="none"/>`,
+  'boon-venomPouch': `<path d="M7.5 6.5 q4.5 -3.4 9 0 l1.6 9.1 a3 3 0 0 1 -3 3.5 H8.9 a3 3 0 0 1 -3 -3.5 Z" fill="none" stroke-width="2.1"/><path d="M12 9.6 c-1.5 2-1.5 3.4 0 4.8 1.5-1.4 1.5-2.8 0-4.8 Z" fill="currentColor" stroke="none"/><circle cx="12" cy="17.4" r="1" fill="currentColor" stroke="none"/>`,
+  // --- omens (omen-*) ---
+  'omen-ashfall': `<path d="M7.2 12.5 a3.9 3.9 0 1 1 .7-7.7 A4.9 4.9 0 0 1 17.4 5.6 a3.4 3.4 0 0 1 -.6 6.9 Z" fill="currentColor" stroke="none"/><circle cx="8" cy="16.4" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="18.8" r="1.3" fill="currentColor" stroke="none"/><circle cx="16" cy="16.4" r="1.1" fill="currentColor" stroke="none"/>`,
+  'omen-heavyAir': `<path d="M4 6.5 h16 M6 10.5 h12 M8 14.5 h8" stroke-width="2.2"/><path d="M12 21 L8.5 16.8 h7 Z" fill="currentColor" stroke="none"/>`,
+  'omen-thinGlass': `<path d="M12 3.4 L20 12 L12 20.6 L4 12 Z" fill="none" stroke-width="1.4"/><path d="M12 3.4 L11 8.5 L13.5 11 L10.5 14 L12 20.6 M4 12 L8.5 11 M20 12 L15 13.5" fill="none" stroke-width="1.2"/>`,
+  'omen-hungryDark': `<path d="M17 3.6 a9.4 9.4 0 1 0 3.6 14 a7.6 7.6 0 1 1 -3.6 -14 Z" fill="currentColor" stroke="none"/><circle cx="14.8" cy="8.4" r="1" fill="currentColor" stroke="none"/><circle cx="17.8" cy="12.8" r="0.8" fill="currentColor" stroke="none"/>`,
+  'omen-emberWind': `<path d="M3.5 9 q6 -2.4 10 0 q3 1.8 7 0.4" fill="none" stroke-width="2"/><path d="M3.5 14 q6 -2.4 10 0 q3 1.8 7 0.4" fill="none" stroke-width="2" opacity=".7"/><circle cx="17.5" cy="6.4" r="1.3" fill="currentColor" stroke="none"/><circle cx="6.5" cy="17.6" r="1.1" fill="currentColor" stroke="none"/>`,
+  'omen-longNight': `<path d="M12 2.8 L13.7 8 L19 8.1 L14.8 11.3 L16.3 16.5 L12 13.4 L7.7 16.5 L9.2 11.3 L5 8.1 L10.3 8 Z" fill="currentColor" stroke="none"/><path d="M5 20.6 h14" stroke-width="1.8" opacity=".7"/>`,
+  'omen-waningMoon': `<circle cx="12" cy="12" r="8" fill="none" stroke-width="2"/><path d="M12 4 a8 8 0 0 1 0 16 a11 11 0 0 0 0 -16 Z" fill="currentColor" stroke="none"/>`,
 };
+export const hasIcon = (name) => !!ICONS[name];
 const iconBody = (name) => `<g fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</g>`;
 export function iconSvg(name, size = 18) {
   return `<svg class="gicon" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${iconBody(name)}</svg>`;
