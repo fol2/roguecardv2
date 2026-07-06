@@ -43,6 +43,10 @@ Council-approved baseline assets:
 - `cards/strike.png`
 - `cards/defend.png`
 - `cards/empower.png`
+- `props/campfire.png`
+- `props/chest.png`
+- `props/chest-open.png`
+- `props/merchant.png`
 
 Asset source decisions:
 
@@ -89,6 +93,16 @@ Asset source decisions:
   they looked like floating emblems rather than card art. The approved
   candidates use built-in Image Gen full-bleed rectangular scene sources with
   strong foreground/background separation, normalised to `800 x 500`.
+- `props/campfire.png`, `props/chest.png`, `props/chest-open.png`, and
+  `props/merchant.png` are the council-approved four live runtime props from
+  `scratch/prop-art-production-20260706/`. They use built-in Image Gen flat
+  `#00ff00` chroma-key sources, local chroma-key alpha removal, and final
+  runtime-size normalisation: `campfire` and `merchant` at 512 x 512,
+  `chest` and `chest-open` at 512 x 409. The approved direction is a readable
+  stained-glass prop vignette: strong object silhouette first, with a small
+  narrative backdrop that fades to transparent instead of a full rectangular
+  scene. `chest` and `chest-open` are a matched treasure-state pair for the
+  treasure screen.
 
 Prompt decision:
 
@@ -109,6 +123,9 @@ alpha, prompts, and contact sheets remain in
 `scratch/potion-demos/20260706-current-seven-r1/`; card source, prompts, and
 comparison sheets remain in
 `scratch/style-tests/card-first-three-separation-readable-baseline-20260706/`.
+Prop assets are normalised to the live runtime prop dimensions, with alpha
+preserved. Prop source, alpha, prompts, and contact sheets remain in
+`scratch/prop-art-production-20260706/`.
 
 Gallery cleanup:
 

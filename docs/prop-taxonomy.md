@@ -48,6 +48,27 @@ read with brighter interior glass and clearer focal cores. Its contact sheets:
 - `scratch/prop-taxonomy-demos/20260705-value-lift/contact-sheet.png`
 - `scratch/prop-taxonomy-demos/20260705-value-lift/comparison-v1-v2-contact-sheet.png`
 
+## Approved Runtime Prop Set
+
+The first production wrap-up is deliberately narrow: only the four live runtime
+props used by `src/ui.js`.
+
+| id | Type | Runtime surface | Final asset |
+|---|---|---|---|
+| `campfire` | Node Prop / Kindled rest object | Rest site centre-panel hero art | `src/assets-readable-baseline/props/campfire.png` |
+| `chest` | Node Prop / Kindled reward object | Treasure centre-panel closed state | `src/assets-readable-baseline/props/chest.png` |
+| `chest-open` | Node Prop / Kindled reward reveal | Treasure centre-panel opened state | `src/assets-readable-baseline/props/chest-open.png` |
+| `merchant` | Node Prop / shop service object | Shop header stall portrait | `src/assets-readable-baseline/props/merchant.png` |
+
+The approved production source folder is
+`scratch/prop-art-production-20260706/`. It contains the original Image Gen
+sources, alpha cutouts, final runtime-size PNGs, prompts ledger, and 128 px
+review contact sheet.
+
+This set establishes the prop rule that Spirebound props may include narrative
+backgrounds, but only as transparent-edge vignettes: the object silhouette must
+remain primary, and the background must never become a hard rectangular scene.
+
 ## Current Recommendation
 
 Use the three-demo set as the pitch baseline:
