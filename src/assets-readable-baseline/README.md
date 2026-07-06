@@ -55,6 +55,9 @@ Council-approved baseline assets:
 - `cards/quickSlash.png`
 - `cards/heavyBlow.png`
 - `cards/cleave.png`
+- `cards/venomStrike.png`
+- `cards/lunge.png`
+- `cards/guardedStrike.png`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -143,6 +146,15 @@ Asset source decisions:
   drifting into `shardstorm`. Final gallery PNGs are byte-for-byte copies of
   the approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-03-20260706/`.
+- `cards/venomStrike.png`, `cards/lunge.png`, and
+  `cards/guardedStrike.png` are approved card production batch 04 generated
+  sources. `venomStrike` v1 was rejected for busy micro-pane drift; the
+  approved v2 uses one oversized hooked fang and broad Smolder ribbons.
+  `lunge` locks the horizontal Dimmed cut against a single fading blue flame,
+  and `guardedStrike` locks the attack-first red blade emerging from a
+  secondary half-blue ward. Final gallery PNGs are byte-for-byte copies of the
+  approved generated sources and are recorded in
+  `scratch/style-tests/card-production-batch-04-20260706/`.
 - The nine approved card images from `strike` through `twinFangs` are the
   current card-art baseline references. Their roles, hashes, and prompt ledgers
   are recorded in `docs/card-production/card-art-baselines.md`; the future
@@ -197,7 +209,8 @@ comparison sheets remain in
 `scratch/style-tests/card-first-three-separation-readable-baseline-20260706/`,
 `scratch/style-tests/card-production-batch-01-20260706/`,
 `scratch/style-tests/card-production-batch-02-20260706/`, and
-`scratch/style-tests/card-production-batch-03-20260706/`.
+`scratch/style-tests/card-production-batch-03-20260706/`, and
+`scratch/style-tests/card-production-batch-04-20260706/`.
 Prop assets are normalised to the live runtime prop dimensions, with alpha
 preserved. Prop source, alpha, prompts, and contact sheets remain in
 `scratch/prop-art-production-20260706/`.
