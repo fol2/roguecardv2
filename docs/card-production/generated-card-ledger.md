@@ -61,3 +61,11 @@ reference roles, hashes, and prompt locations are collected in
 | `deflect` | approved generated source v2 | `src/assets-readable-baseline/cards/deflect.png` | `scratch/style-tests/card-production-batch-06-20260706/README.md`; `scratch/style-tests/card-production-batch-06-20260706/prompt-ledger.md` |
 | `leechBlade` | approved generated source v2 | `src/assets-readable-baseline/cards/leechBlade.png` | `scratch/style-tests/card-production-batch-06-20260706/README.md`; `scratch/style-tests/card-production-batch-06-20260706/prompt-ledger.md` |
 | `tempest` | approved generated source | `src/assets-readable-baseline/cards/tempest.png` | `scratch/style-tests/card-production-batch-06-20260706/README.md`; `scratch/style-tests/card-production-batch-06-20260706/prompt-ledger.md` |
+
+## Batch 07
+
+| Card | Decision | Final gallery asset | Source record |
+|---|---|---|---|
+| `uppercut` | approved generated source | `src/assets-readable-baseline/cards/uppercut.png` | `scratch/style-tests/card-production-batch-07-20260706/README.md`; `scratch/style-tests/card-production-batch-07-20260706/prompt-ledger.md` |
+| `flurry` | approved generated source | `src/assets-readable-baseline/cards/flurry.png` | `scratch/style-tests/card-production-batch-07-20260706/README.md`; `scratch/style-tests/card-production-batch-07-20260706/prompt-ledger.md` |
+| `executioner` | approved generated source | `src/assets-readable-baseline/cards/executioner.png` | `scratch/style-tests/card-production-batch-07-20260706/README.md`; `scratch/style-tests/card-production-batch-07-20260706/prompt-ledger.md` |

@@ -64,6 +64,9 @@ Council-approved baseline assets:
 - `cards/deflect.png`
 - `cards/leechBlade.png`
 - `cards/tempest.png`
+- `cards/uppercut.png`
+- `cards/flurry.png`
+- `cards/executioner.png`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -180,6 +183,14 @@ Asset source decisions:
   three struck panes. Final gallery PNGs are byte-for-byte copies of the
   approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-06-20260706/`.
+- `cards/uppercut.png`, `cards/flurry.png`, and `cards/executioner.png` are
+  approved card production batch 07 generated sources. `uppercut` locks the
+  upward fist, bell-shaped enemy pane, two sound rings, and small guttering blue
+  flame. `flurry` locks exactly three red arcs around one central target chip.
+  `executioner` locks one vertical black-red blade aligned with one bright
+  existing faultline. Final gallery PNGs are byte-for-byte copies of the
+  approved generated sources and are recorded in
+  `scratch/style-tests/card-production-batch-07-20260706/`.
 - The nine approved card images from `strike` through `twinFangs` are the
   current card-art baseline references. Their roles, hashes, and prompt ledgers
   are recorded in `docs/card-production/card-art-baselines.md`; the future
@@ -237,7 +248,8 @@ comparison sheets remain in
 `scratch/style-tests/card-production-batch-03-20260706/`, and
 `scratch/style-tests/card-production-batch-04-20260706/`, and
 `scratch/style-tests/card-production-batch-05-20260706/`, and
-`scratch/style-tests/card-production-batch-06-20260706/`.
+`scratch/style-tests/card-production-batch-06-20260706/`, and
+`scratch/style-tests/card-production-batch-07-20260706/`.
 Prop assets are normalised to the live runtime prop dimensions, with alpha
 preserved. Prop source, alpha, prompts, and contact sheets remain in
 `scratch/prop-art-production-20260706/`.
