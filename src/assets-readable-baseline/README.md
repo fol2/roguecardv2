@@ -58,6 +58,9 @@ Council-approved baseline assets:
 - `cards/venomStrike.png`
 - `cards/lunge.png`
 - `cards/guardedStrike.png`
+- `cards/brace.png`
+- `cards/sidestep.png`
+- `cards/preparation.png`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -155,6 +158,15 @@ Asset source decisions:
   secondary half-blue ward. Final gallery PNGs are byte-for-byte copies of the
   approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-04-20260706/`.
+- `cards/brace.png`, `cards/sidestep.png`, and `cards/preparation.png` are
+  approved card production batch 05 generated sources. `brace` v1 was rejected
+  for an over-ceremonial ward; the approved v2 keeps the common-skill crouched
+  figure, amber lantern, and simple crescent ward. `sidestep` locks the blue
+  glass step, missed red strike, and secondary rising card pane. `preparation`
+  locks the quiet pre-ignition stack of blue panes and one tiny unlit match.
+  Final gallery PNGs are byte-for-byte copies of the approved generated
+  sources and are recorded in
+  `scratch/style-tests/card-production-batch-05-20260706/`.
 - The nine approved card images from `strike` through `twinFangs` are the
   current card-art baseline references. Their roles, hashes, and prompt ledgers
   are recorded in `docs/card-production/card-art-baselines.md`; the future
@@ -210,7 +222,8 @@ comparison sheets remain in
 `scratch/style-tests/card-production-batch-01-20260706/`,
 `scratch/style-tests/card-production-batch-02-20260706/`, and
 `scratch/style-tests/card-production-batch-03-20260706/`, and
-`scratch/style-tests/card-production-batch-04-20260706/`.
+`scratch/style-tests/card-production-batch-04-20260706/`, and
+`scratch/style-tests/card-production-batch-05-20260706/`.
 Prop assets are normalised to the live runtime prop dimensions, with alpha
 preserved. Prop source, alpha, prompts, and contact sheets remain in
 `scratch/prop-art-production-20260706/`.
