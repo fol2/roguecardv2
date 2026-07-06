@@ -283,18 +283,44 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .card.t-status, .card.t-curse { --edge: #47584f; --tint: var(--sts); }
 .card.t-curse { --edge: #5c3a5c; --tint: #c77bd4; }
 .card-cost {
-  position: absolute; top: -7px; left: -7px; z-index: 4; width: 34px; height: 34px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-weight: 800; font-size: 17px;
-  background: radial-gradient(circle at 35% 30%, #ffe9ac, var(--gold) 45%, #7a5417 95%);
-  color: #241a05; border: 1.5px solid #ffe9ac; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6), 0 0 10px rgba(242, 193, 78, 0.45);
+  position: absolute; top: -8px; left: -8px; z-index: 4; width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Cinzel', serif; font-weight: 800; font-size: 17px; color: #241a05;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0%, transparent 28%),
+    linear-gradient(315deg, rgba(122, 84, 23, 0.75) 0%, transparent 30%),
+    conic-gradient(from 210deg at 50% 42%, #ffe9ac 0deg, #f2c14e 80deg, #b3831f 160deg, #f2c14e 240deg, #ffe9ac 360deg);
+  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.65)) drop-shadow(0 0 8px rgba(242, 193, 78, 0.4));
+  text-shadow: 0 1px 0 rgba(255, 240, 200, 0.6);
 }
-.card-cost.free { background: radial-gradient(circle at 35% 30%, #d9fbe7, #37d67a 45%, #135b32 95%); border-color: #d9fbe7; }
+.card-cost::before {
+  content: ''; position: absolute; inset: 3px;
+  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.35), transparent 42%, rgba(0, 0, 0, 0.22) 88%);
+  pointer-events: none;
+}
+.card-cost.free {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0%, transparent 28%),
+    linear-gradient(315deg, rgba(19, 91, 50, 0.8) 0%, transparent 30%),
+    conic-gradient(from 210deg at 50% 42%, #d9fbe7 0deg, #37d67a 80deg, #17703e 160deg, #37d67a 240deg, #d9fbe7 360deg);
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.65)) drop-shadow(0 0 8px rgba(55, 214, 122, 0.45));
+}
 .card-art { height: 43%; position: relative; overflow: hidden; border-bottom: 1px solid #05070e; background: radial-gradient(ellipse 90% 80% at 50% 45%, color-mix(in srgb, var(--tint, #8fa3d8) 14%, transparent), transparent 75%); }
+.card-art::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), inset 0 -1px 0 rgba(0, 0, 0, 0.65),
+    inset 0 0 18px rgba(0, 0, 0, 0.35);
+}
 .card-art svg { width: 100%; height: 100%; display: block; }
 .card-name {
   font-family: 'Cinzel', serif; font-weight: 700; font-size: 13.5px; text-align: center; padding: 5px 6px 3px;
   color: var(--parchment); letter-spacing: 0.02em; line-height: 1.1;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent);
+  background:
+    linear-gradient(90deg, transparent 4%, color-mix(in srgb, var(--gold) 22%, transparent) 18%, color-mix(in srgb, var(--gold) 22%, transparent) 82%, transparent 96%) top / 100% 1px no-repeat,
+    linear-gradient(90deg, transparent 10%, color-mix(in srgb, var(--gold) 14%, transparent) 30%, color-mix(in srgb, var(--gold) 14%, transparent) 70%, transparent 90%) bottom / 100% 1px no-repeat,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent);
 }
 .card.upgraded .card-name { color: #9be8a8; }
 .card-type { font-size: 10px; text-align: center; letter-spacing: 0.28em; text-transform: uppercase; color: var(--tint); opacity: 0.9; }
@@ -315,6 +341,17 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
     inset 0 0 0 1px color-mix(in srgb, var(--gold) 80%, transparent),
     inset 0 16px 30px -14px color-mix(in srgb, var(--gold) 42%, transparent);
 }
+/* rarity corner joints: uncommon wears 2 silver, rare wears 4 gold gems */
+.card.r-uncommon .card-lift::before, .card.r-uncommon .card-lift::after,
+.card.r-rare .card-lift::before, .card.r-rare .card-lift::after {
+  content: ''; position: absolute; width: 7px; height: 7px; z-index: 5; pointer-events: none;
+  transform: rotate(45deg);
+}
+.card.r-uncommon .card-lift::before { top: -2px; left: -2px; background: linear-gradient(135deg, #e8f6ff, #47c2e0 70%); box-shadow: 0 0 6px rgba(127, 227, 242, 0.8); }
+.card.r-uncommon .card-lift::after { bottom: -2px; right: -2px; background: linear-gradient(135deg, #e8f6ff, #47c2e0 70%); box-shadow: 0 0 6px rgba(127, 227, 242, 0.8); }
+.card.r-rare .card-lift::before { top: -2px; left: -2px; background: linear-gradient(135deg, #fff3d0, var(--gold) 70%); box-shadow: 0 0 7px rgba(242, 193, 78, 0.9); }
+.card.r-rare .card-lift::after { bottom: -2px; right: -2px; background: linear-gradient(135deg, #fff3d0, var(--gold) 70%); box-shadow: 0 0 7px rgba(242, 193, 78, 0.9); }
+.card.r-rare .card-inner { border-color: #1a1408; }
 .r-common .card-rarity { background: #5d6a88; }
 .r-uncommon .card-rarity { background: linear-gradient(90deg, #47c2e0, #7fe3f2); box-shadow: 0 0 6px #47c2e0; }
 .r-rare .card-rarity { background: linear-gradient(90deg, var(--gold), #ffe9ac); box-shadow: 0 0 8px var(--gold); }
