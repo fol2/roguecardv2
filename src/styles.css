@@ -1256,7 +1256,6 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 
 /* ---------- generated raster assets + dev gallery (?gallery=1) ---------- */
 .raster-art { width: 100%; height: 100%; object-fit: contain; display: block; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45)); }
-.hero-flip { transform: scaleX(-1); }
 .mesh-live > .raster-art { opacity: 0; }
 .g-toolbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 16px; background: rgba(8, 10, 18, 0.94); border-bottom: 1px solid #222a44; color: #cfd6ee; }
 .g-toolbar nav { display: flex; flex-wrap: wrap; gap: 8px; }

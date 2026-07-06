@@ -36,7 +36,7 @@ const rasterOr = (cat, id, svg) => {
 };
 const heroArt = (i) => {
   const u = assetUrl('heroes', ASPECTS[i].id);
-  return u ? `<img class="raster-art hero-flip" src="${u}" alt="">` : heroSvg(i);
+  return u ? `<img class="raster-art" src="${u}" alt="">` : heroSvg(i);
 };
 
 let assetsWarmed = false;
@@ -1415,7 +1415,7 @@ function meshBindCombatants() {
   if (!ce || !cb) return;
   const entries = [];
   const heroUrl = assetUrl('heroes', ASPECTS[S.run.aspect].id);
-  if (heroUrl && ce.hero) entries.push({ el: ce.hero, url: heroUrl, kind: 'humanoid', flip: true });
+  if (heroUrl && ce.hero) entries.push({ el: ce.hero, url: heroUrl, kind: 'humanoid' });
   cb.enemies.forEach((en, i) => {
     const url = assetUrl('enemies', en.key);
     const art = ce.enemies[i]?.art;

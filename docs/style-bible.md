@@ -67,7 +67,9 @@ creature's silhouette rather than stamped on as a small badge.
 
 Facing rule exists because combat lays hero left, enemies right. The master ref
 faces left — mirror heroes at generation time ("facing slightly right") rather
-than flipping the file, so lantern light stays consistent.
+than flipping them at runtime, so lantern light stays consistent. Legacy hero
+PNGs are mirrored in the parked legacy asset folder instead of using runtime
+CSS or mesh flips.
 
 Enemy art can be humanoid-monster, but should not read like a hero. Goblin,
 troll, orc, cultist, imp, and beast forms are allowed when they use enemy shape

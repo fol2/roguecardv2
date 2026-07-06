@@ -9,3 +9,7 @@ does not include the newer `title/title.png` wordmark, because that asset did
 not exist in the old live set. The old title-screen background is archived as
 `title-background/background.png`, leaving legacy `title` blank. Do not add new
 production art here unless restoring or archiving the old live set.
+
+Legacy hero PNGs are horizontally mirrored as files. The live set now keeps
+right-facing heroes unflipped at runtime, so legacy comparison art carries its
+own compatibility transform.
