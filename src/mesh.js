@@ -110,6 +110,7 @@ function deformPlane(p, t) {
 }
 
 function layoutPlane(p, t = 0) {
+  if (!p.el.isConnected || !(p.el.checkVisibility?.({ visibilityProperty: true }) ?? true)) { p.mesh.visible = false; return; }
   const r = stageRect(p.el);
   if (r.width < 2 || r.height < 2) { p.mesh.visible = false; return; }
   const img = p.el.querySelector('.raster-art');
@@ -164,6 +165,28 @@ export function meshClear() {
   planes = [];
   document.documentElement.classList.remove('mesh-on');
   renderer?.render(scene, camera);
+}
+
+/** Remove the plane bound to el (or any descendant of el) — the DOM <img> becomes visible again the same frame. */
+export function meshRelease(el) {
+  const i = planes.findIndex((p) => p.el === el || (el.contains && el.contains(p.el)));
+  if (i < 0) return;
+  const p = planes[i];
+  p.el.classList.remove('mesh-live');
+  scene.remove(p.mesh);
+  p.geo.dispose();
+  p.mesh.material.dispose();
+  planes.splice(i, 1);
+  if (!planes.length) document.documentElement.classList.remove('mesh-on');
+  renderer?.render(scene, camera);
+}
+
+/** Brightness beat for hits — CSS filters don't reach WebGL planes. */
+export function meshFlash(el, ms = 160) {
+  const p = planes.find((q) => q.el === el || (el.contains && el.contains(q.el)));
+  if (!p) return;
+  p.mesh.material.color.setRGB(2.1, 2.1, 2.1);
+  setTimeout(() => p.mesh?.material?.color?.setRGB(1, 1, 1), ms);
 }
 
 /** @param {{ el: Element, url: string, kind?: string }[]} entries */

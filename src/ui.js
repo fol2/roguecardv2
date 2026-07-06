@@ -6,7 +6,7 @@ import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
-import { meshBind, meshClear, meshEnabled, meshDebug } from './mesh.js';
+import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash } from './mesh.js';
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
@@ -1532,6 +1532,7 @@ function choreoAttack(el, dir = 1, kind = 'humanoid') {
 }
 function choreoHit(el, dir = 1) {
   if (CHOREO_REDUCED || !el) return;
+  meshFlash(el);
   el.animate(
     [
       { transform: 'translateX(0) scale(1,1)', filter: 'brightness(1)' },
@@ -1780,6 +1781,7 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'die': {
       const x = ce.enemies[ev.idx];
+      meshRelease(x.root); // the WebGL body hands back to the DOM for the death rite
       const en = cb.enemies[ev.idx];
       const { x: ex, y: ey } = enemyCenter(ev.idx);
       emberFrom = { x: ex, y: ey }; // the fire inside spills toward the lantern
