@@ -125,3 +125,11 @@ reference roles, hashes, and prompt locations are collected in
 | `phantomBlades` | approved generated source | `src/assets-readable-baseline/cards/phantomBlades.png` | `scratch/style-tests/card-production-batch-14-20260706/README.md`; `scratch/style-tests/card-production-batch-14-20260706/prompt-ledger.md` |
 | `devour` | approved generated source | `src/assets-readable-baseline/cards/devour.png` | `scratch/style-tests/card-production-batch-14-20260706/README.md`; `scratch/style-tests/card-production-batch-14-20260706/prompt-ledger.md` |
 | `annihilate` | approved generated source | `src/assets-readable-baseline/cards/annihilate.png` | `scratch/style-tests/card-production-batch-14-20260706/README.md`; `scratch/style-tests/card-production-batch-14-20260706/prompt-ledger.md` |
+
+## Batch 15
+
+| Card | Decision | Final gallery asset | Source record |
+|---|---|---|---|
+| `aegis` | approved generated source | `src/assets-readable-baseline/cards/aegis.png` | `scratch/style-tests/card-production-batch-15-20260706/README.md`; `scratch/style-tests/card-production-batch-15-20260706/prompt-ledger.md` |
+| `offering` | approved generated source | `src/assets-readable-baseline/cards/offering.png` | `scratch/style-tests/card-production-batch-15-20260706/README.md`; `scratch/style-tests/card-production-batch-15-20260706/prompt-ledger.md` |
+| `limitBreak` | approved generated source | `src/assets-readable-baseline/cards/limitBreak.png` | `scratch/style-tests/card-production-batch-15-20260706/README.md`; `scratch/style-tests/card-production-batch-15-20260706/prompt-ledger.md` |

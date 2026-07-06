@@ -79,6 +79,18 @@ Council-approved baseline assets:
 - `cards/fortify.png`
 - `cards/bloodRite.png`
 - `cards/agility.png`
+- `cards/ironSkin.png`
+- `cards/regrowth.png`
+- `cards/tithe.png`
+- `cards/nightSight.png`
+- `cards/emberdance.png`
+- `cards/oblivionStrike.png`
+- `cards/phantomBlades.png`
+- `cards/devour.png`
+- `cards/annihilate.png`
+- `cards/aegis.png`
+- `cards/offering.png`
+- `cards/limitBreak.png`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -234,6 +246,39 @@ Asset source decisions:
   cyan Poise arcs. Final gallery PNGs are byte-for-byte copies of the approved
   generated sources and are recorded in
   `scratch/style-tests/card-production-batch-11-20260706/`.
+- `cards/ironSkin.png`, `cards/regrowth.png`, and `cards/tithe.png` are
+  approved card production batch 12 generated sources. `ironSkin` locks the
+  iron-blue body plating and cyan seams. `regrowth` locks the green repair
+  vine growing through a cracked blue pane. `tithe` locks the counted amber
+  beads, shallow bowl, and rising blue card pane as measured ember economy.
+  Final gallery PNGs are byte-for-byte copies of the approved generated
+  sources and are recorded in
+  `scratch/style-tests/card-production-batch-12-20260706/`.
+- `cards/nightSight.png`, `cards/emberdance.png`, and
+  `cards/oblivionStrike.png` are approved card production batch 13 generated
+  sources. `nightSight` locks the blue eye-lantern revealing one hidden target.
+  `emberdance` locks the lit footwork arcs and ember trail without becoming a
+  shield wall. `oblivionStrike` locks the single red-black strike through a
+  rose-window target. Final gallery PNGs are byte-for-byte copies of the
+  approved generated sources and are recorded in
+  `scratch/style-tests/card-production-batch-13-20260706/`.
+- `cards/phantomBlades.png`, `cards/devour.png`, and
+  `cards/annihilate.png` are approved card production batch 14 generated
+  sources. `phantomBlades` locks one opaque crimson blade and exactly three
+  translucent echoes. `devour` locks the black lantern-maw, one ember card, and
+  one flame stream without drifting into offering or bodily-cost imagery.
+  `annihilate` locks one crimson funeral wave crossing three target panes, with
+  Smolder kept as fracture light. Final gallery PNGs are byte-for-byte copies
+  of the approved generated sources and are recorded in
+  `scratch/style-tests/card-production-batch-14-20260706/`.
+- `cards/aegis.png`, `cards/offering.png`, and `cards/limitBreak.png` are
+  approved card production batch 15 generated sources. `aegis` locks the vast
+  blue rose-window shield over a small protected Duskblade. `offering` locks
+  the black gloved hand, tall amber pyre, dissolving blue panes, and fresh side
+  panes. `limitBreak` locks the central furnace ring, one lower burning card,
+  and three cracked enemy panes. Final gallery PNGs are byte-for-byte copies of
+  the approved generated sources and are recorded in
+  `scratch/style-tests/card-production-batch-15-20260706/`.
 - The nine approved card images from `strike` through `twinFangs` are the
   current card-art baseline references. Their roles, hashes, and prompt ledgers
   are recorded in `docs/card-production/card-art-baselines.md`; the future
@@ -299,7 +344,8 @@ comparison sheets remain in
 `scratch/style-tests/card-production-batch-11-20260706/`, and
 `scratch/style-tests/card-production-batch-12-20260706/`, and
 `scratch/style-tests/card-production-batch-13-20260706/`, and
-`scratch/style-tests/card-production-batch-14-20260706/`.
+`scratch/style-tests/card-production-batch-14-20260706/`, and
+`scratch/style-tests/card-production-batch-15-20260706/`.
 Prop assets are normalised to the live runtime prop dimensions, with alpha
 preserved. Prop source, alpha, prompts, and contact sheets remain in
 `scratch/prop-art-production-20260706/`.
