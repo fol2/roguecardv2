@@ -1465,6 +1465,54 @@ function rigTick(t) {
 
 // --------- the playback loop: engine queue -> animations
 let heroActing = false; // true between a card play and end of turn — gates the hero lunge
+// which card/move caused the hits now playing back — set by 'play'/'enemyAct'/'art'
+let vfxSource = { archetype: 'slash', cardId: null, enemyIdx: null };
+let bespokeFired = false;
+let choreoDone = false;
+const ENEMY_KIND_VFX = {
+  beast: 'slash', rogue: 'slash', knight: 'slash', sovereign: 'slash',
+  golem: 'blunt', treeboss: 'blunt', crab: 'blunt', leviathan: 'blunt', zombie: 'blunt',
+  serpent: 'pierce', crawler: 'pierce', maw: 'pierce', plant: 'pierce',
+  wisp: 'void', shade: 'void', eye: 'void', siren: 'void', cultist: 'void',
+  slime: 'poison',
+};
+// ---- combat choreography: WAAPI, transform-only, REDUCED-gated ----
+const CHOREO_REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const HEAVY_KINDS = new Set(['golem', 'treeboss', 'leviathan', 'crab']);
+const FLOATY_KINDS = new Set(['wisp', 'shade', 'siren', 'eye', 'cultist']);
+function choreoAttack(el, dir = 1, kind = 'humanoid') {
+  if (CHOREO_REDUCED || !el) return Promise.resolve();
+  const heavy = HEAVY_KINDS.has(kind), floaty = FLOATY_KINDS.has(kind);
+  const dash = heavy ? 10 : floaty ? 26 : 34;
+  const kf = [
+    { transform: 'translateX(0) scale(1,1)' },
+    { transform: `translateX(${-8 * dir}px) scale(${heavy ? 1.03 : 0.97},${heavy ? 0.94 : 1.02})`, offset: 0.3 },
+    { transform: `translateX(${dash * dir}px) scale(1.02,0.99)`, offset: 0.62 },
+    { transform: 'translateX(0) scale(1,1)' },
+  ];
+  return el.animate(kf, { duration: heavy ? 420 : 330, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }).finished.catch(() => {});
+}
+function choreoHit(el, dir = 1) {
+  if (CHOREO_REDUCED || !el) return;
+  el.animate(
+    [
+      { transform: 'translateX(0) scale(1,1)', filter: 'brightness(1)' },
+      { transform: `translateX(${9 * dir}px) scale(0.97,1.03)`, filter: 'brightness(1.9)', offset: 0.25 },
+      { transform: 'translateX(0) scale(1,1)', filter: 'brightness(1)' },
+    ],
+    { duration: 300, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+  );
+}
+function choreoStagger(el) {
+  if (CHOREO_REDUCED || !el) return Promise.resolve();
+  return el.animate(
+    [
+      { transform: 'translateY(0) rotate(0deg)', filter: 'brightness(1)' },
+      { transform: 'translateY(5px) rotate(-2.5deg)', filter: 'brightness(0.6)' },
+    ],
+    { duration: 360, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
+  ).finished.catch(() => {});
+}
 // glass damage language: every landed hit scores a crack into the body
 function addCrack(artEl, big) {
   const layer = artEl && $('.cracks', artEl);
@@ -1553,6 +1601,10 @@ async function handleEvent(ev, targetIdx) {
       break;
     }
     case 'art': {
+      vfxSource = { archetype: 'fire', cardId: `art:${ev.id}`, enemyIdx: null };
+      bespokeFired = false;
+      choreoDone = false;
+      { const { x: lx, y: ly } = V.centerOf(ce.lantern); V.BESPOKE_VFX[`art:${ev.id}`]?.(lx, ly); bespokeFired = true; }
       const art = ARTS[ev.id];
       const { x: hx, y: hy } = heroCenter();
       const lc = ce.lantern ? V.centerOf(ce.lantern) : { x: hx, y: hy };
@@ -1580,7 +1632,7 @@ async function handleEvent(ev, targetIdx) {
     case 'smolderJump': {
       const a = enemyCenter(ev.from), b = enemyCenter(ev.to);
       sfx.poison();
-      flyTo(a.x, a.y, b.x, b.y, { n: 5, color: '#a3e06c', size: 7, dur: 460 });
+      flyTo(a.x, a.y, b.x, b.y, { n: 5, color: '#d3a15a', size: 7, dur: 460 });
       await sleep(400);
       break;
     }
@@ -1609,6 +1661,15 @@ async function handleEvent(ev, targetIdx) {
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
       sfx.card();
       heroActing = true;
+      vfxSource = { archetype: CARDS[ev.id]?.vfx || 'slash', cardId: ev.id, enemyIdx: null };
+      bespokeFired = false;
+      choreoDone = false;
+      if (!bespokeFired && V.BESPOKE_VFX[ev.id] && ['ascension', 'pyreheart', 'emberdance', 'limitBreak'].includes(ev.id)) {
+        const living = cb.enemies.findIndex((e) => e.hp > 0);
+        const pos = ev.id === 'limitBreak' && living >= 0 ? enemyCenter(living) : heroCenter();
+        V.BESPOKE_VFX[ev.id](pos.x, pos.y);
+        bespokeFired = true;
+      }
       if (c && targetIdx != null && cb.enemies[targetIdx]) {
         // targeted attacks: the card itself streaks into the enemy
         const r = c.getBoundingClientRect();
@@ -1634,19 +1695,21 @@ async function handleEvent(ev, targetIdx) {
       const { x: ex, y: ey } = enemyCenter(ev.idx);
       if (ev.poison) {
         sfx.poison();
-        V.motes(ex, ey, '#a3e06c', 14);
+        V.motes(ex, ey, '#d3a15a', 14);
         V.floatText(ex, ey - 20, `${ev.amount}`, 'poisonf');
       } else {
         const big = ev.amount >= 16;
         if (heroActing) {
-          ce.hero.classList.remove('lunge');
-          void ce.hero.offsetWidth;
-          ce.hero.classList.add('lunge');
+          if (!choreoDone) { await choreoAttack(ce.hero, 1, 'humanoid'); choreoDone = true; }
         }
         sfx.slash();
         if (ev.amount > 0) sfx.hit();
-        V.slashArc(ex, ey, big ? '#ffd8a0' : '#ffffff');
-        V.burst(ex, ey, { color: '#ff9a6a', n: big ? 30 : 14, speed: big ? 420 : 260 });
+        if (!bespokeFired && vfxSource.cardId && V.BESPOKE_VFX[vfxSource.cardId]) {
+          V.BESPOKE_VFX[vfxSource.cardId](ex, ey);
+          bespokeFired = true;
+        }
+        V.archetypeHit(ex, ey, vfxSource.archetype, Math.min(1, ev.amount / 24));
+        choreoHit(x.root, 1);
         if (ev.blocked > 0) {
           sfx.blocked();
           V.floatText(ex, ey + 26, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf');
@@ -1693,6 +1756,7 @@ async function handleEvent(ev, targetIdx) {
         document.body.classList.remove('worldstop');
         x.root.classList.remove('doomed');
       }
+      await choreoStagger(x.art);
       (en.boss || en.elite ? sfx.bigDeath : sfx.death)();
       V.shatter(x.art); // the glass body breaks apart
       V.burst(ex, ey, { color: '#dfeaff', n: 30, speed: 480, size: 2.6, grav: 340, kind: 'spark' });
@@ -1708,13 +1772,14 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'hitPlayer': {
       const { x: hx, y: hy } = heroCenter();
-      if (ev.source === 'poison') { sfx.poison(); V.motes(hx, hy, '#a3e06c', 14); }
+      if (ev.source === 'poison') { sfx.poison(); V.motes(hx, hy, '#d3a15a', 14); }
       else if (ev.source === 'burn' || ev.source === 'self') sfx.debuff();
       else if (ev.source === 'thorns') sfx.blocked();
       else {
         sfx.slash();
         if (ev.amount > 0) { sfx.hit(); V.flash('#ff2233', Math.min(0.05 + ev.amount * 0.012, 0.3), 0.3); }
-        V.slashArc(hx, hy, '#ff8888');
+        V.archetypeHit(hx, hy, vfxSource.archetype, Math.min(1, ev.amount / 24));
+        choreoHit(ce.hero, -1);
       }
       if (ev.blocked > 0) {
         sfx.blocked();
@@ -1806,6 +1871,16 @@ async function handleEvent(ev, targetIdx) {
     case 'enemyAct': {
       const x = ce.enemies[ev.idx];
       const { x: ex, y: ey } = enemyCenter(ev.idx);
+      const mvDef = ENEMIES[cb.enemies[ev.idx].key]?.moves?.[ev.move];
+      const kindArch = ENEMY_KIND_VFX[ENEMIES[cb.enemies[ev.idx].key]?.art?.kind] || 'slash';
+      vfxSource = {
+        archetype: mvDef?.intent?.startsWith('attack') ? kindArch
+          : mvDef?.intent === 'debuff' ? 'void'
+          : (mvDef?.intent === 'buff' || mvDef?.intent === 'block') ? 'ward' : kindArch,
+        cardId: null, enemyIdx: ev.idx,
+      };
+      bespokeFired = false;
+      choreoDone = false;
       // telegraph: the intent chip blazes in the beat before the strike
       x.intent.classList.remove('telegraph');
       void x.intent.offsetWidth;
@@ -1813,7 +1888,11 @@ async function handleEvent(ev, targetIdx) {
       x.root.classList.add('acting');
       setTimeout(() => { x.root.classList.remove('acting'); x.intent.classList.remove('telegraph'); }, 650);
       V.floatText(ex, ey - 90, ev.name, 'notice');
-      await sleep(620);
+      await sleep(300);
+      if (mvDef?.intent?.startsWith('attack')) {
+        await choreoAttack(x.root, -1, ENEMIES[cb.enemies[ev.idx].key]?.art?.kind);
+        choreoDone = true;
+      } else await sleep(320);
       break;
     }
     case 'intent': syncCombat(); break;
