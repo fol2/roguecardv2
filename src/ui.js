@@ -10,6 +10,7 @@ import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash } f
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
+import { bfResolve, bfActor, bfSlots, bfEnemySize } from './battlefield.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
@@ -819,9 +820,11 @@ function renderCombat() {
   const zone = $('.enemy-zone', sc);
   const ce = { enemies: [], root: $('.combat-screen', sc) };
   const afx = cb.affix ? AFFIXES[cb.affix] : null;
+  const L = bfResolve(stageInfo().shape);
+  const slots = bfSlots(L, cb.enemies.length);
   cb.enemies.forEach((en, i) => {
     const d = ENEMIES[en.key];
-    const size = enemyArtSize(d, cb.enemies.length);
+    const size = bfEnemySize(L, en.key, d.boss ? 'boss' : d.elite ? 'elite' : 'normal', slots[i], stageW(), stageH());
     const box = el('div', `enemy${d.elite ? ' elite-e' : ''}${d.boss ? ' boss-e' : ''}${afx ? ' affixed' : ''}`);
     if (afx) box.style.setProperty('--affix-tone', afx.tone);
     box.dataset.idx = i;
@@ -880,6 +883,7 @@ function renderCombat() {
     afterAction();
   };
   S.ce = ce;
+  applyBattlefieldLayout();
   rigCombatants();
   scheduleMeshBind();
   // drop the intro class once entrances finish so intro animations don't retrigger
@@ -899,29 +903,53 @@ function renderCombat() {
 const enemyCenter = (i) => V.centerOf(S.ce.enemies[i].art);
 const heroCenter = () => V.centerOf(S.ce.hero);
 
-// width budget: the hero's zone and padding come off the top, the rest splits
-// between foes — on a phone the whole line must still stand on the ledge
-function enemyArtSize(d, count) {
-  const heroW = Math.min(stageW() * 0.31, 240);
-  const wBudget = (stageW() - heroW - stageW() * 0.08) / count - 12;
-  const base = d.boss ? 280 : d.elite ? 230 : 185;
-  const raw = base * (d.art.size >= 1.4 ? 1 : d.art.size < 0.8 ? 0.86 : 0.95) * Math.min(d.art.size, 1.45);
-  return Math.round(Math.min(raw, stageH() * (d.boss ? 0.34 : 0.3), Math.max(72, wBudget * (d.boss ? 1.12 : 1))));
+// battlefield geometry comes from src/battlefield-layout.js (edit with
+// ?bfedit=1 on the dev server); this applies the resolved layout to the DOM
+function applyBattlefieldLayout() {
+  const cb = S.cb, ce = S.ce;
+  if (!cb || !ce || S.screen !== 'combat') return;
+  const L = bfResolve(stageInfo().shape);
+  ce.root.style.setProperty('--ground-y', `${L.groundY}px`);
+  ce.root.style.setProperty('--ledge-lip', `${L.ledgeLip}px`);
+  for (const name of ['backdrop', 'mid', 'ledge']) {
+    const img = ce.root.querySelector(`.sl-${name}`);
+    if (!img) continue;
+    const p = L.layers[name];
+    img.style.height = `${p.h}px`;
+    img.style.bottom = `${p.y}px`;
+    img.style.opacity = p.opacity;
+    img.style.scale = p.zoom === 1 ? '' : String(p.zoom);
+    img.style.objectPosition = `${p.posX}% ${name === 'ledge' ? '0%' : '100%'}`;
+  }
+  const hero = bfActor('heroes', ASPECTS[S.run.aspect].id);
+  const hw = Math.round(L.hero.w * hero.scale), hh = Math.round(L.hero.h * hero.scale);
+  const pz = ce.root.querySelector('.player-zone');
+  pz.style.width = `${hw}px`;
+  pz.style.height = `${hh}px`;
+  pz.style.left = `${Math.round(L.hero.x - hw / 2)}px`;
+  pz.style.bottom = `${hero.footY}px`; // relative to .battlefield bottom = the ground line
+  const slots = bfSlots(L, cb.enemies.length);
+  cb.enemies.forEach((en, i) => {
+    const d = ENEMIES[en.key];
+    const tier = d.boss ? 'boss' : d.elite ? 'elite' : 'normal';
+    const size = bfEnemySize(L, en.key, tier, slots[i], stageW(), stageH());
+    const box = ce.enemies[i].root;
+    box.style.left = `${Math.round(slots[i].x - size / 2)}px`;
+    box.style.bottom = `${bfActor('enemies', en.key).footY}px`;
+    box.style.width = box.style.height = `${size}px`;
+    ce.enemies[i].art.style.width = ce.enemies[i].art.style.height = `${size}px`;
+  });
+}
+function refitCombat() {
+  applyBattlefieldLayout();
+  layoutHand();
+  scheduleMeshBind();
 }
 // rotate the phone mid-fight and the stage re-fits itself
 let fitT = 0;
 addEventListener('resize', () => {
   clearTimeout(fitT);
-  fitT = setTimeout(() => {
-    const cb = S.cb, ce = S.ce;
-    if (!cb || !ce || S.screen !== 'combat') return;
-    cb.enemies.forEach((en, i) => {
-      const size = enemyArtSize(ENEMIES[en.key], cb.enemies.length);
-      ce.enemies[i].art.style.width = ce.enemies[i].art.style.height = `${size}px`;
-    });
-    layoutHand();
-    scheduleMeshBind();
-  }, 120);
+  fitT = setTimeout(() => { if (S.cb && S.ce && S.screen === 'combat') refitCombat(); }, 120);
 });
 
 function statusChips(container, statuses, isPlayer) {
@@ -2704,7 +2732,7 @@ export function initUI() {
   $('#overlay').addEventListener('pointerdown', (e) => {
     if (e.target === $('#overlay') && $('#overlay')._closable) closeOverlay();
   });
-  window.spirebound = { S, E, startCombatUI, show, meshEnabled, meshDebug }; // ponytail: console debug hook, harmless in prod
+  window.spirebound = { S, E, startCombatUI, show, meshEnabled, meshDebug, refitCombat }; // ponytail: console debug hook, harmless in prod
   installProbe(); // window.__probe — contract readers + drivers for test/e2e
   requestAnimationFrame(rigTick); // living-glass rig: no-op outside combat
   show('title');

@@ -438,21 +438,22 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .card.exhausting { transition: transform 0.5s, opacity 0.5s, filter 0.5s !important; transform: translate(-50%, -140px) scale(0.6) rotate(8deg) !important; opacity: 0; filter: brightness(2.4) saturate(0.2) blur(2px); }
 
 /* ============ Combat layout */
-.combat-screen { position: absolute; inset: 0; overflow: hidden; touch-action: none; }
+.combat-screen { position: absolute; inset: 0; overflow: hidden; touch-action: none; --ground-y: 232px; --ledge-lip: 14px; } /* JS overwrites from the layout file */
 /* the ledge: a lit line of tower-stone underfoot so fights read as fought ON the Spire */
 .stage-ledge {
-  position: absolute; left: 0; right: 0; bottom: 185px; height: 120px; z-index: 0; pointer-events: none;
+  position: absolute; left: 0; right: 0; --glow-h: 120px; height: var(--glow-h);
+  bottom: calc(var(--ground-y) - var(--glow-h)); z-index: 0; pointer-events: none;
   background: linear-gradient(180deg, color-mix(in srgb, var(--ledge, #8fa3d8) 9%, transparent), transparent 62%);
   -webkit-mask: linear-gradient(90deg, transparent, #000 14% 86%, transparent);
   mask: linear-gradient(90deg, transparent, #000 14% 86%, transparent);
 }
 /* painted diorama layers: backdrop behind everything, ledge under the combatants' feet */
-.sl { position: absolute; left: 50%; bottom: 0; z-index: 0; transform: translateX(-50%); pointer-events: none; user-select: none; min-width: 100%; }
+.sl { position: absolute; left: 50%; bottom: 0; z-index: 0; transform: translateX(-50%); transform-origin: 50% 100%; pointer-events: none; user-select: none; min-width: 100%; }
 /* depth parallax: the front layer drifts furthest and fastest (spec: ~2/5/9px back-to-front);
    screen shake already ripples the diorama because #screen lives inside #shake */
-.sl-backdrop { --amp: 2px; height: 78%; object-fit: cover; object-position: 50% 100%; opacity: 0.85; animation: sl-drift 26s ease-in-out infinite alternate; }
-.sl-mid { --amp: 5px; height: 58%; object-fit: cover; object-position: 50% 100%; opacity: 0.95; animation: sl-drift 18s ease-in-out infinite alternate; }
-.sl-ledge { --amp: 9px; height: 30%; object-fit: cover; object-position: 50% 0%; animation: sl-drift 12s ease-in-out infinite alternate; }
+.sl-backdrop { --amp: 2px; object-fit: cover; object-position: 50% 100%; animation: sl-drift 26s ease-in-out infinite alternate; }
+.sl-mid { --amp: 5px; object-fit: cover; object-position: 50% 100%; animation: sl-drift 18s ease-in-out infinite alternate; }
+.sl-ledge { --amp: 9px; object-fit: cover; object-position: 50% 0%; animation: sl-drift 12s ease-in-out infinite alternate; }
 @keyframes sl-drift {
   from { transform: translateX(calc(-50% - var(--amp))); }
   to { transform: translateX(calc(-50% + var(--amp))); }
@@ -475,20 +476,21 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .combat-screen.intro .player-zone { animation: heroIn 0.55s cubic-bezier(0.2, 0.75, 0.3, 1) backwards; }
 .combat-screen.intro .enemy { animation: enemyIn 0.55s cubic-bezier(0.2, 0.75, 0.3, 1) backwards; }
 .combat-screen.intro .energy-orb, .combat-screen.intro .end-turn, .combat-screen.intro .pile-btn, .combat-screen.intro .lantern-btn { animation: chromeIn 0.5s 0.4s cubic-bezier(0.2, 0.75, 0.3, 1) backwards; }
-@keyframes heroIn { from { opacity: 0; transform: translate(-70px, 25px); } to { transform: translateY(25px); } }
+@keyframes heroIn { from { opacity: 0; transform: translateX(-70px); } to { transform: none; } }
 @keyframes enemyIn { from { opacity: 0; transform: translateX(90px); } }
 @keyframes chromeIn { from { opacity: 0; transform: translateY(44px); } }
-.battlefield { position: absolute; inset: 96px 0 232px 0; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 5cqw; }
-.player-zone { position: relative; width: 240px; transform: translateY(25px); }
-.hero-wrap { position: relative; width: 190px; height: 285px; }
+.battlefield { position: absolute; left: 0; right: 0; top: 0; bottom: var(--ground-y); pointer-events: none; }
+.enemy-zone { position: absolute; inset: 0; pointer-events: none; }
+.player-zone, .enemy { position: absolute; pointer-events: auto; }
+.player-zone { transform: none; }
+.hero-wrap { position: relative; width: 100%; height: 100%; }
 .hero-wrap .hero-name {
   position: absolute; top: -11px; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: none;
   font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: 0.12em; color: #c8d0ea; white-space: nowrap;
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.95), 0 0 16px rgba(0, 0, 0, 0.7);
 }
 .hero-wrap svg { width: 100%; height: 100%; }
-.enemy-zone { display: flex; align-items: flex-end; justify-content: flex-end; gap: 3cqw; }
-.enemy { position: relative; transition: filter 0.2s, transform 0.25s; }
+.enemy { transition: filter 0.2s, transform 0.25s; }
 /* the chrome plate: name/HP/facets/statuses hang below the art box, out of
    flow, so the combatant's box bottom IS its feet (ground-line contract) */
 .cplate { position: absolute; top: 100%; left: 50%; translate: -50% 0; display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 3; padding-top: 6px; width: max-content; max-width: 260px; }
@@ -1170,8 +1172,6 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 @container stage (max-width: 1100px) {
   .card { --cw: 132px; }
   .choice-cards .card { --cw: 150px; }
-  .battlefield { padding: 0 2cqw; inset: 88px 0 210px 0; }
-  .stage-ledge { bottom: 163px; }
   .hand-zone { height: 230px; }
   .energy-orb { width: 72px; height: 72px; bottom: calc(130px + var(--sab)); left: calc(20px + var(--sal)); }
   .lantern-btn { --lbr: 32px; width: 56px; height: 56px; left: calc(28px + var(--sal)); bottom: calc(222px + var(--sab)); }
@@ -1226,11 +1226,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   #relicbar { max-width: 100%; padding-top: 2px; gap: 6px; }
   .map-title { top: calc(58px + var(--sat)); font-size: 12px; letter-spacing: 0.16em; padding: 0 58px; line-height: 1.7; }
   /* stage */
-  .battlefield { inset: calc(56px + var(--sat)) 0 218px 0; padding: 0 2cqw; }
-  .stage-ledge { bottom: 172px; height: 90px; }
-  .player-zone { width: 31cqw; }
-  .hero-wrap { width: min(150px, 33cqw); height: min(225px, 49.5cqw); }
-  .player-zone .hpbar-wrap { width: min(150px, 33cqw); }
+  .stage-ledge { --glow-h: 90px; }
   .hpbar-wrap { width: 118px; }
   .status-row { max-width: 34cqw; }
   .enemy .name, .hero-wrap .hero-name { font-size: 10.5px; letter-spacing: 0.06em; }
@@ -1304,10 +1300,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   .hud-relic { width: 34px; height: 34px; }
   #relicbar { padding-top: 0; gap: 6px; }
   .map-title { top: calc(42px + var(--sat)); font-size: 11.5px; }
-  .battlefield { inset: calc(44px + var(--sat)) 0 132px 0; padding: 0 5cqw; }
-  .stage-ledge { bottom: 96px; height: 70px; }
-  .player-zone { width: 22cqw; }
-  .hero-wrap { width: min(128px, 32cqh); height: min(192px, 48cqh); }
+  .stage-ledge { --glow-h: 70px; }
   .player-zone .hpbar-wrap, .hpbar-wrap { width: 118px; }
   .enemy .name, .hero-wrap .hero-name { font-size: 10.5px; }
   .intent { height: 24px; font-size: 13px; }
