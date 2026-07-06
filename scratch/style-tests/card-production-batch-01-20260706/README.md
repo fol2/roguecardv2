@@ -23,6 +23,8 @@ Reference anchors:
 - `firstSpark`:
   `/Users/jamesto/.codex/generated_images/019f345e-db31-7052-9925-781d26dd1edb/ig_0ac2aea1115b431b016a4af66796708191be3de24347ae015c.png`
 
+The exact prompts are recorded in `prompt-ledger.md`.
+
 ## Final Gallery Assets
 
 - `src/assets-readable-baseline/cards/eclipseSlash.png`

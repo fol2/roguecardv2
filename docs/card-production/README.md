@@ -1,16 +1,15 @@
 # Card Art Production Pipeline
 
-This folder tracks the 57-card production pass after the approved first-card
-milestone.
+This folder tracks the 60-card production pass and the remaining card-art
+batches after the approved baseline milestones.
 
-Approved reference cards:
+Approved reference cards are now the nine-card baseline set documented in
+[`card-art-baselines.md`](./card-art-baselines.md):
 
-- `strike` / Edge: foreground blade and arm separate clearly from a quieter red
-  chapel-window background.
-- `defend` / Ward: dark figure, lantern, blue ward wall, and muted chapel
-  background read as distinct layers.
-- `empower` / Inner Blaze: kneeling figure, chest fire, sword glow, and violet
-  shrine background separate at card-art size.
+- `strike`, `defend`, and `empower` - first approved composition anchors.
+- `eclipseSlash`, `chisel`, and `firstSpark` - starter identity extensions.
+- `ashBite`, `smother`, and `twinFangs` - source-only lighting/readability
+  correction anchors.
 
 Production rule: every remaining card must be full-bleed rectangular scene art
 from the approved Image Gen source, with a foreground subject/action plus
@@ -27,6 +26,9 @@ crop, resize, or metadata-stripping fixes.
 - `attack-card-specs.md` - remaining attack cards.
 - `skill-card-specs.md` - remaining skill cards.
 - `power-special-card-specs.md` - remaining power, status, and curse cards.
+- `card-art-baselines.md` - the nine approved card-art baseline references.
+- `subagent-workflow.md` - the required handoff shape for future subagent
+  story/design/prompt work.
 
 ## Per-Card Required Record
 
@@ -50,17 +52,19 @@ Approved generated cards are tracked in
 Before adding a card to `src/assets-readable-baseline/cards/`:
 
 1. Confirm the spec follows `docs/card-art-bible.md`.
-2. Confirm the card passes the anti-drift rules in
+2. Compare the card against the nine approved baselines in
+   [`card-art-baselines.md`](./card-art-baselines.md).
+3. Confirm the card passes the anti-drift rules in
    [`drift-control.md`](./drift-control.md).
-3. Generate with built-in Image Gen.
-4. Copy the source into a card-specific scratch folder.
-5. Review at large size and thumbnail size.
-6. Put the approved generated source bytes directly in
+4. Generate with built-in Image Gen.
+5. Copy the source into a card-specific scratch folder.
+6. Review at large size and thumbnail size.
+7. Put the approved generated source bytes directly in
    `src/assets-readable-baseline/cards/<id>.png`.
-7. Record the prompt, source output path, gallery path, hashes, and review
+8. Record the prompt, source output path, gallery path, hashes, and review
    notes.
-8. Run `npm run build`.
-9. Check the readable-baseline gallery.
+9. Run `npm run build`.
+10. Check the readable-baseline gallery.
 
 No bulk promotion without visual review. If a card is weak, regenerate that
 card before moving on.

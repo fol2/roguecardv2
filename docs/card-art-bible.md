@@ -15,6 +15,10 @@ The runtime already renders the card frame, cost, name, type, rarity, text,
 hover glare, and keyword highlighting. The generated PNG must therefore be the
 art object only, not a complete card design.
 
+The current approved production references are the nine images recorded in
+[`docs/card-production/card-art-baselines.md`](./card-production/card-art-baselines.md).
+Use them as the visual baseline before generating any further card art.
+
 ## Runtime Constraints
 
 - Path: `src/assets/cards/<card-id>.png`.
@@ -45,13 +49,19 @@ Use the current project workflow from [`generated-art-workflow.md`](./generated-
 3. For card scenes, keep the full rectangular background. Do not chroma-key it
    into a floating badge unless the card intentionally needs an object token.
 4. Do not locally post-process approved card art. If the source is too dark,
-   badly framed, or the wrong ratio, regenerate instead of applying brightness,
-   contrast, gamma, saturation, crop, resize, or metadata stripping.
-5. Review in `?gallery=1` before accepting.
+   badly framed, or the wrong ratio, correct the Image Gen prompt and
+   regenerate instead of applying brightness, contrast, gamma, saturation, crop,
+   resize, or metadata stripping.
+5. For future batches, the approved gallery PNG must be the approved generated
+   source bytes.
+6. Review in `?gallery=1` before accepting.
 
 Do not make the shell wrappers the primary workflow for future card work. They
 exist for historical/batch context, but direct Image Gen usage is the preferred
 authoring path for this project.
+
+When subagents are used for story/design/prompt work, follow
+[`docs/card-production/subagent-workflow.md`](./card-production/subagent-workflow.md).
 
 ## Locked Card Style
 
@@ -492,6 +502,8 @@ Before promoting any new card asset:
 
 - Open the game gallery at `http://localhost:5174/?gallery=1`.
 - Check `cards - 60/60 generated`.
+- Compare against the nine approved baselines in
+  `docs/card-production/card-art-baselines.md`.
 - Inspect the target card at gallery size.
 - Inspect the same card in actual hand/reward/deck views if possible.
 - Check the full rectangular background reads as card art, not as a floating

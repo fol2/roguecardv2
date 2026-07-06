@@ -1,14 +1,20 @@
 # Card Art Drift Control
 
-This file is the production gate for the remaining 57 card arts.
+This file is the production gate for the remaining card arts.
 
-The approved anchors are:
+The approved baselines are:
 
 - `strike` - attack action: large foreground blade, quieter red chapel window.
 - `defend` - skill defence: figure, lantern, blue ward, muted chapel background.
 - `empower` - power state: kneeling figure, chest fire, sword glow, violet shrine.
+- `eclipseSlash` - attack variant: red blade, black eclipse disc, pale crack.
+- `chisel` - facet action: hand, tool, bright target pane, one missing chip.
+- `firstSpark` - tempo/kindle: hand, amber spark, rising card pane.
+- `ashBite` - Smolder attack: red bite, green-orange smoke, visible target pane.
+- `smother` - Ward plus Smolder: blue ward hand first, coal smoke second.
+- `twinFangs` - multi-hit: two separated crimson fangs and two impact notches.
 
-Every new card must feel like it belongs to the same deck as those three cards.
+Every new card must feel like it belongs to the same deck as those nine cards.
 
 ## Non-Negotiable Rules
 
@@ -22,8 +28,9 @@ Every new card must feel like it belongs to the same deck as those three cards.
 8. The card must read by gameplay family before it reads as decoration.
 9. Do not accept an over-dark source only because it looks dramatic; the main
    action must still separate from the background at `120 x 75`.
-10. Fix dark cards at generation time by adding scene light and visible
-    stained-glass midtones. Do not flatten shadows with a grey lift.
+10. Fix dark cards at generation time by adding scene light, theme colour, and
+    visible stained-glass midtones to the prompt. Do not flatten shadows with a
+    grey lift.
 11. Do not use local visual post-processing to rescue or standardise card art.
     The gallery card PNG must be a byte-for-byte copy of the approved generated
     source. Contact sheets may resize review copies only.
@@ -34,14 +41,14 @@ Generate in small batches. Default batch size is 3 cards.
 
 For every batch:
 
-1. Re-read the three approved anchor images.
+1. Re-read the nine approved baseline images.
 2. Generate one source per card with the recorded prompt.
 3. Copy the source into the card-specific scratch folder.
 4. Copy the approved source bytes directly into
    `src/assets-readable-baseline/cards/<id>.png`.
 5. Record a source/gallery hash check proving they match.
 6. Build a contact sheet with:
-   - the three approved anchors
+   - the nine approved baselines, or at minimum the three nearest baselines
    - the new batch at 240 x 150
    - the new batch at 120 x 75
 7. Reject any image where foreground and background merge at the small size.

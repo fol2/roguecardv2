@@ -2,6 +2,10 @@
 
 This ledger records card art once it reaches the readable-baseline gallery.
 
+The nine cards below are the approved card-art baseline references. Their
+reference roles, hashes, and prompt locations are collected in
+[`card-art-baselines.md`](./card-art-baselines.md).
+
 ## Approved Anchor Milestone
 
 | Card | Final gallery asset | Source record |
@@ -14,9 +18,9 @@ This ledger records card art once it reaches the readable-baseline gallery.
 
 | Card | Decision | Final gallery asset | Source record |
 |---|---|---|---|
-| `eclipseSlash` | approved | `src/assets-readable-baseline/cards/eclipseSlash.png` | `scratch/style-tests/card-production-batch-01-20260706/README.md` |
-| `chisel` | approved | `src/assets-readable-baseline/cards/chisel.png` | `scratch/style-tests/card-production-batch-01-20260706/README.md` |
-| `firstSpark` | approved | `src/assets-readable-baseline/cards/firstSpark.png` | `scratch/style-tests/card-production-batch-01-20260706/README.md` |
+| `eclipseSlash` | approved | `src/assets-readable-baseline/cards/eclipseSlash.png` | `scratch/style-tests/card-production-batch-01-20260706/README.md`; `scratch/style-tests/card-production-batch-01-20260706/prompt-ledger.md` |
+| `chisel` | approved | `src/assets-readable-baseline/cards/chisel.png` | `scratch/style-tests/card-production-batch-01-20260706/README.md`; `scratch/style-tests/card-production-batch-01-20260706/prompt-ledger.md` |
+| `firstSpark` | approved | `src/assets-readable-baseline/cards/firstSpark.png` | `scratch/style-tests/card-production-batch-01-20260706/README.md`; `scratch/style-tests/card-production-batch-01-20260706/prompt-ledger.md` |
 
 ## Batch 02
 
