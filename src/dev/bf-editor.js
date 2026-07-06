@@ -8,6 +8,40 @@ import { stageEl, stageW, stageH, stageScale, stageInfo } from '../stage.js';
 const SHAPES = ['phone-portrait', 'phone-landscape', 'pad-portrait', 'pad-landscape', 'desktop-landscape'];
 const LAYERS = ['backdrop', 'mid', 'ledge'];
 const clone = (o) => JSON.parse(JSON.stringify(o));
+const getPath = (obj, path) => path.reduce((o, k) => o?.[k], obj);
+function setPath(obj, path, value) {
+  let o = obj;
+  for (const k of path.slice(0, -1)) o = o[k] ??= {};
+  o[path.at(-1)] = value;
+}
+function delPath(obj, path) {
+  const parent = getPath(obj, path.slice(0, -1));
+  if (parent) delete parent[path.at(-1)];
+}
+function applyWorking() {
+  _setBF(state.working);
+  window.spirebound.refitCombat();
+  state.dirty = true;
+  const d = document.getElementById('bf-dirty');
+  if (d) d.textContent = '● unsaved';
+  syncOverlays();
+  renderPanel();
+}
+function writeField(scope, path, value) {
+  const shape = stageInfo().shape;
+  if (scope === 'shared') setPath(state.working.shared, path, value);
+  else if (scope === 'base') setPath(state.working.base, path, value);
+  else {
+    // shape scope; formations copy-on-write (arrays replace wholesale on merge)
+    if (path[0] === 'slots' && getPath(state.working.shapes?.[shape] ?? {}, ['slots', path[1]]) === undefined) {
+      setPath(state.working, ['shapes', shape, 'slots', path[1]], clone(bfResolve(shape).slots[path[1]] ?? bfSlots(bfResolve(shape), Number(path[1]))));
+    }
+    setPath(state.working, ['shapes', shape, ...path], value);
+  }
+  applyWorking();
+}
+const defaultScope = (path) => (path[0] === 'sizes' || path[0] === 'heroes' || path[0] === 'enemies') ? 'shared'
+  : (stageInfo().shape === 'pad-landscape' ? 'base' : 'shape');
 const state = { working: null, sel: null, dirty: false, scenario: null };
 
 const q = () => new URLSearchParams(location.search);
@@ -44,6 +78,12 @@ function overlayRects() {
   const shape = stageInfo().shape;
   const L = bfResolve(shape);
   const rects = [];
+  // layers first so hero/enemy boxes stack above and receive drags
+  LAYERS.forEach((name) => {
+    const p = L.layers[name];
+    rects.push({ id: `layer-${name}`, x: 0, w: stageW(), h: p.h, bottom: p.y, layer: true });
+  });
+  rects.push({ id: 'ground', x: 0, w: stageW(), h: 2, bottom: L.groundY, ground: true, label: `ground ${L.groundY}px` });
   const hero = bfActor('heroes', ASPECTS[state.scenario.aspect].id);
   const hw = Math.round(L.hero.w * hero.scale), hh = Math.round(L.hero.h * hero.scale);
   rects.push({ id: 'hero', x: L.hero.x - hw / 2, w: hw, h: hh, bottom: L.groundY + hero.footY });
@@ -54,11 +94,6 @@ function overlayRects() {
     const size = bfEnemySize(L, key, tier, slots[i], stageW(), stageH());
     rects.push({ id: `enemy-${i}`, x: slots[i].x - size / 2, w: size, h: size, bottom: L.groundY + bfActor('enemies', key).footY });
   });
-  LAYERS.forEach((name) => {
-    const p = L.layers[name];
-    rects.push({ id: `layer-${name}`, x: 0, w: stageW(), h: p.h, bottom: p.y, layer: true });
-  });
-  rects.push({ id: 'ground', x: 0, w: stageW(), h: 2, bottom: L.groundY, ground: true, label: `ground ${L.groundY}px` });
   return rects;
 }
 
@@ -81,62 +116,124 @@ function syncOverlays() {
     overlayEl.appendChild(b);
   }
 }
-function onBoxPointerDown(e, id) { select(id); } // replaced with drag logic in Task 5
+function onBoxPointerDown(e, id) {
+  select(id);
+  e.preventDefault();
+  const onHandle = e.target.classList.contains('bf-handle');
+  const shape = stageInfo().shape;
+  // snapshot EVERYTHING at drag start; every move event writes L0 + total
+  // delta, so repeated events never compound
+  const L0 = clone(bfResolve(shape));
+  const heroId = ASPECTS[state.scenario.aspect].id;
+  const heroFoot0 = bfActor('heroes', heroId).footY;
+  const enemyFoot0 = state.scenario.ids.map((k) => bfActor('enemies', k).footY);
+  const start = { x: e.clientX, y: e.clientY };
+  const sc = stageScale();
+  const count = state.scenario.ids.length;
+  const slots0 = L0.slots[count] ?? bfSlots(L0, count);
+  const move = (ev) => {
+    const dx = Math.round((ev.clientX - start.x) / sc);
+    const dy = Math.round((ev.clientY - start.y) / sc); // screen-down = stage-down
+    const posScope = defaultScope(['hero']);
+    if (id === 'ground') writeField(posScope, ['groundY'], Math.max(0, L0.groundY - dy));
+    else if (id === 'hero') {
+      if (onHandle) {
+        writeField(posScope, ['hero', 'w'], Math.max(24, L0.hero.w + dx));
+        writeField(posScope, ['hero', 'h'], Math.max(24, L0.hero.h + dy));
+      } else if (Math.abs(dx) >= Math.abs(dy)) writeField(posScope, ['hero', 'x'], L0.hero.x + dx);
+      else writeField('shared', ['heroes', heroId, 'footY'], heroFoot0 - dy);
+    } else if (id.startsWith('enemy-')) {
+      const i = Number(id.slice(6));
+      const key = state.scenario.ids[i];
+      if (onHandle) writeField(posScope, ['slots', String(count), i, 's'], Math.max(0.1, +((slots0[i].s ?? 1) + dx / 200).toFixed(2)));
+      else if (Math.abs(dx) >= Math.abs(dy)) writeField(posScope, ['slots', String(count), i, 'x'], slots0[i].x + dx);
+      else writeField('shared', ['enemies', key, 'footY'], enemyFoot0[i] - dy);
+    } else if (id.startsWith('layer-')) {
+      const name = id.slice(6);
+      if (onHandle) writeField(posScope, ['layers', name, 'h'], Math.max(10, L0.layers[name].h - dy));
+      else writeField(posScope, ['layers', name, 'y'], L0.layers[name].y - dy);
+    }
+  };
+  const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); };
+  addEventListener('pointermove', move);
+  addEventListener('pointerup', up);
+}
 function select(id) { state.sel = id; syncOverlays(); renderPanel(); }
 
 // ---------------------------------------------------------------- panel
 function fieldRows() {
-  // returns [{label, get()}] for the current selection, read-only for now
+  if (!state.sel) return [];
   const shape = stageInfo().shape;
   const L = bfResolve(shape);
-  if (!state.sel) return [];
+  const over = state.working.shapes?.[shape] ?? {};
+  const pos = (label, path, value) => ({ label, path, value, scope: defaultScope(path), overridden: getPath(over, path) !== undefined });
+  const sh = (label, path, value) => ({ label, path, value, scope: 'shared', overridden: false });
+  if (state.sel === 'ground') return [pos('groundY', ['groundY'], L.groundY), pos('ledgeLip', ['ledgeLip'], L.ledgeLip)];
   if (state.sel === 'hero') {
     const id = ASPECTS[state.scenario.aspect].id;
     const a = bfActor('heroes', id);
     return [
-      { label: 'x (layout)', get: () => L.hero.x },
-      { label: 'w (layout)', get: () => L.hero.w },
-      { label: 'h (layout)', get: () => L.hero.h },
-      { label: `scale (shared:${id})`, get: () => a.scale },
-      { label: `footY (shared:${id})`, get: () => a.footY },
-    ];
-  }
-  if (state.sel === 'ground') {
-    return [
-      { label: 'groundY (layout)', get: () => L.groundY },
-      { label: 'ledgeLip (layout)', get: () => L.ledgeLip },
+      pos('x', ['hero', 'x'], L.hero.x),
+      pos('w', ['hero', 'w'], L.hero.w),
+      pos('h', ['hero', 'h'], L.hero.h),
+      sh(`scale · ${id}`, ['heroes', id, 'scale'], a.scale),
+      sh(`footY · ${id}`, ['heroes', id, 'footY'], a.footY),
     ];
   }
   if (state.sel.startsWith('enemy-')) {
     const i = Number(state.sel.slice(6));
     const key = state.scenario.ids[i];
-    const slots = bfSlots(L, state.scenario.ids.length);
+    const d = ENEMIES[key];
+    const tier = d.boss ? 'boss' : d.elite ? 'elite' : 'normal';
+    const count = String(state.scenario.ids.length);
+    const slot = bfSlots(L, state.scenario.ids.length)[i];
     const a = bfActor('enemies', key);
     return [
-      { label: `slot ${i} x (layout)`, get: () => slots[i].x },
-      { label: `slot ${i} s (layout)`, get: () => slots[i].s },
-      { label: `scale (shared:${key})`, get: () => a.scale },
-      { label: `footY (shared:${key})`, get: () => a.footY },
+      pos(`slot x`, ['slots', count, i, 'x'], slot.x),
+      pos(`slot s`, ['slots', count, i, 's'], slot.s ?? 1),
+      sh(`scale · ${key}`, ['enemies', key, 'scale'], a.scale),
+      sh(`footY · ${key}`, ['enemies', key, 'footY'], a.footY),
+      sh(`size · tier ${tier}`, ['sizes', tier], L.shared.sizes[tier]),
     ];
   }
   if (state.sel.startsWith('layer-')) {
     const name = state.sel.slice(6);
-    const p = L.layers[name];
-    return ['h', 'y', 'zoom', 'posX', 'opacity'].map((k) => ({ label: `${name}.${k} (layout)`, get: () => p[k] }));
+    return ['h', 'y', 'zoom', 'posX', 'opacity'].map((k) => pos(`${name}.${k}`, ['layers', name, k], L.layers[name][k]));
   }
   return [];
 }
 let panelEl = null;
 function renderPanel() {
-  if (!panelEl) {
-    panelEl = document.createElement('div');
-    panelEl.id = 'bf-panel';
-    document.body.appendChild(panelEl);
-  }
+  if (!panelEl) { panelEl = document.createElement('div'); panelEl.id = 'bf-panel'; document.body.appendChild(panelEl); }
   const shape = stageInfo().shape;
+  const rows = fieldRows();
   panelEl.innerHTML = `<h3>${state.sel ?? 'select something'}</h3>
     <div class="bf-scope">shape: <b>${shape}</b>${shape === 'pad-landscape' ? ' (base)' : ''}</div>
-    ${fieldRows().map((f, i) => `<label>${f.label}<input type="number" step="any" data-f="${i}" value="${f.get()}" disabled></label>`).join('')}`;
+    ${rows.map((f, i) => `<label>${f.label}
+      <span>
+        <select data-scope="${i}"${f.scope === 'shared' ? ' disabled' : ''}>
+          ${['base', 'shape', 'shared'].map((s) => `<option${s === f.scope ? ' selected' : ''}>${s}</option>`).join('')}
+        </select>
+        <input type="number" step="any" data-row="${i}" data-path="${f.path.at(-1)}" value="${f.value}">
+        ${f.overridden ? `<button data-clear="${i}" title="clear this shape's override">×</button>` : ''}
+      </span></label>`).join('')}`;
+  panelEl.onchange = (e) => {
+    const t = e.target;
+    if (t.dataset.row != null) {
+      const f = fieldRows()[Number(t.dataset.row)];
+      const scopeSel = panelEl.querySelector(`select[data-scope="${t.dataset.row}"]`);
+      const v = Number(t.value);
+      if (Number.isFinite(v)) writeField(scopeSel?.value ?? f.scope, f.path, v);
+    }
+  };
+  panelEl.onclick = (e) => {
+    const c = e.target.dataset?.clear;
+    if (c != null) {
+      const f = fieldRows()[Number(c)];
+      delPath(state.working, ['shapes', stageInfo().shape, ...f.path]);
+      applyWorking();
+    }
+  };
 }
 
 // ---------------------------------------------------------------- toolbar
@@ -188,7 +285,10 @@ const CSS = `
 #bf-toolbar button.on { background: #34406e; }
 #bf-panel { position: fixed; top: 44px; right: 0; z-index: 400; width: 250px; max-height: calc(100vh - 60px); overflow: auto; background: #0b0d18f2; color: #cdd3ea; font: 12px/1.5 monospace; border: 1px solid #333a55; border-right: 0; padding: 10px; }
 #bf-panel label { display: flex; justify-content: space-between; gap: 6px; margin: 4px 0; }
-#bf-panel input { width: 76px; font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
+#bf-panel label > span { display: flex; gap: 4px; align-items: center; }
+#bf-panel input { width: 56px; font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
+#bf-panel select { font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
+#bf-panel button[data-clear] { font: inherit; background: #3a2030; color: #ff9ebd; border: 1px solid #664455; border-radius: 3px; padding: 0 5px; cursor: pointer; }
 #bf-overlay { position: absolute; inset: 0; z-index: 300; pointer-events: none; }
 #bf-overlay .bf-box { position: absolute; pointer-events: auto; border: 1px dashed #6fe3ff88; cursor: move; }
 #bf-overlay .bf-box.bf-sel { border-color: #ffd76f; box-shadow: 0 0 0 1px #ffd76f44; }
@@ -208,4 +308,27 @@ export function initBfEditor() {
   pushScenarioToUrl();
   renderToolbar();
   startSandbox();
+  addEventListener('keydown', (e) => {
+    if (!state.sel || /INPUT|SELECT/.test(document.activeElement?.tagName ?? '')) return;
+    const step = e.shiftKey ? 10 : 1;
+    const dx = e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0;
+    const dy = e.key === 'ArrowUp' ? step : e.key === 'ArrowDown' ? -step : 0;
+    if (!dx && !dy) { if (e.key === 'Escape') select(null); return; }
+    e.preventDefault();
+    const L = bfResolve(stageInfo().shape);
+    const scope = defaultScope(['hero']);
+    const count = state.scenario.ids.length;
+    if (state.sel === 'ground' && dy) writeField(scope, ['groundY'], L.groundY + dy);
+    else if (state.sel === 'hero' && dx) writeField(scope, ['hero', 'x'], L.hero.x + dx);
+    else if (state.sel === 'hero' && dy) writeField('shared', ['heroes', ASPECTS[state.scenario.aspect].id, 'footY'], bfActor('heroes', ASPECTS[state.scenario.aspect].id).footY + dy);
+    else if (state.sel.startsWith('enemy-')) {
+      const i = Number(state.sel.slice(6));
+      if (dx) writeField(scope, ['slots', String(count), i, 'x'], bfSlots(L, count)[i].x + dx);
+      else writeField('shared', ['enemies', state.scenario.ids[i], 'footY'], bfActor('enemies', state.scenario.ids[i]).footY + dy);
+    } else if (state.sel.startsWith('layer-')) {
+      const name = state.sel.slice(6);
+      if (dy) writeField(scope, ['layers', name, 'y'], L.layers[name].y + dy);
+    }
+  });
+  window.__bfEditor = { resolved: () => bfResolve(stageInfo().shape), working: () => state.working };
 }
