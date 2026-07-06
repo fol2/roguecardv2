@@ -4,26 +4,30 @@ Guidance for AI coding agents (Claude Code, Cursor, Codex, …) working in this 
 
 ## What this is
 
-**Spirebound** — a complete browser roguelite deckbuilder (Vite + vanilla JS + three.js, no UI framework). All art is procedural SVG (`src/art.js`), all audio is WebAudio-synthesized (`src/audio.js`); there are no binary runtime assets. Deeper design/lore context lives in `README.md`.
+**Spirebound** — a complete browser roguelite deckbuilder (Vite + vanilla JS + three.js, no UI framework). Combat art, cards, relics, enemies, events, and stage plates are raster assets in `src/assets/` (resolved through `assetUrl()` with SVG fallbacks); structural UI icons and status chips are hand-drawn SVG in `src/art.js`; audio is WebAudio-synthesized (`src/audio.js`). Deeper design/lore context lives in `README.md`.
 
 ## Commands
 
 ```bash
 npm install
-npm run dev      # Vite dev server (host 0.0.0.0, port 5174 — see vite.config.js)
-npm run build    # static bundle → dist/
-npm run preview  # serve the built dist/
-npm test         # node test/test_engine.js — unit checks + 300-run monte-carlo bot
+npm run dev          # Vite dev server (host 0.0.0.0, port 5174 — see vite.config.js)
+npm run build        # static bundle → dist/
+npm run preview      # serve the built dist/
+npm test             # node test/test_engine.js — unit checks + 300-run monte-carlo bot
+npm run test:e2e     # Playwright visual-QA kit (geometry, battle, stage, visual, perf)
+npm run test:e2e:update   # refresh screenshot baselines
+npm run test:e2e:perf     # fps gate only (single worker)
 ```
 
 - **Tests are a single self-check script**, not a framework. `npm test` runs the whole of `test/test_engine.js` (plain `node`, `node:assert`). There is no test runner or `-t` filter — to run a subset, comment out blocks in that file. Any assertion failure exits non-zero.
+- **Playwright** (`test/e2e/`) is separate from `npm test` and requires Chromium (`npx playwright install chromium` once if launch fails). It reuses the dev server on port 5174. Spec: `docs/superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md` §3.
 - **`dist/` is committed** and rebuilt into the repo, so `npm run build` produces large diffs — that is expected here, not a mistake.
 
 ## Cursor Cloud specific instructions
 
-Standard commands are in `README.md` and `package.json` (`dev`, `build`, `preview`, `test`). Notes that are non-obvious:
+Standard commands are in `README.md` and `package.json` (`dev`, `build`, `preview`, `test`, `test:e2e`). Notes that are non-obvious:
 
-- **Dev server port is 5174, not 5173.** `vite.config.js` overrides the port; `README.md` still says 5173. Access the running game at `http://localhost:5174/`.
+- **Dev server port is 5174** (`vite.config.js` overrides Vite's default 5173).
 - **`allowedHosts` is restrictive.** `vite.config.js` only allows a specific Tailscale hostname. `localhost`/`127.0.0.1` work out of the box; if serving to another external host, add it to `allowedHosts` (do not commit throwaway hosts).
 - **Tests need no browser/service.** `npm test` runs `node test/test_engine.js` (unit checks + a 300-run monte-carlo). Expected output ends with a line like `unit checks passed; monte-carlo: 300 runs, ...` — the monte-carlo is mostly deaths by design (a random agent), so a low win count is normal, not a failure.
 - **No lint tooling** is configured (no ESLint/Prettier); "lint" for this repo is effectively `npm test` + `npm run build`.
@@ -41,17 +45,23 @@ Consequence: **every damage/block calculation has a pure preview mirror** (`prev
 
 ```
 data.js   ← pure content tables + constants, imports nothing
-art.js    ← pure procedural SVG, imports nothing
+art.js    ← pure procedural SVG + assetUrl(); imports nothing
+stage.js  ← fixed virtual viewport; imports nothing
 audio.js  ← WebAudio; has UNGUARDED top-level localStorage (browser-only)
 engine.js ← imports data.js only         (game logic; localStorage save/load is try/catch-guarded → no-ops in Node)
 vigil.js  ← imports data.js only         (meta-progression; Node-safe storage adapter + _setStore() test hook)
-scene3d.js← imports three + data.js       (the 3D tower / camera)
-vfx.js    ← 2D canvas combat VFX
+scene3d.js← imports three + data.js + stage.js  (the 3D tower / camera)
+vfx.js    ← 2D canvas combat VFX; imports stage.js
+mesh.js   ← WebGL character warp; imports stage.js
 ui.js     ← imports ALL of the above     (the only orchestrator; owns the DOM)
-main.js   ← wires initScene/initVfx/initUI
+main.js   ← initStage → initScene → initVfx → initMesh → initUI
 ```
 
-**Never import `audio.js` from `engine.js` or `vigil.js`** — its top-level `localStorage` access throws in Node and would break the tests. Engine and vigil are the two modules that must stay Node-runnable.
+**Never import `audio.js` from `engine.js` or `vigil.js`** — its top-level `localStorage` access throws in Node and would break the tests. Engine and vigil are the two modules that must stay Node-runnable. **`stage.js` is browser-only** (DOM) — same import ban for engine/vigil.
+
+### Fixed virtual stage (`src/stage.js`, spec §1b)
+
+All game layers live inside `#stage` in `index.html`. The stage picks one of five canonical shapes (phone/pad portrait & landscape, plus `desktop-landscape` ≈16:9 for wide monitors), sizes itself at that virtual resolution, and scales uniformly into the window. **Layout code speaks stage px**; pointer events speak client px — convert at the boundary with `toStage()` / `stageRect()`. CSS layout breakpoints query the stage (`@container stage`), not the window; use `cqw`/`cqh` instead of `vw`/`vh`. `?shape=<name>` forces a shape for tests/dev.
 
 ### Screens & the single #screen element
 
@@ -69,13 +79,21 @@ SHATTER (facets/chips/shatter/embers/kindle + Lantern Arts), Omens & the Unlit W
 
 - **Internal keys ≠ display names.** The de-clone renamed display strings only (Block→Ward, poison→Smolder, etc.) in `STATUS_INFO`/card text; the *internal* status keys and card ids (`poison`, `vulnerable`, `str`, id `'strike'`/`'defend'`) are unchanged to protect saves and test anchors. Change display text in the data tables, never the keys.
 - **Structural UI icons must come from `art.js`** (`iconSvg`/`iconInline`) — never font glyphs like ⚔/♛ for map nodes, intents, shields, or piles. Font glyphs render as tofu on non-Mac platforms. Decorative relic/status sigils are the deliberate exception.
-- **`window.spirebound = { S, E, startCombatUI, show }`** (ui.js) is a console debug hook for browser/agent testing — e.g. god-mode bots via `agent-browser eval`.
-- **Mobile is first-class**, two breakpoints (≤740px portrait, ≤480px-height landscape) with drag-to-play, safe-area insets, and a lower-perf `LITE` render tier on coarse pointers. Combat-stage geometry (ledge offsets, hand fit) is hand-tuned in the media queries — retune it when you touch the battlefield layout.
+- **`window.spirebound = { S, E, startCombatUI, show }`** and **`window.__probe`** (ui.js) are console/test hooks — god-mode bots, geometry readers, battle drivers. The probe reports coordinates in **stage px**.
+- **Mobile is first-class**: three layout regimes inside the fixed stage (`@container stage` max-width 1100 / 740, and max-height 480 landscape) with drag-to-play, safe-area insets, and a lower-perf `LITE` render tier on coarse pointers. Combat-stage geometry (ledge offsets, hand fit) is hand-tuned per regime — retune when you touch the battlefield layout.
 
 ## Authoring raster images
 
-The game ships zero raster runtime assets, but for **authoring-time** art (title/promo/reference PNGs) shell out to the Codex CLI's built-in image tool. Full workflow, flags, and gotchas are in `docs/imagegen.md`; the ready-to-run wrapper is `tools/imagegen.sh`.
+Combat art, cards, relics, and most props are already raster in `src/assets/`.
+For **new** authoring-time assets (promos, one-offs, council review candidates)
+shell out to the Codex CLI's built-in image tool. Full workflow, flags, and
+gotchas are in `docs/imagegen.md`; the ready-to-run wrapper is `tools/imagegen.sh`.
+Promotion workflow: `docs/generated-art-workflow.md`.
 
 ## Git
 
 `dist/` is tracked and regenerated (expect big diffs). Do not commit unless explicitly asked.
+
+## Documentation
+
+Index of specs, asset bibles, and the visual-QA kit: [`docs/README.md`](docs/README.md). Active executor work: `docs/superpowers/plans/2026-07-06-visualisation-hardening-polish.md`.

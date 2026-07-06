@@ -10,6 +10,15 @@
 
 **Spec:** `docs/superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md` — read §Invariants before starting any task.
 
+## Already landed (do not redo)
+
+| Commit area | What shipped |
+|---|---|
+| Fixed virtual stage (`f4d6a84`) | `#stage` wrapper, `src/stage.js`, stage px everywhere, `@container` + `cqw/cqh`, Playwright kit + probe |
+| Desktop 16:9 + title scroll fix (`b86014b`) | Fifth shape `desktop-landscape` (1458×820); title screen recomposed on landscape stages so the fullest profile (Continue + vow V + both heroes) fits without scrollbars; `stage.spec` no-overflow regression |
+
+Task 1 onward still starts from the **documented red** geometry/battle suites.
+
 ## Global Constraints
 
 - `npm test` (engine + asset manifest) must pass at every task boundary. It must never import Playwright, `stage.js`, `audio.js` or any DOM-touching module.

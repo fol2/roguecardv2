@@ -239,15 +239,16 @@ Additional validation:
 
 Put workflow experiments under `scratch/style-tests/` until accepted.
 
-Park accepted-but-incomplete sets under a same-shape inactive folder such as
-`src/assets-readable-baseline/<category>/<id>.png`. Normal gameplay selects the
-`live` set from `src/assets`, while the dev gallery can inspect registered
-parked sets. When the whole set has passed review, activate it with a folder
-swap:
+Park accepted-but-incomplete sets under a same-shape inactive folder (any
+staging path — e.g. a candidate tree reviewed before promotion). Normal
+gameplay selects the `live` set from `src/assets/`, while the dev gallery can
+inspect registered parked sets. When the whole set has passed review, activate
+with a folder swap (see `src/assets/README.md` for the 2026-07-06 promotion
+example):
 
 ```bash
 mv src/assets src/assets-legacy
-mv src/assets-readable-baseline src/assets
+mv <candidate-folder> src/assets
 npm run build
 ```
 

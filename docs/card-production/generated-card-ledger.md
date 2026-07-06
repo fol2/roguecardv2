@@ -1,6 +1,10 @@
 # Generated Card Art Ledger
 
-This ledger records card art once it reaches the readable-baseline gallery.
+This ledger records card art once it reaches the live gallery.
+
+> **Live paths (2026-07-06):** approved cards ship at `src/assets/cards/<id>.jpg`.
+> Table paths below that say `src/assets-readable-baseline/` are the promotion-time
+> location kept for audit; use `src/assets/cards/` for current work.
 
 The nine cards below are the approved card-art baseline references. Their
 reference roles, hashes, and prompt locations are collected in

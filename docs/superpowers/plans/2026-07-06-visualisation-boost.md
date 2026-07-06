@@ -1014,7 +1014,7 @@ Gallery 31/31. In a run: HUD relic bar, shop, boss-relic choice and reward rows 
 
 - [ ] **Step 2: Install + verify**
 
-Copy to `src/assets/title-background/background.png`. The title screen code path (`ui.js` line ~438) picks it up automatically. Verify: desktop 16:9 and portrait 375×812 — the existing `.title-banner` CSS crops it; if the tower is off-centre in portrait, add `object-position` tuning to the `.title-banner img` rule in the portrait media query. Gallery: title-background 1/1. Screenshot both orientations.
+Copy to `src/assets/title-background/background.png`. The title screen code path (`ui.js` line ~438) picks it up automatically. Verify: desktop 16:9 (`desktop-landscape` stage) and portrait 375×812 — the existing `.title-banner` CSS crops it; if the tower is off-centre in portrait, add `object-position` tuning to the `.title-banner img` rule in the `@container stage (max-width: 740px)` block. Gallery: title-background 1/1. Screenshot both orientations.
 
 - [ ] **Step 3: Refresh store icons**
 

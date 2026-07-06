@@ -69,8 +69,9 @@ Integration (ui.js combat screen):
   camera impulse so big hits ripple through the whole diorama.
 - Fallback: any missing layer simply doesn't render; with no stage assets the
   scene is exactly today's.
-- Portrait (≤740px) and short-landscape (≤480px height) get their own
-  `object-position`/scale tuning in the existing combat media queries.
+- Portrait (≤740px stage width) and short-landscape (≤480px stage height) get
+  their own `object-position`/scale tuning in the existing `@container stage`
+  combat blocks (see hardening spec §1b — layout queries the stage, not the window).
 - Boss fights reuse their act's set (no extra assets this pass).
 
 ## 2. VFX — archetypes + bespoke

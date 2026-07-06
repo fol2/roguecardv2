@@ -1,5 +1,5 @@
 // Fixed-viewport contract (hardening spec §1b): the game renders to a fixed
-// virtual resolution (one of four iPhone/iPad shapes) and scales uniformly,
+// virtual resolution (one of five canonical shapes) and scales uniformly,
 // letterboxed. A bigger window gets bigger pixels, never more world.
 import { test, expect } from '@playwright/test';
 import { boot, startFight, stable } from './helpers.js';

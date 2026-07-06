@@ -6,7 +6,7 @@ just as finished assets.
 
 The baseline job is to stop drift. Every new card should be compared against
 these images for composition, readability, lighting, and gameplay grammar before
-it is promoted to the readable-baseline gallery.
+it is promoted to `src/assets/cards/`.
 
 ## Baseline Rule
 

@@ -136,14 +136,23 @@ bit-equality across a window resize. Safe-area insets still come from the
 window (`env()`); on real phones the stage fills the screen (scale ≈ 1) so
 the offsets remain correct.
 
+**Title screen (no window scrollbars):** `.title-screen` must not overflow its
+stage at rest — the fullest profile (saved run, Continue button, both aspects,
+vow stepper at V with the five-line ledger) is the regression case.
+Landscape stages (820px and 390px tall) get recomposed layouts in
+`@container stage` blocks: smaller wordmark, sideways aspect cards, utility
+buttons on one row; `justify-content: safe center` prevents top clipping if
+content ever grows; `html, body { overflow: clip }` forbids window scrolling.
+Enforced by `stage.spec` on all three Playwright projects.
+
 ## 1. Ground-line unification (fix)
 
 One custom property `--ground-y` (px from screen bottom) defined on
-`.combat-screen`, redefined inside each existing combat media-query block.
-Rule for the plan: find every rule that sets a `.battlefield` bottom inset
-(base rule + every media query) and lift that block's bottom-inset value into
-`--ground-y` for the same block — values do not change, they become the single
-source of truth (desktop is 232px today).
+`.combat-screen`, redefined inside each existing combat `@container stage`
+block. Rule for the plan: find every rule that sets a `.battlefield` bottom
+inset (base rule + every container block) and lift that block's bottom-inset
+value into `--ground-y` for the same block — values do not change, they become
+the single source of truth (desktop is 232px today).
 Derivations (all `calc()`, no new magic numbers elsewhere):
 
 - `.battlefield` bottom inset = `var(--ground-y)`.
@@ -210,11 +219,12 @@ Derivations (all `calc()`, no new magic numbers elsewhere):
 Error capture lives in the harness, not the probe (see invariants above).
 
 **Harness** (as built): `@playwright/test` devDependency; three projects —
-desktop 1280×800, portrait 375×812 (touch), landscape 812×375 — reusing the
-vite dev server on 5174; `workers: 2` (each page runs a full three.js scene);
-`trace: off` (tracing corrupts on the WebGL page), failure screenshots on;
-Chromium launched with `--use-angle=metal` on macOS (software WebGL idles at
-~14fps vs ~117fps on Metal — every animation wait and fps number depends on
+desktop 1600×900 (→ `desktop-landscape` stage), portrait 375×812 (touch,
+→ `phone-portrait`), landscape 812×375 (touch, → `phone-landscape`) — reusing
+the vite dev server on 5174; `workers: 2` (each page runs a full three.js
+scene); `trace: off` (tracing corrupts on the WebGL page), failure screenshots
+on; Chromium launched with `--use-angle=metal` on macOS (software WebGL idles
+at ~14fps vs ~117fps on Metal — every animation wait and fps number depends on
 this). npm scripts: `test:e2e`, `test:e2e:update` (baselines),
 `test:e2e:perf` (perf alone, single worker). `npm test` additionally gained an
 asset-manifest gate: every CARDS/ENEMIES/RELICS/POTIONS/EVENTS/ASPECTS/stage/
@@ -222,9 +232,11 @@ props id must have exactly one file in `src/assets/<cat>/`, both directions.
 
 Suites (`test/e2e/`):
 
-0. `stage.spec` — the §1b fixed-viewport contract: project → shape mapping,
-   uniform-scale centred letterbox, `?shape=` override, geometry bit-equality
-   across a desktop window resize. Green as of the §1b commit.
+0. `stage.spec` — the §1b fixed-viewport contract: project → shape mapping
+   (including `desktop-landscape` on wide desktops and `pad-landscape` on
+   4:3-ish windows), uniform-scale centred letterbox, `?shape=` override,
+   no-scrollable-overflow on the fullest title profile, geometry bit-equality
+   across a desktop window resize. **Green** (9 tests, 6 desktop-only skips).
 1. `geometry.spec` — per act (1/2/3, canon encounters) and per viewport, plus
    a trio fight and a desktop live-resize check: seeded fight, `settle()`,
    assert hero + living-enemy art bottoms within ±2px of the ground line,
@@ -253,13 +265,18 @@ Suites (`test/e2e/`):
    fps ≥ 55 and p95 frame ≤ 22ms; prints the measured numbers. Runs only via
    `npm run test:e2e:perf` so parallel WebGL pages never pollute the numbers.
 
-**Kit status at hand-off (all failures are the documented defects, not kit
-bugs):** battle 6/8 green — the two reds are the mesh-on corpse scenarios
-(`enemy0: dead body releases its mesh plane`); geometry 0/13 green — hero sits
-27px and enemies ~100px off the ground line at every viewport, exactly the §1
-measurements; perf red at 28.7fps avg under 4× throttle (budget 55) — the
-polish pass has a concrete number to beat; visual 30 skipped pending
-baselines; engine + manifest green.
+**Kit status at hand-off (2026-07-06, post viewport hardening):**
+
+| Suite | Status | Notes |
+|---|---|---|
+| `stage.spec` | **9/9 green** | Five shapes, letterbox, no title scroll at fullest profile |
+| `geometry.spec` | **0/13 red** | Hero ~27px, enemies ~100px off ground — §1 defect, unchanged |
+| `battle.spec` | **6/8 green** | Two reds: mesh-on corpse scenarios (§2 defect) |
+| `visual.spec` | 30 skipped | Baselines not committed until geometry + battle green |
+| `perf.spec` | red (~28.7fps) | 4× CPU throttle, budget 55fps — polish target |
+| `npm test` | green | Engine + asset manifest |
+
+All reds are the documented §1/§2 defects or pending baselines — not kit bugs.
 
 ## 4. 21 raster icons — Omens (7), Boons (8), Lantern Arts (6)
 

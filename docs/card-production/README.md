@@ -54,7 +54,7 @@ Approved generated cards are tracked in
 
 ## Generation Gate
 
-Before adding a card to `src/assets-readable-baseline/cards/`:
+Before adding a card to `src/assets/cards/`:
 
 1. Confirm the spec follows `docs/card-art-bible.md`.
 2. Compare the card against the nine approved baselines in
@@ -65,11 +65,11 @@ Before adding a card to `src/assets-readable-baseline/cards/`:
 5. Copy the source into a card-specific scratch folder.
 6. Review at large size and thumbnail size.
 7. Put the approved generated source bytes directly in
-   `src/assets-readable-baseline/cards/<id>.png`.
+   `src/assets/cards/<id>.jpg`.
 8. Record the prompt, source output path, gallery path, hashes, and review
    notes.
 9. Run `npm run build`.
-10. Check the readable-baseline gallery.
+10. Check the live gallery (`?gallery=1`).
 
 No bulk promotion without visual review. If a card is weak, regenerate that
 card before moving on.

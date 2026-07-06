@@ -1,15 +1,17 @@
 # SPIREBOUND
 
-A complete roguelite deckbuilder for the browser: a tower of glass creatures with fire inside, climbed by lantern light. Three acts, three bosses, 60 cards, 31 relics, 27 enemy species, 2 playable aspects, and a meta-progression vigil that remembers every fall — every visual procedurally generated, every sound synthesized. No assets, no framework.
+A complete roguelite deckbuilder for the browser: a tower of glass creatures with fire inside, climbed by lantern light. Three acts, three bosses, 60 cards, 31 relics, 27 enemy species, 2 playable aspects, and a meta-progression vigil that remembers every fall — combat art, card faces, relics, enemies, events, and stage plates are painted raster PNGs (with procedural SVG fallbacks); structural UI icons and status chips stay hand-drawn SVG in `src/art.js`; all audio is WebAudio-synthesized. No UI framework.
 
 ## Play
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
+npm run dev      # http://localhost:5174
 ```
 
 `npm run build` produces a static `dist/` you can host anywhere.
+
+The game renders to a **fixed virtual resolution** (one of five iPhone/iPad shapes) and scales uniformly into the window — letterboxed like a console title. A bigger monitor gets bigger pixels, never more map. Dev override: `?shape=phone-portrait` (see `src/stage.js`).
 
 ## The game
 
@@ -23,7 +25,7 @@ npm run dev      # http://localhost:5173
 - **Build**: 60 cards across attacks / skills / powers with upgrades, 31 relics with passive hooks (including 5 rule-rewriting **Crowns**), 7 phials, 11 narrative events, card removal / duplication / transformation.
 - **Roguelite**: procedural maps and encounters, permadeath that leaves a mark, autosave (close the tab mid-run and continue later — unfinished fights restart), and a Vigil ledger that persists across every climb.
 - **Consequence, spelled out**: while you aim, every foe shows exactly what it would lose — block-eaten, vulnerability-multiplied — as a number and a ghost segment on its bar, with a death-mark when the answer is lethal. Killing blows land heavier, overkill heavier still, and a fight won without a scratch is sealed **PERFECT**.
-- **Plays in your palm**: the whole game recomposes for a phone. Portrait gets a one-line HUD, a thumb-tuned card fan between two chrome gutters, and a camera that pulls back so the full lantern route stays in frame; landscape ducks everything under a low sill. Cards play by drag — press a pane, the arc springs from your hand, release on a foe — or tap once to read, twice to commit. Long-press anything for its tooltip, drag the tower to survey it. Add to Home Screen on iOS for fullscreen play.
+- **Plays in your palm**: the whole game recomposes inside the fixed stage for phone shapes. Portrait gets a one-line HUD, a thumb-tuned card fan between two chrome gutters, and a camera that pulls back so the full lantern route stays in frame; landscape ducks everything under a low sill. Cards play by drag — press a pane, the arc springs from your hand, release on a foe — or tap once to read, twice to commit. Long-press anything for its tooltip, drag the tower to survey it. Add to Home Screen on iOS for fullscreen play.
 
 ### The look: glass & ink
 
@@ -39,8 +41,9 @@ Keyboard: `E` ends the turn, `Esc` cancels targeting / closes panels. Right-clic
 
 | Layer | Choice |
 |---|---|
-| Rendering | DOM + CSS 3D for cards/UI (mouse-tracked tilt + holographic foil), `three.js` with bloom post-processing for the world (one continuous climbable Spire, cloud decks, altitude-tracking camera — map nodes are DOM elements projected onto the 3D tower every frame), 2D canvas for combat VFX, film grain overlay |
-| Art | Procedural SVG — enemies, hero, card sigils, props and all UI icons are generated in `src/art.js` |
+| Viewport | Fixed virtual stage (`src/stage.js`): five canonical shapes (phone/pad portrait & landscape + desktop 16:9), uniform `transform: scale()` letterbox; layout breakpoints are `@container stage` queries, lengths use `cqw`/`cqh` |
+| Rendering | DOM + CSS 3D for cards/UI (mouse-tracked tilt + holographic foil), `three.js` with bloom post-processing for the world (one continuous climbable Spire, cloud decks, altitude-tracking camera — map nodes are DOM elements projected onto the 3D tower every frame), 2D canvas for combat VFX, WebGL mesh warp for character sprites, film grain overlay |
+| Art | Raster PNG/JPG in `src/assets/` (cards, enemies, heroes, relics, events, stage plates, props, title) via `assetUrl()`; procedural SVG fallbacks + all structural UI icons in `src/art.js` |
 | Audio | WebAudio-synthesized SFX + ambient drone per act (`src/audio.js`), mute persists |
 | Engine | Pure DOM-free game logic in `src/engine.js` + `src/data.js`, animated via an event queue the UI plays back; meta-progression in `src/vigil.js` (Node-safe storage adapter) |
 | Build | Vite, vanilla JS, zero UI frameworks |
@@ -48,7 +51,12 @@ Keyboard: `E` ends the turn, `Esc` cancels targeting / closes panels. Right-clic
 ## Tests
 
 ```bash
-npm test
+npm test           # engine unit checks + 300-run monte-carlo (Node, no browser)
+npm run test:e2e   # Playwright visual-QA kit (needs dev server on 5174 + Chromium)
 ```
+
+`npm run test:e2e:update` refreshes screenshot baselines; `npm run test:e2e:perf` runs the fps gate alone. See `docs/superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md` §3 for the full harness contract. Documentation index: [`docs/README.md`](docs/README.md).
+
+### Engine tests (`npm test`)
 
 Runs unit checks on the combat math (Fervor/Cracked/Dimmed/Brittle stacking, Smolder ticks and jumps, kindle, upgrades, map connectivity, enemy AI validity), the SHATTER system (facet chips, shatter/stagger, embers, Lantern Arts), run variance (all 7 omens, 6 affixes, unlit nodes), and the whole Vigil (deed round-trips, monuments, bequests, aspects, vows, boons) — plus a 300-run monte-carlo in which a random agent plays complete runs (mixed aspects, vows and boons, claiming monuments) through the real engine to prove termination and invariants.

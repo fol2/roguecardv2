@@ -86,10 +86,10 @@ Title assets are split deliberately: `title/title.png` is the transparent
 wordmark, while `title-background/background.png` is optional background art.
 Live currently ships the wordmark only; legacy keeps only the old background.
 
-Inactive candidate sets can mirror the same structure under a parked folder such
-as `src/assets-readable-baseline/`. Normal gameplay selects the `live` set from
-`src/assets`; only use folder swaps once the candidate set is complete. The
-previous live set is retained as `src/assets-legacy/`.
+Inactive candidate sets can mirror the same structure under a parked folder
+(e.g. a staging folder later promoted to `src/assets/`). Normal gameplay
+selects the `live` set from `src/assets/`; the previous live set is retained
+as `src/assets-legacy/`.
 
 The dev gallery should stay clean after promotion: keep only stable comparison
 sets such as `live` and `legacy` registered in `ASSET_SETS` in `src/art.js`.
