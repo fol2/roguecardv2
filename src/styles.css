@@ -356,16 +356,6 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
     inset 0 0 0 1px color-mix(in srgb, var(--gold) 80%, transparent),
     inset 0 16px 30px -14px color-mix(in srgb, var(--gold) 42%, transparent);
 }
-/* rarity corner joints: uncommon wears 2 silver, rare wears 4 gold gems */
-.card.r-uncommon .card-lift::before, .card.r-uncommon .card-lift::after,
-.card.r-rare .card-lift::before, .card.r-rare .card-lift::after {
-  content: ''; position: absolute; width: 7px; height: 7px; z-index: 5; pointer-events: none;
-  transform: rotate(45deg);
-}
-.card.r-uncommon .card-lift::before { top: -2px; left: -2px; background: linear-gradient(135deg, #e8f6ff, #47c2e0 70%); box-shadow: 0 0 6px rgba(127, 227, 242, 0.8); }
-.card.r-uncommon .card-lift::after { bottom: -2px; right: -2px; background: linear-gradient(135deg, #e8f6ff, #47c2e0 70%); box-shadow: 0 0 6px rgba(127, 227, 242, 0.8); }
-.card.r-rare .card-lift::before { top: -2px; left: -2px; background: linear-gradient(135deg, #fff3d0, var(--gold) 70%); box-shadow: 0 0 7px rgba(242, 193, 78, 0.9); }
-.card.r-rare .card-lift::after { bottom: -2px; right: -2px; background: linear-gradient(135deg, #fff3d0, var(--gold) 70%); box-shadow: 0 0 7px rgba(242, 193, 78, 0.9); }
 .card.r-rare .card-inner { border-color: #1a1408; }
 .r-common .card-rarity { background: #5d6a88; }
 .r-uncommon .card-rarity { background: linear-gradient(90deg, #47c2e0, #7fe3f2); box-shadow: 0 0 6px #47c2e0; }
