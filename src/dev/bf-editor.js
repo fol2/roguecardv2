@@ -2,6 +2,7 @@
 // Overlays + panel edit a working copy of BF via _setBF(); Save (Task 6)
 // writes src/battlefield-layout.js through the vite dev endpoint.
 import { ENEMIES, ASPECTS } from '../data.js';
+import { serializeBF, validateBF } from './bf-serialize.js';
 import { bfRaw, _setBF, bfResolve, bfActor, bfSlots, bfEnemySize } from '../battlefield.js';
 import { stageEl, stageW, stageH, stageScale, stageInfo } from '../stage.js';
 
@@ -274,7 +275,18 @@ function renderToolbar() {
     bar.remove(); renderToolbar(); // re-render selects
     startSandbox();
   });
-  // Save/Revert/Copy wired in Task 6
+  bar.querySelector('#bf-save').onclick = async () => {
+    const problems = validateBF(state.working);
+    if (problems.length) return alert(`invalid layout:\n${problems.join('\n')}`);
+    const r = await fetch('/__bf-save', { method: 'POST', body: JSON.stringify(state.working) });
+    const j = await r.json().catch(() => ({ ok: false, problems: [`HTTP ${r.status}`] }));
+    if (!j.ok) return alert(`save failed:\n${(j.problems ?? []).join('\n')}`);
+    state.dirty = false;
+    document.getElementById('bf-dirty').textContent = 'saved ✓';
+    // vite HMR full-reloads on the file write; scenario survives in the URL
+  };
+  bar.querySelector('#bf-revert').onclick = () => location.reload();
+  bar.querySelector('#bf-copy').onclick = () => navigator.clipboard.writeText(serializeBF(state.working));
 }
 
 const CSS = `

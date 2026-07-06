@@ -47,3 +47,22 @@ test('panel numeric edit applies live to the working layout', async ({ page }) =
   expect(g).toBe(250);
   await expect(page.locator('#bf-dirty')).toHaveText(/●/);
 });
+
+test('Save POSTs the edited layout to /__bf-save', async ({ page }) => {
+  let payload = null;
+  await page.route('**/__bf-save', async (route) => {
+    payload = JSON.parse(route.request().postData());
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.goto('/?bfedit=1&mesh=0');
+  await page.locator('.bf-box[data-bf="ground"]').click();
+  const input = page.locator('#bf-panel input[data-path="groundY"]');
+  await input.fill('241');
+  await input.press('Enter');
+  await page.locator('#bf-save').click();
+  await expect(page.locator('#bf-dirty')).toHaveText(/saved/);
+  // the desktop project runs the desktop-landscape shape (not the base
+  // pad-landscape), so the edit defaults to that shape's override:
+  expect(payload.shapes['desktop-landscape'].groundY).toBe(241);
+  expect(payload.base.groundY).toBe(232);
+});

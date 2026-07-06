@@ -9,41 +9,42 @@
 //   layers  — h: plate height; y: plate bottom offset from stage bottom (+up);
 //             zoom: image scale inside the plate; posX: horizontal focus %
 // Imports nothing; imported by src/battlefield.js only.
+
 export const BF = {
   shared: {
     sizes: { normal: 185, elite: 230, boss: 280 },
     heroes: {
-      duskblade: { scale: 1, footY: 0 },
       ashwarden: { scale: 1, footY: 0 },
+      duskblade: { scale: 1, footY: 0 },
     },
     enemies: {
-      sporeling: { scale: 0.62, footY: 0 },
+      abyssalKnight: { scale: 1.24, footY: 0 },
+      alphaFang: { scale: 1.24, footY: 0 },
+      ashAcolyte: { scale: 0.95, footY: 0 },
+      chaosHound: { scale: 1.05, footY: 0 },
+      deepmaw: { scale: 1.14, footY: 0 },
+      drownedOne: { scale: 0.95, footY: 0 },
       duskfang: { scale: 0.95, footY: 0 },
       gloomslime: { scale: 0.95, footY: 0 },
-      waylayer: { scale: 0.9, footY: 0 },
-      thornling: { scale: 0.81, footY: 0 },
-      ashAcolyte: { scale: 0.95, footY: 0 },
       gravewarden: { scale: 1.19, footY: 0 },
-      alphaFang: { scale: 1.24, footY: 0 },
-      rootheart: { scale: 1.45, footY: 0 },
-      drownedOne: { scale: 0.95, footY: 0 },
-      voltEel: { scale: 0.86, footY: 0 },
-      mirelurker: { scale: 0.9, footY: 0 },
-      tidecaller: { scale: 1, footY: 0 },
-      shellback: { scale: 1.09, footY: 0 },
-      deepmaw: { scale: 1.14, footY: 0 },
-      abyssalKnight: { scale: 1.24, footY: 0 },
-      siren: { scale: 1.09, footY: 0 },
-      leviathan: { scale: 1.45, footY: 0 },
-      voidWisp: { scale: 0.67, footY: 0 },
-      obsidianGolem: { scale: 1.24, footY: 0 },
-      starCultist: { scale: 1, footY: 0 },
-      shade: { scale: 0.95, footY: 0 },
-      chaosHound: { scale: 1.05, footY: 0 },
-      watcherEye: { scale: 1, footY: 0 },
-      voidColossus: { scale: 1.45, footY: 0 },
       heraldOfEnd: { scale: 1.4, footY: 0 },
+      leviathan: { scale: 1.45, footY: 0 },
+      mirelurker: { scale: 0.9, footY: 0 },
+      obsidianGolem: { scale: 1.24, footY: 0 },
+      rootheart: { scale: 1.45, footY: 0 },
+      shade: { scale: 0.95, footY: 0 },
+      shellback: { scale: 1.09, footY: 0 },
+      siren: { scale: 1.09, footY: 0 },
       sovereign: { scale: 1.45, footY: 0 },
+      sporeling: { scale: 0.62, footY: 0 },
+      starCultist: { scale: 1, footY: 0 },
+      thornling: { scale: 0.81, footY: 0 },
+      tidecaller: { scale: 1, footY: 0 },
+      voidColossus: { scale: 1.45, footY: 0 },
+      voidWisp: { scale: 0.67, footY: 0 },
+      voltEel: { scale: 0.86, footY: 0 },
+      watcherEye: { scale: 1, footY: 0 },
+      waylayer: { scale: 0.9, footY: 0 },
     },
   },
   base: {
@@ -62,28 +63,6 @@ export const BF = {
     },
   },
   shapes: {
-    'desktop-landscape': {
-      hero: { x: 193 },
-      slots: {
-        1: [{ x: 1300, s: 1 }],
-        2: [{ x: 1085, s: 1 }, { x: 1300, s: 1 }],
-        3: [{ x: 870, s: 1 }, { x: 1085, s: 1 }, { x: 1300, s: 1 }],
-      },
-    },
-    'pad-portrait': {
-      groundY: 210,
-      hero: { x: 136 },
-      slots: {
-        1: [{ x: 700, s: 1 }],
-        2: [{ x: 505, s: 0.95 }, { x: 710, s: 1 }],
-        3: [{ x: 420, s: 0.85 }, { x: 575, s: 0.85 }, { x: 730, s: 0.9 }],
-      },
-      layers: {
-        backdrop: { h: 920, y: 0, zoom: 1, posX: 50, opacity: 0.85 },
-        mid: { h: 684, y: 0, zoom: 1, posX: 50, opacity: 0.95 },
-        ledge: { h: 224, y: 0, zoom: 1, posX: 50, opacity: 1 },
-      },
-    },
     'phone-portrait': {
       groundY: 218,
       hero: { x: 68, w: 129, h: 193 },
@@ -110,6 +89,28 @@ export const BF = {
         backdrop: { h: 304, y: 0, zoom: 1, posX: 50, opacity: 0.85 },
         mid: { h: 226, y: 0, zoom: 1, posX: 50, opacity: 0.95 },
         ledge: { h: 146, y: 0, zoom: 1, posX: 50, opacity: 1 },
+      },
+    },
+    'pad-portrait': {
+      groundY: 210,
+      hero: { x: 136 },
+      slots: {
+        1: [{ x: 700, s: 1 }],
+        2: [{ x: 505, s: 0.95 }, { x: 710, s: 1 }],
+        3: [{ x: 420, s: 0.85 }, { x: 575, s: 0.85 }, { x: 730, s: 0.9 }],
+      },
+      layers: {
+        backdrop: { h: 920, y: 0, zoom: 1, posX: 50, opacity: 0.85 },
+        mid: { h: 684, y: 0, zoom: 1, posX: 50, opacity: 0.95 },
+        ledge: { h: 224, y: 0, zoom: 1, posX: 50, opacity: 1 },
+      },
+    },
+    'desktop-landscape': {
+      hero: { x: 193 },
+      slots: {
+        1: [{ x: 1300, s: 1 }],
+        2: [{ x: 1085, s: 1 }, { x: 1300, s: 1 }],
+        3: [{ x: 870, s: 1 }, { x: 1085, s: 1 }, { x: 1300, s: 1 }],
       },
     },
   },

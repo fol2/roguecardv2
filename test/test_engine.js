@@ -12,6 +12,7 @@ import {
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS } from '../src/data.js';
 import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, _setBF, bfRaw } from '../src/battlefield.js';
+import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -953,6 +954,13 @@ function randomAgentRun(seed) {
   assert.ok(bfEnemySize(bfResolve('pad-landscape'), 'duskfang', 'normal', { x: 0, s: 1 }, 1180, 820) <= 820 * 0.35 + 1, 'bf: size clamp');
   _setBF(null);
   assert.equal(bfResolve('pad-landscape').groundY, L.groundY, 'bf: _setBF(null) restores the file');
+  // serializer: valid, deterministic, and a true round-trip
+  assert.deepEqual(validateBF(bfRaw(), { enemies: Object.keys(ENEMIES), heroes: ASPECTS.map((a) => a.id) }), [], 'bf: file validates');
+  const src1 = serializeBF(bfRaw());
+  assert.ok(src1.startsWith('// Battlefield layout'), 'bf: serialized header');
+  const mod = await import(`data:text/javascript,${encodeURIComponent(src1)}`);
+  assert.equal(serializeBF(mod.BF), src1, 'bf: serialize(import(serialize(BF))) is byte-identical');
+  assert.ok(validateBF({ base: {} }).length > 0, 'bf: broken layout rejected');
 }
 
 let wins = 0, deaths = 0;
