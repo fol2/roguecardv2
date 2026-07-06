@@ -133,3 +133,11 @@ reference roles, hashes, and prompt locations are collected in
 | `aegis` | approved generated source | `src/assets-readable-baseline/cards/aegis.png` | `scratch/style-tests/card-production-batch-15-20260706/README.md`; `scratch/style-tests/card-production-batch-15-20260706/prompt-ledger.md` |
 | `offering` | approved generated source | `src/assets-readable-baseline/cards/offering.png` | `scratch/style-tests/card-production-batch-15-20260706/README.md`; `scratch/style-tests/card-production-batch-15-20260706/prompt-ledger.md` |
 | `limitBreak` | approved generated source | `src/assets-readable-baseline/cards/limitBreak.png` | `scratch/style-tests/card-production-batch-15-20260706/README.md`; `scratch/style-tests/card-production-batch-15-20260706/prompt-ledger.md` |
+
+## Batch 16
+
+| Card | Decision | Final gallery asset | Source record |
+|---|---|---|---|
+| `catalyst` | approved generated source | `src/assets-readable-baseline/cards/catalyst.png` | `scratch/style-tests/card-production-batch-16-20260706/README.md`; `scratch/style-tests/card-production-batch-16-20260706/prompt-ledger.md` |
+| `ascension` | approved generated source | `src/assets-readable-baseline/cards/ascension.png` | `scratch/style-tests/card-production-batch-16-20260706/README.md`; `scratch/style-tests/card-production-batch-16-20260706/prompt-ledger.md` |
+| `bastion` | approved generated source | `src/assets-readable-baseline/cards/bastion.png` | `scratch/style-tests/card-production-batch-16-20260706/README.md`; `scratch/style-tests/card-production-batch-16-20260706/prompt-ledger.md` |

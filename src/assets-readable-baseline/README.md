@@ -91,6 +91,9 @@ Council-approved baseline assets:
 - `cards/aegis.png`
 - `cards/offering.png`
 - `cards/limitBreak.png`
+- `cards/catalyst.png`
+- `cards/ascension.png`
+- `cards/bastion.png`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -279,6 +282,13 @@ Asset source decisions:
   and three cracked enemy panes. Final gallery PNGs are byte-for-byte copies of
   the approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-15-20260706/`.
+- `cards/catalyst.png`, `cards/ascension.png`, and `cards/bastion.png` are
+  approved card production batch 16 generated sources. `catalyst` locks the
+  bellows-to-one-coal Smolder amplification. `ascension` locks the still figure
+  under a vertical violet-gold vow stack. `bastion` locks the permanent
+  blue-gold fortress shell around a lantern core. Final gallery PNGs are
+  byte-for-byte copies of the approved generated sources and are recorded in
+  `scratch/style-tests/card-production-batch-16-20260706/`.
 - The nine approved card images from `strike` through `twinFangs` are the
   current card-art baseline references. Their roles, hashes, and prompt ledgers
   are recorded in `docs/card-production/card-art-baselines.md`; the future
@@ -345,7 +355,8 @@ comparison sheets remain in
 `scratch/style-tests/card-production-batch-12-20260706/`, and
 `scratch/style-tests/card-production-batch-13-20260706/`, and
 `scratch/style-tests/card-production-batch-14-20260706/`, and
-`scratch/style-tests/card-production-batch-15-20260706/`.
+`scratch/style-tests/card-production-batch-15-20260706/`, and
+`scratch/style-tests/card-production-batch-16-20260706/`.
 Prop assets are normalised to the live runtime prop dimensions, with alpha
 preserved. Prop source, alpha, prompts, and contact sheets remain in
 `scratch/prop-art-production-20260706/`.
