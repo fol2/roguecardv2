@@ -73,6 +73,9 @@ Council-approved baseline assets:
 - `cards/warCry.png`
 - `cards/quakeblow.png`
 - `cards/ashenChoir.png`
+- `cards/resonantLance.png`
+- `cards/bulwark.png`
+- `cards/surge.png`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -212,6 +215,14 @@ Asset source decisions:
   `ashenChoir` locks three directed Smolder streams converging into one coal.
   Final gallery PNGs are byte-for-byte copies of the approved generated sources
   and are recorded in `scratch/style-tests/card-production-batch-09-20260706/`.
+- `cards/resonantLance.png`, `cards/bulwark.png`, and `cards/surge.png` are
+  approved card production batch 10 generated sources. `resonantLance` locks a
+  physical gold-red lance, two ghost vibration edges, and three broad resonance
+  rings. `bulwark` locks a massive layered blue wall with thick buttresses and
+  a small protected figure. `surge` locks the horizontal match flare and row of
+  waking blue card panes. Final gallery PNGs are byte-for-byte copies of the
+  approved generated sources and are recorded in
+  `scratch/style-tests/card-production-batch-10-20260706/`.
 - The nine approved card images from `strike` through `twinFangs` are the
   current card-art baseline references. Their roles, hashes, and prompt ledgers
   are recorded in `docs/card-production/card-art-baselines.md`; the future
@@ -272,7 +283,8 @@ comparison sheets remain in
 `scratch/style-tests/card-production-batch-06-20260706/`, and
 `scratch/style-tests/card-production-batch-07-20260706/`, and
 `scratch/style-tests/card-production-batch-08-20260706/`, and
-`scratch/style-tests/card-production-batch-09-20260706/`.
+`scratch/style-tests/card-production-batch-09-20260706/`, and
+`scratch/style-tests/card-production-batch-10-20260706/`.
 Prop assets are normalised to the live runtime prop dimensions, with alpha
 preserved. Prop source, alpha, prompts, and contact sheets remain in
 `scratch/prop-art-production-20260706/`.

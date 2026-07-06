@@ -85,3 +85,11 @@ reference roles, hashes, and prompt locations are collected in
 | `warCry` | approved generated source | `src/assets-readable-baseline/cards/warCry.png` | `scratch/style-tests/card-production-batch-09-20260706/README.md`; `scratch/style-tests/card-production-batch-09-20260706/prompt-ledger.md` |
 | `quakeblow` | approved generated source | `src/assets-readable-baseline/cards/quakeblow.png` | `scratch/style-tests/card-production-batch-09-20260706/README.md`; `scratch/style-tests/card-production-batch-09-20260706/prompt-ledger.md` |
 | `ashenChoir` | approved generated source | `src/assets-readable-baseline/cards/ashenChoir.png` | `scratch/style-tests/card-production-batch-09-20260706/README.md`; `scratch/style-tests/card-production-batch-09-20260706/prompt-ledger.md` |
+
+## Batch 10
+
+| Card | Decision | Final gallery asset | Source record |
+|---|---|---|---|
+| `resonantLance` | approved generated source | `src/assets-readable-baseline/cards/resonantLance.png` | `scratch/style-tests/card-production-batch-10-20260706/README.md`; `scratch/style-tests/card-production-batch-10-20260706/prompt-ledger.md` |
+| `bulwark` | approved generated source | `src/assets-readable-baseline/cards/bulwark.png` | `scratch/style-tests/card-production-batch-10-20260706/README.md`; `scratch/style-tests/card-production-batch-10-20260706/prompt-ledger.md` |
+| `surge` | approved generated source | `src/assets-readable-baseline/cards/surge.png` | `scratch/style-tests/card-production-batch-10-20260706/README.md`; `scratch/style-tests/card-production-batch-10-20260706/prompt-ledger.md` |
