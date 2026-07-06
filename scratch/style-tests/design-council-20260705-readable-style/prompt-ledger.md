@@ -497,6 +497,329 @@ Constraints: no ground plane; no floor; no shadows; no reflections; no haze touc
 Review note: strongest faction-read in this batch through the giant eye and
 broken orbit frame. It is ornate, but the single-eye silhouette remains clear.
 
+## Act 3 Finale v1 Colour-Lift Review Contact Sheet
+
+Status: superseded by the approved Act 3 finale v2 clean pass. These v1
+candidates remain in scratch as comparison evidence because the council
+considered the character ideas good, but the pictures were not clean enough:
+too many micro-panes, jewellery details, halo fragments, and dangling
+ornaments.
+
+Contact sheet:
+`act3-finale-v1-colour-lift-review-contact.png`
+
+Decision note: this is the final Act 3 asset batch: two elites and the final
+boss. The prompts keep the approved Act 3 dark-background colour baseline but
+increase role weight: elites are larger than normal enemies, and Sovereign is
+the largest final boss while still fully inside frame. The shared post-process
+is the same as previous approved Act 3 batches:
+
+```text
+magick <04-no-yellow-outline.png> -colorspace sRGB -modulate 116,118,100 -gamma 0.93 <05-colour-lift.png>
+```
+
+`sovereign.png` also received an extra transparent framing pass:
+
+```text
+magick src/assets-readable-baseline/enemies/sovereign.png -background none -gravity center -extent 780x1024 enemy-sovereign/06-colour-lift-framed.png
+```
+
+## Act 3 Finale v1: Voidforged Colossus Colour-Lift
+
+Status: superseded by the v2 clean pass. Previously parked at
+`src/assets-readable-baseline/enemies/voidColossus.png`; current approved gallery
+uses `enemy-voidColossus-v2/05-colour-lift.png`.
+
+Generated image id:
+`ig_03077bd474b2c3f4016a4ae666c9448191889229d294668438`
+
+Source:
+`enemy-voidColossus/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-voidColossus/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-voidColossus/04-no-yellow-outline.png`
+
+Colour-lift alpha:
+`enemy-voidColossus/05-colour-lift.png`
+
+Exact prompt:
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 3 elite enemy alpha-ready source, approved dark-background colour baseline
+Primary request: Voidforged Colossus, a funny but threatening Act 3 elite: an oversized royal statue court-pillar that is too heavy to move properly, made for a dark game background. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: a huge squat cracked pillar body with tiny stubborn feet, a massive hot magenta cracked orbit seal in the chest, one broken orbit halo slab chained across its shoulders like a fallen courthouse arch, and one tiny annoyed face carved too low in the stone. It should feel like a pompous royal monument that came alive and immediately regretted having legs, funny in proportion but still an elite enemy.
+Colour/readability baseline: use sharp bright stained-glass colours that read against a near-black combat background: electric violet pillar panes, saturated sapphire blue stone-glass blocks, cold cyan-white crack highlights, and hot magenta judgement core. Keep obsidian black only for chunky outer silhouette, stone cracks, and thick lead dividers, not as large unlit body panels. Large visible colour masses should dominate the subject. Avoid dull smoky navy, low-contrast charcoal slabs, and all-over black fill.
+Act 3 faction read: include one broken orbit halo fragment as a huge shoulder arch and one hot magenta judgement core as the chest seal, adapted to this creature's silhouette; add only tiny tarnished-gold court accents.
+Readability priority: silhouette first, pose second, huge squat pillar body plus chest seal third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large bright stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral/court motifs; thumbnail-readable at 128px; funny, dramatic, grave, and dangerous through bold proportions and expression.
+Composition/framing: elite enemy full body, larger than normal enemies but fully inside frame, facing slightly left, generous padding, no cropped silhouette hooks, no action blur.
+Lighting/mood: sober astral-court gothic mood with strong internal glass brightness; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the hot magenta chest seal and one cyan-white crack pane; high value contrast on the main read.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #00ff00 in the subject.
+```
+
+Review note: strong elite scale and weight. The tiny face and stubborn feet keep
+the funny enemy read while the chest seal and shoulder arch carry the Act 3
+faction motif.
+
+## Act 3 Finale v1: Herald of the End Colour-Lift
+
+Status: superseded by the v2 clean pass. Previously parked at
+`src/assets-readable-baseline/enemies/heraldOfEnd.png`; current approved gallery
+uses `enemy-heraldOfEnd-v2/05-colour-lift.png`.
+
+Generated image id:
+`ig_0fa93476280c1fb8016a4ae6d0dbe4819184ea65577b7da129`
+
+Source:
+`enemy-heraldOfEnd/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-heraldOfEnd/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-heraldOfEnd/04-no-yellow-outline.png`
+
+Colour-lift alpha:
+`enemy-heraldOfEnd/05-colour-lift.png`
+
+Exact prompt:
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 3 elite enemy alpha-ready source, approved dark-background colour baseline
+Primary request: Herald of the End, a funny but threatening Act 3 elite doomsday announcer made for a dark game background. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: a melodramatic tiny robed herald almost swallowed by an absurdly huge cracked bell-mouth horn, with the horn rim shaped as a broken orbit halo, a hot magenta judgement core glowing inside the bell, and dangling court ribbons that look over-official. It should feel like a theatrical apocalypse crier who is much smaller than his announcement, funny in proportion but still an elite enemy.
+Colour/readability baseline: use sharp bright stained-glass colours that read against a near-black combat background: electric violet robe panes, saturated sapphire blue horn panels, cold cyan-white star cracks, and hot magenta bell-core glow. Keep obsidian black only for chunky outer silhouette, horn interior edges, and thick lead dividers, not as large unlit body panels. Large visible colour masses should dominate the subject. Avoid dull smoky navy, low-contrast charcoal slabs, and all-over black fill.
+Act 3 faction read: include one broken orbit halo fragment as the giant horn rim and one hot magenta judgement core inside the bell-mouth, adapted to this creature's silhouette; add only tiny tarnished-gold court accents.
+Readability priority: silhouette first, pose second, giant bell-horn plus tiny herald body third, colour fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large bright stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral/court motifs; thumbnail-readable at 128px; funny, dramatic, grave, and dangerous through bold proportions and expression.
+Composition/framing: elite enemy full body, larger than normal enemies but fully inside frame, facing slightly left, generous padding around the oversized horn, no cropped silhouette hooks, no action blur.
+Lighting/mood: sober astral-court gothic mood with strong internal glass brightness; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the hot magenta bell core and one cyan-white horn pane; high value contrast on the main read.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #00ff00 in the subject.
+```
+
+Review note: clear theatrical elite read. The oversized horn gives a strong
+silhouette and keeps the herald from becoming a generic robed caster.
+
+## Act 3 Finale v1: The Eternal Sovereign Colour-Lift
+
+Status: superseded by the v2 clean pass. Previously parked at
+`src/assets-readable-baseline/enemies/sovereign.png`; current approved gallery
+uses `enemy-sovereign-v2/06-colour-lift-framed.png`.
+
+Generated image id:
+`ig_0eec9c7c7e95b81a016a4ae732c31c8191a2d38548adcb8ce1`
+
+Source:
+`enemy-sovereign/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-sovereign/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-sovereign/04-no-yellow-outline.png`
+
+Colour-lift alpha:
+`enemy-sovereign/05-colour-lift.png`
+
+Framed colour-lift alpha:
+`enemy-sovereign/06-colour-lift-framed.png`
+
+Exact prompt:
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 3 final boss enemy alpha-ready source, approved dark-background colour baseline
+Primary request: The Eternal Sovereign, the final boss: a terrifying but still readable cracked astral-court tyrant made for a dark game background. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: a huge top-heavy cracked crown fused to a black-sun broken orbit halo, a short crooked robed body beneath it, an oversized judgement scepter too heavy for the small hands, and one hot magenta judgement core blazing in the chest like a royal verdict. It should feel like the entire broken court squeezed into one arrogant final ruler, dramatic and final, slightly absurd in proportion, but absolutely the boss enemy.
+Colour/readability baseline: use sharp bright stained-glass colours that read against a near-black combat background: electric violet royal panes, saturated sapphire blue halo/crown glass, cold cyan-white star cracks, and hot magenta judgement core. Keep obsidian black only for chunky outer silhouette, crown cracks, and thick lead dividers, not as large unlit body panels. Large visible colour masses should dominate the subject. Avoid dull smoky navy, low-contrast charcoal slabs, all-over black fill, handsome hero-king framing, or clean noble symmetry.
+Act 3 faction read: include one huge broken orbit black-sun halo behind the crown and one hot magenta judgement core in the chest, adapted to this boss silhouette; add tiny tarnished-gold court accents only as crown points and scepter trim.
+Readability priority: silhouette first, pose second, giant cracked crown plus black-sun halo third, chest core and scepter fourth, texture last. The subject must still be recognisable as a black shadow with all internal details removed.
+Style/medium: serious cartoon-gothic stained-glass game art; chunky black silhouette; simplified exaggerated proportions; one iconic primary shape; 3-5 large bright stained-glass colour masses only; very few thick lead dividers; matte painterly texture; restrained broad cathedral/court motifs; thumbnail-readable at 128px; funny, dramatic, grave, and dangerous through bold proportions and expression.
+Composition/framing: final boss full body, largest Act 3 enemy but fully inside frame, facing slightly left, generous padding around crown, halo, and scepter, no cropped silhouette hooks, no action blur.
+Lighting/mood: final astral-court gothic mood with strong internal glass brightness; single warm amber rim light defining the silhouette without forming a yellow outline; soft restrained inner glow limited to the hot magenta judgement core and one cyan-white crown crack; high value contrast on the main read.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
+Constraints: no ground plane; no floor; no shadows; no reflections; no haze touching the silhouette; no text; no labels; no watermark; no yellow outer outline; do not use #00ff00 in the subject.
+```
+
+Review note: strongest final-boss read so far. The crown, black-sun halo,
+scepter, and chest core create a clear hierarchy; the extra framing pass keeps
+the scepter and halo off the image edge without changing the artwork.
+
+## Act 3 Finale v2 Clean Approved Contact Sheet
+
+Status: approved. Current gallery assets are parked at
+`src/assets-readable-baseline/enemies/voidColossus.png`,
+`src/assets-readable-baseline/enemies/heraldOfEnd.png`, and
+`src/assets-readable-baseline/enemies/sovereign.png`.
+
+Contact sheet:
+`act3-finale-v2-clean-approved-contact.png`
+
+Decision note: council approved the v2 clean pass. v1 was considered
+directionally good, but too noisy. The approved v2 pass keeps the same
+character concepts and Act 3 faction read, but clamps down on micro-panels,
+mosaic texture, jewellery, chains, dangling ornaments, tiny halo shards, and
+busy brush noise. The goal is a cleaner game-token read: large silhouette
+first, a single prop or symbol second, and broad stained-glass colour masses
+third.
+
+Shared post-process:
+
+```text
+python3 ${CODEX_HOME:-$HOME/.codex}/skills/.system/imagegen/scripts/remove_chroma_key.py --input <01-gpt-image-2-source.png> --out <01-gpt-image-2-source-alpha.png> --auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill
+python3 tools/strip-alpha-rim.py --input <01-gpt-image-2-source-alpha.png> --out <04-no-yellow-outline.png> --radius 6 --mode darken
+magick <04-no-yellow-outline.png> -colorspace sRGB -modulate 116,118,100 -gamma 0.93 <05-colour-lift.png>
+magick <05-colour-lift.png> -resize '1024x1024>' src/assets-readable-baseline/enemies/<id>.png
+```
+
+`sovereign.png` also received the same transparent framing correction as v1:
+
+```text
+magick src/assets-readable-baseline/enemies/sovereign.png -background none -gravity center -extent 780x1024 enemy-sovereign-v2/06-colour-lift-framed.png
+```
+
+## Act 3 Finale v2: Voidforged Colossus Clean Colour-Lift
+
+Status: approved. Promoted to
+`src/assets-readable-baseline/enemies/voidColossus.png`.
+
+Generated image id:
+`ig_01b63f3e61f6f7ca016a4aec3dae308191a8362d52fcb327e9`
+
+Discarded v2 attempt:
+`ig_0da34c7937dde582016a4aebe1431c8191bc6808d6312d2555` was saved as
+`enemy-voidColossus-v2/00-v2-attempt-too-detailed-source.png`; it reduced some
+v1 ornament but still had too many internal panes.
+
+Source:
+`enemy-voidColossus-v2/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-voidColossus-v2/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-voidColossus-v2/04-no-yellow-outline.png`
+
+Colour-lift alpha:
+`enemy-voidColossus-v2/05-colour-lift.png`
+
+Exact prompt:
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 3 elite enemy alpha-ready source, v2 clean readability pass
+Primary request: Voidforged Colossus v2, a funny but threatening Act 3 elite enemy. A huge squat royal court-pillar statue with tiny stubborn feet and one tiny annoyed face carved too low. It is too heavy to move properly. It faces slightly left toward the hero. One iconic primary read: a simple massive pillar body, one large broken orbit arch across the shoulders, one large hot magenta cracked judgement seal on the chest. Funny in proportion, still elite and dangerous.
+Clean design rule: make this a clean readable game character token, not a detailed glass illustration. Use large simple silhouette blocks and plain broad glass panels. Only 3-5 major colour masses in the entire subject: dark pillar body, violet body panes, cyan orbit-arch pane, hot magenta chest seal, tiny gold accents. Use very few thick black lead dividers, no more than about 12 internal divider lines total. One big crack on the chest seal is okay; avoid all other small cracks. Keep surfaces smooth and graphic.
+Style/medium: serious cartoon-gothic stained-glass dark-fantasy game art; chunky hand-inked outer contour; simplified exaggerated proportions; bold clean matte painterly shapes; readable at 128px; dramatic, grave, cute-funny in proportions. Do not make it photorealistic, do not make it ornate, do not make it glossy 3D.
+Strict avoid list: no micro-panels, no mosaic texture, no stone brick segmentation, no many little glass shards, no radial rings of tiny panes, no chains, no dangling ornaments, no tiny gold studs, no lacework, no filigree, no many spikes, no dust speckles, no scattered stars, no busy brush noise, no tiny highlights, no complex anatomy segmentation.
+Composition/framing: full body, bigger than normal enemies but fully inside frame, facing slightly left, generous padding, no cropped silhouette, no action blur.
+Lighting/mood: one warm amber rim light defining the silhouette; soft controlled glow only from the magenta chest seal and one cyan orbit-arch pane; high value contrast; no scattered sparkles, no noisy bloom, no haze touching the silhouette.
+Color palette: bright for dark game background; obsidian black lead and shadow; electric amethyst and bright violet main glass; one cyan star-glass arch pane; hot magenta judgement core; tiny tarnished-gold accents.
+Readability priority: silhouette first, pose second, face/core symbol third, colour fourth, texture last. The creature must still be recognisable as a black shadow with all internal details removed.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
+Constraints: single complete subject only; crisp clean edges; no ground plane; no floor; no shadows; no reflections; no text; no labels; no watermark; do not use #00ff00 anywhere in the subject.
+```
+
+Review note: cleaner than v1 through broad pillar panes and one dominant chest
+seal. Some gold points remain, but they are now large readable accents rather
+than chains or small jewellery noise.
+
+## Act 3 Finale v2: Herald of the End Clean Colour-Lift
+
+Status: approved. Promoted to
+`src/assets-readable-baseline/enemies/heraldOfEnd.png`.
+
+Generated image id:
+`ig_0d9fbf983cabb83c016a4aeca4ce948191951f00d490b9258d`
+
+Source:
+`enemy-heraldOfEnd-v2/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-heraldOfEnd-v2/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-heraldOfEnd-v2/04-no-yellow-outline.png`
+
+Colour-lift alpha:
+`enemy-heraldOfEnd-v2/05-colour-lift.png`
+
+Exact prompt:
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 3 elite enemy alpha-ready source, v2 clean readability pass
+Primary request: Herald of the End v2, a funny but threatening Act 3 elite doomsday announcer made for a dark game background. A tiny melodramatic court herald is almost swallowed by one absurdly huge cracked bell-mouth horn. Menacing idle pose, facing slightly left toward the hero. One iconic primary read: tiny robed crier, giant simple horn facing left, horn rim shaped as one broken orbit halo fragment, hot magenta judgement glow inside the bell, tiny anxious face peeking beneath the horn. It should feel like a theatrical apocalypse crier who is much smaller than his announcement, funny in proportion but still an elite enemy.
+Act 3 faction read: include one broken orbit halo fragment as the giant horn rim and one hot magenta judgement core inside the bell-mouth, adapted to this creature's silhouette; add only tiny tarnished-gold court accents.
+Clean design rule: make this a clean readable game character token, not a detailed glass illustration. Use one huge horn shape as the main silhouette and a small simple body shape under it. Only 3-5 major colour masses in the entire subject: dark horn shell, violet robe/body, cyan horn pane, hot magenta bell core, tiny gold trim. Use very few thick black lead dividers, no more than about 12 internal divider lines total. Keep the horn rim broad and plain. Keep surfaces smooth and graphic.
+Style/medium: serious cartoon-gothic stained-glass dark-fantasy game art; chunky hand-inked outer contour; simplified exaggerated proportions; bold clean matte painterly shapes; readable at 128px; dramatic, grave, cute-funny in proportions. Do not make it photorealistic, do not make it ornate, do not make it glossy 3D.
+Strict avoid list: no micro-panels, no mosaic texture, no dangling court ribbons, no hanging tags, no chains, no tassels, no lacework, no filigree, no many little glass shards, no radial rings of tiny panes, no many spikes, no dust speckles, no scattered stars, no busy brush noise, no tiny highlights, no complex robe folds, no complex anatomy segmentation.
+Composition/framing: elite enemy full body, bigger than normal enemies but fully inside frame, facing slightly left, generous padding around horn rim and feet, no cropped silhouette, no action blur.
+Lighting/mood: one warm amber rim light defining the silhouette; soft controlled glow only from the magenta bell core and one cyan-violet horn pane; high value contrast; no scattered sparkles, no noisy bloom, no haze touching the silhouette.
+Color palette: bright for dark game background; obsidian black lead and shadow; electric amethyst and bright violet robe/horn shell; one cyan star-glass horn pane; hot magenta judgement glow inside bell; tiny tarnished-gold trim only.
+Readability priority: silhouette first, pose second, horn/core/face third, colour fourth, texture last. The creature must still be recognisable as a black shadow with all internal details removed.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
+Constraints: single complete subject only; crisp clean edges; no ground plane; no floor; no shadows; no reflections; no text; no labels; no watermark; do not use #00ff00 anywhere in the subject.
+```
+
+Review note: cleanest silhouette in the batch. The horn is now the whole
+primary read; the tiny robed body carries the funny personality without adding
+many dangling pieces.
+
+## Act 3 Finale v2: The Eternal Sovereign Clean Colour-Lift
+
+Status: approved. Promoted to
+`src/assets-readable-baseline/enemies/sovereign.png`.
+
+Generated image id:
+`ig_0afeda95cecf58d6016a4aed69201481918f973f02091d0eb9`
+
+Discarded v2 attempt:
+`ig_00e415469665f027016a4aed022bb88191bbab57cd16f67a2a` was saved as
+`enemy-sovereign-v2/00-v2-attempt-too-detailed-source.png`; it still had too
+many spikes, ornaments, and heroic monarch details for the clean v2 goal.
+
+Source:
+`enemy-sovereign-v2/01-gpt-image-2-source.png`
+
+Original source alpha:
+`enemy-sovereign-v2/01-gpt-image-2-source-alpha.png`
+
+Rim-cleaned alpha:
+`enemy-sovereign-v2/04-no-yellow-outline.png`
+
+Colour-lift alpha:
+`enemy-sovereign-v2/05-colour-lift.png`
+
+Framed colour-lift alpha:
+`enemy-sovereign-v2/06-colour-lift-framed.png`
+
+Exact prompt:
+
+```text
+Use case: stylized-concept
+Asset type: Spirebound Act 3 final boss enemy alpha-ready source, v2 clean readability pass
+Primary request: The Eternal Sovereign v2, the final boss of Act 3, redesigned as a clean readable astral-court totem instead of a busy monarch. Menacing idle boss pose, facing slightly left toward the hero. One iconic primary read: a giant cracked crown-shaped head sitting on a simple dark robe-bell body, a single broad broken black-sun orbit halo behind it, one oversized hot magenta judgement core on the chest, and one chunky simple scepter leaning on the left. Tiny furious face under the crown. It should feel like the broken astral court became a pompous angry king-statue: grand, dangerous, a little ridiculous because the crown is too large, final-boss scale but clean.
+Act 3 faction read: one huge broken orbit black-sun halo behind the crown and one hot magenta judgement core in the chest; tiny tarnished-gold court accents only on the crown tips and one scepter cap.
+Clean design rule: this must be a clean game-token silhouette with very low visual noise. Use four huge readable symbols only: crown, black-sun halo, chest core, scepter. Only 3-5 major colour masses in the entire subject: dark crown/robe silhouette, bright violet robe pane, cyan halo pane, hot magenta chest core, tiny gold trim. Use thick black lead dividers, no more than about 10 internal divider lines total. Keep the halo as one or two broad broken chunks, not many fragments. Keep the crown with three large points only. Keep the robe as one bell-shaped mass with two broad panes.
+Style/medium: serious cartoon-gothic stained-glass dark-fantasy game art; chunky hand-inked outer contour; simplified exaggerated proportions; bold clean matte painterly shapes; readable at 128px; dramatic, grave, funny in proportion without becoming cute; final boss authority. Do not make it photorealistic, ornate, glossy 3D, or heroic-player-like.
+Strict avoid list: no micro-panels, no mosaic texture, no radial rings of tiny panes, no many halo fragments, no spiky crown forest, no many tiny spikes, no pendant jewels, no hanging ornaments, no chains, no tassels, no lacework, no filigree, no fingers, no detailed hands, no many little glass shards, no dust speckles, no scattered stars, no busy brush noise, no tiny highlights, no complex robe folds, no complex anatomy segmentation, no heroic armour.
+Composition/framing: final boss full body, largest Act 3 enemy but fully inside frame, facing slightly left, generous padding around crown, halo, and scepter, no cropped silhouette hooks, no action blur.
+Lighting/mood: one warm amber rim light defining the silhouette; soft controlled glow only from the magenta chest core and one cyan halo pane; high value contrast; no scattered sparkles, no noisy bloom, no haze touching the silhouette.
+Color palette: bright for dark game background; obsidian black lead and shadow; electric amethyst and bright violet robe/crown glass; one cyan star-glass halo pane; hot magenta judgement core; tiny tarnished-gold trim only.
+Readability priority: silhouette first, boss pose second, crown/halo/core/scepter third, colour fourth, texture last. The boss must still be recognisable as a black shadow with all internal details removed.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background only.
+Constraints: single complete subject only; crisp clean edges; no ground plane; no floor; no shadows; no reflections; no text; no labels; no watermark; do not use #00ff00 anywhere in the subject.
+```
+
+Review note: cleanest boss read. The final design is more of an astral-court
+totem than a humanoid monarch, which reduces heroic drift while keeping final
+boss scale through the crown, black-sun halo, chest core, and scepter.
+
 ## Act 2 Finale Approved: Abyssal Knight v3
 
 Status: approved. Promoted to

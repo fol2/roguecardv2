@@ -33,6 +33,9 @@ Council-approved baseline assets:
 - `enemies/shade.png`
 - `enemies/chaosHound.png`
 - `enemies/watcherEye.png`
+- `enemies/voidColossus.png`
+- `enemies/heraldOfEnd.png`
+- `enemies/sovereign.png`
 - `potions/healing.png`
 - `potions/strength.png`
 - `potions/swift.png`
@@ -80,6 +83,15 @@ Asset source decisions:
   colour-lift candidates. They follow the approved Act 3 first batch
   dark-background colour baseline and the same outer-rim cleanup plus light
   colour-lift pass.
+- `enemies/voidColossus.png`, `enemies/heraldOfEnd.png`, and
+  `enemies/sovereign.png` use the council-approved Act 3 finale v2 clean
+  colour-lift candidates. The v1 finale candidates remain in scratch as
+  comparison evidence because they were strong designs but too noisy: too many
+  micro-panes, jewellery details, and dangling ornaments. The approved v2 pass
+  keeps the same roles and silhouettes while using broader glass masses, fewer
+  thick dividers, and simpler final-boss symbols. `sovereign.png` received an
+  extra transparent framing pass after colour lift so the final boss scepter and
+  halo do not sit against the image edge.
 - `potions/healing.png`, `potions/strength.png`, `potions/swift.png`,
   `potions/block.png`, `potions/fire.png`, `potions/venom.png`, and
   `potions/energy.png` are the council-approved current potion set from
@@ -113,6 +125,11 @@ Prompt decision:
   elite/boss/noble-danger language, long frame-discipline clauses, and too many
   no-hero/no-human constraints. The approved v2 allows a little heroic attitude
   for elites and bosses, but keeps the body language enemy-like and funny.
+- The approved Act 3 finale v2 clean pass adds a stricter low-noise rule: four
+  or fewer primary symbols for bosses/elites, broad panes only, no dangling
+  ornaments, no chains, no micro-panels, and no mosaic texture. This keeps the
+  successful Act 3 bright magenta/cyan/violet read while making the final batch
+  cleaner at thumbnail size.
 
 Enemy and hero assets are runtime-ready PNGs normalised to a maximum edge of
 1024px with alpha preserved. Potion assets are normalised to 256 x 256 with

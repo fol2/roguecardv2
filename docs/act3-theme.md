@@ -99,11 +99,17 @@ Use these as subject notes, not rigid prompts.
   eye with the orbit ring as its eyelid frame, annoyed and over-official. Keep
   the giant eye as the single primary shape even when court tassels are present.
 - `voidColossus`: an oversized royal statue or court pillar that is too heavy
-  to move properly, with a huge cracked orbit seal in its chest.
+  to move properly, with a huge cracked orbit seal in its chest. The approved
+  v2 direction stays cleaner than v1: broad pillar panes, one shoulder orbit
+  arch, no chains, no brick-mosaic body texture.
 - `heraldOfEnd`: a melodramatic doomsday announcer with a giant horn, banner,
-  or bell-mouth framed by a broken orbit ring.
+  or bell-mouth framed by a broken orbit ring. The approved v2 direction uses
+  the horn as the primary silhouette and avoids dangling ribbons, tassels, and
+  tiny hanging tags.
 - `sovereign`: the boss as cracked crown, scepter, black-sun halo, and magenta
-  judgement core; terrifying and final, but still top-heavy and readable.
+  judgement core; terrifying and final, but still top-heavy and readable. The
+  approved v2 direction is a clean astral-court totem: crown, black-sun halo,
+  chest core, and scepter only, with no spiky crown forest or pendant noise.
 
 ## Act Separation
 
