@@ -141,3 +141,11 @@ reference roles, hashes, and prompt locations are collected in
 | `catalyst` | approved generated source | `src/assets-readable-baseline/cards/catalyst.png` | `scratch/style-tests/card-production-batch-16-20260706/README.md`; `scratch/style-tests/card-production-batch-16-20260706/prompt-ledger.md` |
 | `ascension` | approved generated source | `src/assets-readable-baseline/cards/ascension.png` | `scratch/style-tests/card-production-batch-16-20260706/README.md`; `scratch/style-tests/card-production-batch-16-20260706/prompt-ledger.md` |
 | `bastion` | approved generated source | `src/assets-readable-baseline/cards/bastion.png` | `scratch/style-tests/card-production-batch-16-20260706/README.md`; `scratch/style-tests/card-production-batch-16-20260706/prompt-ledger.md` |
+
+## Batch 17
+
+| Card | Decision | Final gallery asset | Source record |
+|---|---|---|---|
+| `frenzy` | approved generated source | `src/assets-readable-baseline/cards/frenzy.png` | `scratch/style-tests/card-production-batch-17-20260706/README.md`; `scratch/style-tests/card-production-batch-17-20260706/prompt-ledger.md` |
+| `virulence` | approved generated source | `src/assets-readable-baseline/cards/virulence.png` | `scratch/style-tests/card-production-batch-17-20260706/README.md`; `scratch/style-tests/card-production-batch-17-20260706/prompt-ledger.md` |
+| `pyreheart` | approved generated source | `src/assets-readable-baseline/cards/pyreheart.png` | `scratch/style-tests/card-production-batch-17-20260706/README.md`; `scratch/style-tests/card-production-batch-17-20260706/prompt-ledger.md` |

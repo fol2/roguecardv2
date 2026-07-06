@@ -94,6 +94,9 @@ Council-approved baseline assets:
 - `cards/catalyst.png`
 - `cards/ascension.png`
 - `cards/bastion.png`
+- `cards/frenzy.png`
+- `cards/virulence.png`
+- `cards/pyreheart.png`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -289,6 +292,13 @@ Asset source decisions:
   blue-gold fortress shell around a lantern core. Final gallery PNGs are
   byte-for-byte copies of the approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-16-20260706/`.
+- `cards/frenzy.png`, `cards/virulence.png`, and `cards/pyreheart.png` are
+  approved card production batch 17 generated sources. `frenzy` locks the
+  hunched overhot heart, broad torso cracks, and reigniting candles.
+  `virulence` locks the still low-blade figure with a green-orange fanged wrist
+  aura. `pyreheart` locks the calm furnace-heart and counted ember orbit. Final
+  gallery PNGs are byte-for-byte copies of the approved generated sources and
+  are recorded in `scratch/style-tests/card-production-batch-17-20260706/`.
 - The nine approved card images from `strike` through `twinFangs` are the
   current card-art baseline references. Their roles, hashes, and prompt ledgers
   are recorded in `docs/card-production/card-art-baselines.md`; the future
@@ -356,7 +366,8 @@ comparison sheets remain in
 `scratch/style-tests/card-production-batch-13-20260706/`, and
 `scratch/style-tests/card-production-batch-14-20260706/`, and
 `scratch/style-tests/card-production-batch-15-20260706/`, and
-`scratch/style-tests/card-production-batch-16-20260706/`.
+`scratch/style-tests/card-production-batch-16-20260706/`, and
+`scratch/style-tests/card-production-batch-17-20260706/`.
 Prop assets are normalised to the live runtime prop dimensions, with alpha
 preserved. Prop source, alpha, prompts, and contact sheets remain in
 `scratch/prop-art-production-20260706/`.
