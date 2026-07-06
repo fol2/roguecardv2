@@ -16,3 +16,6 @@ initScene();
 initVfx();
 initMesh();
 initUI();
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('bfedit')) {
+  import('./dev/bf-editor.js').then((m) => m.initBfEditor());
+}
