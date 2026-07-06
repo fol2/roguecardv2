@@ -157,3 +157,7 @@ Before replacing live assets:
 4. Build a contact sheet at 128 px.
 5. Preview in the game gallery and the real rest, treasure, and shop screens.
 6. Only promote after the closed/open chest pair does not visibly jump.
+
+Final readable-baseline registration proof is recorded in
+`docs/prop-gallery-proof.md`. The expected gallery result is
+`props - 4/4 generated` at `?gallery=1&set=readable-baseline`.

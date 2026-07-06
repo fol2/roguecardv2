@@ -172,3 +172,6 @@ For review, open the dev gallery with:
 ```text
 http://localhost:5174/?gallery=1&set=readable-baseline
 ```
+
+The approved prop set should appear in that gallery as `props - 4/4 generated`.
+The final prop registration proof is recorded in `docs/prop-gallery-proof.md`.
