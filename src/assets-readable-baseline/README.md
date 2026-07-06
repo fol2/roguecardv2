@@ -76,6 +76,9 @@ Council-approved baseline assets:
 - `cards/resonantLance.png`
 - `cards/bulwark.png`
 - `cards/surge.png`
+- `cards/fortify.png`
+- `cards/bloodRite.png`
+- `cards/agility.png`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -223,6 +226,14 @@ Asset source decisions:
   waking blue card panes. Final gallery PNGs are byte-for-byte copies of the
   approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-10-20260706/`.
+- `cards/fortify.png`, `cards/bloodRite.png`, and `cards/agility.png` are
+  approved card production batch 11 generated sources. `fortify` locks the
+  central amber lantern and two mirrored Ward panes. `bloodRite` locks the
+  black glove, single oxblood oil drop, and lantern reservoir with two amber
+  flames. `agility` locks the still figure on a blue glass point with paired
+  cyan Poise arcs. Final gallery PNGs are byte-for-byte copies of the approved
+  generated sources and are recorded in
+  `scratch/style-tests/card-production-batch-11-20260706/`.
 - The nine approved card images from `strike` through `twinFangs` are the
   current card-art baseline references. Their roles, hashes, and prompt ledgers
   are recorded in `docs/card-production/card-art-baselines.md`; the future
@@ -284,7 +295,8 @@ comparison sheets remain in
 `scratch/style-tests/card-production-batch-07-20260706/`, and
 `scratch/style-tests/card-production-batch-08-20260706/`, and
 `scratch/style-tests/card-production-batch-09-20260706/`, and
-`scratch/style-tests/card-production-batch-10-20260706/`.
+`scratch/style-tests/card-production-batch-10-20260706/`, and
+`scratch/style-tests/card-production-batch-11-20260706/`.
 Prop assets are normalised to the live runtime prop dimensions, with alpha
 preserved. Prop source, alpha, prompts, and contact sheets remain in
 `scratch/prop-art-production-20260706/`.
