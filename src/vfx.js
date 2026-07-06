@@ -282,3 +282,26 @@ export function archetypeHit(x, y, archetype = 'slash', power = 0.3) {
       break;
   }
 }
+
+// ---- bespoke signature moments (called once at first impact of the play) ----
+const impactFrame = () => { if (!REDUCED && !LITE) { flash('#ffffff', 0.28, 0.09); hitstop(90); } };
+export const BESPOKE_VFX = {
+  annihilate: (x, y) => { impactFrame(); flash('#ff6a3a', 0.16, 0.5); for (const dx of [-140, 0, 140]) burst(x + dx, y, { color: '#ffd166', n: cnt(18), speed: 300, grav: -100, life: 0.8 }); shake(16); },
+  oblivionStrike: (x, y) => { impactFrame(); hitstop(140); ring(x, y, '#ffd8a0', 8, 900, 7); ring(x, y, '#ffffff', 4, 1200, 4); shardSpray(x, y, '#dfeaff', 22); shake(20); },
+  tempest: (x, y) => { for (let i = 0; i < 3; i++) setTimeout(() => shardSpray(x + (Math.random() - 0.5) * 160, y - 60, '#cfe6ff', 12), i * 90); },
+  executioner: (x, y) => { impactFrame(); slashArc(x, y, '#ffffff'); ring(x, y, '#ff6b6b', 10, 700, 5); shake(14); },
+  novaflare: (x, y) => { impactFrame(); flash('#ffd166', 0.2, 0.45); ring(x, y, '#ffd166', 6, 1000, 6); burst(x, y, { color: '#fff3d6', n: cnt(30), speed: 520, grav: -40, life: 0.9 }); },
+  shardstorm: (x, y) => { for (let i = 0; i < 4; i++) setTimeout(() => shardSpray(x + (Math.random() - 0.5) * 200, y - 40, '#dfeaff', 10), i * 70); },
+  ascension: (x, y) => { emberTrail(x, y + 120, x, y - 120, '#ffd166'); motes(x, y - 40, '#ffe9ac', cnt(16)); },
+  limitBreak: (x, y) => { impactFrame(); ring(x, y, '#8fd0ff', 10, 800, 6); shardSpray(x, y, '#cfe6ff', 18); shake(12); },
+  phantomBlades: (x, y) => { for (let i = 0; i < 4; i++) setTimeout(() => slashArc(x + (Math.random() - 0.5) * 60, y + (Math.random() - 0.5) * 40, '#c9b0ff'), i * 70); },
+  pyreheart: (x, y) => { burst(x, y, { color: '#ff5964', n: cnt(14), speed: 180, grav: -80, kind: 'dot', life: 0.9 }); motes(x, y, '#ffd166', cnt(10)); },
+  emberdance: (x, y) => { for (let i = 0; i < 3; i++) setTimeout(() => emberTrail(x - 80 + i * 80, y + 60, x + 80 - i * 80, y - 60, '#ff9a4d'), i * 100); },
+  devour: (x, y) => { implosion(x, y, '#c99aff'); setTimeout(() => burst(x, y, { color: '#ff9a4d', n: cnt(16), speed: 260, grav: -120 }), 180); },
+  'art:flare': (x, y) => { flash('#ff9a4d', 0.18, 0.4); burst(x, y, { color: '#ffd166', n: cnt(26), speed: 420, grav: -60 }); shake(10); },
+  'art:mendglass': (x, y) => { ring(x, y, '#7ddb8f', 14, 420, 4); motes(x, y, '#d9fbe7', cnt(14)); },
+  'art:beacon': (x, y) => { flash('#ffe9ac', 0.14, 0.5); emberTrail(x, y + 100, x, y - 140, '#ffe9ac'); },
+  'art:emberveil': (x, y) => { ring(x, y, '#9fd4ff', 10, 520, 5); ring(x, y, '#ffd166', 20, 380, 3); },
+  'art:stoke': (x, y) => { burst(x, y, { color: '#ff6a3a', n: cnt(18), speed: 220, grav: -140, life: 0.8 }); },
+  'art:ashfall': (x, y) => { for (let i = 0; i < 3; i++) setTimeout(() => droplets(x + (Math.random() - 0.5) * 220, y - 80, '#b8b0a0', 12), i * 120); },
+};
