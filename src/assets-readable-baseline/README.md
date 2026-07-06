@@ -100,6 +100,9 @@ Council-approved baseline assets:
 - `cards/flawlessForm.png`
 - `cards/novaflare.png`
 - `cards/shardstorm.png`
+- `cards/wound.png`
+- `cards/burn.png`
+- `cards/hex.png`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -310,6 +313,13 @@ Asset source decisions:
   enemy panes. Final gallery PNGs are byte-for-byte copies of the approved
   generated sources and are recorded in
   `scratch/style-tests/card-production-batch-18-20260706/`.
+- `cards/wound.png`, `cards/burn.png`, and `cards/hex.png` are approved card
+  production batch 19 generated sources. `wound` locks the cold heavy lodged
+  shard. `burn` locks the scorched dead pane with one contained cinder corner.
+  `hex` locks the trapped purple-black curse window and failed burn sparks.
+  Final gallery PNGs are byte-for-byte copies of the approved generated
+  sources and are recorded in
+  `scratch/style-tests/card-production-batch-19-20260706/`.
 - The nine approved card images from `strike` through `twinFangs` are the
   current card-art baseline references. Their roles, hashes, and prompt ledgers
   are recorded in `docs/card-production/card-art-baselines.md`; the future
@@ -379,7 +389,8 @@ comparison sheets remain in
 `scratch/style-tests/card-production-batch-15-20260706/`, and
 `scratch/style-tests/card-production-batch-16-20260706/`, and
 `scratch/style-tests/card-production-batch-17-20260706/`, and
-`scratch/style-tests/card-production-batch-18-20260706/`.
+`scratch/style-tests/card-production-batch-18-20260706/`, and
+`scratch/style-tests/card-production-batch-19-20260706/`.
 Prop assets are normalised to the live runtime prop dimensions, with alpha
 preserved. Prop source, alpha, prompts, and contact sheets remain in
 `scratch/prop-art-production-20260706/`.
@@ -411,4 +422,5 @@ http://localhost:5174/?gallery=1&set=readable-baseline
 
 The approved prop set should appear in that gallery as `props - 4/4 generated`.
 The approved event set should appear as `events - 11/11 generated`.
+The approved card set should appear as `cards - 60/60 generated`.
 The final prop registration proof is recorded in `docs/prop-gallery-proof.md`.

@@ -157,3 +157,11 @@ reference roles, hashes, and prompt locations are collected in
 | `flawlessForm` | approved generated source | `src/assets-readable-baseline/cards/flawlessForm.png` | `scratch/style-tests/card-production-batch-18-20260706/README.md`; `scratch/style-tests/card-production-batch-18-20260706/prompt-ledger.md` |
 | `novaflare` | approved generated source | `src/assets-readable-baseline/cards/novaflare.png` | `scratch/style-tests/card-production-batch-18-20260706/README.md`; `scratch/style-tests/card-production-batch-18-20260706/prompt-ledger.md` |
 | `shardstorm` | approved generated source | `src/assets-readable-baseline/cards/shardstorm.png` | `scratch/style-tests/card-production-batch-18-20260706/README.md`; `scratch/style-tests/card-production-batch-18-20260706/prompt-ledger.md` |
+
+## Batch 19
+
+| Card | Decision | Final gallery asset | Source record |
+|---|---|---|---|
+| `wound` | approved generated source | `src/assets-readable-baseline/cards/wound.png` | `scratch/style-tests/card-production-batch-19-20260706/README.md`; `scratch/style-tests/card-production-batch-19-20260706/prompt-ledger.md` |
+| `burn` | approved generated source | `src/assets-readable-baseline/cards/burn.png` | `scratch/style-tests/card-production-batch-19-20260706/README.md`; `scratch/style-tests/card-production-batch-19-20260706/prompt-ledger.md` |
+| `hex` | approved generated source | `src/assets-readable-baseline/cards/hex.png` | `scratch/style-tests/card-production-batch-19-20260706/README.md`; `scratch/style-tests/card-production-batch-19-20260706/prompt-ledger.md` |
