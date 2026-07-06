@@ -80,7 +80,8 @@ SHATTER (facets/chips/shatter/embers/kindle + Lantern Arts), Omens & the Unlit W
 - **Internal keys ≠ display names.** The de-clone renamed display strings only (Block→Ward, poison→Smolder, etc.) in `STATUS_INFO`/card text; the *internal* status keys and card ids (`poison`, `vulnerable`, `str`, id `'strike'`/`'defend'`) are unchanged to protect saves and test anchors. Change display text in the data tables, never the keys.
 - **Structural UI icons must come from `art.js`** (`iconSvg`/`iconInline`) — never font glyphs like ⚔/♛ for map nodes, intents, shields, or piles. Font glyphs render as tofu on non-Mac platforms. Decorative relic/status sigils are the deliberate exception.
 - **`window.spirebound = { S, E, startCombatUI, show }`** and **`window.__probe`** (ui.js) are console/test hooks — god-mode bots, geometry readers, battle drivers. The probe reports coordinates in **stage px**.
-- **Mobile is first-class**: three layout regimes inside the fixed stage (`@container stage` max-width 1100 / 740, and max-height 480 landscape) with drag-to-play, safe-area insets, and a lower-perf `LITE` render tier on coarse pointers. Combat-stage geometry (ledge offsets, hand fit) is hand-tuned per regime — retune when you touch the battlefield layout.
+- **Combat-stage geometry lives in `src/battlefield-layout.js`**, not CSS — hero/enemy positions & sizes, formations, the 3 background plates and the ground line, per stage shape. Edit it by hand or with the dev-only editor at `http://localhost:5174/?bfedit=1` (drag/resize, per-shape overrides, Save writes the file). `src/battlefield.js` is the resolver; both must stay Node-importable and import nothing.
+- **Mobile is first-class**: three layout regimes inside the fixed stage (`@container stage` max-width 1100 / 740, and max-height 480 landscape) with drag-to-play, safe-area insets, and a lower-perf `LITE` render tier on coarse pointers.
 
 ## Authoring raster images
 
