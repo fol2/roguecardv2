@@ -622,6 +622,12 @@ function forceHand(run, cb, ids) {
   }
 }
 {
+  const VFX_KINDS = new Set(['slash', 'pierce', 'blunt', 'fire', 'poison', 'void', 'ward']);
+  for (const [id, c] of Object.entries(CARDS)) {
+    assert(VFX_KINDS.has(c.vfx), `card ${id} missing/invalid vfx archetype: ${c.vfx}`);
+  }
+}
+{
   // the vigil: deeds accumulate, thresholds unlock, storage is Node-safe
   _setStore(null);
   assert.equal(loadVigil().deeds.runs, 0, 'fresh vigil');

@@ -38,16 +38,19 @@ export const CARDS = {
   // ---- starters
   strike: {
     name: 'Edge', type: 'attack', rarity: 'starter', cost: 1, target: 'enemy',
+    vfx: 'slash',
     text: 'Deal @6@ damage.', effects: [{ kind: 'dmg', n: 6 }],
     up: { text: 'Deal @9@ damage.', effects: [{ kind: 'dmg', n: 9 }] },
   },
   defend: {
     name: 'Ward', type: 'skill', rarity: 'starter', cost: 1, target: 'self',
+    vfx: 'ward',
     text: 'Gain #5# Ward.', effects: [{ kind: 'block', n: 5 }],
     up: { text: 'Gain #8# Ward.', effects: [{ kind: 'block', n: 8 }] },
   },
   eclipseSlash: {
     name: 'Eclipse Slash', type: 'attack', rarity: 'starter', cost: 1, target: 'enemy',
+    vfx: 'slash',
     text: 'Deal @7@ damage. Apply 1 Cracked.',
     effects: [{ kind: 'dmg', n: 7 }, { kind: 'status', who: 'target', id: 'vulnerable', n: 1 }],
     up: {
@@ -57,24 +60,28 @@ export const CARDS = {
   },
   chisel: {
     name: 'Chisel', type: 'attack', rarity: 'starter', cost: 1, target: 'enemy', chip: 1,
+    vfx: 'pierce',
     text: 'Deal @4@ damage. Chip 1 extra Facet.',
     effects: [{ kind: 'dmg', n: 4 }],
     up: { text: 'Deal @7@ damage. Chip 1 extra Facet.', effects: [{ kind: 'dmg', n: 7 }] },
   },
   firstSpark: {
     name: 'First Spark', type: 'skill', rarity: 'starter', cost: 0, target: 'self',
+    vfx: 'fire',
     text: 'Draw 1 card. Kindle.', exhaust: true, effects: [{ kind: 'draw', n: 1 }],
     up: { text: 'Draw 2 cards. Kindle.', effects: [{ kind: 'draw', n: 2 }] },
   },
   // ---- Ashwarden starters
   ashBite: {
     name: 'Ashbite', type: 'attack', rarity: 'starter', cost: 1, target: 'enemy',
+    vfx: 'fire',
     text: 'Deal @5@ damage. Apply 2 Smolder.',
     effects: [{ kind: 'dmg', n: 5 }, { kind: 'status', who: 'target', id: 'poison', n: 2 }],
     up: { text: 'Deal @7@ damage. Apply 3 Smolder.', effects: [{ kind: 'dmg', n: 7 }, { kind: 'status', who: 'target', id: 'poison', n: 3 }] },
   },
   smother: {
     name: 'Smother', type: 'skill', rarity: 'starter', cost: 1, target: 'enemy',
+    vfx: 'fire',
     text: 'Gain #5# Ward. Apply 2 Smolder.',
     effects: [{ kind: 'block', n: 5 }, { kind: 'status', who: 'target', id: 'poison', n: 2 }],
     up: { text: 'Gain #8# Ward. Apply 3 Smolder.', effects: [{ kind: 'block', n: 8 }, { kind: 'status', who: 'target', id: 'poison', n: 3 }] },
@@ -83,27 +90,32 @@ export const CARDS = {
   // ---- common attacks
   twinFangs: {
     name: 'Twin Shards', type: 'attack', rarity: 'common', cost: 1, target: 'enemy',
+    vfx: 'pierce',
     text: 'Deal @4@ damage twice.', effects: [{ kind: 'dmg', n: 4, times: 2 }],
     up: { text: 'Deal @6@ damage twice.', effects: [{ kind: 'dmg', n: 6, times: 2 }] },
   },
   quickSlash: {
     name: 'Flicker', type: 'attack', rarity: 'common', cost: 0, target: 'enemy',
+    vfx: 'slash',
     text: 'Deal @4@ damage. Draw 1 card.', effects: [{ kind: 'dmg', n: 4 }, { kind: 'draw', n: 1 }],
     up: { text: 'Deal @6@ damage. Draw 1 card.', effects: [{ kind: 'dmg', n: 6 }, { kind: 'draw', n: 1 }] },
   },
   heavyBlow: {
     name: 'Quarry Maul', type: 'attack', rarity: 'common', cost: 2, target: 'enemy', chip: 1,
+    vfx: 'blunt',
     text: 'Deal @12@ damage. Chip 1 extra Facet.',
     effects: [{ kind: 'dmg', n: 12 }],
     up: { text: 'Deal @16@ damage. Chip 2 extra Facets.', chip: 2, effects: [{ kind: 'dmg', n: 16 }] },
   },
   cleave: {
     name: 'Fan of Glass', type: 'attack', rarity: 'common', cost: 1, target: 'allEnemies',
+    vfx: 'slash',
     text: 'Deal @6@ damage to ALL enemies.', effects: [{ kind: 'dmg', n: 6 }],
     up: { text: 'Deal @9@ damage to ALL enemies.', effects: [{ kind: 'dmg', n: 9 }] },
   },
   venomStrike: {
     name: 'Emberbite', type: 'attack', rarity: 'common', cost: 1, target: 'enemy',
+    vfx: 'fire',
     text: 'Deal @4@ damage. Apply 3 Smolder.',
     effects: [{ kind: 'dmg', n: 4 }, { kind: 'status', who: 'target', id: 'poison', n: 3 }],
     up: {
@@ -113,6 +125,7 @@ export const CARDS = {
   },
   lunge: {
     name: 'Dimming Cut', type: 'attack', rarity: 'common', cost: 1, target: 'enemy',
+    vfx: 'slash',
     text: 'Deal @6@ damage. Apply 1 Dimmed.',
     effects: [{ kind: 'dmg', n: 6 }, { kind: 'status', who: 'target', id: 'weak', n: 1 }],
     up: {
@@ -122,6 +135,7 @@ export const CARDS = {
   },
   guardedStrike: {
     name: "Warden's Edge", type: 'attack', rarity: 'common', cost: 1, target: 'enemy',
+    vfx: 'slash',
     text: 'Deal @5@ damage. Gain #4# Ward.',
     effects: [{ kind: 'dmg', n: 5 }, { kind: 'block', n: 4 }],
     up: {
@@ -133,21 +147,25 @@ export const CARDS = {
   // ---- common skills
   brace: {
     name: 'Held Light', type: 'skill', rarity: 'common', cost: 1, target: 'self',
+    vfx: 'ward',
     text: 'Gain #8# Ward.', effects: [{ kind: 'block', n: 8 }],
     up: { text: 'Gain #11# Ward.', effects: [{ kind: 'block', n: 11 }] },
   },
   sidestep: {
     name: 'Glasstep', type: 'skill', rarity: 'common', cost: 0, target: 'self',
+    vfx: 'ward',
     text: 'Gain #3# Ward. Draw 1 card.', effects: [{ kind: 'block', n: 3 }, { kind: 'draw', n: 1 }],
     up: { text: 'Gain #5# Ward. Draw 1 card.', effects: [{ kind: 'block', n: 5 }, { kind: 'draw', n: 1 }] },
   },
   preparation: {
     name: 'Tinder', type: 'skill', rarity: 'common', cost: 0, target: 'self',
+    vfx: 'fire',
     text: 'Draw 2 cards. Kindle.', exhaust: true, effects: [{ kind: 'draw', n: 2 }],
     up: { text: 'Draw 2 cards.', exhaust: false, effects: [{ kind: 'draw', n: 2 }] },
   },
   deflect: {
     name: 'Refract', type: 'skill', rarity: 'common', cost: 1, target: 'self',
+    vfx: 'ward',
     text: 'Gain #6# Ward. Draw 1 card.', effects: [{ kind: 'block', n: 6 }, { kind: 'draw', n: 1 }],
     up: { text: 'Gain #9# Ward. Draw 1 card.', effects: [{ kind: 'block', n: 9 }, { kind: 'draw', n: 1 }] },
   },
@@ -155,17 +173,20 @@ export const CARDS = {
   // ---- uncommon attacks
   leechBlade: {
     name: 'Thirsting Shard', type: 'attack', rarity: 'uncommon', cost: 2, target: 'enemy',
+    vfx: 'void',
     text: 'Deal @9@ damage. Heal for half the unblocked damage.',
     effects: [{ kind: 'special', id: 'leech', n: 9 }],
     up: { text: 'Deal @13@ damage. Heal for half the unblocked damage.', effects: [{ kind: 'special', id: 'leech', n: 13 }] },
   },
   tempest: {
     name: 'Hailglass', type: 'attack', rarity: 'uncommon', cost: 2, target: 'allEnemies',
+    vfx: 'pierce',
     text: 'Deal @4@ damage to ALL enemies twice.', effects: [{ kind: 'dmg', n: 4, times: 2 }],
     up: { text: 'Deal @6@ damage to ALL enemies twice.', effects: [{ kind: 'dmg', n: 6, times: 2 }] },
   },
   uppercut: {
     name: 'Ringing Blow', type: 'attack', rarity: 'uncommon', cost: 2, target: 'enemy', chip: 1,
+    vfx: 'blunt',
     text: 'Deal @10@ damage. Chip 1 extra Facet. Apply 1 Dimmed.',
     effects: [
       { kind: 'dmg', n: 10 },
@@ -181,17 +202,20 @@ export const CARDS = {
   },
   flurry: {
     name: 'Splinterstorm', type: 'attack', rarity: 'uncommon', cost: 1, target: 'enemy',
+    vfx: 'pierce',
     text: 'Deal @2@ damage 3 times.', effects: [{ kind: 'dmg', n: 2, times: 3 }],
     up: { text: 'Deal @3@ damage 3 times.', effects: [{ kind: 'dmg', n: 3, times: 3 }] },
   },
   executioner: {
     name: 'Faultline', type: 'attack', rarity: 'uncommon', cost: 1, target: 'enemy',
+    vfx: 'blunt',
     text: 'Deal @8@ damage. Cracked enemies take 6 more.',
     effects: [{ kind: 'special', id: 'execute', n: 8, bonus: 6 }],
     up: { text: 'Deal @11@ damage. Cracked enemies take 8 more.', effects: [{ kind: 'special', id: 'execute', n: 11, bonus: 8 }] },
   },
   momentum: {
     name: 'Honing Edge', type: 'attack', rarity: 'uncommon', cost: 1, target: 'enemy',
+    vfx: 'slash',
     text: 'Deal @6@ damage. Each play, this card gains +4 damage this combat.',
     effects: [{ kind: 'special', id: 'momentum', n: 6, grow: 4 }],
     up: { text: 'Deal @8@ damage. Each play, this card gains +6 damage this combat.', effects: [{ kind: 'special', id: 'momentum', n: 8, grow: 6 }] },
@@ -200,29 +224,34 @@ export const CARDS = {
   // ---- uncommon skills
   bulwark: {
     name: 'Glasswall', type: 'skill', rarity: 'uncommon', cost: 2, target: 'self',
+    vfx: 'ward',
     text: 'Gain #13# Ward.', effects: [{ kind: 'block', n: 13 }],
     up: { text: 'Gain #18# Ward.', effects: [{ kind: 'block', n: 18 }] },
   },
   surge: {
     name: 'Struck Match', type: 'skill', rarity: 'uncommon', cost: 0, target: 'self',
+    vfx: 'fire',
     text: 'Gain 1 Energy. Draw 1 card. Kindle.', exhaust: true,
     effects: [{ kind: 'energy', n: 1 }, { kind: 'draw', n: 1 }],
     up: { text: 'Gain 2 Energy. Draw 1 card. Kindle.', effects: [{ kind: 'energy', n: 2 }, { kind: 'draw', n: 1 }] },
   },
   toxicMist: {
     name: 'Ashcloud', type: 'skill', rarity: 'uncommon', cost: 1, target: 'allEnemies',
+    vfx: 'poison',
     text: 'Apply 3 Smolder to ALL enemies.',
     effects: [{ kind: 'status', who: 'allEnemies', id: 'poison', n: 3 }],
     up: { text: 'Apply 5 Smolder to ALL enemies.', effects: [{ kind: 'status', who: 'allEnemies', id: 'poison', n: 5 }] },
   },
   cripple: {
     name: 'Gutter', type: 'skill', rarity: 'uncommon', cost: 1, target: 'enemy',
+    vfx: 'void',
     text: "Snuff an enemy's fire: it loses 2 Fervor. Kindle.", exhaust: true,
     effects: [{ kind: 'status', who: 'target', id: 'str', n: -2 }],
     up: { text: "Snuff an enemy's fire: it loses 3 Fervor. Kindle.", effects: [{ kind: 'status', who: 'target', id: 'str', n: -3 }] },
   },
   warCry: {
     name: 'Shatterhymn', type: 'skill', rarity: 'uncommon', cost: 1, target: 'allEnemies',
+    vfx: 'void',
     text: 'Apply 1 Dimmed and 1 Cracked to ALL enemies.',
     effects: [
       { kind: 'status', who: 'allEnemies', id: 'weak', n: 1 },
@@ -238,11 +267,13 @@ export const CARDS = {
   },
   fortify: {
     name: 'Mirrorlight', type: 'skill', rarity: 'uncommon', cost: 2, target: 'self',
+    vfx: 'ward',
     text: 'Double your Ward.', effects: [{ kind: 'special', id: 'doubleBlock' }],
     up: { cost: 1, text: 'Double your Ward.' },
   },
   bloodRite: {
     name: 'Blood for Oil', type: 'skill', rarity: 'uncommon', cost: 0, target: 'self',
+    vfx: 'void',
     text: 'Lose 3 HP. Gain 2 Energy.',
     effects: [{ kind: 'loseHp', n: 3 }, { kind: 'energy', n: 2 }],
     up: { text: 'Lose 3 HP. Gain 3 Energy.', effects: [{ kind: 'loseHp', n: 3 }, { kind: 'energy', n: 3 }] },
@@ -251,22 +282,26 @@ export const CARDS = {
   // ---- uncommon powers
   empower: {
     name: 'Inner Blaze', type: 'power', rarity: 'uncommon', cost: 1, target: 'self',
+    vfx: 'fire',
     text: 'Gain 2 Fervor.', effects: [{ kind: 'status', who: 'self', id: 'str', n: 2 }],
     up: { text: 'Gain 3 Fervor.', effects: [{ kind: 'status', who: 'self', id: 'str', n: 3 }] },
   },
   agility: {
     name: "Glazier's Poise", type: 'power', rarity: 'uncommon', cost: 1, target: 'self',
+    vfx: 'ward',
     text: 'Gain 2 Poise.', effects: [{ kind: 'status', who: 'self', id: 'dex', n: 2 }],
     up: { text: 'Gain 3 Poise.', effects: [{ kind: 'status', who: 'self', id: 'dex', n: 3 }] },
   },
   ironSkin: {
     name: 'Vitrify', type: 'power', rarity: 'uncommon', cost: 1, target: 'self',
+    vfx: 'ward',
     text: 'At the end of your turn, gain 3 Ward.',
     effects: [{ kind: 'status', who: 'self', id: 'metallicize', n: 3 }],
     up: { text: 'At the end of your turn, gain 4 Ward.', effects: [{ kind: 'status', who: 'self', id: 'metallicize', n: 4 }] },
   },
   regrowth: {
     name: 'Hearthglow', type: 'power', rarity: 'uncommon', cost: 1, target: 'self',
+    vfx: 'fire',
     text: 'At the end of your turn, heal 2 HP.',
     effects: [{ kind: 'status', who: 'self', id: 'regen', n: 2 }],
     up: { text: 'At the end of your turn, heal 3 HP.', effects: [{ kind: 'status', who: 'self', id: 'regen', n: 3 }] },
@@ -275,23 +310,27 @@ export const CARDS = {
   // ---- rare attacks
   oblivionStrike: {
     name: 'Bellstrike', type: 'attack', rarity: 'rare', cost: 3, target: 'enemy', chip: 2,
+    vfx: 'blunt',
     text: 'Deal @30@ damage. Chip 2 extra Facets.', effects: [{ kind: 'dmg', n: 30 }],
     up: { text: 'Deal @40@ damage. Chip 3 extra Facets.', chip: 3, effects: [{ kind: 'dmg', n: 40 }] },
   },
   phantomBlades: {
     name: 'Phantom Blades', type: 'attack', rarity: 'rare', cost: 1, target: 'enemy',
+    vfx: 'pierce',
     text: 'Deal @3@ damage for each card in your hand.',
     effects: [{ kind: 'special', id: 'phantom', n: 3 }],
     up: { text: 'Deal @4@ damage for each card in your hand.', effects: [{ kind: 'special', id: 'phantom', n: 4 }] },
   },
   devour: {
     name: 'Eat the Flame', type: 'attack', rarity: 'rare', cost: 1, target: 'enemy',
+    vfx: 'void',
     text: 'Deal @10@ damage. If this kills, swallow its fire: gain 3 Embers and heal 4. Kindle.', exhaust: true,
     effects: [{ kind: 'special', id: 'devour', n: 10, embers: 3, heal: 4 }],
     up: { text: 'Deal @13@ damage. If this kills, swallow its fire: gain 4 Embers and heal 6. Kindle.', effects: [{ kind: 'special', id: 'devour', n: 13, embers: 4, heal: 6 }] },
   },
   annihilate: {
     name: 'Requiem', type: 'attack', rarity: 'rare', cost: 2, target: 'allEnemies',
+    vfx: 'fire',
     text: 'Deal @9@ damage and apply 3 Smolder to ALL enemies.',
     effects: [{ kind: 'dmg', n: 9 }, { kind: 'status', who: 'allEnemies', id: 'poison', n: 3 }],
     up: {
@@ -303,11 +342,13 @@ export const CARDS = {
   // ---- rare skills
   aegis: {
     name: 'Cathedral Glass', type: 'skill', rarity: 'rare', cost: 2, target: 'self',
+    vfx: 'ward',
     text: 'Gain #30# Ward. Kindle.', exhaust: true, effects: [{ kind: 'block', n: 30 }],
     up: { text: 'Gain #40# Ward. Kindle.', effects: [{ kind: 'block', n: 40 }] },
   },
   offering: {
     name: 'Pyre Tithe', type: 'skill', rarity: 'rare', cost: 1, target: 'self',
+    vfx: 'fire',
     text: 'Burn every other card in your hand — each feeds the lantern. Draw 3 cards. Kindle.', exhaust: true,
     effects: [{ kind: 'special', id: 'pyreTithe', draw: 3 }],
     up: {
@@ -317,12 +358,14 @@ export const CARDS = {
   },
   limitBreak: {
     name: 'Annealing Rite', type: 'skill', rarity: 'rare', cost: 1, target: 'allEnemies',
+    vfx: 'blunt',
     text: 'Chip 2 Facets of every enemy. Kindle.', exhaust: true,
     effects: [{ kind: 'chip', n: 2 }],
     up: { text: 'Chip 3 Facets of every enemy. Kindle.', effects: [{ kind: 'chip', n: 3 }] },
   },
   catalyst: {
     name: 'Bellows', type: 'skill', rarity: 'rare', cost: 1, target: 'enemy',
+    vfx: 'poison',
     text: "Double an enemy's Smolder. Kindle.", exhaust: true,
     effects: [{ kind: 'special', id: 'catalyst', n: 2 }],
     up: { text: "Triple an enemy's Smolder. Kindle.", effects: [{ kind: 'special', id: 'catalyst', n: 3 }] },
@@ -331,18 +374,21 @@ export const CARDS = {
   // ---- rare powers
   ascension: {
     name: 'Rising Litany', type: 'power', rarity: 'rare', cost: 3, target: 'self',
+    vfx: 'fire',
     text: 'At the start of each turn, gain 2 Fervor.',
     effects: [{ kind: 'status', who: 'self', id: 'ritual', n: 2 }],
     up: { text: 'At the start of each turn, gain 3 Fervor.', effects: [{ kind: 'status', who: 'self', id: 'ritual', n: 3 }] },
   },
   bastion: {
     name: 'Anneal', type: 'power', rarity: 'rare', cost: 3, target: 'self',
+    vfx: 'ward',
     text: 'Ward no longer expires at the start of your turn.',
     effects: [{ kind: 'status', who: 'self', id: 'barricade', n: 1 }],
     up: { cost: 2 },
   },
   frenzy: {
     name: 'Overglow', type: 'power', rarity: 'rare', cost: 2, target: 'self',
+    vfx: 'fire',
     text: 'Your glass runs too hot: gain 2 Cracked. At the start of each turn, gain 1 Energy.',
     effects: [
       { kind: 'status', who: 'self', id: 'vulnerable', n: 2 },
@@ -358,6 +404,7 @@ export const CARDS = {
   },
   virulence: {
     name: 'Emberfang', type: 'power', rarity: 'rare', cost: 2, target: 'self',
+    vfx: 'poison',
     text: 'Whenever you play an Attack, apply 1 Smolder to the enemy.',
     effects: [{ kind: 'status', who: 'self', id: 'venomous', n: 1 }],
     up: { cost: 1 },
@@ -366,60 +413,70 @@ export const CARDS = {
   // ---- the vigil's unlockables (locked out of pools until their deed is done)
   quakeblow: {
     name: 'Quakeblow', type: 'attack', rarity: 'uncommon', cost: 2, target: 'enemy', chip: 2, locked: 'paneBreaker',
+    vfx: 'blunt',
     text: 'Deal @8@ damage. Chip 2 extra Facets.',
     effects: [{ kind: 'dmg', n: 8 }],
     up: { text: 'Deal @11@ damage. Chip 3 extra Facets.', chip: 3, effects: [{ kind: 'dmg', n: 11 }] },
   },
   resonantLance: {
     name: 'Resonant Lance', type: 'attack', rarity: 'rare', cost: 1, target: 'enemy', locked: 'paneBreaker',
+    vfx: 'pierce',
     text: 'Deal @7@ damage. Deals double to Staggered or Cracked glass.',
     effects: [{ kind: 'special', id: 'shatterEcho', n: 7 }],
     up: { text: 'Deal @10@ damage. Deals double to Staggered or Cracked glass.', effects: [{ kind: 'special', id: 'shatterEcho', n: 10 }] },
   },
   tithe: {
     name: 'Tithe of Panes', type: 'skill', rarity: 'uncommon', cost: 1, target: 'self', locked: 'lanternFed',
+    vfx: 'fire',
     text: 'Gain 2 Embers. Draw 1 card.',
     effects: [{ kind: 'ember', n: 2 }, { kind: 'draw', n: 1 }],
     up: { text: 'Gain 3 Embers. Draw 1 card.', effects: [{ kind: 'ember', n: 3 }, { kind: 'draw', n: 1 }] },
   },
   pyreheart: {
     name: 'Pyreheart', type: 'power', rarity: 'rare', cost: 2, target: 'self', locked: 'lanternFed',
+    vfx: 'fire',
     text: 'At the start of each turn, gain 1 Ember.',
     effects: [{ kind: 'status', who: 'self', id: 'emberflow', n: 1 }],
     up: { cost: 1 },
   },
   ashenChoir: {
     name: 'Ashen Choir', type: 'skill', rarity: 'uncommon', cost: 1, target: 'enemy', locked: 'ashSermon',
+    vfx: 'poison',
     text: 'Apply 4 Smolder. When smoldering glass dies, its fire leaps on.',
     effects: [{ kind: 'status', who: 'target', id: 'poison', n: 4 }],
     up: { text: 'Apply 6 Smolder. When smoldering glass dies, its fire leaps on.', effects: [{ kind: 'status', who: 'target', id: 'poison', n: 6 }] },
   },
   flawlessForm: {
     name: 'Flawless Form', type: 'skill', rarity: 'rare', cost: 1, target: 'self', locked: 'untouched',
+    vfx: 'ward',
     text: 'Gain #8# Ward. If your glass is untouched this combat, gain #8# more.',
     effects: [{ kind: 'special', id: 'flawless', n: 8 }],
     up: { text: 'Gain #11# Ward. If your glass is untouched this combat, gain #11# more.', effects: [{ kind: 'special', id: 'flawless', n: 11 }] },
   },
   nightSight: {
     name: 'Night Sight', type: 'power', rarity: 'uncommon', cost: 1, target: 'self', locked: 'darkWalker',
+    vfx: 'void',
     text: 'At the start of each turn, draw 1 extra card.',
     effects: [{ kind: 'status', who: 'self', id: 'nightsight', n: 1 }],
     up: { cost: 0 },
   },
   novaflare: {
     name: 'Novaflare', type: 'attack', rarity: 'rare', cost: 2, target: 'enemy', locked: 'spendthrift',
+    vfx: 'fire',
     text: 'Deal @3@ damage for every Ember in your lantern.',
     effects: [{ kind: 'special', id: 'emberNova', n: 3 }],
     up: { text: 'Deal @4@ damage for every Ember in your lantern.', effects: [{ kind: 'special', id: 'emberNova', n: 4 }] },
   },
   emberdance: {
     name: 'Emberdance', type: 'skill', rarity: 'uncommon', cost: 0, target: 'self', locked: 'spendthrift',
+    vfx: 'fire',
     text: 'Spill your lantern: gain 3 Ward for each Ember spent. Kindle.', exhaust: true,
     effects: [{ kind: 'special', id: 'emberdance', n: 3 }],
     up: { text: 'Spill your lantern: gain 4 Ward for each Ember spent. Kindle.', effects: [{ kind: 'special', id: 'emberdance', n: 4 }] },
   },
   shardstorm: {
     name: 'Shardstorm', type: 'attack', rarity: 'rare', cost: 3, target: 'allEnemies',
+    vfx: 'pierce',
     locked: 'hundredShards',
     text: 'Deal @5@ damage to ALL enemies twice.',
     effects: [{ kind: 'dmg', n: 5, times: 2 }],
@@ -429,15 +486,18 @@ export const CARDS = {
   // ---- statuses / curses
   wound: {
     name: 'Shard', type: 'status', rarity: 'special', cost: null, target: 'none',
+    vfx: 'pierce',
     text: 'Unplayable. Broken glass rattling in your deck.', unplayable: true, effects: [],
   },
   burn: {
     name: 'Cinder', type: 'status', rarity: 'special', cost: null, target: 'none',
+    vfx: 'fire',
     text: 'Unplayable. At the end of your turn, take 2 damage if this is in your hand.',
     unplayable: true, endTurnDmg: 2, effects: [],
   },
   hex: {
     name: 'Hex', type: 'curse', rarity: 'special', cost: null, target: 'none',
+    vfx: 'void',
     text: 'Unplayable. At the end of your turn, lose 1 HP if this is in your hand. Refuses the fire.',
     unplayable: true, endTurnLoseHp: 1, effects: [],
   },
