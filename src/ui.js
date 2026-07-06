@@ -25,6 +25,9 @@ function el(tag, cls = '', html = '') {
   if (html) e.innerHTML = html;
   return e;
 }
+const escHtml = (s) => String(s).replace(/[&<>"']/g, (ch) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+}[ch]));
 
 // generated raster asset if it exists, procedural SVG otherwise
 const rasterOr = (cat, id, svg) => {
@@ -2371,7 +2374,39 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
 
 // ------------------------------------------------------------ dev asset gallery (?gallery=1)
 // contact sheet of every visual id: raster where generated, SVG fallback otherwise. QA gate.
+let galleryLightboxWired = false;
+function wireGalleryLightbox() {
+  if (galleryLightboxWired) return;
+  galleryLightboxWired = true;
+  const ov = $('#overlay');
+  ov.addEventListener('pointerdown', (e) => {
+    if (e.target === ov && ov._closable) closeOverlay();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && ov.classList.contains('open') && ov._closable) closeOverlay();
+  });
+}
+function openGalleryLightbox(trigger, gallerySet) {
+  const cat = trigger.dataset.cat || '';
+  const id = trigger.dataset.id || '';
+  const url = trigger.dataset.url || '';
+  const art = trigger.querySelector('.g-art-stage');
+  const title = `${id} / ${cat}`;
+  const svg = art?.querySelector('svg');
+  const svgUrl = svg ? `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg.outerHTML)}` : '';
+  const artHtml = url
+    ? `<img class="gallery-lightbox-img" src="${escHtml(url)}" alt="${escHtml(id)}">`
+    : (svgUrl ? `<img class="gallery-lightbox-img" src="${escHtml(svgUrl)}" alt="${escHtml(id)}">` : (art ? art.innerHTML : ''));
+  openOverlay(`<div class="gallery-lightbox" role="dialog" aria-modal="true" aria-label="${escHtml(title)}">
+    <button class="gallery-lightbox-close" type="button" data-a="close" aria-label="Close">&times;</button>
+    <div class="gallery-lightbox-meta"><b>${escHtml(id)}</b><span>${escHtml(cat)} - ${escHtml(assetSetLabel(gallerySet))}</span></div>
+    <div class="gallery-lightbox-art">${artHtml}</div>
+  </div>`, (root) => {
+    $('[data-a="close"]', root).onclick = () => closeOverlay();
+  }, true);
+}
 function renderGallery() {
+  wireGalleryLightbox();
   const params = new URLSearchParams(location.search);
   const requestedSet = params.get('set') || params.get('assetSet') || 'live';
   const gallerySet = assetSetIds().includes(requestedSet) ? requestedSet : 'live';
@@ -2399,10 +2434,15 @@ function renderGallery() {
     return `<h2 class="g-head">${cat} — ${done}/${items.length} generated</h2>
       <div class="gallery">${items.map(([id, svg]) => {
         const u = assetUrl(cat, id, gallerySet);
-        return `<div class="g-cell ${u ? 'g-png' : 'g-svg'}"><div class="g-art">${u ? `<img class="raster-art" src="${u}" alt="">` : svg()}</div>
-          <div class="g-label">${id}<span class="g-badge">${u ? 'PNG' : 'SVG'}</span></div></div>`;
+        return `<div class="g-cell ${u ? 'g-png' : 'g-svg'}"><button class="g-art g-open" type="button" data-cat="${escHtml(cat)}" data-id="${escHtml(id)}" data-url="${u ? escHtml(u) : ''}" aria-label="Enlarge ${escHtml(id)}"><span class="g-art-stage">${u ? `<img class="raster-art" src="${escHtml(u)}" alt="">` : svg()}</span></button>
+          <div class="g-label">${escHtml(id)}<span class="g-badge">${u ? 'PNG' : 'SVG'}</span></div></div>`;
       }).join('')}</div>`;
   }).join('');
+  screenEl().onclick = (e) => {
+    const trigger = e.target.closest('.g-open');
+    if (!trigger) return;
+    openGalleryLightbox(trigger, gallerySet);
+  };
 }
 
 // ------------------------------------------------------------ boot
