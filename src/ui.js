@@ -38,6 +38,11 @@ const relicArt = (rid, size = 22) => {
   const u = assetUrl('relics', rid);
   return u ? `<img class="raster-art relic-art" src="${u}" alt="" style="width:${size}px;height:${size}px">` : (RELICS[rid]?.glyph || '◈');
 };
+// HUD relic bar: painted prop only — no glass chip frame (the PNG carries the read)
+const hudRelic = (rid) => {
+  const u = assetUrl('relics', rid);
+  return u ? `<img class="relic-art hud-relic-art" src="${u}" alt="">` : `<span class="hud-relic-fallback">${RELICS[rid]?.glyph || '◈'}</span>`;
+};
 const heroArt = (i) => {
   const u = assetUrl('heroes', ASPECTS[i].id);
   return u ? `<img class="raster-art" src="${u}" alt="">` : heroSvg(i);
@@ -222,7 +227,7 @@ function renderHud() {
         <div class="hud-stat">${iconSvg('heart', 14)} <span class="hp-num">${hp} / ${p.maxHp}</span></div>
         <div class="hud-hpbar"><div style="width:${(100 * hp) / p.maxHp}%"></div></div>
       </div>
-      <div class="hud-stat"><span style="color:var(--gold)">¤</span> <span class="gold-num">${p.gold}</span></div>
+      <div class="hud-stat">${iconSvg('coin', 14)} <span class="gold-num">${p.gold}</span></div>
       <div class="hud-mid"><b>${act.name.toUpperCase()}</b> &nbsp;·&nbsp; Act ${S.run.act + 1} &nbsp;·&nbsp; Floor ${S.run.floorsClimbed} &nbsp;·&nbsp; ${act.bossName}</div>
       <div class="hud-right">
         ${p.potions.map((id, i) => `<button class="potion-slot ${id ? 'full' : ''}" data-slot="${i}">${id ? rasterOr('potions', id, potionSvg(POTIONS[id].tone)) : ''}</button>`).join('')}
@@ -242,7 +247,7 @@ function renderHud() {
   }
   for (const rid of p.relics) {
     const r = RELICS[rid];
-    const chip = el('div', 'relic-chip', relicArt(rid, 20));
+    const chip = el('div', 'hud-relic', hudRelic(rid));
     chip.style.setProperty('--tone', r.tone);
     chip.dataset.relic = rid;
     chip._tip = { title: r.name, body: r.text, sub: r.rarity };
@@ -717,7 +722,7 @@ function enterNode(node) {
     sfx.coin();
     const g = $(`.mnode[data-node="${node.id}"]`);
     const from = g ? (() => { const r = g.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })() : { x: innerWidth / 2, y: innerHeight / 2 };
-    V.floatText(from.x, from.y - 34, `+${bounty} ¤`, 'goldf');
+    V.floatText(from.x, from.y - 34, `${iconSvg('coin', 12)} +${bounty}`, 'goldf');
     flyTo(from.x, from.y, 120, 30, { n: 5, color: '#ffe9ac', size: 7, dur: 620 });
   }
   if (type === 'monster' || type === 'elite' || type === 'boss') {
@@ -867,7 +872,7 @@ function renderCombat() {
   S.ce = ce;
   rigCombatants();
   scheduleMeshBind();
-  // drop the intro class once entrances finish so .acting doesn't retrigger them
+  // drop the intro class once entrances finish so intro animations don't retrigger
   setTimeout(() => ce.root.classList.remove('intro'), 1300);
   ce.endTurn.onclick = onEndTurn;
   ce.draw.onclick = () => { sfx.click(); showCardGrid('Draw Pile', cb.draw, { sub: 'Order hidden — shown alphabetically', inCombat: true }); };
@@ -1463,7 +1468,7 @@ function rigTick(t) {
     // inner fire: flares on the windup, blazes with Strength, gutters as HP falls
     const hpFrac = Math.max(0, unit.hp) / unit.maxHp;
     let f = 0.45 + 0.55 * hpFrac;
-    if (it.root.classList.contains(it.isHero ? 'lunge' : 'acting')) f += 1.1;
+    if (it.root.dataset.choreo === 'attack') f += 1.1;
     if ((unit.statuses?.str || 0) > 0) f += 0.3;
     const flick = 0.86 + 0.14 * Math.sin(t * 0.006 + it.seed) * Math.sin(t * 0.0021 + it.seed * 3);
     if (it.fire) it.fire.style.opacity = Math.min(0.55, (0.05 + 0.13 * f) * flick).toFixed(3);
@@ -1506,7 +1511,10 @@ function choreoAttack(el, dir = 1, kind = 'humanoid') {
     { transform: `translateX(${34 * dir}px) scale(1.02,0.99)`, offset: 0.62 },
     { transform: 'translateX(0) scale(1,1)' },
   ];
-  return el.animate(kf, { duration: heavy ? 420 : floaty ? 380 : 330, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }).finished.catch(() => {});
+  el.dataset.choreo = 'attack';
+  return el.animate(kf, { duration: heavy ? 420 : floaty ? 380 : 330, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }).finished
+    .finally(() => { delete el.dataset.choreo; })
+    .catch(() => {});
 }
 function choreoHit(el, dir = 1) {
   if (CHOREO_REDUCED || !el) return;
@@ -1918,7 +1926,7 @@ async function handleEvent(ev, targetIdx) {
       break;
     }
     case 'relicProc': {
-      const chip = $(`.relic-chip[data-relic="${ev.id}"]`);
+      const chip = $(`.hud-relic[data-relic="${ev.id}"]`);
       if (chip) { chip.classList.remove('proc'); void chip.offsetWidth; chip.classList.add('proc'); }
       await sleep(90);
       break;
@@ -2018,7 +2026,7 @@ function renderReward({ kind, rewards }) {
     list.appendChild(row);
     return row;
   };
-  addRow('¤', `<b class="gold-num">${rewards.gold}</b> gold`, () => {
+  addRow(iconSvg('coin', 18), `<b class="gold-num">${rewards.gold}</b> gold`, () => {
     run.player.gold += rewards.gold;
     run.stats.goldEarned += rewards.gold;
     sfx.coin();
@@ -2050,7 +2058,7 @@ function renderReward({ kind, rewards }) {
       sfx.relic();
       // the relic takes its seat on the bar
       requestAnimationFrame(() => {
-        const chip = $(`.relic-chip[data-relic="${rewards.relic}"]`);
+        const chip = $(`.hud-relic[data-relic="${rewards.relic}"]`);
         if (!chip) return;
         const to = V.centerOf(chip);
         flyTo(innerWidth / 2, innerHeight / 2 - 40, to.x, to.y, {
@@ -2249,7 +2257,7 @@ function renderShop() {
         buy(it.price);
       };
       wrap.appendChild(c);
-      wrap.appendChild(el('div', 'price', `¤ ${it.price}`));
+      wrap.appendChild(el('div', 'price', `${iconSvg('coin', 14)} ${it.price}`));
       cardsRow.appendChild(wrap);
     }
     for (const it of st.relics) {
@@ -2264,7 +2272,7 @@ function renderShop() {
         buy(it.price);
       };
       wrap.appendChild(b);
-      wrap.appendChild(el('div', 'price', `¤ ${it.price}`));
+      wrap.appendChild(el('div', 'price', `${iconSvg('coin', 14)} ${it.price}`));
       miscRow.appendChild(wrap);
     }
     for (const it of st.potions) {
@@ -2279,7 +2287,7 @@ function renderShop() {
         buy(it.price);
       };
       wrap.appendChild(b);
-      wrap.appendChild(el('div', 'price', `¤ ${it.price}`));
+      wrap.appendChild(el('div', 'price', `${iconSvg('coin', 14)} ${it.price}`));
       miscRow.appendChild(wrap);
     }
     // card removal service
@@ -2303,7 +2311,7 @@ function renderShop() {
       });
     };
     wrap.appendChild(b);
-    wrap.appendChild(el('div', 'price', `¤ ${st.removeCost}`));
+    wrap.appendChild(el('div', 'price', `${iconSvg('coin', 14)} ${st.removeCost}`));
     miscRow.appendChild(wrap);
     shopSeeded = true;
   }
@@ -2372,7 +2380,7 @@ function renderEvent(eventId) {
 function bequestLabel(o) {
   if (o.kind === 'relic') return { icon: relicArt(o.id, 20), name: RELICS[o.id]?.name || o.id, note: 'your rarest relic' };
   if (o.kind === 'card') return { icon: '🂠', name: (CARDS[o.id]?.name || o.id) + (o.up ? '+' : ''), note: 'your finest card' };
-  return { icon: '¤', name: `${o.amount} gold`, note: 'a cache of gold' };
+  return { icon: iconSvg('coin', 20), name: `${o.amount} gold`, note: 'a cache of gold' };
 }
 function unlockToastInfo(u) {
   if (u === 'aspect2') return { kind: 'Aspect Unlocked', name: 'The Ashwarden' };

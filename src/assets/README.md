@@ -1,11 +1,11 @@
 # Live Asset Set
 
-Live silhouette-first Spirebound raster style, promoted from the readable
-baseline set on 2026-07-06.
+Live silhouette-first Spirebound raster style. The current live card art was
+promoted from the approved GPT -> Nano Pass card set on 2026-07-06; the previous
+live card PNGs now live in `src/assets-legacy/cards/`.
 
 Normal gameplay selects this folder through the `live` asset set in
-`src/art.js`. The previous live set now lives in `src/assets-legacy/` for
-gallery comparison.
+`src/art.js`. The only gallery sets are `live` and `legacy`.
 
 Council-approved live assets:
 
@@ -45,66 +45,66 @@ Council-approved live assets:
 - `potions/fire.png`
 - `potions/venom.png`
 - `potions/energy.png`
-- `cards/strike.png`
-- `cards/defend.png`
-- `cards/empower.png`
-- `cards/eclipseSlash.png`
-- `cards/chisel.png`
-- `cards/firstSpark.png`
-- `cards/ashBite.png`
-- `cards/smother.png`
-- `cards/twinFangs.png`
-- `cards/quickSlash.png`
-- `cards/heavyBlow.png`
-- `cards/cleave.png`
-- `cards/venomStrike.png`
-- `cards/lunge.png`
-- `cards/guardedStrike.png`
-- `cards/brace.png`
-- `cards/sidestep.png`
-- `cards/preparation.png`
-- `cards/deflect.png`
-- `cards/leechBlade.png`
-- `cards/tempest.png`
-- `cards/uppercut.png`
-- `cards/flurry.png`
-- `cards/executioner.png`
-- `cards/momentum.png`
-- `cards/toxicMist.png`
-- `cards/cripple.png`
-- `cards/warCry.png`
-- `cards/quakeblow.png`
-- `cards/ashenChoir.png`
-- `cards/resonantLance.png`
-- `cards/bulwark.png`
-- `cards/surge.png`
-- `cards/fortify.png`
-- `cards/bloodRite.png`
-- `cards/agility.png`
-- `cards/ironSkin.png`
-- `cards/regrowth.png`
-- `cards/tithe.png`
-- `cards/nightSight.png`
-- `cards/emberdance.png`
-- `cards/oblivionStrike.png`
-- `cards/phantomBlades.png`
-- `cards/devour.png`
-- `cards/annihilate.png`
-- `cards/aegis.png`
-- `cards/offering.png`
-- `cards/limitBreak.png`
-- `cards/catalyst.png`
-- `cards/ascension.png`
-- `cards/bastion.png`
-- `cards/frenzy.png`
-- `cards/virulence.png`
-- `cards/pyreheart.png`
-- `cards/flawlessForm.png`
-- `cards/novaflare.png`
-- `cards/shardstorm.png`
-- `cards/wound.png`
-- `cards/burn.png`
-- `cards/hex.png`
+- `cards/strike.jpg`
+- `cards/defend.jpg`
+- `cards/empower.jpg`
+- `cards/eclipseSlash.jpg`
+- `cards/chisel.jpg`
+- `cards/firstSpark.jpg`
+- `cards/ashBite.jpg`
+- `cards/smother.jpg`
+- `cards/twinFangs.jpg`
+- `cards/quickSlash.jpg`
+- `cards/heavyBlow.jpg`
+- `cards/cleave.jpg`
+- `cards/venomStrike.jpg`
+- `cards/lunge.jpg`
+- `cards/guardedStrike.jpg`
+- `cards/brace.jpg`
+- `cards/sidestep.jpg`
+- `cards/preparation.jpg`
+- `cards/deflect.jpg`
+- `cards/leechBlade.jpg`
+- `cards/tempest.jpg`
+- `cards/uppercut.jpg`
+- `cards/flurry.jpg`
+- `cards/executioner.jpg`
+- `cards/momentum.jpg`
+- `cards/toxicMist.jpg`
+- `cards/cripple.jpg`
+- `cards/warCry.jpg`
+- `cards/quakeblow.jpg`
+- `cards/ashenChoir.jpg`
+- `cards/resonantLance.jpg`
+- `cards/bulwark.jpg`
+- `cards/surge.jpg`
+- `cards/fortify.jpg`
+- `cards/bloodRite.jpg`
+- `cards/agility.jpg`
+- `cards/ironSkin.jpg`
+- `cards/regrowth.jpg`
+- `cards/tithe.jpg`
+- `cards/nightSight.jpg`
+- `cards/emberdance.jpg`
+- `cards/oblivionStrike.jpg`
+- `cards/phantomBlades.jpg`
+- `cards/devour.jpg`
+- `cards/annihilate.jpg`
+- `cards/aegis.jpg`
+- `cards/offering.jpg`
+- `cards/limitBreak.jpg`
+- `cards/catalyst.jpg`
+- `cards/ascension.jpg`
+- `cards/bastion.jpg`
+- `cards/frenzy.jpg`
+- `cards/virulence.jpg`
+- `cards/pyreheart.jpg`
+- `cards/flawlessForm.jpg`
+- `cards/novaflare.jpg`
+- `cards/shardstorm.jpg`
+- `cards/wound.jpg`
+- `cards/burn.jpg`
+- `cards/hex.jpg`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -138,6 +138,11 @@ Asset source decisions:
 - `enemies/tidecaller.png`, `enemies/shellback.png`, and
   `enemies/deepmaw.png` use the approved Act 2 batch 2 gpt-image-2 framed
   candidates. Nano Banana Pro comparisons remain in scratch only.
+- `cards/*.jpg` use the approved GPT -> Nano Pass image-to-image outputs. The
+  active live card files are direct copies of the accepted Nano source outputs;
+  the previous live card PNGs are retained in `src/assets-legacy/cards/`.
+  Prompt ledgers and superseded comparison evidence remain in
+  `scratch/style-tests/`.
 - `enemies/abyssalKnight.png`, `enemies/siren.png`, and
   `enemies/leviathan.png` use the approved Act 2 finale drift-correction
   gpt-image-2 framed candidates: Abyssal Knight v3, Siren v3, and
@@ -170,157 +175,157 @@ Asset source decisions:
   Gen flat `#ff00ff` chroma-key sources, local chroma-key alpha removal, and
   final 256 x 256 potion-icon normalisation. The approved direction is fat,
   chunky, saturated, low-stroke stained-glass phials for HUD readability.
-- `cards/strike.png`, `cards/defend.png`, and `cards/empower.png` are the
+- `cards/strike.jpg`, `cards/defend.jpg`, and `cards/empower.jpg` are the
   approved first card-art milestone from the 60-card production sort in
   `docs/card-art-bible.md`. Earlier badge-style cards were rejected because
   they looked like floating emblems rather than card art. The approved
   candidates use built-in Image Gen full-bleed rectangular scene sources with
   strong foreground/background separation, normalised to `800 x 500`.
-- `cards/eclipseSlash.png`, `cards/chisel.png`, and `cards/firstSpark.png` are
+- `cards/eclipseSlash.jpg`, `cards/chisel.jpg`, and `cards/firstSpark.jpg` are
   approved card production batch 01. They continue the rectangular scene rule
   and are recorded in `scratch/style-tests/card-production-batch-01-20260706/`.
-- `cards/ashBite.png`, `cards/smother.png`, and `cards/twinFangs.png` are
+- `cards/ashBite.jpg`, `cards/smother.jpg`, and `cards/twinFangs.jpg` are
   approved card production batch 02 generated sources. Earlier sources were
   rejected because they were too dark, and a local brightness lift was rejected
   because post-processing changed the contrast language. The approved files use
-  regenerated source art directly; the gallery PNGs are byte-for-byte copies of
+  regenerated source art directly; the gallery files are byte-for-byte copies of
   the approved generated sources. They are recorded in
   `scratch/style-tests/card-production-batch-02-20260706/`.
-- `cards/quickSlash.png`, `cards/heavyBlow.png`, and `cards/cleave.png` are
+- `cards/quickSlash.jpg`, `cards/heavyBlow.jpg`, and `cards/cleave.jpg` are
   approved card production batch 03 generated sources. `quickSlash` v1 was
   rejected for drifting too close to `strike`; the approved v2 keeps the single
   rising card pane and compact slash. `heavyBlow` locks the blunt quarry-maul
   silhouette, and `cleave` locks the all-enemies three-shard fan without
-  drifting into `shardstorm`. Final gallery PNGs are byte-for-byte copies of
+  drifting into `shardstorm`. Final gallery files are byte-for-byte copies of
   the approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-03-20260706/`.
-- `cards/venomStrike.png`, `cards/lunge.png`, and
-  `cards/guardedStrike.png` are approved card production batch 04 generated
+- `cards/venomStrike.jpg`, `cards/lunge.jpg`, and
+  `cards/guardedStrike.jpg` are approved card production batch 04 generated
   sources. `venomStrike` v1 was rejected for busy micro-pane drift; the
   approved v2 uses one oversized hooked fang and broad Smolder ribbons.
   `lunge` locks the horizontal Dimmed cut against a single fading blue flame,
   and `guardedStrike` locks the attack-first red blade emerging from a
-  secondary half-blue ward. Final gallery PNGs are byte-for-byte copies of the
+  secondary half-blue ward. Final gallery files are byte-for-byte copies of the
   approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-04-20260706/`.
-- `cards/brace.png`, `cards/sidestep.png`, and `cards/preparation.png` are
+- `cards/brace.jpg`, `cards/sidestep.jpg`, and `cards/preparation.jpg` are
   approved card production batch 05 generated sources. `brace` v1 was rejected
   for an over-ceremonial ward; the approved v2 keeps the common-skill crouched
   figure, amber lantern, and simple crescent ward. `sidestep` locks the blue
   glass step, missed red strike, and secondary rising card pane. `preparation`
   locks the quiet pre-ignition stack of blue panes and one tiny unlit match.
-  Final gallery PNGs are byte-for-byte copies of the approved generated
+  Final gallery files are byte-for-byte copies of the approved generated
   sources and are recorded in
   `scratch/style-tests/card-production-batch-05-20260706/`.
-- `cards/deflect.png`, `cards/leechBlade.png`, and `cards/tempest.png` are
+- `cards/deflect.jpg`, `cards/leechBlade.jpg`, and `cards/tempest.jpg` are
   approved card production batch 06 generated sources. `deflect` v1 was
   rejected because the red ray read too straight; the approved v2 locks the
   incoming ray, contact point, and separate outgoing refraction segment.
   `leechBlade` v1 was rejected because the heal cue was too small; the approved
   v2 locks one crimson blade, one dark oil bead, and one green-gold repair
   seam. `tempest` locks the pale hailglass ring, small crimson storm core, and
-  three struck panes. Final gallery PNGs are byte-for-byte copies of the
+  three struck panes. Final gallery files are byte-for-byte copies of the
   approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-06-20260706/`.
-- `cards/uppercut.png`, `cards/flurry.png`, and `cards/executioner.png` are
+- `cards/uppercut.jpg`, `cards/flurry.jpg`, and `cards/executioner.jpg` are
   approved card production batch 07 generated sources. `uppercut` locks the
   upward fist, bell-shaped enemy pane, two sound rings, and small guttering blue
   flame. `flurry` locks exactly three red arcs around one central target chip.
   `executioner` locks one vertical black-red blade aligned with one bright
-  existing faultline. Final gallery PNGs are byte-for-byte copies of the
+  existing faultline. Final gallery files are byte-for-byte copies of the
   approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-07-20260706/`.
-- `cards/momentum.png`, `cards/toxicMist.png`, and `cards/cripple.png` are
+- `cards/momentum.jpg`, `cards/toxicMist.jpg`, and `cards/cripple.jpg` are
   approved card production batch 08 generated sources. `momentum` locks the
   crimson blade, amber whetstone arc, and two growing echo arcs. `toxicMist`
   locks a wide green-grey Smolder cloud swallowing three separated target
   shards. `cripple` locks a sapphire snuffer ring compressing a guttering red
   enemy flame, with one tiny ember bead as the secondary Kindle cue. Final
-  gallery PNGs are byte-for-byte copies of the approved generated sources and
+  gallery files are byte-for-byte copies of the approved generated sources and
   are recorded in `scratch/style-tests/card-production-batch-08-20260706/`.
-- `cards/warCry.png`, `cards/quakeblow.png`, and `cards/ashenChoir.png` are
+- `cards/warCry.jpg`, `cards/quakeblow.jpg`, and `cards/ashenChoir.jpg` are
   approved card production batch 09 generated sources. `warCry` locks the
   blue-violet sonic wave crossing three cracked enemy panes. `quakeblow` locks
   the stone-red gauntlet, single amber floor fault, and right-side enemy pane.
   `ashenChoir` locks three directed Smolder streams converging into one coal.
-  Final gallery PNGs are byte-for-byte copies of the approved generated sources
+  Final gallery files are byte-for-byte copies of the approved generated sources
   and are recorded in `scratch/style-tests/card-production-batch-09-20260706/`.
-- `cards/resonantLance.png`, `cards/bulwark.png`, and `cards/surge.png` are
+- `cards/resonantLance.jpg`, `cards/bulwark.jpg`, and `cards/surge.jpg` are
   approved card production batch 10 generated sources. `resonantLance` locks a
   physical gold-red lance, two ghost vibration edges, and three broad resonance
   rings. `bulwark` locks a massive layered blue wall with thick buttresses and
   a small protected figure. `surge` locks the horizontal match flare and row of
-  waking blue card panes. Final gallery PNGs are byte-for-byte copies of the
+  waking blue card panes. Final gallery files are byte-for-byte copies of the
   approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-10-20260706/`.
-- `cards/fortify.png`, `cards/bloodRite.png`, and `cards/agility.png` are
+- `cards/fortify.jpg`, `cards/bloodRite.jpg`, and `cards/agility.jpg` are
   approved card production batch 11 generated sources. `fortify` locks the
   central amber lantern and two mirrored Ward panes. `bloodRite` locks the
   black glove, single oxblood oil drop, and lantern reservoir with two amber
   flames. `agility` locks the still figure on a blue glass point with paired
-  cyan Poise arcs. Final gallery PNGs are byte-for-byte copies of the approved
+  cyan Poise arcs. Final gallery files are byte-for-byte copies of the approved
   generated sources and are recorded in
   `scratch/style-tests/card-production-batch-11-20260706/`.
-- `cards/ironSkin.png`, `cards/regrowth.png`, and `cards/tithe.png` are
+- `cards/ironSkin.jpg`, `cards/regrowth.jpg`, and `cards/tithe.jpg` are
   approved card production batch 12 generated sources. `ironSkin` locks the
   iron-blue body plating and cyan seams. `regrowth` locks the green repair
   vine growing through a cracked blue pane. `tithe` locks the counted amber
   beads, shallow bowl, and rising blue card pane as measured ember economy.
-  Final gallery PNGs are byte-for-byte copies of the approved generated
+  Final gallery files are byte-for-byte copies of the approved generated
   sources and are recorded in
   `scratch/style-tests/card-production-batch-12-20260706/`.
-- `cards/nightSight.png`, `cards/emberdance.png`, and
-  `cards/oblivionStrike.png` are approved card production batch 13 generated
+- `cards/nightSight.jpg`, `cards/emberdance.jpg`, and
+  `cards/oblivionStrike.jpg` are approved card production batch 13 generated
   sources. `nightSight` locks the blue eye-lantern revealing one hidden target.
   `emberdance` locks the lit footwork arcs and ember trail without becoming a
   shield wall. `oblivionStrike` locks the single red-black strike through a
-  rose-window target. Final gallery PNGs are byte-for-byte copies of the
+  rose-window target. Final gallery files are byte-for-byte copies of the
   approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-13-20260706/`.
-- `cards/phantomBlades.png`, `cards/devour.png`, and
-  `cards/annihilate.png` are approved card production batch 14 generated
+- `cards/phantomBlades.jpg`, `cards/devour.jpg`, and
+  `cards/annihilate.jpg` are approved card production batch 14 generated
   sources. `phantomBlades` locks one opaque crimson blade and exactly three
   translucent echoes. `devour` locks the black lantern-maw, one ember card, and
   one flame stream without drifting into offering or bodily-cost imagery.
   `annihilate` locks one crimson funeral wave crossing three target panes, with
-  Smolder kept as fracture light. Final gallery PNGs are byte-for-byte copies
+  Smolder kept as fracture light. Final gallery files are byte-for-byte copies
   of the approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-14-20260706/`.
-- `cards/aegis.png`, `cards/offering.png`, and `cards/limitBreak.png` are
+- `cards/aegis.jpg`, `cards/offering.jpg`, and `cards/limitBreak.jpg` are
   approved card production batch 15 generated sources. `aegis` locks the vast
   blue rose-window shield over a small protected Duskblade. `offering` locks
   the black gloved hand, tall amber pyre, dissolving blue panes, and fresh side
   panes. `limitBreak` locks the central furnace ring, one lower burning card,
-  and three cracked enemy panes. Final gallery PNGs are byte-for-byte copies of
+  and three cracked enemy panes. Final gallery files are byte-for-byte copies of
   the approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-15-20260706/`.
-- `cards/catalyst.png`, `cards/ascension.png`, and `cards/bastion.png` are
+- `cards/catalyst.jpg`, `cards/ascension.jpg`, and `cards/bastion.jpg` are
   approved card production batch 16 generated sources. `catalyst` locks the
   bellows-to-one-coal Smolder amplification. `ascension` locks the still figure
   under a vertical violet-gold vow stack. `bastion` locks the permanent
-  blue-gold fortress shell around a lantern core. Final gallery PNGs are
+  blue-gold fortress shell around a lantern core. Final gallery files are
   byte-for-byte copies of the approved generated sources and are recorded in
   `scratch/style-tests/card-production-batch-16-20260706/`.
-- `cards/frenzy.png`, `cards/virulence.png`, and `cards/pyreheart.png` are
+- `cards/frenzy.jpg`, `cards/virulence.jpg`, and `cards/pyreheart.jpg` are
   approved card production batch 17 generated sources. `frenzy` locks the
   hunched overhot heart, broad torso cracks, and reigniting candles.
   `virulence` locks the still low-blade figure with a green-orange fanged wrist
   aura. `pyreheart` locks the calm furnace-heart and counted ember orbit. Final
-  gallery PNGs are byte-for-byte copies of the approved generated sources and
+  gallery files are byte-for-byte copies of the approved generated sources and
   are recorded in `scratch/style-tests/card-production-batch-17-20260706/`.
-- `cards/flawlessForm.png`, `cards/novaflare.png`, and
-  `cards/shardstorm.png` are approved card production batch 18 generated
+- `cards/flawlessForm.jpg`, `cards/novaflare.jpg`, and
+  `cards/shardstorm.jpg` are approved card production batch 18 generated
   sources. `flawlessForm` locks the uncracked mirror body with tight cyan aura.
   `novaflare` locks the lantern-to-one-enemy contained nova blast.
   `shardstorm` locks the dark central eye, large shard ring, and multiple outer
-  enemy panes. Final gallery PNGs are byte-for-byte copies of the approved
+  enemy panes. Final gallery files are byte-for-byte copies of the approved
   generated sources and are recorded in
   `scratch/style-tests/card-production-batch-18-20260706/`.
-- `cards/wound.png`, `cards/burn.png`, and `cards/hex.png` are approved card
+- `cards/wound.jpg`, `cards/burn.jpg`, and `cards/hex.jpg` are approved card
   production batch 19 generated sources. `wound` locks the cold heavy lodged
   shard. `burn` locks the scorched dead pane with one contained cinder corner.
   `hex` locks the trapped purple-black curse window and failed burn sparks.
-  Final gallery PNGs are byte-for-byte copies of the approved generated
+  Final gallery files are byte-for-byte copies of the approved generated
   sources and are recorded in
   `scratch/style-tests/card-production-batch-19-20260706/`.
 - The nine approved card images from `strike` through `twinFangs` are the
@@ -364,12 +369,11 @@ Prompt decision:
 Enemy and hero assets are runtime-ready PNGs normalised to a maximum edge of
 1024px with alpha preserved. Event assets are full-background rectangular scene
 PNGs normalised to max edge 1024 px. Potion assets are normalised to 256 x 256
-with alpha preserved. Card assets are full-bleed rectangular PNGs. From batch
-02 onward, approved gallery card PNGs must be byte-for-byte copies of their
-approved generated sources; if a source is too dark, poorly framed, or the
+with alpha preserved. Card assets are full-bleed rectangular JPGs promoted from
+the GPT -> Nano Pass image-to-image set. The live card files must remain direct
+accepted source outputs; if a card source is too dark, poorly framed, or the
 wrong ratio, fix colour, theme, light, and composition in the prompt and
-regenerate instead of post-processing it. Source and review
-artefacts remain in
+regenerate instead of post-processing it. Source and review artefacts remain in
 `scratch/style-tests/design-council-20260705-readable-style/`; potion source,
 alpha, prompts, and contact sheets remain in
 `scratch/potion-demos/20260706-current-seven-r1/`; card source, prompts, and
@@ -411,13 +415,19 @@ Gallery cleanup:
   folders, exact prompts, generated ids, alpha outputs, and contact sheets are
   retained as evidence.
 
-Promotion completed on 2026-07-06 with this folder swap:
+The full readable-baseline promotion completed on 2026-07-06 with this folder
+swap:
 
 ```bash
 mv src/assets src/assets-legacy
 mv src/assets-readable-baseline src/assets
 npm run build
 ```
+
+The later card-only promotion on 2026-07-06 copied the existing live cards to
+`src/assets-legacy/cards/`, promoted accepted GPT -> Nano Pass card JPGs into
+`src/assets/cards/`, and removed the temporary `nano-banana` and
+`gpt-nano-pass` runtime gallery sets.
 
 For review, open the live and legacy galleries with:
 

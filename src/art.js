@@ -5,8 +5,6 @@ const ASSET_URLS = import.meta.glob(['./assets*/*/*.png', './assets*/*/*.jpg', '
 const ASSET_EXTS = ['png', 'jpg', 'jpeg', 'webp'];
 export const ASSET_SETS = {
   live: { label: 'Live', root: 'assets' },
-  'nano-banana': { label: 'Nano Banana Pro', root: 'assets-nano-banana' },
-  'gpt-nano-pass': { label: 'GPT -> Nano Pass', root: 'assets-gpt-nano-pass' },
   legacy: { label: 'Legacy', root: 'assets-legacy' },
 };
 const DEFAULT_ASSET_SET = 'live';

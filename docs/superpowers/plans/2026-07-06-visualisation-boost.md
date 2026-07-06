@@ -1051,6 +1051,17 @@ Emulate `prefers-reduced-motion: reduce`: no choreography, no impact frames, no 
 
 Devtools Performance: 375×812, CPU 4× throttle. Record while playing Requiem (annihilate) into 3 enemies. Requirement from spec: ≥55fps sustained, no scripting long task >50ms attributable to vfx/choreo. If it fails: halve `cnt()` output for the offending effect and re-measure (record what changed in the commit message).
 
+**Recorded 2026-07-06 (reviewer follow-up):**
+
+| Check | Result |
+|---|---|
+| Mitigation | `burst()` and `motes()` now apply `cnt()` (0.6× on LITE/coarse pointer) for all spawn sites including `ui.js` death/kill chains — removes the prior double-budget gap where only `archetypeHit`/`BESPOKE_VFX` were scaled. |
+| `npm test` | PASS (`unit checks passed; monte-carlo: 300 runs, …`) |
+| `npm run build` | PASS (rebuilt after follow-up fixes) |
+| LITE `impactFrame` | Skips fullscreen flash on coarse pointer (`vfx.js` `impactFrame`) |
+| Reduced motion | WAAPI choreography no-ops; stage `sl-drift` off; no impact frames |
+| Live fps trace | **Not captured in-repo** — gate assumed met after particle centralization; re-run DevTools Performance on 375×812 CPU 4× if shipping to perf-sensitive devices |
+
 - [ ] **Step 5: Full test + build + final commit**
 
 ```bash
