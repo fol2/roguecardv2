@@ -476,6 +476,7 @@ const ICONS = {
   stagger: `<path d="M12 2.8 L13.8 8.6 L19.8 7 L15.6 11.6 L21 14.8 L14.6 14.9 L15.8 21 L11.9 16.2 L8 21 L9.2 14.9 L3 14.8 L8.4 11.6 L4.2 7 L10.2 8.6 Z" fill="currentColor" stroke="none"/>`,
   unlitLantern: `<path d="M9 6.2 h6 M8 6.2 L8 15.6 a4 3 0 0 0 8 0 V6.2" fill="none" stroke-width="2" opacity=".65"/><path d="M10.6 3.6 h2.8 v2.6 h-2.8 Z M10 19.8 h4" stroke-width="1.8" opacity=".65"/><path d="M10 10 L14 14 M14 10 L10 14" stroke-width="1.6" opacity=".8"/>`,
   monument: `<path d="M9.5 20 L10.2 6.5 L12 3.4 L13.8 6.5 L14.5 20 Z" fill="currentColor" stroke="none"/><path d="M6 20.6 h12" stroke-width="2.2"/><path d="M12 8.6 c-1.2 1.6-1.2 2.7 0 3.8 1.2-1.1 1.2-2.2 0-3.8 Z" fill="rgba(0,0,0,.55)" stroke="none"/>`,
+  heart: `<path d="M12 6.4 C9.4 3.6 5.2 5.6 5.2 9.4 a4.8 4.8 0 0 0 7 4.2 4.8 4.8 0 0 0 7-4.2 C19.2 5.6 15 3.6 12 6.4 Z" fill="currentColor" stroke="none"/>`,
   // --- status (st-*) ---
   'st-str': `<path d="M12 3 C9 8 7 10 7 13.6 a5 5 0 0 0 10 0 C17 10 15 8 12 3 Z" fill="currentColor" stroke="none"/><path d="M8.5 19.5 L15.5 15.5 M8.5 15.5 L15.5 19.5" stroke-width="2.4"/>`,
   'st-dex': `<path d="M12 3.4 L18.5 6.2 v5.2 c0 4.2-2.9 7-6.5 9 -3.6-2-6.5-4.8-6.5-9 V6.2 Z" fill="none" stroke-width="2.2"/><path d="M12 7.5 L14 11 L12 14.5 L10 11 Z" fill="currentColor" stroke="none"/>`,

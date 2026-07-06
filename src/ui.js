@@ -219,7 +219,7 @@ function renderHud() {
   const act = ACTS[S.run.act];
   hud.innerHTML = `<div class="hud-bar">
       <div class="hud-hp-wrap">
-        <div class="hud-stat"><span style="color:var(--hp)">♥</span> <span class="hp-num">${hp} / ${p.maxHp}</span></div>
+        <div class="hud-stat">${iconSvg('heart', 14)} <span class="hp-num">${hp} / ${p.maxHp}</span></div>
         <div class="hud-hpbar"><div style="width:${(100 * hp) / p.maxHp}%"></div></div>
       </div>
       <div class="hud-stat"><span style="color:var(--gold)">¤</span> <span class="gold-num">${p.gold}</span></div>
@@ -1491,14 +1491,22 @@ const FLOATY_KINDS = new Set(['wisp', 'shade', 'siren', 'eye', 'cultist']);
 function choreoAttack(el, dir = 1, kind = 'humanoid') {
   if (CHOREO_REDUCED || !el) return Promise.resolve();
   const heavy = HEAVY_KINDS.has(kind), floaty = FLOATY_KINDS.has(kind);
-  const dash = heavy ? 10 : floaty ? 26 : 34;
-  const kf = [
+  const kf = heavy ? [
     { transform: 'translateX(0) scale(1,1)' },
-    { transform: `translateX(${-8 * dir}px) scale(${heavy ? 1.03 : 0.97},${heavy ? 0.94 : 1.02})`, offset: 0.3 },
-    { transform: `translateX(${dash * dir}px) scale(1.02,0.99)`, offset: 0.62 },
+    { transform: 'translateX(0) scale(1.08,0.86)', offset: 0.35 },
+    { transform: 'translateX(0) scale(1,1)' },
+  ] : floaty ? [
+    { transform: 'translateX(0) translateY(0) scale(1,1)' },
+    { transform: `translateX(${6 * dir}px) translateY(-5px) scale(0.98,1.02)`, offset: 0.4 },
+    { transform: `translateX(${10 * dir}px) translateY(-2px) scale(1,1)`, offset: 0.7 },
+    { transform: 'translateX(0) translateY(0) scale(1,1)' },
+  ] : [
+    { transform: 'translateX(0) scale(1,1)' },
+    { transform: `translateX(${-8 * dir}px) scale(0.97,1.02)`, offset: 0.3 },
+    { transform: `translateX(${34 * dir}px) scale(1.02,0.99)`, offset: 0.62 },
     { transform: 'translateX(0) scale(1,1)' },
   ];
-  return el.animate(kf, { duration: heavy ? 420 : 330, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }).finished.catch(() => {});
+  return el.animate(kf, { duration: heavy ? 420 : floaty ? 380 : 330, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }).finished.catch(() => {});
 }
 function choreoHit(el, dir = 1) {
   if (CHOREO_REDUCED || !el) return;
@@ -1611,7 +1619,6 @@ async function handleEvent(ev, targetIdx) {
     case 'art': {
       vfxSource = { archetype: 'fire', cardId: `art:${ev.id}`, enemyIdx: null };
       bespokeFired = false;
-      choreoDone = false;
       { const { x: lx, y: ly } = V.centerOf(ce.lantern); V.BESPOKE_VFX[`art:${ev.id}`]?.(lx, ly); bespokeFired = true; }
       const art = ARTS[ev.id];
       const { x: hx, y: hy } = heroCenter();
@@ -1707,7 +1714,7 @@ async function handleEvent(ev, targetIdx) {
         V.floatText(ex, ey - 20, `${ev.amount}`, 'poisonf');
       } else {
         const big = ev.amount >= 16;
-        if (heroActing) {
+        if (heroActing && vfxSource.cardId && !String(vfxSource.cardId).startsWith('art:')) {
           if (!choreoDone) { await choreoAttack(ce.hero, 1, 'humanoid'); choreoDone = true; }
         }
         sfx.slash();
@@ -1893,14 +1900,13 @@ async function handleEvent(ev, targetIdx) {
       x.intent.classList.remove('telegraph');
       void x.intent.offsetWidth;
       x.intent.classList.add('telegraph');
-      x.root.classList.add('acting');
-      setTimeout(() => { x.root.classList.remove('acting'); x.intent.classList.remove('telegraph'); }, 650);
       V.floatText(ex, ey - 90, ev.name, 'notice');
       await sleep(300);
       if (mvDef?.intent?.startsWith('attack')) {
         await choreoAttack(x.root, -1, ENEMIES[cb.enemies[ev.idx].key]?.art?.kind);
         choreoDone = true;
       } else await sleep(320);
+      x.intent.classList.remove('telegraph');
       break;
     }
     case 'intent': syncCombat(); break;

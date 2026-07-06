@@ -147,6 +147,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   background: linear-gradient(180deg, rgba(8, 10, 22, 0.92), rgba(8, 10, 22, 0.55) 80%, transparent);
 }
 .hud-stat { display: flex; align-items: center; gap: 7px; font-family: 'Cinzel', serif; font-weight: 600; font-size: 17px; }
+.hud-stat .gicon { color: var(--hp); flex-shrink: 0; }
 .hud-hp-wrap { display: flex; flex-direction: column; gap: 3px; min-width: 170px; }
 .hud-hpbar { height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
 .hud-hpbar > div { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #c22f43, #ff7060); transition: width 0.4s cubic-bezier(0.3, 1, 0.4, 1); }
@@ -1139,6 +1140,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   #tooltip { animation: fadein 0.1s both; }
   .mnode.avail circle.bg, .mnode.avail .icg { animation: none; }
   .reward-list .reward-row, .shop-row .shop-item, .deed-list .deed-row { animation: none; }
+  .enemy.acting, .hero-wrap.lunge { animation: none; }
 }
 
 @media (max-width: 1100px) {
