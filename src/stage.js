@@ -11,19 +11,23 @@
 // Imports nothing; imported by scene3d/vfx/mesh/ui/main. Never import from
 // engine.js or vigil.js (they must stay Node-runnable).
 
-// Each shape lands on exactly one of the four hand-tuned layout regimes in
+// Each shape lands on exactly one of the hand-tuned layout regimes in
 // styles.css: phone-portrait → the ≤740 block, phone-landscape → the
-// ≤480-height block, pad-portrait → the ≤1100 block, pad-landscape → the
-// full desktop layout (1180 > 1100). iPad numbers are the 11" class.
+// ≤480-height block, pad-portrait → the ≤1100 block, pad-landscape and
+// desktop-landscape → the full desktop layout (both >1100 wide, same 820
+// height, so they differ only in horizontal breathing room). iPad numbers
+// are the 11" class; desktop-landscape is 16:9 for common monitors.
 const SHAPES = {
   'phone-portrait': { w: 390, h: 844 },
   'pad-portrait': { w: 820, h: 1180 },
   'pad-landscape': { w: 1180, h: 820 },
+  'desktop-landscape': { w: 1458, h: 820 }, // 1458/820 ≈ 16:9
   'phone-landscape': { w: 844, h: 390 },
 };
-// phone↔pad boundary: geometric mean of the neighbouring supported aspects
+// shape boundaries: geometric mean of the neighbouring supported aspects
 const PORTRAIT_SPLIT = Math.sqrt((390 / 844) * (820 / 1180)); // ≈ 0.567
 const LANDSCAPE_SPLIT = Math.sqrt((1180 / 820) * (844 / 390)); // ≈ 1.765
+const WIDE_SPLIT = Math.sqrt((1180 / 820) * (1458 / 820)); // ≈ 1.600
 
 const Q = new URLSearchParams(location.search);
 const FORCE_SHAPE = Q.get('shape'); // e.g. ?shape=phone-portrait (tests/dev)
@@ -39,10 +43,12 @@ function pickShape() {
     // a real device gets its native shape…
     if (a < PORTRAIT_SPLIT) return 'phone-portrait';
     if (a > LANDSCAPE_SPLIT) return 'phone-landscape';
+    return a < 1 ? 'pad-portrait' : 'pad-landscape';
   }
-  // …a desktop window gets the pad experience for its orientation (a 16:9
-  // monitor pillarboxes the pad stage rather than blowing up the phone one)
-  return a < 1 ? 'pad-portrait' : 'pad-landscape';
+  // …a desktop window gets the pad experience, widened to the 16:9 stage
+  // when the window is closer to 16:9 than to the iPad's 4:3-ish frame
+  if (a < 1) return 'pad-portrait';
+  return a > WIDE_SPLIT ? 'desktop-landscape' : 'pad-landscape';
 }
 
 function apply() {

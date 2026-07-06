@@ -75,14 +75,20 @@ invisible under mesh (planes ignore CSS filters).
 
 The game is a game, not a responsive page. `src/stage.js` (imports nothing;
 imported by scene3d/vfx/mesh/ui) owns one `#stage` element that wraps every
-layer in `index.html`. Four canonical shapes, nothing else:
+layer in `index.html`. Five canonical shapes, nothing else:
 
 | shape | stage px | picked when |
 |---|---|---|
 | `phone-portrait` | 390×844 | touch + window aspect < 0.567 |
 | `phone-landscape` | 844×390 | touch + aspect > 1.765 |
-| `pad-portrait` | 820×1180 | otherwise, aspect < 1 |
-| `pad-landscape` | 1180×820 | otherwise, aspect ≥ 1 |
+| `pad-portrait` | 820×1180 | aspect < 1 (touch or not) |
+| `pad-landscape` | 1180×820 | touch + aspect ≥ 1, or desktop aspect ≤ 1.600 |
+| `desktop-landscape` | 1458×820 (≈16:9) | desktop (non-touch) + aspect > 1.600 |
+
+`desktop-landscape` exists so a 16:9 monitor fills the frame instead of
+pillarboxing the iPad stage; it shares the 820 height (and therefore every
+vertical layout metric and the full-desktop `@container` regime) with
+`pad-landscape` — only the horizontal breathing room differs.
 
 (splits are the geometric means of neighbouring supported aspects;
 `?shape=<name>` forces one for tests/dev.) `initStage()` runs before every
@@ -121,10 +127,14 @@ Consequences the rest of the code relies on:
   resolution-independent by construction.
 
 `stage.spec` is the executable contract: shape mapping per Playwright
-project, uniform-scale + centred letterbox of the real `#stage` box, the
-`?shape=` override, and geometry bit-equality across a 1280×800 → 1920×1080
-resize. Safe-area insets still come from the window (`env()`); on real phones
-the stage fills the screen (scale ≈ 1) so the offsets remain correct.
+project (desktop = 1600×900 → `desktop-landscape`), uniform-scale + centred
+letterbox of the real `#stage` box, the `?shape=` override, a 4:3 window
+keeping `pad-landscape`, a no-scrollable-overflow check on the title screen
+at its fullest (saved run + vow V + both heroes — nothing inside `#stage`
+may show a scrollbar at rest), and geometry
+bit-equality across a window resize. Safe-area insets still come from the
+window (`env()`); on real phones the stage fills the screen (scale ≈ 1) so
+the offsets remain correct.
 
 ## 1. Ground-line unification (fix)
 

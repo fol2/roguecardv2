@@ -39,7 +39,8 @@ export default defineConfig({
   projects: [
     // the three layout regimes styles.css targets: desktop, ≤740px portrait,
     // ≤480px-height landscape. deviceScaleFactor pinned so baselines are CSS px.
-    { name: 'desktop', use: { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 } },
+    // desktop is a 16:9 window → the desktop-landscape (1458×820) stage.
+    { name: 'desktop', use: { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 } },
     { name: 'portrait', use: { viewport: { width: 375, height: 812 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } },
     { name: 'landscape', use: { viewport: { width: 812, height: 375 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } },
   ],

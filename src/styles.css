@@ -29,7 +29,10 @@
   --gold-line: color-mix(in srgb, var(--gold) 55%, transparent);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { height: 100%; overflow: hidden; }
+/* clip, not hidden: `hidden` boxes can still be scrolled programmatically
+   (scrollIntoView, focus), which would shove the whole letterboxed stage
+   sideways; `clip` forbids scrolling outright */
+html, body { height: 100%; overflow: clip; }
 /* the game renders to a fixed virtual resolution and scales uniformly —
    #stage is the whole world; the body only ever shows the letterbox bars.
    Its transform also makes it the containing block for every position:fixed
@@ -209,7 +212,10 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .pop-menu button:hover { background: rgba(242, 193, 78, 0.14); color: var(--gold); }
 
 /* ============ Title */
-.title-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: max(3cqh, 24px) 16px; overflow-y: auto; }
+/* `safe center`: if content ever outgrows the stage it scrolls from the top
+   instead of clipping the wordmark off the frame (plain `center` overflows
+   both ends and the top half becomes unreachable) */
+.title-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; justify-content: safe center; gap: 14px; padding: max(3cqh, 24px) 16px; overflow-y: auto; }
 .title-banner { position: absolute; inset: 0; opacity: 0.35; pointer-events: none; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 18cqh; z-index: 0; }
 .title-banner-frame { max-height: 55cqh; max-width: 90cqw; }
 .title-banner .raster-art { max-height: 55cqh; width: auto; max-width: 90cqw; object-fit: contain; filter: drop-shadow(0 12px 40px rgba(0,0,0,.6)); }
@@ -240,6 +246,24 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .title-btns .btn { width: 100%; }
 .title-stats { color: var(--text-dim); font-size: 14px; letter-spacing: 0.08em; margin-top: 6px; text-align: center; }
 .title-corner { position: absolute; top: calc(18px + var(--sat)); right: calc(18px + var(--sar)); display: flex; gap: 10px; }
+/* landscape stages are 820 tall: the wordmark eases down and the utility
+   buttons share one row, so even the fullest profile (Continue + vow V +
+   both heroes) fits without a scrollbar */
+@container stage (max-height: 860px) and (min-width: 1000px) {
+  .title-screen { gap: 8px; padding: 16px; }
+  .logo-raster { width: min(520px, 60cqw); }
+  .tagline { margin-bottom: 2px; }
+  .aspect-card { padding: 10px 14px 11px; }
+  .asp-hero { width: 70px; height: 70px; }
+  .asp-name { font-size: 16px; margin-bottom: 3px; }
+  .asp-blurb { font-size: 12px; line-height: 1.42; }
+  .vow-block { gap: 4px; }
+  .vow-desc { max-width: 680px; font-size: 12px; line-height: 1.45; }
+  .title-btns { flex-flow: row wrap; justify-content: center; width: 340px; gap: 8px; }
+  .title-btns .btn { width: 100%; padding: 8px 24px; }
+  .title-btns .btn.ghost { width: auto; flex: 1 1 0; padding: 8px 8px; font-size: 13px; }
+  .title-stats { margin-top: 0; }
+}
 
 /* ============ Map — DOM lanterns riding the 3D tower */
 .map-screen { position: absolute; inset: 0; touch-action: none; }
@@ -1159,14 +1183,26 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 @container stage (max-width: 740px) {
   .logo { font-size: clamp(30px, 8.4cqw, 52px); -webkit-text-stroke: 1.6px #070a12; }
   .tagline { font-size: 11px; letter-spacing: 0.22em; padding: 0 18px; text-align: center; line-height: 1.6; margin-bottom: 12px; }
-  .title-btns { width: min(300px, 78cqw); }
-  .title-screen { gap: 10px; justify-content: flex-start; padding: calc(64px + var(--sat)) 12px 20px; overflow-y: auto; }
-  .aspect-row { gap: 10px; }
-  .aspect-card { width: min(300px, 82cqw); padding: 10px 14px 12px; }
-  .asp-hero { width: 64px; height: 64px; }
-  .asp-blurb { font-size: 12px; }
-  .vow-desc { font-size: 12px; padding: 0 14px; }
-  .title-stats { position: static; margin-top: 8px; }
+  /* recomposed to FIT the 844px stage with the fullest profile (Continue +
+     vow V + both heroes) — no scrolling: cards turn sideways, the three
+     utility buttons share one row */
+  .title-screen { gap: 10px; padding: calc(20px + var(--sat)) 12px calc(14px + var(--sab)); }
+  .aspect-row { gap: 8px; }
+  .aspect-card {
+    width: min(330px, 88cqw); padding: 8px 12px; display: grid;
+    grid-template-columns: 52px 1fr; column-gap: 10px; align-items: center; text-align: left;
+  }
+  .asp-hero { width: 52px; height: 52px; grid-row: 1 / 3; margin: 0; }
+  .asp-name { font-size: 15px; margin-bottom: 1px; }
+  .asp-blurb { font-size: 11px; line-height: 1.4; }
+  .vow-block { gap: 4px; }
+  .vow-btn { width: 28px; height: 28px; font-size: 17px; }
+  .vow-level { font-size: 15px; min-width: 104px; }
+  .vow-desc { font-size: 11px; line-height: 1.45; padding: 0 10px; min-height: 0; }
+  .title-btns { flex-flow: row wrap; justify-content: center; width: min(300px, 78cqw); gap: 8px; }
+  .title-btns .btn { width: 100%; padding: 9px 12px; }
+  .title-btns .btn.ghost { width: auto; flex: 1 1 0; padding: 8px 6px; font-size: 12.5px; }
+  .title-stats { position: static; margin-top: 0; font-size: 12px; }
   .lamp-boons { gap: 10px; }
   .lamp-boon { width: min(300px, 82cqw); min-height: 0; }
   .lamp-hero { width: 60px; height: 60px; }
@@ -1301,10 +1337,28 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   .turn-banner { font-size: 26px; }
   .floaty { font-size: 22px; }
   .floaty.crit { font-size: 32px; }
-  .logo { font-size: clamp(30px, 11cqh, 64px); }
-  .tagline { margin-bottom: 10px; }
-  .title-btns { gap: 8px; }
-  .title-btns .btn { padding: 8px 22px; font-size: 14px; }
+  /* title recomposed to fit the 390px-tall stage with no scrollbar even on
+     the fullest profile: smaller wordmark, no tagline, aspect cards turned
+     sideways, every button in one row */
+  .title-screen { gap: 6px; padding: 10px 16px; }
+  .logo { font-size: clamp(24px, 8cqh, 36px); }
+  .logo-raster { width: min(230px, 28cqw); }
+  .tagline { display: none; }
+  .aspect-row { gap: 12px; margin: 0; }
+  .aspect-card {
+    width: 252px; padding: 7px 12px; display: grid;
+    grid-template-columns: 44px 1fr; column-gap: 10px; align-items: center; text-align: left;
+  }
+  .asp-hero { width: 44px; height: 44px; grid-row: 1 / 3; margin: 0; }
+  .asp-name { font-size: 13.5px; margin-bottom: 1px; }
+  .asp-blurb { font-size: 10.5px; line-height: 1.3; }
+  .vow-block { gap: 2px; margin: 0; }
+  .vow-btn { width: 24px; height: 24px; font-size: 15px; }
+  .vow-level { font-size: 13px; min-width: 96px; }
+  .vow-desc { font-size: 10.5px; line-height: 1.35; min-height: 0; max-width: 700px; }
+  .title-btns { flex-direction: row; flex-wrap: wrap; justify-content: center; width: auto; max-width: 94cqw; gap: 7px; }
+  .title-btns .btn { width: auto; padding: 7px 15px; font-size: 12.5px; }
+  .title-stats { font-size: 10.5px; margin-top: 0; }
   #overlay { align-items: stretch; }
   .ov-panel { max-width: 100cqw; width: 100cqw; max-height: none; height: 100%; border-radius: 0; border-left: none; border-right: none; padding: 12px calc(16px + var(--sar)) calc(10px + var(--sab)) calc(16px + var(--sal)); }
   .ov-title { font-size: 18px; margin-bottom: 2px; }

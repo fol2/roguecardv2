@@ -291,7 +291,7 @@ Expected: all visual tests report "snapshot written"; a `visual.spec.js-snapshot
 
 - [ ] **Step 2: Review every baseline by eye**
 
-Open each PNG under `test/e2e/visual.spec.js-snapshots/`. Reject (fix, re-capture) if any shows: a floating combatant, a dead enemy, a half-rendered screen, or letterbox bars inside the shot (the screenshot is the viewport — bars appear on desktop 1280×800 as thin pillarboxes; that is CORRECT and expected).
+Open each PNG under `test/e2e/visual.spec.js-snapshots/`. Reject (fix, re-capture) if any shows: a floating combatant, a dead enemy, a half-rendered screen, or letterbox bars inside the shot (the screenshot is the viewport — bars appear on desktop 1600×900 as thin letterbox slivers where the 1458×820 stage doesn't divide evenly; that is CORRECT and expected).
 
 - [ ] **Step 3: Verify determinism — run twice**
 

@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 import { boot, startFight, stable } from './helpers.js';
 
 const EXPECT_SHAPE = {
-  desktop: { shape: 'pad-landscape', w: 1180, h: 820 },
+  desktop: { shape: 'desktop-landscape', w: 1458, h: 820 },
   portrait: { shape: 'phone-portrait', w: 390, h: 844 },
   landscape: { shape: 'phone-landscape', w: 844, h: 390 },
 };
@@ -30,13 +30,57 @@ test('viewport maps to its canonical stage shape', async ({ page }) => {
   expect(box.t).toBeCloseTo((box.ih - box.h) / 2, 0);
 });
 
-test('?shape= override forces the fourth shape', async ({ page }) => {
+test('?shape= override forces the remaining shapes', async ({ page }) => {
   test.skip(test.info().project.name !== 'desktop', 'one project is enough');
   await boot(page, { query: 'shape=pad-portrait' });
   const st = await page.evaluate(() => window.__probe.stage());
   expect(st.shape).toBe('pad-portrait');
   expect(st.w).toBe(820);
   expect(st.h).toBe(1180);
+});
+
+test('a 4:3-ish desktop window keeps the pad-landscape stage', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'window resizing is a desktop behaviour');
+  await page.setViewportSize({ width: 1180, height: 820 });
+  await boot(page);
+  const st = await page.evaluate(() => window.__probe.stage());
+  expect(st.shape).toBe('pad-landscape');
+  expect(st.w).toBe(1180);
+});
+
+test('title screen fits its stage: no scrollable overflow anywhere', async ({ page }) => {
+  await boot(page);
+  // the fullest title a real profile can produce: Continue button (saved
+  // run), both heroes, vow stepper at V with the five-line vow ledger —
+  // this is the content that once overflowed and drew a scrollbar
+  await page.evaluate(() => {
+    localStorage.setItem('spirebound_vigil_v1', JSON.stringify({
+      v: 1,
+      deeds: { runs: 40, wins: 9, slain: 500, shatters: 90, kindles: 60, perfects: 12, smolderKills: 60, unlitVisited: 30, embersSpent: 900, bestVow: 5, bestFloor: 45 },
+      unlocks: ['ashwarden'], vowUnlocked: 5, lastFall: null,
+    }));
+    window.spirebound.E.saveRun(window.spirebound.E.newRun(1234, { aspect: 0 }));
+  });
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  for (let i = 0; i < 5; i++) await page.click('[data-a="vow+"]');
+  await page.waitForTimeout(600);
+  const bad = await page.evaluate(() => {
+    const out = [];
+    const de = document.scrollingElement;
+    if (de.scrollHeight > de.clientHeight || de.scrollWidth > de.clientWidth) {
+      out.push(`document ${de.scrollWidth}x${de.scrollHeight} in ${de.clientWidth}x${de.clientHeight}`);
+    }
+    for (const el of document.querySelectorAll('#stage *')) {
+      const cs = getComputedStyle(el);
+      if (!/(auto|scroll)/.test(cs.overflowY + cs.overflowX)) continue;
+      if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) {
+        out.push(`${el.tagName.toLowerCase()}.${String(el.className).split(' ').join('.')} ${el.scrollWidth}x${el.scrollHeight} in ${el.clientWidth}x${el.clientHeight}`);
+      }
+    }
+    return out;
+  });
+  expect(bad, bad.join('; ')).toEqual([]);
 });
 
 test('window size changes scale, never layout: geometry is identical at two window sizes', async ({ page }) => {
