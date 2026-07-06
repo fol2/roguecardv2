@@ -29,6 +29,11 @@ crop, resize, or metadata-stripping fixes.
 - `card-art-baselines.md` - the nine approved card-art baseline references.
 - `subagent-workflow.md` - the required handoff shape for future subagent
   story/design/prompt work.
+- `nano-banana-pro-comparison.md` - comparison-only Nano Banana Pro card-art
+  candidates, kept separate from the approved generated-card ledger.
+- `gpt-nano-pass-comparison.md` - comparison-only image-to-image
+  `gpt-image-2 -> Nano Banana Pro` candidates, kept separate from approved
+  generated-card ledger.
 
 ## Per-Card Required Record
 
