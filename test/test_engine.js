@@ -11,6 +11,7 @@ import {
 } from '../src/engine.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS } from '../src/data.js';
 import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from '../src/vigil.js';
+import { bfResolve, bfActor, bfSlots, bfEnemySize, _setBF, bfRaw } from '../src/battlefield.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -914,6 +915,44 @@ function randomAgentRun(seed) {
   checkManifest('heroes', ASPECTS.map((a) => a.id));
   checkManifest('stage', [1, 2, 3].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => `act${a}-${l}`)));
   checkManifest('props', ['campfire', 'chest', 'chest-open', 'merchant']);
+}
+
+// ---- battlefield layout schema (spec 2026-07-06-battlefield-editor-design) ----
+{
+  const shapes = ['phone-portrait', 'phone-landscape', 'pad-portrait', 'pad-landscape', 'desktop-landscape'];
+  for (const sh of shapes) {
+    const L = bfResolve(sh);
+    assert.ok(Number.isFinite(L.groundY) && L.groundY > 0, `bf: ${sh} groundY`);
+    assert.ok(Number.isFinite(L.ledgeLip), `bf: ${sh} ledgeLip`);
+    for (const k of ['x', 'w', 'h']) assert.ok(Number.isFinite(L.hero[k]), `bf: ${sh} hero.${k}`);
+    for (const n of [1, 2, 3]) {
+      const slots = bfSlots(L, n);
+      assert.equal(slots.length, n, `bf: ${sh} slots(${n})`);
+      for (const s of slots) assert.ok(Number.isFinite(s.x) && s.s > 0, `bf: ${sh} slots(${n}) entry`);
+    }
+    for (const layer of ['backdrop', 'mid', 'ledge']) {
+      for (const k of ['h', 'y', 'zoom', 'posX', 'opacity']) {
+        assert.ok(Number.isFinite(L.layers[layer][k]), `bf: ${sh} layers.${layer}.${k}`);
+      }
+    }
+    for (const t of ['normal', 'elite', 'boss']) assert.ok(L.shared.sizes[t] > 0, `bf: ${sh} sizes.${t}`);
+  }
+  for (const key of Object.keys(ENEMIES)) {
+    const a = bfActor('enemies', key);
+    assert.ok(Number.isFinite(a.scale) && Number.isFinite(a.footY), `bf: enemy actor ${key}`);
+  }
+  for (const a of ASPECTS) {
+    const h = bfActor('heroes', a.id);
+    assert.ok(Number.isFinite(h.scale) && Number.isFinite(h.footY), `bf: hero actor ${a.id}`);
+  }
+  // slot interpolation fallback: a count with no authored formation still lays out
+  assert.equal(bfSlots(bfResolve('pad-landscape'), 4).length, 4, 'bf: slot fallback');
+  // clamp guard: an absurd hand-edit cannot blow art past the stage frame
+  const L = bfResolve('pad-landscape');
+  _setBF({ ...bfRaw(), shared: { ...bfRaw().shared, sizes: { normal: 99999, elite: 99999, boss: 99999 } } });
+  assert.ok(bfEnemySize(bfResolve('pad-landscape'), 'duskfang', 'normal', { x: 0, s: 1 }, 1180, 820) <= 820 * 0.35 + 1, 'bf: size clamp');
+  _setBF(null);
+  assert.equal(bfResolve('pad-landscape').groundY, L.groundY, 'bf: _setBF(null) restores the file');
 }
 
 let wins = 0, deaths = 0;
