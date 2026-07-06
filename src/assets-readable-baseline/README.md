@@ -56,6 +56,17 @@ Council-approved baseline assets:
 - `props/chest.png`
 - `props/chest-open.png`
 - `props/merchant.png`
+- `events/forgottenShrine.png`
+- `events/woundedKnight.png`
+- `events/voidChest.png`
+- `events/emberFountain.png`
+- `events/forge.png`
+- `events/gambler.png`
+- `events/mirror.png`
+- `events/library.png`
+- `events/fleshTrader.png`
+- `events/cursedIdol.png`
+- `events/ruinedCamp.png`
 
 Asset source decisions:
 
@@ -131,6 +142,13 @@ Asset source decisions:
   narrative backdrop that fades to transparent instead of a full rectangular
   scene. `chest` and `chest-open` are a matched treasure-state pair for the
   treasure screen.
+- `events/*.png` is the complete event-art production set from
+  `scratch/style-tests/event-production-20260706/`. Event art uses full
+  narrative backgrounds rather than alpha cutouts. Every event now has a GPT
+  source, a Nano Banana Pro full-scene clean-up, a per-event prompt ledger, and
+  a registered runtime PNG normalised to max edge 1024 px. The first three
+  events were explicitly promoted into the same production standard after the
+  initial live registration used older event assets.
 
 Prompt decision:
 
@@ -148,8 +166,9 @@ Prompt decision:
   cleaner at thumbnail size.
 
 Enemy and hero assets are runtime-ready PNGs normalised to a maximum edge of
-1024px with alpha preserved. Potion assets are normalised to 256 x 256 with
-alpha preserved. Card assets are full-bleed rectangular PNGs normalised to
+1024px with alpha preserved. Event assets are full-background rectangular scene
+PNGs normalised to max edge 1024 px. Potion assets are normalised to 256 x 256
+with alpha preserved. Card assets are full-bleed rectangular PNGs normalised to
 800 x 500. Source and review artefacts remain in
 `scratch/style-tests/design-council-20260705-readable-style/`; potion source,
 alpha, prompts, and contact sheets remain in
@@ -159,6 +178,8 @@ comparison sheets remain in
 Prop assets are normalised to the live runtime prop dimensions, with alpha
 preserved. Prop source, alpha, prompts, and contact sheets remain in
 `scratch/prop-art-production-20260706/`.
+Event source, Nano Banana outputs, prompts, and contact sheets remain in
+`scratch/style-tests/event-production-20260706/`.
 
 Gallery cleanup:
 
@@ -184,4 +205,5 @@ http://localhost:5174/?gallery=1&set=readable-baseline
 ```
 
 The approved prop set should appear in that gallery as `props - 4/4 generated`.
+The approved event set should appear as `events - 11/11 generated`.
 The final prop registration proof is recorded in `docs/prop-gallery-proof.md`.

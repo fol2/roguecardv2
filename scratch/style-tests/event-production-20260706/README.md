@@ -1,17 +1,19 @@
 # Event Production Batch - 2026-07-06
 
-This scratch set records the production pass for the eight remaining Spirebound
-events after the first three gallery-registered events.
+This scratch set records the production pass for all eleven Spirebound events.
+It first covered the eight events that still needed production art, then closed
+the first-three gap by promoting all three approved first events through the
+same Nano Banana production standard.
 
 ## Scope
 
-Already registered before this batch:
+First three now promoted through Nano Banana and registered:
 
 - `forgottenShrine`
 - `woundedKnight`
 - `voidChest`
 
-Produced in this batch:
+Remaining eight produced in this batch:
 
 - `emberFountain`
 - `forge`
@@ -24,7 +26,7 @@ Produced in this batch:
 
 ## Workflow
 
-Each produced event followed the same flow:
+Each event now follows the same flow:
 
 ```text
 small story -> design -> GPT image source -> Nano Banana Pro full-scene clean-up -> src/assets/events/<event-id>.png
@@ -41,7 +43,7 @@ Nano Banana settings for every event:
 - Size: `2K`
 
 Nano Banana returned JPEG payloads for these jobs despite `.png` output paths.
-Each event folder keeps the original payload as
+Each event folder keeps the original payload when available as
 `02-nanobanana-pro-clean-original.jpg`, a true PNG conversion at
 `02-nanobanana-pro-clean.png`, and the raw response JSON.
 
@@ -66,6 +68,9 @@ registered by replacing its matching runtime asset:
 
 | Event id | Runtime asset |
 |---|---|
+| `forgottenShrine` | `src/assets/events/forgottenShrine.png` |
+| `woundedKnight` | `src/assets/events/woundedKnight.png` |
+| `voidChest` | `src/assets/events/voidChest.png` |
 | `emberFountain` | `src/assets/events/emberFountain.png` |
 | `forge` | `src/assets/events/forge.png` |
 | `gambler` | `src/assets/events/gambler.png` |
@@ -75,4 +80,7 @@ registered by replacing its matching runtime asset:
 | `cursedIdol` | `src/assets/events/cursedIdol.png` |
 | `ruinedCamp` | `src/assets/events/ruinedCamp.png` |
 
-All final runtime assets are PNGs normalised to max edge 1024 px.
+All final runtime assets are PNGs normalised to max edge 1024 px. The complete
+set is also mirrored under `src/assets-readable-baseline/events/` so the
+readable-baseline gallery set can review the same event art without changing
+the live set registration.
