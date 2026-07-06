@@ -775,6 +775,10 @@ function renderCombat() {
   sc.onclick = null;
   const ledge = `#${ACTS[S.run.act].theme.glow.toString(16).padStart(6, '0')}`;
   sc.innerHTML = `<div class="combat-screen screen-enter intro">
+    ${['backdrop', 'mid', 'ledge'].map((l) => {
+      const u = assetUrl('stage', `act${S.run.act + 1}-${l}`);
+      return u ? `<img class="sl sl-${l}" src="${u}" alt="" aria-hidden="true">` : '';
+    }).join('')}
     <div class="stage-ledge" style="--ledge:${ledge}"></div>
     <div class="battlefield">
       <div class="player-zone">
@@ -2505,6 +2509,7 @@ function renderGallery() {
     events: Object.entries(EVENTS).map(([k, ev]) => [k, () => eventArtSvg(ev.glyph, ev.hue)]),
     title: [['title', () => '<div class="title-banner-ph">title</div>']],
     'title-background': [['background', () => '<div class="title-banner-ph">background</div>']],
+    stage: ['act1', 'act2', 'act3'].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => [`${a}-${l}`, () => '<div class="title-banner-ph">stage</div>'])),
   };
   screenEl().className = 'gallery-mode';
   screenEl().innerHTML = `<div class="g-toolbar">

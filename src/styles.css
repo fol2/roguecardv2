@@ -415,6 +415,22 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   -webkit-mask: linear-gradient(90deg, transparent, #000 14% 86%, transparent);
   mask: linear-gradient(90deg, transparent, #000 14% 86%, transparent);
 }
+/* painted diorama layers: backdrop behind everything, ledge under the combatants' feet */
+.sl { position: absolute; left: 50%; bottom: 0; z-index: 0; transform: translateX(-50%); pointer-events: none; user-select: none; min-width: 100%; }
+/* depth parallax: the front layer drifts furthest and fastest (spec: ~2/5/9px back-to-front);
+   screen shake already ripples the diorama because #screen lives inside #shake */
+.sl-backdrop { --amp: 2px; height: 78%; object-fit: cover; object-position: 50% 100%; opacity: 0.85; animation: sl-drift 26s ease-in-out infinite alternate; }
+.sl-mid { --amp: 5px; height: 58%; object-fit: cover; object-position: 50% 100%; opacity: 0.95; animation: sl-drift 18s ease-in-out infinite alternate; }
+.sl-ledge { --amp: 9px; height: 30%; object-fit: cover; object-position: 50% 0%; animation: sl-drift 12s ease-in-out infinite alternate; }
+@keyframes sl-drift {
+  from { transform: translateX(calc(-50% - var(--amp))); }
+  to { transform: translateX(calc(-50% + var(--amp))); }
+}
+@media (prefers-reduced-motion: reduce) { .sl { animation: none; } }
+/* combatants and chrome float above the diorama (these are all already
+   absolutely positioned — add z-index ONLY, do not touch their position) */
+.combat-screen .battlefield, .combat-screen .energy-orb, .combat-screen .lantern-btn,
+.combat-screen .end-turn, .combat-screen .pile-btn, .combat-screen .hand-zone { z-index: 2; }
 .stage-ledge::before {
   content: ''; position: absolute; top: 0; left: 6%; right: 6%; height: 1.5px;
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ledge, #8fa3d8) 75%, #fff) 20% 80%, transparent);
