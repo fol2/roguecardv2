@@ -109,8 +109,9 @@ Conventions and semantics:
   replacing the `enemyArtSize()` formula in `ui.js`. One safety clamp
   survives (art never exceeds stage bounds) as a typo guard. Slot `s` keeps
   wide lineups on-ledge on phones.
-- **Layers:** `h` = plate height px; `y` = vertical offset px (±, move
-  up/down); `zoom` = scale of the image inside its box (enlarge/shrink);
+- **Layers:** `h` = plate height px; `y` = vertical offset of the plate's
+  bottom edge from the stage bottom, px, positive = up (move up/down);
+  `zoom` = scale of the image inside its box (enlarge/shrink);
   `posX` = horizontal focus % (choose which part of the painting shows —
   zoom + posX together give stretch/narrow control); `opacity`. The `sl-drift`
   breathing animation and per-act image selection (`assetUrl('stage',
@@ -136,7 +137,9 @@ Conventions and semantics:
   (`::before`), and the `.sl-ledge` plate top become `calc()` off these two
   vars — the hardening spec's §1 derivations, driven by the file.
 - **Absolute combatant slots:** `.battlefield` flex `space-between` layout is
-  removed. Hero: `left: (x − w·scale/2)px; bottom: calc(var(--ground-y) +
+  removed, but the element stays with `bottom: var(--ground-y)` — the probe
+  (`geometry()`) defines groundY as `.battlefield`'s bottom edge and that
+  contract must keep holding. Hero: `left: (x − w·scale/2)px; bottom: calc(var(--ground-y) +
   footY·1px)`. Each enemy box likewise from its formation slot. The four
   container-query blocks drop their `.battlefield` inset / `.player-zone`
   width / `.hero-wrap` size overrides; those numbers move into the per-shape
