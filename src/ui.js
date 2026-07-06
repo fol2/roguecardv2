@@ -882,7 +882,7 @@ function renderCombat() {
     box.dataset.idx = i;
     box.style.animationDelay = `${160 + i * 130}ms`;
     box.innerHTML = `<div class="intent"></div>
-      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${rasterOr('enemies', en.key, enemySvg(d.art))}</div><div class="dmg-preview"></div></div>
+      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${rasterOr('enemies', en.key, enemySvg(d.art))}<div class="vessel-fire"></div>${assetUrl('enemies', en.key) ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
       <div class="cplate">
         <div class="name">${afx ? `<span class="affix-name" style="color:${afx.tone}">${afx.name.toUpperCase()}</span> ` : ''}${en.name.toUpperCase()}</div>
         <div class="hpbar-wrap"><span class="block-chip zero">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div><span class="hp-label"></span></div>
@@ -1643,6 +1643,17 @@ function addCrack(artEl, big) {
   const layer = artEl && $('.cracks', artEl);
   if (layer && layer.children.length < 8) layer.insertAdjacentHTML('beforeend', crackSvg(big));
 }
+// death rite: the fire inside wells up through every fracture — one last web of
+// cracks races the glass, the seams blaze warm, then the vessel gives (V.shatter)
+function igniteVessel(x) {
+  meshRelease(x.root); // hand the warp body to the DOM so the fire can bloom over it and the glass can heat
+  const layer = x.art && $('.cracks', x.art);
+  if (layer) {
+    layer.insertAdjacentHTML('beforeend', crackSvg(true));
+    if (layer.children.length < 9) layer.insertAdjacentHTML('beforeend', crackSvg(true));
+  }
+  x.root.classList.add('igniting');
+}
 async function drain(targetIdx = null) {
   const cb = S.cb, ce = S.ce;
   S.busy = true;
@@ -1901,6 +1912,8 @@ async function handleEvent(ev, targetIdx) {
         x.root.classList.remove('doomed');
       }
       await choreoStagger(x.art);
+      // the vessel fails: fire wells up through the fractures, one held beat, then the glass gives way
+      if (!REDUCED) { igniteVessel(x); await sleep(en.boss ? 320 : 200); }
       (en.boss || en.elite ? sfx.bigDeath : sfx.death)();
       meshRelease(x.root); // the warp body hands off to the DOM shards on the shatter beat
       V.shatter(x.art); // the glass body breaks apart
