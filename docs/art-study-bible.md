@@ -8,7 +8,8 @@ The short locked rules remain in [`style-bible.md`](./style-bible.md). The
 mechanical pipeline remains in
 [`generated-art-workflow.md`](./generated-art-workflow.md). Card-specific rules
 live in [`card-art-bible.md`](./card-art-bible.md). Act 3 enemy direction lives
-in [`act3-theme.md`](./act3-theme.md).
+in [`act3-theme.md`](./act3-theme.md). Event story briefs live in
+[`event-art-stories.md`](./event-art-stories.md).
 
 ## Purpose
 
@@ -236,6 +237,10 @@ tone and choice tension. Event images should read as small theatrical scenes or
 object clusters, not as full card mockups and not as generic environment
 paintings.
 
+Before generating a production event image, expand the event into a small story
+using [`event-art-stories.md`](./event-art-stories.md). The image should show
+the decision moment from that story, not the mechanical reward outcome.
+
 ### Runtime Constraints
 
 - Path: `src/assets/events/<event-id>.png`.
@@ -243,9 +248,12 @@ paintings.
 - UI call: `rasterOr('events', eventId, eventArtSvg(ev.glyph, ev.hue))`.
 - Event panel width: about `min(660px, 92vw)`.
 - Event art visual width: roughly 440px on desktop, smaller on phones.
-- The live event set is RGBA PNG and should preserve transparent outer space.
-- Style target: wide scene, 3:2, focal point centre-right, max 1024px.
+- The live event set is a full-background 3:2 scene PNG, not an alpha cutout,
+  unless a later workflow note explicitly changes this.
+- Style target: wide full scene, 3:2, focal point centre-right, max 1024px.
 - No baked text, choice labels, button shapes, frame, watermark, or UI chrome.
+- Every production event candidate must pass through Nano Banana Pro after the
+  built-in GPT image source before it is registered for gallery review.
 
 The event art must support the written event text and choices. It should not
 replace them, contradict them, or reveal a branch result that should stay
@@ -283,14 +291,14 @@ uncertain.
 
 ```text
 Use case: stylized-concept
-Asset type: Spirebound event art alpha-ready source
+Asset type: Spirebound event art full-background source
 Primary request: <event name>, <one-sentence narrative scene tied to the event text and choices>.
 Narrative read: show <main object/figure> first, <choice tension> second, <world cue> third. The image must read clearly inside the event panel at roughly 440px wide and still scan on mobile.
 Style/medium: serious cartoon-gothic stained-glass game art; chunky dark silhouette; simplified theatrical scene; 3-5 large jewel-tone glass masses; very few thick lead dividers; matte painterly glass texture; warm amber rim light; controlled inner glow only at the focal object; no generic fantasy illustration.
-Composition/framing: wide 3:2 transparent PNG source; centre-right focal point; generous empty alpha around the scene; no hard rectangular frame; no cropped focal props; no action blur; stage-like vignette without baked UI.
+Composition/framing: wide 3:2 full event scene; centre-right focal point; foreground/midground/background depth; no hard rectangular frame; no cropped focal props; no action blur; stage-like vignette without baked UI.
 Lighting/mood: sober gothic decision-scene mood; high value contrast on the main read; glow supports the event tension but does not obscure the silhouette.
 Palette: <event-specific palette plus black lead and restrained amber lantern light>.
-Scene/backdrop: transparent background or perfectly flat #ff00ff chroma-key background for alpha removal.
+Scene/backdrop: broad narrative background with two or three simple place cues; background contrast and line count lower than the subject.
 Constraints: no text; no labels; no watermark; no buttons; no UI chrome; no card frame; no ground shadow; no reflection; no guaranteed reward reveal unless the event text guarantees it.
 ```
 

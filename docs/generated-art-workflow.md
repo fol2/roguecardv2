@@ -12,6 +12,9 @@ Background-lock prompt test:
 Current baseline style test:
 `scratch/style-tests/design-council-20260705-readable-style/`
 
+Current event full-scene test:
+`scratch/style-tests/event-story-shrine-clean-20260706/`
+
 ## Pipeline
 
 ```text
@@ -26,6 +29,13 @@ Rules:
 - Step 2 uses Nano Banana Pro through
   `/Users/jamesto/.codex/skills/nanobanana/scripts/nanobanana.py`.
 - The Nano Banana prompt is fixed exactly as written below.
+- Event art is the current exception to the alpha/cutout stages. Events use the
+  same `gpt-image-2 -> Nano Banana Pro` ordering, but keep their narrative
+  background and do not request alpha, chroma-key, cutout, or transparent
+  background control unless the event workflow is deliberately revised.
+- Every production event must pass through Nano Banana Pro before gallery
+  registration. The GPT source is evidence and fallback material, not the final
+  event candidate by default.
 - Every generated asset attempt must record the exact built-in image prompt,
   generated image id, source path, selected alpha path, any rim-cleaned path,
   and review outcome in the scratch set's `prompt-ledger.md` before another
@@ -115,6 +125,18 @@ the Step 1 alpha-ready constraints. The 2026-07-05 background-lock test showed
 Nano Banana Pro still did not preserve pure `#ff00ff`; it produced a plain white
 background on the stricter retry. Treat `#ff00ff` preservation as desired but
 not guaranteed.
+
+For full-background event art, use the same clean-up intent without alpha
+controls. The prompt should explicitly preserve the 3:2 event scene and its
+narrative background, strengthen the main subject, reduce fragile glass shards
+and tiny ground detail, and keep the background lower contrast than the focal
+object or figure.
+
+Current event clean-up prompt shape:
+
+```text
+帮我将这张图片重绘和清晰化，让它细节更丰富，同时去掉原图中杂乱不必要的细节。重要：这次不做 alpha、chroma-key、cutout 或透明背景控制；请保留完整的 3:2 Spirebound event scene 和原图的叙事背景。保留 <main foreground subject> 作为清晰前景主体；保留 <one simple midground choice prop>；背景保留 <two or three broad place cues>. 整体要像严肃 cartoon-gothic stained-glass game art：主主体有更粗的黑色外轮廓、更大的形块、更少碎裂玻璃、更少地面碎片，128px 仍然能读。背景可以有深度和叙事，但对比度和线条数量必须低于主体。保留 <event palette>. 不要加入人物、文字、UI、明显奖励堆、额外供品、玻璃碎片、地板图案、符文、复杂建筑或阻挡主体的前景物。
+```
 
 Command shape:
 
