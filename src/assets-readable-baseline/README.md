@@ -129,8 +129,8 @@ Asset source decisions:
   approved card production batch 02 generated sources. Earlier sources were
   rejected because they were too dark, and a local brightness lift was rejected
   because post-processing changed the contrast language. The approved files use
-  regenerated source art directly; local handling is limited to `800 x 500`
-  normalisation and gallery copy. They are recorded in
+  regenerated source art directly; the gallery PNGs are byte-for-byte copies of
+  the approved generated sources. They are recorded in
   `scratch/style-tests/card-production-batch-02-20260706/`.
 - `props/campfire.png`, `props/chest.png`, `props/chest-open.png`, and
   `props/merchant.png` are the council-approved four live runtime props from
@@ -168,8 +168,11 @@ Prompt decision:
 Enemy and hero assets are runtime-ready PNGs normalised to a maximum edge of
 1024px with alpha preserved. Event assets are full-background rectangular scene
 PNGs normalised to max edge 1024 px. Potion assets are normalised to 256 x 256
-with alpha preserved. Card assets are full-bleed rectangular PNGs normalised to
-800 x 500. Source and review artefacts remain in
+with alpha preserved. Card assets are full-bleed rectangular PNGs. From batch
+02 onward, approved gallery card PNGs must be byte-for-byte copies of their
+approved generated sources; if a source is too dark, poorly framed, or the
+wrong ratio, regenerate instead of post-processing it. Source and review
+artefacts remain in
 `scratch/style-tests/design-council-20260705-readable-style/`; potion source,
 alpha, prompts, and contact sheets remain in
 `scratch/potion-demos/20260706-current-seven-r1/`; card source, prompts, and

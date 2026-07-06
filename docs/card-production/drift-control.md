@@ -12,7 +12,7 @@ Every new card must feel like it belongs to the same deck as those three cards.
 
 ## Non-Negotiable Rules
 
-1. Full-bleed rectangular scene art, normalised to `800 x 500`.
+1. Full-bleed rectangular scene art from the approved generated source.
 2. No floating badge, token, isolated emblem, medallion, or icon composition.
 3. Foreground subject/action and background must separate at thumbnail distance.
 4. Background must support the theme but stay quieter than the main action.
@@ -24,9 +24,9 @@ Every new card must feel like it belongs to the same deck as those three cards.
    action must still separate from the background at `120 x 75`.
 10. Fix dark cards at generation time by adding scene light and visible
     stained-glass midtones. Do not flatten shadows with a grey lift.
-11. Do not use local visual post-processing to rescue card art. Allowed local
-    handling is limited to source archiving, exact `800 x 500` normalisation,
-    metadata stripping, gallery copy, and contact-sheet generation.
+11. Do not use local visual post-processing to rescue or standardise card art.
+    The gallery card PNG must be a byte-for-byte copy of the approved generated
+    source. Contact sheets may resize review copies only.
 
 ## Batch Discipline
 
@@ -37,13 +37,15 @@ For every batch:
 1. Re-read the three approved anchor images.
 2. Generate one source per card with the recorded prompt.
 3. Copy the source into the card-specific scratch folder.
-4. Normalise to `800 x 500`.
-5. Build a contact sheet with:
+4. Copy the approved source bytes directly into
+   `src/assets-readable-baseline/cards/<id>.png`.
+5. Record a source/gallery hash check proving they match.
+6. Build a contact sheet with:
    - the three approved anchors
    - the new batch at 240 x 150
    - the new batch at 120 x 75
-6. Reject any image where foreground and background merge at the small size.
-7. Reject any image that looks like a generic fantasy illustration rather than
+7. Reject any image where foreground and background merge at the small size.
+8. Reject any image that looks like a generic fantasy illustration rather than
    a Spirebound stained-glass card scene.
 
 No batch may be promoted only because the source image is attractive. It must
@@ -76,5 +78,5 @@ Every `revise` or `reject` needs a short reason.
 - Contrast drift: an attempted brightness fix reduces the image to a grey wash
   instead of increasing luminous subject light.
 - Post-process drift: local brightness, contrast, gamma, saturation, or colour
-  grading creates a separate style from the generated source. Regenerate
-  instead.
+  grading, crop, resize, or metadata stripping creates a separate artefact from
+  the generated source. Regenerate instead.

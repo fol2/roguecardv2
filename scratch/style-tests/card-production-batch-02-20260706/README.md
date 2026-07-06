@@ -52,8 +52,25 @@ language. The approved images are regenerated sources, not graded rescues:
 richer stained-glass midtones, brighter subject light, and deep black outlines
 rather than blacked-out scenes.
 
-Final assets are normalised to `800 x 500` with resize/strip only. No contrast
-or colour-grading pass is applied to the approved files.
+Final gallery assets are byte-for-byte copies of the approved generated
+sources. No resize, crop, metadata strip, brightness, contrast, gamma,
+saturation, or colour-grading pass is applied to the approved files.
+
+## Source/Gallery Hash Check
+
+```text
+74cc98fb3c06cd322334f11d556b1a91487b5cdf257e494cc48638f8938b6dfa  source/ashBite-source-v4-approved-generated.png
+74cc98fb3c06cd322334f11d556b1a91487b5cdf257e494cc48638f8938b6dfa  final/ashBite.png
+74cc98fb3c06cd322334f11d556b1a91487b5cdf257e494cc48638f8938b6dfa  src/assets-readable-baseline/cards/ashBite.png
+
+87930d51bd16ee5940aeef36ae7b470138c9bc32056a05a228017d0219b106eb  source/smother-source-v3-approved-generated.png
+87930d51bd16ee5940aeef36ae7b470138c9bc32056a05a228017d0219b106eb  final/smother.png
+87930d51bd16ee5940aeef36ae7b470138c9bc32056a05a228017d0219b106eb  src/assets-readable-baseline/cards/smother.png
+
+b2f2e55acda17a8f9af4b38c6b1c435124b1fcafc66faafb5ad6059c0482bcc1  source/twinFangs-source-v3-approved-generated.png
+b2f2e55acda17a8f9af4b38c6b1c435124b1fcafc66faafb5ad6059c0482bcc1  final/twinFangs.png
+b2f2e55acda17a8f9af4b38c6b1c435124b1fcafc66faafb5ad6059c0482bcc1  src/assets-readable-baseline/cards/twinFangs.png
+```
 
 ## Review Decision
 

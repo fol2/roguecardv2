@@ -20,9 +20,9 @@ art object only, not a complete card design.
 - Path: `src/assets/cards/<card-id>.png`.
 - `<card-id>` must match the internal key in `src/data.js`.
 - Format: PNG. Current card-art candidates use full-bleed rectangular scene art
-  at `800 x 500`, because the runtime `.card-art` band is wide. Do not return
-  to square transparent badge/emblem art unless the card specifically needs a
-  token-like object.
+  because the runtime `.card-art` band is wide. Do not return to square
+  transparent badge/emblem art unless the card specifically needs a token-like
+  object.
 - Runtime fallback: if the PNG is missing, `cardArtSvg(cardId, type)` in
   `src/art.js` provides a procedural SVG fallback.
 - Card art is placed inside `.card-art` in `src/styles.css`.
@@ -44,7 +44,9 @@ Use the current project workflow from [`generated-art-workflow.md`](./generated-
 2. Optionally clean up the selected source with Nano Banana Pro.
 3. For card scenes, keep the full rectangular background. Do not chroma-key it
    into a floating badge unless the card intentionally needs an object token.
-4. Run rim or colour cleanup only if the source creates a distracting edge.
+4. Do not locally post-process approved card art. If the source is too dark,
+   badly framed, or the wrong ratio, regenerate instead of applying brightness,
+   contrast, gamma, saturation, crop, resize, or metadata stripping.
 5. Review in `?gallery=1` before accepting.
 
 Do not make the shell wrappers the primary workflow for future card work. They
