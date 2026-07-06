@@ -66,3 +66,28 @@ test('Save POSTs the edited layout to /__bf-save', async ({ page }) => {
   expect(payload.shapes['desktop-landscape'].groundY).toBe(241);
   expect(payload.base.groundY).toBe(232);
 });
+
+test('Save writes layout to disk and reload picks it up', async ({ page }) => {
+  const { readFileSync, writeFileSync } = await import('node:fs');
+  const layoutPath = 'src/battlefield-layout.js';
+  const orig = readFileSync(layoutPath, 'utf8');
+  try {
+    await page.goto('/?bfedit=1&mesh=0');
+    await page.waitForFunction(() => window.__bfEditor);
+    const before = await page.evaluate(() => window.__bfEditor.resolved().groundY);
+    const target = before + 3;
+    await page.locator('.bf-box[data-bf="ground"]').click();
+    await page.locator('#bf-panel input[data-path="groundY"]').fill(String(target));
+    await page.locator('#bf-panel input[data-path="groundY"]').press('Enter');
+    await Promise.all([
+      page.waitForEvent('load'),
+      page.locator('#bf-save').click(),
+    ]);
+    await page.waitForFunction(() => window.__bfEditor);
+    const after = await page.evaluate(() => window.__bfEditor.resolved().groundY);
+    expect(after).toBe(target);
+    expect(readFileSync(layoutPath, 'utf8')).toContain(`groundY: ${target}`);
+  } finally {
+    writeFileSync(layoutPath, orig);
+  }
+});

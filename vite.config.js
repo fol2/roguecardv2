@@ -1,6 +1,20 @@
 import { defineConfig } from "vite";
 import { writeFileSync, renameSync } from "node:fs";
 
+const BF_SAVE_PORT = 5174;
+const BF_SAVE_HOSTS = ["localhost", "127.0.0.1", "macm4.tail55e87e.ts.net"];
+
+/** Reject cross-origin POSTs — only the dev server (or allowedHosts) may write. */
+function bfSaveOriginOk(req) {
+  const host = String(req.headers.host ?? "");
+  if (!BF_SAVE_HOSTS.some((h) => host === `${h}:${BF_SAVE_PORT}`)) return false;
+  const origin = req.headers.origin;
+  if (!origin) return true; // local tools (curl/node) with a trusted Host
+  return BF_SAVE_HOSTS.some(
+    (h) => origin === `http://${h}:${BF_SAVE_PORT}` || origin === `https://${h}:${BF_SAVE_PORT}`,
+  );
+}
+
 // dev-only battlefield editor save endpoint (?bfedit=1 → POST /__bf-save)
 function bfSavePlugin() {
   return {
@@ -9,6 +23,11 @@ function bfSavePlugin() {
     configureServer(server) {
       server.middlewares.use("/__bf-save", (req, res) => {
         if (req.method !== "POST") { res.statusCode = 405; return res.end(); }
+        if (!bfSaveOriginOk(req)) {
+          res.statusCode = 403;
+          res.setHeader("content-type", "application/json");
+          return res.end(JSON.stringify({ ok: false, problems: ["forbidden origin"] }));
+        }
         let body = "";
         req.on("data", (c) => { body += c; });
         req.on("end", async () => {
@@ -38,7 +57,7 @@ export default defineConfig({
   plugins: [bfSavePlugin()],
   server: {
     host: "0.0.0.0",
-    port: 5174,
-    allowedHosts: ["macm4.tail55e87e.ts.net"],
+    port: BF_SAVE_PORT,
+    allowedHosts: [BF_SAVE_HOSTS[2]],
   },
 });

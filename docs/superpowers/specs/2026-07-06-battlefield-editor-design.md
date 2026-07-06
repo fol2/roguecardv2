@@ -11,11 +11,14 @@ and a Vite dev endpoint that writes the file back to disk.
 `2026-07-06-visualisation-hardening-polish-design.md` §1b). Five canonical
 shapes, uniform scale, everything in deterministic stage px — the reason a
 px-exact layout file is now possible.
-**Supersedes:** Tasks 1, 4 and 5 of the hardening plan
+**Supersedes:** Task 1 of the hardening plan
 (`docs/superpowers/plans/2026-07-06-visualisation-hardening-polish.md`) —
 ground-line unification and the combatant chrome-plate refactor happen here,
-driven by the layout file instead of CSS tokens alone. The rest of that plan
-is untouched; `geometry.spec` remains the acceptance gate.
+driven by the layout file instead of CSS tokens alone. (An earlier draft of
+this spec cited hardening Tasks 4 and 5; those numbers predate the current
+hardening plan, where Task 4 is the perf gate and Task 5 is ambient weather —
+neither touches combat geometry.) The rest of that plan is untouched;
+`geometry.spec` remains the acceptance gate.
 
 ## Decisions record (owner-approved)
 

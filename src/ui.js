@@ -883,7 +883,7 @@ function renderCombat() {
     afterAction();
   };
   S.ce = ce;
-  applyBattlefieldLayout();
+  applyBattlefieldLayout(L);
   rigCombatants();
   scheduleMeshBind();
   // drop the intro class once entrances finish so intro animations don't retrigger
@@ -905,10 +905,10 @@ const heroCenter = () => V.centerOf(S.ce.hero);
 
 // battlefield geometry comes from src/battlefield-layout.js (edit with
 // ?bfedit=1 on the dev server); this applies the resolved layout to the DOM
-function applyBattlefieldLayout() {
+function applyBattlefieldLayout(resolved) {
   const cb = S.cb, ce = S.ce;
   if (!cb || !ce || S.screen !== 'combat') return;
-  const L = bfResolve(stageInfo().shape);
+  const L = resolved ?? bfResolve(stageInfo().shape);
   ce.root.style.setProperty('--ground-y', `${L.groundY}px`);
   ce.root.style.setProperty('--ledge-lip', `${L.ledgeLip}px`);
   for (const name of ['backdrop', 'mid', 'ledge']) {
@@ -916,7 +916,9 @@ function applyBattlefieldLayout() {
     if (!img) continue;
     const p = L.layers[name];
     img.style.height = `${p.h}px`;
-    img.style.bottom = `${p.y}px`;
+    img.style.bottom = name === 'ledge'
+      ? `${Math.max(0, L.groundY + L.ledgeLip - p.h + p.y)}px`
+      : `${p.y}px`;
     img.style.opacity = p.opacity;
     img.style.scale = p.zoom === 1 ? '' : String(p.zoom);
     img.style.objectPosition = `${p.posX}% ${name === 'ledge' ? '0%' : '100%'}`;

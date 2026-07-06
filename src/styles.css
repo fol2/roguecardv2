@@ -464,7 +464,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .combat-screen .battlefield, .combat-screen .energy-orb, .combat-screen .lantern-btn,
 .combat-screen .end-turn, .combat-screen .pile-btn, .combat-screen .hand-zone { z-index: 2; }
 .stage-ledge::before {
-  content: ''; position: absolute; top: 0; left: 6%; right: 6%; height: 1.5px;
+  content: ''; position: absolute; top: calc(-1 * var(--ledge-lip)); left: 6%; right: 6%; height: 1.5px;
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ledge, #8fa3d8) 75%, #fff) 20% 80%, transparent);
   opacity: 0.4; box-shadow: 0 0 16px color-mix(in srgb, var(--ledge, #8fa3d8) 60%, transparent);
 }
