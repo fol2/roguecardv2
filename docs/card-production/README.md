@@ -37,6 +37,9 @@ Each card must have:
 - final gallery asset path
 - review decision
 
+Approved generated cards are tracked in
+[`generated-card-ledger.md`](./generated-card-ledger.md).
+
 ## Generation Gate
 
 Before adding a card to `src/assets-readable-baseline/cards/`:

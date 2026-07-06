@@ -46,6 +46,9 @@ Council-approved baseline assets:
 - `cards/strike.png`
 - `cards/defend.png`
 - `cards/empower.png`
+- `cards/eclipseSlash.png`
+- `cards/chisel.png`
+- `cards/firstSpark.png`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -105,6 +108,9 @@ Asset source decisions:
   they looked like floating emblems rather than card art. The approved
   candidates use built-in Image Gen full-bleed rectangular scene sources with
   strong foreground/background separation, normalised to `800 x 500`.
+- `cards/eclipseSlash.png`, `cards/chisel.png`, and `cards/firstSpark.png` are
+  approved card production batch 01. They continue the rectangular scene rule
+  and are recorded in `scratch/style-tests/card-production-batch-01-20260706/`.
 - `props/campfire.png`, `props/chest.png`, `props/chest-open.png`, and
   `props/merchant.png` are the council-approved four live runtime props from
   `scratch/prop-art-production-20260706/`. They use built-in Image Gen flat
