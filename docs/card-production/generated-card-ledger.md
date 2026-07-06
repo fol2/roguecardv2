@@ -117,3 +117,11 @@ reference roles, hashes, and prompt locations are collected in
 | `nightSight` | approved generated source | `src/assets-readable-baseline/cards/nightSight.png` | `scratch/style-tests/card-production-batch-13-20260706/README.md`; `scratch/style-tests/card-production-batch-13-20260706/prompt-ledger.md` |
 | `emberdance` | approved generated source | `src/assets-readable-baseline/cards/emberdance.png` | `scratch/style-tests/card-production-batch-13-20260706/README.md`; `scratch/style-tests/card-production-batch-13-20260706/prompt-ledger.md` |
 | `oblivionStrike` | approved generated source | `src/assets-readable-baseline/cards/oblivionStrike.png` | `scratch/style-tests/card-production-batch-13-20260706/README.md`; `scratch/style-tests/card-production-batch-13-20260706/prompt-ledger.md` |
+
+## Batch 14
+
+| Card | Decision | Final gallery asset | Source record |
+|---|---|---|---|
+| `phantomBlades` | approved generated source | `src/assets-readable-baseline/cards/phantomBlades.png` | `scratch/style-tests/card-production-batch-14-20260706/README.md`; `scratch/style-tests/card-production-batch-14-20260706/prompt-ledger.md` |
+| `devour` | approved generated source | `src/assets-readable-baseline/cards/devour.png` | `scratch/style-tests/card-production-batch-14-20260706/README.md`; `scratch/style-tests/card-production-batch-14-20260706/prompt-ledger.md` |
+| `annihilate` | approved generated source | `src/assets-readable-baseline/cards/annihilate.png` | `scratch/style-tests/card-production-batch-14-20260706/README.md`; `scratch/style-tests/card-production-batch-14-20260706/prompt-ledger.md` |
