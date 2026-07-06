@@ -29,3 +29,11 @@ reference roles, hashes, and prompt locations are collected in
 | `ashBite` | approved generated source | `src/assets-readable-baseline/cards/ashBite.png` | `scratch/style-tests/card-production-batch-02-20260706/README.md`; `scratch/style-tests/card-production-batch-02-20260706/prompt-ledger.md` |
 | `smother` | approved generated source | `src/assets-readable-baseline/cards/smother.png` | `scratch/style-tests/card-production-batch-02-20260706/README.md`; `scratch/style-tests/card-production-batch-02-20260706/prompt-ledger.md` |
 | `twinFangs` | approved generated source | `src/assets-readable-baseline/cards/twinFangs.png` | `scratch/style-tests/card-production-batch-02-20260706/README.md`; `scratch/style-tests/card-production-batch-02-20260706/prompt-ledger.md` |
+
+## Batch 03
+
+| Card | Decision | Final gallery asset | Source record |
+|---|---|---|---|
+| `quickSlash` | approved generated source v2 | `src/assets-readable-baseline/cards/quickSlash.png` | `scratch/style-tests/card-production-batch-03-20260706/README.md`; `scratch/style-tests/card-production-batch-03-20260706/prompt-ledger.md` |
+| `heavyBlow` | approved generated source | `src/assets-readable-baseline/cards/heavyBlow.png` | `scratch/style-tests/card-production-batch-03-20260706/README.md`; `scratch/style-tests/card-production-batch-03-20260706/prompt-ledger.md` |
+| `cleave` | approved generated source | `src/assets-readable-baseline/cards/cleave.png` | `scratch/style-tests/card-production-batch-03-20260706/README.md`; `scratch/style-tests/card-production-batch-03-20260706/prompt-ledger.md` |

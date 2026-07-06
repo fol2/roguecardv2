@@ -52,6 +52,9 @@ Council-approved baseline assets:
 - `cards/ashBite.png`
 - `cards/smother.png`
 - `cards/twinFangs.png`
+- `cards/quickSlash.png`
+- `cards/heavyBlow.png`
+- `cards/cleave.png`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -132,6 +135,14 @@ Asset source decisions:
   regenerated source art directly; the gallery PNGs are byte-for-byte copies of
   the approved generated sources. They are recorded in
   `scratch/style-tests/card-production-batch-02-20260706/`.
+- `cards/quickSlash.png`, `cards/heavyBlow.png`, and `cards/cleave.png` are
+  approved card production batch 03 generated sources. `quickSlash` v1 was
+  rejected for drifting too close to `strike`; the approved v2 keeps the single
+  rising card pane and compact slash. `heavyBlow` locks the blunt quarry-maul
+  silhouette, and `cleave` locks the all-enemies three-shard fan without
+  drifting into `shardstorm`. Final gallery PNGs are byte-for-byte copies of
+  the approved generated sources and are recorded in
+  `scratch/style-tests/card-production-batch-03-20260706/`.
 - The nine approved card images from `strike` through `twinFangs` are the
   current card-art baseline references. Their roles, hashes, and prompt ledgers
   are recorded in `docs/card-production/card-art-baselines.md`; the future
@@ -184,8 +195,9 @@ alpha, prompts, and contact sheets remain in
 `scratch/potion-demos/20260706-current-seven-r1/`; card source, prompts, and
 comparison sheets remain in
 `scratch/style-tests/card-first-three-separation-readable-baseline-20260706/`,
-`scratch/style-tests/card-production-batch-01-20260706/`, and
-`scratch/style-tests/card-production-batch-02-20260706/`.
+`scratch/style-tests/card-production-batch-01-20260706/`,
+`scratch/style-tests/card-production-batch-02-20260706/`, and
+`scratch/style-tests/card-production-batch-03-20260706/`.
 Prop assets are normalised to the live runtime prop dimensions, with alpha
 preserved. Prop source, alpha, prompts, and contact sheets remain in
 `scratch/prop-art-production-20260706/`.
