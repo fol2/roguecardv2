@@ -302,9 +302,22 @@ export function sunrise() {
 }
 export function kick(power = 1) { kickV = Math.min(2.2, kickV + power); speedMul = Math.min(7, speedMul + power * 2.4); }
 
+// test-harness freeze: stop the render loop, then draw one final frame at a
+// FIXED timestamp so every time-based term (camera bob, beacon pulse, node
+// projection) lands on the same phase in every test run (one-way per page)
+let frozen = false;
+export function freezeScene() {
+  frozen = true;
+  frame(9e6);
+}
+
 let lt = 0;
 function loop(t) {
+  if (frozen) return;
   requestAnimationFrame(loop);
+  frame(t);
+}
+function frame(t) {
   const dt = Math.min(0.05, (t - lt) / 1000 || 0.016);
   lt = t;
   const time = t / 1000;

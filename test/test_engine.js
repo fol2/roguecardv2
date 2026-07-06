@@ -1,5 +1,6 @@
-// Engine self-check: unit math + monte-carlo random-agent full runs.
+// Engine self-check: unit math + asset manifest + monte-carlo random-agent full runs.
 import assert from 'node:assert';
+import { readdirSync } from 'node:fs';
 import {
   newRun, startCombat, playCard, endTurn, makeCard, cardData, availableNodes, genMap,
   rollEncounter, rollEvent, applyEventOps, genCombatRewards, genShop, gainRelic, randomRelic,
@@ -8,7 +9,7 @@ import {
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
   previewBlock, previewEnemyDmg, rollCardReward, vowMods,
 } from '../src/engine.js';
-import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS } from '../src/data.js';
+import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS } from '../src/data.js';
 import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from '../src/vigil.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
@@ -887,6 +888,32 @@ function randomAgentRun(seed) {
     assert.ok(run.player.hp <= run.player.maxHp, 'hp <= maxHp');
   }
   throw new Error('run did not terminate');
+}
+
+// ---- asset manifest --------------------------------------------------------
+// Every content id ships its painted art, and no orphaned file lingers after a
+// rename. Runs both directions so a card/relic/enemy rename that forgets the
+// PNG (or the data key) fails here instead of falling back to SVG in the wild.
+{
+  const assetIds = (cat) => new Set(
+    readdirSync(new URL(`../src/assets/${cat}`, import.meta.url))
+      .filter((f) => /\.(png|jpg)$/i.test(f))
+      .map((f) => f.replace(/\.(png|jpg)$/i, '')),
+  );
+  const checkManifest = (cat, expectedIds) => {
+    const have = assetIds(cat);
+    const want = new Set(expectedIds);
+    for (const id of want) assert.ok(have.has(id), `asset missing: src/assets/${cat}/${id} (data id has no art)`);
+    for (const id of have) assert.ok(want.has(id), `orphan asset: src/assets/${cat}/${id} (art has no data id)`);
+  };
+  checkManifest('cards', Object.keys(CARDS));
+  checkManifest('enemies', Object.keys(ENEMIES));
+  checkManifest('relics', Object.keys(RELICS));
+  checkManifest('potions', Object.keys(POTIONS));
+  checkManifest('events', Object.keys(EVENTS));
+  checkManifest('heroes', ASPECTS.map((a) => a.id));
+  checkManifest('stage', [1, 2, 3].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => `act${a}-${l}`)));
+  checkManifest('props', ['campfire', 'chest', 'chest-open', 'merchant']);
 }
 
 let wins = 0, deaths = 0;

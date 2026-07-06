@@ -1345,3 +1345,10 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .gallery-lightbox-close:hover, .gallery-lightbox-close:focus-visible { border-color: #f0c56a; color: #f0c56a; outline: none; }
 .gallery-lightbox-art { min-height: 0; display: flex; align-items: center; justify-content: center; overflow: auto; border-radius: 6px; background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.06), rgba(8, 10, 18, 0.24) 48%, rgba(0, 0, 0, 0.28)); }
 .gallery-lightbox-art img, .gallery-lightbox-art svg, .gallery-lightbox-art .title-banner-ph { max-width: 100%; max-height: calc(100vh - 118px); width: auto; height: auto; object-fit: contain; filter: drop-shadow(0 14px 24px rgba(0, 0, 0, 0.55)); }
+
+/* ---- test-harness freeze (window.__probe.freeze) ----
+   deterministic screenshots: pause every CSS animation and hide the layers
+   whose pixels are inherently nondeterministic (3D star/weather field, 2D
+   particle canvas, mesh warp planes, animated grain, in-flight floaters) */
+html.freeze *, html.freeze *::before, html.freeze *::after { animation-play-state: paused !important; transition: none !important; }
+html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html.freeze #floaties { visibility: hidden !important; }

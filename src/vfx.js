@@ -22,8 +22,19 @@ export function initVfx() {
   requestAnimationFrame(tick);
 }
 
+// test-harness freeze: stop the particle loop and blank the canvas so
+// screenshots are deterministic (one-way per page; only __probe calls this)
+let frozen = false;
+export function freezeVfx() {
+  frozen = true;
+  parts = [];
+  flashes = [];
+  if (ctx2) ctx2.clearRect(0, 0, canvas.width, canvas.height);
+}
+
 let lastT = 0;
 function tick(t) {
+  if (frozen) return;
   requestAnimationFrame(tick);
   const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016);
   lastT = t;

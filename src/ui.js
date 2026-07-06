@@ -5,7 +5,7 @@ import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, mercha
 import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
-import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise } from './scene3d.js';
+import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
 import { meshBind, meshClear, meshEnabled, meshDebug } from './mesh.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
@@ -1443,7 +1443,9 @@ function scheduleMeshBind() {
 function meshBindTitle() {
   meshClear(); // title stays static raster — #mesh sits above #screen, so warp planes cover the logo
 }
+let uiFrozen = false; // test-harness freeze: stops the rig loop (one-way per page)
 function rigTick(t) {
+  if (uiFrozen) return;
   requestAnimationFrame(rigTick);
   const ce = S.ce, cb = S.cb;
   if (REDUCED || !cb || S.screen !== 'combat' || !ce?.rig) return;
@@ -2551,6 +2553,123 @@ function renderGallery() {
 }
 
 // ------------------------------------------------------------ boot
+// ------------------------------------------------------------ test probe
+// window.__probe — the contract the visual layer must satisfy, readable from
+// the Playwright kit in test/e2e. Same spirit as window.spirebound: tiny,
+// observational (readers/drivers reuse the real input code paths), plus a few
+// explicit test-state shims for scenario setup (the same trick the engine
+// self-test's forceHand uses). Never imported by engine.js/vigil.js.
+function installProbe() {
+  const rect = (sel) => document.querySelector(sel)?.getBoundingClientRect() ?? null;
+  window.__probe = {
+    // -- readers --------------------------------------------------------
+    // one ground line: combatant feet, painted ledge lip and glow seam all
+    // measure against the battlefield's bottom edge (hardening spec §1)
+    geometry() {
+      const bf = rect('.battlefield');
+      if (!bf || !S.cb || !S.ce) return null;
+      return {
+        viewport: { w: innerWidth, h: innerHeight },
+        groundY: bf.bottom,
+        heroArtBottom: rect('.hero-wrap')?.bottom ?? null,
+        enemyArtBottoms: S.cb.enemies.map((en, i) => (en.hp > 0 && S.ce.enemies[i] ? S.ce.enemies[i].art.getBoundingClientRect().bottom : null)),
+        slLedgeTop: rect('.sl-ledge')?.top ?? null,
+        seamY: rect('.stage-ledge')?.top ?? null,
+      };
+    },
+    invariants() {
+      const out = [];
+      const add = (name, pass, detail = '') => out.push({ name, pass, detail: pass ? '' : String(detail) });
+      const cb = S.cb, ce = S.ce;
+      if (cb && ce && S.screen === 'combat') {
+        cb.enemies.forEach((en, i) => {
+          const x = ce.enemies[i];
+          if (!x) return;
+          if (en.hp <= 0) {
+            const cls = x.root.classList;
+            add(`enemy${i}: dead body leaves the field`,
+              cls.contains('gone') || cls.contains('dying') || getComputedStyle(x.root).visibility === 'hidden',
+              `classes="${x.root.className}"`);
+            add(`enemy${i}: dead body releases its mesh plane`,
+              !x.root.querySelector('.mesh-live'),
+              'a WebGL warp plane still renders this corpse');
+          } else {
+            add(`enemy${i}: HP label matches engine`,
+              x.hp.textContent === `${Math.max(0, en.hp)}/${en.maxHp}`,
+              `dom="${x.hp.textContent}" engine=${en.hp}/${en.maxHp}`);
+          }
+        });
+        add('player: HP label matches engine',
+          ce.pHp.textContent === `${Math.max(0, cb.player.hp)}/${cb.player.maxHp}`,
+          `dom="${ce.pHp.textContent}" engine=${cb.player.hp}/${cb.player.maxHp}`);
+        add('hand: DOM count matches engine',
+          $$('.card', ce.hand).length === cb.hand.length,
+          `dom=${$$('.card', ce.hand).length} engine=${cb.hand.length}`);
+        add('energy: orb matches engine',
+          $('.num', ce.energy).textContent === String(cb.player.energy),
+          `dom="${$('.num', ce.energy).textContent}" engine=${cb.player.energy}`);
+        add('embers: lantern count matches engine',
+          $('.lb-count', ce.lantern).textContent === String(cb.embers),
+          `dom="${$('.lb-count', ce.lantern).textContent}" engine=${cb.embers}`);
+      }
+      return out;
+    },
+    state() {
+      const cb = S.cb;
+      return {
+        screen: S.screen, busy: S.busy,
+        over: cb?.over ?? null, result: cb?.result ?? null, turn: cb?.turn ?? null,
+        player: cb ? { hp: cb.player.hp, maxHp: cb.player.maxHp, block: cb.player.block, energy: cb.player.energy } : null,
+        embers: cb?.embers ?? null,
+        enemies: cb ? cb.enemies.map((e) => ({ key: e.key, hp: e.hp, maxHp: e.maxHp, block: e.block })) : null,
+        hand: cb ? cb.hand.map((c) => ({ uid: c.uid, id: c.id })) : null,
+      };
+    },
+    settle: () => new Promise((res) => {
+      const done = () => !S.busy && (!S.cb || S.cb.queue.length === 0);
+      const check = () => (done() ? res(true) : setTimeout(check, 50));
+      check();
+    }),
+    // -- drivers (reuse the real input code paths) ------------------------
+    async play(uid, targetIdx = null) {
+      if (S.busy || !S.cb || S.cb.over) return false;
+      await doPlay(uid, targetIdx);
+      // a played card leaves the hand; an unplayable one stays put
+      return !S.cb || S.cb.over || !S.cb.hand.some((c) => c.uid === uid);
+    },
+    async endTurn() { await onEndTurn(); },
+    async useArt() {
+      if (S.busy || !S.cb || S.cb.over || !E.canUseArt(S.run, S.cb)) return false;
+      E.useArt(S.run, S.cb);
+      await drain();
+      afterAction();
+      return true;
+    },
+    async usePotion(slot, targetIdx = null) {
+      if (S.busy || !E.usePotion(S.run, S.cb, slot, targetIdx)) return false;
+      if (S.cb) { await drain(); afterAction(); }
+      renderHud();
+      return true;
+    },
+    // -- test-state shims (scenario setup only; engine-legal states) ------
+    forceHand(ids) {
+      S.cb.hand = ids.map((id) => E.makeCard(S.run, id));
+      syncHand();
+      return S.cb.hand.map((c) => c.uid);
+    },
+    setEnergy(n) { S.cb.player.energy = n; syncCombat(); },
+    setEmbers(n) { S.cb.embers = n; syncCombat(); },
+    setEnemyHp(i, hp) { S.cb.enemies[i].hp = hp; syncCombat(); },
+    // -- determinism switch -----------------------------------------------
+    freeze() {
+      document.documentElement.classList.add('freeze');
+      uiFrozen = true; // stop the living-glass rig (eyes/fire/pool flicker)
+      V.freezeVfx();
+      freezeScene();
+    },
+  };
+}
+
 export function initUI() {
   if (new URLSearchParams(location.search).has('gallery')) return renderGallery();
   initTooltip();
@@ -2568,6 +2687,7 @@ export function initUI() {
     if (e.target === $('#overlay') && $('#overlay')._closable) closeOverlay();
   });
   window.spirebound = { S, E, startCombatUI, show, meshEnabled, meshDebug }; // ponytail: console debug hook, harmless in prod
+  installProbe(); // window.__probe — contract readers + drivers for test/e2e
   requestAnimationFrame(rigTick); // living-glass rig: no-op outside combat
   show('title');
 }

@@ -55,11 +55,16 @@ invisible under mesh (planes ignore CSS filters).
 - **New:** hero art bottom and every living enemy art bottom sit within ±2px of
   the ground line at all three test viewports. Enforced by `geometry.spec`.
 - **New:** zero console errors / unhandled rejections during any scripted
-  battle scenario. Enforced by `battle.spec` via the probe error collector.
-- Playwright and the probe are test infrastructure: the probe must be tiny,
-  purely observational (its `console.error` wrap is pass-through; `freeze()`
-  only activates when explicitly called or via `?freeze=1`), and must never be
-  imported by `engine.js` / `vigil.js`.
+  battle scenario. Enforced by `battle.spec` — captured at the *Playwright*
+  level (`page.on('pageerror')` + `page.on('console')`), not in-page: `drain()`
+  deliberately swallows playback exceptions into `console.error`, and
+  browser-side capture also catches boot failures the probe could never see.
+- Playwright and the probe are test infrastructure: the probe is tiny, its
+  readers/drivers reuse the real input code paths, its only mutations are
+  explicit test-state shims (`forceHand`/`setEnergy`/`setEmbers`/`setEnemyHp` —
+  the same trick `test_engine.js`'s own `forceHand` uses), `freeze()` only
+  activates when explicitly called, and it must never be imported by
+  `engine.js` / `vigil.js`.
 
 ## 1. Ground-line unification (fix)
 
@@ -107,47 +112,79 @@ Derivations (all `calc()`, no new magic numbers elsewhere):
 
 ## 3. In-page probe + Playwright harness (new infrastructure)
 
-**Probe** (`window.__probe`, defined in `ui.js` beside `window.spirebound`;
-always on, no behavioural side effects):
+**Probe** (`window.__probe`, defined in `ui.js` beside `window.spirebound` —
+**as built 2026-07-06**):
 
-- `geometry()` → `{ viewport, groundY, heroArtBottom, enemyArtBottoms[], slLedgeTop, seamY }`.
-- `invariants()` → array of `{ name, pass, detail }`: dead-enemy-hidden (DOM
-  and mesh plane count vs living raster enemies), HP bar fill widths match
-  engine `cb` state, hand DOM count matches `cb.hand.length`.
-- `errors` → collected `window.onerror`, `unhandledrejection`, and
-  `console.error` entries (message strings), installed at `initUI`.
-- `settle()` → promise resolving when `S.busy === false` and the event queue
-  has drained (poll, 50ms).
-- `freeze()` → adds `html.freeze` (CSS pauses all animations) and stops
-  ambient/canvas spawning; honoured when the page loads with `?freeze=1`.
+- Readers: `geometry()` → `{ viewport, groundY, heroArtBottom,
+  enemyArtBottoms[], slLedgeTop, seamY }` (groundY := `.battlefield` bottom,
+  so the contract is measurable before `--ground-y` exists); `invariants()` →
+  `{ name, pass, detail }[]`: dead enemies leave the field (DOM) *and* release
+  their mesh plane (`.mesh-live` must not sit on a corpse), HP labels / hand
+  count / energy / embers all match engine `cb` state; `state()` → screen,
+  busy, over/result, player, enemies, hand uids.
+- Drivers (reuse the real input paths, so tests exercise `doPlay`/`onEndTurn`/
+  `drain`/`afterAction`): `play(uid, target)` (returns false if the card
+  stayed in hand), `endTurn()`, `useArt()`, `usePotion(slot, target)`.
+- Test-state shims: `forceHand(ids)`, `setEnergy(n)`, `setEmbers(n)`,
+  `setEnemyHp(i, hp)`.
+- `settle()` → resolves when `S.busy === false` and `cb.queue` is empty.
+- `freeze()` → one-way determinism switch: `html.freeze` pauses all CSS
+  animation, hides the nondeterministic layers (`#bg3d`, `#vfx`, `#mesh`,
+  `#grain`, `#floaties` — a full-viewport canvas can't be masked without
+  blanking the shot), stops the vfx/rig loops, and pins the 3D scene to a
+  fixed timestamp (`freezeScene()` in scene3d, `freezeVfx()` in vfx). No
+  `?freeze=1` — tests call it explicitly after settling.
 
-**Harness**: `@playwright/test` devDependency (`npx playwright install
-chromium`); config with three projects — desktop 1280×800, portrait 375×812
-(touch), landscape 812×375 — reusing the vite dev server on 5174. New npm
-script `test:e2e`; `npm test` unchanged. Scenarios drive the game through
-`window.spirebound` (`E.newRun(seed)`, `startCombatUI`, engine calls) with
-fixed seeds — the engine RNG is already seed-deterministic.
+Error capture lives in the harness, not the probe (see invariants above).
+
+**Harness** (as built): `@playwright/test` devDependency; three projects —
+desktop 1280×800, portrait 375×812 (touch), landscape 812×375 — reusing the
+vite dev server on 5174; `workers: 2` (each page runs a full three.js scene);
+`trace: off` (tracing corrupts on the WebGL page), failure screenshots on;
+Chromium launched with `--use-angle=metal` on macOS (software WebGL idles at
+~14fps vs ~117fps on Metal — every animation wait and fps number depends on
+this). npm scripts: `test:e2e`, `test:e2e:update` (baselines),
+`test:e2e:perf` (perf alone, single worker). `npm test` additionally gained an
+asset-manifest gate: every CARDS/ENEMIES/RELICS/POTIONS/EVENTS/ASPECTS/stage/
+props id must have exactly one file in `src/assets/<cat>/`, both directions.
 
 Suites (`test/e2e/`):
 
-1. `geometry.spec` — per act (1/2/3) and per viewport: start a seeded fight,
-   `settle()`, assert feet-on-ground ±2px for hero + all enemies, ledge-top and
-   seam relations to `--ground-y`.
-2. `battle.spec` (battle simulator) — scripted scenarios, each asserting
-   `errors` empty and `invariants()` all-pass after every action: single kill;
-   multi-enemy cleave kill; poison(smolder)-tick kill; boss death (worldstop);
-   lantern art cast; potion use; a 3-fight seeded mini-run. Runs once with mesh
-   on (desktop project) and once with `?mesh=0`.
-3. `visual.spec` — screenshot regression with committed baselines: title, map,
-   combat start (each act), rewards, shop, event, campfire, lamplighter,
-   gallery. Loads with `?freeze=1&mesh=0`, fixed seed, Playwright
-   `animations: 'disabled'`, `maxDiffPixelRatio: 0.01`. Baselines live in the
-   repo (this machine is the reference; regenerating = explicit
-   `--update-snapshots` commit).
-4. `perf.spec` — the previously unmeasured gate: portrait project, CDP
-   `Emulation.setCPUThrottlingRate(4)`, rAF frame sampler in-page while playing
-   a bespoke effect (annihilate) into 3 enemies; assert average fps ≥ 55 and no
-   frame > 50ms attributable to the effect window.
+1. `geometry.spec` — per act (1/2/3, canon encounters) and per viewport, plus
+   a trio fight and a desktop live-resize check: seeded fight, `settle()`,
+   assert hero + living-enemy art bottoms within ±2px of the ground line,
+   painted ledge top 4–64px above it, seam within the lip band. `?mesh=0`
+   (geometry is a DOM contract).
+2. `battle.spec` (desktop project only — logic is viewport-independent):
+   scripted scenarios asserting zero errors + all invariants after every beat:
+   opening coherence; mid-fight strike kill with mesh **forced on** (`?mesh=1`,
+   waits for real planes so a WebGL-less environment fails loudly) and its
+   `?mesh=0` twin (isolates the defect to the mesh lifecycle); smolder-tick
+   kill during the enemy phase; boss death → rewards screen + `worldstop`
+   released; lantern art cast (embers accounting); potion kill → rewards; a
+   3-fight random-agent mini-run through the real UI pipeline. No content
+   constants (omens legitimately bend opening rules — e.g. seed 20260706
+   rolls Ember Wind, draw 4).
+3. `visual.spec` — screenshot regression: title, map (2.8s camera settle),
+   combat acts 1–3, reward, shop, rest, treasure, event; `?mesh=0` + explicit
+   `freeze()`; `maxDiffPixelRatio: 0.01`. **Baselines are deliberately not
+   committed yet** — capturing them now would enshrine the broken geometry;
+   the suite auto-skips until `visual.spec.js-snapshots/` exists. Capture with
+   `npm run test:e2e:update` once geometry.spec and battle.spec are green,
+   then commit the snapshots (this machine is the reference).
+4. `perf.spec` — the previously unmeasured gate, now measured: portrait
+   project, 3s shader warm-up, CDP `Emulation.setCPUThrottlingRate(4)`, rAF
+   sampler across a double-annihilate burst into three enemies; assert avg
+   fps ≥ 55 and p95 frame ≤ 22ms; prints the measured numbers. Runs only via
+   `npm run test:e2e:perf` so parallel WebGL pages never pollute the numbers.
+
+**Kit status at hand-off (all failures are the documented defects, not kit
+bugs):** battle 6/8 green — the two reds are the mesh-on corpse scenarios
+(`enemy0: dead body releases its mesh plane`); geometry 0/13 green — hero sits
+27px and enemies ~100px off the ground line at every viewport, exactly the §1
+measurements; perf red at 28.7fps avg under 4× throttle (budget 55) — the
+polish pass has a concrete number to beat; visual 30 skipped pending
+baselines; engine + manifest green.
 
 ## 4. 21 raster icons — Omens (7), Boons (8), Lantern Arts (6)
 
