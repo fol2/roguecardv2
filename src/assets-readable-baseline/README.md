@@ -61,6 +61,9 @@ Council-approved baseline assets:
 - `cards/brace.png`
 - `cards/sidestep.png`
 - `cards/preparation.png`
+- `cards/deflect.png`
+- `cards/leechBlade.png`
+- `cards/tempest.png`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -167,6 +170,16 @@ Asset source decisions:
   Final gallery PNGs are byte-for-byte copies of the approved generated
   sources and are recorded in
   `scratch/style-tests/card-production-batch-05-20260706/`.
+- `cards/deflect.png`, `cards/leechBlade.png`, and `cards/tempest.png` are
+  approved card production batch 06 generated sources. `deflect` v1 was
+  rejected because the red ray read too straight; the approved v2 locks the
+  incoming ray, contact point, and separate outgoing refraction segment.
+  `leechBlade` v1 was rejected because the heal cue was too small; the approved
+  v2 locks one crimson blade, one dark oil bead, and one green-gold repair
+  seam. `tempest` locks the pale hailglass ring, small crimson storm core, and
+  three struck panes. Final gallery PNGs are byte-for-byte copies of the
+  approved generated sources and are recorded in
+  `scratch/style-tests/card-production-batch-06-20260706/`.
 - The nine approved card images from `strike` through `twinFangs` are the
   current card-art baseline references. Their roles, hashes, and prompt ledgers
   are recorded in `docs/card-production/card-art-baselines.md`; the future
@@ -223,7 +236,8 @@ comparison sheets remain in
 `scratch/style-tests/card-production-batch-02-20260706/`, and
 `scratch/style-tests/card-production-batch-03-20260706/`, and
 `scratch/style-tests/card-production-batch-04-20260706/`, and
-`scratch/style-tests/card-production-batch-05-20260706/`.
+`scratch/style-tests/card-production-batch-05-20260706/`, and
+`scratch/style-tests/card-production-batch-06-20260706/`.
 Prop assets are normalised to the live runtime prop dimensions, with alpha
 preserved. Prop source, alpha, prompts, and contact sheets remain in
 `scratch/prop-art-production-20260706/`.
