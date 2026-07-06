@@ -70,6 +70,9 @@ Council-approved baseline assets:
 - `cards/momentum.png`
 - `cards/toxicMist.png`
 - `cards/cripple.png`
+- `cards/warCry.png`
+- `cards/quakeblow.png`
+- `cards/ashenChoir.png`
 - `props/campfire.png`
 - `props/chest.png`
 - `props/chest-open.png`
@@ -202,6 +205,13 @@ Asset source decisions:
   enemy flame, with one tiny ember bead as the secondary Kindle cue. Final
   gallery PNGs are byte-for-byte copies of the approved generated sources and
   are recorded in `scratch/style-tests/card-production-batch-08-20260706/`.
+- `cards/warCry.png`, `cards/quakeblow.png`, and `cards/ashenChoir.png` are
+  approved card production batch 09 generated sources. `warCry` locks the
+  blue-violet sonic wave crossing three cracked enemy panes. `quakeblow` locks
+  the stone-red gauntlet, single amber floor fault, and right-side enemy pane.
+  `ashenChoir` locks three directed Smolder streams converging into one coal.
+  Final gallery PNGs are byte-for-byte copies of the approved generated sources
+  and are recorded in `scratch/style-tests/card-production-batch-09-20260706/`.
 - The nine approved card images from `strike` through `twinFangs` are the
   current card-art baseline references. Their roles, hashes, and prompt ledgers
   are recorded in `docs/card-production/card-art-baselines.md`; the future
@@ -261,7 +271,8 @@ comparison sheets remain in
 `scratch/style-tests/card-production-batch-05-20260706/`, and
 `scratch/style-tests/card-production-batch-06-20260706/`, and
 `scratch/style-tests/card-production-batch-07-20260706/`, and
-`scratch/style-tests/card-production-batch-08-20260706/`.
+`scratch/style-tests/card-production-batch-08-20260706/`, and
+`scratch/style-tests/card-production-batch-09-20260706/`.
 Prop assets are normalised to the live runtime prop dimensions, with alpha
 preserved. Prop source, alpha, prompts, and contact sheets remain in
 `scratch/prop-art-production-20260706/`.
