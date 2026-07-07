@@ -1,7 +1,9 @@
 // Deterministic serializer + validator for src/battlefield-layout.js.
 // Shared by the editor (browser) and the vite save plugin (node): imports nothing.
 const SHAPES = ['phone-portrait', 'phone-landscape', 'pad-portrait', 'pad-landscape', 'desktop-landscape'];
-const LAYER_KEYS = ['h', 'y', 'zoom', 'posX', 'opacity'];
+const LAYER_KEYS = ['h', 'y', 'x', 'zoom', 'posX', 'posY', 'opacity', 'drift'];
+// resolver-defaulted layer keys: legal to omit anywhere, bfResolve fills them in
+const LAYER_OPTIONAL = ['x', 'posY', 'drift'];
 
 const HEADER = `// Battlefield layout — owned by the battlefield editor (?bfedit=1 on the dev
 // server), hand edits welcome: keep the shape, keep numbers finite.
@@ -12,7 +14,10 @@ const HEADER = `// Battlefield layout — owned by the battlefield editor (?bfed
 //   scale   — multiplies the tier size (sizes.normal/elite/boss)
 //   slot.s  — per-formation size multiplier (keeps wide lineups on-ledge)
 //   layers  — h: plate height; y: plate bottom offset from stage bottom (+up);
-//             zoom: image scale inside the plate; posX: horizontal focus %
+//             x: horizontal offset from centered (+right); zoom: image scale;
+//             posX/posY: crop focus % (object-position); opacity;
+//             drift: idle parallax amplitude px (0 = still).
+//             Internal key "ledge" = the ground PNG plate (actN-ledge.png).
 // Imports nothing; imported by src/battlefield.js only.
 `;
 
@@ -94,7 +99,10 @@ export function validateBF(bf, ids = null) {
     for (const [l, p] of Object.entries(layout.layers ?? {})) {
       if (!['backdrop', 'mid', 'ledge'].includes(l)) problems.push(`${name}.layers.${l}: unknown layer`);
       // shape overrides merge key-wise, so partial layer objects are legal there
-      else for (const k of LAYER_KEYS) if (isBase || p[k] !== undefined) finite(p[k], `${name}.layers.${l}.${k}`);
+      else for (const k of LAYER_KEYS) {
+        if (p[k] === undefined && (!isBase || LAYER_OPTIONAL.includes(k))) continue;
+        finite(p[k], `${name}.layers.${l}.${k}`);
+      }
     }
   };
   checkLayout(bf.base, 'base', true);

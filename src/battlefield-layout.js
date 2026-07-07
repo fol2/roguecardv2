@@ -7,7 +7,10 @@
 //   scale   — multiplies the tier size (sizes.normal/elite/boss)
 //   slot.s  — per-formation size multiplier (keeps wide lineups on-ledge)
 //   layers  — h: plate height; y: plate bottom offset from stage bottom (+up);
-//             zoom: image scale inside the plate; posX: horizontal focus %
+//             x: horizontal offset from centered (+right); zoom: image scale;
+//             posX/posY: crop focus % (object-position); opacity;
+//             drift: idle parallax amplitude px (0 = still).
+//             Internal key "ledge" = the ground PNG plate (actN-ledge.png).
 // Imports nothing; imported by src/battlefield.js only.
 
 export const BF = {

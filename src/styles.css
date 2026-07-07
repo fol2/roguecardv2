@@ -442,18 +442,22 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 /* the ledge: a lit line of tower-stone underfoot so fights read as fought ON the Spire */
 .stage-ledge {
   position: absolute; left: 0; right: 0; --glow-h: 120px; height: var(--glow-h);
-  bottom: calc(var(--ground-y) - var(--glow-h)); z-index: 0; pointer-events: none;
+  bottom: calc(var(--ground-y) - var(--glow-h)); z-index: 3; pointer-events: none;
   background: linear-gradient(180deg, color-mix(in srgb, var(--ledge, #8fa3d8) 9%, transparent), transparent 62%);
   -webkit-mask: linear-gradient(90deg, transparent, #000 14% 86%, transparent);
   mask: linear-gradient(90deg, transparent, #000 14% 86%, transparent);
 }
-/* painted diorama layers: backdrop behind everything, ledge under the combatants' feet */
-.sl { position: absolute; left: 50%; bottom: 0; z-index: 0; transform: translateX(-50%); transform-origin: 50% 100%; pointer-events: none; user-select: none; min-width: 100%; }
-/* depth parallax: the front layer drifts furthest and fastest (spec: ~2/5/9px back-to-front);
-   screen shake already ripples the diorama because #screen lives inside #shake */
-.sl-backdrop { --amp: 2px; object-fit: cover; object-position: 50% 100%; animation: sl-drift 26s ease-in-out infinite alternate; }
-.sl-mid { --amp: 5px; object-fit: cover; object-position: 50% 100%; animation: sl-drift 18s ease-in-out infinite alternate; }
-.sl-ledge { --amp: 9px; object-fit: cover; object-position: 50% 0%; animation: sl-drift 12s ease-in-out infinite alternate; }
+/* painted diorama: backdrop (back) → mid → ground/ledge PNG (front, under feet) */
+/* origin 0 100%: the scale property then multiplies the translateX(-50%) too,
+   so zoom keeps the plate horizontally centered and bottom-anchored */
+.sl { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); transform-origin: 0 100%; pointer-events: none; user-select: none; min-width: 100%; }
+/* depth parallax: --amp fallbacks only — the real per-layer amplitude comes
+   from battlefield-layout.js (layers.*.drift, editable in ?bfedit=1); the
+   ground plate defaults to 0 so the floor never slides under the combatants.
+   Screen shake already ripples the diorama because #screen lives inside #shake. */
+.sl-backdrop { z-index: 0; --amp: 6px; object-fit: cover; object-position: 50% 100%; animation: sl-drift 26s ease-in-out infinite alternate; }
+.sl-mid { z-index: 1; --amp: 3px; object-fit: cover; object-position: 50% 100%; animation: sl-drift 18s ease-in-out infinite alternate; }
+.sl-ledge { z-index: 3; --amp: 0px; object-fit: cover; object-position: 50% 0%; animation: sl-drift 12s ease-in-out infinite alternate; }
 @keyframes sl-drift {
   from { transform: translateX(calc(-50% - var(--amp))); }
   to { transform: translateX(calc(-50% + var(--amp))); }
@@ -462,7 +466,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 /* combatants and chrome float above the diorama (these are all already
    absolutely positioned — add z-index ONLY, do not touch their position) */
 .combat-screen .battlefield, .combat-screen .energy-orb, .combat-screen .lantern-btn,
-.combat-screen .end-turn, .combat-screen .pile-btn, .combat-screen .hand-zone { z-index: 2; }
+.combat-screen .end-turn, .combat-screen .pile-btn, .combat-screen .hand-zone { z-index: 5; }
 .stage-ledge::before {
   content: ''; position: absolute; top: calc(-1 * var(--ledge-lip)); left: 6%; right: 6%; height: 1.5px;
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ledge, #8fa3d8) 75%, #fff) 20% 80%, transparent);
@@ -490,8 +494,8 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   .stage-breath.b2 { bottom: calc(var(--ground-y) - 8cqh); }
 }
 @media (prefers-reduced-motion: reduce) { .stage-breath { animation: none; opacity: 0.08; } }
-.combat-screen::after { /* depth: dark ground mist so the hand reads against the particles */
-  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 300px; pointer-events: none; z-index: 1;
+.combat-screen::after { /* depth mist — sits under the ground PNG so the ledge plate stays visible */
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 300px; pointer-events: none; z-index: 2;
   background: linear-gradient(180deg, transparent, rgba(5, 7, 14, 0.55) 75%);
 }
 /* entrance staging: hero strides in from the left, enemies from the right (staggered inline), chrome rises */

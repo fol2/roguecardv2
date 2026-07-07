@@ -968,12 +968,14 @@ function applyBattlefieldLayout(resolved) {
     if (!img) continue;
     const p = L.layers[name];
     img.style.height = `${p.h}px`;
+    img.style.left = p.x ? `calc(50% + ${p.x}px)` : '';
     img.style.bottom = name === 'ledge'
       ? `${Math.max(0, L.groundY + L.ledgeLip - p.h + p.y)}px`
       : `${p.y}px`;
     img.style.opacity = p.opacity;
     img.style.scale = p.zoom === 1 ? '' : String(p.zoom);
-    img.style.objectPosition = `${p.posX}% ${name === 'ledge' ? '0%' : '100%'}`;
+    img.style.objectPosition = `${p.posX}% ${p.posY}%`;
+    img.style.setProperty('--amp', `${p.drift}px`); // idle parallax amplitude (0 = still)
   }
   const hero = bfActor('heroes', ASPECTS[S.run.aspect].id);
   const hw = Math.round(L.hero.w * hero.scale), hh = Math.round(L.hero.h * hero.scale);

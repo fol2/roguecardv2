@@ -19,10 +19,23 @@ function merge(base, over) {
   return out;
 }
 
+// per-layer defaults: x = horizontal offset px from centered, posY =
+// object-position Y (crop anchor), drift = idle parallax amplitude px
+// (0 = still — the ground must not slide underfoot)
+const LAYER_DEFAULTS = {
+  backdrop: { x: 0, posY: 100, drift: 6 },
+  mid: { x: 0, posY: 100, drift: 3 },
+  ledge: { x: 0, posY: 0, drift: 0 },
+};
+
 /** Deep-merged layout for a stage shape (unknown shape ⇒ base). */
 export function bfResolve(shape) {
   const layout = merge(BF.base, BF.shapes?.[shape]);
-  return { ...layout, shared: BF.shared };
+  const layers = {};
+  for (const name of ['backdrop', 'mid', 'ledge']) {
+    layers[name] = { ...LAYER_DEFAULTS[name], ...(layout.layers?.[name] ?? {}) };
+  }
+  return { ...layout, layers, shared: BF.shared };
 }
 
 /** Per-actor shared modifiers with defaults. kind: 'enemies' | 'heroes'. */

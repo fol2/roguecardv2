@@ -175,7 +175,7 @@ test('a partial shape layer override passes validation and saves', async ({ page
     await route.fulfill({ json: { ok: true } });
   });
   await page.goto('/?bfedit=1&mesh=0');
-  await page.locator('.bf-box[data-bf="layer-ledge"]').click();
+  await page.locator('#bf-panel [data-select="layer-ledge"]').click();
   const input = page.locator('#bf-panel input[data-path="y"]');
   await input.fill('5');
   await input.press('Enter');

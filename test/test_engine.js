@@ -935,7 +935,7 @@ function randomAgentRun(seed) {
       for (const s of slots) assert.ok(Number.isFinite(s.x) && s.s > 0, `bf: ${sh} slots(${n}) entry`);
     }
     for (const layer of ['backdrop', 'mid', 'ledge']) {
-      for (const k of ['h', 'y', 'zoom', 'posX', 'opacity']) {
+      for (const k of ['h', 'y', 'x', 'zoom', 'posX', 'posY', 'opacity', 'drift']) {
         assert.ok(Number.isFinite(L.layers[layer][k]), `bf: ${sh} layers.${layer}.${k}`);
       }
     }

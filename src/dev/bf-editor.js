@@ -8,6 +8,8 @@ import { stageEl, stageW, stageH, stageScale, stageInfo } from '../stage.js';
 
 const SHAPES = ['phone-portrait', 'phone-landscape', 'pad-portrait', 'pad-landscape', 'desktop-landscape'];
 const LAYERS = ['backdrop', 'mid', 'ledge'];
+const LAYER_UI = { backdrop: 'backdrop', mid: 'mid', ledge: 'ground' }; // ledge PNG = the ground plate
+const LAYER_FIELDS = { h: 'height', y: 'bottom offset', x: 'x offset', zoom: 'zoom', posX: 'crop X %', posY: 'crop Y %', opacity: 'opacity', drift: 'drift px' };
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const getPath = (obj, path) => path.reduce((o, k) => o?.[k], obj);
 function setPath(obj, path, value) {
@@ -81,6 +83,7 @@ function startSandbox() {
   sp.S.run = sp.E.newRun(20260706, { aspect: state.scenario.aspect });
   sp.S.run.act = state.scenario.act;
   sp.startCombatUI(state.scenario.ids, 'normal');
+  document.querySelector('.combat-screen')?.classList.add('bf-editing');
   // player turn never ends in the sandbox, so the scene sits still
   requestAnimationFrame(() => { syncOverlays(); renderPanel(); });
 }
@@ -88,6 +91,64 @@ function startSandbox() {
 // ---------------------------------------------------------------- overlays
 // Boxes are computed from the WORKING LAYOUT (pure stage px), never measured
 // from the DOM — breathe/drift animations must not wobble the outlines.
+// (Layer imgs are only consulted for static facts: src + natural size + alpha.)
+function overlayHost() { return document.querySelector('.combat-screen') ?? stageEl(); }
+
+// Alpha-scan a layer PNG (downscaled, cached by src) so its overlay box can
+// frame the visible art instead of the plate — transparent padding in the
+// asset would otherwise make the outline lie about what's on screen.
+const artBoundsCache = new Map();
+function artBounds(img) {
+  if (!img?.complete || !img.naturalWidth) return null;
+  if (artBoundsCache.has(img.src)) return artBoundsCache.get(img.src);
+  const nw = img.naturalWidth, nh = img.naturalHeight;
+  const sw = 128, sh = Math.max(1, Math.round(nh * (sw / nw)));
+  const c = document.createElement('canvas');
+  c.width = sw; c.height = sh;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, sw, sh);
+  let bounds = null;
+  try {
+    const d = ctx.getImageData(0, 0, sw, sh).data;
+    let t = sh, b = -1, l = sw, r = -1;
+    for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
+      if (d[(y * sw + x) * 4 + 3] > 16) { if (y < t) t = y; if (y > b) b = y; if (x < l) l = x; if (x > r) r = x; }
+    }
+    bounds = b < 0 ? { empty: true } : { t: t / sh, b: (b + 1) / sh, l: l / sw, r: (r + 1) / sw };
+  } catch { /* tainted canvas — keep the plate box */ }
+  artBoundsCache.set(img.src, bounds);
+  return bounds;
+}
+// Stage-px rect of the opaque art: mirrors the layer img CSS (height:h,
+// width:auto + min-width:100%, object-fit:cover, object-position posX/posY,
+// left:50%+x with translateX(-50%), scale zoom about origin 0 100% — which
+// multiplies the translate too, keeping the plate center-anchored).
+function layerArtRect(name, p, plateBottom) {
+  const img = document.querySelector(`.combat-screen .sl-${name}`);
+  const bounds = img && artBounds(img);
+  if (!bounds) {
+    if (img && !img.complete) img.addEventListener('load', () => syncOverlays(), { once: true });
+    return null;
+  }
+  if (bounds.empty) return { empty: true };
+  const nw = img.naturalWidth, nh = img.naturalHeight;
+  const elemW = Math.max(stageW(), nw * (p.h / nh));
+  const s = Math.max(elemW / nw, p.h / nh);
+  const offX = (elemW - nw * s) * (p.posX / 100);
+  const offY = (p.h - nh * s) * (p.posY / 100);
+  // object-fit: cover clips to the element box
+  const x0 = Math.max(0, offX + bounds.l * nw * s), x1 = Math.min(elemW, offX + bounds.r * nw * s);
+  const y0 = Math.max(0, offY + bounds.t * nh * s), y1 = Math.min(p.h, offY + bounds.b * nh * s);
+  if (x1 <= x0 || y1 <= y0) return { empty: true };
+  const zoom = p.zoom ?? 1;
+  const cx = stageW() / 2 + (p.x ?? 0);
+  return {
+    x: cx + (x0 - elemW / 2) * zoom,
+    w: (x1 - x0) * zoom,
+    h: (y1 - y0) * zoom,
+    bottom: plateBottom + (p.h - y1) * zoom,
+  };
+}
 function overlayRects() {
   const shape = stageInfo().shape;
   const L = bfResolve(shape);
@@ -97,10 +158,18 @@ function overlayRects() {
     const p = L.layers[name];
     const bottom = name === 'ledge' ? Math.max(0, L.groundY + L.ledgeLip - p.h + p.y) : p.y;
     const zoom = p.zoom ?? 1;
-    const label = zoom !== 1 ? `zoom ${zoom}× — outline shows unzoomed box` : undefined;
-    rects.push({ id: `layer-${name}`, x: 0, w: stageW(), h: p.h, bottom, layer: true, label });
+    const art = layerArtRect(name, p, bottom);
+    if (art?.empty) {
+      rects.push({ id: `layer-${name}`, x: 0, w: stageW(), h: p.h, bottom, layer: true, label: `${LAYER_UI[name]} — art fully transparent in view!` });
+    } else if (art) {
+      const label = zoom !== 1 ? `zoom ${zoom}×` : undefined;
+      rects.push({ id: `layer-${name}`, x: art.x, w: art.w, h: art.h, bottom: art.bottom, layer: true, label });
+    } else {
+      // image not decoded yet — plate box until the load listener resyncs
+      rects.push({ id: `layer-${name}`, x: 0, w: stageW(), h: p.h, bottom, layer: true });
+    }
   });
-  rects.push({ id: 'ground', x: 0, w: stageW(), h: 2, bottom: L.groundY, ground: true, label: `ground ${L.groundY}px` });
+  rects.push({ id: 'ground', x: 0, w: stageW(), h: 12, bottom: L.groundY - 5, ground: true, label: `ground ${L.groundY}px` });
   const hero = bfActor('heroes', ASPECTS[state.scenario.aspect].id);
   const hw = Math.round(L.hero.w * hero.scale), hh = Math.round(L.hero.h * hero.scale);
   rects.push({ id: 'hero', x: L.hero.x - hw / 2, w: hw, h: hh, bottom: L.groundY + hero.footY });
@@ -116,17 +185,18 @@ function overlayRects() {
 
 let overlayEl = null;
 function syncOverlays() {
+  const host = overlayHost();
   if (!overlayEl) {
     overlayEl = document.createElement('div');
     overlayEl.id = 'bf-overlay';
-    stageEl().appendChild(overlayEl);
-  }
+    host.appendChild(overlayEl);
+  } else if (overlayEl.parentElement !== host) host.appendChild(overlayEl);
   overlayEl.innerHTML = '';
   for (const r of overlayRects()) {
     const b = document.createElement('div');
     b.className = `bf-box${r.layer ? ' bf-layer' : ''}${r.ground ? ' bf-ground' : ''}${state.sel === r.id ? ' bf-sel' : ''}`;
     b.dataset.bf = r.id;
-    b.style.cssText = `left:${r.x}px;bottom:${r.bottom}px;width:${r.w}px;height:${r.h}px;`;
+    b.style.cssText = `left:${r.x}px;bottom:${r.bottom}px;width:${r.w}px;height:${r.h}px;z-index:${r.layer ? 1 : r.ground ? 11 : 12};pointer-events:${r.layer && state.sel !== r.id ? 'none' : 'auto'};`;
     if (r.label) b.innerHTML = `<span class="bf-tag">${r.label}</span>`;
     if (state.sel === r.id && !r.ground) b.innerHTML += '<span class="bf-handle"></span>';
     b.addEventListener('pointerdown', (e) => onBoxPointerDown(e, r.id));
@@ -172,7 +242,8 @@ function onBoxPointerDown(e, id) {
     } else if (id.startsWith('layer-')) {
       const name = id.slice(6);
       if (onHandle) w(posScope, ['layers', name, 'h'], Math.max(10, L0.layers[name].h - dy));
-      else w(posScope, ['layers', name, 'y'], L0.layers[name].y - dy);
+      else if (axis === 'x') w(posScope, ['layers', name, 'x'], (L0.layers[name].x ?? 0) + dx);
+      else if (axis === 'y') w(posScope, ['layers', name, 'y'], L0.layers[name].y - dy);
     }
   };
   const up = () => {
@@ -183,7 +254,11 @@ function onBoxPointerDown(e, id) {
   addEventListener('pointermove', move);
   addEventListener('pointerup', up);
 }
-function select(id) { state.sel = id; syncOverlays(); renderPanel(); }
+function select(id) {
+  state.sel = id;
+  syncOverlays();
+  renderPanel(); // re-renders the sidebar object list with the new highlight
+}
 
 // ---------------------------------------------------------------- panel
 function fieldRows() {
@@ -224,16 +299,32 @@ function fieldRows() {
   }
   if (state.sel.startsWith('layer-')) {
     const name = state.sel.slice(6);
-    return ['h', 'y', 'zoom', 'posX', 'opacity'].map((k) => pos(`${name}.${k}`, ['layers', name, k], L.layers[name][k]));
+    return ['h', 'y', 'x', 'zoom', 'posX', 'posY', 'opacity', 'drift'].map((k) => pos(`${LAYER_UI[name] ?? name}.${LAYER_FIELDS[k]}`, ['layers', name, k], L.layers[name][k]));
   }
   return [];
 }
 let panelEl = null;
+// Sidebar object list: big/overlapping overlay boxes (a full-stage layer, say)
+// otherwise shadow everything beneath them and make scene clicks useless.
+function selectorItems() {
+  return [
+    ['layer-backdrop', 'backdrop'],
+    ['layer-mid', 'mid'],
+    ['layer-ledge', 'ground plate'],
+    ['ground', 'ground line'],
+    ['hero', 'hero'],
+    ...state.scenario.ids.map((k, i) => [`enemy-${i}`, `foe ${i + 1} · ${k}`]),
+  ];
+}
 function renderPanel() {
   if (!panelEl) { panelEl = document.createElement('div'); panelEl.id = 'bf-panel'; document.body.appendChild(panelEl); }
   const shape = stageInfo().shape;
   const rows = fieldRows();
-  panelEl.innerHTML = `<h3>${state.sel ?? 'select something'}</h3>
+  const selLabel = state.sel?.startsWith('layer-') ? LAYER_UI[state.sel.slice(6)] ?? state.sel : (state.sel ?? 'select something');
+  const selector = selectorItems()
+    .map(([id, label]) => `<button data-select="${id}"${state.sel === id ? ' class="on"' : ''}>${label}</button>`).join('');
+  panelEl.innerHTML = `<div id="bf-select">${selector}</div>
+    <h3>${selLabel}</h3>
     <div class="bf-scope">shape: <b>${shape}</b>${shape === 'pad-landscape' ? ' (base)' : ''}</div>
     ${rows.map((f, i) => `<label>${f.label}
       <span>
@@ -253,6 +344,8 @@ function renderPanel() {
     }
   };
   panelEl.onclick = (e) => {
+    const sel = e.target.dataset?.select;
+    if (sel) { select(sel); return; }
     const c = e.target.dataset?.clear;
     if (c != null) {
       const f = fieldRows()[Number(c)];
@@ -336,12 +429,18 @@ const CSS = `
 #bf-toolbar button, #bf-toolbar select { font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 4px; padding: 2px 7px; cursor: pointer; }
 #bf-toolbar button.on { background: #34406e; }
 #bf-panel { position: fixed; top: 44px; right: 0; z-index: 400; width: 250px; max-height: calc(100vh - 60px); overflow: auto; background: #0b0d18f2; color: #cdd3ea; font: 12px/1.5 monospace; border: 1px solid #333a55; border-right: 0; padding: 10px; }
+#bf-select { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #333a55; }
+#bf-select button { font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 4px; padding: 1px 7px; cursor: pointer; }
+#bf-select button.on { background: #34406e; border-color: #6fe3ff88; }
 #bf-panel label { display: flex; justify-content: space-between; gap: 6px; margin: 4px 0; }
 #bf-panel label > span { display: flex; gap: 4px; align-items: center; }
 #bf-panel input { width: 56px; font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
 #bf-panel select { font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
 #bf-panel button[data-clear] { font: inherit; background: #3a2030; color: #ff9ebd; border: 1px solid #664455; border-radius: 3px; padding: 0 5px; cursor: pointer; }
-#bf-overlay { position: absolute; inset: 0; z-index: 300; pointer-events: none; }
+#bf-overlay { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+.bf-editing .player-zone, .bf-editing .enemy, .bf-editing .hand-zone { pointer-events: none !important; }
+.bf-editing .energy-orb, .bf-editing .end-turn,
+.bf-editing .pile-btn, .bf-editing .lantern-btn { z-index: 10 !important; pointer-events: auto !important; }
 #bf-overlay .bf-box { position: absolute; pointer-events: auto; border: 1px dashed #6fe3ff88; cursor: move; }
 #bf-overlay .bf-box.bf-sel { border-color: #ffd76f; box-shadow: 0 0 0 1px #ffd76f44; }
 #bf-overlay .bf-layer { border-color: #b98bff55; }
@@ -379,6 +478,7 @@ export function initBfEditor() {
       else writeField('shared', ['enemies', state.scenario.ids[i], 'footY'], bfActor('enemies', state.scenario.ids[i]).footY + dy);
     } else if (state.sel.startsWith('layer-')) {
       const name = state.sel.slice(6);
+      if (dx) writeField(scope, ['layers', name, 'x'], (L.layers[name].x ?? 0) + dx);
       if (dy) writeField(scope, ['layers', name, 'y'], L.layers[name].y + dy);
     }
   });
