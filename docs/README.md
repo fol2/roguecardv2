@@ -9,6 +9,12 @@ Quick map for agents and humans. Operational truth for running the game lives in
 | [`../README.md`](../README.md) | Player-facing overview, tech stack, `npm test` / `npm run test:e2e` |
 | [`../AGENTS.md`](../AGENTS.md) | Agent conventions: module graph, fixed stage, engine purity, commands |
 
+## Rendering
+
+| Doc | Status |
+|---|---|
+| [`glass-crack-rendering.md`](glass-crack-rendering.md) | **Current** — transmission-glass crack/death rite (shipped), approved measures, superseded shader for the record, playground tuning workflow |
+
 ## Active implementation specs (2026-07-06)
 
 | Doc | Status |

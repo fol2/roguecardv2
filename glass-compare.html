@@ -1,0 +1,63 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>glass crack — shader vs three transmission</title>
+<style>
+  body { margin: 0; background: #0c0f18; color: #cdd6e6; font: 14px/1.4 system-ui, sans-serif; }
+  .wrap { display: flex; gap: 30px; padding: 30px; flex-wrap: wrap; align-items: flex-start; }
+  .cell { text-align: center; }
+  .cell h3 { font-weight: 500; letter-spacing: .06em; margin: 12px 0 2px; font-size: 13px; }
+  .cell p { color: #7f8ea6; font-size: 11px; margin: 0; max-width: 400px; }
+  .frame { width: 400px; height: 400px; background: radial-gradient(circle at 50% 58%, #1b2233, #0c0f18 72%); border-radius: 12px; overflow: hidden; box-shadow: 0 12px 44px #0009; position: relative; }
+  canvas { display: block; width: 400px; height: 400px; }
+  .frame .shards { position: absolute; inset: 0; pointer-events: none; z-index: 2; overflow: visible; }
+  .frame.shattering > canvas:not(.beams) { visibility: hidden; }
+  button:disabled { opacity: 0.45; cursor: wait; }
+  button.kill { border-color: #6a3040; color: #ffc8c8; }
+  .bar { padding: 0 30px 8px; display: flex; gap: 8px; align-items: center; }
+  .bar .lbl { color: #7f8ea6; font-size: 12px; letter-spacing: .04em; }
+  button { background: #1b2233; color: #cdd6e6; border: 1px solid #2c3648; border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; }
+  button:hover { background: #232d40; }
+  button.lvl { min-width: 38px; padding: 8px 0; text-align: center; }
+  button.on { background: #3a5bd0; color: #fff; border-color: transparent; }
+  .bar label { display: inline-flex; align-items: center; gap: 6px; color: #7f8ea6; font-size: 12px; letter-spacing: .04em; }
+  .bar input[type=range] { width: 110px; accent-color: #3a5bd0; }
+  .bar .val { color: #cdd6e6; font-size: 12px; min-width: 34px; font-variant-numeric: tabular-nums; }
+</style>
+<div class="bar">
+  <span class="lbl">CRACKS</span>
+  <button class="lvl" data-lvl="0">0</button>
+  <button class="lvl" data-lvl="1">1</button>
+  <button class="lvl" data-lvl="2">2</button>
+  <button class="lvl" data-lvl="3">3</button>
+  <button class="lvl" data-lvl="4">4</button>
+  <button class="lvl" data-lvl="5">5</button>
+  <button id="reseed">↻ reseed</button>
+  <button id="ignite">🔥 ignite (both)</button>
+  <button id="kill" class="kill">☠ kill (both)</button>
+  <span id="count" class="lbl"></span>
+</div>
+<div class="bar">
+  <span class="lbl">B GLASS</span>
+  <label>area <input id="barea" type="range" min="0.08" max="0.45" step="0.01" value="0.45"><span class="val" id="bareav">0.45</span></label>
+  <label>feather <input id="bfeather" type="range" min="0" max="1" step="0.05" value="1"><span class="val" id="bfeatherv">1.00</span></label>
+  <label>alpha <input id="balpha" type="range" min="0.1" max="1" step="0.05" value="1"><span class="val" id="balphav">1.00</span></label>
+</div>
+<div class="bar">
+  <span class="lbl">BEAMS</span>
+  <label>strength <input id="bmstr" type="range" min="0" max="3" step="0.05" value="2.5"><span class="val" id="bmstrv">2.50</span></label>
+  <label>reach <input id="bmreach" type="range" min="0.1" max="2" step="0.05" value="1.1"><span class="val" id="bmreachv">1.10</span></label>
+  <label>decay <input id="bmdecay" type="range" min="0.3" max="3" step="0.05" value="1.55"><span class="val" id="bmdecayv">1.55</span></label>
+</div>
+<div class="wrap">
+  <div class="cell">
+    <div class="frame" id="frame-a"><canvas id="a"></canvas><div class="shards"></div></div>
+    <h3>A — custom shader (shipped)</h3>
+    <p>Voronoi sites in UV space; per-fragment refraction of the body's own texture + lit seams. Unlit, no render target, cheap early-out.</p>
+  </div>
+  <div class="cell">
+    <div class="frame" id="frame-b"><canvas id="b"></canvas><div class="shards"></div></div>
+    <h3>B — three MeshPhysicalMaterial (transmission)</h3>
+    <p>Real PBR glass shell (ior 1.5, thickness, clearcoat) refracting the body behind it through a baked shattered-glass normal map. Lit + envMap + a transmission render pass.</p>
+  </div>
+</div>
+<script type="module" src="/glass-compare.js"></script>

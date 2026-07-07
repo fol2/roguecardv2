@@ -107,7 +107,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   62% { opacity: 0.86; }
   78% { opacity: 0.96; }
 }
-#screen { position: absolute; inset: 0; overflow: hidden; }
+#screen { position: absolute; inset: 0; overflow: hidden; z-index: 49; } /* above #mesh (48) so DOM crack seams read over the warp body; still below #vfx (50)/#floaties (55) */
 #vfx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 50; pointer-events: none; }
 #mesh { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 48; pointer-events: none; }
 #floaties { position: fixed; inset: 0; z-index: 55; pointer-events: none; }
@@ -510,6 +510,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 .player-zone, .enemy { position: absolute; pointer-events: auto; }
 .player-zone { transform: none; }
 .hero-wrap { position: relative; width: 100%; height: 100%; }
+.hero-sprite { position: relative; width: 100%; height: 100%; isolation: isolate; }
 .hero-wrap .hero-name {
   position: absolute; top: -11px; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: none;
   font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: 0.12em; color: #c8d0ea; white-space: nowrap;
@@ -612,6 +613,28 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 /* marked for death: the cracks catch the light before the blow is even thrown */
 .enemy.marked .cracks { filter: drop-shadow(0 0 6px rgba(255, 214, 190, 0.9)); }
 .enemy.marked .cracks path { stroke: #ffeadf; opacity: 1; }
+/* glass-crack death rite ("the fire escapes the glass"): cracks now score onto the
+   raster creatures too, blaze warm as the vessel fails, then it shatters (V.shatter) */
+.enemy-sprite { isolation: isolate; } /* scope the crack/fire z-index to the body, not all of #screen */
+.cracks-overlay { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.cracks { filter: drop-shadow(0 0 1.1px rgba(159, 212, 255, 0.5)); } /* faint refraction so the seams catch light as glass */
+.enemy.lowhp .enemy-art svg.cracks-overlay { transform: none; } /* seams track the raster body, which doesn't tilt at low HP */
+.hero-wrap.lowhp svg.cracks-overlay { transform: none; }
+.cracks .crack { transform-box: fill-box; transform-origin: 50% 50%; animation: crackIn 0.2s ease-out; }
+@keyframes crackIn { 0% { opacity: 0; transform: scale(0.4); } 55% { opacity: 1; transform: scale(1.08); filter: brightness(2.2); } 100% { transform: scale(1); filter: brightness(1); } }
+.vessel-fire { position: absolute; inset: 14%; z-index: 1; border-radius: 50%; pointer-events: none; opacity: 0; mix-blend-mode: screen; filter: blur(3px); background: radial-gradient(circle at 50% 52%, rgba(255, 231, 165, 0.98) 0%, rgba(255, 150, 60, 0.55) 46%, transparent 72%); }
+.enemy.igniting .vessel-fire { animation: vesselFire 0.32s cubic-bezier(0.3, 0.7, 0.3, 1) forwards; }
+@keyframes vesselFire { 0% { opacity: 0; transform: scale(0.5); } 42% { opacity: 0.98; transform: scale(1.05); } 100% { opacity: 0; transform: scale(1.22); } }
+.enemy.igniting .cracks path { stroke: #ffe0a0; opacity: 1; }
+.enemy.igniting .cracks { animation: crackBlaze 0.32s ease-out forwards; }
+@keyframes crackBlaze { 0% { filter: drop-shadow(0 0 2px rgba(255, 200, 90, 0.6)); } 42% { filter: drop-shadow(0 0 9px rgba(255, 214, 120, 1)) drop-shadow(0 0 18px rgba(255, 140, 50, 0.85)) brightness(1.7); } 100% { filter: drop-shadow(0 0 5px rgba(255, 180, 70, 0.7)); } }
+/* the glass itself heats — brightens and throws warm light as the vessel gives (DOM body only, post mesh-release) */
+.enemy.igniting .enemy-art { animation: vesselHeat 0.32s ease-out forwards; }
+@keyframes vesselHeat { 0% { filter: brightness(1); } 42% { filter: brightness(1.6) saturate(1.4) drop-shadow(0 0 18px rgba(255, 172, 74, 0.95)); } 100% { filter: brightness(1.12) drop-shadow(0 0 6px rgba(255, 160, 70, 0.45)); } }
+@media (prefers-reduced-motion: reduce) {
+  .cracks .crack { animation: none; }
+  .enemy.igniting .vessel-fire, .enemy.igniting .cracks, .enemy.igniting .enemy-art { animation: none; }
+}
 /* ---- the glass economy: facets, shatter, the lantern ---- */
 .facet-row { display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 13px; margin-top: 5px; cursor: help; }
 .facet-row .pip {
