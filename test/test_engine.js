@@ -913,6 +913,9 @@ function randomAgentRun(seed) {
   checkManifest('relics', Object.keys(RELICS));
   checkManifest('potions', Object.keys(POTIONS));
   checkManifest('events', Object.keys(EVENTS));
+  checkManifest('omens', Object.keys(OMENS));
+  checkManifest('boons', Object.keys(BOONS));
+  checkManifest('arts', Object.keys(ARTS));
   checkManifest('heroes', ASPECTS.map((a) => a.id));
   checkManifest('stage', [1, 2, 3].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => `act${a}-${l}`)));
   checkManifest('props', ['campfire', 'chest', 'chest-open', 'merchant']);
