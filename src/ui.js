@@ -2486,6 +2486,7 @@ function renderRest() {
 }
 function renderTreasure() {
   const run = S.run;
+  let opened = false;
   screenEl().innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
     <div class="ov-title">TREASURE</div>
     <div class="art-lg" style="cursor:pointer" data-a="open">${rasterOr('props', 'chest', chestSvg(false))}</div>
@@ -2493,6 +2494,9 @@ function renderTreasure() {
     <div class="big-choices"><button class="btn btn-primary" data-a="open">Open the Chest</button></div>
   </div></div>`;
   const open = () => {
+    if (opened) return;
+    opened = true;
+    $$('[data-a="open"]').forEach((b) => { b.onclick = null; b.style.pointerEvents = 'none'; });
     const relicId = E.randomRelic(run, { common: 0.55, uncommon: 0.35, rare: 0.1 });
     $('.art-lg').innerHTML = rasterOr('props', 'chest-open', chestSvg(true));
     sfx.relic();
@@ -2636,7 +2640,11 @@ function renderEvent(eventId) {
     b.onclick = () => resolveChoice(ch);
     choices.appendChild(b);
   }
+  let resolving = false;
   async function resolveChoice(ch) {
+    if (resolving) return;
+    resolving = true;
+    choices.querySelectorAll('button').forEach((b) => { b.disabled = true; });
     sfx.click();
     const { pending, log } = E.applyEventOps(run, ch.ops);
     renderHud();
