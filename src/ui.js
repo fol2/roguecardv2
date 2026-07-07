@@ -677,6 +677,7 @@ function renderMap() {
   screenEl().innerHTML = `
     <div class="map-title">ACT ${run.act + 1} — <b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits${omen ? ` &nbsp;·&nbsp; <span class="mt-omen" style="color:${omen.tone}">${iconSvg(`omen-${run.omens[run.act]}`, 14)} ${omen.name}</span>` : ''}</div>
     <div class="map-screen screen-enter">
+      <div class="map-haze" style="--haze:${['#2a3a2e', '#1f2e40', '#3a2030'][run.act] ?? '#2a3a2e'}"></div>
       <svg class="map-svg" width="100%" height="100%">${edges}${dots}</svg>
       <div class="map-hint">${COARSE ? 'drag' : 'scroll'} to survey the Spire</div>
     </div>`;
@@ -693,9 +694,10 @@ function renderMap() {
   $$('.mnode', svg).forEach((g) => {
     const n = nodes.find((x) => x.id === g.dataset.node);
     const names = { monster: 'Monster', elite: 'Elite — beware', event: 'Unknown event', rest: 'Rest site', shop: 'Merchant', treasure: 'Treasure', boss: ACTS[run.act].bossName };
+    const hints = { monster: 'A fight. Embers and gold for the swift.', elite: 'A titled foe - greater risk, a relic-grade purse.', event: 'Fate unwritten. Could be anything.', rest: 'Heal, or forge a card into its + form.', shop: 'Gold for cards, relics, phials.', treasure: 'A chest with no fight attached.', boss: 'The act ends here. Ready your deck.' };
     g._tip = n.unlit && !visited.has(n.id)
       ? { title: 'An unlit lantern', body: `What waits here is unknown — but first light pays a bounty of gold.${avail.has(n.id) ? ` ${COARSE ? 'Tap' : 'Click'} to travel here.` : ''}` }
-      : { title: names[n.type], body: avail.has(n.id) ? `${COARSE ? 'Tap' : 'Click'} to travel here.` : '' };
+      : { title: names[n.type], body: avail.has(n.id) ? `${COARSE ? 'Tap' : 'Click'} to travel here.` : '', sub: hints[n.type] };
   });
   // 3D wiring: anchors on the tower, camera dollies to the current row
   const anchors = nodes.map((n) => ({ id: n.id, pos: mapNodePos(run.act, n) }));
@@ -708,15 +710,17 @@ function renderMap() {
     for (const [id, g] of nodeEls) {
       const pt = P.get(id);
       g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)}) scale(${pt.s.toFixed(3)})`);
-      g.style.opacity = (pt.fade * (dimIds.has(id) ? 0.4 : 1)).toFixed(3);
+      const seenDim = g.classList.contains('visited') && !g.classList.contains('current') ? 0.55 : 1;
+      g.style.opacity = (pt.fade * (dimIds.has(id) ? 0.4 : 1) * seenDim).toFixed(3);
     }
     for (const { p, a, b } of edgeEls) {
       const A = P.get(a), B = P.get(b);
       const sag = 9 * (A.s + B.s) / 2; // chains between lanterns hang a little
       p.setAttribute('d', `M${A.x.toFixed(1)} ${A.y.toFixed(1)} Q${((A.x + B.x) / 2).toFixed(1)} ${((A.y + B.y) / 2 + sag).toFixed(1)} ${B.x.toFixed(1)} ${B.y.toFixed(1)}`);
-      p.style.opacity = Math.min(A.fade, B.fade).toFixed(3);
+      p.style.opacity = (Math.min(A.fade, B.fade) * (p.classList.contains('walked') ? 0.25 : 1)).toFixed(3);
     }
   });
+  V.setWeather(run.act, { mult: 0.3 });
   const ms = $('.map-screen');
   ms.addEventListener('wheel', (e) => {
     e.preventDefault();
