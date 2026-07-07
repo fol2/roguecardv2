@@ -28,9 +28,9 @@ const LAYER_DEFAULTS = {
   ledge: { x: 0, posY: 0, drift: 0 },
 };
 
-/** Deep-merged layout for a stage shape (unknown shape ⇒ base). */
-export function bfResolve(shape) {
-  const layout = merge(BF.base, BF.shapes?.[shape]);
+/** Deep-merged layout for a stage shape and act (unknown shape ⇒ base only). */
+export function bfResolve(shape, act = 0) {
+  const layout = merge(merge(BF.base, BF.shapes?.[shape]), BF.acts?.[act]);
   const layers = {};
   for (const name of ['backdrop', 'mid', 'ledge']) {
     layers[name] = { ...LAYER_DEFAULTS[name], ...(layout.layers?.[name] ?? {}) };
@@ -40,7 +40,7 @@ export function bfResolve(shape) {
 
 /** Per-actor shared modifiers with defaults. kind: 'enemies' | 'heroes'. */
 export function bfActor(kind, id) {
-  return { scale: 1, footY: 0, ...(BF.shared?.[kind]?.[id] ?? {}) };
+  return { scale: 1, footX: 0, footY: 0, ...(BF.shared?.[kind]?.[id] ?? {}) };
 }
 
 /** Formation for an enemy count; missing counts interpolate the widest authored one.
@@ -62,9 +62,17 @@ export function bfSlots(layout, count) {
   });
 }
 
+/** Per-slot feet offset: slot override wins, else the mob type's shared value. */
+export function bfEnemyFootX(slot, key) {
+  return slot?.footX ?? bfActor('enemies', key).footX;
+}
+export function bfEnemyFootY(slot, key) {
+  return slot?.footY ?? bfActor('enemies', key).footY;
+}
+
 /** Depth sort indices: lower on screen (smaller slot bottom lift) draws in front. */
-export function bfEnemyZOrder(slots, footYs) {
-  const order = slots.map((s, i) => ({ i, bottom: (s?.y ?? 0) + (footYs[i] ?? 0) }));
+export function bfEnemyZOrder(slots, keys) {
+  const order = slots.map((s, i) => ({ i, bottom: (s?.y ?? 0) + bfEnemyFootY(s, keys[i]) }));
   order.sort((a, b) => b.bottom - a.bottom); // back (high bottom) first → low z
   const z = new Array(slots.length);
   order.forEach((d, rank) => { z[d.i] = rank + 1; });

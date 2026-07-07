@@ -3,8 +3,64 @@
 // src/battlefield-layout.js through the vite dev endpoint.
 import { ENEMIES, ASPECTS } from '../data.js';
 import { serializeBF, validateBF } from './bf-serialize.js';
-import { bfRaw, _setBF, bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyZOrder } from '../battlefield.js';
+import { bfRaw, _setBF, bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder } from '../battlefield.js';
 import { stageEl, stageW, stageH, stageScale, stageInfo } from '../stage.js';
+
+const SLOT_FOOT = new Set(['footX', 'footY']);
+const editorAct = () => state.scenario?.act ?? 0;
+const editorResolve = () => bfResolve(stageInfo().shape, editorAct());
+function layoutScopes(shape) {
+  const loc = shape === 'pad-landscape' ? ['base'] : ['base', 'shape'];
+  return [...loc, 'act'];
+}
+function layoutPosField(label, path, value, shape) {
+  const act = String(editorAct());
+  const scopes = layoutScopes(shape);
+  let scope = shape === 'pad-landscape' ? 'base' : 'shape';
+  let overridden = false;
+  if (getPath(state.working.acts?.[act], path) !== undefined) { scope = 'act'; overridden = true; }
+  else if (shape !== 'pad-landscape' && getPath(state.working.shapes?.[shape], path) !== undefined) { scope = 'shape'; overridden = true; }
+  return { label, path, value, scope, scopes, overridden };
+}
+function slotFootField(kind, key, i, count, slot, shape) {
+  const act = String(editorAct());
+  const scopes = ['shared', ...(shape === 'pad-landscape' ? ['base'] : ['shape']), 'act'];
+  let scope = 'shared';
+  let overridden = false;
+  if (getPath(state.working.acts?.[act], ['slots', count, i, kind]) !== undefined) { scope = 'act'; overridden = true; }
+  else if (shape !== 'pad-landscape' && getPath(state.working.shapes?.[shape], ['slots', count, i, kind]) !== undefined) { scope = 'shape'; overridden = true; }
+  return {
+    label: `${kind} · ${key}`,
+    kind,
+    mobKey: key,
+    slotIdx: i,
+    count,
+    value: kind === 'footX' ? bfEnemyFootX(slot, key) : bfEnemyFootY(slot, key),
+    scope,
+    scopes,
+    overridden,
+  };
+}
+function clearSlotFoot(f, shape) {
+  if (f.scope === 'act') {
+    const arr = getPath(state.working.acts?.[String(editorAct())], ['slots', f.count]);
+    if (arr?.[f.slotIdx]) delete arr[f.slotIdx][f.kind];
+    return;
+  }
+  if (f.scope === 'base') {
+    const slot = state.working.base.slots?.[f.count]?.[f.slotIdx];
+    if (slot) delete slot[f.kind];
+    return;
+  }
+  const arr = getPath(state.working.shapes?.[shape] ?? {}, ['slots', f.count]);
+  if (arr?.[f.slotIdx]) delete arr[f.slotIdx][f.kind];
+}
+function clearLayoutOverride(f, shape) {
+  const path = f.path[0] === 'slots' ? ['slots', f.path[1]] : f.path;
+  if (f.scope === 'act') delPath(state.working, ['acts', String(editorAct()), ...path]);
+  else if (f.scope === 'base') delPath(state.working, ['base', ...path]);
+  else delPath(state.working, ['shapes', shape, ...path]);
+}
 
 const SHAPES = ['phone-portrait', 'phone-landscape', 'pad-portrait', 'pad-landscape', 'desktop-landscape'];
 const LAYERS = ['backdrop', 'mid', 'ledge'];
@@ -33,13 +89,20 @@ function applyWorking() {
 const isActorSharedPath = (path) => path[0] === 'sizes' || path[0] === 'heroes' || path[0] === 'enemies';
 function mutateField(scope, path, value) {
   const shape = stageInfo().shape;
+  const act = String(editorAct());
   if (scope === 'shared' && !isActorSharedPath(path)) scope = defaultScope(path);
   if (scope === 'shared') setPath(state.working.shared, path, value);
   else if (scope === 'base') setPath(state.working.base, path, value);
-  else {
+  else if (scope === 'act') {
+    if (!state.working.acts) state.working.acts = {};
+    if (path[0] === 'slots' && getPath(state.working.acts[act] ?? {}, ['slots', path[1]]) === undefined) {
+      setPath(state.working, ['acts', act, 'slots', path[1]], clone(editorResolve().slots[path[1]] ?? bfSlots(editorResolve(), Number(path[1]))));
+    }
+    setPath(state.working, ['acts', act, ...path], value);
+  } else {
     // shape scope; formations copy-on-write (arrays replace wholesale on merge)
     if (path[0] === 'slots' && getPath(state.working.shapes?.[shape] ?? {}, ['slots', path[1]]) === undefined) {
-      setPath(state.working, ['shapes', shape, 'slots', path[1]], clone(bfResolve(shape).slots[path[1]] ?? bfSlots(bfResolve(shape), Number(path[1]))));
+      setPath(state.working, ['shapes', shape, 'slots', path[1]], clone(editorResolve().slots[path[1]] ?? bfSlots(editorResolve(), Number(path[1]))));
     }
     setPath(state.working, ['shapes', shape, ...path], value);
   }
@@ -151,7 +214,7 @@ function layerArtRect(name, p, plateBottom) {
 }
 function overlayRects() {
   const shape = stageInfo().shape;
-  const L = bfResolve(shape);
+  const L = editorResolve();
   const rects = [];
   // layers first so hero/enemy boxes stack above and receive drags
   LAYERS.forEach((name) => {
@@ -174,13 +237,14 @@ function overlayRects() {
   const hw = Math.round(L.hero.w * hero.scale), hh = Math.round(L.hero.h * hero.scale);
   rects.push({ id: 'hero', x: L.hero.x - hw / 2, w: hw, h: hh, bottom: L.groundY + hero.footY });
   const slots = bfSlots(L, state.scenario.ids.length);
-  const footYs = state.scenario.ids.map((key) => bfActor('enemies', key).footY);
-  const zOrder = bfEnemyZOrder(slots, footYs);
+  const zOrder = bfEnemyZOrder(slots, state.scenario.ids);
   state.scenario.ids.forEach((key, i) => {
     const d = ENEMIES[key];
     const tier = d.boss ? 'boss' : d.elite ? 'elite' : 'normal';
     const size = bfEnemySize(L, key, tier, slots[i], stageW(), stageH());
-    rects.push({ id: `enemy-${i}`, x: slots[i].x - size / 2, w: size, h: size, bottom: L.groundY + (slots[i].y ?? 0) + footYs[i], z: zOrder[i] });
+    const footX = bfEnemyFootX(slots[i], key);
+    const footY = bfEnemyFootY(slots[i], key);
+    rects.push({ id: `enemy-${i}`, x: slots[i].x - size / 2 + footX, w: size, h: size, bottom: L.groundY + (slots[i].y ?? 0) + footY, z: zOrder[i] });
   });
   return rects;
 }
@@ -212,7 +276,7 @@ function onBoxPointerDown(e, id) {
   const shape = stageInfo().shape;
   // snapshot EVERYTHING at drag start; every move event writes L0 + total
   // delta, so repeated events never compound
-  const L0 = clone(bfResolve(shape));
+  const L0 = clone(editorResolve());
   const heroId = ASPECTS[state.scenario.aspect].id;
   const heroFoot0 = bfActor('heroes', heroId).footY;
   const start = { x: e.clientX, y: e.clientY };
@@ -266,10 +330,8 @@ function select(id) {
 function fieldRows() {
   if (!state.sel) return [];
   const shape = stageInfo().shape;
-  const L = bfResolve(shape);
-  const over = state.working.shapes?.[shape] ?? {};
-  const posScopes = shape === 'pad-landscape' ? ['base'] : ['base', 'shape']; // no self-shadowing override on the base shape
-  const pos = (label, path, value) => ({ label, path, value, scope: defaultScope(path), scopes: posScopes, overridden: getPath(over, path) !== undefined });
+  const L = editorResolve();
+  const pos = (label, path, value) => layoutPosField(label, path, value, shape);
   const sh = (label, path, value) => ({ label, path, value, scope: 'shared', scopes: ['shared'], overridden: false });
   if (state.sel === 'ground') return [pos('groundY', ['groundY'], L.groundY), pos('ledgeLip', ['ledgeLip'], L.ledgeLip)];
   if (state.sel === 'hero') {
@@ -295,8 +357,9 @@ function fieldRows() {
       pos(`slot x`, ['slots', count, i, 'x'], slot.x),
       pos(`slot y`, ['slots', count, i, 'y'], slot.y ?? 0),
       pos(`slot s`, ['slots', count, i, 's'], slot.s ?? 1),
+      slotFootField('footX', key, i, count, slot, shape),
+      slotFootField('footY', key, i, count, slot, shape),
       sh(`scale · ${key}`, ['enemies', key, 'scale'], a.scale),
-      sh(`footY · ${key}`, ['enemies', key, 'footY'], a.footY),
       sh(`size · tier ${tier}`, ['sizes', tier], L.shared.sizes[tier]),
     ];
   }
@@ -328,14 +391,14 @@ function renderPanel() {
     .map(([id, label]) => `<button data-select="${id}"${state.sel === id ? ' class="on"' : ''}>${label}</button>`).join('');
   panelEl.innerHTML = `<div id="bf-select">${selector}</div>
     <h3>${selLabel}</h3>
-    <div class="bf-scope">shape: <b>${shape}</b>${shape === 'pad-landscape' ? ' (base)' : ''}</div>
+    <div class="bf-scope">shape: <b>${shape}</b>${shape === 'pad-landscape' ? ' (base)' : ''} &nbsp;·&nbsp; act: <b>${editorAct() + 1}</b></div>
     ${rows.map((f, i) => `<label>${f.label}
       <span>
         <select data-scope="${i}"${f.scopes.length === 1 ? ' disabled' : ''}>
           ${f.scopes.map((s) => `<option${s === f.scope ? ' selected' : ''}>${s}</option>`).join('')}
         </select>
-        <input type="number" step="any" data-row="${i}" data-path="${f.path.at(-1)}" value="${f.value}">
-        ${f.overridden ? `<button data-clear="${i}" title="clear this shape's override">×</button>` : ''}
+        <input type="number" step="any" data-row="${i}" data-path="${f.path?.at(-1) ?? f.kind ?? ''}" value="${f.value}">
+        ${f.overridden ? `<button data-clear="${i}" title="clear this override">×</button>` : ''}
       </span></label>`).join('')}`;
   panelEl.onchange = (e) => {
     const t = e.target;
@@ -343,7 +406,14 @@ function renderPanel() {
       const f = fieldRows()[Number(t.dataset.row)];
       const scopeSel = panelEl.querySelector(`select[data-scope="${t.dataset.row}"]`);
       const v = Number(t.value);
-      if (Number.isFinite(v)) writeField(scopeSel?.value ?? f.scope, f.path, v);
+      if (!Number.isFinite(v)) return;
+      if (SLOT_FOOT.has(f.kind)) {
+        const scope = scopeSel?.value ?? f.scope;
+        const path = scope === 'shared' ? ['enemies', f.mobKey, f.kind] : ['slots', f.count, f.slotIdx, f.kind];
+        writeField(scope, path, v);
+        return;
+      }
+      writeField(scopeSel?.value ?? f.scope, f.path, v);
     }
   };
   panelEl.onclick = (e) => {
@@ -352,10 +422,12 @@ function renderPanel() {
     const c = e.target.dataset?.clear;
     if (c != null) {
       const f = fieldRows()[Number(c)];
-      // slots overrides are whole arrays (replace wholesale on merge): clear
-      // the entire formation override, never a leaf key inside it
-      const path = f.path[0] === 'slots' ? ['slots', f.path[1]] : f.path;
-      delPath(state.working, ['shapes', stageInfo().shape, ...path]);
+      if (SLOT_FOOT.has(f.kind)) {
+        clearSlotFoot(f, shape);
+        applyWorking();
+        return;
+      }
+      clearLayoutOverride(f, shape);
       applyWorking();
     }
   };
@@ -470,7 +542,7 @@ export function initBfEditor() {
     const dy = e.key === 'ArrowUp' ? step : e.key === 'ArrowDown' ? -step : 0;
     if (!dx && !dy) { if (e.key === 'Escape') select(null); return; }
     e.preventDefault();
-    const L = bfResolve(stageInfo().shape);
+    const L = editorResolve();
     const scope = defaultScope(['hero']);
     const count = state.scenario.ids.length;
     if (state.sel === 'ground' && dy) writeField(scope, ['groundY'], L.groundY + dy);
@@ -486,5 +558,5 @@ export function initBfEditor() {
       if (dy) writeField(scope, ['layers', name, 'y'], L.layers[name].y + dy);
     }
   });
-  window.__bfEditor = { resolved: () => bfResolve(stageInfo().shape), working: () => state.working };
+  window.__bfEditor = { resolved: () => editorResolve(), working: () => state.working };
 }

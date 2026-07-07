@@ -9,16 +9,19 @@ const HEADER = `// Battlefield layout — owned by the battlefield editor (?bfed
 // server), hand edits welcome: keep the shape, keep numbers finite.
 // All values are STAGE px for their shape (see src/stage.js). Conventions:
 //   x       — actor's horizontal CENTER
+//   footX   — horizontal feet offset from the slot center (+right)
 //   footY   — feet offset from the ground line (art whose feet aren't at the
 //             sprite's bottom edge), + is up
 //   scale   — multiplies the tier size (sizes.normal/elite/boss)
 //   slot.s  — per-formation size multiplier (keeps wide lineups on-ledge)
 //   slot.y  — per-formation lift from the ground line (+up, default 0)
+//   slot.footX / slot.footY — optional per-slot overrides; fall back to shared.enemies[id]
 //   layers  — h: plate height; y: plate bottom offset from stage bottom (+up);
 //             x: horizontal offset from centered (+right); zoom: image scale;
 //             posX/posY: crop focus % (object-position); opacity;
 //             drift: idle parallax amplitude px (0 = still).
 //             Internal key "ledge" = the ground PNG plate (actN-ledge.png).
+//   acts    — per-act layout overrides (0/1/2), merged after base + shape
 // Imports nothing; imported by src/battlefield.js only.
 `;
 
@@ -33,7 +36,7 @@ function inline(obj, keyOrder = null) {
   return `{ ${[...keys, ...rest].map((k) => `${JSON.stringify(k).match(/^"[a-zA-Z_$][\w$]*"$/) ? k : JSON.stringify(k)}: ${typeof obj[k] === 'number' ? num(obj[k]) : JSON.stringify(obj[k])}`).join(', ')} }`;
 }
 function actorsBlock(map, indent) {
-  return Object.keys(map).sort().map((id) => `${indent}${/^[a-zA-Z_$][\w$]*$/.test(id) ? id : JSON.stringify(id)}: ${inline(map[id], ['scale', 'footY'])},`).join('\n');
+  return Object.keys(map).sort().map((id) => `${indent}${/^[a-zA-Z_$][\w$]*$/.test(id) ? id : JSON.stringify(id)}: ${inline(map[id], ['scale', 'footX', 'footY'])},`).join('\n');
 }
 function layoutBlock(layout, indent) {
   const out = [];
@@ -43,7 +46,7 @@ function layoutBlock(layout, indent) {
   if (layout.slots) {
     out.push(`${indent}slots: {`);
     for (const n of Object.keys(layout.slots).sort((a, b) => a - b)) {
-      out.push(`${indent}  ${n}: [${layout.slots[n].map((s) => inline(s, ['x', 'y', 's'])).join(', ')}],`);
+      out.push(`${indent}  ${n}: [${layout.slots[n].map((s) => inline(s, ['x', 'y', 's', 'footX', 'footY'])).join(', ')}],`);
     }
     out.push(`${indent}},`);
   }
@@ -67,7 +70,14 @@ export function serializeBF(bf) {
     const o = bf.shapes?.[sh];
     if (o && Object.keys(o).length) out.push(`    '${sh}': {`, layoutBlock(o, '      '), '    },');
   }
-  out.push('  },', '};', '');
+  out.push('  },');
+  const actKeys = Object.keys(bf.acts ?? {}).filter((a) => bf.acts[a] && Object.keys(bf.acts[a]).length).sort();
+  if (actKeys.length) {
+    out.push('  acts: {');
+    for (const a of actKeys) out.push(`    ${a}: {`, layoutBlock(bf.acts[a], '      '), '    },');
+    out.push('  },');
+  }
+  out.push('};', '');
   return out.join('\n');
 }
 
@@ -81,6 +91,7 @@ export function validateBF(bf, ids = null) {
     for (const [id, a] of Object.entries(bf.shared[kind] ?? {})) {
       finite(a.scale, `shared.${kind}.${id}.scale`);
       finite(a.footY, `shared.${kind}.${id}.footY`);
+      if (a.footX !== undefined) finite(a.footX, `shared.${kind}.${id}.footX`);
       if (ids && !ids[kind].includes(id)) problems.push(`shared.${kind}.${id}: unknown id`);
     }
   }
@@ -99,6 +110,8 @@ export function validateBF(bf, ids = null) {
         finite(s.x, `${name}.slots.${n}[${i}].x`);
         finite(s.s, `${name}.slots.${n}[${i}].s`);
         if (s.y !== undefined) finite(s.y, `${name}.slots.${n}[${i}].y`); // per-slot lift, optional
+        if (s.footX !== undefined) finite(s.footX, `${name}.slots.${n}[${i}].footX`);
+        if (s.footY !== undefined) finite(s.footY, `${name}.slots.${n}[${i}].footY`);
       });
     }
     for (const [l, p] of Object.entries(layout.layers ?? {})) {
@@ -114,6 +127,10 @@ export function validateBF(bf, ids = null) {
   for (const [sh, o] of Object.entries(bf.shapes ?? {})) {
     if (!SHAPES.includes(sh)) problems.push(`shapes.${sh}: unknown shape`);
     else checkLayout(o, `shapes.${sh}`, false);
+  }
+  for (const [a, o] of Object.entries(bf.acts ?? {})) {
+    if (!['0', '1', '2'].includes(a)) problems.push(`acts.${a}: unknown act`);
+    else checkLayout(o, `acts.${a}`, false);
   }
   return problems;
 }

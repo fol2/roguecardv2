@@ -10,7 +10,7 @@ import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, me
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
-import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyZOrder } from './battlefield.js';
+import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder } from './battlefield.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
@@ -879,7 +879,7 @@ function renderCombat() {
   const zone = $('.enemy-zone', sc);
   const ce = { enemies: [], root: $('.combat-screen', sc) };
   const afx = cb.affix ? AFFIXES[cb.affix] : null;
-  const L = bfResolve(stageInfo().shape);
+  const L = bfResolve(stageInfo().shape, S.run.act);
   const slots = bfSlots(L, cb.enemies.length);
   cb.enemies.forEach((en, i) => {
     const d = ENEMIES[en.key];
@@ -967,7 +967,7 @@ const heroCenter = () => V.centerOf(S.ce.hero);
 function applyBattlefieldLayout(resolved) {
   const cb = S.cb, ce = S.ce;
   if (!cb || !ce || S.screen !== 'combat') return;
-  const L = resolved ?? bfResolve(stageInfo().shape);
+  const L = resolved ?? bfResolve(stageInfo().shape, S.run.act);
   ce.root.style.setProperty('--ground-y', `${L.groundY}px`);
   ce.root.style.setProperty('--ledge-lip', `${L.ledgeLip}px`);
   for (const name of ['backdrop', 'mid', 'ledge']) {
@@ -992,15 +992,15 @@ function applyBattlefieldLayout(resolved) {
   pz.style.left = `${Math.round(L.hero.x - hw / 2)}px`;
   pz.style.bottom = `${hero.footY}px`; // relative to .battlefield bottom = the ground line
   const slots = bfSlots(L, cb.enemies.length);
-  const footYs = cb.enemies.map((en) => bfActor('enemies', en.key).footY);
-  const zOrder = bfEnemyZOrder(slots, footYs);
+  const keys = cb.enemies.map((en) => en.key);
+  const zOrder = bfEnemyZOrder(slots, keys);
   cb.enemies.forEach((en, i) => {
     const d = ENEMIES[en.key];
     const tier = d.boss ? 'boss' : d.elite ? 'elite' : 'normal';
     const size = bfEnemySize(L, en.key, tier, slots[i], stageW(), stageH());
     const box = ce.enemies[i].root;
-    box.style.left = `${Math.round(slots[i].x - size / 2)}px`;
-    box.style.bottom = `${(slots[i].y ?? 0) + footYs[i]}px`;
+    box.style.left = `${Math.round(slots[i].x - size / 2 + bfEnemyFootX(slots[i], en.key))}px`;
+    box.style.bottom = `${(slots[i].y ?? 0) + bfEnemyFootY(slots[i], en.key)}px`;
     box.style.width = box.style.height = `${size}px`;
     box.style.zIndex = String(zOrder[i]);
     ce.enemies[i].art.style.width = ce.enemies[i].art.style.height = `${size}px`;

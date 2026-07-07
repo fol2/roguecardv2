@@ -11,7 +11,7 @@ import {
 } from '../src/engine.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS } from '../src/data.js';
 import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from '../src/vigil.js';
-import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyZOrder, _setBF, bfRaw } from '../src/battlefield.js';
+import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
@@ -957,7 +957,16 @@ function randomAgentRun(seed) {
   assert.equal(bfEnemySize(bfResolve('pad-landscape'), 'duskfang', 'normal', { x: 0, s: 1 }, 1180, 820),
     Math.round(99999 * bfActor('enemies', 'duskfang').scale), 'bf: no stage size clamp');
   // depth: lower slot lift draws in front
-  assert.deepEqual(bfEnemyZOrder([{ y: 40 }, { y: 0 }], [0, 0]), [1, 2], 'bf: enemy z-order by bottom');
+  assert.deepEqual(bfEnemyZOrder([{ y: 40 }, { y: 0 }], ['a', 'b']), [1, 2], 'bf: enemy z-order by bottom');
+  assert.equal(bfEnemyFootY({ footY: 5 }, 'duskfang'), 5, 'bf: slot footY override');
+  assert.equal(bfEnemyFootY({}, 'duskfang'), bfActor('enemies', 'duskfang').footY, 'bf: shared footY fallback');
+  assert.equal(bfEnemyFootX({ footX: 12 }, 'duskfang'), 12, 'bf: slot footX override');
+  assert.equal(bfEnemyFootX({}, 'duskfang'), 0, 'bf: shared footX default');
+  // act layer merges after base + shape
+  const baseGY = bfResolve('pad-landscape', 0).groundY;
+  _setBF({ ...bfRaw(), acts: { 1: { groundY: baseGY + 42 } } });
+  assert.equal(bfResolve('pad-landscape', 0).groundY, baseGY, 'bf: act override does not leak to other acts');
+  assert.equal(bfResolve('pad-landscape', 1).groundY, baseGY + 42, 'bf: act override applies to that act');
   _setBF(null);
   assert.equal(bfResolve('pad-landscape').groundY, L.groundY, 'bf: _setBF(null) restores the file');
   // serializer: valid, deterministic, and a true round-trip

@@ -2,16 +2,19 @@
 // server), hand edits welcome: keep the shape, keep numbers finite.
 // All values are STAGE px for their shape (see src/stage.js). Conventions:
 //   x       — actor's horizontal CENTER
+//   footX   — horizontal feet offset from the slot center (+right)
 //   footY   — feet offset from the ground line (art whose feet aren't at the
 //             sprite's bottom edge), + is up
 //   scale   — multiplies the tier size (sizes.normal/elite/boss)
 //   slot.s  — per-formation size multiplier (keeps wide lineups on-ledge)
 //   slot.y  — per-formation lift from the ground line (+up, default 0)
+//   slot.footX / slot.footY — optional per-slot overrides; fall back to shared.enemies[id]
 //   layers  — h: plate height; y: plate bottom offset from stage bottom (+up);
 //             x: horizontal offset from centered (+right); zoom: image scale;
 //             posX/posY: crop focus % (object-position); opacity;
 //             drift: idle parallax amplitude px (0 = still).
 //             Internal key "ledge" = the ground PNG plate (actN-ledge.png).
+//   acts    — per-act layout overrides (0/1/2), merged after base + shape
 // Imports nothing; imported by src/battlefield.js only.
 
 export const BF = {
@@ -22,32 +25,32 @@ export const BF = {
       duskblade: { scale: 1, footY: -31 },
     },
     enemies: {
-      abyssalKnight: { scale: 1.24, footY: 0 },
-      alphaFang: { scale: 1.24, footY: 0 },
+      abyssalKnight: { scale: 1.3, footY: -20 },
+      alphaFang: { scale: 2, footX: -30, footY: -60 },
       ashAcolyte: { scale: 0.95, footY: 0 },
       chaosHound: { scale: 1.05, footY: 0 },
       deepmaw: { scale: 1.14, footY: 0 },
-      drownedOne: { scale: 0.95, footY: 0 },
+      drownedOne: { scale: 0.8, footY: 0 },
       duskfang: { scale: 0.95, footY: 0 },
       gloomslime: { scale: 0.95, footY: 0 },
-      gravewarden: { scale: 1.19, footY: 0 },
-      heraldOfEnd: { scale: 1.4, footY: 0 },
-      leviathan: { scale: 1.45, footY: 0 },
+      gravewarden: { scale: 2.5, footX: -40, footY: -50 },
+      heraldOfEnd: { scale: 2.3, footX: -50, footY: 0 },
+      leviathan: { scale: 4, footX: -150, footY: -200 },
       mirelurker: { scale: 0.9, footY: 0 },
-      obsidianGolem: { scale: 1.24, footY: 0 },
-      rootheart: { scale: 1.45, footY: 0 },
-      shade: { scale: 0.95, footY: 0 },
+      obsidianGolem: { scale: 1.3, footY: 0 },
+      rootheart: { scale: 2.6, footX: -50, footY: -70 },
+      shade: { scale: 1.1, footY: 0 },
       shellback: { scale: 1.09, footY: 0 },
-      siren: { scale: 1.09, footY: 0 },
-      sovereign: { scale: 1.45, footY: 0 },
+      siren: { scale: 1.6, footX: -10, footY: -20 },
+      sovereign: { scale: 1.45, footX: -100, footY: 50 },
       sporeling: { scale: 0.62, footY: 0 },
       starCultist: { scale: 1, footY: 0 },
       thornling: { scale: 0.81, footY: 0 },
       tidecaller: { scale: 1, footY: 0 },
-      voidColossus: { scale: 1.45, footY: 0 },
+      voidColossus: { scale: 2.5, footX: -50, footY: 0 },
       voidWisp: { scale: 0.67, footY: 0 },
-      voltEel: { scale: 0.86, footY: 0 },
-      watcherEye: { scale: 1, footY: 0 },
+      voltEel: { scale: 1.1, footY: 0 },
+      watcherEye: { scale: 1.1, footY: 0 },
       waylayer: { scale: 0.9, footY: 0 },
     },
   },
@@ -115,12 +118,34 @@ export const BF = {
       slots: {
         1: [{ x: 1164, y: -16, s: 1 }],
         2: [{ x: 1066, y: 5, s: 1 }, { x: 1197, y: -39, s: 1 }],
-        3: [{ x: 940, y: 17, s: 1 }, { x: 1098, y: -50, s: 1 }, { x: 1254, s: 1 }],
+        3: [{ x: 940, y: 17, s: 1 }, { x: 1095, y: -50, s: 1 }, { x: 1260, y: 22, s: 1 }],
       },
       layers: {
         backdrop: { h: 1527, y: 273, x: -42, zoom: 0.6 },
-        mid: { h: 1000, y: 308, x: 189, zoom: 0.4 },
-        ledge: { h: 484, y: 183 },
+        mid: { h: 1000, y: 308, x: 189, zoom: 0.4, drift: 0 },
+        ledge: { h: 480, y: 0, posY: 0 },
+      },
+    },
+  },
+  acts: {
+    0: {
+      layers: {
+        backdrop: { h: 1000, y: 280, x: -100, zoom: 0.9, posX: 100, opacity: 0.7, drift: 30 },
+        mid: { drift: 10 },
+      },
+    },
+    1: {
+      layers: {
+        backdrop: { h: 1200, y: 250, x: -150, zoom: 0.8, posX: 100, opacity: 0.5, drift: 30 },
+        mid: { y: 280, x: 100, zoom: 0.6, opacity: 0.9, drift: 10 },
+        ledge: { h: 360, opacity: 0.4 },
+      },
+    },
+    2: {
+      layers: {
+        backdrop: { h: 1100, y: 270, zoom: 1, drift: 30 },
+        mid: { y: 200, x: -300, zoom: 0.5, drift: 15 },
+        ledge: { h: 330, posX: 100, opacity: 0.8 },
       },
     },
   },
