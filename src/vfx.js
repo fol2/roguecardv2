@@ -173,12 +173,13 @@ export function motes(x, y, color, n = 10) {
   }
 }
 
-export function floatText(x, y, text, cls = '') {
+export function floatText(x, y, text, cls = '', { tint = '', dx = 0 } = {}) {
   const el = document.createElement('div');
   el.className = `floaty ${cls}`;
   el.innerHTML = text; // trusted: only our own strings/icons ever flow here
-  el.style.left = `${x}px`;
+  el.style.left = `${x + dx}px`;
   el.style.top = `${y}px`;
+  if (tint) el.style.color = tint;
   floatLayer.appendChild(el);
   const drift = (Math.random() - 0.5) * 40;
   const isCrit = cls.includes('crit');

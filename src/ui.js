@@ -1532,6 +1532,7 @@ let heroActing = false; // true between a card play and end of turn — gates th
 let vfxSource = { archetype: 'slash', cardId: null, enemyIdx: null };
 let bespokeFired = false;
 let choreoDone = false;
+let hitSeq = 0;
 const ENEMY_KIND_VFX = {
   beast: 'slash', rogue: 'slash', knight: 'slash', sovereign: 'slash',
   golem: 'blunt', treeboss: 'blunt', crab: 'blunt', leviathan: 'blunt', zombie: 'blunt',
@@ -1735,6 +1736,7 @@ async function handleEvent(ev, targetIdx) {
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
       sfx.card();
       heroActing = true;
+      hitSeq = 0;
       vfxSource = { archetype: CARDS[ev.id]?.vfx || 'slash', cardId: ev.id, enemyIdx: null };
       bespokeFired = false;
       choreoDone = false;
@@ -1788,8 +1790,15 @@ async function handleEvent(ev, targetIdx) {
           sfx.blocked();
           V.floatText(ex, ey + 26, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf');
           V.burst(ex, ey + 8, { color: '#9fd4ff', n: 9, speed: 210, size: 2, grav: 260, kind: 'spark' }); // ward chips off
+          if (cb.enemies[ev.idx].block === 0 && ev.amount === 0) {
+            V.floatText(ex, ey - 2, 'GUARD SHATTERED', 'shatterf');
+            V.shardSpray(ex, ey, '#9fd4ff', 14);
+          }
         }
-        if (ev.amount > 0) V.floatText(ex, ey - 24, `${ev.amount}`, (ev.killingBlow || big) ? 'crit' : 'dmg');
+        if (ev.amount > 0) {
+          const tier = ev.killingBlow && ev.overkill >= 8 ? 'dmg-overkill' : ev.killingBlow ? 'dmg-kill' : big ? 'dmg-big' : 'dmg';
+          V.floatText(ex, ey - 24, `${ev.amount}`, tier, { tint: V.ARCHETYPE_TONES[vfxSource.archetype] || '', dx: (hitSeq++ % 3 - 1) * 34 });
+        }
         else if (!ev.blocked) V.floatText(ex, ey - 24, '0', 'blockedf');
         V.shake(Math.min(4 + ev.amount * 0.5, 15));
         kick(Math.min(0.2 + ev.amount / 26, 1));
@@ -1860,12 +1869,17 @@ async function handleEvent(ev, targetIdx) {
         sfx.blocked();
         V.floatText(hx, hy + 30, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf');
         V.burst(hx, hy + 8, { color: '#9fd4ff', n: 9, speed: 210, size: 2, grav: 260, kind: 'spark' });
+        if (cb.player.block === 0 && ev.amount === 0) {
+          V.floatText(hx, hy - 2, 'GUARD SHATTERED', 'shatterf');
+          V.shardSpray(hx, hy, '#9fd4ff', 14);
+        }
       }
       if (ev.amount > 0) {
-        V.floatText(hx, hy - 30, `${ev.amount}`, ev.amount >= 16 ? 'crit' : 'dmg');
+        const big = ev.amount >= 16;
+        V.floatText(hx, hy - 30, `${ev.amount}`, big ? 'dmg-big' : 'dmg', { tint: V.ARCHETYPE_TONES[vfxSource.archetype] || '', dx: (hitSeq++ % 3 - 1) * 34 });
         V.shake(Math.min(5 + ev.amount * 0.6, 18));
         kick(Math.min(0.3 + ev.amount / 22, 1.2));
-        addCrack(ce.hero, ev.amount >= 16);
+        addCrack(ce.hero, big);
       } else if (!ev.blocked) V.floatText(hx, hy - 30, '0', 'blockedf');
       syncCombat(); renderHud();
       await sleep(240);
@@ -1946,6 +1960,7 @@ async function handleEvent(ev, targetIdx) {
     case 'enemyAct': {
       const x = ce.enemies[ev.idx];
       const { x: ex, y: ey } = enemyCenter(ev.idx);
+      hitSeq = 0;
       const mvDef = ENEMIES[cb.enemies[ev.idx].key]?.moves?.[ev.move];
       const kindArch = ENEMY_KIND_VFX[ENEMIES[cb.enemies[ev.idx].key]?.art?.kind] || 'slash';
       vfxSource = {
@@ -1960,7 +1975,7 @@ async function handleEvent(ev, targetIdx) {
       x.intent.classList.remove('telegraph');
       void x.intent.offsetWidth;
       x.intent.classList.add('telegraph');
-      V.floatText(ex, ey - 90, ev.name, 'notice');
+      V.floatText(ex, ey - 90, ev.name, 'movef');
       await sleep(300);
       if (mvDef?.intent?.startsWith('attack')) {
         await choreoAttack(x.root, -1, ENEMIES[cb.enemies[ev.idx].key]?.art?.kind);
