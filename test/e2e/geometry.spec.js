@@ -20,6 +20,7 @@ const FIGHTS = [
 ];
 
 async function measure(page) {
+  await page.waitForFunction(() => window.__probe?.geometry());
   const g = await page.evaluate(() => window.__probe.geometry());
   expect(g, 'probe.geometry() should measure a live combat').not.toBeNull();
   return g;

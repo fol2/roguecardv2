@@ -10,6 +10,11 @@ const EXPECT_SHAPE = {
   landscape: { shape: 'phone-landscape', w: 844, h: 390 },
 };
 
+async function combatGeometry(page) {
+  await page.waitForFunction(() => window.__probe?.geometry());
+  return page.evaluate(() => window.__probe.geometry());
+}
+
 test('viewport maps to its canonical stage shape', async ({ page }) => {
   const want = EXPECT_SHAPE[test.info().project.name];
   await boot(page);
@@ -88,10 +93,10 @@ test('window size changes scale, never layout: geometry is identical at two wind
   await boot(page, { query: 'mesh=0' });
   await startFight(page, ['duskfang', 'sporeling']);
   await stable(page);
-  const g1 = await page.evaluate(() => window.__probe.geometry());
+  const g1 = await combatGeometry(page);
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.waitForTimeout(400);
-  const g2 = await page.evaluate(() => window.__probe.geometry());
+  const g2 = await combatGeometry(page);
   // same shape (both landscape), so every stage-space measurement must be
   // bit-identical: this IS the "fixed virtual resolution" property
   expect(g2.stage.shape).toBe(g1.stage.shape);
