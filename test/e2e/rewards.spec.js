@@ -100,4 +100,58 @@ test.describe('reward tap guards', () => {
     expect(after.relics - before.relics).toBeLessThanOrEqual(1);
     expectNoErrors(errors, 'boss relic multi-pick');
   });
+
+  test('treasure chest stays empty after reload', async ({ page }) => {
+    const errors = collectErrors(page);
+    await boot(page, { query: 'mesh=0' });
+    const nodeId = await page.evaluate(() => {
+      const sp = window.spirebound;
+      const node = sp.S.run.map.nodes.find((n) => n.type === 'treasure') || sp.S.run.map.nodes.find((n) => n.row === 8);
+      sp.E.visitNode(sp.S.run, node);
+      sp.show('treasure');
+      return node.id;
+    });
+    await page.evaluate(() => {
+      const fn = document.querySelector('[data-a="open"]')?.onclick;
+      if (typeof fn === 'function') fn();
+    });
+    await settle(page);
+    await expect(page.locator('button.btn-primary', { hasText: 'Continue' })).toBeVisible();
+    const claimed = await page.evaluate((id) => {
+      const node = window.spirebound.S.run.map.nodes.find((n) => n.id === id);
+      return !!node?.rewardClaimed;
+    }, nodeId);
+    expect(claimed).toBe(true);
+
+    await page.reload();
+    await page.waitForFunction(() => window.spirebound && window.__probe);
+    await page.locator('button[data-a="continue"]').click();
+    await settle(page);
+    await page.evaluate((id) => {
+      const sp = window.spirebound;
+      const node = sp.S.run.map.nodes.find((n) => n.id === id);
+      if (!node?.rewardClaimed) throw new Error('treasure node lost rewardClaimed after reload');
+      sp.show('treasure');
+    }, nodeId);
+    await expect(page.locator('.ov-sub', { hasText: 'The chest lies empty.' })).toBeVisible();
+    await expect(page.locator('button[data-a="open"]')).toHaveCount(0);
+    await expect(page.locator('button.btn-primary', { hasText: 'Continue' })).toBeVisible();
+    expectNoErrors(errors, 'treasure reload');
+  });
+
+  test('boss relic screen advances when act relic already claimed', async ({ page }) => {
+    const errors = collectErrors(page);
+    await boot(page, { query: 'mesh=0' });
+    const act = await page.evaluate(() => {
+      const sp = window.spirebound;
+      const id = sp.E.rollBossRelics(sp.S.run)[0];
+      sp.E.claimBossRelic(sp.S.run, id);
+      sp.E.saveRun(sp.S.run);
+      sp.show('bossRelic');
+      return sp.S.run.act;
+    });
+    await settle(page);
+    expect(act).toBe(1);
+    expectNoErrors(errors, 'boss relic mount guard');
+  });
 });

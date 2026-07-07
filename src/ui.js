@@ -2393,6 +2393,10 @@ function renderReward({ kind, rewards }) {
 }
 function renderBossRelic() {
   const run = S.run;
+  if (run.bossRelicAct === run.act) {
+    advanceAct();
+    return;
+  }
   const picks = E.rollBossRelics(run);
   const sc = screenEl();
   sc.innerHTML = `<div class="center-panel screen-enter"><div class="panel" style="width:min(620px,94vw)">
@@ -2503,7 +2507,10 @@ function renderTreasure() {
   const run = S.run;
   let opened = E.nodeRewardClaimed(run);
   const showContinue = (subHtml) => {
-    $('.art-lg').innerHTML = rasterOr('props', 'chest-open', chestSvg(true));
+    const art = $('.art-lg');
+    art.removeAttribute('data-a');
+    art.style.cursor = '';
+    art.innerHTML = rasterOr('props', 'chest-open', chestSvg(true));
     if (subHtml) $('.ov-sub').innerHTML = subHtml;
     const bc = $('.big-choices');
     bc.innerHTML = '';
@@ -2670,6 +2677,12 @@ function renderEvent(eventId) {
     showEventContinue();
     return;
   }
+  if (E.nodeEventInFlight(run)) {
+    E.finalizeNodeEventChoice(run);
+    E.saveRun(run);
+    showEventContinue();
+    return;
+  }
   for (const [i, ch] of ev.choices.entries()) {
     const b = el('button', `event-choice${i === 0 ? ' btn-primary' : ''}`, `<b>${ch.label}</b>${ch.sub ? `<div class="sub">${ch.sub}</div>` : ''}`);
     if (ch.needGold && run.player.gold < ch.needGold) b.disabled = true;
@@ -2695,12 +2708,14 @@ function renderEvent(eventId) {
       if (bits.length) logEl.innerHTML = bits.join('<br>');
       choices.innerHTML = '';
       for (const p of pending) await handlePending(p);
+      E.finalizeNodeEventChoice(run);
       E.saveRun(run);
       renderHud();
       showEventContinue();
       if (!bits.length && !pending.length && !ch.ops.length) show('map');
     } catch (err) {
-      if (E.nodeRewardClaimed(run)) {
+      if (E.nodeEventInFlight(run)) {
+        E.finalizeNodeEventChoice(run);
         E.saveRun(run);
         showEventContinue();
         return;
