@@ -6,6 +6,7 @@
 //             sprite's bottom edge), + is up
 //   scale   — multiplies the tier size (sizes.normal/elite/boss)
 //   slot.s  — per-formation size multiplier (keeps wide lineups on-ledge)
+//   slot.y  — per-formation lift from the ground line (+up, default 0)
 //   layers  — h: plate height; y: plate bottom offset from stage bottom (+up);
 //             x: horizontal offset from centered (+right); zoom: image scale;
 //             posX/posY: crop focus % (object-position); opacity;

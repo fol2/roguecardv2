@@ -178,7 +178,7 @@ function overlayRects() {
     const d = ENEMIES[key];
     const tier = d.boss ? 'boss' : d.elite ? 'elite' : 'normal';
     const size = bfEnemySize(L, key, tier, slots[i], stageW(), stageH());
-    rects.push({ id: `enemy-${i}`, x: slots[i].x - size / 2, w: size, h: size, bottom: L.groundY + bfActor('enemies', key).footY });
+    rects.push({ id: `enemy-${i}`, x: slots[i].x - size / 2, w: size, h: size, bottom: L.groundY + (slots[i].y ?? 0) + bfActor('enemies', key).footY });
   });
   return rects;
 }
@@ -213,7 +213,6 @@ function onBoxPointerDown(e, id) {
   const L0 = clone(bfResolve(shape));
   const heroId = ASPECTS[state.scenario.aspect].id;
   const heroFoot0 = bfActor('heroes', heroId).footY;
-  const enemyFoot0 = state.scenario.ids.map((k) => bfActor('enemies', k).footY);
   const start = { x: e.clientX, y: e.clientY };
   const sc = stageScale();
   const count = state.scenario.ids.length;
@@ -235,10 +234,11 @@ function onBoxPointerDown(e, id) {
       else if (axis === 'y') w('shared', ['heroes', heroId, 'footY'], heroFoot0 - dy);
     } else if (id.startsWith('enemy-')) {
       const i = Number(id.slice(6));
-      const key = state.scenario.ids[i];
       if (onHandle) w(posScope, ['slots', String(count), i, 's'], Math.max(0.1, +((slots0[i].s ?? 1) + dx / 200).toFixed(2)));
       else if (axis === 'x') w(posScope, ['slots', String(count), i, 'x'], slots0[i].x + dx);
-      else if (axis === 'y') w('shared', ['enemies', key, 'footY'], enemyFoot0[i] - dy);
+      // vertical drag lifts THIS slot, not the mob type — footY stays a
+      // shared per-type art correction edited in the panel
+      else if (axis === 'y') w(posScope, ['slots', String(count), i, 'y'], (slots0[i].y ?? 0) - dy);
     } else if (id.startsWith('layer-')) {
       const name = id.slice(6);
       if (onHandle) w(posScope, ['layers', name, 'h'], Math.max(10, L0.layers[name].h - dy));
@@ -291,6 +291,7 @@ function fieldRows() {
     const a = bfActor('enemies', key);
     return [
       pos(`slot x`, ['slots', count, i, 'x'], slot.x),
+      pos(`slot y`, ['slots', count, i, 'y'], slot.y ?? 0),
       pos(`slot s`, ['slots', count, i, 's'], slot.s ?? 1),
       sh(`scale · ${key}`, ['enemies', key, 'scale'], a.scale),
       sh(`footY · ${key}`, ['enemies', key, 'footY'], a.footY),
@@ -475,7 +476,7 @@ export function initBfEditor() {
     else if (state.sel.startsWith('enemy-')) {
       const i = Number(state.sel.slice(6));
       if (dx) writeField(scope, ['slots', String(count), i, 'x'], bfSlots(L, count)[i].x + dx);
-      else writeField('shared', ['enemies', state.scenario.ids[i], 'footY'], bfActor('enemies', state.scenario.ids[i]).footY + dy);
+      else writeField(scope, ['slots', String(count), i, 'y'], (bfSlots(L, count)[i].y ?? 0) + dy);
     } else if (state.sel.startsWith('layer-')) {
       const name = state.sel.slice(6);
       if (dx) writeField(scope, ['layers', name, 'x'], (L.layers[name].x ?? 0) + dx);

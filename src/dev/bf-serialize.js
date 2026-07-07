@@ -13,6 +13,7 @@ const HEADER = `// Battlefield layout — owned by the battlefield editor (?bfed
 //             sprite's bottom edge), + is up
 //   scale   — multiplies the tier size (sizes.normal/elite/boss)
 //   slot.s  — per-formation size multiplier (keeps wide lineups on-ledge)
+//   slot.y  — per-formation lift from the ground line (+up, default 0)
 //   layers  — h: plate height; y: plate bottom offset from stage bottom (+up);
 //             x: horizontal offset from centered (+right); zoom: image scale;
 //             posX/posY: crop focus % (object-position); opacity;
@@ -42,7 +43,7 @@ function layoutBlock(layout, indent) {
   if (layout.slots) {
     out.push(`${indent}slots: {`);
     for (const n of Object.keys(layout.slots).sort((a, b) => a - b)) {
-      out.push(`${indent}  ${n}: [${layout.slots[n].map((s) => inline(s, ['x', 's'])).join(', ')}],`);
+      out.push(`${indent}  ${n}: [${layout.slots[n].map((s) => inline(s, ['x', 'y', 's'])).join(', ')}],`);
     }
     out.push(`${indent}},`);
   }
@@ -94,7 +95,11 @@ export function validateBF(bf, ids = null) {
     if (layout.hero) for (const k of Object.keys(layout.hero)) finite(layout.hero[k], `${name}.hero.${k}`);
     for (const [n, arr] of Object.entries(layout.slots ?? {})) {
       if (!Array.isArray(arr) || arr.length !== Number(n)) problems.push(`${name}.slots.${n}: needs exactly ${n} entries`);
-      else arr.forEach((s, i) => { finite(s.x, `${name}.slots.${n}[${i}].x`); finite(s.s, `${name}.slots.${n}[${i}].s`); });
+      else arr.forEach((s, i) => {
+        finite(s.x, `${name}.slots.${n}[${i}].x`);
+        finite(s.s, `${name}.slots.${n}[${i}].s`);
+        if (s.y !== undefined) finite(s.y, `${name}.slots.${n}[${i}].y`); // per-slot lift, optional
+      });
     }
     for (const [l, p] of Object.entries(layout.layers ?? {})) {
       if (!['backdrop', 'mid', 'ledge'].includes(l)) problems.push(`${name}.layers.${l}: unknown layer`);

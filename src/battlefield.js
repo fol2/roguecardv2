@@ -43,7 +43,8 @@ export function bfActor(kind, id) {
   return { scale: 1, footY: 0, ...(BF.shared?.[kind]?.[id] ?? {}) };
 }
 
-/** Formation for an enemy count; missing counts interpolate the widest authored one. */
+/** Formation for an enemy count; missing counts interpolate the widest authored one.
+ *  Slot: x center, s size multiplier, y lift from the ground line (+up, default 0). */
 export function bfSlots(layout, count) {
   const authored = layout.slots?.[count];
   if (authored) return authored;
@@ -53,7 +54,11 @@ export function bfSlots(layout, count) {
   const lo = src[0], hi = src[src.length - 1];
   return Array.from({ length: count }, (_, i) => {
     const t = count === 1 ? 1 : i / (count - 1);
-    return { x: Math.round(lo.x + (hi.x - lo.x) * t), s: Math.min(lo.s ?? 1, hi.s ?? 1) };
+    return {
+      x: Math.round(lo.x + (hi.x - lo.x) * t),
+      s: Math.min(lo.s ?? 1, hi.s ?? 1),
+      y: Math.round((lo.y ?? 0) + ((hi.y ?? 0) - (lo.y ?? 0)) * t),
+    };
   });
 }
 

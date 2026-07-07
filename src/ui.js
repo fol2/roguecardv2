@@ -991,7 +991,7 @@ function applyBattlefieldLayout(resolved) {
     const size = bfEnemySize(L, en.key, tier, slots[i], stageW(), stageH());
     const box = ce.enemies[i].root;
     box.style.left = `${Math.round(slots[i].x - size / 2)}px`;
-    box.style.bottom = `${bfActor('enemies', en.key).footY}px`;
+    box.style.bottom = `${(slots[i].y ?? 0) + bfActor('enemies', en.key).footY}px`;
     box.style.width = box.style.height = `${size}px`;
     ce.enemies[i].art.style.width = ce.enemies[i].art.style.height = `${size}px`;
   });
