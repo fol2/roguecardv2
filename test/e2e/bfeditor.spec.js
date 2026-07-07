@@ -56,6 +56,46 @@ test('dragging the hero moves its x by the drag distance (stage px)', async ({ p
   expect(after - before).toBe(40);
 });
 
+test('a slightly diagonal hero drag locks to the horizontal axis', async ({ page }) => {
+  await page.goto('/?bfedit=1&mesh=0');
+  const hero = page.locator('.bf-box[data-bf="hero"]');
+  await hero.waitFor();
+  const scale = await page.evaluate(() => window.__probe.stage().scale);
+  const before = await page.evaluate(() => {
+    const L = window.__bfEditor.resolved();
+    return { x: L.hero.x, footY: window.__bfEditor.working().shared.heroes };
+  });
+  const box = await hero.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 40 * scale, box.y + box.height / 2 + 8, { steps: 5 });
+  await page.mouse.up();
+  const after = await page.evaluate(() => {
+    const L = window.__bfEditor.resolved();
+    return { x: L.hero.x, footY: window.__bfEditor.working().shared.heroes };
+  });
+  expect(after.x).toBeGreaterThan(before.x);
+  expect(after.footY).toEqual(before.footY); // axis locked: footY untouched
+});
+
+test('pad-landscape (base shape) offers no shape scope for positional rows', async ({ page }) => {
+  await page.goto('/?bfedit=1&mesh=0&shape=pad-landscape');
+  await page.locator('.bf-box[data-bf="ground"]').click();
+  const scopeSel = page.locator('#bf-panel select[data-scope="0"]'); // groundY row
+  await expect(scopeSel.locator('option')).toHaveText(['base']);
+  await expect(scopeSel).toBeDisabled();
+});
+
+test('/__bf-save rejects bodies over 1 MB with 413', async ({ page }) => {
+  await page.goto('/?bfedit=1&mesh=0');
+  const result = await page.evaluate(async () => {
+    const r = await fetch('/__bf-save', { method: 'POST', body: 'x'.repeat(1_200_000) });
+    return { status: r.status, json: await r.json() };
+  });
+  expect(result.status).toBe(413);
+  expect(result.json).toEqual({ ok: false, problems: ['payload too large'] });
+});
+
 test('panel numeric edit applies live to the working layout', async ({ page }) => {
   await page.goto('/?bfedit=1&mesh=0');
   await page.locator('.bf-box[data-bf="ground"]').click();

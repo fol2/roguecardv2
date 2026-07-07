@@ -41,8 +41,21 @@ function bfSavePlugin() {
           return res.end(JSON.stringify({ ok: false, problems: ["forbidden origin"] }));
         }
         let body = "";
-        req.on("data", (c) => { body += c; });
+        let bytes = 0;
+        req.on("data", (c) => {
+          if (res.writableEnded) return; // already refused: drain without buffering
+          bytes += c.length;
+          if (bytes > 1_048_576) {
+            body = "";
+            res.statusCode = 413;
+            res.setHeader("content-type", "application/json");
+            res.end(JSON.stringify({ ok: false, problems: ["payload too large"] }));
+            return;
+          }
+          body += c;
+        });
         req.on("end", async () => {
+          if (res.writableEnded) return;
           res.setHeader("content-type", "application/json");
           try {
             const [{ serializeBF, validateBF }, { ENEMIES, ASPECTS }] = await Promise.all([

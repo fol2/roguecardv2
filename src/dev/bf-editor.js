@@ -96,7 +96,9 @@ function overlayRects() {
   LAYERS.forEach((name) => {
     const p = L.layers[name];
     const bottom = name === 'ledge' ? Math.max(0, L.groundY + L.ledgeLip - p.h + p.y) : p.y;
-    rects.push({ id: `layer-${name}`, x: 0, w: stageW(), h: p.h, bottom, layer: true });
+    const zoom = p.zoom ?? 1;
+    const label = zoom !== 1 ? `zoom ${zoom}× — outline shows unzoomed box` : undefined;
+    rects.push({ id: `layer-${name}`, x: 0, w: stageW(), h: p.h, bottom, layer: true, label });
   });
   rects.push({ id: 'ground', x: 0, w: stageW(), h: 2, bottom: L.groundY, ground: true, label: `ground ${L.groundY}px` });
   const hero = bfActor('heroes', ASPECTS[state.scenario.aspect].id);
@@ -146,24 +148,26 @@ function onBoxPointerDown(e, id) {
   const sc = stageScale();
   const count = state.scenario.ids.length;
   const slots0 = L0.slots[count] ?? bfSlots(L0, count);
+  let axis = null; // body drags lock to the dominant axis of the first decisive move
   const move = (ev) => {
     const dx = Math.round((ev.clientX - start.x) / sc);
     const dy = Math.round((ev.clientY - start.y) / sc); // screen-down = stage-down
+    if (!axis && Math.abs(dx) + Math.abs(dy) >= 3) axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
     const posScope = defaultScope(['hero']);
     const drag = { drag: true };
     if (id === 'ground') writeField(posScope, ['groundY'], Math.max(0, L0.groundY - dy), drag);
     else if (id === 'hero') {
       if (onHandle) {
         writeField(posScope, ['hero', 'w'], Math.max(24, L0.hero.w + dx), drag);
-        writeField(posScope, ['hero', 'h'], Math.max(24, L0.hero.h + dy), drag);
-      } else if (Math.abs(dx) >= Math.abs(dy)) writeField(posScope, ['hero', 'x'], L0.hero.x + dx, drag);
-      else writeField('shared', ['heroes', heroId, 'footY'], heroFoot0 - dy, drag);
+        writeField(posScope, ['hero', 'h'], Math.max(24, L0.hero.h - dy), drag);
+      } else if (axis === 'x') writeField(posScope, ['hero', 'x'], L0.hero.x + dx, drag);
+      else if (axis === 'y') writeField('shared', ['heroes', heroId, 'footY'], heroFoot0 - dy, drag);
     } else if (id.startsWith('enemy-')) {
       const i = Number(id.slice(6));
       const key = state.scenario.ids[i];
       if (onHandle) writeField(posScope, ['slots', String(count), i, 's'], Math.max(0.1, +((slots0[i].s ?? 1) + dx / 200).toFixed(2)), drag);
-      else if (Math.abs(dx) >= Math.abs(dy)) writeField(posScope, ['slots', String(count), i, 'x'], slots0[i].x + dx, drag);
-      else writeField('shared', ['enemies', key, 'footY'], enemyFoot0[i] - dy, drag);
+      else if (axis === 'x') writeField(posScope, ['slots', String(count), i, 'x'], slots0[i].x + dx, drag);
+      else if (axis === 'y') writeField('shared', ['enemies', key, 'footY'], enemyFoot0[i] - dy, drag);
     } else if (id.startsWith('layer-')) {
       const name = id.slice(6);
       if (onHandle) writeField(posScope, ['layers', name, 'h'], Math.max(10, L0.layers[name].h - dy), drag);
@@ -186,7 +190,8 @@ function fieldRows() {
   const shape = stageInfo().shape;
   const L = bfResolve(shape);
   const over = state.working.shapes?.[shape] ?? {};
-  const pos = (label, path, value) => ({ label, path, value, scope: defaultScope(path), scopes: ['base', 'shape'], overridden: getPath(over, path) !== undefined });
+  const posScopes = shape === 'pad-landscape' ? ['base'] : ['base', 'shape']; // no self-shadowing override on the base shape
+  const pos = (label, path, value) => ({ label, path, value, scope: defaultScope(path), scopes: posScopes, overridden: getPath(over, path) !== undefined });
   const sh = (label, path, value) => ({ label, path, value, scope: 'shared', scopes: ['shared'], overridden: false });
   if (state.sel === 'ground') return [pos('groundY', ['groundY'], L.groundY), pos('ledgeLip', ['ledgeLip'], L.ledgeLip)];
   if (state.sel === 'hero') {
@@ -277,6 +282,7 @@ function renderToolbar() {
   bar.addEventListener('click', (e) => {
     const sh = e.target.dataset?.shape;
     if (sh) {
+      if (state.dirty && !confirm('Discard unsaved changes?')) return;
       pushScenarioToUrl();
       const p2 = new URLSearchParams(location.search); p2.set('shape', sh);
       location.search = `?${p2}`; // stage shape is picked at boot: honest reload
@@ -307,7 +313,10 @@ function renderToolbar() {
     document.getElementById('bf-dirty').textContent = 'saved ✓';
     if (j.reload) location.reload(); // scenario survives in the URL
   };
-  bar.querySelector('#bf-revert').onclick = () => location.reload();
+  bar.querySelector('#bf-revert').onclick = () => {
+    if (state.dirty && !confirm('Discard unsaved changes?')) return;
+    location.reload();
+  };
   bar.querySelector('#bf-copy').onclick = async () => {
     await navigator.clipboard.writeText(serializeBF(state.working));
     const d = document.getElementById('bf-dirty');
