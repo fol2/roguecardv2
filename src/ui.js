@@ -10,7 +10,7 @@ import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, me
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
-import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder } from './battlefield.js';
+import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY } from './battlefield.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
@@ -990,7 +990,7 @@ function applyBattlefieldLayout(resolved) {
   pz.style.width = `${hw}px`;
   pz.style.height = `${hh}px`;
   pz.style.left = `${Math.round(L.hero.x - hw / 2)}px`;
-  pz.style.bottom = `${hero.footY}px`; // relative to .battlefield bottom = the ground line
+  pz.style.bottom = `${bfHeroY(L) + hero.footY}px`; // layout y + art feet offset
   const slots = bfSlots(L, cb.enemies.length);
   const keys = cb.enemies.map((en) => en.key);
   const zOrder = bfEnemyZOrder(slots, keys);
@@ -1537,7 +1537,11 @@ function meshBindCombatants() {
   if (!ce || !cb) return;
   const entries = [];
   const heroUrl = assetUrl('heroes', ASPECTS[S.run.aspect].id);
-  if (heroUrl && ce.hero) entries.push({ el: ce.hero, url: heroUrl, kind: 'humanoid' });
+  // bind the sprite, not .hero-wrap: the raster must be a DIRECT child of the
+  // mesh-live element or it stays visible under the warp copy (double vision),
+  // and the wrap's rect includes the name label which would stretch the plane
+  const heroSprite = ce.hero && ($('.hero-sprite', ce.hero) || ce.hero);
+  if (heroUrl && heroSprite) entries.push({ el: heroSprite, url: heroUrl, kind: 'humanoid' });
   cb.enemies.forEach((en, i) => {
     const url = assetUrl('enemies', en.key);
     const art = ce.enemies[i]?.art;
@@ -1986,7 +1990,7 @@ async function handleEvent(ev, targetIdx) {
         V.floatText(hx, hy - 30, `${ev.amount}`, big ? 'dmg-big' : 'dmg', { tint: V.ARCHETYPE_TONES[vfxSource.archetype] || '', dx: (hitSeq++ % 3 - 1) * 34 });
         V.shake(Math.min(5 + ev.amount * 0.6, 18));
         kick(Math.min(0.3 + ev.amount / 22, 1.2));
-        addCrack(ce.hero, big);
+        // no hero cracks (user call, 2026-07-07): the glass language is for foes
       } else if (!ev.blocked) V.floatText(hx, hy - 30, '0', 'blockedf');
       syncCombat(); renderHud();
       await sleep(240);

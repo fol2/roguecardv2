@@ -28,14 +28,35 @@ const LAYER_DEFAULTS = {
   ledge: { x: 0, posY: 0, drift: 0 },
 };
 
+/** Layout chunk for a shape without nested act buckets (acts merge separately). */
+function stripActs(chunk) {
+  if (!chunk || typeof chunk !== 'object') return chunk;
+  const { acts, ...rest } = chunk;
+  return rest;
+}
+
+/** Per-shape act override; legacy base.acts / top-level BF.acts are read-only fallbacks. */
+function actOver(shape, act) {
+  const a = String(act);
+  return BF.shapes?.[shape]?.acts?.[a]
+    ?? (shape === 'pad-landscape' ? BF.base?.acts?.[a] : undefined)
+    ?? BF.acts?.[a];
+}
+
 /** Deep-merged layout for a stage shape and act (unknown shape ⇒ base only). */
 export function bfResolve(shape, act = 0) {
-  const layout = merge(merge(BF.base, BF.shapes?.[shape]), BF.acts?.[act]);
+  const shapeChunk = stripActs(BF.shapes?.[shape]);
+  const layout = merge(merge(stripActs(BF.base), shapeChunk), actOver(shape, act));
   const layers = {};
   for (const name of ['backdrop', 'mid', 'ledge']) {
     layers[name] = { ...LAYER_DEFAULTS[name], ...(layout.layers?.[name] ?? {}) };
   }
   return { ...layout, layers, shared: BF.shared };
+}
+
+/** Hero lift from the ground line (layout scope); art feet correction is bfActor footY. */
+export function bfHeroY(layout) {
+  return layout.hero?.y ?? 0;
 }
 
 /** Per-actor shared modifiers with defaults. kind: 'enemies' | 'heroes'. */

@@ -9,6 +9,7 @@ const HEADER = `// Battlefield layout — owned by the battlefield editor (?bfed
 // server), hand edits welcome: keep the shape, keep numbers finite.
 // All values are STAGE px for their shape (see src/stage.js). Conventions:
 //   x       — actor's horizontal CENTER
+//   y       — hero lift from the ground line (+up, default 0); foes use slot.y
 //   footX   — horizontal feet offset from the slot center (+right)
 //   footY   — feet offset from the ground line (art whose feet aren't at the
 //             sprite's bottom edge), + is up
@@ -21,7 +22,7 @@ const HEADER = `// Battlefield layout — owned by the battlefield editor (?bfed
 //             posX/posY: crop focus % (object-position); opacity;
 //             drift: idle parallax amplitude px (0 = still).
 //             Internal key "ledge" = the ground PNG plate (actN-ledge.png).
-//   acts    — per-act layout overrides (0/1/2), merged after base + shape
+//   acts    — per-act overrides nested under base or shapes[shape] (0/1/2)
 // Imports nothing; imported by src/battlefield.js only.
 `;
 
@@ -42,7 +43,7 @@ function layoutBlock(layout, indent) {
   const out = [];
   if (layout.groundY !== undefined) out.push(`${indent}groundY: ${num(layout.groundY)},`);
   if (layout.ledgeLip !== undefined) out.push(`${indent}ledgeLip: ${num(layout.ledgeLip)},`);
-  if (layout.hero) out.push(`${indent}hero: ${inline(layout.hero, ['x', 'w', 'h'])},`);
+  if (layout.hero) out.push(`${indent}hero: ${inline(layout.hero, ['x', 'y', 'w', 'h'])},`);
   if (layout.slots) {
     out.push(`${indent}slots: {`);
     for (const n of Object.keys(layout.slots).sort((a, b) => a - b)) {
@@ -59,25 +60,31 @@ function layoutBlock(layout, indent) {
   }
   return out.join('\n');
 }
+function actsBlock(acts, indent) {
+  const actKeys = Object.keys(acts ?? {}).filter((a) => acts[a] && Object.keys(acts[a]).length).sort();
+  if (!actKeys.length) return '';
+  const out = [`${indent}acts: {`];
+  for (const a of actKeys) out.push(`${indent}  ${a}: {`, layoutBlock(acts[a], `${indent}    `), `${indent}  },`);
+  out.push(`${indent}},`);
+  return out.join('\n');
+}
+function shapeBlock(shapeLayout, indent) {
+  if (!shapeLayout || !Object.keys(shapeLayout).length) return '';
+  const { acts, ...layout } = shapeLayout;
+  return [layoutBlock(layout, indent), actsBlock(acts, indent)].filter(Boolean).join('\n');
+}
 
 export function serializeBF(bf) {
   const out = [HEADER, 'export const BF = {', '  shared: {'];
   out.push(`    sizes: ${inline(bf.shared.sizes, ['normal', 'elite', 'boss'])},`);
   out.push('    heroes: {', actorsBlock(bf.shared.heroes, '      '), '    },');
   out.push('    enemies: {', actorsBlock(bf.shared.enemies, '      '), '    },');
-  out.push('  },', '  base: {', layoutBlock(bf.base, '    '), '  },', '  shapes: {');
+  out.push('  },', '  base: {', shapeBlock(bf.base, '    '), '  },', '  shapes: {');
   for (const sh of SHAPES) {
     const o = bf.shapes?.[sh];
-    if (o && Object.keys(o).length) out.push(`    '${sh}': {`, layoutBlock(o, '      '), '    },');
+    if (o && Object.keys(o).length) out.push(`    '${sh}': {`, shapeBlock(o, '      '), '    },');
   }
-  out.push('  },');
-  const actKeys = Object.keys(bf.acts ?? {}).filter((a) => bf.acts[a] && Object.keys(bf.acts[a]).length).sort();
-  if (actKeys.length) {
-    out.push('  acts: {');
-    for (const a of actKeys) out.push(`    ${a}: {`, layoutBlock(bf.acts[a], '      '), '    },');
-    out.push('  },');
-  }
-  out.push('};', '');
+  out.push('  },', '};', '');
   return out.join('\n');
 }
 
@@ -123,14 +130,22 @@ export function validateBF(bf, ids = null) {
       }
     }
   };
+  const checkActs = (acts, prefix) => {
+    for (const [a, o] of Object.entries(acts ?? {})) {
+      if (!['0', '1', '2'].includes(a)) problems.push(`${prefix}.acts.${a}: unknown act`);
+      else checkLayout(o, `${prefix}.acts.${a}`, false);
+    }
+  };
   checkLayout(bf.base, 'base', true);
+  checkActs(bf.base?.acts, 'base');
   for (const [sh, o] of Object.entries(bf.shapes ?? {})) {
     if (!SHAPES.includes(sh)) problems.push(`shapes.${sh}: unknown shape`);
-    else checkLayout(o, `shapes.${sh}`, false);
+    else {
+      checkLayout(o, `shapes.${sh}`, false);
+      checkActs(o.acts, `shapes.${sh}`);
+    }
   }
-  for (const [a, o] of Object.entries(bf.acts ?? {})) {
-    if (!['0', '1', '2'].includes(a)) problems.push(`acts.${a}: unknown act`);
-    else checkLayout(o, `acts.${a}`, false);
-  }
+  if (bf.acts) problems.push('acts: top-level acts are deprecated — nest under shapes[shape]');
+  if (bf.base?.acts) problems.push('base.acts: deprecated — nest under shapes.pad-landscape.acts');
   return problems;
 }

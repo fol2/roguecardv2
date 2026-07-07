@@ -3,32 +3,33 @@
 // src/battlefield-layout.js through the vite dev endpoint.
 import { ENEMIES, ASPECTS } from '../data.js';
 import { serializeBF, validateBF } from './bf-serialize.js';
-import { bfRaw, _setBF, bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder } from '../battlefield.js';
+import { bfRaw, _setBF, bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY } from '../battlefield.js';
 import { stageEl, stageW, stageH, stageScale, stageInfo } from '../stage.js';
 
 const SLOT_FOOT = new Set(['footX', 'footY']);
 const editorAct = () => state.scenario?.act ?? 0;
 const editorResolve = () => bfResolve(stageInfo().shape, editorAct());
-function layoutScopes(shape) {
-  const loc = shape === 'pad-landscape' ? ['base'] : ['base', 'shape'];
-  return [...loc, 'act'];
+const actBucketPath = (shape) => ['shapes', shape, 'acts'];
+const shapeBucketPath = (shape) => ['shapes', shape];
+function layoutScopes() {
+  return ['base', 'shape', 'act'];
 }
 function layoutPosField(label, path, value, shape) {
   const act = String(editorAct());
-  const scopes = layoutScopes(shape);
-  let scope = shape === 'pad-landscape' ? 'base' : 'shape';
+  const scopes = layoutScopes();
+  let scope = 'shape';
   let overridden = false;
-  if (getPath(state.working.acts?.[act], path) !== undefined) { scope = 'act'; overridden = true; }
-  else if (shape !== 'pad-landscape' && getPath(state.working.shapes?.[shape], path) !== undefined) { scope = 'shape'; overridden = true; }
+  if (getPath(state.working, [...actBucketPath(shape), act, ...path]) !== undefined) { scope = 'act'; overridden = true; }
+  else if (getPath(state.working, [...shapeBucketPath(shape), ...path]) !== undefined) { scope = 'shape'; overridden = true; }
   return { label, path, value, scope, scopes, overridden };
 }
 function slotFootField(kind, key, i, count, slot, shape) {
   const act = String(editorAct());
-  const scopes = ['shared', ...(shape === 'pad-landscape' ? ['base'] : ['shape']), 'act'];
+  const scopes = ['shared', 'shape', 'act'];
   let scope = 'shared';
   let overridden = false;
-  if (getPath(state.working.acts?.[act], ['slots', count, i, kind]) !== undefined) { scope = 'act'; overridden = true; }
-  else if (shape !== 'pad-landscape' && getPath(state.working.shapes?.[shape], ['slots', count, i, kind]) !== undefined) { scope = 'shape'; overridden = true; }
+  if (getPath(state.working, [...actBucketPath(shape), act, 'slots', count, i, kind]) !== undefined) { scope = 'act'; overridden = true; }
+  else if (getPath(state.working, [...shapeBucketPath(shape), 'slots', count, i, kind]) !== undefined) { scope = 'shape'; overridden = true; }
   return {
     label: `${kind} · ${key}`,
     kind,
@@ -43,7 +44,7 @@ function slotFootField(kind, key, i, count, slot, shape) {
 }
 function clearSlotFoot(f, shape) {
   if (f.scope === 'act') {
-    const arr = getPath(state.working.acts?.[String(editorAct())], ['slots', f.count]);
+    const arr = getPath(state.working, [...actBucketPath(shape), String(editorAct()), 'slots', f.count]);
     if (arr?.[f.slotIdx]) delete arr[f.slotIdx][f.kind];
     return;
   }
@@ -57,9 +58,25 @@ function clearSlotFoot(f, shape) {
 }
 function clearLayoutOverride(f, shape) {
   const path = f.path[0] === 'slots' ? ['slots', f.path[1]] : f.path;
-  if (f.scope === 'act') delPath(state.working, ['acts', String(editorAct()), ...path]);
+  if (f.scope === 'act') delPath(state.working, [...actBucketPath(shape), String(editorAct()), ...path]);
   else if (f.scope === 'base') delPath(state.working, ['base', ...path]);
   else delPath(state.working, ['shapes', shape, ...path]);
+}
+/** Legacy act buckets → per-shape acts (one-time normalize on editor load). */
+function normalizeActs(bf) {
+  const out = clone(bf);
+  out.shapes ??= {};
+  const pad = out.shapes['pad-landscape'] ??= {};
+  if (out.acts) {
+    pad.acts = { ...out.acts, ...pad.acts };
+    delete out.acts;
+  }
+  if (out.base?.acts) {
+    pad.acts = { ...out.base.acts, ...pad.acts };
+    const { acts, ...baseRest } = out.base;
+    out.base = baseRest;
+  }
+  return out;
 }
 
 const SHAPES = ['phone-portrait', 'phone-landscape', 'pad-portrait', 'pad-landscape', 'desktop-landscape'];
@@ -94,11 +111,12 @@ function mutateField(scope, path, value) {
   if (scope === 'shared') setPath(state.working.shared, path, value);
   else if (scope === 'base') setPath(state.working.base, path, value);
   else if (scope === 'act') {
-    if (!state.working.acts) state.working.acts = {};
-    if (path[0] === 'slots' && getPath(state.working.acts[act] ?? {}, ['slots', path[1]]) === undefined) {
-      setPath(state.working, ['acts', act, 'slots', path[1]], clone(editorResolve().slots[path[1]] ?? bfSlots(editorResolve(), Number(path[1]))));
+    const bucket = actBucketPath(shape);
+    if (!getPath(state.working, bucket)) setPath(state.working, bucket, {});
+    if (path[0] === 'slots' && getPath(state.working, [...bucket, act, 'slots', path[1]]) === undefined) {
+      setPath(state.working, [...bucket, act, 'slots', path[1]], clone(editorResolve().slots[path[1]] ?? bfSlots(editorResolve(), Number(path[1]))));
     }
-    setPath(state.working, ['acts', act, ...path], value);
+    setPath(state.working, [...bucket, act, ...path], value);
   } else {
     // shape scope; formations copy-on-write (arrays replace wholesale on merge)
     if (path[0] === 'slots' && getPath(state.working.shapes?.[shape] ?? {}, ['slots', path[1]]) === undefined) {
@@ -119,8 +137,7 @@ function writeField(scope, path, value, { drag } = {}) {
   }
   applyWorking();
 }
-const defaultScope = (path) => (path[0] === 'sizes' || path[0] === 'heroes' || path[0] === 'enemies') ? 'shared'
-  : (stageInfo().shape === 'pad-landscape' ? 'base' : 'shape');
+const defaultScope = (path) => (path[0] === 'sizes' || path[0] === 'heroes' || path[0] === 'enemies') ? 'shared' : 'shape';
 const state = { working: null, sel: null, dirty: false, scenario: null };
 
 const q = () => new URLSearchParams(location.search);
@@ -235,7 +252,7 @@ function overlayRects() {
   rects.push({ id: 'ground', x: 0, w: stageW(), h: 12, bottom: L.groundY - 5, ground: true, label: `ground ${L.groundY}px` });
   const hero = bfActor('heroes', ASPECTS[state.scenario.aspect].id);
   const hw = Math.round(L.hero.w * hero.scale), hh = Math.round(L.hero.h * hero.scale);
-  rects.push({ id: 'hero', x: L.hero.x - hw / 2, w: hw, h: hh, bottom: L.groundY + hero.footY });
+  rects.push({ id: 'hero', x: L.hero.x - hw / 2, w: hw, h: hh, bottom: L.groundY + bfHeroY(L) + hero.footY });
   const slots = bfSlots(L, state.scenario.ids.length);
   const zOrder = bfEnemyZOrder(slots, state.scenario.ids);
   state.scenario.ids.forEach((key, i) => {
@@ -278,7 +295,7 @@ function onBoxPointerDown(e, id) {
   // delta, so repeated events never compound
   const L0 = clone(editorResolve());
   const heroId = ASPECTS[state.scenario.aspect].id;
-  const heroFoot0 = bfActor('heroes', heroId).footY;
+  const heroY0 = bfHeroY(L0);
   const start = { x: e.clientX, y: e.clientY };
   const sc = stageScale();
   const count = state.scenario.ids.length;
@@ -297,7 +314,7 @@ function onBoxPointerDown(e, id) {
         w(posScope, ['hero', 'w'], Math.max(24, L0.hero.w + dx));
         w(posScope, ['hero', 'h'], Math.max(24, L0.hero.h - dy));
       } else if (axis === 'x') w(posScope, ['hero', 'x'], L0.hero.x + dx);
-      else if (axis === 'y') w('shared', ['heroes', heroId, 'footY'], heroFoot0 - dy);
+      else if (axis === 'y') w(posScope, ['hero', 'y'], heroY0 - dy);
     } else if (id.startsWith('enemy-')) {
       const i = Number(id.slice(6));
       if (onHandle) w(posScope, ['slots', String(count), i, 's'], Math.max(0.1, +((slots0[i].s ?? 1) + dx / 200).toFixed(2)));
@@ -339,6 +356,7 @@ function fieldRows() {
     const a = bfActor('heroes', id);
     return [
       pos('x', ['hero', 'x'], L.hero.x),
+      pos('y', ['hero', 'y'], bfHeroY(L)),
       pos('w', ['hero', 'w'], L.hero.w),
       pos('h', ['hero', 'h'], L.hero.h),
       sh(`scale · ${id}`, ['heroes', id, 'scale'], a.scale),
@@ -391,7 +409,7 @@ function renderPanel() {
     .map(([id, label]) => `<button data-select="${id}"${state.sel === id ? ' class="on"' : ''}>${label}</button>`).join('');
   panelEl.innerHTML = `<div id="bf-select">${selector}</div>
     <h3>${selLabel}</h3>
-    <div class="bf-scope">shape: <b>${shape}</b>${shape === 'pad-landscape' ? ' (base)' : ''} &nbsp;·&nbsp; act: <b>${editorAct() + 1}</b></div>
+    <div class="bf-scope">shape: <b>${shape}</b> &nbsp;·&nbsp; act: <b>${editorAct() + 1}</b> <span class="bf-hint">(act overrides apply to this shape only)</span></div>
     ${rows.map((f, i) => `<label>${f.label}
       <span>
         <select data-scope="${i}"${f.scopes.length === 1 ? ' disabled' : ''}>
@@ -512,6 +530,7 @@ const CSS = `
 #bf-panel input { width: 56px; font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
 #bf-panel select { font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
 #bf-panel button[data-clear] { font: inherit; background: #3a2030; color: #ff9ebd; border: 1px solid #664455; border-radius: 3px; padding: 0 5px; cursor: pointer; }
+#bf-panel .bf-hint { color: #6a7288; font-size: 10px; }
 #bf-overlay { position: absolute; inset: 0; z-index: 8; pointer-events: none; } /* above #mesh (6) and the battlefield (7) */
 .bf-editing .player-zone, .bf-editing .enemy, .bf-editing .hand-zone { pointer-events: none !important; }
 .bf-editing .hand-zone { z-index: 5 !important; } /* cards must not hide the overlay boxes while editing */
@@ -529,7 +548,7 @@ export function initBfEditor() {
   const style = document.createElement('style');
   style.textContent = CSS;
   document.head.appendChild(style);
-  state.working = clone(bfRaw());
+  state.working = normalizeActs(clone(bfRaw()));
   _setBF(state.working);
   state.scenario = scenarioFromUrl();
   pushScenarioToUrl();
@@ -547,7 +566,7 @@ export function initBfEditor() {
     const count = state.scenario.ids.length;
     if (state.sel === 'ground' && dy) writeField(scope, ['groundY'], L.groundY + dy);
     else if (state.sel === 'hero' && dx) writeField(scope, ['hero', 'x'], L.hero.x + dx);
-    else if (state.sel === 'hero' && dy) writeField('shared', ['heroes', ASPECTS[state.scenario.aspect].id, 'footY'], bfActor('heroes', ASPECTS[state.scenario.aspect].id).footY + dy);
+    else if (state.sel === 'hero' && dy) writeField(scope, ['hero', 'y'], bfHeroY(L) + dy);
     else if (state.sel.startsWith('enemy-')) {
       const i = Number(state.sel.slice(6));
       if (dx) writeField(scope, ['slots', String(count), i, 'x'], bfSlots(L, count)[i].x + dx);

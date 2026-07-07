@@ -110,6 +110,10 @@ const BODY_FRAG = /* glsl */`
     vec4 base = texture2D(map, vUv);
     if (uCut > 0.0 && base.a < uCut) discard;
     gl_FragColor = vec4(base.rgb + uFlash * base.a, uCut > 0.0 ? 1.0 : base.a);
+    // sRGB texture decodes to linear on sample — convert back on output or the
+    // body renders darker than the raster it replaces (no tone mapping either:
+    // ACES is for the PBR glass, the body must stay UI-accurate)
+    #include <colorspace_fragment>
   }
 `;
 

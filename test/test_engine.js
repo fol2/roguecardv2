@@ -11,7 +11,7 @@ import {
 } from '../src/engine.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS } from '../src/data.js';
 import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from '../src/vigil.js';
-import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, _setBF, bfRaw } from '../src/battlefield.js';
+import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
@@ -929,6 +929,7 @@ function randomAgentRun(seed) {
     assert.ok(Number.isFinite(L.groundY) && L.groundY > 0, `bf: ${sh} groundY`);
     assert.ok(Number.isFinite(L.ledgeLip), `bf: ${sh} ledgeLip`);
     for (const k of ['x', 'w', 'h']) assert.ok(Number.isFinite(L.hero[k]), `bf: ${sh} hero.${k}`);
+    assert.ok(Number.isFinite(bfHeroY(L)), `bf: ${sh} hero.y`);
     for (const n of [1, 2, 3]) {
       const slots = bfSlots(L, n);
       assert.equal(slots.length, n, `bf: ${sh} slots(${n})`);
@@ -962,11 +963,27 @@ function randomAgentRun(seed) {
   assert.equal(bfEnemyFootY({}, 'duskfang'), bfActor('enemies', 'duskfang').footY, 'bf: shared footY fallback');
   assert.equal(bfEnemyFootX({ footX: 12 }, 'duskfang'), 12, 'bf: slot footX override');
   assert.equal(bfEnemyFootX({}, 'duskfang'), 0, 'bf: shared footX default');
-  // act layer merges after base + shape
-  const baseGY = bfResolve('pad-landscape', 0).groundY;
-  _setBF({ ...bfRaw(), acts: { 1: { groundY: baseGY + 42 } } });
-  assert.equal(bfResolve('pad-landscape', 0).groundY, baseGY, 'bf: act override does not leak to other acts');
-  assert.equal(bfResolve('pad-landscape', 1).groundY, baseGY + 42, 'bf: act override applies to that act');
+  _setBF({ ...bfRaw(), shapes: { 'pad-landscape': { hero: { y: 12 } } } });
+  assert.equal(bfHeroY(bfResolve('pad-landscape', 0)), 12, 'bf: hero.y pad-landscape shape override');
+  _setBF({ ...bfRaw(), shapes: { 'desktop-landscape': { hero: { y: 24 } } } });
+  assert.equal(bfHeroY(bfResolve('desktop-landscape', 0)), 24, 'bf: hero.y desktop shape override');
+  _setBF(null);
+  // act layer merges per shape (after base + shape)
+  const raw = bfRaw();
+  const baseGY = bfResolve('desktop-landscape', 0).groundY;
+  _setBF({
+    ...raw,
+    shapes: {
+      ...raw.shapes,
+      'desktop-landscape': {
+        ...raw.shapes['desktop-landscape'],
+        acts: { ...raw.shapes['desktop-landscape']?.acts, 1: { groundY: baseGY + 42 } },
+      },
+    },
+  });
+  assert.equal(bfResolve('desktop-landscape', 0).groundY, baseGY, 'bf: act override does not leak to other acts');
+  assert.equal(bfResolve('desktop-landscape', 1).groundY, baseGY + 42, 'bf: act override applies to that act');
+  assert.equal(bfResolve('phone-portrait', 1).groundY, bfResolve('phone-portrait', 0).groundY, 'bf: act override does not leak across shapes');
   _setBF(null);
   assert.equal(bfResolve('pad-landscape').groundY, L.groundY, 'bf: _setBF(null) restores the file');
   // serializer: valid, deterministic, and a true round-trip

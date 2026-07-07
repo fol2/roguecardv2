@@ -71,6 +71,7 @@ test('a hero drag locks to the axis of the first decisive move for the whole dra
   const scale = await page.evaluate(() => window.__probe.stage().scale);
   const before = await page.evaluate(() => ({
     x: window.__bfEditor.resolved().hero.x,
+    y: window.__bfEditor.resolved().hero.y ?? 0,
     heroes: window.__bfEditor.working().shared.heroes,
   }));
   const box = await hero.boundingBox();
@@ -81,23 +82,49 @@ test('a hero drag locks to the axis of the first decisive move for the whole dra
   // phase 1: decisive horizontal move (12 stage px) locks the x axis
   await page.mouse.move(cx + 12 * scale, cy);
   // phase 2: strong vertical move — a per-event axis choice would see
-  // |dy| > |dx| on these events and write footY; the per-drag lock must not
+  // |dy| > |dx| on these events and write hero.y; the per-drag lock must not
   await page.mouse.move(cx + 12 * scale, cy + 50 * scale, { steps: 5 });
   await page.mouse.up();
   const after = await page.evaluate(() => ({
     x: window.__bfEditor.resolved().hero.x,
+    y: window.__bfEditor.resolved().hero.y ?? 0,
     heroes: window.__bfEditor.working().shared.heroes,
   }));
   expect(after.x - before.x).toBe(12);
-  expect(after.heroes).toEqual(before.heroes); // axis locked: footY untouched
+  expect(after.y).toBe(before.y); // axis locked: hero.y untouched
+  expect(after.heroes).toEqual(before.heroes); // shared footY untouched
 });
 
-test('pad-landscape (base shape) offers no shape scope for positional rows', async ({ page }) => {
+test('dragging the hero vertically writes hero.y at shape scope', async ({ page }) => {
+  await page.goto('/?bfedit=1&mesh=0');
+  const hero = page.locator('.bf-box[data-bf="hero"]');
+  await hero.waitFor();
+  const scale = await page.evaluate(() => window.__probe.stage().scale);
+  const before = await page.evaluate(() => ({
+    y: window.__bfEditor.resolved().hero.y ?? 0,
+    heroes: window.__bfEditor.working().shared.heroes,
+  }));
+  const box = await hero.boundingBox();
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx, cy - 30 * scale, { steps: 5 }); // up on screen = lift
+  await page.mouse.up();
+  const after = await page.evaluate(() => ({
+    y: window.__bfEditor.resolved().hero.y ?? 0,
+    heroes: window.__bfEditor.working().shared.heroes,
+  }));
+  expect(after.y - before.y).toBe(30);
+  expect(after.heroes).toEqual(before.heroes);
+});
+
+test('pad-landscape offers base, shape, and act scope for positional rows', async ({ page }) => {
   await page.goto('/?bfedit=1&mesh=0&shape=pad-landscape');
   await page.locator('.bf-box[data-bf="ground"]').click();
   const scopeSel = page.locator('#bf-panel select[data-scope="0"]'); // groundY row
-  await expect(scopeSel.locator('option')).toHaveText(['base']);
-  await expect(scopeSel).toBeDisabled();
+  await expect(scopeSel.locator('option')).toHaveText(['base', 'shape', 'act']);
+  await expect(scopeSel).not.toBeDisabled();
 });
 
 test('/__bf-save rejects bodies over 1 MB with 413', async ({ page }) => {
