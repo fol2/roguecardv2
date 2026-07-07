@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { readdirSync } from 'node:fs';
 import {
   newRun, startCombat, playCard, endTurn, makeCard, cardData, availableNodes, genMap,
-  rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, claimTreasure, claimBossRelic, genCombatRewards, genShop, gainRelic, randomRelic,
+  rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, genCombatRewards, genShop, gainRelic, randomRelic,
   rollBossRelics, addCardToDeck, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
   MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, cardPool, relicPool,
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
@@ -476,6 +476,23 @@ function forceHand(run, cb, ids) {
   const br2 = claimBossRelic(runBoss, picks[1] || picks[0]);
   assert.equal(br2.already, true);
   assert.equal(runBoss.player.relics.length - beforeBoss, 1);
+
+  const runOrphan = newRun(91);
+  runOrphan.nodeId = null;
+  const orphan1 = claimTreasure(runOrphan);
+  assert.equal(orphan1.already, false);
+  assert.equal(runOrphan.orphanRewardClaimed, true);
+  const orphan2 = claimTreasure(runOrphan);
+  assert.equal(orphan2.already, true);
+
+  const saved = JSON.parse(JSON.stringify(run));
+  saved.bossRelicAct ??= -1;
+  saved.orphanRewardClaimed ??= false;
+  assert.equal(claimTreasure(saved).already, true, 'rewardClaimed survives JSON round-trip');
+  const savedBoss = JSON.parse(JSON.stringify(runBoss));
+  savedBoss.bossRelicAct ??= -1;
+  assert.equal(claimBossRelic(savedBoss, picks[0]).already, true, 'bossRelicAct survives JSON round-trip');
+  assert.equal(nodeRewardClaimed(saved), true);
 }
 {
   // all enemies have valid ai over 30 turns

@@ -2410,7 +2410,7 @@ function renderBossRelic() {
     picked = true;
     lock();
     const result = E.claimBossRelic(run, id);
-    if (result.already) return;
+    if (result.already) { advanceAct(); return; }
     if (id) sfx.relic();
     else sfx.click();
     E.saveRun(run);
@@ -2501,37 +2501,49 @@ function renderRest() {
 }
 function renderTreasure() {
   const run = S.run;
-  let opened = false;
+  let opened = E.nodeRewardClaimed(run);
+  const showContinue = (subHtml) => {
+    $('.art-lg').innerHTML = rasterOr('props', 'chest-open', chestSvg(true));
+    if (subHtml) $('.ov-sub').innerHTML = subHtml;
+    const bc = $('.big-choices');
+    bc.innerHTML = '';
+    const btn = el('button', 'btn btn-primary', 'Continue');
+    btn.onclick = () => { sfx.click(); show('map'); };
+    bc.appendChild(btn);
+    renderHud();
+    E.saveRun(run);
+  };
   screenEl().innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
     <div class="ov-title">TREASURE</div>
     <div class="art-lg" style="cursor:pointer" data-a="open">${rasterOr('props', 'chest', chestSvg(false))}</div>
     <div class="ov-sub">A heavy chest, banded in gold. Open it?</div>
     <div class="big-choices"><button class="btn btn-primary" data-a="open">Open the Chest</button></div>
   </div></div>`;
+  if (opened) {
+    showContinue('The chest lies empty.');
+    return;
+  }
   const open = () => {
     if (opened) return;
     opened = true;
     $$('[data-a="open"]').forEach((b) => { b.onclick = null; b.style.pointerEvents = 'none'; });
     const result = E.claimTreasure(run, { common: 0.55, uncommon: 0.35, rare: 0.1 });
-    if (result.already) return;
-    $('.art-lg').innerHTML = rasterOr('props', 'chest-open', chestSvg(true));
+    if (result.already) {
+      showContinue('The chest lies empty.');
+      return;
+    }
     V.flash('#ffe9ac', 0.2, 0.5);
     V.burst(stageW() / 2, stageH() / 2, { color: '#ffd97a', n: 36, speed: 380, grav: 160 });
-    const bc = $('.big-choices');
+    let sub;
     if (result.relicId) {
       sfx.relic();
       const r = RELICS[result.relicId];
-      $('.ov-sub').innerHTML = `You claim <b style="color:${r.tone}">${r.name}</b> — <i>${r.text}</i>`;
+      sub = `You claim <b style="color:${r.tone}">${r.name}</b> — <i>${r.text}</i>`;
     } else {
       sfx.coin();
-      $('.ov-sub').innerHTML = 'Only coins remain — <b class="gold-num">+60 gold</b>.';
+      sub = 'Only coins remain — <b class="gold-num">+60 gold</b>.';
     }
-    renderHud();
-    E.saveRun(run);
-    bc.innerHTML = '';
-    const btn = el('button', 'btn btn-primary', 'Continue');
-    btn.onclick = () => { sfx.click(); show('map'); };
-    bc.appendChild(btn);
+    showContinue(sub);
   };
   $$('[data-a="open"]').forEach((b) => (b.onclick = open));
 }
@@ -2648,6 +2660,16 @@ function renderEvent(eventId) {
     <div class="event-choices"></div>
   </div></div>`;
   const choices = $('.event-choices', sc);
+  const showEventContinue = () => {
+    choices.innerHTML = '';
+    const done = el('button', 'btn btn-primary', 'Continue');
+    done.onclick = () => { sfx.click(); show('map'); };
+    choices.appendChild(done);
+  };
+  if (E.nodeRewardClaimed(run)) {
+    showEventContinue();
+    return;
+  }
   for (const [i, ch] of ev.choices.entries()) {
     const b = el('button', `event-choice${i === 0 ? ' btn-primary' : ''}`, `<b>${ch.label}</b>${ch.sub ? `<div class="sub">${ch.sub}</div>` : ''}`);
     if (ch.needGold && run.player.gold < ch.needGold) b.disabled = true;
@@ -2659,25 +2681,29 @@ function renderEvent(eventId) {
     if (resolving) return;
     resolving = true;
     choices.querySelectorAll('button').forEach((b) => { b.disabled = true; });
-    sfx.click();
-    const { pending, log, already } = E.applyNodeEventChoice(run, ch.ops);
-    if (already) return;
-    renderHud();
-    const logEl = $('.event-log', sc);
-    const bits = [];
-    for (const L of log) {
-      if (L.text) bits.push(L.text);
-      if (L.relic) bits.push(`Gained <b style="color:${RELICS[L.relic].tone}">${RELICS[L.relic].name}</b> — <i>${RELICS[L.relic].text}</i>`);
+    try {
+      sfx.click();
+      const { pending, log, already } = E.applyNodeEventChoice(run, ch.ops);
+      if (already) { showEventContinue(); return; }
+      renderHud();
+      const logEl = $('.event-log', sc);
+      const bits = [];
+      for (const L of log) {
+        if (L.text) bits.push(L.text);
+        if (L.relic) bits.push(`Gained <b style="color:${RELICS[L.relic].tone}">${RELICS[L.relic].name}</b> — <i>${RELICS[L.relic].text}</i>`);
+      }
+      if (bits.length) logEl.innerHTML = bits.join('<br>');
+      choices.innerHTML = '';
+      for (const p of pending) await handlePending(p);
+      E.saveRun(run);
+      renderHud();
+      showEventContinue();
+      if (!bits.length && !pending.length && !ch.ops.length) show('map');
+    } catch (err) {
+      resolving = false;
+      choices.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+      throw err;
     }
-    if (bits.length) logEl.innerHTML = bits.join('<br>');
-    choices.innerHTML = '';
-    for (const p of pending) await handlePending(p);
-    E.saveRun(run);
-    renderHud();
-    const done = el('button', 'btn btn-primary', 'Continue');
-    done.onclick = () => { sfx.click(); show('map'); };
-    choices.appendChild(done);
-    if (!bits.length && !pending.length && !ch.ops.length) show('map');
   }
   function handlePending(p) {
     return new Promise((resolve) => {
