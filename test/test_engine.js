@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { readdirSync } from 'node:fs';
 import {
   newRun, startCombat, playCard, endTurn, makeCard, cardData, availableNodes, genMap,
-  rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, genCombatRewards, genShop, gainRelic, randomRelic,
+  rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, saveRun, loadRun, genCombatRewards, genShop, gainRelic, randomRelic,
   rollBossRelics, addCardToDeck, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
   MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, cardPool, relicPool,
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
@@ -485,14 +485,39 @@ function forceHand(run, cb, ids) {
   const orphan2 = claimTreasure(runOrphan);
   assert.equal(orphan2.already, true);
 
+  const runXfer = newRun(92);
+  runXfer.nodeId = null;
+  claimTreasure(runXfer);
+  const xferNode = runXfer.map.nodes.find((n) => n.type === 'treasure') || runXfer.map.nodes.find((n) => n.row === 8);
+  visitNode(runXfer, xferNode);
+  assert.equal(xferNode.rewardClaimed, true, 'orphan claim transfers to node on visitNode');
+  assert.equal(claimTreasure(runXfer).already, true);
+
   const saved = JSON.parse(JSON.stringify(run));
-  saved.bossRelicAct ??= -1;
-  saved.orphanRewardClaimed ??= false;
   assert.equal(claimTreasure(saved).already, true, 'rewardClaimed survives JSON round-trip');
   const savedBoss = JSON.parse(JSON.stringify(runBoss));
-  savedBoss.bossRelicAct ??= -1;
   assert.equal(claimBossRelic(savedBoss, picks[0]).already, true, 'bossRelicAct survives JSON round-trip');
   assert.equal(nodeRewardClaimed(saved), true);
+
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => { store.set(k, v); },
+    removeItem: (k) => { store.delete(k); },
+  };
+  const runLoad = newRun(93);
+  const loadNode = runLoad.map.nodes.find((n) => n.type === 'treasure') || runLoad.map.nodes.find((n) => n.row === 8);
+  runLoad.nodeId = loadNode.id;
+  claimTreasure(runLoad);
+  delete runLoad.bossRelicAct;
+  delete runLoad.orphanRewardClaimed;
+  saveRun(runLoad);
+  const reloaded = loadRun();
+  assert.ok(reloaded, 'loadRun returns saved run');
+  reloaded.nodeId = loadNode.id;
+  assert.equal(reloaded.bossRelicAct, -1, 'loadRun self-heals bossRelicAct');
+  assert.equal(reloaded.orphanRewardClaimed, false, 'loadRun self-heals orphanRewardClaimed');
+  assert.equal(claimTreasure(reloaded).already, true, 'reward flags survive loadRun round-trip');
 }
 {
   // all enemies have valid ai over 30 turns

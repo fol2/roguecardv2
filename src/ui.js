@@ -2700,6 +2700,11 @@ function renderEvent(eventId) {
       showEventContinue();
       if (!bits.length && !pending.length && !ch.ops.length) show('map');
     } catch (err) {
+      if (E.nodeRewardClaimed(run)) {
+        E.saveRun(run);
+        showEventContinue();
+        return;
+      }
       resolving = false;
       choices.querySelectorAll('button').forEach((b) => { b.disabled = false; });
       throw err;

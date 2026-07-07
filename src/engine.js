@@ -155,6 +155,10 @@ export function availableNodes(run) {
 // stepping onto a node: bookkeeping + unlit bounty. Returns the node's true face.
 export function visitNode(run, node) {
   run.nodeId = node.id;
+  if (run.orphanRewardClaimed) {
+    node.rewardClaimed = true;
+    run.orphanRewardClaimed = false;
+  }
   run.floorsClimbed = node.row + 1;
   if (!run.map.visited.includes(node.id)) run.map.visited.push(node.id);
   let bounty = 0;
