@@ -41,6 +41,14 @@ test('a normal session never loads the editor', async ({ page }) => {
   await expect(page.locator('#bf-toolbar')).toHaveCount(0);
 });
 
+test('clicking a box without dragging does not dirty the layout', async ({ page }) => {
+  await page.goto('/?bfedit=1&mesh=0');
+  await page.locator('.bf-box[data-bf="hero"]').click();
+  await page.locator('.bf-box[data-bf="ground"]').click();
+  await expect(page.locator('.bf-box[data-bf="ground"]')).toHaveClass(/bf-sel/);
+  await expect(page.locator('#bf-dirty')).toHaveText('');
+});
+
 test('dragging the hero moves its x by the drag distance (stage px)', async ({ page }) => {
   await page.goto('/?bfedit=1&mesh=0');
   const hero = page.locator('.bf-box[data-bf="hero"]');

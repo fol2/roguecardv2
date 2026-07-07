@@ -149,35 +149,36 @@ function onBoxPointerDown(e, id) {
   const count = state.scenario.ids.length;
   const slots0 = L0.slots[count] ?? bfSlots(L0, count);
   let axis = null; // body drags lock to the dominant axis of the first decisive move
+  let wrote = false; // a plain click writes nothing and must not dirty the layout
+  const w = (scope, path, value) => { wrote = true; writeField(scope, path, value, { drag: true }); };
   const move = (ev) => {
     const dx = Math.round((ev.clientX - start.x) / sc);
     const dy = Math.round((ev.clientY - start.y) / sc); // screen-down = stage-down
     if (!axis && Math.abs(dx) + Math.abs(dy) >= 3) axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
     const posScope = defaultScope(['hero']);
-    const drag = { drag: true };
-    if (id === 'ground') writeField(posScope, ['groundY'], Math.max(0, L0.groundY - dy), drag);
+    if (id === 'ground') w(posScope, ['groundY'], Math.max(0, L0.groundY - dy));
     else if (id === 'hero') {
       if (onHandle) {
-        writeField(posScope, ['hero', 'w'], Math.max(24, L0.hero.w + dx), drag);
-        writeField(posScope, ['hero', 'h'], Math.max(24, L0.hero.h - dy), drag);
-      } else if (axis === 'x') writeField(posScope, ['hero', 'x'], L0.hero.x + dx, drag);
-      else if (axis === 'y') writeField('shared', ['heroes', heroId, 'footY'], heroFoot0 - dy, drag);
+        w(posScope, ['hero', 'w'], Math.max(24, L0.hero.w + dx));
+        w(posScope, ['hero', 'h'], Math.max(24, L0.hero.h - dy));
+      } else if (axis === 'x') w(posScope, ['hero', 'x'], L0.hero.x + dx);
+      else if (axis === 'y') w('shared', ['heroes', heroId, 'footY'], heroFoot0 - dy);
     } else if (id.startsWith('enemy-')) {
       const i = Number(id.slice(6));
       const key = state.scenario.ids[i];
-      if (onHandle) writeField(posScope, ['slots', String(count), i, 's'], Math.max(0.1, +((slots0[i].s ?? 1) + dx / 200).toFixed(2)), drag);
-      else if (axis === 'x') writeField(posScope, ['slots', String(count), i, 'x'], slots0[i].x + dx, drag);
-      else if (axis === 'y') writeField('shared', ['enemies', key, 'footY'], enemyFoot0[i] - dy, drag);
+      if (onHandle) w(posScope, ['slots', String(count), i, 's'], Math.max(0.1, +((slots0[i].s ?? 1) + dx / 200).toFixed(2)));
+      else if (axis === 'x') w(posScope, ['slots', String(count), i, 'x'], slots0[i].x + dx);
+      else if (axis === 'y') w('shared', ['enemies', key, 'footY'], enemyFoot0[i] - dy);
     } else if (id.startsWith('layer-')) {
       const name = id.slice(6);
-      if (onHandle) writeField(posScope, ['layers', name, 'h'], Math.max(10, L0.layers[name].h - dy), drag);
-      else writeField(posScope, ['layers', name, 'y'], L0.layers[name].y - dy, drag);
+      if (onHandle) w(posScope, ['layers', name, 'h'], Math.max(10, L0.layers[name].h - dy));
+      else w(posScope, ['layers', name, 'y'], L0.layers[name].y - dy);
     }
   };
   const up = () => {
     removeEventListener('pointermove', move);
     removeEventListener('pointerup', up);
-    applyWorking();
+    if (wrote) applyWorking();
   };
   addEventListener('pointermove', move);
   addEventListener('pointerup', up);
