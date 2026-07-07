@@ -8,6 +8,13 @@ let parts = [];
 let flashes = [];
 let shakeV = 0, shakeX = 0, shakeY = 0;
 let hitstopUntil = 0;
+const WEATHER = [
+  { rate: 2, colors: ['#b8b0a0', '#8a8378'], vx: [-6, 6], vy: [10, 26], size: [1.4, 2.6], drift: 0.4, emberRate: 0.5 },
+  { rate: 1.5, colors: ['#9fd4ff', '#cfe6ff'], vx: [-4, 4], vy: [8, 18], size: [1.6, 3], drift: 0.7, emberRate: 0.25 },
+  { rate: 2.5, colors: ['#ff9a4d', '#ffd166'], vx: [24, 60], vy: [-18, -4], size: [1.4, 2.4], drift: 1.1, emberRate: 0.9 },
+];
+let weather = null;
+let weatherAcc = 0;
 
 export const LITE = matchMedia('(pointer: coarse)').matches;
 // backing texels per stage px: real density (device DPR × stage scale), capped
@@ -36,6 +43,11 @@ export function freezeVfx() {
   if (ctx2) ctx2.clearRect(0, 0, canvas.width, canvas.height);
 }
 
+export function setWeather(act, { boss = false, mult = 1 } = {}) {
+  weather = act == null ? null : { act: Math.min(act, 2), boss, mult };
+  weatherAcc = 0;
+}
+
 let lastT = 0;
 function tick(t) {
   if (frozen) return;
@@ -43,6 +55,24 @@ function tick(t) {
   const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016);
   lastT = t;
   if (t < hitstopUntil) return; // freeze frame
+  if (weather && !REDUCED) {
+    const w = WEATHER[weather.act];
+    weatherAcc += dt * w.rate * (weather.boss ? 1.4 : 1) * weather.mult * (LITE ? 0.6 : 1);
+    while (weatherAcc >= 1) {
+      weatherAcc -= 1;
+      const ember = Math.random() < w.emberRate * 0.1;
+      const rnd = (a) => a[0] + Math.random() * (a[1] - a[0]);
+      parts.push({
+        kind: 'dot',
+        x: Math.random() * stageW(), y: ember ? stageH() + 6 : -6,
+        vx: rnd(w.vx), vy: ember ? -rnd([14, 34]) : rnd(w.vy),
+        size: rnd(w.size) * (ember ? 1.3 : 1),
+        color: ember ? '#ffd166' : w.colors[(Math.random() * w.colors.length) | 0],
+        grav: 0, drag: w.drift * 0.1,
+        life: 9, fade: 3, add: ember, alpha: ember ? 0.9 : 0.35,
+      });
+    }
+  }
   const dpr = DPR();
   ctx2.clearRect(0, 0, canvas.width, canvas.height);
   ctx2.save();

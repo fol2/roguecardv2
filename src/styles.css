@@ -468,6 +468,19 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ledge, #8fa3d8) 75%, #fff) 20% 80%, transparent);
   opacity: 0.4; box-shadow: 0 0 16px color-mix(in srgb, var(--ledge, #8fa3d8) 60%, transparent);
 }
+.stage-breath {
+  position: absolute; width: 34cqw; height: 26cqh; border-radius: 50%; pointer-events: none; z-index: 0;
+  opacity: 0.1; filter: blur(40px);
+  background: radial-gradient(circle, var(--ledge, #8fa3d8) 0%, transparent 70%);
+  animation: breath 7s ease-in-out infinite alternate;
+}
+.stage-breath.b1 { left: 6cqw; bottom: calc(var(--ground-y) - 8cqh); }
+.stage-breath.b2 { right: 8cqw; bottom: calc(var(--ground-y) - 12cqh); animation-delay: 3.2s; }
+@keyframes breath {
+  from { opacity: 0.06; transform: scale(0.94); }
+  to { opacity: 0.16; transform: scale(1.06); }
+}
+@media (prefers-reduced-motion: reduce) { .stage-breath { animation: none; opacity: 0.08; } }
 .combat-screen::after { /* depth: dark ground mist so the hand reads against the particles */
   content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 300px; pointer-events: none; z-index: 1;
   background: linear-gradient(180deg, transparent, rgba(5, 7, 14, 0.55) 75%);

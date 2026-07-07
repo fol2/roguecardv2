@@ -410,6 +410,7 @@ export function show(name, data) {
   closeMenus();
   $('#tooltip').style.display = 'none'; // a parked cursor shouldn't strand a tip across screens
   if (name !== 'map') { exitMapMode(); clearOverlay(); }
+  V.setWeather(null);
   const sc = screenEl();
   sc.className = '';
   sc.onclick = null; // screens share #screen — never let a stale delegate survive
@@ -768,6 +769,7 @@ function startCombatUI(enemyIds, kind) {
   if (S.screen !== 'combat') wipe();
   S.cb = E.startCombat(S.run, enemyIds, kind);
   S.screen = 'combat';
+  V.setWeather(S.run.act, { boss: kind === 'boss' });
   renderCombat();
   renderHud();
   if (kind === 'boss') {
@@ -796,6 +798,7 @@ function renderCombat() {
       return u ? `<img class="sl sl-${l}" src="${u}" alt="" aria-hidden="true">` : '';
     }).join('')}
     <div class="stage-ledge" style="--ledge:${ledge}"></div>
+    <div class="stage-breath b1"></div><div class="stage-breath b2"></div>
     <div class="battlefield">
       <div class="player-zone">
         <div class="hero-wrap">
