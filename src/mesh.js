@@ -603,6 +603,14 @@ export function meshBind(entries) {
   raf = requestAnimationFrame(loop);
 }
 
+/** Mesh-only float lift in stage px (0 = feet on ground). CSS idle bob is separate. */
+export function meshLift(el) {
+  const p = findPlane(el);
+  if (!p) return 0;
+  const t = performance.now() * 0.001;
+  return Math.max(0, (p.profile.float || 0) * Math.sin(t * 1.15 + p.seed * 0.7) * 12 * INTENSITY);
+}
+
 export const meshDebug = () => ({
   enabled: meshEnabled(),
   planes: planes.length,

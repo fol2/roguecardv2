@@ -6,7 +6,7 @@ import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
-import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff } from './mesh.js';
+import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift } from './mesh.js';
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
@@ -1318,14 +1318,9 @@ function updatePreviews() {
       }
     }
     if (pv && (pv.total > 0 || pv.chips > 0)) {
-      const h = pv.hits[0];
-      const label = pv.hits.length === 1 && h && h.times > 1 ? `${h.dmg}×${h.times}` : `${pv.total}`;
-      // the preview speaks shatter as plainly as it speaks lethal
-      x.prev.innerHTML = (pv.lethal ? `${iconSvg('skull', 15)} ` : '') + (pv.total > 0 ? label : '')
-        + (pv.willShatter && !dim ? ` <span class="pv-shatter">${iconSvg('stagger', 14)}</span>` : '');
-      x.prev.classList.add('show');
-      x.prev.classList.toggle('dim', dim);
-      x.prev.classList.toggle('lethal', pv.lethal);
+      // bar ghost + facet pips spell out the consequence; the art-overlay number is redundant
+      x.prev.classList.remove('show', 'lethal', 'dim');
+      x.prev.innerHTML = '';
       x.root.classList.toggle('marked', pv.lethal && !dim);
       const lossFrac = Math.min(en.hp, pv.loss) / en.maxHp;
       x.pv.style.left = `${(Math.max(0, en.hp - pv.loss) / en.maxHp) * 100}%`;
@@ -1490,10 +1485,107 @@ function tweenNum(node, from, to, ms = 640) {
   };
   requestAnimationFrame(step);
 }
+const feetCache = new Map();
+/** Lowest opaque scan row + foot-line center X (image px). Cached per URL. */
+function scanFeet(url) {
+  if (!url) return Promise.resolve(null);
+  if (feetCache.has(url)) return feetCache.get(url);
+  const p = new Promise((res) => {
+    const img = new Image();
+    img.onload = () => {
+      const nw = img.naturalWidth, nh = img.naturalHeight;
+      const c = Object.assign(document.createElement('canvas'), { width: nw, height: nh });
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const px = ctx.getImageData(0, 0, nw, nh).data;
+      const TH = 24;
+      let footRow = -1, x0 = nw, x1 = 0;
+      for (let y = nh - 1; y >= 0; y--) {
+        let hit = false;
+        for (let x = 0; x < nw; x++) {
+          if (px[(y * nw + x) * 4 + 3] > TH) {
+            hit = true;
+            x0 = Math.min(x0, x);
+            x1 = Math.max(x1, x);
+          }
+        }
+        if (hit) { footRow = y; break; }
+      }
+      if (footRow < 0) res({ nw, nh, footRow: nh - 1, footX: nw * 0.5 });
+      else res({ nw, nh, footRow, footX: (x0 + x1) * 0.5 });
+    };
+    img.onerror = () => res(null);
+    img.src = url;
+  });
+  feetCache.set(url, p);
+  return p;
+}
+function containBox(nw, nh, bw, bh) {
+  const s = Math.min(bw / nw, bh / nh);
+  return { s, dw: nw * s, dh: nh * s, ox: (bw - nw * s) / 2, oy: (bh - nh * s) / 2 };
+}
+/** Pin scanned feet to the art-box bottom (ground line) on sprite + shadow. */
+function applyFeetToShadow(it) {
+  const { feet, art, shadow, sprite } = it;
+  if (!feet?.nw || !art || !shadow) return;
+  const bw = art.clientWidth, bh = art.clientHeight;
+  if (bw < 4 || bh < 4) return;
+  const { nw, nh, footRow, footX } = feet;
+  const { s, ox, oy } = containBox(nw, nh, bw, bh);
+  const footDrop = bh - oy - footRow * s;
+  it.footOx = ((ox + footX * s) / bw) * 100;
+  it.footDrop = footDrop;
+  shadow.style.setProperty('--foot-ox', `${it.footOx.toFixed(2)}%`);
+  const img = $('img', shadow);
+  if (img) img.style.transform = `translateY(${footDrop.toFixed(2)}px)`;
+  const raster = $('.raster-art', sprite);
+  if (raster) raster.style.transform = `translateY(${footDrop.toFixed(2)}px)`;
+}
+function spriteLiftPx(el) {
+  const m = getComputedStyle(el).transform;
+  if (!m || m === 'none') return 0;
+  const a = m.match(/matrix(?:3d)?\(([^)]+)\)/);
+  if (!a) return 0;
+  const v = a[1].split(',').map((s) => parseFloat(s.trim()));
+  const ty = v.length === 16 ? v[13] : v[5];
+  return Math.max(0, -ty);
+}
+function castShadowEl(sprite, url, svg) {
+  const sh = el('div', 'cast-shadow');
+  if (url) {
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = '';
+    img.setAttribute('aria-hidden', 'true');
+    sh.appendChild(img);
+  } else if (svg) {
+    const clone = svg.cloneNode(true);
+    clone.setAttribute('aria-hidden', 'true');
+    sh.appendChild(clone);
+  } else sh.classList.add('cast-shadow-blob');
+  return sh;
+}
+function syncCastShadow(it, lift) {
+  if (!it.shadow) return;
+  if (it.feet?.nw) applyFeetToShadow(it);
+  const max = it.shadowMax || 16;
+  const t = Math.min(1, lift / max);
+  it.shadow.style.setProperty('--foot-ox', `${(it.footOx ?? 50).toFixed(2)}%`);
+  it.shadow.style.setProperty('--foot-oy', '100%'); // box bottom = ground; feet pinned there via footDrop
+  const sx = 1 - t * 0.26;
+  const sy = 0.24 - t * 0.12;
+  const o = 0.62 - t * 0.34;
+  it.shadow.style.setProperty('--sh-sx', sx.toFixed(3));
+  it.shadow.style.setProperty('--sh-sy', sy.toFixed(3));
+  it.shadow.style.setProperty('--sh-o', o.toFixed(3));
+  it.shadow.style.setProperty('--sh-blur', `${(1.2 + t * 2.8).toFixed(1)}px`);
+  it.shadow.style.setProperty('--sh-skew', `${(it.skew * (1 - t * 0.35)).toFixed(2)}deg`);
+  it.shadow.style.setProperty('--sh-x', `${(it.skew * 0.35 * (1 - t * 0.5)).toFixed(1)}px`);
+}
 function rigCombatants() {
   const ce = S.ce, cb = S.cb;
   ce.rig = [];
-  const add = (root, art, glow, isHero, idx, kind, hue = 0) => {
+  const add = (root, art, glow, isHero, idx, kind, hue = 0, artUrl = '') => {
     const svg = $('svg', art);
     const sprite = $('.enemy-sprite', art) || art;
     const raster = $('.raster-art', sprite);
@@ -1517,19 +1609,34 @@ function rigCombatants() {
         sprite.appendChild(motes);
       }
     }
+    const shadow = castShadowEl(sprite, artUrl || raster?.src || '', svg);
+    art.insertBefore(shadow, art.firstChild);
     const pool = el('div', 'lightpool');
     pool.style.background = `radial-gradient(ellipse at 50% 50%, ${glow}, transparent 72%)`;
     art.appendChild(pool);
-    ce.rig.push({
+    const floatKinds = { wisp: 20, eye: 20, siren: 14, shade: 14, plant: 10, slime: 6 };
+    const rig = {
       root, art, sprite, svg, eyes: svg ? $$('.eye', svg) : [], fire: svg ? $('.innerfire', svg) : null,
-      pool, seed, isHero, idx, dx: 0, dy: 0,
-    });
+      pool, shadow, shadowMax: floatKinds[kind] || 12, skew: isHero ? 5 : -4, seed, isHero, idx, dx: 0, dy: 0,
+      feet: null, footOx: 50,
+    };
+    ce.rig.push(rig);
+    const url = artUrl || raster?.src || '';
+    if (url) {
+      scanFeet(url).then((feet) => {
+        if (!feet || !rig.shadow) return;
+        rig.feet = feet;
+        applyFeetToShadow(rig);
+        syncCastShadow(rig, spriteLiftPx(rig.sprite) + (rig.sprite.classList.contains('mesh-live') ? meshLift(rig.sprite) : 0));
+      });
+    }
+    syncCastShadow(rig, 0);
   };
   cb.enemies.forEach((en, i) => {
     const a = ENEMIES[en.key].art;
-    add(ce.enemies[i].root, ce.enemies[i].art, `hsla(${a.hue},90%,66%,.72)`, false, i, a.kind, a.hue);
+    add(ce.enemies[i].root, ce.enemies[i].art, `hsla(${a.hue},90%,66%,.72)`, false, i, a.kind, a.hue, assetUrl('enemies', en.key));
   });
-  add(ce.hero, ce.hero, 'rgba(127,212,255,.62)', true, 0, 'humanoid', 0);
+  add(ce.hero, ce.hero, 'rgba(127,212,255,.62)', true, 0, 'humanoid', 0, assetUrl('heroes', ASPECTS[S.run.aspect].id));
 }
 function meshBindCombatants() {
   if (!meshEnabled()) return;
@@ -1570,7 +1677,14 @@ function rigTick(t) {
   const hc = heroCenter();
   for (const it of ce.rig) {
     const unit = it.isHero ? cb.player : cb.enemies[it.idx];
-    if (!it.isHero && unit.hp <= 0) { it.pool.style.opacity = 0; continue; }
+    if (!it.isHero && unit.hp <= 0) {
+      it.pool.style.opacity = 0;
+      if (it.shadow) it.shadow.style.opacity = 0;
+      continue;
+    }
+    let lift = spriteLiftPx(it.sprite);
+    if (it.sprite.classList.contains('mesh-live')) lift += meshLift(it.sprite);
+    syncCastShadow(it, lift);
     const tgt = it.isHero ? heroTgt : hc;
     if (tgt && it.eyes.length) {
       const c = V.centerOf(it.art);
