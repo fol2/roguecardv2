@@ -44,6 +44,7 @@ export function freezeVfx() {
 }
 
 export function setWeather(act, { boss = false, mult = 1 } = {}) {
+  parts = parts.filter((p) => !p.weather);
   weather = act == null ? null : { act: Math.min(act, 2), boss, mult };
   weatherAcc = 0;
 }
@@ -64,6 +65,7 @@ function tick(t) {
       const rnd = (a) => a[0] + Math.random() * (a[1] - a[0]);
       parts.push({
         kind: 'dot',
+        weather: true,
         x: Math.random() * stageW(), y: ember ? stageH() + 6 : -6,
         vx: rnd(w.vx), vy: ember ? -rnd([14, 34]) : rnd(w.vy),
         size: rnd(w.size) * (ember ? 1.3 : 1),

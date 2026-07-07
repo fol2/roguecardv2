@@ -482,8 +482,12 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 }
 @media (pointer: coarse) {
   .stage-breath {
-    display: none;
+    width: 24cqw; height: 18cqh;
+    opacity: 0.08; filter: none;
+    animation-duration: 10s;
   }
+  .stage-breath.b1 { bottom: calc(var(--ground-y) - 5cqh); }
+  .stage-breath.b2 { bottom: calc(var(--ground-y) - 8cqh); }
 }
 @media (prefers-reduced-motion: reduce) { .stage-breath { animation: none; opacity: 0.08; } }
 .combat-screen::after { /* depth: dark ground mist so the hand reads against the particles */

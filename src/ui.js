@@ -792,12 +792,12 @@ function renderCombat() {
   const sc = screenEl();
   sc.onclick = null;
   const ledge = `#${ACTS[S.run.act].theme.glow.toString(16).padStart(6, '0')}`;
-  sc.innerHTML = `<div class="combat-screen screen-enter intro">
+  sc.innerHTML = `<div class="combat-screen screen-enter intro" style="--ledge:${ledge}">
     ${['backdrop', 'mid', 'ledge'].map((l) => {
       const u = assetUrl('stage', `act${S.run.act + 1}-${l}`);
       return u ? `<img class="sl sl-${l}" src="${u}" alt="" aria-hidden="true">` : '';
     }).join('')}
-    <div class="stage-ledge" style="--ledge:${ledge}"></div>
+    <div class="stage-ledge"></div>
     <div class="stage-breath b1"></div><div class="stage-breath b2"></div>
     <div class="battlefield">
       <div class="player-zone">

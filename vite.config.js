@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import { writeFileSync, renameSync } from "node:fs";
+import { readFileSync, writeFileSync, renameSync } from "node:fs";
 import { resolve } from "node:path";
 
 const BF_SAVE_PORT = 5174;
@@ -7,6 +7,7 @@ const BF_SAVE_HOSTS = ["localhost", "127.0.0.1", "macm4.tail55e87e.ts.net"];
 const BF_LAYOUT_PATH = resolve("src/battlefield-layout.js");
 const BF_LAYOUT_TMP = `${BF_LAYOUT_PATH}.tmp`;
 let suppressBFHotUpdateUntil = 0;
+let suppressBFHotUpdateText = "";
 
 /** Reject cross-origin POSTs — only the dev server (or allowedHosts) may write. */
 function bfSaveOriginOk(req) {
@@ -25,7 +26,11 @@ function bfSavePlugin() {
     name: "bf-save",
     apply: "serve",
     handleHotUpdate({ file }) {
-      if (file === BF_LAYOUT_PATH && Date.now() < suppressBFHotUpdateUntil) return [];
+      if (file === BF_LAYOUT_PATH && suppressBFHotUpdateText && Date.now() < suppressBFHotUpdateUntil) {
+        try {
+          if (readFileSync(file, "utf8") === suppressBFHotUpdateText) return [];
+        } catch {}
+      }
     },
     configureServer(server) {
       server.middlewares.use("/__bf-save", (req, res) => {
@@ -50,8 +55,10 @@ function bfSavePlugin() {
             // The editor reloads only itself after this endpoint invalidates
             // the module graph; hand edits outside this endpoint still flow
             // through Vite's normal watcher.
-            suppressBFHotUpdateUntil = Date.now() + 1500;
-            writeFileSync(BF_LAYOUT_TMP, serializeBF(bf)); // never half-written
+            const nextBF = serializeBF(bf);
+            suppressBFHotUpdateText = nextBF;
+            suppressBFHotUpdateUntil = Date.now() + 10000;
+            writeFileSync(BF_LAYOUT_TMP, nextBF); // never half-written
             renameSync(BF_LAYOUT_TMP, BF_LAYOUT_PATH);
             server.moduleGraph.invalidateAll();
             res.end(JSON.stringify({ ok: true, reload: true }));
