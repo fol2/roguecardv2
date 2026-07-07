@@ -6,7 +6,7 @@ import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
-import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath } from './mesh.js';
+import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff } from './mesh.js';
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
@@ -53,7 +53,8 @@ const hudRelic = (rid) => {
 };
 const heroArt = (i) => {
   const u = assetUrl('heroes', ASPECTS[i].id);
-  return u ? `<img class="raster-art" src="${u}" alt="">` : heroSvg(i);
+  if (!u) return heroSvg(i);
+  return `<div class="hero-sprite">${rasterOr('heroes', ASPECTS[i].id, heroSvg(i))}<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg></div>`;
 };
 
 let assetsWarmed = false;
@@ -1646,11 +1647,20 @@ function addCrack(artEl, big) {
 }
 // death rite: the fire inside wells up through every fracture — one last web of
 // cracks races the glass, the seams blaze warm, then the vessel gives (V.shatter)
-function igniteVessel(x) {
-  // warp on: the vessel fails through its own glass fractures — the seams flare warm
-  // and one last web races the body; the warp holds the beat, then shatter releases it
-  if (meshEnabled() && meshDeath(x.root, 1)) {
+function igniteVessel(x, dur = 200) {
+  // warp on: the vessel fails through its own glass fractures — the fire BUILDS
+  // (eased 0→1 over the held beat, not a snap) while one last web races the body;
+  // the warp holds the beat, then shatter releases it
+  if (meshEnabled() && meshDeath(x.root, 0)) {
     for (let k = 0; k < 3; k++) meshCrack(x.art);
+    const t0 = performance.now();
+    const step = () => {
+      const t = Math.min(1, (performance.now() - t0) / dur);
+      const e = t * t * (3 - 2 * t); // smoothstep: slow warm-up, fast blaze
+      if (!meshDeath(x.root, e)) return; // plane already handed off — stop quietly
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
     return;
   }
   // warp off: drawn fallback — fire wells up through the DOM cracks, then the glass gives
@@ -1920,11 +1930,15 @@ async function handleEvent(ev, targetIdx) {
         x.root.classList.remove('doomed');
       }
       await choreoStagger(x.art);
-      // the vessel fails: fire wells up through the fractures, one held beat, then the glass gives way
-      if (!REDUCED) { igniteVessel(x); await sleep(en.boss ? 320 : 200); }
+      // the vessel fails: fire wells up through the fractures (ramped, not snapped)
+      // and the INSTANT the blaze peaks the glass gives way — no held beat
+      const beat = en.boss ? 320 : 200;
+      if (!REDUCED) { igniteVessel(x, beat); await sleep(beat); }
       (en.boss || en.elite ? sfx.bigDeath : sfx.death)();
-      meshRelease(x.root); // the warp body hands off to the DOM shards on the shatter beat
-      V.shatter(x.art); // the glass body breaks apart
+      if (!REDUCED) meshDeath(x.root, 1); // frame-jitter guard: the handoff must capture the full blaze
+      const handoff = meshEnabled() ? meshHandoff(x.root) : null;
+      if (!handoff) meshRelease(x.root);
+      V.shatter(x.art, handoff || {}); // cracked warp frame + site-guided wedges when available
       V.burst(ex, ey, { color: '#dfeaff', n: 30, speed: 480, size: 2.6, grav: 340, kind: 'spark' });
       V.burst(ex, ey, { color: '#c9b0ff', n: 26, speed: 380, size: 3.2, grav: 60 });
       V.ring(ex, ey, '#e8dcff', 12, 720, 6);

@@ -211,43 +211,137 @@ export function floatText(x, y, text, cls = '', { tint = '', dx = 0 } = {}) {
   el.animate(kf, { duration: dur, easing: 'cubic-bezier(.2,.7,.3,1)' }).onfinish = () => el.remove();
 }
 
-// glass death: clone the creature's svg into a fan of clip-path shards and
-// throw them outward — the body literally breaks apart along the light.
-export function shatter(el) {
-  const vis = el.querySelector('svg') || el.querySelector('img.raster-art');
-  const r = stageRect(el); // shard wrappers are fixed inside the stage
-  if (!vis || !r.width) return;
-  if (REDUCED) { el.style.visibility = 'hidden'; return; }
-  const html = vis.tagName === 'svg'
-    ? vis.outerHTML
-    : `<img src="${vis.src}" alt="" style="width:100%;height:100%;object-fit:contain;display:block">`;
-  const cx = 50 + (Math.random() - 0.5) * 14, cy = 52 + (Math.random() - 0.5) * 14;
-  const K = 11;
-  const ring = [];
-  for (let i = 0; i < K; i++) {
-    const a = (i / K) * Math.PI * 2 + (Math.random() - 0.5) * 0.34;
-    const rr = 78 + Math.random() * 22;
-    ring.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, a]);
+// Voronoi partition of the glass from its crack sites — the shatter breaks the
+// body along the exact seams the crack shader showed. Sites live in texture uv
+// (v points up); clip-path speaks y-down percentages, so v flips at this boundary.
+const _bounds = [[0, 0], [100, 0], [100, 100], [0, 100]];
+const _siteXY = (s) => [s.u * 100, (1 - s.v) * 100];
+// keep the half of poly closer to F than O. The side test is linear in p, so the
+// crossing is exact — bisection here drifted and produced overlapping cells.
+function _clipHalf(poly, F, O) {
+  const f = (p) => (p[0] - F[0]) ** 2 + (p[1] - F[1]) ** 2 - (p[0] - O[0]) ** 2 - (p[1] - O[1]) ** 2;
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const fa = f(a), fb = f(b);
+    const ix = () => { const t = fa / (fa - fb); return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; };
+    if (fa <= 0 && fb <= 0) out.push(b);
+    else if (fa <= 0) out.push(ix());
+    else if (fb <= 0) { out.push(ix()); out.push(b); }
   }
-  for (let i = 0; i < K; i++) {
-    const [x1, y1] = ring[i], [x2, y2] = ring[(i + 1) % K];
+  return out;
+}
+// The crack sites carve fine cells where the blows landed; sparse jittered
+// background sites let the final web race across the intact glass as larger
+// slabs. Every seam through the cracked region IS a seam the shader lit.
+function _voronoiParts(rawSites) {
+  const sites = [];
+  for (const s of rawSites || []) {
+    if (!sites.some((q) => Math.hypot(q.u - s.u, q.v - s.v) < 0.02)) sites.push({ u: s.u, v: s.v });
+  }
+  if (sites.length < 3) return null;
+  const aug = sites.slice();
+  for (let gu = 0.1; gu < 1; gu += 0.21) for (let gv = 0.09; gv < 1; gv += 0.21) {
+    const u = gu + (Math.random() - 0.5) * 0.12, v = gv + (Math.random() - 0.5) * 0.12;
+    if (!aug.some((q) => Math.hypot(q.u - u, q.v - v) < 0.13)) aug.push({ u, v });
+  }
+  const pts = aug.map(_siteXY);
+  const parts = [];
+  for (let i = 0; i < pts.length; i++) {
+    let poly = _bounds.map((p) => [...p]);
+    for (let j = 0; j < pts.length && poly.length >= 3; j++) if (j !== i) poly = _clipHalf(poly, pts[i], pts[j]);
+    if (poly.length < 3) continue;
+    let area = 0, cx = 0, cy = 0;
+    for (let k = 0; k < poly.length; k++) {
+      const [x0, y0] = poly[k], [x1, y1] = poly[(k + 1) % poly.length];
+      area += x0 * y1 - x1 * y0; cx += x0; cy += y0;
+    }
+    if (Math.abs(area) * 0.5 < 0.3) continue;
+    parts.push({ poly, cx: cx / poly.length, cy: cy / poly.length });
+  }
+  if (parts.length < 3) return null;
+  // the blow's centre: where the real cracks clustered — shards fly from here
+  const ix = sites.reduce((s, p) => s + p.u, 0) / sites.length * 100;
+  const iy = sites.reduce((s, p) => s + (1 - p.v), 0) / sites.length * 100;
+  return { parts, ix, iy };
+}
+function _radialParts() {
+  const cx = 50 + (Math.random() - 0.5) * 14, cy = 52 + (Math.random() - 0.5) * 14;
+  const parts = [];
+  for (let i = 0; i < 11; i++) {
+    const a0 = (i / 11) * Math.PI * 2 + (Math.random() - 0.5) * 0.34;
+    const a1 = ((i + 1) / 11) * Math.PI * 2 + (Math.random() - 0.5) * 0.34;
+    const rr = 88 + Math.random() * 12;
+    parts.push({
+      poly: [[cx, cy], [cx + Math.cos(a0) * rr, cy + Math.sin(a0) * rr * 0.85], [cx + Math.cos(a1) * rr, cy + Math.sin(a1) * rr * 0.85]],
+      cx: cx + Math.cos((a0 + a1) * 0.5) * rr * 0.45,
+      cy: cy + Math.sin((a0 + a1) * 0.5) * rr * 0.38,
+    });
+  }
+  return { parts, ix: cx, iy: cy };
+}
+
+// glass death: the body breaks into the Voronoi cells its cracks defined and the
+// pieces fly out from the impact cluster. opts.capture carries the refracted frame.
+export function shatter(el, opts = {}) {
+  const vis = el.querySelector('svg:not(.cracks-overlay)') || el.querySelector('img.raster-art');
+  const r = opts.rect || stageRect(el);
+  if ((!vis && !opts.capture) || !r.width) return;
+  if (REDUCED) { el.style.visibility = 'hidden'; return; }
+  const html = opts.capture
+    ? `<img src="${opts.capture}" alt="" style="width:100%;height:100%;object-fit:contain;display:block">`
+    : vis.tagName === 'svg'
+      ? vis.outerHTML
+      : `<img src="${vis.src}" alt="" style="width:100%;height:100%;object-fit:contain;display:block">`;
+
+  const { parts: cells, ix, iy } = _voronoiParts(opts.sites) || _radialParts();
+  // ballistic shards: launched off the blow, pulled by gravity, tumbling, with a
+  // damped bounce where each shard's own lowest edge meets the ground line (the
+  // body art is bottom-anchored, so the rect's bottom IS the creature's feet)
+  const G = 2400; // px/s² — glass is heavy; the fall should read fast
+  const shards = [];
+  for (const c of cells) {
+    const pts = c.poly.map((p) => `${p[0].toFixed(2)}% ${p[1].toFixed(2)}%`).join(',');
     const w = document.createElement('div');
-    w.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;pointer-events:none;z-index:57;clip-path:polygon(${cx}% ${cy}%,${x1.toFixed(1)}% ${y1.toFixed(1)}%,${x2.toFixed(1)}% ${y2.toFixed(1)}%);`;
+    w.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;pointer-events:none;z-index:57;clip-path:polygon(${pts});will-change:transform,opacity;`;
     w.innerHTML = html;
     floatLayer.appendChild(w);
-    const midA = ring[i][2] + Math.PI / K;
-    const dist = 55 + Math.random() * 120;
-    const dx = Math.cos(midA) * dist, dy = Math.sin(midA) * dist * 0.7;
-    const rot = (Math.random() - 0.5) * 110;
-    w.animate(
-      [
-        { transform: 'translate(0,0) rotate(0deg)', opacity: 1 },
-        { transform: `translate(${(dx * 0.55).toFixed(0)}px,${(dy * 0.55 - 16).toFixed(0)}px) rotate(${(rot * 0.5).toFixed(0)}deg)`, opacity: 0.95, offset: 0.4 },
-        { transform: `translate(${dx.toFixed(0)}px,${(dy + 110).toFixed(0)}px) rotate(${rot.toFixed(0)}deg)`, opacity: 0 },
-      ],
-      { duration: 780 + Math.random() * 300, easing: 'cubic-bezier(.3,.3,.6,1)' }
-    ).onfinish = () => w.remove();
+    let dx = c.cx - ix, dy = c.cy - iy;
+    const len = Math.hypot(dx, dy) || 1;
+    const near = Math.max(0, 1 - len / 75); // closer to the blow = more energy
+    const speed = (120 + Math.random() * 240) * (0.85 + near * 0.75);
+    shards.push({
+      el: w, x: 0, y: 0, rot: 0, bounced: 0,
+      vx: (dx / len) * speed,
+      vy: (dy / len) * speed * 0.65 - (60 + Math.random() * 150), // outward + an upward kick
+      vr: (Math.random() - 0.5) * 260,
+      maxY: Math.max(...c.poly.map((p) => p[1])), // lowest vertex % — its personal floor
+    });
   }
+  let last = performance.now();
+  const T0 = last;
+  const step = (now) => {
+    const dt = Math.min(0.032, (now - last) / 1000); last = now;
+    const t = now - T0;
+    let live = 0;
+    for (const s of shards) {
+      if (!s.el) continue;
+      s.vy += G * dt;
+      s.x += s.vx * dt; s.y += s.vy * dt; s.rot += s.vr * dt;
+      const floor = r.height * (1 - s.maxY / 100) + 2;
+      if (s.y > floor && s.vy > 0 && s.bounced < 2) {
+        s.y = floor;
+        s.vy *= -(0.34 - s.bounced * 0.12); // damped clink, weaker second bounce
+        s.vx *= 0.6; s.vr *= 0.5; s.bounced++;
+      }
+      const fade = t < 650 ? 1 : Math.max(0, 1 - (t - 650) / 380);
+      s.el.style.transform = `translate3d(${s.x.toFixed(1)}px,${s.y.toFixed(1)}px,0) rotate(${s.rot.toFixed(1)}deg)`;
+      s.el.style.opacity = fade.toFixed(3);
+      if (fade <= 0 || s.y > r.height * 1.5) { s.el.remove(); s.el = null; } else live++;
+    }
+    if (live) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
   el.style.visibility = 'hidden';
 }
 

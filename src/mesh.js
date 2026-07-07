@@ -109,22 +109,22 @@ const CRACK_FRAG = /* glsl */`
       if (d < d1) { d2 = d1; d1 = d; off1 = s.zw; }
       else if (d < d2) { d2 = d; }
     }
-    float within = 1.0 - smoothstep(uCrackR * 0.55, uCrackR, d1); // fade fracture → intact glass
+    float within = 1.0 - smoothstep(uCrackR * 0.48, uCrackR * 1.02, d1); // fade fracture → intact glass
     float g = uCrack * within;
-    vec2 ruv = uv + off1 * g;                                     // refract through this shard
+    vec2 ruv = uv + off1 * g * 1.15;                              // refract through this shard
     vec4 rc = texture2D(map, ruv);
     vec3 col = mix(base.rgb, rc.rgb, rc.a);                       // don't drag transparent edges inward
     float edge = d2 - d1;
-    float seam = (1.0 - smoothstep(0.0, 0.011, edge)) * within;  // soft glow band along the bisector
-    float core = (1.0 - smoothstep(0.0, 0.0035, edge)) * within; // crisp bright crack line
+    float seam = (1.0 - smoothstep(0.0, 0.013, edge)) * within;  // soft glow band along the bisector
+    float core = (1.0 - smoothstep(0.0, 0.0042, edge)) * within; // crisp bright crack line
     if (seam > 0.001) {                                          // chromatic bevel at the seam
-      float ca = 0.006 * g + 0.002;
+      float ca = 0.0075 * g + 0.0025;
       col.r = mix(col.r, texture2D(map, ruv + vec2(ca, 0.0)).r, rc.a * seam);
       col.b = mix(col.b, texture2D(map, ruv - vec2(ca, 0.0)).b, rc.a * seam);
     }
     vec3 hi = mix(vec3(0.86, 0.93, 1.0), vec3(1.0, 0.64, 0.24), uDeath); // cool glass → warm fire
-    col += hi * (seam * 0.3 + core * 0.95) * base.a * (1.0 + uDeath);  // seam glow + bright core
-    col *= 1.0 - core * 0.22 * base.a;                          // thin dark score under the line
+    col += hi * (seam * 0.34 + core * 1.05) * base.a * (1.0 + uDeath);  // seam glow + bright core
+    col *= 1.0 - core * 0.26 * base.a;                          // thin dark score under the line
     col += uFlash * base.a;
     gl_FragColor = vec4(col, base.a);
   }
@@ -141,7 +141,7 @@ function makePlane(url, profile, seed, img) {
     uSites: { value: Array.from({ length: MAXSITES }, () => new THREE.Vector4()) },
     uSiteCount: { value: 0 },
     uCrack: { value: 1 },
-    uCrackR: { value: 0.12 },
+    uCrackR: { value: 0.138 },
     uAspect: { value: p.aspect },
     uDeath: { value: 0 },
     uFlash: { value: 0 },
@@ -241,7 +241,7 @@ export function meshClear() {
 
 /** Remove the plane bound to el (or any descendant of el) — the DOM <img> becomes visible again the same frame. */
 export function meshRelease(el) {
-  const i = planes.findIndex((p) => p.el === el || (el.contains && el.contains(p.el)));
+  const i = planes.findIndex((p) => p.el === el || (p.el && el.contains && el.contains(p.el)));
   if (i < 0) return;
   const p = planes[i];
   p.el.classList.remove('mesh-live');
@@ -255,16 +255,19 @@ export function meshRelease(el) {
 
 /** Brightness beat for hits — CSS filters don't reach WebGL planes. */
 export function meshFlash(el, ms = 160) {
-  const p = planes.find((q) => q.el === el || (el.contains && el.contains(q.el)));
+  const p = findPlane(el);
   if (!p) return;
   p.mat.uniforms.uFlash.value = 0.9;
   setTimeout(() => { if (p.mat) p.mat.uniforms.uFlash.value = 0; }, ms);
 }
 
 const clampUv = (x) => Math.max(0.05, Math.min(0.95, x));
+function findPlane(el) {
+  return planes.find((q) => q.el === el || (el.contains && el.contains(q.el)));
+}
 function addSite(p, u, v) {
   if (p.siteCount >= MAXSITES) return;
-  const a = Math.random() * Math.PI * 2, m = 0.009 + Math.random() * 0.016; // this shard's refraction
+  const a = Math.random() * Math.PI * 2, m = 0.011 + Math.random() * 0.019; // this shard's refraction
   p.mat.uniforms.uSites.value[p.siteCount].set(u, v, Math.cos(a) * m, Math.sin(a) * m);
   p.siteCount++;
   p.mat.uniforms.uSiteCount.value = p.siteCount;
@@ -273,11 +276,11 @@ function addSite(p, u, v) {
  *  false if el has no warp plane (caller falls back to the drawn crack). */
 export function meshCrack(el, u = 0.32 + Math.random() * 0.36, v = 0.3 + Math.random() * 0.4) {
   if (LITE) return false; // drawn-crack fallback keeps the low-power tier cheap
-  const p = planes.find((q) => q.el === el || (el.contains && el.contains(q.el)));
+  const p = findPlane(el);
   if (!p) return false;
   const n = 5 + (Math.random() * 3 | 0);
   for (let k = 0; k < n; k++) {
-    const a = Math.random() * Math.PI * 2, r = Math.random() * 0.045;
+    const a = Math.random() * Math.PI * 2, r = Math.random() * 0.052;
     addSite(p, clampUv(u + Math.cos(a) * r), clampUv(v + Math.sin(a) * r));
   }
   return true;
@@ -285,10 +288,52 @@ export function meshCrack(el, u = 0.32 + Math.random() * 0.36, v = 0.3 + Math.ra
 /** Ramp the warm seam-glow as the vessel fails (0..1). Returns false if no plane. */
 export function meshDeath(el, amt) {
   if (LITE) return false; // drawn ignite handles the low-power tier
-  const p = planes.find((q) => q.el === el || (el.contains && el.contains(q.el)));
+  const p = findPlane(el);
   if (!p) return false;
   p.mat.uniforms.uDeath.value = amt;
   return true;
+}
+
+/** Harvest crack-site UVs for a site-guided shatter (empty if no plane / no hits). */
+export function meshCrackSites(el) {
+  const p = findPlane(el);
+  if (!p || !p.siteCount) return [];
+  const sites = [];
+  for (let i = 0; i < p.siteCount; i++) {
+    const s = p.mat.uniforms.uSites.value[i];
+    sites.push({ u: s.x, v: s.y });
+  }
+  return sites;
+}
+
+/** Snapshot the cracked warp body, harvest sites, then release the plane — one beat for V.shatter. */
+export function meshHandoff(el) {
+  const p = findPlane(el);
+  if (!p || !renderer || LITE) return null;
+  const sec = performance.now() * 0.001;
+  const vis = planes.map((pl) => pl.mesh.visible);
+  for (const pl of planes) pl.mesh.visible = pl === p;
+  deformPlane(p, sec);
+  layoutPlane(p, sec);
+  renderer.render(scene, camera);
+  for (let i = 0; i < planes.length; i++) planes[i].mesh.visible = vis[i];
+
+  const r = stageRect(p.el);
+  const { w: dw, h: dh } = containSize(r.width, r.height, p.aspect);
+  const dpr = renderer.getPixelRatio();
+  const sx = (r.left + r.width / 2 - dw / 2) * dpr;
+  const sy = (r.top + r.height / 2 - dh / 2) * dpr;
+  const sw = Math.max(1, Math.round(dw * dpr));
+  const sh = Math.max(1, Math.round(dh * dpr));
+  const cap = document.createElement('canvas');
+  cap.width = sw;
+  cap.height = sh;
+  cap.getContext('2d').drawImage(renderer.domElement, sx, sy, sw, sh, 0, 0, sw, sh);
+
+  const sites = meshCrackSites(el);
+  const rect = { left: r.left, top: r.top, width: r.width, height: r.height };
+  meshRelease(el);
+  return { capture: cap.toDataURL('image/png'), sites, rect };
 }
 
 /** @param {{ el: Element, url: string, kind?: string }[]} entries */
