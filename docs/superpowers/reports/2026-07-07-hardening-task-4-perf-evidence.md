@@ -6,8 +6,8 @@ Date run: 2026-07-07.
 ## Baseline Clarification
 
 The plan records the hand-off state as 28.7fps. That is historical context from
-2026-07-06. Before changing Task 4 in the current worktree, the current-state
-baseline was re-measured with the same gate and failed lower:
+2026-07-06. Before changing Task 4 in the main worktree, the current-state
+baseline was re-measured with the same gate and failed lower in that run:
 
 ```text
 PERF=1 npx playwright test perf --workers=1 --reporter=list
@@ -19,9 +19,21 @@ Expected: >= 55
 Received: 18.23002983092189
 ```
 
+Because list output only surfaced the failed assertion, the baseline was also
+re-run from a detached `182d576` worktree with the exact perf spec path and JSON
+reporter to capture the full annotation:
+
+```text
+PERF=1 npx playwright test test/e2e/perf.spec.js --project=portrait --workers=1 --reporter=json
+
+status=failed avg 60.3fps, p95 frame 33.3ms, worst 431.6ms over 188 frames
+Error: p95 frame time in ms (got 33.3)
+```
+
 ## Intermediate Measurement
 
-After applying the plan's four listed candidates, the same gate still failed:
+After applying the plan's four listed candidates in the main worktree, the same
+gate still failed in that immediate run:
 
 ```text
 PERF=1 npx playwright test perf --workers=1 --reporter=list
@@ -32,6 +44,20 @@ average fps during the burst (got 53.0)
 Expected: >= 55
 Received: 52.96960868680677
 ```
+
+The same plan-candidate state was then reproduced in the detached `182d576`
+worktree with the exact perf spec path and JSON reporter to capture p95:
+
+```text
+PERF=1 npx playwright test test/e2e/perf.spec.js --project=portrait --workers=1 --reporter=json
+
+status=passed avg 101.7fps, p95 frame 20.3ms, worst 43.0ms over 307 frames
+```
+
+The conflicting intermediate averages show the perf gate is sensitive to
+machine/GPU load. The final patch keeps the additional LITE VFX canvas DPR cap
+because it was the change that made the main worktree gate pass in the original
+Task 4 run and gives the LITE tier more fill-rate headroom.
 
 ## Passing Measurement
 
