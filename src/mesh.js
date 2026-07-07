@@ -7,6 +7,9 @@ import { stageW, stageH, stageScale, stageRect } from './stage.js';
 const SEG_X = 24, SEG_Y = 36, INTENSITY = 0.45;
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const TOUCH = new URLSearchParams(location.search).get('input') === 'touch';
+// LITE (coarse pointer / touch): the per-fragment refraction loop is too costly on
+// low-power GPUs, so the crack shader stays dormant and cracks fall back to drawn SVG.
+const LITE = TOUCH || matchMedia('(pointer: coarse)').matches;
 // Mesh is cheap — only skip for reduced-motion or explicit touch mode (?input=touch).
 export const meshEnabled = () => {
   const q = new URLSearchParams(location.search);
@@ -71,12 +74,80 @@ function containSize(w, h, aspect) {
   return { w: h * aspect, h };
 }
 
+// ---- cracked-glass refraction shader ----
+// The body is glass. Each landed hit drops a cluster of Voronoi "sites" onto the
+// texture; the fragment shader assigns every fragment to its nearest site (a glass
+// shard), refracts the body through that shard (a per-shard UV offset), and lights
+// the shard seams (reflection). The crack is the seam discontinuity — never drawn.
+const MAXSITES = 56;
+const CRACK_VERT = /* glsl */`
+  varying vec2 vUv;
+  void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+`;
+const CRACK_FRAG = /* glsl */`
+  #define MAXSITES ${MAXSITES}
+  varying vec2 vUv;
+  uniform sampler2D map;
+  uniform vec4 uSites[MAXSITES];   // xy = site uv, zw = that shard's refraction offset
+  uniform int uSiteCount;
+  uniform float uCrack;            // global crack strength (fade-in / death ramp)
+  uniform float uCrackR;           // how far a shard's fracture reaches, in aspect-uv
+  uniform float uAspect;
+  uniform float uDeath;            // 0..1: seams glow warm as the vessel fails
+  uniform float uFlash;            // white hit beat
+  void main() {
+    vec2 uv = vUv;
+    vec4 base = texture2D(map, uv);
+    if (uSiteCount == 0) { gl_FragColor = vec4(base.rgb + uFlash * base.a, base.a); return; } // intact glass — no loop
+    vec2 pt = vec2(uv.x * uAspect, uv.y);
+    float d1 = 1e9, d2 = 1e9;
+    vec2 off1 = vec2(0.0);
+    for (int i = 0; i < MAXSITES; i++) {
+      if (i >= uSiteCount) break;
+      vec4 s = uSites[i];
+      float d = distance(pt, vec2(s.x * uAspect, s.y));
+      if (d < d1) { d2 = d1; d1 = d; off1 = s.zw; }
+      else if (d < d2) { d2 = d; }
+    }
+    float within = 1.0 - smoothstep(uCrackR * 0.55, uCrackR, d1); // fade fracture → intact glass
+    float g = uCrack * within;
+    vec2 ruv = uv + off1 * g;                                     // refract through this shard
+    vec4 rc = texture2D(map, ruv);
+    vec3 col = mix(base.rgb, rc.rgb, rc.a);                       // don't drag transparent edges inward
+    float edge = d2 - d1;
+    float seam = (1.0 - smoothstep(0.0, 0.011, edge)) * within;  // soft glow band along the bisector
+    float core = (1.0 - smoothstep(0.0, 0.0035, edge)) * within; // crisp bright crack line
+    if (seam > 0.001) {                                          // chromatic bevel at the seam
+      float ca = 0.006 * g + 0.002;
+      col.r = mix(col.r, texture2D(map, ruv + vec2(ca, 0.0)).r, rc.a * seam);
+      col.b = mix(col.b, texture2D(map, ruv - vec2(ca, 0.0)).b, rc.a * seam);
+    }
+    vec3 hi = mix(vec3(0.86, 0.93, 1.0), vec3(1.0, 0.64, 0.24), uDeath); // cool glass → warm fire
+    col += hi * (seam * 0.3 + core * 0.95) * base.a * (1.0 + uDeath);  // seam glow + bright core
+    col *= 1.0 - core * 0.22 * base.a;                          // thin dark score under the line
+    col += uFlash * base.a;
+    gl_FragColor = vec4(col, base.a);
+  }
+`;
+
 function makePlane(url, profile, seed, img) {
   const geo = new THREE.PlaneGeometry(2, 2, SEG_X, SEG_Y);
   const base = geo.attributes.position.array.slice();
-  const p = { geo, base, profile, seed, el: null, aspect: artAspect(img, null) || 2 / 3 };
+  const p = { geo, base, profile, seed, el: null, aspect: artAspect(img, null) || 2 / 3, siteCount: 0 };
   const tex = loadTex(url, (t) => { p.aspect = artAspect(img, t); });
-  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false });
+  p.tex = tex;
+  const uniforms = {
+    map: { value: tex },
+    uSites: { value: Array.from({ length: MAXSITES }, () => new THREE.Vector4()) },
+    uSiteCount: { value: 0 },
+    uCrack: { value: 1 },
+    uCrackR: { value: 0.12 },
+    uAspect: { value: p.aspect },
+    uDeath: { value: 0 },
+    uFlash: { value: 0 },
+  };
+  const mat = new THREE.ShaderMaterial({ uniforms, vertexShader: CRACK_VERT, fragmentShader: CRACK_FRAG, transparent: true, depthTest: false, depthWrite: false });
+  p.mat = mat;
   const mesh = new THREE.Mesh(geo, mat);
   mesh.renderOrder = 1;
   scene.add(mesh);
@@ -114,7 +185,8 @@ function layoutPlane(p, t = 0) {
   const r = stageRect(p.el);
   if (r.width < 2 || r.height < 2) { p.mesh.visible = false; return; }
   const img = p.el.querySelector('.raster-art');
-  p.aspect = artAspect(img, p.mesh.material.map) || p.aspect || 1;
+  p.aspect = artAspect(img, p.tex) || p.aspect || 1;
+  p.mat.uniforms.uAspect.value = p.aspect;
   const { w: dw, h: dh } = containSize(r.width, r.height, p.aspect);
   const fl = (p.profile.float || 0) * Math.sin(t * 1.15 + p.seed * 0.7) * 12 * INTENSITY;
   p.mesh.visible = true;
@@ -185,8 +257,38 @@ export function meshRelease(el) {
 export function meshFlash(el, ms = 160) {
   const p = planes.find((q) => q.el === el || (el.contains && el.contains(q.el)));
   if (!p) return;
-  p.mesh.material.color.setRGB(2.1, 2.1, 2.1);
-  setTimeout(() => p.mesh?.material?.color?.setRGB(1, 1, 1), ms);
+  p.mat.uniforms.uFlash.value = 0.9;
+  setTimeout(() => { if (p.mat) p.mat.uniforms.uFlash.value = 0; }, ms);
+}
+
+const clampUv = (x) => Math.max(0.05, Math.min(0.95, x));
+function addSite(p, u, v) {
+  if (p.siteCount >= MAXSITES) return;
+  const a = Math.random() * Math.PI * 2, m = 0.009 + Math.random() * 0.016; // this shard's refraction
+  p.mat.uniforms.uSites.value[p.siteCount].set(u, v, Math.cos(a) * m, Math.sin(a) * m);
+  p.siteCount++;
+  p.mat.uniforms.uSiteCount.value = p.siteCount;
+}
+/** Fracture the glass at (u,v) in body-UV (0..1) — a cluster of shards. Returns
+ *  false if el has no warp plane (caller falls back to the drawn crack). */
+export function meshCrack(el, u = 0.32 + Math.random() * 0.36, v = 0.3 + Math.random() * 0.4) {
+  if (LITE) return false; // drawn-crack fallback keeps the low-power tier cheap
+  const p = planes.find((q) => q.el === el || (el.contains && el.contains(q.el)));
+  if (!p) return false;
+  const n = 5 + (Math.random() * 3 | 0);
+  for (let k = 0; k < n; k++) {
+    const a = Math.random() * Math.PI * 2, r = Math.random() * 0.045;
+    addSite(p, clampUv(u + Math.cos(a) * r), clampUv(v + Math.sin(a) * r));
+  }
+  return true;
+}
+/** Ramp the warm seam-glow as the vessel fails (0..1). Returns false if no plane. */
+export function meshDeath(el, amt) {
+  if (LITE) return false; // drawn ignite handles the low-power tier
+  const p = planes.find((q) => q.el === el || (el.contains && el.contains(q.el)));
+  if (!p) return false;
+  p.mat.uniforms.uDeath.value = amt;
+  return true;
 }
 
 /** @param {{ el: Element, url: string, kind?: string }[]} entries */
@@ -220,6 +322,8 @@ export const meshDebug = () => ({
   renderer: !!renderer,
   looping: !!raf,
   intensity: INTENSITY,
+  sites: planes.reduce((m, p) => Math.max(m, p.siteCount || 0), 0),
+  death: planes.reduce((m, p) => Math.max(m, p.mat?.uniforms?.uDeath?.value || 0), 0),
 });
 
 export function meshProfile(kind) { return PROFILE[kind] || PROFILE.humanoid; }

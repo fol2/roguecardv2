@@ -6,7 +6,7 @@ import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
-import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash } from './mesh.js';
+import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath } from './mesh.js';
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
@@ -1640,13 +1640,21 @@ function choreoStagger(el) {
 }
 // glass damage language: every landed hit scores a crack into the body
 function addCrack(artEl, big) {
-  const layer = artEl && $('.cracks', artEl);
+  if (meshEnabled() && meshCrack(artEl)) return; // glass refracts through the fracture (warp on)
+  const layer = artEl && $('.cracks', artEl); // drawn fallback when the warp layer is off
   if (layer && layer.children.length < 8) layer.insertAdjacentHTML('beforeend', crackSvg(big));
 }
 // death rite: the fire inside wells up through every fracture — one last web of
 // cracks races the glass, the seams blaze warm, then the vessel gives (V.shatter)
 function igniteVessel(x) {
-  meshRelease(x.root); // hand the warp body to the DOM so the fire can bloom over it and the glass can heat
+  // warp on: the vessel fails through its own glass fractures — the seams flare warm
+  // and one last web races the body; the warp holds the beat, then shatter releases it
+  if (meshEnabled() && meshDeath(x.root, 1)) {
+    for (let k = 0; k < 3; k++) meshCrack(x.art);
+    return;
+  }
+  // warp off: drawn fallback — fire wells up through the DOM cracks, then the glass gives
+  meshRelease(x.root);
   const layer = x.art && $('.cracks', x.art);
   if (layer) {
     layer.insertAdjacentHTML('beforeend', crackSvg(true));
