@@ -404,6 +404,40 @@ function wipe() {
   w.classList.add('go');
   setTimeout(() => w.classList.remove('go'), 620);
 }
+let transitionSeq = 0;
+async function transition(kind, opts = {}) {
+  if (REDUCED) return;
+  const t = $('#transit');
+  if (!t) return;
+  const seq = ++transitionSeq;
+  const run = (html, kf, dur) => {
+    t.innerHTML = html;
+    t.classList.add('on');
+    const child = t.firstElementChild;
+    return child.animate(kf, { duration: dur, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' }).finished
+      .catch(() => {})
+      .finally(() => {
+        if (seq !== transitionSeq) return;
+        t.classList.remove('on');
+        t.innerHTML = '';
+      });
+  };
+  if (kind === 'combat-in') {
+    const x = opts.x ?? stageW() / 2, y = opts.y ?? stageH() / 2;
+    return run('<div class="tr-iris"></div>', [
+      { clipPath: `circle(150% at ${x}px ${y}px)` },
+      { clipPath: `circle(0% at ${x}px ${y}px)` },
+    ], 480);
+  }
+  if (kind === 'victory-out') return run('<div class="tr-bloom"></div>', [{ opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 0 }], 900);
+  if (kind === 'defeat') return run('<div class="tr-crack"></div>', [{ opacity: 0 }, { opacity: 1 }], 700);
+  if (kind === 'act-change') {
+    const omen = OMENS[S.run.omens?.[S.run.act]];
+    return run(`<div class="tr-plate"><div class="tp-act">ACT ${S.run.act + 1} - ${ACTS[S.run.act].name.toUpperCase()}</div>
+      ${omen ? `<div class="tp-omen" style="color:${omen.tone}">${iconSvg(`omen-${S.run.omens[S.run.act]}`, 16)} OMEN - ${omen.name.toUpperCase()}</div>` : ''}</div>`,
+      [{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }], 2200);
+  }
+}
 export function show(name, data) {
   if (S.screen !== name && S.run) wipe(); // travel is lit; in-place rerenders aren't
   S.screen = name;
@@ -736,6 +770,8 @@ function enterNode(node) {
   if (type === 'monster' || type === 'elite' || type === 'boss') {
     run.pendingCombat = type;
     E.saveRun(run);
+    const g = $(`.mnode[data-node="${node.id}"]`);
+    transition('combat-in', g ? V.centerOf(g) : {});
     startCombatUI(E.rollEncounter(run, type, node.row), type);
   } else if (type === 'rest') show('rest');
   else if (type === 'shop') show('shop');
@@ -775,7 +811,8 @@ function startCombatUI(enemyIds, kind) {
   if (kind === 'boss') {
     // the boss is announced through a rose window: spokes of leaded light
     // bloom behind the name, hold one breath, and dissolve
-    const rw = el('div', 'rose-window', '<div class="rw-rings"></div><div class="rw-spokes"></div>');
+    const bossName = ENEMIES[enemyIds[0]]?.name ?? S.cb.enemies[0].name;
+    const rw = el('div', 'rose-window', `<div class="rw-rings"></div><div class="rw-spokes"></div><div class="boss-plate">${bossName.toUpperCase()}</div>`);
     screenEl().appendChild(rw);
     setTimeout(() => rw.remove(), 2300);
     const b = el('div', 'turn-banner boss-banner', S.cb.enemies[0].name.toUpperCase());
@@ -2051,6 +2088,7 @@ function afterAction() {
   else defeatFlow();
 }
 function victoryFlow() {
+  transition('victory-out');
   const run = S.run, kind = S.cb.kind, affix = S.cb.affix;
   S.cb = null;
   run.pendingCombat = null;
@@ -2063,6 +2101,7 @@ function victoryFlow() {
   show('reward', { kind, rewards: E.genCombatRewards(run, kind, affix) });
 }
 function defeatFlow() {
+  transition('defeat');
   const run = S.run;
   const offers = bequestOptions(run); // what the stone could keep — read before the deck is gone
   const node = run.map.nodes.find((n) => n.id === run.nodeId);
@@ -2193,10 +2232,9 @@ function advanceAct() {
   setAltitude(run.act, 0);
   setAmbience(run.act);
   E.saveRun(run);
+  transition('act-change');
   show('map');
-  banner(`ACT ${run.act + 1}`);
   sfx.victory();
-  setTimeout(() => omenBanner(run), 1400);
 }
 // the night declares itself: the omen blooms over the map on act entry
 function omenBanner(run) {

@@ -842,6 +842,14 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 }
 #wipe.go { opacity: 1; animation: wipeSweep 0.6s cubic-bezier(0.55, 0, 0.35, 1); }
 @keyframes wipeSweep { from { background-position: 135% 0; } to { background-position: -135% 0; } }
+#transit { position: fixed; inset: 0; z-index: 73; pointer-events: none; display: none; }
+#transit.on { display: block; }
+#transit .tr-iris { position: absolute; inset: 0; background: #05070e; }
+#transit .tr-bloom { position: absolute; inset: 0; background: radial-gradient(circle at 50% 45%, #ffe9ac 0%, #f2c14e55 30%, transparent 70%); }
+#transit .tr-crack { position: absolute; inset: 0; background: rgba(3, 4, 10, 0.9); }
+#transit .tr-plate { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(5, 7, 14, 0.88); font-family: 'Cinzel', serif; }
+#transit .tr-plate .tp-act { max-width: 90cqw; text-align: center; line-height: 1.15; font-size: clamp(28px, 5cqw, 44px); letter-spacing: 0.18em; color: var(--gold); }
+#transit .tr-plate .tp-omen { max-width: 88cqw; text-align: center; font-size: 15px; letter-spacing: 0.14em; color: var(--text-dim); }
 /* arc-flights: coins to the purse, a relic to its seat, card-backs to the deck */
 .flymote { position: absolute; border-radius: 50%; pointer-events: none; z-index: 58; font-size: 22px; line-height: 1; text-shadow: 0 0 10px currentColor; }
 .flycard {
@@ -878,6 +886,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
 }
 @keyframes roseSpin { from { transform: rotate(-14deg); } to { transform: rotate(0deg); } }
+.boss-plate { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); max-width: 82cqw; font-family: 'Cinzel', serif; font-size: clamp(16px, 2.3cqw, 24px); letter-spacing: 0.24em; color: var(--gold); text-align: center; text-shadow: 0 0 24px #000; white-space: nowrap; }
 
 /* enemy svg idle — amplitude/sway/tempo are seeded per creature by the rig */
 .enemy-svg .breathe, .hero-svg .breathe { animation: breathe 3.4s ease-in-out infinite; transform-origin: 100px 190px; }
@@ -1177,7 +1186,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 
 @media (prefers-reduced-motion: reduce) {
   #grain { display: none; }
-  #wipe, .rose-window { display: none; }
+  #wipe, #transit, .rose-window { display: none; }
   .logo, .card.r-rare .card-inner::after, .energy-orb::before { animation: none; }
   #lantern.gutter, .candle.lit, .hero-wrap.warded::before, .enemy-art.warded::before { animation: none; }
   .ember, .mon-flame, .enemy.doomed .enemy-art { animation: none; }
