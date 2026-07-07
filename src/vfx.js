@@ -9,9 +9,9 @@ let flashes = [];
 let shakeV = 0, shakeX = 0, shakeY = 0;
 let hitstopUntil = 0;
 const WEATHER = [
-  { rate: 2, colors: ['#b8b0a0', '#8a8378'], vx: [-6, 6], vy: [10, 26], size: [1.4, 2.6], drift: 0.4, emberRate: 0.5 },
-  { rate: 1.5, colors: ['#9fd4ff', '#cfe6ff'], vx: [-4, 4], vy: [8, 18], size: [1.6, 3], drift: 0.7, emberRate: 0.25 },
-  { rate: 2.5, colors: ['#ff9a4d', '#ffd166'], vx: [24, 60], vy: [-18, -4], size: [1.4, 2.4], drift: 1.1, emberRate: 0.9 },
+  { rate: 1, colors: ['#b8b0a0', '#8a8378'], vx: [-6, 6], vy: [10, 26], size: [1.4, 2.6], drift: 0.4, emberRate: 0.5 },
+  { rate: 0.75, colors: ['#9fd4ff', '#cfe6ff'], vx: [-4, 4], vy: [8, 18], size: [1.6, 3], drift: 0.7, emberRate: 0.25 },
+  { rate: 1.25, colors: ['#ff9a4d', '#ffd166'], vx: [24, 60], vy: [-18, -4], size: [1.4, 2.4], drift: 1.1, emberRate: 0.9 },
 ];
 let weather = null;
 let weatherAcc = 0;

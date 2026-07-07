@@ -1,6 +1,25 @@
 // Battlefield editor smoke (desktop only — it is a desktop dev tool).
 import { test, expect } from '@playwright/test';
 
+async function waitForDevServerReady(timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = null;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch('http://localhost:5174/');
+      if (response.ok) {
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
+        const settled = await fetch('http://localhost:5174/');
+        if (settled.ok) return;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error(`dev server did not settle after battlefield layout write: ${lastError?.message ?? 'not ready'}`);
+}
+
 test.beforeEach(({ }, testInfo) => {
   test.skip(!['desktop', 'bfeditor-disk'].includes(testInfo.project.name), 'editor is desktop-only');
 });
@@ -72,9 +91,11 @@ test('Save writes layout to disk and reload picks it up', async ({ page }) => {
   const { readFileSync, writeFileSync } = await import('node:fs');
   const layoutPath = 'src/battlefield-layout.js';
   const orig = readFileSync(layoutPath, 'utf8');
+  let originalBF = null;
   try {
     await page.goto('/?bfedit=1&mesh=0&shape=pad-landscape');
     await page.waitForFunction(() => window.__bfEditor);
+    originalBF = await page.evaluate(() => window.__bfEditor.working());
     const before = await page.evaluate(() => window.__bfEditor.resolved().groundY);
     const target = before + 3;
     await page.locator('.bf-box[data-bf="ground"]').click();
@@ -89,6 +110,19 @@ test('Save writes layout to disk and reload picks it up', async ({ page }) => {
     expect(after).toBe(target);
     expect(readFileSync(layoutPath, 'utf8')).toContain(`groundY: ${target}`);
   } finally {
-    writeFileSync(layoutPath, orig);
+    if (originalBF) {
+      try {
+        await page.evaluate(async (bf) => {
+          const r = await fetch('/__bf-save', { method: 'POST', body: JSON.stringify(bf) });
+          const j = await r.json();
+          if (!j.ok) throw new Error((j.problems ?? ['restore failed']).join('\n'));
+        }, originalBF);
+      } catch {
+        writeFileSync(layoutPath, orig);
+      }
+    } else {
+      writeFileSync(layoutPath, orig);
+    }
+    await waitForDevServerReady();
   }
 });

@@ -302,7 +302,7 @@ function renderToolbar() {
     if (!j.ok) return alert(`save failed:\n${(j.problems ?? []).join('\n')}`);
     state.dirty = false;
     document.getElementById('bf-dirty').textContent = 'saved ✓';
-    // vite HMR full-reloads on the file write; scenario survives in the URL
+    if (j.reload) location.reload(); // scenario survives in the URL
   };
   bar.querySelector('#bf-revert').onclick = () => location.reload();
   bar.querySelector('#bf-copy').onclick = async () => {

@@ -1,8 +1,12 @@
 import { defineConfig } from "vite";
 import { writeFileSync, renameSync } from "node:fs";
+import { resolve } from "node:path";
 
 const BF_SAVE_PORT = 5174;
 const BF_SAVE_HOSTS = ["localhost", "127.0.0.1", "macm4.tail55e87e.ts.net"];
+const BF_LAYOUT_PATH = resolve("src/battlefield-layout.js");
+const BF_LAYOUT_TMP = `${BF_LAYOUT_PATH}.tmp`;
+let suppressBFHotUpdateUntil = 0;
 
 /** Reject cross-origin POSTs — only the dev server (or allowedHosts) may write. */
 function bfSaveOriginOk(req) {
@@ -20,6 +24,9 @@ function bfSavePlugin() {
   return {
     name: "bf-save",
     apply: "serve",
+    handleHotUpdate({ file }) {
+      if (file === BF_LAYOUT_PATH && Date.now() < suppressBFHotUpdateUntil) return [];
+    },
     configureServer(server) {
       server.middlewares.use("/__bf-save", (req, res) => {
         if (req.method !== "POST") { res.statusCode = 405; return res.end(); }
@@ -40,9 +47,14 @@ function bfSavePlugin() {
             const bf = JSON.parse(body);
             const problems = validateBF(bf, { enemies: Object.keys(ENEMIES), heroes: ASPECTS.map((a) => a.id) });
             if (problems.length) { res.statusCode = 400; return res.end(JSON.stringify({ ok: false, problems })); }
-            writeFileSync("src/battlefield-layout.js.tmp", serializeBF(bf)); // never half-written
-            renameSync("src/battlefield-layout.js.tmp", "src/battlefield-layout.js");
-            res.end(JSON.stringify({ ok: true }));
+            // The editor reloads only itself after this endpoint invalidates
+            // the module graph; hand edits outside this endpoint still flow
+            // through Vite's normal watcher.
+            suppressBFHotUpdateUntil = Date.now() + 1500;
+            writeFileSync(BF_LAYOUT_TMP, serializeBF(bf)); // never half-written
+            renameSync(BF_LAYOUT_TMP, BF_LAYOUT_PATH);
+            server.moduleGraph.invalidateAll();
+            res.end(JSON.stringify({ ok: true, reload: true }));
           } catch (e) {
             res.statusCode = 400;
             res.end(JSON.stringify({ ok: false, problems: [String(e?.message ?? e)] }));
