@@ -23,7 +23,7 @@ export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
   const A = ASPECTS[aspect];
   const vow = clamp(opts.vow || 0, 0, VOWS.length);
   const run = {
-    v: 2, seed, rngState: seed, uid: 1, act: 0, nodeId: null, floorsClimbed: 0,
+    v: 2, seed, rngState: seed, uid: 1, act: 0, nodeId: null, floorsClimbed: 0, bossRelicAct: -1,
     aspect, vow, art: opts.art || A.art || 'flare', omens: [], boon: opts.boon || null,
     unlocks: [...(opts.unlocks || [])],
     monument: opts.monument ? { ...opts.monument, claimed: false } : null,
@@ -234,6 +234,39 @@ export function randomRelic(run, weights = { common: 0.5, uncommon: 0.35, rare: 
     if (avail.length) return pick(rng, avail);
   }
   return null;
+}
+function currentNode(run) {
+  if (!run.nodeId || !run.map?.nodes) return null;
+  return run.map.nodes.find((n) => n.id === run.nodeId) || null;
+}
+export function nodeRewardClaimed(run) {
+  return !!currentNode(run)?.rewardClaimed;
+}
+// One reward per map node — UI guards are the first line; this is the engine backstop.
+export function claimTreasure(run, weights = { common: 0.55, uncommon: 0.35, rare: 0.1 }) {
+  const node = currentNode(run);
+  if (node?.rewardClaimed) return { already: true, relicId: null, gold: 0 };
+  if (node) node.rewardClaimed = true;
+  const relicId = randomRelic(run, weights);
+  if (relicId) {
+    gainRelic(run, relicId);
+    return { already: false, relicId, gold: 0 };
+  }
+  run.player.gold += 60;
+  return { already: false, relicId: null, gold: 60 };
+}
+export function applyNodeEventChoice(run, ops, rng = runRng(run)) {
+  const node = currentNode(run);
+  if (node?.rewardClaimed) return { pending: [], log: [], already: true };
+  if (node) node.rewardClaimed = true;
+  const { pending, log } = applyEventOps(run, ops, rng);
+  return { pending, log, already: false };
+}
+export function claimBossRelic(run, id) {
+  if (run.bossRelicAct === run.act) return { already: true, id: null };
+  run.bossRelicAct = run.act;
+  if (id) gainRelic(run, id);
+  return { already: false, id: id || null };
 }
 export function gainPotion(run, id) {
   if (id === 'random') id = pick(runRng(run), Object.keys(POTIONS));
@@ -1108,7 +1141,7 @@ export function loadRun() {
     // additive fields self-heal: a save from an older v2 build stays playable
     run.art ??= 'flare';
     run.aspect = clamp(run.aspect ?? 0, 0, ASPECTS.length - 1); run.vow = clamp(run.vow ?? 0, 0, VOWS.length);
-    run.unlocks ??= []; run.omens ??= []; run.boon ??= null;
+    run.unlocks ??= []; run.omens ??= []; run.boon ??= null; run.bossRelicAct ??= -1;
     while (run.omens.length <= run.act) run.omens.push(rollOmen(run));
     for (const k of ['shatters', 'kindles', 'perfects', 'smolderKills', 'unlitVisited', 'embersSpent']) run.stats[k] ??= 0;
     return run;

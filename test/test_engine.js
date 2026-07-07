@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { readdirSync } from 'node:fs';
 import {
   newRun, startCombat, playCard, endTurn, makeCard, cardData, availableNodes, genMap,
-  rollEncounter, rollEvent, applyEventOps, genCombatRewards, genShop, gainRelic, randomRelic,
+  rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, claimTreasure, claimBossRelic, genCombatRewards, genShop, gainRelic, randomRelic,
   rollBossRelics, addCardToDeck, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
   MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, cardPool, relicPool,
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
@@ -437,6 +437,45 @@ function forceHand(run, cb, ids) {
   const { pending } = applyEventOps(run, [{ gold: 50 }, { pickRemove: true }]);
   assert.equal(run.player.gold, 149);
   assert.deepEqual(pending, ['remove']);
+}
+{
+  // node rewards: treasure, events, and boss relics are idempotent per node/act
+  const run = newRun(88);
+  const treasure = run.map.nodes.find((n) => n.type === 'treasure') || run.map.nodes.find((n) => n.row === 8);
+  assert.ok(treasure, 'map has a treasure node');
+  run.nodeId = treasure.id;
+  const relics0 = run.player.relics.length;
+  const gold0 = run.player.gold;
+  const first = claimTreasure(run);
+  assert.equal(first.already, false);
+  const second = claimTreasure(run);
+  assert.equal(second.already, true);
+  assert.equal(run.player.relics.length - relics0, first.relicId ? 1 : 0);
+  if (!first.relicId) assert.equal(run.player.gold - gold0, 60);
+  assert.equal(treasure.rewardClaimed, true);
+
+  const runEv = newRun(89);
+  const eventNode = runEv.map.nodes.find((n) => n.type === 'event') || runEv.map.nodes[5];
+  runEv.nodeId = eventNode.id;
+  const ops = EVENTS.voidChest.choices[0].ops;
+  const ev1 = applyNodeEventChoice(runEv, ops);
+  assert.equal(ev1.already, false);
+  const relicsAfterFirst = runEv.player.relics.length;
+  const hpAfterFirst = runEv.player.hp;
+  const ev2 = applyNodeEventChoice(runEv, ops);
+  assert.equal(ev2.already, true);
+  assert.equal(runEv.player.relics.length, relicsAfterFirst);
+  assert.equal(runEv.player.hp, hpAfterFirst);
+
+  const runBoss = newRun(90);
+  const picks = rollBossRelics(runBoss);
+  assert.ok(picks.length, 'boss relic pool');
+  const beforeBoss = runBoss.player.relics.length;
+  const br1 = claimBossRelic(runBoss, picks[0]);
+  assert.equal(br1.already, false);
+  const br2 = claimBossRelic(runBoss, picks[1] || picks[0]);
+  assert.equal(br2.already, true);
+  assert.equal(runBoss.player.relics.length - beforeBoss, 1);
 }
 {
   // all enemies have valid ai over 30 turns

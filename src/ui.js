@@ -2401,16 +2401,31 @@ function renderBossRelic() {
     <div class="big-choices" style="flex-direction:column"></div>
   </div></div>`;
   const wrap = $('.big-choices', sc);
+  let picked = false;
+  const lock = () => {
+    wrap.querySelectorAll('button').forEach((b) => { b.disabled = true; b.onclick = null; b.style.pointerEvents = 'none'; });
+  };
+  const pick = (id) => {
+    if (picked) return;
+    picked = true;
+    lock();
+    const result = E.claimBossRelic(run, id);
+    if (result.already) return;
+    if (id) sfx.relic();
+    else sfx.click();
+    E.saveRun(run);
+    advanceAct();
+  };
   for (const id of picks) {
     const r = RELICS[id];
     const b = el('button', 'relic-pick');
     b.innerHTML = `<span class="relic-chip" style="--tone:${r.tone}">${relicArt(id, 26)}</span><span><b>${r.name}</b><span class="rd">${r.text}</span></span>`;
-    b.onclick = () => { sfx.relic(); E.gainRelic(run, id); advanceAct(); };
+    b.onclick = () => pick(id);
     wrap.appendChild(b);
   }
   const skip = el('button', 'btn ghost', 'Take none');
   skip.style.marginTop = '10px';
-  skip.onclick = () => { sfx.click(); advanceAct(); };
+  skip.onclick = () => pick(null);
   wrap.appendChild(skip);
 }
 function advanceAct() {
@@ -2497,20 +2512,19 @@ function renderTreasure() {
     if (opened) return;
     opened = true;
     $$('[data-a="open"]').forEach((b) => { b.onclick = null; b.style.pointerEvents = 'none'; });
-    const relicId = E.randomRelic(run, { common: 0.55, uncommon: 0.35, rare: 0.1 });
+    const result = E.claimTreasure(run, { common: 0.55, uncommon: 0.35, rare: 0.1 });
+    if (result.already) return;
     $('.art-lg').innerHTML = rasterOr('props', 'chest-open', chestSvg(true));
-    sfx.relic();
     V.flash('#ffe9ac', 0.2, 0.5);
     V.burst(stageW() / 2, stageH() / 2, { color: '#ffd97a', n: 36, speed: 380, grav: 160 });
     const bc = $('.big-choices');
-    if (relicId) {
-      E.gainRelic(run, relicId);
-      const r = RELICS[relicId];
+    if (result.relicId) {
+      sfx.relic();
+      const r = RELICS[result.relicId];
       $('.ov-sub').innerHTML = `You claim <b style="color:${r.tone}">${r.name}</b> — <i>${r.text}</i>`;
     } else {
-      run.player.gold += 60;
-      $('.ov-sub').innerHTML = 'Only coins remain — <b class="gold-num">+60 gold</b>.';
       sfx.coin();
+      $('.ov-sub').innerHTML = 'Only coins remain — <b class="gold-num">+60 gold</b>.';
     }
     renderHud();
     E.saveRun(run);
@@ -2646,7 +2660,8 @@ function renderEvent(eventId) {
     resolving = true;
     choices.querySelectorAll('button').forEach((b) => { b.disabled = true; });
     sfx.click();
-    const { pending, log } = E.applyEventOps(run, ch.ops);
+    const { pending, log, already } = E.applyNodeEventChoice(run, ch.ops);
+    if (already) return;
     renderHud();
     const logEl = $('.event-log', sc);
     const bits = [];
