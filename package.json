@@ -11,7 +11,6 @@
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots",
     "test:e2e:perf": "PERF=1 playwright test perf --workers=1",
-    "test:e2e:bfeditor-disk": "BFEDITOR_DISK=1 playwright test bfeditor --project=desktop --grep \"Save writes layout\" --workers=1",
     "spike:mesh": "node tools/spike-serve.mjs",
     "gen:batch": "node tools/gen-batch.mjs",
     "gen:icons": "tools/gen-icons.sh"

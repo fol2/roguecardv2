@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 
 test.beforeEach(({ }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop', 'editor is desktop-only');
+  test.skip(!['desktop', 'bfeditor-disk'].includes(testInfo.project.name), 'editor is desktop-only');
 });
 
 test('?bfedit=1 mounts the editor over a sandbox fight', async ({ page }) => {
@@ -68,12 +68,12 @@ test('Save POSTs the edited layout to /__bf-save', async ({ page }) => {
 });
 
 test('Save writes layout to disk and reload picks it up', async ({ page }) => {
-  test.skip(!process.env.BFEDITOR_DISK, 'writes watched source; run alone with BFEDITOR_DISK=1');
+  test.skip(test.info().project.name !== 'bfeditor-disk', 'writes watched source; runs in the dedicated dependency project');
   const { readFileSync, writeFileSync } = await import('node:fs');
   const layoutPath = 'src/battlefield-layout.js';
   const orig = readFileSync(layoutPath, 'utf8');
   try {
-    await page.goto('/?bfedit=1&mesh=0');
+    await page.goto('/?bfedit=1&mesh=0&shape=pad-landscape');
     await page.waitForFunction(() => window.__bfEditor);
     const before = await page.evaluate(() => window.__bfEditor.resolved().groundY);
     const target = before + 3;
