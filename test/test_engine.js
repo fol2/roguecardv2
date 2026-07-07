@@ -510,6 +510,15 @@ function forceHand(run, cb, ids) {
   assert.equal(xferNode.rewardClaimed, true, 'orphan claim transfers to node on visitNode');
   assert.equal(claimTreasure(runXfer).already, true);
 
+  const runOrphanRes = newRun(95);
+  runOrphanRes.nodeId = null;
+  applyNodeEventChoice(runOrphanRes, [{ pickRemove: true }]);
+  assert.equal(runOrphanRes.orphanRewardResolving, true);
+  const resNode = runOrphanRes.map.nodes.find((n) => n.type === 'event') || runOrphanRes.map.nodes[5];
+  visitNode(runOrphanRes, resNode);
+  assert.equal(resNode.rewardResolving, true, 'orphan resolving transfers to node on visitNode');
+  assert.equal(runOrphanRes.orphanRewardResolving, false);
+
   const saved = JSON.parse(JSON.stringify(run));
   assert.equal(claimTreasure(saved).already, true, 'rewardClaimed survives JSON round-trip');
   const savedBoss = JSON.parse(JSON.stringify(runBoss));
@@ -539,6 +548,19 @@ function forceHand(run, cb, ids) {
     assert.equal(reloaded.orphanRewardClaimed, false, 'loadRun self-heals orphanRewardClaimed');
     assert.equal(reloaded.orphanRewardResolving, false, 'loadRun self-heals orphanRewardResolving');
     assert.equal(claimTreasure(reloaded).already, true, 'reward flags survive loadRun round-trip');
+
+    const runEvLoad = newRun(96);
+    const evNode = runEvLoad.map.nodes.find((n) => n.type === 'event') || runEvLoad.map.nodes[5];
+    runEvLoad.nodeId = evNode.id;
+    applyNodeEventChoice(runEvLoad, [{ gold: 15 }]);
+    assert.equal(evNode.rewardResolving, true);
+    saveRun(runEvLoad);
+    const reloadedEv = loadRun();
+    assert.ok(reloadedEv);
+    const savedEvNode = reloadedEv.map.nodes.find((n) => n.id === evNode.id);
+    reloadedEv.nodeId = evNode.id;
+    assert.equal(savedEvNode.rewardResolving, true, 'rewardResolving survives loadRun round-trip');
+    assert.equal(applyNodeEventChoice(reloadedEv, [{ gold: 99 }]).already, true);
   } finally {
     if (prevLs) globalThis.localStorage = prevLs;
     else delete globalThis.localStorage;

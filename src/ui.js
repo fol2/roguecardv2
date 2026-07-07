@@ -2698,6 +2698,7 @@ function renderEvent(eventId) {
       sfx.click();
       const { pending, log, already } = E.applyNodeEventChoice(run, ch.ops);
       if (already) { showEventContinue(); return; }
+      E.saveRun(run); // persist rewardResolving before interactive pending
       renderHud();
       const logEl = $('.event-log', sc);
       const bits = [];
@@ -2714,8 +2715,8 @@ function renderEvent(eventId) {
       showEventContinue();
       if (!bits.length && !pending.length && !ch.ops.length) show('map');
     } catch (err) {
-      if (E.nodeEventInFlight(run)) {
-        E.finalizeNodeEventChoice(run);
+      if (E.nodeEventInFlight(run) || E.nodeRewardClaimed(run)) {
+        if (E.nodeEventInFlight(run)) E.finalizeNodeEventChoice(run);
         E.saveRun(run);
         showEventContinue();
         return;
