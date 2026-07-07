@@ -612,6 +612,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
    raster creatures too, blaze warm as the vessel fails, then it shatters (V.shatter) */
 .enemy-sprite { isolation: isolate; } /* scope the crack/fire z-index to the body, not all of #screen */
 .cracks-overlay { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.cracks { filter: drop-shadow(0 0 1.1px rgba(159, 212, 255, 0.5)); } /* faint refraction so the seams catch light as glass */
 .enemy.lowhp .enemy-art svg.cracks-overlay { transform: none; } /* seams track the raster body, which doesn't tilt at low HP */
 .cracks .crack { transform-box: fill-box; transform-origin: 50% 50%; animation: crackIn 0.2s ease-out; }
 @keyframes crackIn { 0% { opacity: 0; transform: scale(0.4); } 55% { opacity: 1; transform: scale(1.08); filter: brightness(2.2); } 100% { transform: scale(1); filter: brightness(1); } }

@@ -53,24 +53,46 @@ function leadGlass(s) {
       attrs.includes('stroke=') ? m : `<${tag}${attrs} ${LEAD}/>`);
 }
 
-// a jagged glass crack from an impact point: dark score + bright refraction
+// a struck-glass fracture: radial cracks that fork, tied by faint concentric web
+// rings, dark-scored and light-caught, with a glint where the blow landed. All in
+// the 0..200 art viewBox. Roughly-even radials let the rings read as a spider-web.
 export function crackSvg(big = false) {
-  const cx = 58 + Math.random() * 84, cy = 55 + Math.random() * 80;
-  let d = '';
-  const branches = big ? 5 : 3;
+  const cx = 62 + Math.random() * 76, cy = 60 + Math.random() * 74;
+  const branches = big ? 6 : 4;
+  const reach = big ? 50 : 33;
+  const base = Math.random() * Math.PI * 2;
+  const ringMid = [], ringTip = [];
+  let radial = '';
   for (let b = 0; b < branches; b++) {
-    let a = Math.random() * Math.PI * 2, x = cx, y = cy;
-    d += `M${x.toFixed(1)} ${y.toFixed(1)}`;
+    const a0 = base + (b / branches) * Math.PI * 2 + (Math.random() - 0.5) * 0.45;
+    let a = a0, x = cx, y = cy;
     const segs = 3 + Math.floor(Math.random() * 3);
+    const kMid = Math.max(1, Math.round(segs * 0.55)); // ~mid radius, same fraction on every branch → clean ring
+    const step = reach / segs;
+    radial += `M${x.toFixed(1)} ${y.toFixed(1)}`;
     for (let i = 0; i < segs; i++) {
-      const len = (big ? 15 : 10) * (0.6 + Math.random());
-      a += (Math.random() - 0.5) * 1.15;
-      x += Math.cos(a) * len;
-      y += Math.sin(a) * len;
-      d += `L${x.toFixed(1)} ${y.toFixed(1)}`;
+      a = a0 + (Math.random() - 0.5) * 0.6; // jitter around the base heading, stays roughly radial
+      const len = step * (0.7 + Math.random() * 0.6);
+      x += Math.cos(a) * len; y += Math.sin(a) * len;
+      radial += `L${x.toFixed(1)} ${y.toFixed(1)}`;
+      if (i === kMid) ringMid.push([x, y]);
+      if (i === segs - 1) ringTip.push([x, y]);
+    }
+    if (Math.random() < 0.45) { // a secondary crack forks off near the tip
+      const fa = a + (Math.random() < 0.5 ? 1 : -1) * (0.55 + Math.random() * 0.4);
+      const fl = step * (0.9 + Math.random());
+      radial += `M${x.toFixed(1)} ${y.toFixed(1)}L${(x + Math.cos(fa) * fl).toFixed(1)} ${(y + Math.sin(fa) * fl).toFixed(1)}`;
     }
   }
-  return `<g class="crack"><path d="${d}" stroke="#0a0d18" stroke-width="3" fill="none" opacity=".75"/><path d="${d}" stroke="#dfeaff" stroke-width="1.3" fill="none" opacity=".8"/></g>`;
+  const web = (ring, bow) => ring.map(([x1, y1], i) => {
+    const [x2, y2] = ring[(i + 1) % ring.length];
+    const mx = (x1 + x2) / 2 + (cx - (x1 + x2) / 2) * bow; // bow the chord inward so it reads as a ring, not a polygon
+    const my = (y1 + y2) / 2 + (cy - (y1 + y2) / 2) * bow;
+    return `M${x1.toFixed(1)} ${y1.toFixed(1)}Q${mx.toFixed(1)} ${my.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+  }).join('');
+  const d = radial + web(ringMid, 0.16) + (big ? web(ringTip, 0.1) : '');
+  const glint = (big ? 2.6 : 1.9).toFixed(1);
+  return `<g class="crack" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="${d}" stroke="#080b16" stroke-width="2.9" opacity=".72"/><path d="${d}" stroke="#cfe4ff" stroke-width="1.35" opacity=".9"/><path d="${radial}" stroke="#f8fcff" stroke-width="0.7" opacity=".95"/><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${glint}" fill="#f0f6ff" opacity=".9"/></g>`;
 }
 const eye = (x, y, r, c) => `<circle class="eye" cx="${x}" cy="${y}" r="${r}" fill="${c}"/><circle cx="${x}" cy="${y}" r="${r * 2.2}" fill="${c}" opacity="0.18"/>`;
 
