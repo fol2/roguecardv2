@@ -38,6 +38,10 @@ const rasterOr = (cat, id, svg) => {
   const u = assetUrl(cat, id);
   return u ? `<img class="raster-art" src="${u}" alt="">` : svg;
 };
+function sceneBg() {
+  const u = assetUrl('stage', `act${(S.run?.act ?? 0) + 1}-backdrop`);
+  return u ? `<div class="scene-bg" style="background-image:url('${u}')"></div>` : '';
+}
 const relicArt = (rid, size = 22) => {
   const u = assetUrl('relics', rid);
   return u ? `<img class="raster-art relic-art" src="${u}" alt="" style="width:${size}px;height:${size}px">` : (RELICS[rid]?.glyph || '◈');
@@ -599,6 +603,7 @@ function renderLamplighter() {
   const chosen = ARTS[L.art];
   const sc = screenEl();
   sc.innerHTML = `<div class="lamp-screen screen-enter">
+    ${sceneBg()}
     <div class="lamp-hero">${heroArt(run.aspect)}</div>
     <div class="lamp-title">THE LAMPLIGHTER</div>
     <div class="lamp-sub">${asp.name} stands at the foot of the Spire. Take one parting gift — and choose the fire your lantern will carry.</div>
@@ -607,7 +612,7 @@ function renderLamplighter() {
     <div class="lamp-label">Your Lantern Art <span class="lamp-hint">(press A in combat)</span></div>
     <div class="lamp-arts">${artChips}</div>
     <div class="lamp-art-desc">${chosen ? `<b style="color:${chosen.tone}">${iconSvg(`art-${L.art}`, 15)} ${chosen.name}</b> · ${fmtText(chosen.text)}` : ''}</div>
-    <div class="lamp-actions"><button class="btn" data-a="begin"${L.boon ? '' : ' disabled'}>${L.boon ? 'Light the Way' : 'Choose a boon'}</button></div>
+    <div class="lamp-actions"><button class="btn btn-primary" data-a="begin"${L.boon ? '' : ' disabled'}>${L.boon ? 'Light the Way' : 'Choose a boon'}</button></div>
   </div>`;
   renderHud();
   sc.onclick = (e) => {
@@ -2122,11 +2127,11 @@ function renderReward({ kind, rewards }) {
   const title = kind === 'boss' ? 'BOSS VANQUISHED' : kind === 'elite' ? 'ELITE SLAIN' : 'VICTORY';
   const seal = S.lastPerfect ? '<div class="perfect-seal">✦ PERFECT — the glass untouched ✦</div>' : '<div class="ornament">✦ ✦ ✦</div>';
   S.lastPerfect = false;
-  sc.innerHTML = `<div class="center-panel screen-enter"><div class="panel">
+  sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
     <div class="ov-title">${title}</div>
     ${seal}
     <div class="reward-list"></div>
-    <div class="ov-actions"><button class="btn" data-a="continue">Continue</button></div>
+    <div class="ov-actions"><button class="btn btn-primary" data-a="continue">Continue</button></div>
   </div></div>`;
   const list = $('.reward-list', sc);
   const addRow = (icon, label, fn, tip = null) => {
@@ -2254,12 +2259,12 @@ function omenBanner(run) {
 function renderRest() {
   const run = S.run;
   const canUp = run.player.deck.some((c) => !c.up && CARDS[c.id].up);
-  screenEl().innerHTML = `<div class="center-panel screen-enter"><div class="panel">
+  screenEl().innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
     <div class="ov-title">REST SITE</div>
     <div class="art-lg">${rasterOr('props', 'campfire', campfireSvg())}</div>
     <div class="ov-sub">The fire crackles. For a moment, the Spire is quiet.</div>
     <div class="big-choices">
-      <button class="btn" data-a="rest">${iconSvg('flame', 18)} Rest <span style="font-size:13px;opacity:.8">— heal ${Math.round(run.player.maxHp * E.restHealFrac(run))} HP</span></button>
+      <button class="btn btn-primary" data-a="rest">${iconSvg('flame', 18)} Rest <span style="font-size:13px;opacity:.8">— heal ${Math.round(run.player.maxHp * E.restHealFrac(run))} HP</span></button>
       <button class="btn" data-a="smith" ${canUp ? '' : 'disabled'}>${iconSvg('hammer', 18)} Smith <span style="font-size:13px;opacity:.8">— upgrade a card</span></button>
     </div>
   </div></div>`;
@@ -2295,11 +2300,11 @@ function renderRest() {
 }
 function renderTreasure() {
   const run = S.run;
-  screenEl().innerHTML = `<div class="center-panel screen-enter"><div class="panel">
+  screenEl().innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
     <div class="ov-title">TREASURE</div>
     <div class="art-lg" style="cursor:pointer" data-a="open">${rasterOr('props', 'chest', chestSvg(false))}</div>
     <div class="ov-sub">A heavy chest, banded in gold. Open it?</div>
-    <div class="big-choices"><button class="btn" data-a="open">Open the Chest</button></div>
+    <div class="big-choices"><button class="btn btn-primary" data-a="open">Open the Chest</button></div>
   </div></div>`;
   const open = () => {
     const relicId = E.randomRelic(run, { common: 0.55, uncommon: 0.35, rare: 0.1 });
@@ -2320,7 +2325,7 @@ function renderTreasure() {
     renderHud();
     E.saveRun(run);
     bc.innerHTML = '';
-    const btn = el('button', 'btn', 'Continue');
+    const btn = el('button', 'btn btn-primary', 'Continue');
     btn.onclick = () => { sfx.click(); show('map'); };
     bc.appendChild(btn);
   };
@@ -2335,7 +2340,7 @@ function renderShop() {
   }
   const st = shop.stock;
   const sc = screenEl();
-  sc.innerHTML = `<div class="center-panel screen-enter"><div class="panel ov-panel" style="width:min(980px,96vw)">
+  sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel ov-panel" style="width:min(980px,96vw)">
     <div style="display:flex;align-items:center;justify-content:center;gap:18px">
       <div style="width:130px">${rasterOr('props', 'merchant', merchantSvg())}</div>
       <div><div class="ov-title" style="text-align:left">THE MERCHANT</div>
@@ -2344,7 +2349,7 @@ function renderShop() {
     <div class="shop-grid">
       <div class="shop-row cards-row"></div>
       <div class="shop-row misc-row"></div>
-      <div class="ov-actions"><button class="btn ghost" data-a="leave">Leave the Shop</button></div>
+      <div class="ov-actions"><button class="btn btn-primary" data-a="leave">Leave the Shop</button></div>
     </div>
   </div></div>`;
   const cardsRow = $('.cards-row', sc), miscRow = $('.misc-row', sc);
@@ -2431,7 +2436,7 @@ function renderEvent(eventId) {
   const run = S.run;
   const ev = EVENTS[eventId];
   const sc = screenEl();
-  sc.innerHTML = `<div class="center-panel screen-enter"><div class="panel event-panel">
+  sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel event-panel">
     <div class="ov-title">${ev.name.toUpperCase()}</div>
     <div class="event-art">${rasterOr('events', eventId, eventArtSvg(ev.glyph, ev.hue))}</div>
     <div class="event-text">${ev.text}</div>
@@ -2439,8 +2444,8 @@ function renderEvent(eventId) {
     <div class="event-choices"></div>
   </div></div>`;
   const choices = $('.event-choices', sc);
-  for (const ch of ev.choices) {
-    const b = el('button', 'event-choice', `<b>${ch.label}</b>${ch.sub ? `<div class="sub">${ch.sub}</div>` : ''}`);
+  for (const [i, ch] of ev.choices.entries()) {
+    const b = el('button', `event-choice${i === 0 ? ' btn-primary' : ''}`, `<b>${ch.label}</b>${ch.sub ? `<div class="sub">${ch.sub}</div>` : ''}`);
     if (ch.needGold && run.player.gold < ch.needGold) b.disabled = true;
     b.onclick = () => resolveChoice(ch);
     choices.appendChild(b);
@@ -2460,7 +2465,7 @@ function renderEvent(eventId) {
     for (const p of pending) await handlePending(p);
     E.saveRun(run);
     renderHud();
-    const done = el('button', 'btn', 'Continue');
+    const done = el('button', 'btn btn-primary', 'Continue');
     done.onclick = () => { sfx.click(); show('map'); };
     choices.appendChild(done);
     if (!bits.length && !pending.length && !ch.ops.length) show('map');
