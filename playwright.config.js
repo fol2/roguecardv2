@@ -1,7 +1,8 @@
 // Playwright visual-QA kit — see docs/superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md §3.
 // Suites (test/e2e): geometry (ground-line contract), battle (simulated fights,
 // zero playback errors, dead-enemy invariants), visual (screenshot regression,
-// baselines committed only after the §1/§2 fixes land), perf (fps gate).
+// baselines committed only after the §1/§2 fixes land), perf (fps gate),
+// rewards (double-tap guard regression for treasure/events/boss relic).
 // Runs against the dev server (reuses one already on 5174).
 import { defineConfig } from '@playwright/test';
 
