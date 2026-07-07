@@ -1,6 +1,6 @@
 // Battlefield editor — dev-only (?bfedit=1 behind import.meta.env.DEV).
-// Overlays + panel edit a working copy of BF via _setBF(); Save (Task 6)
-// writes src/battlefield-layout.js through the vite dev endpoint.
+// Overlays + panel edit a working copy of BF via _setBF(); Save writes
+// src/battlefield-layout.js through the vite dev endpoint.
 import { ENEMIES, ASPECTS } from '../data.js';
 import { serializeBF, validateBF } from './bf-serialize.js';
 import { bfRaw, _setBF, bfResolve, bfActor, bfSlots, bfEnemySize } from '../battlefield.js';
@@ -127,7 +127,7 @@ function syncOverlays() {
     b.style.cssText = `left:${r.x}px;bottom:${r.bottom}px;width:${r.w}px;height:${r.h}px;`;
     if (r.label) b.innerHTML = `<span class="bf-tag">${r.label}</span>`;
     if (state.sel === r.id && !r.ground) b.innerHTML += '<span class="bf-handle"></span>';
-    b.addEventListener('pointerdown', (e) => onBoxPointerDown(e, r.id)); // drag lands in Task 5
+    b.addEventListener('pointerdown', (e) => onBoxPointerDown(e, r.id));
     overlayEl.appendChild(b);
   }
 }
@@ -250,7 +250,10 @@ function renderPanel() {
     const c = e.target.dataset?.clear;
     if (c != null) {
       const f = fieldRows()[Number(c)];
-      delPath(state.working, ['shapes', stageInfo().shape, ...f.path]);
+      // slots overrides are whole arrays (replace wholesale on merge): clear
+      // the entire formation override, never a leaf key inside it
+      const path = f.path[0] === 'slots' ? ['slots', f.path[1]] : f.path;
+      delPath(state.working, ['shapes', stageInfo().shape, ...path]);
       applyWorking();
     }
   };
@@ -274,7 +277,7 @@ function renderToolbar() {
   bar.addEventListener('click', (e) => {
     const sh = e.target.dataset?.shape;
     if (sh) {
-      const p = q(); p.set('shape', sh); pushScenarioToUrl();
+      pushScenarioToUrl();
       const p2 = new URLSearchParams(location.search); p2.set('shape', sh);
       location.search = `?${p2}`; // stage shape is picked at boot: honest reload
     }

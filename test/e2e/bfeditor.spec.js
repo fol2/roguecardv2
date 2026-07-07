@@ -86,6 +86,50 @@ test('Save POSTs the edited layout to /__bf-save', async ({ page }) => {
   expect(payload.base.groundY).toBe(232);
 });
 
+test('clearing a slot override restores the base formation intact', async ({ page }) => {
+  await page.goto('/?bfedit=1&mesh=0');
+  await page.locator('.bf-box[data-bf="enemy-0"]').click();
+  const panel = page.locator('#bf-panel');
+  // the layout file ships a desktop-landscape slots override: clear it first
+  // so "pre-edit" is the base formation, then exercise edit → clear
+  await panel.locator('button[data-clear="0"]').click();
+  const preEdit = await page.evaluate(() => window.__bfEditor.resolved().slots[2][0].x);
+  const input = panel.locator('input[data-path="x"]');
+  await input.fill(String(preEdit + 37));
+  await input.press('Enter');
+  expect(await page.evaluate(() => window.__bfEditor.resolved().slots[2][0].x)).toBe(preEdit + 37);
+  const clear = panel.locator('button[data-clear="0"]');
+  await expect(clear).toBeVisible();
+  await clear.click();
+  expect(await page.evaluate(() => window.__bfEditor.resolved().slots[2][0].x)).toBe(preEdit);
+  const sane = await page.evaluate(() => {
+    const w = window.__bfEditor.working();
+    const slots = window.__bfEditor.resolved().slots;
+    return {
+      overrideGone: w.shapes['desktop-landscape']?.slots?.[2] === undefined,
+      allFinite: Object.values(slots).every((arr) => arr.every((s) => Number.isFinite(s.x))),
+    };
+  });
+  expect(sane.overrideGone).toBe(true);
+  expect(sane.allFinite).toBe(true);
+});
+
+test('a partial shape layer override passes validation and saves', async ({ page }) => {
+  let payload = null;
+  await page.route('**/__bf-save', async (route) => {
+    payload = JSON.parse(route.request().postData());
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.goto('/?bfedit=1&mesh=0');
+  await page.locator('.bf-box[data-bf="layer-ledge"]').click();
+  const input = page.locator('#bf-panel input[data-path="y"]');
+  await input.fill('5');
+  await input.press('Enter');
+  await page.locator('#bf-save').click();
+  await expect(page.locator('#bf-dirty')).toHaveText(/saved/);
+  expect(payload.shapes['desktop-landscape'].layers.ledge.y).toBe(5);
+});
+
 test('Save writes layout to disk and reload picks it up', async ({ page }) => {
   test.skip(test.info().project.name !== 'bfeditor-disk', 'writes watched source; runs in the dedicated dependency project');
   const { readFileSync, writeFileSync } = await import('node:fs');

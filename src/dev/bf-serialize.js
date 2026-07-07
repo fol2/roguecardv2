@@ -85,6 +85,7 @@ export function validateBF(bf, ids = null) {
       for (const n of [1, 2, 3]) if (!Array.isArray(layout.slots?.[n])) problems.push(`${name}.slots.${n} missing`);
     }
     if (layout.groundY !== undefined) finite(layout.groundY, `${name}.groundY`);
+    if (!isBase && layout.ledgeLip !== undefined) finite(layout.ledgeLip, `${name}.ledgeLip`);
     if (layout.hero) for (const k of Object.keys(layout.hero)) finite(layout.hero[k], `${name}.hero.${k}`);
     for (const [n, arr] of Object.entries(layout.slots ?? {})) {
       if (!Array.isArray(arr) || arr.length !== Number(n)) problems.push(`${name}.slots.${n}: needs exactly ${n} entries`);
@@ -92,7 +93,8 @@ export function validateBF(bf, ids = null) {
     }
     for (const [l, p] of Object.entries(layout.layers ?? {})) {
       if (!['backdrop', 'mid', 'ledge'].includes(l)) problems.push(`${name}.layers.${l}: unknown layer`);
-      else for (const k of LAYER_KEYS) finite(p[k], `${name}.layers.${l}.${k}`);
+      // shape overrides merge key-wise, so partial layer objects are legal there
+      else for (const k of LAYER_KEYS) if (isBase || p[k] !== undefined) finite(p[k], `${name}.layers.${l}.${k}`);
     }
   };
   checkLayout(bf.base, 'base', true);
