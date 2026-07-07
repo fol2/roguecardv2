@@ -6,6 +6,20 @@ Guidance for AI coding agents (Claude Code, Cursor, Codex, …) working in this 
 
 **Spirebound** — a complete browser roguelite deckbuilder (Vite + vanilla JS + three.js, no UI framework). Combat art, cards, relics, enemies, events, and stage plates are raster assets in `src/assets/` (resolved through `assetUrl()` with SVG fallbacks); structural UI icons and status chips are hand-drawn SVG in `src/art.js`; audio is WebAudio-synthesized (`src/audio.js`). Deeper design/lore context lives in `README.md`.
 
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues, and external PRs are also a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default five-label triage vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Use a multi-context domain documentation layout. See `docs/agents/domain.md`.
+
 ## Commands
 
 ```bash
