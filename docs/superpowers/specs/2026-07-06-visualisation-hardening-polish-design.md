@@ -265,18 +265,24 @@ Suites (`test/e2e/`):
    fps ≥ 55 and p95 frame ≤ 22ms; prints the measured numbers. Runs only via
    `npm run test:e2e:perf` so parallel WebGL pages never pollute the numbers.
 
-**Kit status at hand-off (2026-07-06, post viewport hardening):**
+**Kit status after final sweep (2026-07-07):**
 
 | Suite | Status | Notes |
 |---|---|---|
-| `stage.spec` | **9/9 green** | Five shapes, letterbox, no title scroll at fullest profile |
-| `geometry.spec` | **0/13 red** | Hero ~27px, enemies ~100px off ground — §1 defect, unchanged |
-| `battle.spec` | **6/8 green** | Two reds: mesh-on corpse scenarios (§2 defect) |
-| `visual.spec` | 30 skipped | Baselines not committed until geometry + battle green |
-| `perf.spec` | red (~28.7fps) | 4× CPU throttle, budget 55fps — polish target |
-| `npm test` | green | Engine + asset manifest |
+| `npm test` | green | Engine checks, asset manifest, and 300-run monte-carlo |
+| `npm run build` | green | Production bundle builds; Vite chunk-size warning only |
+| `stage.spec` / `geometry.spec` / `battle.spec` | green | Included in the default Playwright kit |
+| `visual.spec` | intentionally skipped | Baselines remain absent; no visual reds in the default kit |
+| default Playwright kit | **68 passed, 44 skipped** | `npx playwright test --reporter=list` |
+| `perf.spec` | **2 passed, 2 skipped** | `PERF=1 npx playwright test perf --workers=1`; avg 112.6fps, p95 frame 14.6ms, worst frame 35.2ms over 339 frames |
 
-All reds are the documented §1/§2 defects or pending baselines — not kit bugs.
+Manual smoke is green. Desktop at `1600x900` used a real title -> Lamplighter
+start and a full act route through 15 map nodes to the act-2 map, with combat,
+event, rest, treasure, boss reward, `tr-iris` / `tr-bloom` / `tr-plate`
+transitions, corpse `dying` / `gone` markers, live weather pixels, and centred
+`desktop-landscape` letterboxing with no overflow. A `390x844` touch portrait
+fight observed `phone-portrait` framing, weather pixels, death shatter markers,
+and no console or page errors.
 
 ## 4. 21 raster icons — Omens (7), Boons (8), Lantern Arts (6)
 
