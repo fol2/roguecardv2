@@ -114,8 +114,8 @@ export function initScene() {
   camera = new THREE.PerspectiveCamera(58, 1, 0.1, 120);
   camera.position.set(0, alt, 10);
 
-  ptsMain = makePoints(LITE ? 480 : 900, 0.16, 46, 26, 40, 0.75);
-  ptsAccent = makePoints(LITE ? 130 : 240, 0.32, 46, 26, 34, 0.5);
+  ptsMain = makePoints(LITE ? 320 : 900, 0.16, 46, 26, 40, 0.75);
+  ptsAccent = makePoints(LITE ? 90 : 240, 0.32, 46, 26, 34, 0.5);
   scene.add(ptsMain, ptsAccent);
 
   // nebulae ride skyGroup: they track the camera's altitude with a slight lag
@@ -265,7 +265,7 @@ export function initScene() {
   // fixed virtual stage: layout size and camera aspect are constants of the
   // chosen shape — a bigger monitor gets more backing pixels, never more world
   const fit = () => {
-    renderer.setPixelRatio(Math.min(devicePixelRatio * stageScale(), LITE ? 1.35 : 1.75));
+    renderer.setPixelRatio(Math.min(devicePixelRatio * stageScale(), LITE ? 1.0 : 1.75));
     renderer.setSize(stageW(), stageH());
     composer.setSize(stageW(), stageH());
     if (LITE) bloom.setSize(stageW() / 2, stageH() / 2); // bloom is a blur; half-res is free glow
@@ -438,6 +438,7 @@ function frame(t) {
     overlayCb(out);
   }
 
-  bloom.strength = bloomBase + kickV * 0.55 + lightningV * 0.45; // big hits (and lightning) make the world flare
-  composer.render();
+  if (!LITE) bloom.strength = bloomBase + kickV * 0.55 + lightningV * 0.45; // big hits (and lightning) make the world flare
+  if (LITE) renderer.render(scene, camera);
+  else composer.render();
 }

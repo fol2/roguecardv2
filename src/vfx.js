@@ -9,11 +9,11 @@ let flashes = [];
 let shakeV = 0, shakeX = 0, shakeY = 0;
 let hitstopUntil = 0;
 
-// backing texels per stage px: real density (device DPR × stage scale), capped
-// — sparks don't need more, and a huge monitor shouldn't 4x the canvas
-const DPR = () => Math.min(devicePixelRatio * stageScale(), 2);
 export const LITE = matchMedia('(pointer: coarse)').matches;
-const cnt = (n) => (LITE ? Math.max(3, Math.round(n * 0.6)) : n);
+// backing texels per stage px: real density (device DPR × stage scale), capped
+// — sparks don't need more, and LITE devices need fill-rate headroom.
+const DPR = () => Math.min(devicePixelRatio * stageScale(), LITE ? 1 : 2);
+const cnt = (n) => (LITE ? Math.max(2, Math.round(n * 0.4)) : n);
 
 export function initVfx() {
   canvas = document.getElementById('vfx');

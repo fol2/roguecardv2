@@ -68,6 +68,7 @@ test('Save POSTs the edited layout to /__bf-save', async ({ page }) => {
 });
 
 test('Save writes layout to disk and reload picks it up', async ({ page }) => {
+  test.skip(!process.env.BFEDITOR_DISK, 'writes watched source; run alone with BFEDITOR_DISK=1');
   const { readFileSync, writeFileSync } = await import('node:fs');
   const layoutPath = 'src/battlefield-layout.js';
   const orig = readFileSync(layoutPath, 'utf8');
