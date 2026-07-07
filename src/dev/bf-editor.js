@@ -3,7 +3,7 @@
 // src/battlefield-layout.js through the vite dev endpoint.
 import { ENEMIES, ASPECTS } from '../data.js';
 import { serializeBF, validateBF } from './bf-serialize.js';
-import { bfRaw, _setBF, bfResolve, bfActor, bfSlots, bfEnemySize } from '../battlefield.js';
+import { bfRaw, _setBF, bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyZOrder } from '../battlefield.js';
 import { stageEl, stageW, stageH, stageScale, stageInfo } from '../stage.js';
 
 const SHAPES = ['phone-portrait', 'phone-landscape', 'pad-portrait', 'pad-landscape', 'desktop-landscape'];
@@ -174,11 +174,13 @@ function overlayRects() {
   const hw = Math.round(L.hero.w * hero.scale), hh = Math.round(L.hero.h * hero.scale);
   rects.push({ id: 'hero', x: L.hero.x - hw / 2, w: hw, h: hh, bottom: L.groundY + hero.footY });
   const slots = bfSlots(L, state.scenario.ids.length);
+  const footYs = state.scenario.ids.map((key) => bfActor('enemies', key).footY);
+  const zOrder = bfEnemyZOrder(slots, footYs);
   state.scenario.ids.forEach((key, i) => {
     const d = ENEMIES[key];
     const tier = d.boss ? 'boss' : d.elite ? 'elite' : 'normal';
     const size = bfEnemySize(L, key, tier, slots[i], stageW(), stageH());
-    rects.push({ id: `enemy-${i}`, x: slots[i].x - size / 2, w: size, h: size, bottom: L.groundY + (slots[i].y ?? 0) + bfActor('enemies', key).footY });
+    rects.push({ id: `enemy-${i}`, x: slots[i].x - size / 2, w: size, h: size, bottom: L.groundY + (slots[i].y ?? 0) + footYs[i], z: zOrder[i] });
   });
   return rects;
 }
@@ -196,7 +198,7 @@ function syncOverlays() {
     const b = document.createElement('div');
     b.className = `bf-box${r.layer ? ' bf-layer' : ''}${r.ground ? ' bf-ground' : ''}${state.sel === r.id ? ' bf-sel' : ''}`;
     b.dataset.bf = r.id;
-    b.style.cssText = `left:${r.x}px;bottom:${r.bottom}px;width:${r.w}px;height:${r.h}px;z-index:${r.layer ? 1 : r.ground ? 11 : 12};pointer-events:${r.layer && state.sel !== r.id ? 'none' : 'auto'};`;
+    b.style.cssText = `left:${r.x}px;bottom:${r.bottom}px;width:${r.w}px;height:${r.h}px;z-index:${r.layer ? 1 : r.ground ? 11 : r.z ?? 12};pointer-events:${r.layer && state.sel !== r.id ? 'none' : 'auto'};`;
     if (r.label) b.innerHTML = `<span class="bf-tag">${r.label}</span>`;
     if (state.sel === r.id && !r.ground) b.innerHTML += '<span class="bf-handle"></span>';
     b.addEventListener('pointerdown', (e) => onBoxPointerDown(e, r.id));
@@ -438,10 +440,11 @@ const CSS = `
 #bf-panel input { width: 56px; font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
 #bf-panel select { font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
 #bf-panel button[data-clear] { font: inherit; background: #3a2030; color: #ff9ebd; border: 1px solid #664455; border-radius: 3px; padding: 0 5px; cursor: pointer; }
-#bf-overlay { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+#bf-overlay { position: absolute; inset: 0; z-index: 8; pointer-events: none; } /* above #mesh (6) and the battlefield (7) */
 .bf-editing .player-zone, .bf-editing .enemy, .bf-editing .hand-zone { pointer-events: none !important; }
+.bf-editing .hand-zone { z-index: 5 !important; } /* cards must not hide the overlay boxes while editing */
 .bf-editing .energy-orb, .bf-editing .end-turn,
-.bf-editing .pile-btn, .bf-editing .lantern-btn { z-index: 10 !important; pointer-events: auto !important; }
+.bf-editing .pile-btn, .bf-editing .lantern-btn { pointer-events: auto !important; }
 #bf-overlay .bf-box { position: absolute; pointer-events: auto; border: 1px dashed #6fe3ff88; cursor: move; }
 #bf-overlay .bf-box.bf-sel { border-color: #ffd76f; box-shadow: 0 0 0 1px #ffd76f44; }
 #bf-overlay .bf-layer { border-color: #b98bff55; }

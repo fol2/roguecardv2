@@ -62,9 +62,19 @@ export function bfSlots(layout, count) {
   });
 }
 
+/** Depth sort indices: lower on screen (smaller slot bottom lift) draws in front. */
+export function bfEnemyZOrder(slots, footYs) {
+  const order = slots.map((s, i) => ({ i, bottom: (s?.y ?? 0) + (footYs[i] ?? 0) }));
+  order.sort((a, b) => b.bottom - a.bottom); // back (high bottom) first → low z
+  const z = new Array(slots.length);
+  order.forEach((d, rank) => { z[d.i] = rank + 1; });
+  return z;
+}
+
 /** Art box px for an enemy: tier size × type scale × slot s, typo-guarded. */
 export function bfEnemySize(layout, key, tier, slot, stgW, stgH) {
   const t = bfActor('enemies', key);
   const raw = (layout.shared.sizes?.[tier] ?? 185) * t.scale * (slot?.s ?? 1);
-  return Math.round(Math.max(56, Math.min(raw, stgH * (tier === 'boss' ? 0.4 : 0.35), stgW * 0.6)));
+  void stgW; void stgH; // kept for call-site stability; no stage-frame clamp
+  return Math.round(Math.max(8, raw));
 }

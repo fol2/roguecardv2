@@ -19,7 +19,7 @@ export const BF = {
     sizes: { normal: 185, elite: 230, boss: 280 },
     heroes: {
       ashwarden: { scale: 1, footY: 0 },
-      duskblade: { scale: 1, footY: 0 },
+      duskblade: { scale: 1, footY: -31 },
     },
     enemies: {
       abyssalKnight: { scale: 1.24, footY: 0 },
@@ -110,11 +110,17 @@ export const BF = {
       },
     },
     'desktop-landscape': {
-      hero: { x: 193 },
+      groundY: 216,
+      hero: { x: 212 },
       slots: {
-        1: [{ x: 1300, s: 1 }],
-        2: [{ x: 1085, s: 1 }, { x: 1300, s: 1 }],
+        1: [{ x: 1164, y: -16, s: 1 }],
+        2: [{ x: 1066, y: 5, s: 1 }, { x: 1197, y: -32, s: 1 }],
         3: [{ x: 870, s: 1 }, { x: 1085, s: 1 }, { x: 1300, s: 1 }],
+      },
+      layers: {
+        backdrop: { h: 1527, y: 273, x: -42, zoom: 0.6 },
+        mid: { h: 1000, y: 308, x: 189, zoom: 0.4 },
+        ledge: { h: 484, y: 183 },
       },
     },
   },

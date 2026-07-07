@@ -366,7 +366,14 @@ function deformPlane(p, t) {
 function layerMeshes(p) {
   return [p.mesh, p.fire, p.glass, p.beams].filter(Boolean);
 }
-function layoutPlane(p, t = 0) {
+// #mesh lives INSIDE #shake now, so during a screen shake the canvas moves
+// WITH the sprites — subtract the canvas' own stage offset (off) so the
+// shake isn't applied twice to the planes.
+const canvasOffset = () => {
+  const r = renderer ? stageRect(renderer.domElement) : { left: 0, top: 0 };
+  return { left: r.left, top: r.top };
+};
+function layoutPlane(p, t = 0, off = { left: 0, top: 0 }) {
   const show = (on) => { for (const m of layerMeshes(p)) m.visible = on; };
   if (!p.el.isConnected || !(p.el.checkVisibility?.({ visibilityProperty: true }) ?? true)) { show(false); return; }
   const r = stageRect(p.el);
@@ -375,9 +382,13 @@ function layoutPlane(p, t = 0) {
   p.aspect = artAspect(img, p.tex) || p.aspect || 1;
   const { w: dw, h: dh } = containSize(r.width, r.height, p.aspect);
   const fl = (p.profile.float || 0) * Math.sin(t * 1.15 + p.seed * 0.7) * 12 * INTENSITY;
-  const x = r.left + r.width / 2 - W / 2, y = -(r.top + r.height / 2 - H / 2) + fl;
+  const x = r.left - off.left + r.width / 2 - W / 2, y = -(r.top - off.top + r.height / 2 - H / 2) + fl;
   const sx = (p.flip ? -1 : 1) * dw / 2, sy = dh / 2;
   show(true);
+  // renderOrder tracks screen depth: feet lower on stage (larger rect.bottom) draw in front
+  const depth = Math.round(r.bottom);
+  const layers = [p.mesh, p.fire, p.glass, p.beams].filter(Boolean);
+  layers.forEach((m, li) => { m.renderOrder = depth * 4 + li; });
   let z = 0;
   for (const m of layerMeshes(p)) {
     m.position.set(x, y, z);
@@ -399,9 +410,10 @@ function resize() {
 function tick(t) {
   if (!planes.length) return;
   const sec = t * 0.001;
+  const off = canvasOffset();
   for (const p of planes) {
     deformPlane(p, sec);
-    layoutPlane(p, sec);
+    layoutPlane(p, sec, off);
   }
   renderer.render(scene, camera);
 }
@@ -512,11 +524,12 @@ export function meshHandoff(el) {
   const p = findPlane(el);
   if (!p || !renderer || LITE) return null;
   const sec = performance.now() * 0.001;
+  const off = canvasOffset();
   const mine = new Set(layerMeshes(p));
   const vis = [];
   scene.traverse((o) => { if (o.isMesh) { vis.push([o, o.visible]); o.visible = mine.has(o) && o !== p.beams; } });
   deformPlane(p, sec);
-  layoutPlane(p, sec);
+  layoutPlane(p, sec, off);
   if (p.beams) p.beams.visible = false;
   renderer.render(scene, camera);
   for (const [o, v] of vis) o.visible = v;
@@ -524,8 +537,9 @@ export function meshHandoff(el) {
   const r = stageRect(p.el);
   const { w: dw, h: dh } = containSize(r.width, r.height, p.aspect);
   const dpr = renderer.getPixelRatio();
-  const sx = (r.left + r.width / 2 - dw / 2) * dpr;
-  const sy = (r.top + r.height / 2 - dh / 2) * dpr;
+  // canvas pixel (0,0) = stage point (off.left, off.top) — read in canvas space
+  const sx = (r.left - off.left + r.width / 2 - dw / 2) * dpr;
+  const sy = (r.top - off.top + r.height / 2 - dh / 2) * dpr;
   const sw = Math.max(1, Math.round(dw * dpr));
   const sh = Math.max(1, Math.round(dh * dpr));
   const cap = document.createElement('canvas');

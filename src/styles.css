@@ -88,9 +88,13 @@ body.low-hp #vignette { animation: lowhp 1.6s ease-in-out infinite; }
   background: radial-gradient(circle var(--lr, 1500px) at var(--lx, 50%) var(--ly, 55%), transparent 42%, rgba(3, 4, 10, var(--la, 0)) 100%);
 }
 #lantern.gutter { animation: gutter 1.9s infinite; }
-/* boss kill: the world stops — color drains while light leaks from the cracks */
-#bg3d, #shake { transition: filter 0.22s ease; }
-body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(0.85); }
+/* boss kill: the world stops — color drains while light leaks from the cracks.
+   Filter targets #screen (not #shake) so the #mesh canvas beside it keeps its
+   color: the burning glass must blaze over the drained world. The filter also
+   makes #screen a stacking context for the beat, lifting the warp planes over
+   the whole screen — the pre-glass framing for this cinematic. */
+#bg3d, #screen { transition: filter 0.22s ease; }
+body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness(0.85); }
 .enemy.doomed .enemy-art { animation: doomTremble 0.09s linear infinite; }
 .enemy.doomed .cracks { filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.95)); }
 .enemy.doomed .cracks path { stroke: #ffffff; opacity: 1; }
@@ -107,9 +111,12 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   62% { opacity: 0.86; }
   78% { opacity: 0.96; }
 }
-#screen { position: absolute; inset: 0; overflow: hidden; z-index: 49; } /* above #mesh (48) so DOM crack seams read over the warp body; still below #vfx (50)/#floaties (55) */
+#screen { position: absolute; inset: 0; overflow: hidden; } /* NO z-index: children must join #shake's stacking context so #mesh can slot under the battlefield chrome */
 #vfx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 50; pointer-events: none; }
-#mesh { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 48; pointer-events: none; }
+/* mesh warp planes live INSIDE #shake: above the stage diorama (0-3) but below
+   the battlefield (7 — DOM crack seams/plates read over the warp body) and the
+   hand/chrome (22+), so hovered cards are never behind a mob */
+#mesh { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 6; pointer-events: none; }
 #floaties { position: fixed; inset: 0; z-index: 55; pointer-events: none; }
 #aim { position: fixed; inset: 0; z-index: 45; pointer-events: none; width: 100%; height: 100%; }
 #overlay { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center;
@@ -463,10 +470,11 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   to { transform: translateX(calc(-50% + var(--amp))); }
 }
 @media (prefers-reduced-motion: reduce) { .sl { animation: none; } }
-/* combatants and chrome float above the diorama (these are all already
-   absolutely positioned — add z-index ONLY, do not touch their position) */
-.combat-screen .battlefield, .combat-screen .energy-orb, .combat-screen .lantern-btn,
-.combat-screen .end-turn, .combat-screen .pile-btn, .combat-screen .hand-zone { z-index: 5; }
+/* combatants float above the diorama; the warp canvas #mesh (6) slots between
+   the diorama (0-3) and the battlefield (7), so DOM crack seams and plates read
+   over the warp body while the hand (22) and buttons (24) always beat the mobs
+   — #lantern darkness sits at 21 */
+.combat-screen .battlefield { z-index: 7; }
 .stage-ledge::before {
   content: ''; position: absolute; top: calc(-1 * var(--ledge-lip)); left: 6%; right: 6%; height: 1.5px;
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ledge, #8fa3d8) 75%, #fff) 20% 80%, transparent);
@@ -710,7 +718,26 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 /* ---- omens & titles: the rules the night imposes ---- */
 .relic-chip.omen-chip {
   border-style: double; border-width: 3px;
+  overflow: visible;
   box-shadow: 0 0 14px color-mix(in srgb, var(--tone) 45%, transparent), inset 0 0 8px color-mix(in srgb, var(--tone) 25%, transparent);
+}
+.hud-omen-art {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: calc(100% + 30px); height: calc(100% + 30px);
+  max-width: none;
+  transform: translate(-50%, -56%);
+  object-fit: contain;
+  pointer-events: none;
+  z-index: 2;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.78)) drop-shadow(0 0 10px color-mix(in srgb, var(--tone) 38%, transparent));
+}
+.hud-omen-fallback {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -56%) scale(1.35);
+  pointer-events: none;
+  z-index: 2;
 }
 .turn-banner.omen-banner {
   font-size: 30px; letter-spacing: 0.14em; line-height: 1.25; padding: 18px 34px 14px;
@@ -724,7 +751,22 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
   font-family: 'Crimson Pro', serif; font-size: 16.5px; font-weight: 500; letter-spacing: 0.02em;
   color: var(--text-dim); max-width: 620px; margin: 6px auto 0; text-transform: none;
 }
-.map-title .mt-omen { cursor: help; }
+.map-title .mt-omen {
+  cursor: help;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 8px; vertical-align: middle;
+}
+.mt-omen-art {
+  width: 44px; height: 44px;
+  margin-block: -14px -12px;
+  object-fit: contain;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.75)) drop-shadow(0 0 9px color-mix(in srgb, currentColor 34%, transparent));
+}
+.mt-omen-fallback {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+}
 .mnode.unlit .bg { fill: #0a0d18; stroke: rgba(150, 165, 200, 0.4); stroke-dasharray: 3 4; }
 .mnode.unlit .icg { opacity: 0.55; }
 .mnode.unlit.avail .bg { stroke: rgba(255, 233, 172, 0.5); }
@@ -1437,7 +1479,7 @@ body.worldstop #bg3d, body.worldstop #shake { filter: saturate(0.07) brightness(
 
 /* ---------- generated raster assets + dev gallery (?gallery=1) ---------- */
 .raster-art { width: 100%; height: 100%; object-fit: contain; display: block; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45)); }
-.mesh-live > .raster-art { opacity: 0; }
+.mesh-live.glass-on > .raster-art { opacity: 0; }
 .g-toolbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 16px; background: rgba(8, 10, 18, 0.94); border-bottom: 1px solid #222a44; color: #cfd6ee; }
 .g-toolbar nav { display: flex; flex-wrap: wrap; gap: 8px; }
 .g-toolbar a { color: #9fb4ff; text-decoration: none; border: 1px solid #33406a; border-radius: 6px; padding: 5px 9px; }

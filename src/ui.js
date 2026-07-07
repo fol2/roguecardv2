@@ -10,7 +10,7 @@ import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, me
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
-import { bfResolve, bfActor, bfSlots, bfEnemySize } from './battlefield.js';
+import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyZOrder } from './battlefield.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
@@ -50,6 +50,10 @@ const relicArt = (rid, size = 22) => {
 const hudRelic = (rid) => {
   const u = assetUrl('relics', rid);
   return u ? `<img class="relic-art hud-relic-art" src="${u}" alt="">` : `<span class="hud-relic-fallback">${RELICS[rid]?.glyph || '◈'}</span>`;
+};
+const omenMark = (oid, imgClass, fallbackClass, size = 22) => {
+  const u = assetUrl('omens', oid);
+  return u ? `<img class="${imgClass}" src="${u}" alt="">` : `<span class="${fallbackClass}">${iconSvg(`omen-${oid}`, size)}</span>`;
 };
 const heroArt = (i) => {
   const u = assetUrl('heroes', ASPECTS[i].id);
@@ -248,9 +252,10 @@ function renderHud() {
     <div id="relicbar"></div>`;
   const bar = $('#relicbar', hud);
   // the act's omen leads the bar: the rule the night imposed
-  const omen = OMENS[S.run.omens?.[S.run.act]];
+  const omenId = S.run.omens?.[S.run.act];
+  const omen = OMENS[omenId];
   if (omen) {
-    const oc = el('div', 'relic-chip omen-chip', iconSvg(`omen-${S.run.omens[S.run.act]}`, 18));
+    const oc = el('div', 'relic-chip omen-chip', omenMark(omenId, 'hud-omen-art', 'hud-omen-fallback', 24));
     oc.style.setProperty('--tone', omen.tone);
     oc._tip = { title: `Omen — ${omen.name}`, body: omen.text, sub: `hangs over Act ${S.run.act + 1}` };
     bar.appendChild(oc);
@@ -682,9 +687,10 @@ function renderMap() {
     </g>`;
   }
   const act = ACTS[run.act];
-  const omen = OMENS[run.omens?.[run.act]];
+  const omenId = run.omens?.[run.act];
+  const omen = OMENS[omenId];
   screenEl().innerHTML = `
-    <div class="map-title">ACT ${run.act + 1} — <b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits${omen ? ` &nbsp;·&nbsp; <span class="mt-omen" style="color:${omen.tone}">${iconSvg(`omen-${run.omens[run.act]}`, 14)} ${omen.name}</span>` : ''}</div>
+    <div class="map-title">ACT ${run.act + 1} — <b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits${omen ? ` &nbsp;·&nbsp; <span class="mt-omen" style="color:${omen.tone}">${omenMark(omenId, 'mt-omen-art', 'mt-omen-fallback', 18)}<span class="mt-omen-name">${omen.name}</span></span>` : ''}</div>
     <div class="map-screen screen-enter">
       <div class="map-haze" style="--haze:${['#2a3a2e', '#1f2e40', '#3a2030'][run.act] ?? '#2a3a2e'}"></div>
       <svg class="map-svg" width="100%" height="100%">${edges}${dots}</svg>
@@ -986,14 +992,17 @@ function applyBattlefieldLayout(resolved) {
   pz.style.left = `${Math.round(L.hero.x - hw / 2)}px`;
   pz.style.bottom = `${hero.footY}px`; // relative to .battlefield bottom = the ground line
   const slots = bfSlots(L, cb.enemies.length);
+  const footYs = cb.enemies.map((en) => bfActor('enemies', en.key).footY);
+  const zOrder = bfEnemyZOrder(slots, footYs);
   cb.enemies.forEach((en, i) => {
     const d = ENEMIES[en.key];
     const tier = d.boss ? 'boss' : d.elite ? 'elite' : 'normal';
     const size = bfEnemySize(L, en.key, tier, slots[i], stageW(), stageH());
     const box = ce.enemies[i].root;
     box.style.left = `${Math.round(slots[i].x - size / 2)}px`;
-    box.style.bottom = `${(slots[i].y ?? 0) + bfActor('enemies', en.key).footY}px`;
+    box.style.bottom = `${(slots[i].y ?? 0) + footYs[i]}px`;
     box.style.width = box.style.height = `${size}px`;
+    box.style.zIndex = String(zOrder[i]);
     ce.enemies[i].art.style.width = ce.enemies[i].art.style.height = `${size}px`;
   });
 }
@@ -2688,15 +2697,15 @@ function renderGallery() {
     return `<a class="${set === gallerySet ? 'active' : ''}" href="?${q.toString()}">${assetSetLabel(set)}</a>`;
   }).join('');
   const cats = {
+    omens: Object.keys(OMENS).map((k) => [k, () => iconSvg(`omen-${k}`, 64)]),
+    boons: Object.keys(BOONS).map((k) => [k, () => iconSvg(`boon-${k}`, 64)]),
+    arts: Object.keys(ARTS).map((k) => [k, () => iconSvg(`art-${k}`, 64)]),
     heroes: ASPECTS.map((a, i) => [a.id, () => heroSvg(i)]),
     enemies: Object.entries(ENEMIES).map(([k, d]) => [k, () => enemySvg(d.art)]),
     cards: Object.entries(CARDS).map(([k, d]) => [k, () => cardArtSvg(k, d.type)]),
     potions: Object.entries(POTIONS).map(([k, p]) => [k, () => potionSvg(p.tone)]),
     props: [['campfire', campfireSvg], ['chest', () => chestSvg(false)], ['chest-open', () => chestSvg(true)], ['merchant', merchantSvg]],
     events: Object.entries(EVENTS).map(([k, ev]) => [k, () => eventArtSvg(ev.glyph, ev.hue)]),
-    omens: Object.keys(OMENS).map((k) => [k, () => iconSvg(`omen-${k}`, 64)]),
-    boons: Object.keys(BOONS).map((k) => [k, () => iconSvg(`boon-${k}`, 64)]),
-    arts: Object.keys(ARTS).map((k) => [k, () => iconSvg(`art-${k}`, 64)]),
     title: [['title', () => '<div class="title-banner-ph">title</div>']],
     'title-background': [['background', () => '<div class="title-banner-ph">background</div>']],
     stage: ['act1', 'act2', 'act3'].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => [`${a}-${l}`, () => '<div class="title-banner-ph">stage</div>'])),

@@ -11,7 +11,7 @@ import {
 } from '../src/engine.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS } from '../src/data.js';
 import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from '../src/vigil.js';
-import { bfResolve, bfActor, bfSlots, bfEnemySize, _setBF, bfRaw } from '../src/battlefield.js';
+import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyZOrder, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
@@ -951,10 +951,13 @@ function randomAgentRun(seed) {
   }
   // slot interpolation fallback: a count with no authored formation still lays out
   assert.equal(bfSlots(bfResolve('pad-landscape'), 4).length, 4, 'bf: slot fallback');
-  // clamp guard: an absurd hand-edit cannot blow art past the stage frame
+  // clamp guard: absurd tier sizes are no longer capped to the stage frame
   const L = bfResolve('pad-landscape');
   _setBF({ ...bfRaw(), shared: { ...bfRaw().shared, sizes: { normal: 99999, elite: 99999, boss: 99999 } } });
-  assert.ok(bfEnemySize(bfResolve('pad-landscape'), 'duskfang', 'normal', { x: 0, s: 1 }, 1180, 820) <= 820 * 0.35 + 1, 'bf: size clamp');
+  assert.equal(bfEnemySize(bfResolve('pad-landscape'), 'duskfang', 'normal', { x: 0, s: 1 }, 1180, 820),
+    Math.round(99999 * bfActor('enemies', 'duskfang').scale), 'bf: no stage size clamp');
+  // depth: lower slot lift draws in front
+  assert.deepEqual(bfEnemyZOrder([{ y: 40 }, { y: 0 }], [0, 0]), [1, 2], 'bf: enemy z-order by bottom');
   _setBF(null);
   assert.equal(bfResolve('pad-landscape').groundY, L.groundY, 'bf: _setBF(null) restores the file');
   // serializer: valid, deterministic, and a true round-trip
