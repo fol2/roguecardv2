@@ -590,14 +590,17 @@ function renderLamplighter() {
   const asp = ASPECTS[run.aspect];
   const boonCards = L.boons.map((id) => {
     const b = BOONS[id];
+    const bu = assetUrl('boons', id);
     return `<button class="lamp-boon${L.boon === id ? ' on' : ''}" data-a="boon" data-i="${id}">
+      ${bu ? `<img class="lb-art-img" src="${bu}" alt="">` : ''}
       <div class="lb-name">${iconSvg(`boon-${id}`, 20)} ${b.name}</div><div class="lb-text">${fmtText(b.text)}</div>
     </button>`;
   }).join('');
   const artChips = Object.keys(ARTS).map((id) => {
     const a = ARTS[id];
+    const au = assetUrl('arts', id);
     return `<button class="lamp-art${L.art === id ? ' on' : ''}" data-a="art" data-i="${id}">
-      <span class="la-glyph" style="color:${a.tone}">${iconSvg(`art-${id}`, 18)}</span><span class="la-name">${a.name}</span>
+      ${au ? `<img class="la-art-img" src="${au}" alt="">` : `<span class="la-glyph" style="color:${a.tone}">${iconSvg(`art-${id}`, 18)}</span>`}<span class="la-name">${a.name}</span>
     </button>`;
   }).join('');
   const chosen = ARTS[L.art];
@@ -1734,6 +1737,18 @@ async function handleEvent(ev, targetIdx) {
       V.ring(lc.x, lc.y, art.tone, 10, 620, 5);
       V.motes(hx, hy, art.tone, 12);
       V.floatText(hx, hy - 84, art.name.toUpperCase(), 'artf');
+      const au = assetUrl('arts', ev.id);
+      if (au) {
+        const img = el('img', 'art-cast');
+        img.src = au;
+        $('#floaties').appendChild(img);
+        img.style.left = `${hx}px`; img.style.top = `${hy - 30}px`;
+        img.animate([
+          { transform: 'translate(-50%,-50%) scale(0.4)', opacity: 0 },
+          { transform: 'translate(-50%,-58%) scale(1)', opacity: 1, offset: 0.3 },
+          { transform: 'translate(-50%,-70%) scale(1.05)', opacity: 0 },
+        ], { duration: 900, easing: 'cubic-bezier(.2,.7,.3,1)' }).onfinish = () => img.remove();
+      }
       kick(0.7);
       syncCombat();
       await sleep(420);
@@ -2249,7 +2264,10 @@ function advanceAct() {
 function omenBanner(run) {
   const omen = OMENS[run.omens?.[run.act]];
   if (!omen || S.screen !== 'map') return;
-  const b = el('div', 'turn-banner omen-banner', `<span class="ob-glyph" style="color:${omen.tone}">${iconSvg(`omen-${run.omens[run.act]}`, 22)}</span> OMEN — ${omen.name.toUpperCase()}<div class="ob-sub">${omen.text}</div>`);
+  const oid = run.omens[run.act];
+  const ou = assetUrl('omens', oid);
+  const glyph = ou ? `<img class="ob-art" src="${ou}" alt="">` : `<span class="ob-glyph" style="color:${omen.tone}">${iconSvg(`omen-${oid}`, 22)}</span>`;
+  const b = el('div', 'turn-banner omen-banner', `${glyph} OMEN — ${omen.name.toUpperCase()}<div class="ob-sub">${omen.text}</div>`);
   screenEl().appendChild(b);
   sfx.omen();
   setTimeout(() => b.remove(), 4200);
@@ -2639,6 +2657,9 @@ function renderGallery() {
     potions: Object.entries(POTIONS).map(([k, p]) => [k, () => potionSvg(p.tone)]),
     props: [['campfire', campfireSvg], ['chest', () => chestSvg(false)], ['chest-open', () => chestSvg(true)], ['merchant', merchantSvg]],
     events: Object.entries(EVENTS).map(([k, ev]) => [k, () => eventArtSvg(ev.glyph, ev.hue)]),
+    omens: Object.keys(OMENS).map((k) => [k, () => iconSvg(`omen-${k}`, 64)]),
+    boons: Object.keys(BOONS).map((k) => [k, () => iconSvg(`boon-${k}`, 64)]),
+    arts: Object.keys(ARTS).map((k) => [k, () => iconSvg(`art-${k}`, 64)]),
     title: [['title', () => '<div class="title-banner-ph">title</div>']],
     'title-background': [['background', () => '<div class="title-banner-ph">background</div>']],
     stage: ['act1', 'act2', 'act3'].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => [`${a}-${l}`, () => '<div class="title-banner-ph">stage</div>'])),
