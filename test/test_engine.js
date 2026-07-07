@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { readdirSync } from 'node:fs';
 import {
   newRun, startCombat, playCard, endTurn, makeCard, cardData, availableNodes, genMap,
-  rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, saveRun, loadRun, genCombatRewards, genShop, gainRelic, randomRelic,
+  rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, finalizeNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, nodeEventInFlight, saveRun, loadRun, genCombatRewards, genShop, gainRelic, randomRelic,
   rollBossRelics, addCardToDeck, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
   MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, cardPool, relicPool,
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
@@ -460,12 +460,29 @@ function forceHand(run, cb, ids) {
   const ops = EVENTS.voidChest.choices[0].ops;
   const ev1 = applyNodeEventChoice(runEv, ops);
   assert.equal(ev1.already, false);
+  assert.equal(nodeRewardClaimed(runEv), false, 'event not settled until pending finalizes');
+  assert.equal(nodeEventInFlight(runEv), true);
   const relicsAfterFirst = runEv.player.relics.length;
   const hpAfterFirst = runEv.player.hp;
   const ev2 = applyNodeEventChoice(runEv, ops);
   assert.equal(ev2.already, true);
   assert.equal(runEv.player.relics.length, relicsAfterFirst);
   assert.equal(runEv.player.hp, hpAfterFirst);
+  finalizeNodeEventChoice(runEv);
+  assert.equal(eventNode.rewardClaimed, true);
+  assert.equal(nodeEventInFlight(runEv), false);
+
+  const runPending = newRun(94);
+  const pendingNode = runPending.map.nodes.find((n) => n.type === 'event') || runPending.map.nodes[5];
+  runPending.nodeId = pendingNode.id;
+  const pendingOps = [{ gold: 25 }, { pickRemove: true }];
+  const mid = applyNodeEventChoice(runPending, pendingOps);
+  assert.equal(mid.already, false);
+  assert.deepEqual(mid.pending, ['remove']);
+  assert.equal(nodeEventInFlight(runPending), true);
+  assert.equal(nodeRewardClaimed(runPending), false);
+  finalizeNodeEventChoice(runPending);
+  assert.equal(pendingNode.rewardClaimed, true);
 
   const runBoss = newRun(90);
   const picks = rollBossRelics(runBoss);
@@ -493,6 +510,15 @@ function forceHand(run, cb, ids) {
   assert.equal(xferNode.rewardClaimed, true, 'orphan claim transfers to node on visitNode');
   assert.equal(claimTreasure(runXfer).already, true);
 
+  const runOrphanRes = newRun(95);
+  runOrphanRes.nodeId = null;
+  applyNodeEventChoice(runOrphanRes, [{ pickRemove: true }]);
+  assert.equal(runOrphanRes.orphanRewardResolving, true);
+  const resNode = runOrphanRes.map.nodes.find((n) => n.type === 'event') || runOrphanRes.map.nodes[5];
+  visitNode(runOrphanRes, resNode);
+  assert.equal(resNode.rewardResolving, true, 'orphan resolving transfers to node on visitNode');
+  assert.equal(runOrphanRes.orphanRewardResolving, false);
+
   const saved = JSON.parse(JSON.stringify(run));
   assert.equal(claimTreasure(saved).already, true, 'rewardClaimed survives JSON round-trip');
   const savedBoss = JSON.parse(JSON.stringify(runBoss));
@@ -500,24 +526,45 @@ function forceHand(run, cb, ids) {
   assert.equal(nodeRewardClaimed(saved), true);
 
   const store = new Map();
-  globalThis.localStorage = {
-    getItem: (k) => store.get(k) ?? null,
-    setItem: (k, v) => { store.set(k, v); },
-    removeItem: (k) => { store.delete(k); },
-  };
-  const runLoad = newRun(93);
-  const loadNode = runLoad.map.nodes.find((n) => n.type === 'treasure') || runLoad.map.nodes.find((n) => n.row === 8);
-  runLoad.nodeId = loadNode.id;
-  claimTreasure(runLoad);
-  delete runLoad.bossRelicAct;
-  delete runLoad.orphanRewardClaimed;
-  saveRun(runLoad);
-  const reloaded = loadRun();
-  assert.ok(reloaded, 'loadRun returns saved run');
-  reloaded.nodeId = loadNode.id;
-  assert.equal(reloaded.bossRelicAct, -1, 'loadRun self-heals bossRelicAct');
-  assert.equal(reloaded.orphanRewardClaimed, false, 'loadRun self-heals orphanRewardClaimed');
-  assert.equal(claimTreasure(reloaded).already, true, 'reward flags survive loadRun round-trip');
+  const prevLs = globalThis.localStorage;
+  try {
+    globalThis.localStorage = {
+      getItem: (k) => store.get(k) ?? null,
+      setItem: (k, v) => { store.set(k, v); },
+      removeItem: (k) => { store.delete(k); },
+    };
+    const runLoad = newRun(93);
+    const loadNode = runLoad.map.nodes.find((n) => n.type === 'treasure') || runLoad.map.nodes.find((n) => n.row === 8);
+    runLoad.nodeId = loadNode.id;
+    claimTreasure(runLoad);
+    delete runLoad.bossRelicAct;
+    delete runLoad.orphanRewardClaimed;
+    delete runLoad.orphanRewardResolving;
+    saveRun(runLoad);
+    const reloaded = loadRun();
+    assert.ok(reloaded, 'loadRun returns saved run');
+    reloaded.nodeId = loadNode.id;
+    assert.equal(reloaded.bossRelicAct, -1, 'loadRun self-heals bossRelicAct');
+    assert.equal(reloaded.orphanRewardClaimed, false, 'loadRun self-heals orphanRewardClaimed');
+    assert.equal(reloaded.orphanRewardResolving, false, 'loadRun self-heals orphanRewardResolving');
+    assert.equal(claimTreasure(reloaded).already, true, 'reward flags survive loadRun round-trip');
+
+    const runEvLoad = newRun(96);
+    const evNode = runEvLoad.map.nodes.find((n) => n.type === 'event') || runEvLoad.map.nodes[5];
+    runEvLoad.nodeId = evNode.id;
+    applyNodeEventChoice(runEvLoad, [{ gold: 15 }]);
+    assert.equal(evNode.rewardResolving, true);
+    saveRun(runEvLoad);
+    const reloadedEv = loadRun();
+    assert.ok(reloadedEv);
+    const savedEvNode = reloadedEv.map.nodes.find((n) => n.id === evNode.id);
+    reloadedEv.nodeId = evNode.id;
+    assert.equal(savedEvNode.rewardResolving, true, 'rewardResolving survives loadRun round-trip');
+    assert.equal(applyNodeEventChoice(reloadedEv, [{ gold: 99 }]).already, true);
+  } finally {
+    if (prevLs) globalThis.localStorage = prevLs;
+    else delete globalThis.localStorage;
+  }
 }
 {
   // all enemies have valid ai over 30 turns

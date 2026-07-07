@@ -23,7 +23,7 @@ export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
   const A = ASPECTS[aspect];
   const vow = clamp(opts.vow || 0, 0, VOWS.length);
   const run = {
-    v: 2, seed, rngState: seed, uid: 1, act: 0, nodeId: null, floorsClimbed: 0, bossRelicAct: -1, orphanRewardClaimed: false,
+    v: 2, seed, rngState: seed, uid: 1, act: 0, nodeId: null, floorsClimbed: 0, bossRelicAct: -1, orphanRewardClaimed: false, orphanRewardResolving: false,
     aspect, vow, art: opts.art || A.art || 'flare', omens: [], boon: opts.boon || null,
     unlocks: [...(opts.unlocks || [])],
     monument: opts.monument ? { ...opts.monument, claimed: false } : null,
@@ -159,6 +159,10 @@ export function visitNode(run, node) {
     node.rewardClaimed = true;
     run.orphanRewardClaimed = false;
   }
+  if (run.orphanRewardResolving) {
+    node.rewardResolving = true;
+    run.orphanRewardResolving = false;
+  }
   run.floorsClimbed = node.row + 1;
   if (!run.map.visited.includes(node.id)) run.map.visited.push(node.id);
   let bounty = 0;
@@ -248,13 +252,37 @@ function isNodeRewardClaimed(run) {
   if (node) return !!node.rewardClaimed;
   return !!run.orphanRewardClaimed;
 }
+function isNodeEventInFlight(run) {
+  const node = currentNode(run);
+  if (node) return !!node.rewardResolving;
+  return !!run.orphanRewardResolving;
+}
+function isNodeRewardLocked(run) {
+  return isNodeRewardClaimed(run) || isNodeEventInFlight(run);
+}
+function markNodeEventResolving(run) {
+  const node = currentNode(run);
+  if (node) node.rewardResolving = true;
+  else run.orphanRewardResolving = true;
+}
 function markNodeRewardClaimed(run) {
   const node = currentNode(run);
-  if (node) node.rewardClaimed = true;
-  else run.orphanRewardClaimed = true;
+  if (node) {
+    node.rewardClaimed = true;
+    delete node.rewardResolving;
+  } else {
+    run.orphanRewardClaimed = true;
+    run.orphanRewardResolving = false;
+  }
 }
 export function nodeRewardClaimed(run) {
   return isNodeRewardClaimed(run);
+}
+export function nodeEventInFlight(run) {
+  return isNodeEventInFlight(run);
+}
+export function finalizeNodeEventChoice(run) {
+  markNodeRewardClaimed(run);
 }
 // One reward per map node — UI guards are the first line; this is the engine backstop.
 export function claimTreasure(run, weights = { common: 0.55, uncommon: 0.35, rare: 0.1 }) {
@@ -265,10 +293,11 @@ export function claimTreasure(run, weights = { common: 0.55, uncommon: 0.35, rar
   markNodeRewardClaimed(run);
   return { already: false, relicId, gold: relicId ? 0 : 60 };
 }
+// Sync ops run immediately; interactive pending finishes in the UI, then finalizeNodeEventChoice.
 export function applyNodeEventChoice(run, ops, rng = runRng(run)) {
-  if (isNodeRewardClaimed(run)) return { pending: [], log: [], already: true };
+  if (isNodeRewardLocked(run)) return { pending: [], log: [], already: true };
   const { pending, log } = applyEventOps(run, ops, rng);
-  markNodeRewardClaimed(run);
+  markNodeEventResolving(run);
   return { pending, log, already: false };
 }
 export function claimBossRelic(run, id) {
@@ -1150,7 +1179,7 @@ export function loadRun() {
     // additive fields self-heal: a save from an older v2 build stays playable
     run.art ??= 'flare';
     run.aspect = clamp(run.aspect ?? 0, 0, ASPECTS.length - 1); run.vow = clamp(run.vow ?? 0, 0, VOWS.length);
-    run.unlocks ??= []; run.omens ??= []; run.boon ??= null; run.bossRelicAct ??= -1; run.orphanRewardClaimed ??= false;
+    run.unlocks ??= []; run.omens ??= []; run.boon ??= null; run.bossRelicAct ??= -1; run.orphanRewardClaimed ??= false; run.orphanRewardResolving ??= false;
     while (run.omens.length <= run.act) run.omens.push(rollOmen(run));
     for (const k of ['shatters', 'kindles', 'perfects', 'smolderKills', 'unlitVisited', 'embersSpent']) run.stats[k] ??= 0;
     return run;

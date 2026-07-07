@@ -100,4 +100,124 @@ test.describe('reward tap guards', () => {
     expect(after.relics - before.relics).toBeLessThanOrEqual(1);
     expectNoErrors(errors, 'boss relic multi-pick');
   });
+
+  test('treasure chest stays empty after reload', async ({ page }) => {
+    const errors = collectErrors(page);
+    await boot(page, { query: 'mesh=0' });
+    const nodeId = await page.evaluate(() => {
+      const sp = window.spirebound;
+      const node = sp.S.run.map.nodes.find((n) => n.type === 'treasure') || sp.S.run.map.nodes.find((n) => n.row === 8);
+      sp.E.visitNode(sp.S.run, node);
+      sp.show('treasure');
+      return node.id;
+    });
+    await page.evaluate(() => {
+      const fn = document.querySelector('[data-a="open"]')?.onclick;
+      if (typeof fn === 'function') fn();
+    });
+    await settle(page);
+    await expect(page.locator('button.btn-primary', { hasText: 'Continue' })).toBeVisible();
+    const claimed = await page.evaluate((id) => {
+      const node = window.spirebound.S.run.map.nodes.find((n) => n.id === id);
+      return !!node?.rewardClaimed;
+    }, nodeId);
+    expect(claimed).toBe(true);
+
+    await page.reload();
+    await page.waitForFunction(() => window.spirebound && window.__probe);
+    await page.locator('button[data-a="continue"]').click();
+    await settle(page);
+    await page.evaluate((id) => {
+      const sp = window.spirebound;
+      const node = sp.S.run.map.nodes.find((n) => n.id === id);
+      if (!node?.rewardClaimed) throw new Error('treasure node lost rewardClaimed after reload');
+      sp.show('treasure');
+    }, nodeId);
+    await expect(page.locator('.ov-sub', { hasText: 'The chest lies empty.' })).toBeVisible();
+    await expect(page.locator('button[data-a="open"]')).toHaveCount(0);
+    await expect(page.locator('button.btn-primary', { hasText: 'Continue' })).toBeVisible();
+    expectNoErrors(errors, 'treasure reload');
+  });
+
+  test('boss relic screen advances when act relic already claimed', async ({ page }) => {
+    const errors = collectErrors(page);
+    await boot(page, { query: 'mesh=0' });
+    await page.evaluate(() => {
+      const sp = window.spirebound;
+      const id = sp.E.rollBossRelics(sp.S.run)[0];
+      sp.E.claimBossRelic(sp.S.run, id);
+      sp.E.saveRun(sp.S.run);
+      sp.show('bossRelic');
+    });
+    await settle(page);
+    const state = await page.evaluate(() => ({
+      act: window.spirebound.S.run.act,
+      screen: window.spirebound.S.screen,
+      picks: document.querySelectorAll('.relic-pick').length,
+    }));
+    expect(state.act).toBe(1);
+    expect(state.screen).toBe('map');
+    expect(state.picks).toBe(0);
+    expectNoErrors(errors, 'boss relic mount guard');
+  });
+
+  test('event with card remove finalizes after pending', async ({ page }) => {
+    const errors = collectErrors(page);
+    await boot(page, { query: 'mesh=0' });
+    await page.evaluate(() => {
+      const sp = window.spirebound;
+      const node = sp.S.run.map.nodes.find((n) => n.type === 'event') || sp.S.run.map.nodes[5];
+      sp.E.visitNode(sp.S.run, node);
+      sp.show('event', 'forgottenShrine');
+    });
+    const deckBefore = await page.evaluate(() => window.spirebound.S.run.player.deck.length);
+    await page.locator('.event-choice.btn-primary', { hasText: 'Pray' }).click();
+    await page.waitForSelector('#overlay.open .choice-cards .card');
+    await page.locator('#overlay .choice-cards .card').first().click();
+    await page.waitForFunction(() => !document.getElementById('overlay')?.classList.contains('open'));
+    await settle(page);
+    const deckAfter = await page.evaluate(() => window.spirebound.S.run.player.deck.length);
+    expect(deckBefore - deckAfter).toBe(1);
+    await expect(page.locator('button.btn-primary', { hasText: 'Continue' })).toBeVisible();
+    const blocked = await page.evaluate(() => window.spirebound.E.applyNodeEventChoice(
+      window.spirebound.S.run, [{ pickRemove: true }]).already);
+    expect(blocked).toBe(true);
+    expectNoErrors(errors, 'event pending finalize');
+  });
+
+  test('event reload during pending finalizes on remount', async ({ page }) => {
+    const errors = collectErrors(page);
+    await boot(page, { query: 'mesh=0' });
+    const nodeId = await page.evaluate(() => {
+      const sp = window.spirebound;
+      const node = sp.S.run.map.nodes.find((n) => n.type === 'event') || sp.S.run.map.nodes[5];
+      sp.E.visitNode(sp.S.run, node);
+      sp.show('event', 'forgottenShrine');
+      return node.id;
+    });
+    await page.locator('.event-choice.btn-primary', { hasText: 'Pray' }).click();
+    await page.waitForSelector('#overlay.open .choice-cards .card');
+    expect(await page.evaluate(() => window.spirebound.E.nodeEventInFlight(window.spirebound.S.run))).toBe(true);
+
+    await page.reload();
+    await page.waitForFunction(() => window.spirebound && window.__probe);
+    await page.locator('button[data-a="continue"]').click();
+    await settle(page);
+
+    const state = await page.evaluate((id) => {
+      const sp = window.spirebound;
+      const node = sp.S.run.map.nodes.find((n) => n.id === id);
+      sp.show('event', 'forgottenShrine');
+      return {
+        claimed: !!node?.rewardClaimed,
+        inFlight: !!node?.rewardResolving,
+        choices: document.querySelectorAll('.event-choice').length,
+      };
+    }, nodeId);
+    expect(state.claimed).toBe(true);
+    expect(state.inFlight).toBe(false);
+    expect(state.choices).toBe(0);
+    await expect(page.locator('button.btn-primary', { hasText: 'Continue' })).toBeVisible();
+    expectNoErrors(errors, 'event reload during pending');
+  });
 });
