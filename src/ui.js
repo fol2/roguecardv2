@@ -1655,7 +1655,11 @@ function choreoStagger(el) {
   ).finished.catch(() => {});
 }
 // glass damage language: every landed hit scores a crack into the body
+// TEMP (2026-07-07): combat cracks off while glass tuning continues — death
+// rite still cracks via igniteVessel → meshCrack (not this helper).
+const COMBAT_CRACKS = false;
 function addCrack(artEl, big) {
+  if (!COMBAT_CRACKS) return;
   if (meshEnabled() && meshCrack(artEl)) return; // glass refracts through the fracture (warp on)
   const layer = artEl && $('.cracks', artEl); // drawn fallback when the warp layer is off
   if (layer && layer.children.length < 8) layer.insertAdjacentHTML('beforeend', crackSvg(big));
