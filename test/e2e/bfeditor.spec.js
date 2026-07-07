@@ -56,26 +56,32 @@ test('dragging the hero moves its x by the drag distance (stage px)', async ({ p
   expect(after - before).toBe(40);
 });
 
-test('a slightly diagonal hero drag locks to the horizontal axis', async ({ page }) => {
+test('a hero drag locks to the axis of the first decisive move for the whole drag', async ({ page }) => {
   await page.goto('/?bfedit=1&mesh=0');
   const hero = page.locator('.bf-box[data-bf="hero"]');
   await hero.waitFor();
   const scale = await page.evaluate(() => window.__probe.stage().scale);
-  const before = await page.evaluate(() => {
-    const L = window.__bfEditor.resolved();
-    return { x: L.hero.x, footY: window.__bfEditor.working().shared.heroes };
-  });
+  const before = await page.evaluate(() => ({
+    x: window.__bfEditor.resolved().hero.x,
+    heroes: window.__bfEditor.working().shared.heroes,
+  }));
   const box = await hero.boundingBox();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2 + 40 * scale, box.y + box.height / 2 + 8, { steps: 5 });
+  // phase 1: decisive horizontal move (12 stage px) locks the x axis
+  await page.mouse.move(cx + 12 * scale, cy);
+  // phase 2: strong vertical move — a per-event axis choice would see
+  // |dy| > |dx| on these events and write footY; the per-drag lock must not
+  await page.mouse.move(cx + 12 * scale, cy + 50 * scale, { steps: 5 });
   await page.mouse.up();
-  const after = await page.evaluate(() => {
-    const L = window.__bfEditor.resolved();
-    return { x: L.hero.x, footY: window.__bfEditor.working().shared.heroes };
-  });
-  expect(after.x).toBeGreaterThan(before.x);
-  expect(after.footY).toEqual(before.footY); // axis locked: footY untouched
+  const after = await page.evaluate(() => ({
+    x: window.__bfEditor.resolved().hero.x,
+    heroes: window.__bfEditor.working().shared.heroes,
+  }));
+  expect(after.x - before.x).toBe(12);
+  expect(after.heroes).toEqual(before.heroes); // axis locked: footY untouched
 });
 
 test('pad-landscape (base shape) offers no shape scope for positional rows', async ({ page }) => {
