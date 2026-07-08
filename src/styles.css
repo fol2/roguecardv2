@@ -1177,6 +1177,18 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   filter: drop-shadow(0 0 34px rgba(242, 193, 78, 0.5));
 }
 /* defeat: a monument in the dark, embers drifting off a dying flame */
+.meta-bg {
+  position: absolute; inset: 0; z-index: 0; background-size: cover; background-position: 50% 45%;
+  opacity: 0.4; filter: blur(8px) saturate(0.75); pointer-events: none;
+}
+.end-screen, .end-screen.grave { position: relative; }
+.end-screen > *:not(.meta-bg), .end-screen.grave > *:not(.meta-bg) { position: relative; z-index: 1; }
+.deed-row { display: flex; gap: 12px; align-items: flex-start; }
+.deed-art, .deed-art-fallback { width: 48px; height: 48px; flex: 0 0 48px; object-fit: contain; }
+.deed-art-fallback { display: grid; place-items: center; color: var(--gold); }
+.deed-body { flex: 1; min-width: 0; }
+.bq-kind, .bq-kind-fallback { width: 22px; height: 22px; object-fit: contain; vertical-align: middle; margin-right: 4px; }
+.bq-kind-fallback { display: inline-flex; }
 .end-screen.grave { background: radial-gradient(ellipse at 50% 110%, rgba(30, 14, 10, 0.75), rgba(2, 3, 8, 0.96) 70%); animation: graveReveal 2.2s ease both; }
 @keyframes graveReveal { from { background-color: #000; } }
 .monument {

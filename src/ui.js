@@ -43,6 +43,10 @@ function sceneBg() {
   const u = assetUrl('stage', `act${(S.run?.act ?? 0) + 1}-backdrop`);
   return u ? `<div class="scene-bg" style="background-image:url('${u}')"></div>` : '';
 }
+function metaBg(id) {
+  const u = assetUrl('meta', id);
+  return u ? `<div class="meta-bg" style="background-image:url('${u}')"></div>` : '';
+}
 const relicArt = (rid, size = 22) => {
   const u = assetUrl('relics', rid);
   return u ? `<img class="raster-art relic-art" src="${u}" alt="" style="width:${size}px;height:${size}px">` : (RELICS[rid]?.glyph || '◈');
@@ -539,19 +543,26 @@ function renderTitle() {
 // the vigil ledger: lifetime deeds and the content they've unearthed
 function showVigil() {
   const v = loadVigil();
-  const deedRows = Object.values(DEEDS).map((deed) => {
+  const deedRows = Object.entries(DEEDS).map(([id, deed]) => {
     const cur = v.deeds[deed.stat] || 0;
     const done = cur >= deed.n;
     const pct = Math.min(100, Math.round((cur / deed.n) * 100));
     const rewards = deed.unlocks.map((u) => {
       if (u === 'aspect2') return 'The Ashwarden';
-      const [k, id] = u.split(':');
-      return k === 'card' ? (CARDS[id]?.name || id) : (RELICS[id]?.name || id);
+      const [k, rid] = u.split(':');
+      return k === 'card' ? (CARDS[rid]?.name || rid) : (RELICS[rid]?.name || rid);
     }).join(', ');
+    const du = assetUrl('deeds', id);
+    const art = du
+      ? `<img class="deed-art" src="${du}" alt="">`
+      : `<span class="deed-art-fallback">${iconSvg(`deed-${id}`, 40)}</span>`;
     return `<div class="deed-row${done ? ' done' : ''}">
-      <div class="deed-head"><span class="deed-name">${done ? '✦ ' : ''}${deed.name}</span><span class="deed-count">${Math.min(cur, deed.n)}/${deed.n}</span></div>
-      <div class="deed-desc">${deed.desc} → <i>${rewards}</i></div>
-      <div class="deed-bar"><span style="width:${pct}%"></span></div>
+      ${art}
+      <div class="deed-body">
+        <div class="deed-head"><span class="deed-name">${done ? '✦ ' : ''}${deed.name}</span><span class="deed-count">${Math.min(cur, deed.n)}/${deed.n}</span></div>
+        <div class="deed-desc">${deed.desc} → <i>${rewards}</i></div>
+        <div class="deed-bar"><span style="width:${pct}%"></span></div>
+      </div>
     </div>`;
   }).join('');
   openOverlay(`<div class="panel ov-panel vigil-panel">
@@ -688,8 +699,12 @@ function renderMap() {
     const tf = COARSE ? 1.3 : 1; // lanterns grow to meet a fingertip
     const r = (n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 19 : 16) * tf;
     const isz = Math.round((n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 20 : 17) * tf);
+    const monUrl = n.type === 'monument' ? assetUrl('meta', 'monument-node') : null;
+    const iconHtml = monUrl
+      ? `<image href="${monUrl}" x="${-isz / 2}" y="${-isz / 2}" width="${isz}" height="${isz}" />`
+      : iconInline(dark ? 'unlitLantern' : NODE_ICONS[n.type], dark ? Math.round(17 * tf) : isz);
     dots += `<g class="${cls}" data-node="${n.id}" style="--d:${n.row * 34}ms">
-      <g class="nwrap"><circle class="bg" r="${dark ? 16 * tf : r}"/><g class="icg">${iconInline(dark ? 'unlitLantern' : NODE_ICONS[n.type], dark ? Math.round(17 * tf) : isz)}</g></g>
+      <g class="nwrap"><circle class="bg" r="${dark ? 16 * tf : r}"/><g class="icg">${iconHtml}</g></g>
     </g>`;
   }
   const act = ACTS[run.act];
@@ -2738,9 +2753,13 @@ function renderEvent(eventId) {
 
 // ------------------------------------------------------------ end screens
 function bequestLabel(o) {
-  if (o.kind === 'relic') return { icon: relicArt(o.id, 20), name: RELICS[o.id]?.name || o.id, note: 'your rarest relic' };
-  if (o.kind === 'card') return { icon: '🂠', name: (CARDS[o.id]?.name || o.id) + (o.up ? '+' : ''), note: 'your finest card' };
-  return { icon: iconSvg('coin', 20), name: `${o.amount} gold`, note: 'a cache of gold' };
+  const bu = assetUrl('bequests', o.kind);
+  const kindIcon = bu
+    ? `<img class="bq-kind" src="${bu}" alt="">`
+    : `<span class="bq-kind-fallback">${iconSvg(`bequest-${o.kind}`, 22)}</span>`;
+  if (o.kind === 'relic') return { icon: `${kindIcon}${relicArt(o.id, 20)}`, name: RELICS[o.id]?.name || o.id, note: 'your rarest relic' };
+  if (o.kind === 'card') return { icon: `${kindIcon}<span class="bq-card">🂠</span>`, name: (CARDS[o.id]?.name || o.id) + (o.up ? '+' : ''), note: 'your finest card' };
+  return { icon: `${kindIcon}${iconSvg('coin', 20)}`, name: `${o.amount} gold`, note: 'a cache of gold' };
 }
 function unlockToastInfo(u) {
   if (u === 'aspect2') return { kind: 'Aspect Unlocked', name: 'The Ashwarden' };
@@ -2785,6 +2804,7 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
     </div>`;
   if (won) {
     screenEl().innerHTML = `<div class="end-screen screen-enter">
+      ${metaBg('ascended')}
       <div class="end-title win">ASCENDED</div>
       <div class="ov-sub" style="font-size:17px">The Eternal Sovereign is dust. Dawn breaks over the Spire — the first in an age.</div>
       ${stats}${btns}
@@ -2806,6 +2826,7 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
     const embers = Array.from({ length: 14 }, () =>
       `<span class="ember" style="left:${(8 + Math.random() * 84).toFixed(1)}%;--ex:${((Math.random() - 0.5) * 90).toFixed(0)}px;animation-delay:${(Math.random() * 4).toFixed(2)}s;animation-duration:${(3 + Math.random() * 3).toFixed(2)}s"></span>`).join('');
     screenEl().innerHTML = `<div class="end-screen grave">
+      ${metaBg('fallen')}
       <div class="monument">
         <div class="mon-flame"></div>
         <div class="end-title lose">FALLEN</div>
@@ -2893,6 +2914,9 @@ function renderGallery() {
     'title-background': [['background', () => '<div class="title-banner-ph">background</div>']],
     stage: ['act1', 'act2', 'act3'].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => [`${a}-${l}`, () => '<div class="title-banner-ph">stage</div>'])),
     relics: Object.entries(RELICS).map(([k, r]) => [k, () => `<div class="title-banner-ph" style="color:${r.tone}">${r.glyph}</div>`]),
+    deeds: Object.keys(DEEDS).map((k) => [k, () => iconSvg(`deed-${k}`, 64)]),
+    bequests: ['relic', 'card', 'gold'].map((k) => [k, () => iconSvg(`bequest-${k}`, 64)]),
+    meta: ['fallen', 'ascended', 'monument-node'].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
   };
   screenEl().className = 'gallery-mode';
   screenEl().innerHTML = `<div class="g-toolbar">
