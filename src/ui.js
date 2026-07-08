@@ -7,11 +7,11 @@ import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, beque
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
 import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift } from './mesh.js';
-import { charShadowLive, charCssFloat } from './char-meta.js';
+import { charShadowLive, charCssFloat, onCharMetaChange } from './char-meta.js';
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
-import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY } from './battlefield.js';
+import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, onBFChange } from './battlefield.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
@@ -3024,5 +3024,9 @@ export function initUI() {
   window.spirebound = { S, E, startCombatUI, show, meshEnabled, meshDebug, refitCombat }; // ponytail: console debug hook, harmless in prod
   installProbe(); // window.__probe — contract readers + drivers for test/e2e
   requestAnimationFrame(rigTick); // living-glass rig: no-op outside combat
+  // char-meta / battlefield-layout HMR → soft-apply without reload
+  const softCombat = () => { if (S.screen === 'combat' && S.cb && S.ce) refitCombat(); };
+  onCharMetaChange(softCombat);
+  onBFChange(softCombat);
   show('title');
 }

@@ -177,10 +177,23 @@ ${rows}
 };
 
 let _live = CHAR_META;
+const _listeners = new Set();
+
+/** Soft-apply hook — charedit / combat re-paint without a full page reload. */
+export function onCharMetaChange(fn) {
+  _listeners.add(fn);
+  return () => _listeners.delete(fn);
+}
+function notifyCharMeta() {
+  for (const fn of _listeners) {
+    try { fn(); } catch { /* listener errors must not break the table */ }
+  }
+}
 
 /** Test/editor hook — replace the live table without a reload. */
-export function _setCharMeta(map) {
+export function _setCharMeta(map, { silent = false } = {}) {
   _live = map || CHAR_META;
+  if (!silent) notifyCharMeta();
 }
 export function charMetaTable() {
   return _live;
@@ -214,6 +227,16 @@ export function charMesh(id) {
 export function charCssFloat(id) {
   const v = (_live[id] || {}).cssFloat;
   return Number.isFinite(v) ? v : null;
+}
+
+// Vite HMR: swap the live table in place so importers keep working without a full reload.
+if (import.meta.hot) {
+  import.meta.hot.accept((mod) => {
+    if (!mod?.CHAR_META) return;
+    Object.assign(CHAR_LAYOUT_DEFAULT, mod.CHAR_LAYOUT_DEFAULT);
+    Object.assign(CHAR_SHADOW_DEFAULT, mod.CHAR_SHADOW_DEFAULT);
+    _setCharMeta(mod.CHAR_META);
+  });
 }
 `;
 }

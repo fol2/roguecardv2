@@ -4,8 +4,8 @@
 import { ENEMIES, ASPECTS } from '../data.js';
 import { serializeBF, validateBF } from './bf-serialize.js';
 import { validateCharMeta } from './char-serialize.js';
-import { bfRaw, _setBF, bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY } from '../battlefield.js';
-import { charMetaTable, _setCharMeta } from '../char-meta.js';
+import { bfRaw, _setBF, onBFChange, bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY } from '../battlefield.js';
+import { charMetaTable, _setCharMeta, onCharMetaChange } from '../char-meta.js';
 import { stageEl, stageW, stageH, stageScale, stageInfo } from '../stage.js';
 
 const SLOT_FOOT = new Set(['footX', 'footY']);
@@ -103,8 +103,8 @@ function delPath(obj, path) {
   if (parent) delete parent[path.at(-1)];
 }
 function applyWorking() {
-  _setBF(state.working);
-  _setCharMeta(state.meta);
+  _setBF(state.working, { silent: true });
+  _setCharMeta(state.meta, { silent: true });
   window.spirebound.refitCombat();
   state.dirty = true;
   const d = document.getElementById('bf-dirty');
@@ -148,8 +148,8 @@ function mutateField(scope, path, value) {
 function writeField(scope, path, value, { drag } = {}) {
   mutateField(scope, path, value);
   if (drag) {
-    _setBF(state.working);
-    _setCharMeta(state.meta);
+    _setBF(state.working, { silent: true });
+    _setCharMeta(state.meta, { silent: true });
     state.dirty = true;
     const d = document.getElementById('bf-dirty');
     if (d) d.textContent = '● unsaved';
@@ -526,12 +526,16 @@ function renderToolbar() {
     });
     const jMeta = await rMeta.json().catch(() => ({ ok: false, problems: [`HTTP ${rMeta.status}`] }));
     if (!jMeta.ok) return alert(`char-meta save failed:\n${(jMeta.problems ?? []).join('\n')}`);
-    const r = await fetch('/__bf-save', { method: 'POST', body: JSON.stringify(state.working) });
+    const r = await fetch('/__bf-save', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(state.working),
+    });
     const j = await r.json().catch(() => ({ ok: false, problems: [`HTTP ${r.status}`] }));
     if (!j.ok) return alert(`save failed:\n${(j.problems ?? []).join('\n')}`);
     state.dirty = false;
     document.getElementById('bf-dirty').textContent = 'saved ✓';
-    if (j.reload) location.reload(); // scenario survives in the URL
+    // HMR soft-applies battlefield-layout.js — no full page reload
   };
   bar.querySelector('#bf-revert').onclick = () => {
     if (state.dirty && !confirm('Discard unsaved changes?')) return;
@@ -583,12 +587,29 @@ export function initBfEditor() {
   document.head.appendChild(style);
   state.working = normalizeActs(clone(bfRaw()));
   state.meta = clone(charMetaTable());
-  _setBF(state.working);
-  _setCharMeta(state.meta);
+  _setBF(state.working, { silent: true });
+  _setCharMeta(state.meta, { silent: true });
   state.scenario = scenarioFromUrl();
   pushScenarioToUrl();
   renderToolbar();
   startSandbox();
+  const softRefit = () => {
+    _setBF(state.working, { silent: true });
+    _setCharMeta(state.meta, { silent: true });
+    window.spirebound.refitCombat();
+    syncOverlays();
+    renderPanel();
+  };
+  onCharMetaChange(() => {
+    if (state.dirty) return;
+    state.meta = clone(charMetaTable());
+    softRefit();
+  });
+  onBFChange(() => {
+    if (state.dirty) return;
+    state.working = normalizeActs(clone(bfRaw()));
+    softRefit();
+  });
   addEventListener('keydown', (e) => {
     if (!state.sel || /INPUT|SELECT/.test(document.activeElement?.tagName ?? '')) return;
     const step = e.shiftKey ? 10 : 1;

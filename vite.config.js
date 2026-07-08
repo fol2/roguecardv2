@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import { readFileSync, writeFileSync, renameSync } from "node:fs";
+import { writeFileSync, renameSync } from "node:fs";
 import { resolve } from "node:path";
 
 const BF_SAVE_PORT = 5174;
@@ -8,10 +8,6 @@ const BF_LAYOUT_PATH = resolve("src/battlefield-layout.js");
 const BF_LAYOUT_TMP = `${BF_LAYOUT_PATH}.tmp`;
 const CHAR_META_PATH = resolve("src/char-meta.js");
 const CHAR_META_TMP = `${CHAR_META_PATH}.tmp`;
-let suppressBFHotUpdateUntil = 0;
-let suppressBFHotUpdateText = "";
-let suppressCharHotUntil = 0;
-let suppressCharHotText = "";
 
 /** Reject cross-origin POSTs — only the dev server (or allowedHosts) may write. */
 function bfSaveOriginOk(req) {
@@ -49,18 +45,6 @@ function bfSavePlugin() {
   return {
     name: "bf-save",
     apply: "serve",
-    handleHotUpdate({ file }) {
-      if (file === BF_LAYOUT_PATH && suppressBFHotUpdateText && Date.now() < suppressBFHotUpdateUntil) {
-        try {
-          if (readFileSync(file, "utf8") === suppressBFHotUpdateText) return [];
-        } catch {}
-      }
-      if (file === CHAR_META_PATH && suppressCharHotText && Date.now() < suppressCharHotUntil) {
-        try {
-          if (readFileSync(file, "utf8") === suppressCharHotText) return [];
-        } catch {}
-      }
-    },
     configureServer(server) {
       server.middlewares.use("/__bf-save", async (req, res) => {
         if (req.method !== "POST") { res.statusCode = 405; return res.end(); }
@@ -81,12 +65,13 @@ function bfSavePlugin() {
           const problems = validateBF(bf, { enemies: Object.keys(ENEMIES), heroes: ASPECTS.map((a) => a.id) });
           if (problems.length) { res.statusCode = 400; return res.end(JSON.stringify({ ok: false, problems })); }
           const nextBF = serializeBF(bf);
-          suppressBFHotUpdateText = nextBF;
-          suppressBFHotUpdateUntil = Date.now() + 10000;
           writeFileSync(BF_LAYOUT_TMP, nextBF);
           renameSync(BF_LAYOUT_TMP, BF_LAYOUT_PATH);
-          server.moduleGraph.invalidateAll();
-          res.end(JSON.stringify({ ok: true, reload: true }));
+          // Invalidate only the layout module — battlefield.js accepts it via
+          // import.meta.hot and soft-applies via onBFChange (no full reload).
+          const mods = server.moduleGraph.getModulesByFile(BF_LAYOUT_PATH);
+          if (mods) for (const m of mods) server.moduleGraph.invalidateModule(m);
+          res.end(JSON.stringify({ ok: true, reload: false }));
         } catch (e) {
           res.statusCode = 400;
           res.end(JSON.stringify({ ok: false, problems: [String(e?.message ?? e)] }));
@@ -117,12 +102,13 @@ function bfSavePlugin() {
           });
           if (problems.length) { res.statusCode = 400; return res.end(JSON.stringify({ ok: false, problems })); }
           const next = serializeCharMeta(table, { layout: CHAR_LAYOUT_DEFAULT, shadow: CHAR_SHADOW_DEFAULT });
-          suppressCharHotText = next;
-          suppressCharHotUntil = Date.now() + 10000;
           writeFileSync(CHAR_META_TMP, next);
           renameSync(CHAR_META_TMP, CHAR_META_PATH);
-          server.moduleGraph.invalidateAll();
-          res.end(JSON.stringify({ ok: true }));
+          // Invalidate only this module — char-meta.js self-accepts HMR and
+          // soft-applies via onCharMetaChange (no full page reload).
+          const mods = server.moduleGraph.getModulesByFile(CHAR_META_PATH);
+          if (mods) for (const m of mods) server.moduleGraph.invalidateModule(m);
+          res.end(JSON.stringify({ ok: true, reload: false }));
         } catch (e) {
           res.statusCode = 400;
           res.end(JSON.stringify({ ok: false, problems: [String(e?.message ?? e)] }));

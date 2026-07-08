@@ -2,13 +2,39 @@
 // the ?bfedit editor rewrites); this module only merges and defaults it.
 // Per-actor scale/footX/footY live in char-meta.js (via charLayout).
 // Imports nothing DOM-touching; Node-importable (test_engine.js gates it).
-import { BF as FILE_BF } from './battlefield-layout.js';
+import { BF as INITIAL_BF } from './battlefield-layout.js';
 import { charLayout } from './char-meta.js';
 
-let BF = FILE_BF;
+let fileBF = INITIAL_BF;
+let BF = fileBF;
+const _listeners = new Set();
+
+/** Soft-apply hook — bfedit / combat re-paint without a full page reload. */
+export function onBFChange(fn) {
+  _listeners.add(fn);
+  return () => _listeners.delete(fn);
+}
+function notifyBF() {
+  for (const fn of _listeners) {
+    try { fn(); } catch { /* listener errors must not break the layout */ }
+  }
+}
+
 /** Editor/test hook: override the layout in effect (null = back to the file). */
-export function _setBF(bf) { BF = bf || FILE_BF; }
+export function _setBF(bf, { silent = false } = {}) {
+  BF = bf || fileBF;
+  if (!silent) notifyBF();
+}
 export function bfRaw() { return BF; }
+
+// Vite HMR: swap the live layout when battlefield-layout.js changes (save / hand edit).
+if (import.meta.hot) {
+  import.meta.hot.accept('./battlefield-layout.js', (mod) => {
+    if (!mod?.BF) return;
+    fileBF = mod.BF;
+    _setBF(mod.BF);
+  });
+}
 
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
 // objects merge key-wise; arrays and scalars replace wholesale (a shape that

@@ -5,7 +5,7 @@ import { ENEMIES, ASPECTS } from '../data.js';
 import { assetUrl } from '../art.js';
 import {
   CHAR_LAYOUT_DEFAULT, CHAR_SHADOW_DEFAULT,
-  charMetaTable, _setCharMeta, charLayout, charShadow,
+  charMetaTable, _setCharMeta, charLayout, charShadow, onCharMetaChange,
 } from '../char-meta.js';
 import {
   validateCharMeta, pruneCharMeta,
@@ -70,18 +70,18 @@ function entryOf(id) {
   return state.meta[id] || {};
 }
 function layoutOf(id) {
-  _setCharMeta(state.meta);
+  _setCharMeta(state.meta, { silent: true });
   return charLayout(id);
 }
 function shadowOf(id) {
-  _setCharMeta(state.meta);
+  _setCharMeta(state.meta, { silent: true });
   return charShadow(id);
 }
 function meshOf(id) {
   return meshProfileFor(kindOf(id), id);
 }
 function actorParams(id) {
-  _setCharMeta(state.meta);
+  _setCharMeta(state.meta, { silent: true });
   const a = charLayout(id);
   const L = bfResolve(EDITOR_SHAPE, 0);
   let w, h;
@@ -97,7 +97,7 @@ function actorParams(id) {
 
 function markDirty() {
   state.dirty = true;
-  _setCharMeta(state.meta);
+  _setCharMeta(state.meta, { silent: true });
   syncDirty();
   paintActor();
 }
@@ -422,7 +422,7 @@ async function saveMeta() {
   const j = await r.json();
   if (!j.ok) return alert(`save failed:\n${(j.problems ?? []).join('\n')}`);
   state.meta = pruned;
-  _setCharMeta(state.meta);
+  _setCharMeta(state.meta, { silent: true });
   state.dirty = false;
   syncDirty();
   renderPanel();
@@ -527,12 +527,20 @@ export function initCharEditor() {
   initStage();
   initMesh();
   state.meta = clone(charMetaTable());
-  _setCharMeta(state.meta);
+  _setCharMeta(state.meta, { silent: true });
   state.id = idFromUrl();
   pushUrl();
   mountChrome();
   paintActor();
   renderPanel();
+  // File save / external edit → soft-apply without wiping unsaved slider work
+  onCharMetaChange(() => {
+    if (state.dirty) return;
+    state.meta = clone(charMetaTable());
+    paintActor();
+    renderPanel();
+    syncDirty();
+  });
   window.__charEditor = {
     id: () => state.id,
     meta: () => entryOf(state.id),
