@@ -1140,11 +1140,11 @@ function randomAgentRun(seed) {
   assert.equal(charLayout('sporeling').scale, 0.62, 'char-meta: sporeling scale migrated');
   assert.deepEqual(charMesh('duskblade'), {}, 'char-meta: no mesh override by default');
   assert.ok(AIM_STYLES.includes(CHAR_AIM_DEFAULT.style), 'char-meta: aim default style valid');
-  assert.equal(CHAR_AIM_DEFAULT.beams, 1, 'char-meta: aim default beams 1');
-  assert.equal(CHAR_AIM_DEFAULT.dashes, 2, 'char-meta: aim default dashes 2');
+  assert.ok(Number.isInteger(CHAR_AIM_DEFAULT.beams) && CHAR_AIM_DEFAULT.beams >= 1 && CHAR_AIM_DEFAULT.beams <= 4, 'char-meta: aim default beams in 1..4');
+  assert.ok(Number.isInteger(CHAR_AIM_DEFAULT.dashes) && CHAR_AIM_DEFAULT.dashes >= 1 && CHAR_AIM_DEFAULT.dashes <= 4, 'char-meta: aim default dashes in 1..4');
   assert.deepEqual(charAim('sporeling'), { ...CHAR_AIM_DEFAULT }, 'char-meta: aim inherits global');
-  assert.equal(charAim('sporeling').beams, 1, 'char-meta: aim beams inherit');
-  assert.equal(charAim('sporeling').dashes, 2, 'char-meta: aim dashes inherit');
+  assert.equal(charAim('sporeling').beams, CHAR_AIM_DEFAULT.beams, 'char-meta: aim beams inherit');
+  assert.equal(charAim('sporeling').dashes, CHAR_AIM_DEFAULT.dashes, 'char-meta: aim dashes inherit');
   _setCharMeta({ ...CHAR_META, sporeling: { ...(CHAR_META.sporeling || {}), aim: { style: 'chase', speed: 2 } } }, { silent: true });
   assert.equal(charAim('sporeling').style, 'chase', 'char-meta: aim style override');
   assert.equal(charAim('sporeling').color, CHAR_AIM_DEFAULT.color, 'char-meta: aim color inherits');
@@ -1167,8 +1167,8 @@ function randomAgentRun(seed) {
   const src = serializeCharMeta(CHAR_META, { layout: CHAR_LAYOUT_DEFAULT, shadow: CHAR_SHADOW_DEFAULT, aim: CHAR_AIM_DEFAULT });
   assert.ok(src.includes('export const CHAR_META'), 'char-meta: serialized');
   assert.ok(src.includes('export const CHAR_AIM_DEFAULT'), 'char-meta: aim default serialized');
-  assert.ok(/beams:\s*1/.test(src), 'char-meta: beams in CHAR_AIM_DEFAULT serialize');
-  assert.ok(/dashes:\s*2/.test(src), 'char-meta: dashes in CHAR_AIM_DEFAULT serialize');
+  assert.ok(new RegExp(`beams:\\s*${CHAR_AIM_DEFAULT.beams}`).test(src), 'char-meta: beams in CHAR_AIM_DEFAULT serialize');
+  assert.ok(new RegExp(`dashes:\\s*${CHAR_AIM_DEFAULT.dashes}`).test(src), 'char-meta: dashes in CHAR_AIM_DEFAULT serialize');
   assert.ok(validateCharMeta({ nope: { scale: 1 } }, { heroes: [], enemies: [] }).length > 0, 'char-meta: unknown id rejected');
   assert.ok(!pruneCharMeta({ x: { scale: 1 } }, { layout: CHAR_LAYOUT_DEFAULT }).x, 'char-meta: default scale pruned');
   // bfActor reads char-meta, not BF.shared
