@@ -1298,8 +1298,7 @@ function hoverEnemyAt(x, y) {
 
 // the consequence, spelled out: while a card is armed or inspected, each foe
 // shows exactly what it would lose — block-eaten, vulnerability-multiplied —
-// with a ghost segment on its bar and a death-mark when the number is lethal.
-// Hovering a card with a known default target also paints a silhouette outline.
+// with a ghost segment on its bar and a death-mark when the number is lethal
 function updatePreviews() {
   const ce = S.ce, cb = S.cb;
   if (!ce || !cb) return;
@@ -1310,9 +1309,6 @@ function updatePreviews() {
   const d = inst ? E.cardData(inst) : null;
   const aiming = S.targeting?.kind === 'card' || (S.drag?.live && !S.drag.free);
   const living = cb.enemies.filter((e) => e.hp > 0).length;
-  // card-hover default target (not armed aim): silhouette outline on who the card would hit
-  const inspect = !!(inst && !cb.over && !d.unplayable && !aiming);
-  ce.hero?.classList.toggle('aim-target', inspect && d.target === 'self');
   cb.enemies.forEach((en, i) => {
     const x = ce.enemies[i];
     let pv = null, dim = false;
@@ -1323,10 +1319,6 @@ function updatePreviews() {
         dim = aiming && living > 1 && !x.root.classList.contains('target-hover');
       }
     }
-    const aim = inspect && en.hp > 0 && (
-      d.target === 'allEnemies' || (d.target === 'enemy' && living === 1)
-    );
-    x.root.classList.toggle('aim-target', aim);
     if (pv && (pv.total > 0 || pv.chips > 0)) {
       // bar ghost + facet pips spell out the consequence; the art-overlay number is redundant
       x.prev.classList.remove('show', 'lethal', 'dim');
