@@ -117,6 +117,10 @@ function bfSavePlugin() {
               return res.end(JSON.stringify({ ok: false, problems: [`aim.${k}: need integer 1..4`] }));
             }
           }
+          if (!Number.isFinite(aimDefault.width) || aimDefault.width < 0.006 || aimDefault.width > 0.06) {
+            res.statusCode = 400;
+            return res.end(JSON.stringify({ ok: false, problems: ["aim.width: need number in [0.006,0.06]"] }));
+          }
           const next = serializeCharMeta(table, {
             layout: CHAR_LAYOUT_DEFAULT,
             shadow: CHAR_SHADOW_DEFAULT,

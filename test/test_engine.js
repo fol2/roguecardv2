@@ -1142,21 +1142,26 @@ function randomAgentRun(seed) {
   assert.ok(AIM_STYLES.includes(CHAR_AIM_DEFAULT.style), 'char-meta: aim default style valid');
   assert.ok(Number.isInteger(CHAR_AIM_DEFAULT.beams) && CHAR_AIM_DEFAULT.beams >= 1 && CHAR_AIM_DEFAULT.beams <= 4, 'char-meta: aim default beams in 1..4');
   assert.ok(Number.isInteger(CHAR_AIM_DEFAULT.dashes) && CHAR_AIM_DEFAULT.dashes >= 1 && CHAR_AIM_DEFAULT.dashes <= 4, 'char-meta: aim default dashes in 1..4');
+  assert.ok(Number.isFinite(CHAR_AIM_DEFAULT.width) && CHAR_AIM_DEFAULT.width >= 0.006 && CHAR_AIM_DEFAULT.width <= 0.06, 'char-meta: aim default width in range');
   assert.deepEqual(charAim('sporeling'), { ...CHAR_AIM_DEFAULT }, 'char-meta: aim inherits global');
   assert.equal(charAim('sporeling').beams, CHAR_AIM_DEFAULT.beams, 'char-meta: aim beams inherit');
   assert.equal(charAim('sporeling').dashes, CHAR_AIM_DEFAULT.dashes, 'char-meta: aim dashes inherit');
+  assert.equal(charAim('sporeling').width, CHAR_AIM_DEFAULT.width, 'char-meta: aim width inherit');
   _setCharMeta({ ...CHAR_META, sporeling: { ...(CHAR_META.sporeling || {}), aim: { style: 'chase', speed: 2 } } }, { silent: true });
   assert.equal(charAim('sporeling').style, 'chase', 'char-meta: aim style override');
   assert.equal(charAim('sporeling').color, CHAR_AIM_DEFAULT.color, 'char-meta: aim color inherits');
-  _setCharMeta({ ...CHAR_META, sporeling: { ...(CHAR_META.sporeling || {}), aim: { beams: 3, dashes: 4 } } }, { silent: true });
+  _setCharMeta({ ...CHAR_META, sporeling: { ...(CHAR_META.sporeling || {}), aim: { beams: 3, dashes: 4, width: 0.03 } } }, { silent: true });
   assert.equal(charAim('sporeling').beams, 3, 'char-meta: aim beams override');
   assert.equal(charAim('sporeling').dashes, 4, 'char-meta: aim dashes override');
+  assert.equal(charAim('sporeling').width, 0.03, 'char-meta: aim width override');
   assert.equal(charAim('sporeling').style, CHAR_AIM_DEFAULT.style, 'char-meta: aim style still inherits when only counts overridden');
   _setCharMeta(CHAR_META, { silent: true });
   assert.ok(validateCharMeta({ duskblade: { aim: { style: 'nope' } } }, { heroes: ASPECTS.map((a) => a.id), enemies: [] }).length > 0, 'char-meta: bad aim style rejected');
   assert.ok(validateCharMeta({ duskblade: { aim: { beams: 0 } } }, { heroes: ASPECTS.map((a) => a.id), enemies: [] }).length > 0, 'char-meta: beams 0 rejected');
   assert.ok(validateCharMeta({ duskblade: { aim: { dashes: 5 } } }, { heroes: ASPECTS.map((a) => a.id), enemies: [] }).length > 0, 'char-meta: dashes 5 rejected');
   assert.ok(validateCharMeta({ duskblade: { aim: { beams: 2.5 } } }, { heroes: ASPECTS.map((a) => a.id), enemies: [] }).length > 0, 'char-meta: beams non-int rejected');
+  assert.ok(validateCharMeta({ duskblade: { aim: { width: 0.001 } } }, { heroes: ASPECTS.map((a) => a.id), enemies: [] }).length > 0, 'char-meta: width too thin rejected');
+  assert.ok(validateCharMeta({ duskblade: { aim: { width: 0.1 } } }, { heroes: ASPECTS.map((a) => a.id), enemies: [] }).length > 0, 'char-meta: width too thick rejected');
   const prunedAim = pruneCharMeta({ x: { aim: { ...CHAR_AIM_DEFAULT } } }, { layout: CHAR_LAYOUT_DEFAULT, aim: CHAR_AIM_DEFAULT });
   assert.ok(!prunedAim.x, 'char-meta: aim equal to default pruned');
   const prunedCounts = pruneCharMeta(
@@ -1169,6 +1174,7 @@ function randomAgentRun(seed) {
   assert.ok(src.includes('export const CHAR_AIM_DEFAULT'), 'char-meta: aim default serialized');
   assert.ok(new RegExp(`beams:\\s*${CHAR_AIM_DEFAULT.beams}`).test(src), 'char-meta: beams in CHAR_AIM_DEFAULT serialize');
   assert.ok(new RegExp(`dashes:\\s*${CHAR_AIM_DEFAULT.dashes}`).test(src), 'char-meta: dashes in CHAR_AIM_DEFAULT serialize');
+  assert.ok(/width:\s*/.test(src), 'char-meta: width in CHAR_AIM_DEFAULT serialize');
   assert.ok(validateCharMeta({ nope: { scale: 1 } }, { heroes: [], enemies: [] }).length > 0, 'char-meta: unknown id rejected');
   assert.ok(!pruneCharMeta({ x: { scale: 1 } }, { layout: CHAR_LAYOUT_DEFAULT }).x, 'char-meta: default scale pruned');
   // bfActor reads char-meta, not BF.shared

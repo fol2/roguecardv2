@@ -704,7 +704,7 @@ export function meshLift(el) {
 }
 
 /** Toggle the silhouette aim ring on a mesh-bound sprite. Returns false if no plane (SVG fallback).
- *  cfg: { style:'spin'|'chase'|'solid', speed, color, beams?, dashes? } */
+ *  cfg: { style:'spin'|'chase'|'solid', speed, color, width?, beams?, dashes? } */
 export function meshAim(el, on, cfg = null) {
   const p = findPlane(el);
   if (!p?.outline) return false;
@@ -715,6 +715,8 @@ export function meshAim(el, on, cfg = null) {
     p.aimMat.uniforms.uStyle.value = style;
     p.aimMat.uniforms.uSpeed.value = Number.isFinite(cfg.speed) ? cfg.speed : 1;
     p.aimMat.uniforms.uColor.value.set(cfg.color || '#fff6ec');
+    const width = Number.isFinite(cfg.width) ? cfg.width : 0.018;
+    p.aimMat.uniforms.uWidth.value = Math.min(0.06, Math.max(0.006, width));
     const beams = Number.isInteger(cfg.beams) ? cfg.beams : 1;
     const dashes = Number.isInteger(cfg.dashes) ? cfg.dashes : 2;
     p.aimMat.uniforms.uBeams.value = Math.min(4, Math.max(1, beams));

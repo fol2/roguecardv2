@@ -8,7 +8,7 @@ export const CHAR_LAYOUT_DEFAULT = { scale: 1, footX: 0, footY: 0 };
 export const CHAR_SHADOW_DEFAULT = { ox: 50, oy: 100, sx: 1, sy: 0.24, skew: 0, blur: 1.5, opacity: 0.62, dx: 0, dy: 0 };
 
 /** Card-hover aim outline — global default; per-id `aim` overrides partially. */
-export const CHAR_AIM_DEFAULT = { style: "chase", speed: 1.9, color: "#e4d5fb", beams: 1, dashes: 2 };
+export const CHAR_AIM_DEFAULT = { style: "solid", speed: 2.55, color: "#e4d5fb", width: 0.018, beams: 4, dashes: 2 };
 
 /** Mesh profile keys (absolute overrides on top of art.kind PROFILE). */
 export const CHAR_MESH_KEYS = ["sway","bob","breathe","head","cloth","pin","float"];
@@ -28,11 +28,11 @@ export const CHAR_META = {
   abyssalKnight: { scale: 1.3, footY: -20, shadow: { ox: 38, oy: 87 } },
   alphaFang: { scale: 2, footX: -30, footY: -60, shadow: { ox: 47, oy: 83, sy: 0.33 } },
   ashAcolyte: { scale: 0.95, shadow: { oy: 91 } },
-  ashwarden: { shadow: { ox: 54, oy: 93, skew: 5 } },
+  ashwarden: { shadow: { ox: 54, oy: 93, skew: 5 }, aim: { color: "#f9bd95" } },
   chaosHound: { scale: 1.05, shadow: { ox: 53, oy: 87 } },
   deepmaw: { scale: 1.14, shadow: { ox: 48, oy: 87 } },
   drownedOne: { scale: 0.8, shadow: { ox: 51, oy: 88 } },
-  duskblade: { footY: -30, shadow: { ox: 47, oy: 95, skew: 5 } },
+  duskblade: { footY: -30, shadow: { ox: 47, oy: 95, skew: 5 }, aim: { color: "#6d9edf" } },
   duskfang: { scale: 0.95, shadow: { ox: 46, oy: 87 } },
   gloomslime: { scale: 0.95, shadow: { ox: 52, oy: 86 } },
   gravewarden: { scale: 2.5, footX: -40, footY: -50, shadow: { ox: 51, oy: 88 } },

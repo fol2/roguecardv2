@@ -10,7 +10,7 @@ import {
 import {
   validateCharMeta, pruneCharMeta,
   LAYOUT_KEYS, SHADOW_KEYS, MESH_KEYS, AIM_KEYS, AIM_STYLES,
-  LAYOUT_RANGES, SHADOW_RANGES, MESH_RANGES, AIM_SPEED_RANGE, AIM_COUNT_RANGE, CSS_FLOAT_RANGE,
+  LAYOUT_RANGES, SHADOW_RANGES, MESH_RANGES, AIM_SPEED_RANGE, AIM_WIDTH_RANGE, AIM_COUNT_RANGE, CSS_FLOAT_RANGE,
 } from './char-serialize.js';
 import { bfResolve, bfEnemySize } from '../battlefield.js';
 import { initStage } from '../stage.js';
@@ -295,6 +295,7 @@ function renderPanel() {
   const cssVal = entry.cssFloat ?? 12;
   const aim = aimOf(id);
   const [spdLo, spdHi] = AIM_SPEED_RANGE;
+  const [wLo, wHi] = AIM_WIDTH_RANGE;
 
   const aimRows = AIM_KEYS.map((k) => {
     const over = aimOverridden(id, k);
@@ -321,6 +322,16 @@ function renderPanel() {
         <span class="ce-aim-pair">
           <input type="range" min="${spdLo}" max="${spdHi}" step="0.05" data-aim="speed" value="${aim.speed}">
           <input type="number" min="${spdLo}" max="${spdHi}" step="0.05" data-aim="speed" value="${aim.speed}">
+        </span>
+        ${scopeSel}${clear}
+      </label>`;
+    }
+    if (k === 'width') {
+      return `<label class="ce-aim-row${over ? ' on' : ''}">
+        <span>width${over ? ' ●' : ''}</span>
+        <span class="ce-aim-pair">
+          <input type="range" min="${wLo}" max="${wHi}" step="0.001" data-aim="width" value="${aim.width}">
+          <input type="number" min="${wLo}" max="${wHi}" step="0.001" data-aim="width" value="${aim.width}">
         </span>
         ${scopeSel}${clear}
       </label>`;
@@ -431,10 +442,11 @@ function renderPanel() {
     const apply = () => {
       const k = inp.dataset.aim;
       let v = inp.value;
-      if (k === 'speed' || k === 'beams' || k === 'dashes') {
+      if (k === 'speed' || k === 'width' || k === 'beams' || k === 'dashes') {
         v = Number(v);
         if (!Number.isFinite(v)) return;
         if (k === 'beams' || k === 'dashes') v = Math.min(4, Math.max(1, Math.round(v)));
+        if (k === 'width') v = Math.min(0.06, Math.max(0.006, Math.round(v * 1000) / 1000));
         panel.querySelectorAll(`input[data-aim="${k}"]`).forEach((n) => { if (n !== inp) n.value = String(v); });
       }
       if (writeAim(id, k, v)) renderPanel();
