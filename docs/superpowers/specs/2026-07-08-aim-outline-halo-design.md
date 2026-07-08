@@ -84,9 +84,10 @@ Add an **Aim outline** block near mesh/float:
 - **Mesh off (`?mesh=0`):** SVG `feMorphology` ring is always **solid**. Fancy
   `spin` / `chase` stay WebGL-only so the no-mesh path never invents CSS motion
   or double-draws against `.aim-mesh`.
-- Combat behaviour unchanged: show ring while inspecting a card with a known
-  default target (`self` / sole `enemy` / `allEnemies`); hide when armed for
-  multi-target pick.
+- Combat behaviour: silhouette shows who the card would hit —
+  `allEnemies` → every living foe; single `enemy` → the sole living foe, or the
+  hovered valid target while aiming/dragging; `self` → hero. Multi-foe hover of
+  a single-target card does **not** outline every enemy.
 
 ## Out of scope
 

@@ -1325,8 +1325,9 @@ function hoverEnemyAt(x, y) {
 // the consequence, spelled out: while a card is armed or inspected, each foe
 // shows exactly what it would lose — block-eaten, vulnerability-multiplied —
 // with a ghost segment on its bar and a death-mark when the number is lethal.
-// Hovering a card also paints a sharp silhouette ring on who it can hit
-// (meshAim when warp is live so the ring tracks float/deform; SVG otherwise).
+// Aim silhouette: allEnemies → every living foe; single-target → sole living
+// foe, or the hovered valid target while aiming/dragging; never paint every
+// foe for a single-target card just because it was hovered.
 function updatePreviews() {
   const ce = S.ce, cb = S.cb;
   if (!ce || !cb) return;
@@ -1357,7 +1358,10 @@ function updatePreviews() {
         dim = aiming && living > 1 && !x.root.classList.contains('target-hover');
       }
     }
-    const aim = inspect && en.hp > 0 && (d.target === 'allEnemies' || d.target === 'enemy');
+    const hovered = x.root.classList.contains('target-hover');
+    const aimAll = d?.target === 'allEnemies' && (inspect || (S.drag?.live && S.drag.free));
+    const aimOne = d?.target === 'enemy' && (living === 1 || (aiming && hovered));
+    const aim = !!(inst && !cb.over && !d.unplayable && en.hp > 0 && (aimAll || aimOne));
     x.root.classList.toggle('aim-target', aim);
     if (aim) {
       const sprite = $('.enemy-sprite', x.art) || x.art;
