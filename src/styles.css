@@ -893,14 +893,23 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .candle.lit:nth-child(4) { animation-delay: 0.2s; }
 .candle.lit:nth-child(5) { animation-delay: 0.7s; }
 @keyframes candleFlick { 50% { box-shadow: 0 0 4px rgba(255, 190, 90, 0.55); transform: scaleY(0.92); } }
-/* the ward: block made visible — a ring of held light around the body */
-.hero-wrap.warded::before, .enemy-art.warded::before {
-  content: ''; position: absolute; inset: 2%; border-radius: 50%; pointer-events: none;
-  border: 1.5px solid rgba(150, 200, 255, 0.5);
-  box-shadow: 0 0 16px rgba(130, 185, 255, 0.35), inset 0 0 26px rgba(130, 185, 255, 0.2);
+/* the ward: block made visible — glass lead shell around the body */
+.ward-ring {
+  position: absolute; inset: -5%; width: 110%; height: 110%; margin: 0;
+  pointer-events: none; z-index: 4; opacity: 0; overflow: visible; display: block;
+}
+.hero-wrap.warded .ward-ring,
+.enemy-art.warded .ward-ring {
+  opacity: 1;
+  filter: drop-shadow(0 0 10px rgba(130, 185, 255, 0.45));
   animation: wardPulse 2.4s ease-in-out infinite;
 }
-@keyframes wardPulse { 50% { box-shadow: 0 0 26px rgba(130, 185, 255, 0.55), inset 0 0 32px rgba(130, 185, 255, 0.3); } }
+@keyframes wardPulse {
+  50% {
+    filter: drop-shadow(0 0 18px rgba(130, 185, 255, 0.72));
+    opacity: 0.92;
+  }
+}
 .end-turn {
   position: absolute; right: calc(34px + var(--sar)); bottom: calc(168px + var(--sab)); z-index: 24; padding: 13px 30px;
   box-shadow: inset 0 0 0 1px var(--gold), inset 0 10px 20px -12px rgba(255, 255, 255, 0.14), 0 4px 14px rgba(0, 0, 0, 0.5);
@@ -1348,7 +1357,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   #grain { display: none; }
   #wipe, #transit, .rose-window { display: none; }
   .logo, .card.r-rare .card-inner::after, .energy-orb::before { animation: none; }
-  #lantern.gutter, .candle.lit, .hero-wrap.warded::before, .enemy-art.warded::before { animation: none; }
+  #lantern.gutter, .candle.lit, .hero-wrap.warded .ward-ring, .enemy-art.warded .ward-ring { animation: none; }
   .ember, .mon-flame, .enemy.doomed .enemy-art { animation: none; }
   .enemy-sprite[class*="idle-"], .idle-motes::before, .idle-motes::after { animation: none; }
   #tooltip { animation: fadein 0.1s both; }

@@ -561,3 +561,18 @@ export function iconInline(name, size = 18) {
   const s = size / 24;
   return `<g transform="translate(${-size / 2},${-size / 2}) scale(${s})">${iconBody(name)}</g>`;
 }
+
+/** Persistent Ward shell — glass lead ring around a combatant while block > 0. */
+export function wardRingSvg() {
+  return `<svg class="ward-ring" viewBox="0 0 200 200" aria-hidden="true">
+    <ellipse cx="100" cy="102" rx="76" ry="84" fill="rgba(159,212,255,0.12)"/>
+    <ellipse cx="100" cy="102" rx="76" ry="84" fill="none" stroke="#080b16" stroke-width="3.1" opacity="0.55"/>
+    <ellipse cx="100" cy="102" rx="76" ry="84" fill="none" stroke="#cfe4ff" stroke-width="1.55" opacity="0.9"/>
+    <path d="M38 76 Q100 50 162 76" fill="none" stroke="#080b16" stroke-width="2.2" opacity="0.45"/>
+    <path d="M38 76 Q100 50 162 76" fill="none" stroke="#9fd4ff" stroke-width="1.1" opacity="0.7"/>
+    <path d="M36 120 Q100 142 164 120" fill="none" stroke="#080b16" stroke-width="2" opacity="0.4"/>
+    <path d="M36 120 Q100 142 164 120" fill="none" stroke="#9fd4ff" stroke-width="1" opacity="0.55"/>
+    <path d="M100 24 L100 176" fill="none" stroke="#080b16" stroke-width="2" opacity="0.35"/>
+    <path d="M100 24 L100 176" fill="none" stroke="#cfe6ff" stroke-width="1" opacity="0.5"/>
+  </svg>`;
+}
