@@ -198,7 +198,7 @@ function paintActor() {
 
   if (state.anim && meshEnabled() && url) {
     meshBind([{ el: sprite, url, kind, id }]);
-    if (state.outline) meshAim(sprite, true, isHero(id) ? '#e8f7ff' : '#fff6ec');
+    if (state.outline) meshAim(sprite, true, isHero(id) ? { style: 'spin', speed: 1, color: '#e8f7ff' } : { style: 'spin', speed: 1, color: '#fff6ec' });
     else meshAimClear();
   } else {
     meshAimClear();
@@ -315,7 +315,7 @@ function renderPanel() {
     state.outline = e.target.checked;
     const sprite = document.querySelector('.ce-sprite');
     if (!sprite?.classList.contains('mesh-live')) { paintActor(); return; }
-    if (state.outline) meshAim(sprite, true, isHero(state.id) ? '#e8f7ff' : '#fff6ec');
+    if (state.outline) meshAim(sprite, true, isHero(state.id) ? { style: 'spin', speed: 1, color: '#e8f7ff' } : { style: 'spin', speed: 1, color: '#fff6ec' });
     else meshAimClear();
   };
 

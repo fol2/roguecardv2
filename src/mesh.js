@@ -118,12 +118,16 @@ const BODY_FRAG = /* glsl */`
   }
 `;
 // card-hover aim ring: dilate body alpha in UV, punch the interior — shares the
-// deformed geo + float layout so the outline tracks mesh warp / bob
+// deformed geo + float layout so the outline tracks mesh warp / bob.
+// uStyle: 0 solid, 1 spin (dashed), 2 chase (pulse along edge)
 const AIM_FRAG = /* glsl */`
   varying vec2 vUv;
   uniform sampler2D map;
   uniform vec3 uColor;
   uniform float uWidth;
+  uniform float uStyle;
+  uniform float uSpeed;
+  uniform float uTime;
   void main() {
     float a = texture2D(map, vUv).a;
     float o = a;
@@ -134,8 +138,18 @@ const AIM_FRAG = /* glsl */`
       o = max(o, texture2D(map, vUv + d * 0.55).a);
     }
     float ring = max(0.0, o - a);
-    if (ring < 0.04) discard;
-    gl_FragColor = vec4(uColor, min(1.0, ring * 1.8));
+    float mask = 1.0;
+    float ang = atan(vUv.y - 0.5, vUv.x - 0.5);
+    if (uStyle > 0.5 && uStyle < 1.5) {
+      mask = step(0.42, fract(ang / 6.2831853 * 8.0 - uTime * uSpeed));
+    } else if (uStyle > 1.5) {
+      float head = fract(ang / 6.2831853 - uTime * uSpeed);
+      float pulse = smoothstep(0.0, 0.08, head) * (1.0 - smoothstep(0.08, 0.22, head));
+      mask = max(pulse, 0.28);
+    }
+    float aOut = ring * mask;
+    if (aOut < 0.04) discard;
+    gl_FragColor = vec4(uColor, min(1.0, aOut * 1.8));
     #include <colorspace_fragment>
   }
 `;
@@ -158,7 +172,14 @@ function makePlane(url, profile, seed, img) {
   p.mesh = mesh;
   // same geo as body → outline vertices deform + float with the combatant
   const aimMat = new THREE.ShaderMaterial({
-    uniforms: { map: { value: tex }, uColor: { value: new THREE.Color('#fff6ec') }, uWidth: { value: 0.018 } },
+    uniforms: {
+      map: { value: tex },
+      uColor: { value: new THREE.Color('#fff6ec') },
+      uWidth: { value: 0.018 },
+      uStyle: { value: 1 },
+      uSpeed: { value: 1 },
+      uTime: { value: 0 },
+    },
     vertexShader: BODY_VERT, fragmentShader: AIM_FRAG,
     transparent: true, depthTest: false, depthWrite: false,
   });
@@ -462,6 +483,7 @@ function tick(t) {
   for (const p of planes) {
     deformPlane(p, sec);
     layoutPlane(p, sec, off);
+    if (p.aimMat && p.aimOn) p.aimMat.uniforms.uTime.value = sec;
   }
   renderer.render(scene, camera);
 }
@@ -668,13 +690,19 @@ export function meshLift(el) {
   return Math.max(0, (p.profile.float || 0) * Math.sin(t * 1.15 + p.seed * 0.7) * 12 * INTENSITY);
 }
 
-/** Toggle the silhouette aim ring on a mesh-bound sprite. Returns false if no plane (SVG fallback). */
-export function meshAim(el, on, color = '#fff6ec') {
+/** Toggle the silhouette aim ring on a mesh-bound sprite. Returns false if no plane (SVG fallback).
+ *  cfg: { style:'spin'|'chase'|'solid', speed, color } */
+export function meshAim(el, on, cfg = null) {
   const p = findPlane(el);
   if (!p?.outline) return false;
   p.aimOn = !!on;
   p.outline.visible = !!on;
-  if (on && p.aimMat) p.aimMat.uniforms.uColor.value.set(color);
+  if (on && p.aimMat && cfg) {
+    const style = cfg.style === 'chase' ? 2 : cfg.style === 'solid' ? 0 : 1;
+    p.aimMat.uniforms.uStyle.value = style;
+    p.aimMat.uniforms.uSpeed.value = Number.isFinite(cfg.speed) ? cfg.speed : 1;
+    p.aimMat.uniforms.uColor.value.set(cfg.color || '#fff6ec');
+  }
   return true;
 }
 

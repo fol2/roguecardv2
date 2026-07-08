@@ -7,7 +7,7 @@ import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, beque
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
 import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift, meshAim, meshAimClear } from './mesh.js';
-import { charShadowLive, charCssFloat, onCharMetaChange } from './char-meta.js';
+import { charShadowLive, charCssFloat, charAim, onCharMetaChange } from './char-meta.js';
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
@@ -1342,7 +1342,9 @@ function updatePreviews() {
   ce.hero?.classList.toggle('aim-target', heroOn);
   if (heroOn) {
     const sprite = $('.hero-sprite', ce.hero) || ce.hero;
-    if (meshAim(sprite, true, '#e8f7ff')) ce.hero.classList.add('aim-mesh');
+    const heroId = ASPECTS[S.run.aspect].id;
+    const heroCfg = { ...charAim(heroId), color: '#e8f7ff' };
+    if (meshAim(sprite, true, heroCfg)) ce.hero.classList.add('aim-mesh');
     else ce.hero.classList.remove('aim-mesh');
   } else ce.hero?.classList.remove('aim-mesh');
   cb.enemies.forEach((en, i) => {
@@ -1359,7 +1361,7 @@ function updatePreviews() {
     x.root.classList.toggle('aim-target', aim);
     if (aim) {
       const sprite = $('.enemy-sprite', x.art) || x.art;
-      if (meshAim(sprite, true, '#fff6ec')) x.root.classList.add('aim-mesh');
+      if (meshAim(sprite, true, charAim(en.key))) x.root.classList.add('aim-mesh');
       else x.root.classList.remove('aim-mesh');
     } else x.root.classList.remove('aim-mesh');
     if (pv && (pv.total > 0 || pv.chips > 0)) {
