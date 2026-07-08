@@ -2941,6 +2941,7 @@ function renderGallery() {
     deeds: Object.keys(DEEDS).map((k) => [k, () => iconSvg(`deed-${k}`, 64)]),
     bequests: ['relic', 'card', 'gold'].map((k) => [k, () => iconSvg(`bequest-${k}`, 64)]),
     meta: ['fallen', 'ascended', 'monument-node'].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
+    vfx: ['ward-loop', 'ward-gain'].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
   };
   screenEl().className = 'gallery-mode';
   screenEl().innerHTML = `<div class="g-toolbar">

@@ -121,6 +121,8 @@ Council-approved live assets:
 - `events/cursedIdol.png`
 - `events/ruinedCamp.png`
 - `title/title.png`
+- `vfx/ward-loop.png`
+- `vfx/ward-gain.png`
 
 Asset source decisions:
 
@@ -447,4 +449,5 @@ http://localhost:5174/?gallery=1&set=legacy
 The approved prop set should appear in that gallery as `props - 4/4 generated`.
 The approved event set should appear as `events - 11/11 generated`.
 The approved card set should appear as `cards - 60/60 generated`.
+The approved ward VFX set should appear as `vfx - 2/2 generated`.
 The final prop registration proof is recorded in `docs/prop-gallery-proof.md`.
