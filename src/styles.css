@@ -893,7 +893,10 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .candle.lit:nth-child(4) { animation-delay: 0.2s; }
 .candle.lit:nth-child(5) { animation-delay: 0.7s; }
 @keyframes candleFlick { 50% { box-shadow: 0 0 4px rgba(255, 190, 90, 0.55); transform: scaleY(0.92); } }
-/* the ward: block made visible — 4-frame glass shell (src/assets/vfx/ward-loop.png) */
+/* the ward: block made visible — 4-frame glass shell (src/assets/vfx/ward-loop.png)
+   Sprite sheets: N frames need steps(N-1) when tweening background-position 0%→100%
+   (percentage positions are 0, 1/(N-1), …, 1). steps(4) lands on 25/50/75 and
+   shows between-cells — looks like horizontal drift vs the pixel-scrub editor. */
 .ward-fx {
   position: absolute; inset: -8%; z-index: 4; pointer-events: none;
   background-repeat: no-repeat; background-position: 0 0;
@@ -903,7 +906,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .hero-wrap.warded .ward-fx,
 .enemy-art.warded .ward-fx {
   opacity: 0.9;
-  animation: wardLoop 2.4s steps(4) infinite;
+  animation: wardLoop 2.4s steps(3) infinite;
 }
 @keyframes wardLoop {
   to { background-position: 100% 0; }
@@ -913,7 +916,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   background-repeat: no-repeat; background-position: 0 0;
   background-size: 400% 100%;
   mix-blend-mode: screen;
-  animation: wardGain 0.42s steps(4) forwards;
+  animation: wardGain 0.42s steps(3) forwards;
 }
 @keyframes wardGain {
   to { background-position: 100% 0; opacity: 0; }
