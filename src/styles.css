@@ -471,9 +471,11 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 }
 @media (prefers-reduced-motion: reduce) { .sl { animation: none; } }
 /* combatants float above the diorama; the warp canvas #mesh (6) slots between
-   the diorama (0-3) and the battlefield (7), so DOM crack seams and plates read
-   over the warp body while the hand (22) and buttons (24) always beat the mobs
-   — #lantern darkness sits at 21 */
+   cast-shadows (5) and the battlefield (7), so the mesh body reads OVER the
+   contact shadow (charedit has the same order: sprite above .ce-shadow).
+   DOM crack seams and plates still beat the warp; hand (22) / buttons (24)
+   always beat the mobs — #lantern darkness sits at 21 */
+.combat-screen .cast-shadow-layer { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
 .combat-screen .battlefield { z-index: 7; }
 .stage-ledge::before {
   content: ''; position: absolute; top: calc(-1 * var(--ledge-lip)); left: 6%; right: 6%; height: 1.5px;
@@ -535,9 +537,10 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .enemy-art { position: relative; }
 .enemy-sprite { position: relative; width: 100%; height: 100%; z-index: 1; }
 .enemy-art svg { width: 100%; height: 100%; display: block; }
-/* cast contact shadow — per-id knobs in src/char-meta.js (?charedit=1); float lift fades it */
+/* cast contact shadow — per-id knobs in src/char-meta.js (?charedit=1); float lift fades it.
+   In combat, shadows live in .cast-shadow-layer (z5) under #mesh (z6) so they never cover the body. */
 .cast-shadow {
-  position: absolute; inset: 0; overflow: visible; z-index: 0; pointer-events: none;
+  position: absolute; overflow: visible; pointer-events: none;
   transform-origin: var(--foot-ox, 50%) var(--foot-oy, 100%);
   transform: translate(var(--sh-x, 0), var(--sh-y, 0)) scale(var(--sh-sx, 1), var(--sh-sy, 0.24)) skewX(var(--sh-skew, 0deg));
   opacity: var(--sh-o, 0.62); filter: blur(var(--sh-blur, 1.5px)); mix-blend-mode: multiply;
@@ -978,8 +981,8 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .enemy-svg .breathe, .hero-svg .breathe { animation: breathe 3.4s ease-in-out infinite; transform-origin: 100px 190px; }
 @keyframes breathe { 0%, 100% { transform: scaleY(1) scaleX(1) rotate(0deg); } 50% { transform: scaleY(var(--brY, 1.035)) scaleX(0.99) rotate(var(--sw, 0deg)); } }
 /* stained glass casts its light: each creature's color pooled on the ground */
-.lightpool { position: absolute; left: 2%; right: 2%; bottom: -19px; height: 42px; z-index: -1; pointer-events: none; filter: blur(8px); opacity: 0.55; }
-.enemy-art > .lightpool { bottom: -14px; }
+/* lightpool oval retired — cast-shadow owns ground contact; keep rule inert if any leftover DOM */
+.lightpool { display: none; }
 /* low HP: the glass slumps, the fire inside it gutters (rig dims .innerfire) */
 .enemy-art svg, .hero-wrap svg { transition: transform 0.9s ease; }
 .enemy.lowhp .enemy-art svg { transform: rotate(2.4deg) translateY(4px) scale(0.985); }

@@ -856,6 +856,7 @@ function renderCombat() {
     }).join('')}
     <div class="stage-ledge"></div>
     <div class="stage-breath b1"></div><div class="stage-breath b2"></div>
+    <div class="cast-shadow-layer" aria-hidden="true"></div>
     <div class="battlefield">
       <div class="player-zone">
         <div class="hero-wrap">
@@ -1510,8 +1511,18 @@ function castShadowEl(url, svg) {
   } else sh.classList.add('cast-shadow-blob');
   return sh;
 }
+/** Pin shadow box to the art rect in stage px (layer is under #mesh). */
+function layoutCastShadow(it) {
+  if (!it.shadow || !it.art) return;
+  const r = stageRect(it.art);
+  it.shadow.style.left = `${r.left}px`;
+  it.shadow.style.top = `${r.top}px`;
+  it.shadow.style.width = `${r.width}px`;
+  it.shadow.style.height = `${r.height}px`;
+}
 function syncCastShadow(it, lift) {
   if (!it.shadow || !it.shadowId) return;
+  layoutCastShadow(it);
   const c = charShadowLive(it.shadowId);
   const max = it.shadowMax || 16;
   const t = Math.min(1, lift / max);
@@ -1521,8 +1532,9 @@ function syncCastShadow(it, lift) {
   const blur = c.blur + t * 2.8;
   const skew = c.skew * (1 - t * 0.35);
   const dx = c.dx + c.skew * 0.35 * (1 - t * 0.5);
-  // layout footY moves the art box off the ground line; shift shadow back onto it
-  const dy = c.dy + (it.footY || 0);
+  // layout footX/footY move the art box (upstream); shadow tracks the art rect
+  // each frame. dy/dx are shadow-only fine-tunes — do NOT re-add foot*.
+  const dy = c.dy;
   it.shadow.style.setProperty('--foot-ox', `${c.ox}%`);
   it.shadow.style.setProperty('--foot-oy', `${c.oy}%`);
   it.shadow.style.setProperty('--sh-sx', sx.toFixed(3));
@@ -1536,6 +1548,8 @@ function syncCastShadow(it, lift) {
 function rigCombatants() {
   const ce = S.ce, cb = S.cb;
   ce.rig = [];
+  const layer = $('.cast-shadow-layer', ce.root);
+  if (layer) layer.innerHTML = '';
   const add = (root, art, glow, isHero, idx, kind, hue = 0, artUrl = '', shadowId = '', footY = 0) => {
     const svg = $('svg', art);
     const sprite = $('.enemy-sprite', art) || art;
@@ -1562,15 +1576,15 @@ function rigCombatants() {
         sprite.appendChild(motes);
       }
     }
+    // under #mesh (z6), not inside .battlefield (z7) — otherwise the puddle covers the warp body
     const shadow = castShadowEl(artUrl || raster?.src || '', svg);
-    art.insertBefore(shadow, art.firstChild);
-    const pool = el('div', 'lightpool');
-    pool.style.background = `radial-gradient(ellipse at 50% 50%, ${glow}, transparent 72%)`;
-    art.appendChild(pool);
+    (layer || art).appendChild(shadow);
+    // lightpool oval retired — cast-shadow owns the ground contact read
+    void glow;
     const floatKinds = { wisp: 20, eye: 20, siren: 14, shade: 14, plant: 10, slime: 6 };
     const rig = {
       root, art, sprite, svg, eyes: svg ? $$('.eye', svg) : [], fire: svg ? $('.innerfire', svg) : null,
-      pool, shadow, shadowId, footY, shadowMax: floatKinds[kind] || 12, seed, isHero, idx, dx: 0, dy: 0,
+      pool: null, shadow, shadowId, footY, shadowMax: floatKinds[kind] || 12, seed, isHero, idx, dx: 0, dy: 0,
     };
     ce.rig.push(rig);
     syncCastShadow(rig, 0);
@@ -1624,7 +1638,7 @@ function rigTick(t) {
   for (const it of ce.rig) {
     const unit = it.isHero ? cb.player : cb.enemies[it.idx];
     if (!it.isHero && unit.hp <= 0) {
-      it.pool.style.opacity = 0;
+      if (it.pool) it.pool.style.opacity = 0;
       if (it.shadow) it.shadow.style.opacity = 0;
       continue;
     }
@@ -1647,7 +1661,7 @@ function rigTick(t) {
     if ((unit.statuses?.str || 0) > 0) f += 0.3;
     const flick = 0.86 + 0.14 * Math.sin(t * 0.006 + it.seed) * Math.sin(t * 0.0021 + it.seed * 3);
     if (it.fire) it.fire.style.opacity = Math.min(0.55, (0.05 + 0.13 * f) * flick).toFixed(3);
-    it.pool.style.opacity = Math.min(0.85, (0.3 + 0.4 * f) * flick).toFixed(3);
+    if (it.pool) it.pool.style.opacity = Math.min(0.85, (0.3 + 0.4 * f) * flick).toFixed(3);
   }
 }
 

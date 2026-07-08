@@ -1145,6 +1145,38 @@ function randomAgentRun(seed) {
   assert.equal(bfActor('enemies', 'leviathan').scale, 4, 'bfActor: leviathan scale from char-meta');
 }
 
+// ---- char feet scan (auto-detect ox/oy) --------------------------------------
+{
+  const { containBottom, feetFromAlpha, feetToOriginPct } = await import('../src/dev/char-feet-scan.js');
+  const box = containBottom(100, 200, 100, 200);
+  assert.equal(box.ox, 0, 'feet-scan: full-bleed ox');
+  assert.equal(box.oy, 0, 'feet-scan: full-bleed oy');
+  // letterbox: tall art in wide box → bottom-aligned
+  const lb = containBottom(50, 100, 200, 100);
+  assert.ok(Math.abs(lb.s - 1) < 1e-9, 'feet-scan: letterbox scale');
+  assert.equal(lb.oy, 0, 'feet-scan: bottom-aligned');
+  assert.equal(lb.ox, 75, 'feet-scan: centered X');
+
+  // 8×8: opaque L-shape with a thin tip at bottom and a wider foot row above
+  const w = 8, h = 8;
+  const data = new Uint8ClampedArray(w * h * 4);
+  const set = (x, y) => { const i = (y * w + x) * 4; data[i] = 255; data[i + 3] = 255; };
+  // body mass mid
+  for (let y = 1; y <= 4; y++) for (let x = 2; x <= 5; x++) set(x, y);
+  // wider foot row at y=5 (span 4)
+  for (let x = 2; x <= 5; x++) set(x, 5);
+  // single-pixel cape tip at y=7 (should be skipped for footRow)
+  set(3, 7);
+  const feet = feetFromAlpha(data, w, h);
+  assert.ok(feet, 'feet-scan: found feet');
+  assert.equal(feet.footRow, 5, 'feet-scan: skips thin tip');
+  assert.ok(feet.footX >= 2 && feet.footX <= 5, 'feet-scan: footX in span');
+
+  const pct = feetToOriginPct({ footX: 50, footRow: 199 }, 100, 200, 100, 200);
+  assert.equal(pct.ox, 50, 'feet-scan: origin ox');
+  assert.equal(pct.oy, 99.5, 'feet-scan: origin oy near bottom');
+}
+
 let wins = 0, deaths = 0;
 const RUNS = 300;
 for (let i = 0; i < RUNS; i++) {

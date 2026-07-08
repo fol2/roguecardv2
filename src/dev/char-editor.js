@@ -15,6 +15,7 @@ import {
 import { bfResolve, bfEnemySize } from '../battlefield.js';
 import { initStage } from '../stage.js';
 import { initMesh, meshBind, meshClear, meshEnabled, meshLift, meshProfileFor } from '../mesh.js';
+import { scanShadowOrigin } from './char-feet-scan.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const HERO_IDS = ASPECTS.map((a) => a.id);
@@ -115,7 +116,9 @@ function spriteLiftPx(el) {
   return Math.max(0, -ty);
 }
 
-function applyShadowCss(shadowEl, id, lift, footY, zoom) {
+function applyShadowCss(shadowEl, id, lift, zoom = 1) {
+  // Same as combat syncCastShadow: layout foot*/scale move the art box
+  // (upstream); shadow is a child and follows. dx/dy are shadow-only.
   const c = shadowOf(id);
   const max = 16;
   const t = Math.min(1, lift / max);
@@ -125,7 +128,7 @@ function applyShadowCss(shadowEl, id, lift, footY, zoom) {
   const blur = (c.blur + t * 2.8) * zoom;
   const skew = c.skew * (1 - t * 0.35);
   const dx = (c.dx + c.skew * 0.35 * (1 - t * 0.5)) * zoom;
-  const dy = (c.dy + footY) * zoom;
+  const dy = c.dy * zoom;
   shadowEl.style.setProperty('--foot-ox', `${c.ox}%`);
   shadowEl.style.setProperty('--foot-oy', `${c.oy}%`);
   shadowEl.style.setProperty('--sh-sx', String(sx));
@@ -149,22 +152,25 @@ function paintActor() {
   const w = Math.round(ap.w * z);
   const h = Math.round(ap.h * z);
   const footY = Math.round(ap.footY * z);
+  const footX = Math.round(ap.footX * z);
   const c = shadowOf(id);
   const entry = entryOf(id);
   const idle = state.anim && FLOAT_KINDS.has(kind) ? ` idle-${kind}` : '';
   const cssFloat = entry.cssFloat;
   const floatAmp = Math.round((cssFloat != null ? cssFloat : 12) * z);
 
+  // Layout is upstream (same as combat): box at ground + foot*; shadow is a
+  // child so it follows. Cast-shadow dx/dy are fine-tunes only.
   host.innerHTML = `
     <div class="ce-ground"></div>
-    <div class="ce-actor" style="width:${w}px;height:${h}px;bottom:calc(14% + ${footY}px)">
+    <div class="ce-actor" style="width:${w}px;height:${h}px;bottom:calc(14% + ${footY}px);margin-left:${footX}px">
       <div class="ce-shadow cast-shadow"></div>
       <div class="ce-sprite${idle}" style="${idle ? `--float-y:${floatAmp}px` : ''}">
         ${url ? `<img class="raster-art" src="${url}" alt="">` : '<div class="ce-missing">no art</div>'}
       </div>
-      <div class="ce-feet" style="left:${c.ox}%;top:${c.oy}%"></div>
+      <div class="ce-feet" style="left:${c.ox}%;top:${c.oy}%" title="ox/oy on the art box"></div>
     </div>
-    <div class="ce-meta">${labelOf(id)} · ${kind} · combat ${ap.w}×${ap.h} · zoom ×${z}${state.anim ? ' · anim on' : ' · anim off'}</div>`;
+    <div class="ce-meta">${labelOf(id)} · ${kind} · combat ${ap.w}×${ap.h} · zoom ×${z}${state.anim ? ' · anim on' : ' · anim off'}${ap.footY || ap.footX ? ` · foot ${ap.footX},${ap.footY}` : ''}</div>`;
 
   const shadow = host.querySelector('.ce-shadow');
   if (url) {
@@ -173,7 +179,7 @@ function paintActor() {
     img.alt = '';
     shadow.appendChild(img);
   } else shadow.classList.add('cast-shadow-blob');
-  applyShadowCss(shadow, id, 0, ap.footY, z);
+  applyShadowCss(shadow, id, 0, z);
 
   const sprite = host.querySelector('.ce-sprite');
   const actor = host.querySelector('.ce-actor');
@@ -200,7 +206,7 @@ function paintActor() {
       lift = spriteLiftPx(sprite);
       if (sprite.classList.contains('mesh-live')) lift += meshLift(sprite);
     }
-    applyShadowCss(shadow, id, lift / z, ap.footY, z);
+    applyShadowCss(shadow, id, lift / z, z);
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -262,6 +268,9 @@ function renderPanel() {
     <h4>layout</h4>
     <div class="ce-fields">${layoutRows}</div>
     <h4>cast shadow</h4>
+    <div class="ce-shadow-tools">
+      <button type="button" id="ce-autodetect" title="Scan PNG alpha for feet → ox/oy">Auto-detect feet</button>
+    </div>
     <div class="ce-fields">${shadowRows}</div>
     <h4>mesh / float <em class="ce-kind">kind ${kindOf(id)}</em></h4>
     <p class="ce-sub">Overrides kind PROFILE (base shown). Clear = use kind default.</p>
@@ -276,7 +285,7 @@ function renderPanel() {
       <button type="button" id="ce-reset">Reset character</button>
       <button type="button" id="ce-save">Save char-meta</button>
     </div>
-    <p class="ce-hint">Click sprite → plant shadow ox/oy. Zoom is preview-only. All knobs write <code>char-meta.js</code>.</p>`;
+    <p class="ce-hint">Layout (scale/footX/footY) moves the art box — shadow follows as a child (same as combat). Click / auto-detect plant ox/oy; dx/dy are shadow-only fine-tunes. Saves to <code>char-meta.js</code>.</p>`;
 
   panel.querySelector('#ce-id').onchange = (e) => {
     state.id = e.target.value;
@@ -372,12 +381,30 @@ function renderPanel() {
     renderPanel();
   });
 
+  panel.querySelector('#ce-autodetect').onclick = () => autoDetectFeet();
   panel.querySelector('#ce-reset').onclick = () => {
     delete state.meta[id];
     markDirty();
     renderPanel();
   };
   panel.querySelector('#ce-save').onclick = () => saveMeta();
+}
+
+async function autoDetectFeet() {
+  const id = state.id;
+  const url = urlOf(id);
+  const ap = actorParams(id); // keep current scale/foot* — ox/oy are art-box %
+  const btn = document.getElementById('ce-autodetect');
+  if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
+  const hit = await scanShadowOrigin(url, ap.w, ap.h);
+  if (btn) { btn.disabled = false; btn.textContent = 'Auto-detect feet'; }
+  if (!hit) return alert('Auto-detect failed — no opaque pixels (or missing art).');
+  const ent = ensureEntry(id);
+  ent.shadow ??= {};
+  ent.shadow.ox = hit.ox;
+  ent.shadow.oy = hit.oy;
+  markDirty();
+  renderPanel();
 }
 
 async function saveMeta() {
@@ -440,6 +467,10 @@ const CSS = `
 #ce-panel h4 { margin: 14px 0 8px; color: #f0c56a; font: inherit; letter-spacing: 0.08em; text-transform: uppercase; font-size: 11px; }
 #ce-panel h4 .ce-kind { color: #9aa7c8; font-style: normal; letter-spacing: 0; text-transform: none; margin-left: 6px; }
 .ce-sub { color: #6a7288; font-size: 11px; margin: -4px 0 8px; }
+.ce-shadow-tools { margin-bottom: 8px; }
+.ce-shadow-tools button { font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+.ce-shadow-tools button:hover { border-color: #f0c56a; color: #f0c56a; }
+.ce-shadow-tools button:disabled { opacity: 0.5; cursor: wait; }
 #ce-stage {
   position: absolute; inset: 0; padding-right: 320px; box-sizing: border-box;
   background:
