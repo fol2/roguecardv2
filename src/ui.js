@@ -6,7 +6,7 @@ import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
-import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift } from './mesh.js';
+import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift, meshAim, meshAimClear } from './mesh.js';
 import { charShadowLive, charCssFloat, onCharMetaChange } from './char-meta.js';
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
@@ -1026,8 +1026,13 @@ function statusChips(container, statuses, isPlayer) {
     if (!n) continue;
     const info = STATUS_INFO[id] || { name: id, icon: '?', kind: 'buff', desc: '' };
     const kind = id === 'str' && n < 0 ? 'debuff' : info.kind;
-    const chip = el('span', `schip ${kind}`, `${hasIcon(`st-${id}`) ? iconSvg(`st-${id}`, 13) : info.icon} <span class="n">${n}</span>`);
-    chip._tip = { title: info.name, body: info.desc.replace(/\bN\b/g, n), sub: kind === 'debuff' ? 'Debuff' : 'Buff' };
+    const u = assetUrl('statuses', id);
+    const art = u
+      ? `<img class="schip-art" src="${u}" alt="">`
+      : (hasIcon(`st-${id}`) ? iconSvg(`st-${id}`, 28) : info.icon);
+    const count = Math.abs(n) >= 2 ? `<span class="n">${n}</span>` : '';
+    const chip = el('span', `schip ${kind}`, `${art}${count}`);
+    chip._tip = { title: info.name, body: info.desc.replace(/\bN\b/g, Math.abs(n)), sub: kind === 'debuff' ? 'Debuff' : 'Buff' };
     container.appendChild(chip);
   }
 }
