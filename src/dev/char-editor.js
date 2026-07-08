@@ -97,8 +97,7 @@ function syncAimScopes(id) {
   }
 }
 function previewAimCfg(id) {
-  const cfg = aimOf(id);
-  return isHero(id) ? { ...cfg, color: '#e8f7ff' } : cfg;
+  return aimOf(id);
 }
 function applyAimPreview() {
   const sprite = document.querySelector('.ce-sprite');

@@ -1344,8 +1344,7 @@ function updatePreviews() {
   if (heroOn) {
     const sprite = $('.hero-sprite', ce.hero) || ce.hero;
     const heroId = ASPECTS[S.run.aspect].id;
-    const heroCfg = { ...charAim(heroId), color: '#e8f7ff' };
-    if (meshAim(sprite, true, heroCfg)) ce.hero.classList.add('aim-mesh');
+    if (meshAim(sprite, true, charAim(heroId))) ce.hero.classList.add('aim-mesh');
     else ce.hero.classList.remove('aim-mesh');
   } else ce.hero?.classList.remove('aim-mesh');
   cb.enemies.forEach((en, i) => {

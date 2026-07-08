@@ -46,8 +46,8 @@ CHAR_META[id].aim = { style?, speed?, color? };
 
 - Missing per-id fields inherit global.
 - Clearing a character field deletes that key (or the whole `aim` object if empty).
-- Hero self-target may apply a runtime tint (e.g. `#e8f7ff`) without storing a
-  separate hero default in meta.
+- Hero self-target uses the same resolved `charAim(id)` color as enemies (no
+  forced runtime tint).
 - Serialize / validate / prune in `char-serialize.js` grow `aim` keys the same
   way `shadow` / `mesh` already do.
 
