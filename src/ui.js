@@ -1298,7 +1298,8 @@ function hoverEnemyAt(x, y) {
 
 // the consequence, spelled out: while a card is armed or inspected, each foe
 // shows exactly what it would lose — block-eaten, vulnerability-multiplied —
-// with a ghost segment on its bar and a death-mark when the number is lethal
+// with a ghost segment on its bar and a death-mark when the number is lethal.
+// Hovering a card with a known default target also paints a silhouette outline.
 function updatePreviews() {
   const ce = S.ce, cb = S.cb;
   if (!ce || !cb) return;
@@ -1309,6 +1310,9 @@ function updatePreviews() {
   const d = inst ? E.cardData(inst) : null;
   const aiming = S.targeting?.kind === 'card' || (S.drag?.live && !S.drag.free);
   const living = cb.enemies.filter((e) => e.hp > 0).length;
+  // card-hover default target (not armed aim): silhouette outline on who the card would hit
+  const inspect = !!(inst && !cb.over && !d.unplayable && !aiming);
+  ce.hero?.classList.toggle('aim-target', inspect && d.target === 'self');
   cb.enemies.forEach((en, i) => {
     const x = ce.enemies[i];
     let pv = null, dim = false;
@@ -1319,6 +1323,10 @@ function updatePreviews() {
         dim = aiming && living > 1 && !x.root.classList.contains('target-hover');
       }
     }
+    const aim = inspect && en.hp > 0 && (
+      d.target === 'allEnemies' || (d.target === 'enemy' && living === 1)
+    );
+    x.root.classList.toggle('aim-target', aim);
     if (pv && (pv.total > 0 || pv.chips > 0)) {
       // bar ghost + facet pips spell out the consequence; the art-overlay number is redundant
       x.prev.classList.remove('show', 'lethal', 'dim');
@@ -2852,6 +2860,7 @@ function renderGallery() {
     omens: Object.keys(OMENS).map((k) => [k, () => iconSvg(`omen-${k}`, 64)]),
     boons: Object.keys(BOONS).map((k) => [k, () => iconSvg(`boon-${k}`, 64)]),
     arts: Object.keys(ARTS).map((k) => [k, () => iconSvg(`art-${k}`, 64)]),
+    statuses: Object.keys(STATUS_INFO).map((k) => [k, () => iconSvg(`st-${k}`, 64)]),
     heroes: ASPECTS.map((a, i) => [a.id, () => heroSvg(i)]),
     enemies: Object.entries(ENEMIES).map(([k, d]) => [k, () => enemySvg(d.art)]),
     cards: Object.entries(CARDS).map(([k, d]) => [k, () => cardArtSvg(k, d.type)]),
