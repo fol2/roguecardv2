@@ -56,10 +56,15 @@ const omenMark = (oid, imgClass, fallbackClass, size = 22) => {
   const u = assetUrl('omens', oid);
   return u ? `<img class="${imgClass}" src="${u}" alt="">` : `<span class="${fallbackClass}">${iconSvg(`omen-${oid}`, size)}</span>`;
 };
+// silhouette outline ring — SVG feMorphology fallback when mesh is off;
+// with mesh on, meshAim() paints the ring on the warped plane instead
+const aimRing = (url, kind) => url
+  ? `<svg class="aim-ring" aria-hidden="true"><image href="${escHtml(url)}" x="0" y="0" width="100%" height="100%" preserveAspectRatio="xMidYMax meet" filter="url(#aim-outline-${kind})"/></svg>`
+  : '';
 const heroArt = (i) => {
   const u = assetUrl('heroes', ASPECTS[i].id);
-  if (!u) return heroSvg(i);
-  return `<div class="hero-sprite">${rasterOr('heroes', ASPECTS[i].id, heroSvg(i))}<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg></div>`;
+  if (!u) return `<div class="hero-sprite">${heroSvg(i)}</div>`;
+  return `<div class="hero-sprite">${aimRing(u, 'self')}${rasterOr('heroes', ASPECTS[i].id, heroSvg(i))}<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg></div>`;
 };
 
 let assetsWarmed = false;
@@ -891,7 +896,7 @@ function renderCombat() {
     box.dataset.idx = i;
     box.style.animationDelay = `${160 + i * 130}ms`;
     box.innerHTML = `<div class="intent"></div>
-      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${rasterOr('enemies', en.key, enemySvg(d.art))}<div class="vessel-fire"></div>${assetUrl('enemies', en.key) ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
+      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${aimRing(assetUrl('enemies', en.key), 'atk')}${rasterOr('enemies', en.key, enemySvg(d.art))}<div class="vessel-fire"></div>${assetUrl('enemies', en.key) ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
       <div class="cplate">
         <div class="name">${afx ? `<span class="affix-name" style="color:${afx.tone}">${afx.name.toUpperCase()}</span> ` : ''}${en.name.toUpperCase()}</div>
         <div class="hpbar-wrap"><span class="block-chip zero">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div><span class="hp-label"></span></div>
@@ -1303,7 +1308,9 @@ function hoverEnemyAt(x, y) {
 
 // the consequence, spelled out: while a card is armed or inspected, each foe
 // shows exactly what it would lose — block-eaten, vulnerability-multiplied —
-// with a ghost segment on its bar and a death-mark when the number is lethal
+// with a ghost segment on its bar and a death-mark when the number is lethal.
+// Hovering a card also paints a sharp silhouette ring on who it can hit
+// (meshAim when warp is live so the ring tracks float/deform; SVG otherwise).
 function updatePreviews() {
   const ce = S.ce, cb = S.cb;
   if (!ce || !cb) return;
@@ -1314,6 +1321,15 @@ function updatePreviews() {
   const d = inst ? E.cardData(inst) : null;
   const aiming = S.targeting?.kind === 'card' || (S.drag?.live && !S.drag.free);
   const living = cb.enemies.filter((e) => e.hp > 0).length;
+  const inspect = !!(inst && !cb.over && !d.unplayable && !aiming);
+  meshAimClear();
+  const heroOn = inspect && d.target === 'self';
+  ce.hero?.classList.toggle('aim-target', heroOn);
+  if (heroOn) {
+    const sprite = $('.hero-sprite', ce.hero) || ce.hero;
+    if (meshAim(sprite, true, '#e8f7ff')) ce.hero.classList.add('aim-mesh');
+    else ce.hero.classList.remove('aim-mesh');
+  } else ce.hero?.classList.remove('aim-mesh');
   cb.enemies.forEach((en, i) => {
     const x = ce.enemies[i];
     let pv = null, dim = false;
@@ -1324,6 +1340,13 @@ function updatePreviews() {
         dim = aiming && living > 1 && !x.root.classList.contains('target-hover');
       }
     }
+    const aim = inspect && en.hp > 0 && (d.target === 'allEnemies' || d.target === 'enemy');
+    x.root.classList.toggle('aim-target', aim);
+    if (aim) {
+      const sprite = $('.enemy-sprite', x.art) || x.art;
+      if (meshAim(sprite, true, '#fff6ec')) x.root.classList.add('aim-mesh');
+      else x.root.classList.remove('aim-mesh');
+    } else x.root.classList.remove('aim-mesh');
     if (pv && (pv.total > 0 || pv.chips > 0)) {
       // bar ghost + facet pips spell out the consequence; the art-overlay number is redundant
       x.prev.classList.remove('show', 'lethal', 'dim');
@@ -1399,9 +1422,11 @@ function clearTargeting() {
   S.targeting = null;
   $('#aim').innerHTML = '';
   document.removeEventListener('pointermove', aimMove);
+  meshAimClear();
   if (S.ce) {
     S.ce.root.classList.remove('targeting');
-    S.ce.enemies.forEach((x) => x.root.classList.remove('targetable', 'target-hover'));
+    S.ce.enemies.forEach((x) => x.root.classList.remove('targetable', 'target-hover', 'aim-target', 'aim-mesh'));
+    S.ce.hero?.classList.remove('aim-target', 'aim-mesh');
     layoutHand();
   }
   updateLantern(); // hand the light back to the lantern

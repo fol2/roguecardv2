@@ -523,10 +523,14 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .player-zone { transform: none; }
 .hero-wrap { position: relative; width: 100%; height: 100%; }
 .hero-sprite, .enemy-sprite { position: relative; width: 100%; height: 100%; z-index: 1; }
+/* subtitle-style burn so names stay legible on busy stage plates */
 .hero-wrap .hero-name {
   position: absolute; top: -11px; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: none;
   font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: 0.12em; color: #c8d0ea; white-space: nowrap;
-  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.95), 0 0 16px rgba(0, 0, 0, 0.7);
+  text-shadow:
+    -1px -1px 0 rgba(0, 0, 0, 0.95), 1px -1px 0 rgba(0, 0, 0, 0.95),
+    -1px 1px 0 rgba(0, 0, 0, 0.95), 1px 1px 0 rgba(0, 0, 0, 0.95),
+    0 0 4px rgba(0, 0, 0, 0.9), 0 2px 8px rgba(0, 0, 0, 0.85);
 }
 .hero-wrap svg { width: 100%; height: 100%; }
 .enemy { transition: filter 0.2s, transform 0.25s; }
@@ -536,7 +540,8 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .enemy .intent { position: absolute; bottom: calc(100% + 8px); left: 50%; translate: -50% 0; z-index: 3; }
 .enemy-art { position: relative; }
 .enemy-sprite { position: relative; width: 100%; height: 100%; z-index: 1; }
-.enemy-art svg { width: 100%; height: 100%; display: block; }
+.enemy-art > .enemy-sprite > svg.cracks-overlay,
+.enemy-art > svg.enemy-svg { width: 100%; height: 100%; display: block; }
 /* cast contact shadow — per-id knobs in src/char-meta.js (?charedit=1); float lift fades it.
    In combat, shadows live in .cast-shadow-layer (z5) under #mesh (z6) so they never cover the body. */
 .cast-shadow {
@@ -562,9 +567,27 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .enemy.dying { animation: dissolve 0.85s ease-in forwards; pointer-events: none; }
 @keyframes dissolve { to { opacity: 0; filter: brightness(3.2) blur(9px) saturate(0); transform: translateY(16px) scale(0.92); } }
 .enemy.gone { visibility: hidden; pointer-events: none; }
-.enemy .name { font-family: 'Cinzel', serif; font-size: 13.5px; letter-spacing: 0.1em; color: var(--text-dim); }
-.enemy.elite-e .name { color: #ffab7a; text-shadow: 0 0 8px rgba(255, 120, 71, 0.5); }
-.enemy.boss-e .name { color: #ff9bea; text-shadow: 0 0 10px rgba(255, 79, 216, 0.6); font-size: 15px; }
+.enemy .name {
+  font-family: 'Cinzel', serif; font-size: 13.5px; letter-spacing: 0.1em; color: var(--text-dim);
+  text-shadow:
+    -1px -1px 0 rgba(0, 0, 0, 0.95), 1px -1px 0 rgba(0, 0, 0, 0.95),
+    -1px 1px 0 rgba(0, 0, 0, 0.95), 1px 1px 0 rgba(0, 0, 0, 0.95),
+    0 0 4px rgba(0, 0, 0, 0.9), 0 2px 8px rgba(0, 0, 0, 0.85);
+}
+.enemy.elite-e .name {
+  color: #ffab7a;
+  text-shadow:
+    -1px -1px 0 rgba(0, 0, 0, 0.95), 1px -1px 0 rgba(0, 0, 0, 0.95),
+    -1px 1px 0 rgba(0, 0, 0, 0.95), 1px 1px 0 rgba(0, 0, 0, 0.95),
+    0 0 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(255, 120, 71, 0.5);
+}
+.enemy.boss-e .name {
+  color: #ff9bea; font-size: 15px;
+  text-shadow:
+    -1px -1px 0 rgba(0, 0, 0, 0.95), 1px -1px 0 rgba(0, 0, 0, 0.95),
+    -1px 1px 0 rgba(0, 0, 0, 0.95), 1px 1px 0 rgba(0, 0, 0, 0.95),
+    0 0 4px rgba(0, 0, 0, 0.9), 0 0 10px rgba(255, 79, 216, 0.6);
+}
 .hpbar-wrap { display: flex; align-items: center; gap: 6px; width: 150px; }
 .hpbar { flex: 1; height: 9px; border-radius: 5px; background: rgba(0, 0, 0, 0.55); border: 1px solid var(--lead); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); overflow: hidden; position: relative; }
 .hpbar > .fill { height: 100%; background: linear-gradient(90deg, #b52a3e, #ff6a5e); transition: width 0.35s cubic-bezier(0.3, 1, 0.4, 1); border-radius: 5px; }
@@ -800,7 +823,13 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .mnode.unlit .icg { opacity: 0.55; }
 .mnode.unlit.avail .bg { stroke: rgba(255, 233, 172, 0.5); }
 .enemy.affixed .enemy-art { filter: drop-shadow(0 0 14px color-mix(in srgb, var(--affix-tone) 55%, transparent)); }
-.enemy.affixed .name .affix-name { text-shadow: 0 0 10px currentColor; letter-spacing: 0.1em; }
+.enemy.affixed .name .affix-name {
+  letter-spacing: 0.1em;
+  text-shadow:
+    -1px -1px 0 rgba(0, 0, 0, 0.95), 1px -1px 0 rgba(0, 0, 0, 0.95),
+    -1px 1px 0 rgba(0, 0, 0, 0.95), 1px 1px 0 rgba(0, 0, 0, 0.95),
+    0 0 4px rgba(0, 0, 0, 0.9), 0 0 10px currentColor;
+}
 .turn-banner.perfect-banner {
   color: #ffe9ac; letter-spacing: 0.4em;
   text-shadow: 0 0 34px rgba(242, 193, 78, 0.85), 0 4px 12px #000;
@@ -814,6 +843,16 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .enemy.targetable .enemy-art { animation: targetGlow 1s ease-in-out infinite; }
 .enemy.targetable:hover .enemy-art, .enemy.target-hover .enemy-art { animation: none; filter: drop-shadow(0 0 22px rgba(255, 89, 100, 0.95)) brightness(1.25); }
 @keyframes targetGlow { 0%, 100% { filter: drop-shadow(0 0 6px rgba(255, 89, 100, 0.5)); } 50% { filter: drop-shadow(0 0 18px rgba(255, 89, 100, 0.9)); } }
+/* card-hover aim ring: SVG fallback when mesh is off; meshAim owns the ring when warp is live */
+.hero-sprite, .enemy-sprite, .enemy-art { overflow: visible; }
+.aim-ring {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+  pointer-events: none; z-index: 5; opacity: 0;
+  overflow: visible; display: block;
+}
+.aim-ring image { width: 100%; height: 100%; }
+.enemy.aim-target:not(.aim-mesh) .aim-ring,
+.hero-wrap.aim-target:not(.aim-mesh) .aim-ring { opacity: 1; }
 
 .energy-orb {
   position: absolute; left: calc(30px + var(--sal)); bottom: calc(150px + var(--sab)); width: 88px; height: 88px; border-radius: 50%; z-index: 24;

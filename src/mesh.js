@@ -117,13 +117,35 @@ const BODY_FRAG = /* glsl */`
     #include <colorspace_fragment>
   }
 `;
+// card-hover aim ring: dilate body alpha in UV, punch the interior — shares the
+// deformed geo + float layout so the outline tracks mesh warp / bob
+const AIM_FRAG = /* glsl */`
+  varying vec2 vUv;
+  uniform sampler2D map;
+  uniform vec3 uColor;
+  uniform float uWidth;
+  void main() {
+    float a = texture2D(map, vUv).a;
+    float o = a;
+    for (int i = 0; i < 8; i++) {
+      float ang = float(i) * 0.785398163;
+      vec2 d = vec2(cos(ang), sin(ang)) * uWidth;
+      o = max(o, texture2D(map, vUv + d).a);
+      o = max(o, texture2D(map, vUv + d * 0.55).a);
+    }
+    float ring = max(0.0, o - a);
+    if (ring < 0.04) discard;
+    gl_FragColor = vec4(uColor, min(1.0, ring * 1.8));
+    #include <colorspace_fragment>
+  }
+`;
 
 function makePlane(url, profile, seed, img) {
   const geo = new THREE.PlaneGeometry(2, 2, SEG_X, SEG_Y);
   const base = geo.attributes.position.array.slice();
   const p = {
     geo, base, profile, seed, el: null, aspect: artAspect(img, null) || 2 / 3,
-    sites: [], death: 0, glass: null, fire: null, beams: null, bodyPx: null,
+    sites: [], death: 0, glass: null, fire: null, beams: null, bodyPx: null, outline: null,
   };
   const tex = loadTex(url, (t) => { p.aspect = artAspect(img, t); });
   p.tex = tex;
@@ -134,6 +156,18 @@ function makePlane(url, profile, seed, img) {
   mesh.renderOrder = 1;
   scene.add(mesh);
   p.mesh = mesh;
+  // same geo as body → outline vertices deform + float with the combatant
+  const aimMat = new THREE.ShaderMaterial({
+    uniforms: { map: { value: tex }, uColor: { value: new THREE.Color('#fff6ec') }, uWidth: { value: 0.018 } },
+    vertexShader: BODY_VERT, fragmentShader: AIM_FRAG,
+    transparent: true, depthTest: false, depthWrite: false,
+  });
+  const outline = new THREE.Mesh(geo, aimMat);
+  outline.visible = false;
+  outline.renderOrder = 0;
+  scene.add(outline);
+  p.outline = outline;
+  p.aimMat = aimMat;
   if (img && !img.complete) {
     img.addEventListener('load', () => { p.aspect = artAspect(img, tex); }, { once: true });
   }
@@ -369,7 +403,7 @@ function deformPlane(p, t) {
 }
 
 function layerMeshes(p) {
-  return [p.mesh, p.fire, p.glass, p.beams].filter(Boolean);
+  return [p.outline, p.mesh, p.fire, p.glass, p.beams].filter(Boolean);
 }
 // #mesh lives INSIDE #shake now, so during a screen shake the canvas moves
 // WITH the sprites — subtract the canvas' own stage offset (off) so the
@@ -394,8 +428,9 @@ function layoutPlane(p, t = 0, off = { left: 0, top: 0 }) {
   show(true);
   // renderOrder tracks screen depth: feet lower on stage (larger rect.bottom) draw in front
   const depth = Math.round(r.bottom);
+  if (p.outline) p.outline.renderOrder = depth * 4; // behind body so the ring hugs the silhouette
   const layers = [p.mesh, p.fire, p.glass, p.beams].filter(Boolean);
-  layers.forEach((m, li) => { m.renderOrder = depth * 4 + li; });
+  layers.forEach((m, li) => { m.renderOrder = depth * 4 + 1 + li; });
   let z = 0;
   for (const m of layerMeshes(p)) {
     m.position.set(x, y, z);
@@ -446,6 +481,12 @@ function disposePlane(p) {
   disposeLayer(p, 'glass');
   disposeLayer(p, 'fire');
   disposeLayer(p, 'beams');
+  if (p.outline) {
+    scene.remove(p.outline);
+    p.aimMat?.dispose();
+    p.outline = null;
+    p.aimMat = null;
+  }
   scene.remove(p.mesh);
   p.geo.dispose();
   p.mesh.material.dispose();
@@ -619,6 +660,20 @@ export function meshLift(el) {
   if (!p) return 0;
   const t = performance.now() * 0.001;
   return Math.max(0, (p.profile.float || 0) * Math.sin(t * 1.15 + p.seed * 0.7) * 12 * INTENSITY);
+}
+
+/** Toggle the silhouette aim ring on a mesh-bound sprite. Returns false if no plane (SVG fallback). */
+export function meshAim(el, on, color = '#fff6ec') {
+  const p = findPlane(el);
+  if (!p?.outline) return false;
+  p.outline.visible = !!on;
+  if (on && p.aimMat) p.aimMat.uniforms.uColor.value.set(color);
+  return true;
+}
+
+/** Clear every aim ring (card hover ended / targeting armed). */
+export function meshAimClear() {
+  for (const p of planes) if (p.outline) p.outline.visible = false;
 }
 
 export const meshDebug = () => ({
