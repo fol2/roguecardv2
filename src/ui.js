@@ -71,6 +71,15 @@ const wardFxHtml = () => {
   const u = assetUrl('vfx', 'ward-loop');
   return u ? `<div class="ward-fx" style="background-image:url(${escHtml(u)})" aria-hidden="true"></div>` : '';
 };
+function playWardGain(root) {
+  const url = assetUrl('vfx', 'ward-gain');
+  if (!url || !root) return;
+  const el = document.createElement('div');
+  el.className = 'ward-gain-fx';
+  el.style.backgroundImage = `url(${url})`;
+  root.appendChild(el);
+  el.addEventListener('animationend', () => el.remove(), { once: true });
+}
 const heroArt = (i) => {
   const u = assetUrl('heroes', ASPECTS[i].id);
   if (!u) return `<div class="hero-sprite">${wardFxHtml()}${heroSvg(i)}</div>`;
@@ -2134,7 +2143,10 @@ async function handleEvent(ev, targetIdx) {
       const isP = ev.who === 'player';
       const { x, y } = isP ? heroCenter() : enemyCenter(ev.who);
       sfx.block();
-      V.archetypeHit(x, y, 'ward', Math.min(0.35 + ev.n / 40, 0.75));
+      const host = isP
+        ? ($('.hero-sprite', ce.hero) || ce.hero)
+        : ($('.enemy-sprite', ce.enemies[ev.who]?.art) || ce.enemies[ev.who]?.art);
+      playWardGain(host);
       V.floatText(x, y - 10, `${iconSvg('shield', 22)} ${ev.n}`, 'blockf');
       const chip = isP ? ce.pBlock : ce.enemies[ev.who].block;
       chip.classList.remove('pulse');

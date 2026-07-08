@@ -420,10 +420,8 @@ export function archetypeHit(x, y, archetype = 'slash', power = 0.3) {
       if (big) flash('#c99aff', 0.08, 0.25);
       break;
     case 'ward':
-      ring(x, y, tone, 10, 360, 5);
-      ring(x, y, '#cfe6ff', 4, 520, 2.4);
-      shardSpray(x, y, tone, big ? 10 : 6);
-      motes(x, y, tone, big ? 12 : 8);
+      // raster ward-gain sprite owns the read; keep a light mote underlay only
+      motes(x, y, tone, big ? 8 : 5);
       break;
   }
 }
