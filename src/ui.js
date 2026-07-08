@@ -1,7 +1,7 @@
 // SPIREBOUND UI — screens, combat playback, interactions.
 import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
-import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, wardRingSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
+import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
 import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
@@ -66,10 +66,15 @@ const omenMark = (oid, imgClass, fallbackClass, size = 22) => {
 const aimRing = (url, kind) => url
   ? `<svg class="aim-ring" aria-hidden="true"><image href="${escHtml(url)}" x="0" y="0" width="100%" height="100%" preserveAspectRatio="xMidYMax meet" filter="url(#aim-outline-${kind})"/></svg>`
   : '';
+// persistent Ward shell — 4-frame raster strip (CSS steps); missing asset → no layer
+const wardFxHtml = () => {
+  const u = assetUrl('vfx', 'ward-loop');
+  return u ? `<div class="ward-fx" style="background-image:url(${escHtml(u)})" aria-hidden="true"></div>` : '';
+};
 const heroArt = (i) => {
   const u = assetUrl('heroes', ASPECTS[i].id);
-  if (!u) return `<div class="hero-sprite">${wardRingSvg()}${heroSvg(i)}</div>`;
-  return `<div class="hero-sprite">${wardRingSvg()}${aimRing(u, 'self')}${rasterOr('heroes', ASPECTS[i].id, heroSvg(i))}<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg></div>`;
+  if (!u) return `<div class="hero-sprite">${wardFxHtml()}${heroSvg(i)}</div>`;
+  return `<div class="hero-sprite">${wardFxHtml()}${aimRing(u, 'self')}${rasterOr('heroes', ASPECTS[i].id, heroSvg(i))}<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg></div>`;
 };
 
 let assetsWarmed = false;
@@ -912,7 +917,7 @@ function renderCombat() {
     box.dataset.idx = i;
     box.style.animationDelay = `${160 + i * 130}ms`;
     box.innerHTML = `<div class="intent"></div>
-      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${wardRingSvg()}${aimRing(assetUrl('enemies', en.key), 'atk')}${rasterOr('enemies', en.key, enemySvg(d.art))}<div class="vessel-fire"></div>${assetUrl('enemies', en.key) ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
+      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${wardFxHtml()}${aimRing(assetUrl('enemies', en.key), 'atk')}${rasterOr('enemies', en.key, enemySvg(d.art))}<div class="vessel-fire"></div>${assetUrl('enemies', en.key) ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
       <div class="cplate">
         <div class="name">${afx ? `<span class="affix-name" style="color:${afx.tone}">${afx.name.toUpperCase()}</span> ` : ''}${en.name.toUpperCase()}</div>
         <div class="hpbar-wrap"><span class="block-chip zero">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div><span class="hp-label"></span></div>
