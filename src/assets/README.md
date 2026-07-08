@@ -444,8 +444,11 @@ For review, open the live and legacy galleries with:
 ```text
 http://localhost:5174/?gallery=1
 http://localhost:5174/?gallery=1&set=legacy
+http://localhost:5174/?vfxedit=1
 ```
 
+Dev `?vfxedit=1` scrubs VFX sprite strips frame-by-frame (onion skin + crosshair)
+to validate registration drift before combat.
 The approved prop set should appear in that gallery as `props - 4/4 generated`.
 The approved event set should appear as `events - 11/11 generated`.
 The approved card set should appear as `cards - 60/60 generated`.

@@ -15,6 +15,8 @@ const qs = new URLSearchParams(location.search);
 if (import.meta.env.DEV && qs.has('charedit')) {
   // stage + mesh boot inside the editor so warp/float match combat
   import('./dev/char-editor.js').then((m) => m.initCharEditor());
+} else if (import.meta.env.DEV && qs.has('vfxedit')) {
+  import('./dev/vfx-editor.js').then((m) => m.initVfxEditor());
 } else {
   initStage();
   initScene();

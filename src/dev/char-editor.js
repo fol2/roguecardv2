@@ -603,7 +603,7 @@ function mountChrome() {
 
   const bar = document.createElement('header');
   bar.id = 'ce-bar';
-  bar.innerHTML = `<b>char meta</b><span id="ce-dirty">clean</span><a href="/?bfedit=1">bfedit</a><a href="/">← game</a>`;
+  bar.innerHTML = `<b>char meta</b><span id="ce-dirty">clean</span><a href="/?vfxedit=1">vfxedit</a><a href="/?bfedit=1">bfedit</a><a href="/">← game</a>`;
 
   const panel = document.createElement('aside');
   panel.id = 'ce-panel';
