@@ -14,7 +14,7 @@ import {
 } from './char-serialize.js';
 import { bfResolve, bfEnemySize } from '../battlefield.js';
 import { initStage } from '../stage.js';
-import { initMesh, meshBind, meshClear, meshEnabled, meshLift, meshProfileFor } from '../mesh.js';
+import { initMesh, meshBind, meshClear, meshEnabled, meshLift, meshProfileFor, meshAim, meshAimClear } from '../mesh.js';
 import { scanShadowOrigin } from './char-feet-scan.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -30,6 +30,7 @@ const state = {
   dirty: false,
   zoom: 2.5, // preview-only; ox/oy are % so they transfer
   anim: true,
+  outline: false, // off by default — silhouette ring clutters feet/shadow edits
 };
 
 const q = () => new URLSearchParams(location.search);
@@ -197,6 +198,10 @@ function paintActor() {
 
   if (state.anim && meshEnabled() && url) {
     meshBind([{ el: sprite, url, kind, id }]);
+    if (state.outline) meshAim(sprite, true, isHero(id) ? '#e8f7ff' : '#fff6ec');
+    else meshAimClear();
+  } else {
+    meshAimClear();
   }
 
   const tick = () => {
@@ -264,6 +269,7 @@ function renderPanel() {
         <input type="range" id="ce-zoom" min="1" max="4" step="0.25" value="${state.zoom}">
       </label>
       <label class="ce-check"><input type="checkbox" id="ce-anim" ${state.anim ? 'checked' : ''}> mesh + float anim</label>
+      <label class="ce-check"><input type="checkbox" id="ce-outline" ${state.outline ? 'checked' : ''} ${state.anim && meshEnabled() ? '' : 'disabled'}> aim outline preview</label>
     </div>
     <h4>layout</h4>
     <div class="ce-fields">${layoutRows}</div>
@@ -301,8 +307,16 @@ function renderPanel() {
   };
   panel.querySelector('#ce-anim').onchange = (e) => {
     state.anim = e.target.checked;
+    if (!state.anim) state.outline = false;
     paintActor();
     renderPanel();
+  };
+  panel.querySelector('#ce-outline').onchange = (e) => {
+    state.outline = e.target.checked;
+    const sprite = document.querySelector('.ce-sprite');
+    if (!sprite?.classList.contains('mesh-live')) { paintActor(); return; }
+    if (state.outline) meshAim(sprite, true, isHero(state.id) ? '#e8f7ff' : '#fff6ec');
+    else meshAimClear();
   };
 
   panel.querySelectorAll('input[data-lay]').forEach((inp) => {

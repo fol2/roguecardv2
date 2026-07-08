@@ -145,7 +145,7 @@ function makePlane(url, profile, seed, img) {
   const base = geo.attributes.position.array.slice();
   const p = {
     geo, base, profile, seed, el: null, aspect: artAspect(img, null) || 2 / 3,
-    sites: [], death: 0, glass: null, fire: null, beams: null, bodyPx: null, outline: null,
+    sites: [], death: 0, glass: null, fire: null, beams: null, bodyPx: null, outline: null, aimOn: false,
   };
   const tex = loadTex(url, (t) => { p.aspect = artAspect(img, t); });
   p.tex = tex;
@@ -405,6 +405,9 @@ function deformPlane(p, t) {
 function layerMeshes(p) {
   return [p.outline, p.mesh, p.fire, p.glass, p.beams].filter(Boolean);
 }
+function bodyMeshes(p) {
+  return [p.mesh, p.fire, p.glass, p.beams].filter(Boolean);
+}
 // #mesh lives INSIDE #shake now, so during a screen shake the canvas moves
 // WITH the sprites — subtract the canvas' own stage offset (off) so the
 // shake isn't applied twice to the planes.
@@ -413,7 +416,11 @@ const canvasOffset = () => {
   return { left: r.left, top: r.top };
 };
 function layoutPlane(p, t = 0, off = { left: 0, top: 0 }) {
-  const show = (on) => { for (const m of layerMeshes(p)) m.visible = on; };
+  // body layers follow show(); outline stays gated by p.aimOn (meshAim)
+  const show = (on) => {
+    for (const m of bodyMeshes(p)) m.visible = on;
+    if (p.outline) p.outline.visible = on && !!p.aimOn;
+  };
   if (!p.el.isConnected || !(p.el.checkVisibility?.({ visibilityProperty: true }) ?? true)) { show(false); return; }
   const r = stageRect(p.el);
   if (r.width < 2 || r.height < 2) { show(false); return; }
@@ -429,8 +436,7 @@ function layoutPlane(p, t = 0, off = { left: 0, top: 0 }) {
   // renderOrder tracks screen depth: feet lower on stage (larger rect.bottom) draw in front
   const depth = Math.round(r.bottom);
   if (p.outline) p.outline.renderOrder = depth * 4; // behind body so the ring hugs the silhouette
-  const layers = [p.mesh, p.fire, p.glass, p.beams].filter(Boolean);
-  layers.forEach((m, li) => { m.renderOrder = depth * 4 + 1 + li; });
+  bodyMeshes(p).forEach((m, li) => { m.renderOrder = depth * 4 + 1 + li; });
   let z = 0;
   for (const m of layerMeshes(p)) {
     m.position.set(x, y, z);
@@ -666,6 +672,7 @@ export function meshLift(el) {
 export function meshAim(el, on, color = '#fff6ec') {
   const p = findPlane(el);
   if (!p?.outline) return false;
+  p.aimOn = !!on;
   p.outline.visible = !!on;
   if (on && p.aimMat) p.aimMat.uniforms.uColor.value.set(color);
   return true;
@@ -673,7 +680,10 @@ export function meshAim(el, on, color = '#fff6ec') {
 
 /** Clear every aim ring (card hover ended / targeting armed). */
 export function meshAimClear() {
-  for (const p of planes) if (p.outline) p.outline.visible = false;
+  for (const p of planes) {
+    p.aimOn = false;
+    if (p.outline) p.outline.visible = false;
+  }
 }
 
 export const meshDebug = () => ({
