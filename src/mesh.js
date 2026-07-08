@@ -120,6 +120,7 @@ const BODY_FRAG = /* glsl */`
 // card-hover aim ring: dilate body alpha in UV, punch the interior — shares the
 // deformed geo + float layout so the outline tracks mesh warp / bob.
 // uStyle: 0 solid, 1 spin (dashed), 2 chase (pulse along edge)
+// uBeams: chase head count (1..4); uDashes: spin segment count (1..4)
 const AIM_FRAG = /* glsl */`
   varying vec2 vUv;
   uniform sampler2D map;
@@ -128,6 +129,8 @@ const AIM_FRAG = /* glsl */`
   uniform float uStyle;
   uniform float uSpeed;
   uniform float uTime;
+  uniform float uBeams;
+  uniform float uDashes;
   void main() {
     float a = texture2D(map, vUv).a;
     float o = a;
@@ -140,11 +143,19 @@ const AIM_FRAG = /* glsl */`
     float ring = max(0.0, o - a);
     float mask = 1.0;
     float ang = atan(vUv.y - 0.5, vUv.x - 0.5);
+    float turn = ang / 6.2831853;
     if (uStyle > 0.5 && uStyle < 1.5) {
-      mask = step(0.42, fract(ang / 6.2831853 * 8.0 - uTime * uSpeed));
+      float n = max(1.0, uDashes);
+      mask = step(0.42, fract(turn * n - uTime * uSpeed));
     } else if (uStyle > 1.5) {
-      float head = fract(ang / 6.2831853 - uTime * uSpeed);
-      float pulse = smoothstep(0.0, 0.08, head) * (1.0 - smoothstep(0.08, 0.22, head));
+      float n = max(1.0, uBeams);
+      float t = fract(turn - uTime * uSpeed);
+      float pulse = 0.0;
+      for (int i = 0; i < 4; i++) {
+        if (float(i) >= n) break;
+        float head = fract(t - float(i) / n);
+        pulse = max(pulse, smoothstep(0.0, 0.08, head) * (1.0 - smoothstep(0.08, 0.22, head)));
+      }
       mask = max(pulse, 0.28);
     }
     float aOut = ring * mask;
@@ -179,6 +190,8 @@ function makePlane(url, profile, seed, img) {
       uStyle: { value: 1 },
       uSpeed: { value: 1 },
       uTime: { value: 0 },
+      uBeams: { value: 1 },
+      uDashes: { value: 2 },
     },
     vertexShader: BODY_VERT, fragmentShader: AIM_FRAG,
     transparent: true, depthTest: false, depthWrite: false,
@@ -691,7 +704,7 @@ export function meshLift(el) {
 }
 
 /** Toggle the silhouette aim ring on a mesh-bound sprite. Returns false if no plane (SVG fallback).
- *  cfg: { style:'spin'|'chase'|'solid', speed, color } */
+ *  cfg: { style:'spin'|'chase'|'solid', speed, color, beams?, dashes? } */
 export function meshAim(el, on, cfg = null) {
   const p = findPlane(el);
   if (!p?.outline) return false;
@@ -702,6 +715,10 @@ export function meshAim(el, on, cfg = null) {
     p.aimMat.uniforms.uStyle.value = style;
     p.aimMat.uniforms.uSpeed.value = Number.isFinite(cfg.speed) ? cfg.speed : 1;
     p.aimMat.uniforms.uColor.value.set(cfg.color || '#fff6ec');
+    const beams = Number.isInteger(cfg.beams) ? cfg.beams : 1;
+    const dashes = Number.isInteger(cfg.dashes) ? cfg.dashes : 2;
+    p.aimMat.uniforms.uBeams.value = Math.min(4, Math.max(1, beams));
+    p.aimMat.uniforms.uDashes.value = Math.min(4, Math.max(1, dashes));
   }
   return true;
 }
