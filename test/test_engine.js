@@ -1125,7 +1125,10 @@ function randomAgentRun(seed) {
 
 // ---- char-meta table (?charedit=1) -------------------------------------------
 {
-  const { CHAR_META, CHAR_LAYOUT_DEFAULT, CHAR_SHADOW_DEFAULT, charLayout, charShadow, charMesh } = await import('../src/char-meta.js');
+  const {
+    CHAR_META, CHAR_LAYOUT_DEFAULT, CHAR_SHADOW_DEFAULT, CHAR_AIM_DEFAULT,
+    charLayout, charShadow, charMesh, charAim, _setCharMeta,
+  } = await import('../src/char-meta.js');
   const { serializeCharMeta, validateCharMeta, pruneCharMeta } = await import('../src/dev/char-serialize.js');
   assert.equal(validateCharMeta(CHAR_META, {
     heroes: ASPECTS.map((a) => a.id), enemies: Object.keys(ENEMIES),
@@ -1136,8 +1139,19 @@ function randomAgentRun(seed) {
   assert.ok(c.sy > 0 && c.sy < 1, 'char-meta: duskblade shadow flattened');
   assert.equal(charLayout('sporeling').scale, 0.62, 'char-meta: sporeling scale migrated');
   assert.deepEqual(charMesh('duskblade'), {}, 'char-meta: no mesh override by default');
-  const src = serializeCharMeta(CHAR_META, { layout: CHAR_LAYOUT_DEFAULT, shadow: CHAR_SHADOW_DEFAULT });
+  assert.equal(CHAR_AIM_DEFAULT.style, 'spin', 'char-meta: aim default style spin');
+  assert.deepEqual(charAim('sporeling'), { ...CHAR_AIM_DEFAULT }, 'char-meta: aim inherits global');
+  _setCharMeta({ ...CHAR_META, sporeling: { ...(CHAR_META.sporeling || {}), aim: { style: 'chase', speed: 2 } } }, { silent: true });
+  assert.equal(charAim('sporeling').style, 'chase', 'char-meta: aim style override');
+  assert.equal(charAim('sporeling').color, CHAR_AIM_DEFAULT.color, 'char-meta: aim color inherits');
+  _setCharMeta(CHAR_META, { silent: true });
+  assert.ok(validateCharMeta({ duskblade: { aim: { style: 'nope' } } }, { heroes: ASPECTS.map((a) => a.id), enemies: [] }).length > 0, 'char-meta: bad aim style rejected');
+  const prunedAim = pruneCharMeta({ x: { aim: { style: 'spin', speed: 1, color: '#fff6ec' } } }, { layout: CHAR_LAYOUT_DEFAULT, aim: CHAR_AIM_DEFAULT });
+  assert.ok(!prunedAim.x, 'char-meta: aim equal to default pruned');
+  const src = serializeCharMeta(CHAR_META, { layout: CHAR_LAYOUT_DEFAULT, shadow: CHAR_SHADOW_DEFAULT, aim: CHAR_AIM_DEFAULT });
   assert.ok(src.includes('export const CHAR_META'), 'char-meta: serialized');
+  assert.ok(src.includes('export const CHAR_AIM_DEFAULT'), 'char-meta: aim default serialized');
+  assert.ok(src.includes("style: \"spin\"") || src.includes("style: 'spin'"), 'char-meta: spin in default');
   assert.ok(validateCharMeta({ nope: { scale: 1 } }, { heroes: [], enemies: [] }).length > 0, 'char-meta: unknown id rejected');
   assert.ok(!pruneCharMeta({ x: { scale: 1 } }, { layout: CHAR_LAYOUT_DEFAULT }).x, 'char-meta: default scale pruned');
   // bfActor reads char-meta, not BF.shared

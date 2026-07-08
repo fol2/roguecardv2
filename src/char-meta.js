@@ -1,11 +1,14 @@
 // Per-character presentation meta — owned by ?charedit=1 (also scale/foot* from ?bfedit=1).
-// Layout (scale/footX/footY), cast shadow, and mesh/float overrides live here.
+// Layout (scale/footX/footY), cast shadow, mesh/float, and aim-outline defaults live here.
 // Missing keys use defaults; mesh keys override the kind PROFILE in mesh.js.
 // Imports nothing; imported by battlefield.js, mesh.js, ui.js, and the char editor.
 
 export const CHAR_LAYOUT_DEFAULT = { scale: 1, footX: 0, footY: 0 };
 
 export const CHAR_SHADOW_DEFAULT = { ox: 50, oy: 100, sx: 1, sy: 0.24, skew: 0, blur: 1.5, opacity: 0.62, dx: 0, dy: 0 };
+
+/** Card-hover aim outline — global default; per-id `aim` overrides partially. */
+export const CHAR_AIM_DEFAULT = { style: 'spin', speed: 1, color: '#fff6ec' };
 
 /** Mesh profile keys (absolute overrides on top of art.kind PROFILE). */
 export const CHAR_MESH_KEYS = ["sway","bob","breathe","head","cloth","pin","float"];
@@ -16,6 +19,7 @@ export const CHAR_MESH_KEYS = ["sway","bob","breathe","head","cloth","pin","floa
  *   shadow?: Partial<typeof CHAR_SHADOW_DEFAULT>,
  *   mesh?: Partial<Record<(typeof CHAR_MESH_KEYS)[number], number>>,
  *   cssFloat?: number,
+ *   aim?: Partial<typeof CHAR_AIM_DEFAULT>,
  * }} CharMetaEntry
  */
 
@@ -105,12 +109,18 @@ export function charCssFloat(id) {
   return Number.isFinite(v) ? v : null;
 }
 
+/** Resolved aim outline config (global default + per-id partial). */
+export function charAim(id) {
+  return { ...CHAR_AIM_DEFAULT, ...((_live[id] || {}).aim || {}) };
+}
+
 // Vite HMR: swap the live table in place so importers keep working without a full reload.
 if (import.meta.hot) {
   import.meta.hot.accept((mod) => {
     if (!mod?.CHAR_META) return;
     Object.assign(CHAR_LAYOUT_DEFAULT, mod.CHAR_LAYOUT_DEFAULT);
     Object.assign(CHAR_SHADOW_DEFAULT, mod.CHAR_SHADOW_DEFAULT);
+    if (mod.CHAR_AIM_DEFAULT) Object.assign(CHAR_AIM_DEFAULT, mod.CHAR_AIM_DEFAULT);
     _setCharMeta(mod.CHAR_META);
   });
 }

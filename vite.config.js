@@ -90,18 +90,31 @@ function bfSavePlugin() {
         if (body == null) return;
         res.setHeader("content-type", "application/json");
         try {
-          const [{ serializeCharMeta, validateCharMeta }, { CHAR_LAYOUT_DEFAULT, CHAR_SHADOW_DEFAULT }, { ENEMIES, ASPECTS }] = await Promise.all([
+          const [{ serializeCharMeta, validateCharMeta }, { CHAR_LAYOUT_DEFAULT, CHAR_SHADOW_DEFAULT, CHAR_AIM_DEFAULT }, { ENEMIES, ASPECTS }] = await Promise.all([
             import("./src/dev/char-serialize.js"),
             import("./src/char-meta.js"),
             import("./src/data.js"),
           ]);
-          const table = JSON.parse(body);
+          const payload = JSON.parse(body);
+          const table = payload?.meta && typeof payload.meta === "object" && !Array.isArray(payload.meta)
+            ? payload.meta
+            : payload;
+          const aimIn = payload?.aim && typeof payload.aim === "object" ? payload.aim : null;
           const problems = validateCharMeta(table, {
             enemies: Object.keys(ENEMIES),
             heroes: ASPECTS.map((a) => a.id),
           });
           if (problems.length) { res.statusCode = 400; return res.end(JSON.stringify({ ok: false, problems })); }
-          const next = serializeCharMeta(table, { layout: CHAR_LAYOUT_DEFAULT, shadow: CHAR_SHADOW_DEFAULT });
+          const aimDefault = aimIn ? { ...CHAR_AIM_DEFAULT, ...aimIn } : { ...CHAR_AIM_DEFAULT };
+          if (!["spin", "chase", "solid"].includes(aimDefault.style)) {
+            res.statusCode = 400;
+            return res.end(JSON.stringify({ ok: false, problems: [`aim.style: invalid ${aimDefault.style}`] }));
+          }
+          const next = serializeCharMeta(table, {
+            layout: CHAR_LAYOUT_DEFAULT,
+            shadow: CHAR_SHADOW_DEFAULT,
+            aim: aimDefault,
+          });
           writeFileSync(CHAR_META_TMP, next);
           renameSync(CHAR_META_TMP, CHAR_META_PATH);
           // Invalidate only this module — char-meta.js self-accepts HMR and

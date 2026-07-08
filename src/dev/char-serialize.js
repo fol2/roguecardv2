@@ -4,6 +4,8 @@
 export const LAYOUT_KEYS = ['scale', 'footX', 'footY'];
 export const SHADOW_KEYS = ['ox', 'oy', 'sx', 'sy', 'skew', 'blur', 'opacity', 'dx', 'dy'];
 export const MESH_KEYS = ['sway', 'bob', 'breathe', 'head', 'cloth', 'pin', 'float'];
+export const AIM_KEYS = ['style', 'speed', 'color'];
+export const AIM_STYLES = ['spin', 'chase', 'solid'];
 
 export const LAYOUT_RANGES = {
   scale: [0.2, 6], footX: [-300, 300], footY: [-300, 200],
@@ -16,10 +18,11 @@ export const MESH_RANGES = {
   sway: [0, 3], bob: [0, 3], breathe: [0, 3], head: [0, 3],
   cloth: [0, 3], pin: [0.5, 2], float: [0, 3],
 };
+export const AIM_SPEED_RANGE = [0.25, 3];
 export const CSS_FLOAT_RANGE = [0, 40];
 
 const HEADER = `// Per-character presentation meta — owned by ?charedit=1 (also scale/foot* from ?bfedit=1).
-// Layout (scale/footX/footY), cast shadow, and mesh/float overrides live here.
+// Layout (scale/footX/footY), cast shadow, mesh/float, and aim-outline defaults live here.
 // Missing keys use defaults; mesh keys override the kind PROFILE in mesh.js.
 // Imports nothing; imported by battlefield.js, mesh.js, ui.js, and the char editor.
 `;
@@ -29,6 +32,8 @@ const num = (v) => {
   return Object.is(r, -0) ? '0' : String(r);
 };
 
+const str = (v) => JSON.stringify(String(v));
+
 function idKey(id) {
   return /^[a-zA-Z_$][\w$]*$/.test(id) ? id : JSON.stringify(id);
 }
@@ -36,6 +41,14 @@ function idKey(id) {
 function inlineObj(obj, keys) {
   const ks = keys.filter((k) => obj[k] !== undefined);
   return `{ ${ks.map((k) => `${k}: ${num(obj[k])}`).join(', ')} }`;
+}
+
+function inlineAim(obj) {
+  const parts = [];
+  if (obj.style !== undefined) parts.push(`style: ${str(obj.style)}`);
+  if (obj.speed !== undefined) parts.push(`speed: ${num(obj.speed)}`);
+  if (obj.color !== undefined) parts.push(`color: ${str(obj.color)}`);
+  return `{ ${parts.join(', ')} }`;
 }
 
 function entryLine(id, entry) {
@@ -50,6 +63,9 @@ function entryLine(id, entry) {
     parts.push(`mesh: ${inlineObj(entry.mesh, MESH_KEYS)}`);
   }
   if (entry.cssFloat !== undefined) parts.push(`cssFloat: ${num(entry.cssFloat)}`);
+  if (entry.aim && Object.keys(entry.aim).length) {
+    parts.push(`aim: ${inlineAim(entry.aim)}`);
+  }
   return `  ${idKey(id)}: { ${parts.join(', ')} },`;
 }
 
@@ -57,6 +73,7 @@ function entryLine(id, entry) {
 export function pruneCharMeta(table, defaults = {}) {
   const layoutDef = defaults.layout || { scale: 1, footX: 0, footY: 0 };
   const shadowDef = defaults.shadow || {};
+  const aimDef = defaults.aim || { style: 'spin', speed: 1, color: '#fff6ec' };
   const out = {};
   for (const [id, raw] of Object.entries(table || {})) {
     if (!raw || typeof raw !== 'object') continue;
@@ -79,6 +96,13 @@ export function pruneCharMeta(table, defaults = {}) {
       if (Object.keys(m).length) e.mesh = m;
     }
     if (raw.cssFloat !== undefined) e.cssFloat = raw.cssFloat;
+    if (raw.aim && typeof raw.aim === 'object') {
+      const a = {};
+      for (const k of AIM_KEYS) {
+        if (raw.aim[k] !== undefined && raw.aim[k] !== aimDef[k]) a[k] = raw.aim[k];
+      }
+      if (Object.keys(a).length) e.aim = a;
+    }
     if (Object.keys(e).length) out[id] = e;
   }
   return out;
@@ -97,7 +121,7 @@ export function validateCharMeta(table, { heroes = [], enemies = [] } = {}) {
       continue;
     }
     for (const k of Object.keys(e)) {
-      if (![...LAYOUT_KEYS, 'shadow', 'mesh', 'cssFloat'].includes(k)) {
+      if (![...LAYOUT_KEYS, 'shadow', 'mesh', 'cssFloat', 'aim'].includes(k)) {
         problems.push(`${id}: unknown key ${k}`);
       }
     }
@@ -142,6 +166,27 @@ export function validateCharMeta(table, { heroes = [], enemies = [] } = {}) {
         if (e.cssFloat < lo || e.cssFloat > hi) problems.push(`${id}.cssFloat: ${e.cssFloat} out of [${lo},${hi}]`);
       }
     }
+    if (e.aim !== undefined) {
+      if (!e.aim || typeof e.aim !== 'object') problems.push(`${id}.aim: must be object`);
+      else {
+        for (const [k, v] of Object.entries(e.aim)) {
+          if (!AIM_KEYS.includes(k)) problems.push(`${id}.aim: unknown key ${k}`);
+          else if (k === 'style') {
+            if (!AIM_STYLES.includes(v)) problems.push(`${id}.aim.style: invalid ${v}`);
+          } else if (k === 'speed') {
+            if (!Number.isFinite(v)) problems.push(`${id}.aim.speed: not finite`);
+            else {
+              const [lo, hi] = AIM_SPEED_RANGE;
+              if (v < lo || v > hi) problems.push(`${id}.aim.speed: ${v} out of [${lo},${hi}]`);
+            }
+          } else if (k === 'color') {
+            if (typeof v !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(v)) {
+              problems.push(`${id}.aim.color: need #RRGGBB`);
+            }
+          }
+        }
+      }
+    }
   }
   return problems;
 }
@@ -154,10 +199,14 @@ export function serializeCharMeta(table, defaults = {}) {
     ox: 50, oy: 100, sx: 1, sy: 0.24, skew: 0, blur: 1.5, opacity: 0.62, dx: 0, dy: 0,
   };
   const layoutDef = defaults.layout || { scale: 1, footX: 0, footY: 0 };
+  const aimDef = defaults.aim || { style: 'spin', speed: 1, color: '#fff6ec' };
   return `${HEADER}
 export const CHAR_LAYOUT_DEFAULT = ${inlineObj(layoutDef, LAYOUT_KEYS)};
 
 export const CHAR_SHADOW_DEFAULT = ${inlineObj(shadowDef, SHADOW_KEYS)};
+
+/** Card-hover aim outline — global default; per-id \`aim\` overrides partially. */
+export const CHAR_AIM_DEFAULT = ${inlineAim(aimDef)};
 
 /** Mesh profile keys (absolute overrides on top of art.kind PROFILE). */
 export const CHAR_MESH_KEYS = ${JSON.stringify(MESH_KEYS)};
@@ -168,6 +217,7 @@ export const CHAR_MESH_KEYS = ${JSON.stringify(MESH_KEYS)};
  *   shadow?: Partial<typeof CHAR_SHADOW_DEFAULT>,
  *   mesh?: Partial<Record<(typeof CHAR_MESH_KEYS)[number], number>>,
  *   cssFloat?: number,
+ *   aim?: Partial<typeof CHAR_AIM_DEFAULT>,
  * }} CharMetaEntry
  */
 
@@ -229,15 +279,20 @@ export function charCssFloat(id) {
   return Number.isFinite(v) ? v : null;
 }
 
+/** Resolved aim outline config (global default + per-id partial). */
+export function charAim(id) {
+  return { ...CHAR_AIM_DEFAULT, ...((_live[id] || {}).aim || {}) };
+}
+
 // Vite HMR: swap the live table in place so importers keep working without a full reload.
 if (import.meta.hot) {
   import.meta.hot.accept((mod) => {
     if (!mod?.CHAR_META) return;
     Object.assign(CHAR_LAYOUT_DEFAULT, mod.CHAR_LAYOUT_DEFAULT);
     Object.assign(CHAR_SHADOW_DEFAULT, mod.CHAR_SHADOW_DEFAULT);
+    if (mod.CHAR_AIM_DEFAULT) Object.assign(CHAR_AIM_DEFAULT, mod.CHAR_AIM_DEFAULT);
     _setCharMeta(mod.CHAR_META);
   });
 }
 `;
 }
-
