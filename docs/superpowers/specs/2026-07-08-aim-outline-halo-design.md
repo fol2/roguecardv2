@@ -81,8 +81,9 @@ Add an **Aim outline** block near mesh/float:
 
 - Shader uniforms: `uStyle`, `uSpeed`, `uColor`, `uTime` (tick updates time).
 - `aimOn` remains the visibility gate (charedit toggle + combat hover).
-- **Mesh off:** SVG fallback keeps `solid` faithful; `spin` / `chase` may
-  simplify or fall back to `solid` (document which in the plan).
+- **Mesh off (`?mesh=0`):** SVG `feMorphology` ring is always **solid**. Fancy
+  `spin` / `chase` stay WebGL-only so the no-mesh path never invents CSS motion
+  or double-draws against `.aim-mesh`.
 - Combat behaviour unchanged: show ring while inspecting a card with a known
   default target (`self` / sole `enemy` / `allEnemies`); hide when armed for
   multi-target pick.

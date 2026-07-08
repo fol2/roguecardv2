@@ -843,7 +843,8 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .enemy.targetable .enemy-art { animation: targetGlow 1s ease-in-out infinite; }
 .enemy.targetable:hover .enemy-art, .enemy.target-hover .enemy-art { animation: none; filter: drop-shadow(0 0 22px rgba(255, 89, 100, 0.95)) brightness(1.25); }
 @keyframes targetGlow { 0%, 100% { filter: drop-shadow(0 0 6px rgba(255, 89, 100, 0.5)); } 50% { filter: drop-shadow(0 0 18px rgba(255, 89, 100, 0.9)); } }
-/* card-hover aim ring: SVG fallback when mesh is off; meshAim owns the ring when warp is live */
+/* card-hover aim ring: SVG solid fallback when mesh is off (?mesh=0);
+   meshAim owns spin/chase/solid on the warped plane when .aim-mesh is set */
 .hero-sprite, .enemy-sprite, .enemy-art { overflow: visible; }
 .aim-ring {
   position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;

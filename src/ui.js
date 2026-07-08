@@ -60,8 +60,9 @@ const omenMark = (oid, imgClass, fallbackClass, size = 22) => {
   const u = assetUrl('omens', oid);
   return u ? `<img class="${imgClass}" src="${u}" alt="">` : `<span class="${fallbackClass}">${iconSvg(`omen-${oid}`, size)}</span>`;
 };
-// silhouette outline ring — SVG feMorphology fallback when mesh is off;
-// with mesh on, meshAim() paints the ring on the warped plane instead
+// silhouette outline ring — SVG feMorphology fallback when mesh is off.
+// Mesh-off: SVG ring is always solid. Fancy spin/chase need WebGL (meshAim).
+// With mesh on, meshAim() paints the ring on the warped plane instead.
 const aimRing = (url, kind) => url
   ? `<svg class="aim-ring" aria-hidden="true"><image href="${escHtml(url)}" x="0" y="0" width="100%" height="100%" preserveAspectRatio="xMidYMax meet" filter="url(#aim-outline-${kind})"/></svg>`
   : '';
