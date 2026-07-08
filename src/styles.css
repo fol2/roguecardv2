@@ -520,7 +520,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .player-zone, .enemy { position: absolute; pointer-events: auto; }
 .player-zone { transform: none; }
 .hero-wrap { position: relative; width: 100%; height: 100%; }
-.hero-sprite { position: relative; width: 100%; height: 100%; isolation: isolate; }
+.hero-sprite, .enemy-sprite { position: relative; width: 100%; height: 100%; z-index: 1; }
 .hero-wrap .hero-name {
   position: absolute; top: -11px; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: none;
   font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: 0.12em; color: #c8d0ea; white-space: nowrap;
@@ -533,24 +533,27 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .cplate { position: absolute; top: 100%; left: 50%; translate: -50% 0; display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 3; padding-top: 6px; width: max-content; max-width: 260px; }
 .enemy .intent { position: absolute; bottom: calc(100% + 8px); left: 50%; translate: -50% 0; z-index: 3; }
 .enemy-art { position: relative; }
-.enemy-sprite { position: relative; width: 100%; height: 100%; }
+.enemy-sprite { position: relative; width: 100%; height: 100%; z-index: 1; }
 .enemy-art svg { width: 100%; height: 100%; display: block; }
-/* cast contact shadow — PNG feet scan pins origin; rigTick drives float lift */
+/* cast contact shadow — per-id knobs in src/cast-shadow.js (?charedit=1); float lift fades it */
 .cast-shadow {
-  position: absolute; inset: 0; overflow: visible; z-index: -3; pointer-events: none;
+  position: absolute; inset: 0; overflow: visible; z-index: 0; pointer-events: none;
   transform-origin: var(--foot-ox, 50%) var(--foot-oy, 100%);
-  transform: translateX(var(--sh-x, 0)) scale(var(--sh-sx, 1), var(--sh-sy, 0.24)) skewX(var(--sh-skew, 0deg));
+  transform: translate(var(--sh-x, 0), var(--sh-y, 0)) scale(var(--sh-sx, 1), var(--sh-sy, 0.24)) skewX(var(--sh-skew, 0deg));
   opacity: var(--sh-o, 0.62); filter: blur(var(--sh-blur, 1.5px)); mix-blend-mode: multiply;
 }
 .cast-shadow img, .cast-shadow svg {
   position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: contain; object-position: center top; filter: brightness(0) contrast(1.2);
+  object-fit: contain; object-position: center bottom; filter: brightness(0) contrast(1.2);
 }
 .cast-shadow-blob {
   inset: auto 8% -2px; top: auto; height: 14px; overflow: visible; filter: none; mix-blend-mode: normal;
   background: radial-gradient(ellipse 78% 100% at 50% 50%, rgba(0, 0, 0, 0.5), transparent 72%);
 }
-.hero-sprite > .raster-art, .enemy-sprite > .raster-art { filter: none; } /* ground shadow owns depth */
+/* bottom-align like ?charedit=1 — shadow origin % is meaningless if the body is centered */
+.hero-sprite > .raster-art, .enemy-sprite > .raster-art {
+  filter: none; object-position: center bottom;
+}
 .enemy.hurt .enemy-art { animation: hurtFlash 0.3s; }
 @keyframes hurtFlash { 30% { filter: brightness(2.6) saturate(0.4) drop-shadow(0 0 18px #fff); transform: translateX(7px); } 60% { transform: translateX(-5px); } }
 .enemy.dying { animation: dissolve 0.85s ease-in forwards; pointer-events: none; }
@@ -635,7 +638,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .enemy.marked .cracks path { stroke: #ffeadf; opacity: 1; }
 /* glass-crack death rite ("the fire escapes the glass"): cracks now score onto the
    raster creatures too, blaze warm as the vessel fails, then it shatters (V.shatter) */
-.enemy-sprite { isolation: isolate; } /* scope the crack/fire z-index to the body, not all of #screen */
+.enemy-sprite { isolation: isolate; z-index: 1; } /* scope the crack/fire z-index to the body, not all of #screen */
 .cracks-overlay { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
 .cracks { filter: drop-shadow(0 0 1.1px rgba(159, 212, 255, 0.5)); } /* faint refraction so the seams catch light as glass */
 .enemy.lowhp .enemy-art svg.cracks-overlay { transform: none; } /* seams track the raster body, which doesn't tilt at low HP */

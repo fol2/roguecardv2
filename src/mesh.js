@@ -386,7 +386,9 @@ function layoutPlane(p, t = 0, off = { left: 0, top: 0 }) {
   p.aspect = artAspect(img, p.tex) || p.aspect || 1;
   const { w: dw, h: dh } = containSize(r.width, r.height, p.aspect);
   const fl = (p.profile.float || 0) * Math.sin(t * 1.15 + p.seed * 0.7) * 12 * INTENSITY;
-  const x = r.left - off.left + r.width / 2 - W / 2, y = -(r.top - off.top + r.height / 2 - H / 2) + fl;
+  // center-X, bottom-Y — matches object-position:center bottom on .raster-art / cast-shadow
+  const x = r.left - off.left + r.width / 2 - W / 2;
+  const y = -(r.top - off.top + r.height - dh / 2 - H / 2) + fl;
   const sx = (p.flip ? -1 : 1) * dw / 2, sy = dh / 2;
   show(true);
   // renderOrder tracks screen depth: feet lower on stage (larger rect.bottom) draw in front
@@ -541,9 +543,9 @@ export function meshHandoff(el) {
   const r = stageRect(p.el);
   const { w: dw, h: dh } = containSize(r.width, r.height, p.aspect);
   const dpr = renderer.getPixelRatio();
-  // canvas pixel (0,0) = stage point (off.left, off.top) — read in canvas space
+  // canvas pixel (0,0) = stage point (off.left, off.top) — bottom-aligned like layoutPlane
   const sx = (r.left - off.left + r.width / 2 - dw / 2) * dpr;
-  const sy = (r.top - off.top + r.height / 2 - dh / 2) * dpr;
+  const sy = (r.top - off.top + r.height - dh) * dpr;
   const sw = Math.max(1, Math.round(dw * dpr));
   const sh = Math.max(1, Math.round(dh * dpr));
   const cap = document.createElement('canvas');

@@ -11,11 +11,17 @@ import { initVfx } from './vfx.js';
 import { initMesh } from './mesh.js';
 import { initUI } from './ui.js';
 
-initStage(); // first: everything else sizes itself against the virtual stage
-initScene();
-initVfx();
-initMesh();
-initUI();
-if (import.meta.env.DEV && new URLSearchParams(location.search).has('bfedit')) {
-  import('./dev/bf-editor.js').then((m) => m.initBfEditor());
+const qs = new URLSearchParams(location.search);
+if (import.meta.env.DEV && qs.has('charedit')) {
+  // stage + mesh boot inside the editor so warp/float match combat
+  import('./dev/char-editor.js').then((m) => m.initCharEditor());
+} else {
+  initStage();
+  initScene();
+  initVfx();
+  initMesh();
+  initUI();
+  if (import.meta.env.DEV && qs.has('bfedit')) {
+    import('./dev/bf-editor.js').then((m) => m.initBfEditor());
+  }
 }

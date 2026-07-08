@@ -1123,6 +1123,20 @@ function randomAgentRun(seed) {
   assert.ok(validateBF({ base: {} }).length > 0, 'bf: broken layout rejected');
 }
 
+// ---- cast-shadow table (?charedit=1) ----------------------------------------
+{
+  const { CAST_SHADOW, CAST_SHADOW_DEFAULT, castShadowFor } = await import('../src/cast-shadow.js');
+  const { serializeCastShadow, validateCastShadow } = await import('../src/dev/char-serialize.js');
+  assert.equal(validateCastShadow(CAST_SHADOW, {
+    heroes: ASPECTS.map((a) => a.id), enemies: Object.keys(ENEMIES),
+  }).length, 0, 'cast-shadow: table validates');
+  const c = castShadowFor('duskblade');
+  assert.ok(c.sy > 0 && c.sy < 1, 'cast-shadow: duskblade flattened');
+  const src = serializeCastShadow(CAST_SHADOW, CAST_SHADOW_DEFAULT);
+  assert.ok(src.includes('export const CAST_SHADOW'), 'cast-shadow: serialized');
+  assert.ok(validateCastShadow({ nope: { ox: 50 } }, { heroes: [], enemies: [] }).length > 0, 'cast-shadow: unknown id rejected');
+}
+
 let wins = 0, deaths = 0;
 const RUNS = 300;
 for (let i = 0; i < RUNS; i++) {
