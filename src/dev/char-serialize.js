@@ -4,7 +4,7 @@
 export const LAYOUT_KEYS = ['scale', 'footX', 'footY'];
 export const SHADOW_KEYS = ['ox', 'oy', 'sx', 'sy', 'skew', 'blur', 'opacity', 'dx', 'dy'];
 export const MESH_KEYS = ['sway', 'bob', 'breathe', 'head', 'cloth', 'pin', 'float'];
-export const AIM_KEYS = ['style', 'speed', 'color'];
+export const AIM_KEYS = ['style', 'speed', 'color', 'beams', 'dashes'];
 export const AIM_STYLES = ['spin', 'chase', 'solid'];
 
 export const LAYOUT_RANGES = {
@@ -19,6 +19,7 @@ export const MESH_RANGES = {
   cloth: [0, 3], pin: [0.5, 2], float: [0, 3],
 };
 export const AIM_SPEED_RANGE = [0.25, 3];
+export const AIM_COUNT_RANGE = [1, 4];
 export const CSS_FLOAT_RANGE = [0, 40];
 
 const HEADER = `// Per-character presentation meta — owned by ?charedit=1 (also scale/foot* from ?bfedit=1).
@@ -48,6 +49,8 @@ function inlineAim(obj) {
   if (obj.style !== undefined) parts.push(`style: ${str(obj.style)}`);
   if (obj.speed !== undefined) parts.push(`speed: ${num(obj.speed)}`);
   if (obj.color !== undefined) parts.push(`color: ${str(obj.color)}`);
+  if (obj.beams !== undefined) parts.push(`beams: ${num(obj.beams)}`);
+  if (obj.dashes !== undefined) parts.push(`dashes: ${num(obj.dashes)}`);
   return `{ ${parts.join(', ')} }`;
 }
 
@@ -73,7 +76,7 @@ function entryLine(id, entry) {
 export function pruneCharMeta(table, defaults = {}) {
   const layoutDef = defaults.layout || { scale: 1, footX: 0, footY: 0 };
   const shadowDef = defaults.shadow || {};
-  const aimDef = defaults.aim || { style: 'spin', speed: 1, color: '#fff6ec' };
+  const aimDef = defaults.aim || { style: 'spin', speed: 1, color: '#fff6ec', beams: 1, dashes: 2 };
   const out = {};
   for (const [id, raw] of Object.entries(table || {})) {
     if (!raw || typeof raw !== 'object') continue;
@@ -183,6 +186,13 @@ export function validateCharMeta(table, { heroes = [], enemies = [] } = {}) {
             if (typeof v !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(v)) {
               problems.push(`${id}.aim.color: need #RRGGBB`);
             }
+          } else if (k === 'beams' || k === 'dashes') {
+            if (!Number.isFinite(v) || !Number.isInteger(v)) {
+              problems.push(`${id}.aim.${k}: need integer`);
+            } else {
+              const [lo, hi] = AIM_COUNT_RANGE;
+              if (v < lo || v > hi) problems.push(`${id}.aim.${k}: ${v} out of [${lo},${hi}]`);
+            }
           }
         }
       }
@@ -199,7 +209,7 @@ export function serializeCharMeta(table, defaults = {}) {
     ox: 50, oy: 100, sx: 1, sy: 0.24, skew: 0, blur: 1.5, opacity: 0.62, dx: 0, dy: 0,
   };
   const layoutDef = defaults.layout || { scale: 1, footX: 0, footY: 0 };
-  const aimDef = defaults.aim || { style: 'spin', speed: 1, color: '#fff6ec' };
+  const aimDef = defaults.aim || { style: 'spin', speed: 1, color: '#fff6ec', beams: 1, dashes: 2 };
   return `${HEADER}
 export const CHAR_LAYOUT_DEFAULT = ${inlineObj(layoutDef, LAYOUT_KEYS)};
 

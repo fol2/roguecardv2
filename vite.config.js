@@ -110,6 +110,13 @@ function bfSavePlugin() {
             res.statusCode = 400;
             return res.end(JSON.stringify({ ok: false, problems: [`aim.style: invalid ${aimDefault.style}`] }));
           }
+          for (const k of ["beams", "dashes"]) {
+            const v = aimDefault[k];
+            if (!Number.isInteger(v) || v < 1 || v > 4) {
+              res.statusCode = 400;
+              return res.end(JSON.stringify({ ok: false, problems: [`aim.${k}: need integer 1..4`] }));
+            }
+          }
           const next = serializeCharMeta(table, {
             layout: CHAR_LAYOUT_DEFAULT,
             shadow: CHAR_SHADOW_DEFAULT,

@@ -8,7 +8,7 @@ export const CHAR_LAYOUT_DEFAULT = { scale: 1, footX: 0, footY: 0 };
 export const CHAR_SHADOW_DEFAULT = { ox: 50, oy: 100, sx: 1, sy: 0.24, skew: 0, blur: 1.5, opacity: 0.62, dx: 0, dy: 0 };
 
 /** Card-hover aim outline — global default; per-id `aim` overrides partially. */
-export const CHAR_AIM_DEFAULT = { style: 'spin', speed: 1, color: '#fff6ec' };
+export const CHAR_AIM_DEFAULT = { style: "chase", speed: 1.9, color: "#e4d5fb", beams: 1, dashes: 2 };
 
 /** Mesh profile keys (absolute overrides on top of art.kind PROFILE). */
 export const CHAR_MESH_KEYS = ["sway","bob","breathe","head","cloth","pin","float"];
