@@ -1123,18 +1123,26 @@ function randomAgentRun(seed) {
   assert.ok(validateBF({ base: {} }).length > 0, 'bf: broken layout rejected');
 }
 
-// ---- cast-shadow table (?charedit=1) ----------------------------------------
+// ---- char-meta table (?charedit=1) -------------------------------------------
 {
-  const { CAST_SHADOW, CAST_SHADOW_DEFAULT, castShadowFor } = await import('../src/cast-shadow.js');
-  const { serializeCastShadow, validateCastShadow } = await import('../src/dev/char-serialize.js');
-  assert.equal(validateCastShadow(CAST_SHADOW, {
+  const { CHAR_META, CHAR_LAYOUT_DEFAULT, CHAR_SHADOW_DEFAULT, charLayout, charShadow, charMesh } = await import('../src/char-meta.js');
+  const { serializeCharMeta, validateCharMeta, pruneCharMeta } = await import('../src/dev/char-serialize.js');
+  assert.equal(validateCharMeta(CHAR_META, {
     heroes: ASPECTS.map((a) => a.id), enemies: Object.keys(ENEMIES),
-  }).length, 0, 'cast-shadow: table validates');
-  const c = castShadowFor('duskblade');
-  assert.ok(c.sy > 0 && c.sy < 1, 'cast-shadow: duskblade flattened');
-  const src = serializeCastShadow(CAST_SHADOW, CAST_SHADOW_DEFAULT);
-  assert.ok(src.includes('export const CAST_SHADOW'), 'cast-shadow: serialized');
-  assert.ok(validateCastShadow({ nope: { ox: 50 } }, { heroes: [], enemies: [] }).length > 0, 'cast-shadow: unknown id rejected');
+  }).length, 0, 'char-meta: table validates');
+  const lay = charLayout('duskblade');
+  assert.equal(lay.footY, -30, 'char-meta: duskblade footY migrated');
+  const c = charShadow('duskblade');
+  assert.ok(c.sy > 0 && c.sy < 1, 'char-meta: duskblade shadow flattened');
+  assert.equal(charLayout('sporeling').scale, 0.62, 'char-meta: sporeling scale migrated');
+  assert.deepEqual(charMesh('duskblade'), {}, 'char-meta: no mesh override by default');
+  const src = serializeCharMeta(CHAR_META, { layout: CHAR_LAYOUT_DEFAULT, shadow: CHAR_SHADOW_DEFAULT });
+  assert.ok(src.includes('export const CHAR_META'), 'char-meta: serialized');
+  assert.ok(validateCharMeta({ nope: { scale: 1 } }, { heroes: [], enemies: [] }).length > 0, 'char-meta: unknown id rejected');
+  assert.ok(!pruneCharMeta({ x: { scale: 1 } }, { layout: CHAR_LAYOUT_DEFAULT }).x, 'char-meta: default scale pruned');
+  // bfActor reads char-meta, not BF.shared
+  assert.equal(bfActor('heroes', 'duskblade').footY, -30, 'bfActor: from char-meta');
+  assert.equal(bfActor('enemies', 'leviathan').scale, 4, 'bfActor: leviathan scale from char-meta');
 }
 
 let wins = 0, deaths = 0;

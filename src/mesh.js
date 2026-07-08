@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { stageW, stageH, stageScale, stageRect } from './stage.js';
+import { charMesh } from './char-meta.js';
 
 const SEG_X = 24, SEG_Y = 36, INTENSITY = 0.45;
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -40,7 +41,7 @@ const BAKE_N = 192;        // bake resolution: crack maps are soft — 192² kee
 
 const bell = (v, c, s) => Math.exp(-((v - c) ** 2) / (2 * s * s));
 // deform weights by body archetype (data.js art.kind); float = whole-body hover scale
-const PROFILE = {
+export const PROFILE = {
   wisp: { sway: 0.55, bob: 1.85, breathe: 0.95, head: 0.4, cloth: 0, pin: 1.05, float: 1.35 },
   beast: { sway: 1.15, bob: 0.85, breathe: 0.65, head: 0.55, cloth: 0.2, float: 0 },
   slime: { sway: 0.55, bob: 0.55, breathe: 1.35, head: 0, cloth: 0.55, pin: 1.2, float: 0.25 },
@@ -580,18 +581,25 @@ export function meshHandoff(el) {
   return { capture: cap.toDataURL('image/png'), sites, rect };
 }
 
-/** @param {{ el: Element, url: string, kind?: string }[]} entries */
+/** Kind PROFILE merged with optional per-id overrides from char-meta.js. */
+export function meshProfileFor(kind, id) {
+  const base = PROFILE[kind] || PROFILE.humanoid;
+  const over = id ? charMesh(id) : {};
+  return Object.keys(over).length ? { ...base, ...over } : base;
+}
+
+/** @param {{ el: Element, url: string, kind?: string, id?: string }[]} entries */
 export function meshBind(entries) {
   meshClear();
   if (!meshEnabled()) return;
   if (!renderer) initMesh();
   if (!renderer) return;
-  for (const { el, url, kind, flip } of entries) {
+  for (const { el, url, kind, id, flip } of entries) {
     if (!url || !el) continue;
     const img = el.querySelector('.raster-art');
     if (!img) continue;
     el.classList.add('mesh-live');
-    const profile = PROFILE[kind] || PROFILE.humanoid;
+    const profile = meshProfileFor(kind, id);
     const seed = Math.random() * 10;
     const p = makePlane(url, profile, seed, img);
     p.el = el;

@@ -1,14 +1,20 @@
-// Character cast-shadow editor — dev-only (?charedit=1).
-// Shadow knobs → src/cast-shadow.js. Actor scale/footY → src/battlefield-layout.js
-// (same shared fields ?bfedit=1 edits). Preview runs mesh warp + CSS idle float.
+// Character presentation editor — dev-only (?charedit=1).
+// Edits src/char-meta.js: layout (scale/foot*), cast shadow, mesh/float overrides.
+// Preview runs mesh warp + CSS idle float. Actor size also editable in ?bfedit=1.
 import { ENEMIES, ASPECTS } from '../data.js';
 import { assetUrl } from '../art.js';
-import { CAST_SHADOW_DEFAULT, castShadowTable, _setCastShadow } from '../cast-shadow.js';
-import { serializeCastShadow, validateCastShadow, CAST_SHADOW_KEYS, CAST_SHADOW_RANGES } from './char-serialize.js';
-import { validateBF } from './bf-serialize.js';
-import { bfRaw, _setBF, bfResolve, bfActor, bfEnemySize } from '../battlefield.js';
+import {
+  CHAR_LAYOUT_DEFAULT, CHAR_SHADOW_DEFAULT,
+  charMetaTable, _setCharMeta, charLayout, charShadow,
+} from '../char-meta.js';
+import {
+  validateCharMeta, pruneCharMeta,
+  LAYOUT_KEYS, SHADOW_KEYS, MESH_KEYS,
+  LAYOUT_RANGES, SHADOW_RANGES, MESH_RANGES, CSS_FLOAT_RANGE,
+} from './char-serialize.js';
+import { bfResolve, bfEnemySize } from '../battlefield.js';
 import { initStage } from '../stage.js';
-import { initMesh, meshBind, meshClear, meshEnabled, meshLift } from '../mesh.js';
+import { initMesh, meshBind, meshClear, meshEnabled, meshLift, meshProfileFor } from '../mesh.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const HERO_IDS = ASPECTS.map((a) => a.id);
@@ -18,11 +24,9 @@ const EDITOR_SHAPE = 'desktop-landscape';
 const FLOAT_KINDS = new Set(['wisp', 'eye', 'siren', 'shade', 'plant', 'slime', 'serpent']);
 
 const state = {
-  bf: null,
-  shadows: clone(castShadowTable()),
+  meta: clone(charMetaTable()),
   id: HERO_IDS[0] || ENEMY_IDS[0],
-  dirtyShadow: false,
-  dirtyBf: false,
+  dirty: false,
   zoom: 2.5, // preview-only; ox/oy are % so they transfer
   anim: true,
 };
@@ -57,15 +61,27 @@ function tierOf(id) {
   return d.boss ? 'boss' : d.elite ? 'elite' : 'normal';
 }
 
-function ensureShared(kind, id) {
-  state.bf.shared[kind] ??= {};
-  state.bf.shared[kind][id] ??= {};
-  return state.bf.shared[kind][id];
+function ensureEntry(id) {
+  state.meta[id] ??= {};
+  return state.meta[id];
+}
+function entryOf(id) {
+  return state.meta[id] || {};
+}
+function layoutOf(id) {
+  _setCharMeta(state.meta);
+  return charLayout(id);
+}
+function shadowOf(id) {
+  _setCharMeta(state.meta);
+  return charShadow(id);
+}
+function meshOf(id) {
+  return meshProfileFor(kindOf(id), id);
 }
 function actorParams(id) {
-  _setBF(state.bf);
-  const kind = isHero(id) ? 'heroes' : 'enemies';
-  const a = bfActor(kind, id);
+  _setCharMeta(state.meta);
+  const a = charLayout(id);
   const L = bfResolve(EDITOR_SHAPE, 0);
   let w, h;
   if (isHero(id)) {
@@ -75,35 +91,18 @@ function actorParams(id) {
     const s = bfEnemySize(L, id, tierOf(id), { s: 1 }, L.hero.w, L.hero.h);
     w = h = s;
   }
-  return { scale: a.scale, footY: a.footY || 0, w, h, baseW: isHero(id) ? L.hero.w : (L.shared.sizes[tierOf(id)] ?? 185), baseH: isHero(id) ? L.hero.h : (L.shared.sizes[tierOf(id)] ?? 185) };
-}
-function shadowOf(id) {
-  return { ...CAST_SHADOW_DEFAULT, ...(state.shadows[id] || {}) };
-}
-function ensureShadow(id) {
-  if (!state.shadows[id]) state.shadows[id] = {};
-  return state.shadows[id];
+  return { scale: a.scale, footX: a.footX || 0, footY: a.footY || 0, w, h };
 }
 
-function markShadowDirty() {
-  state.dirtyShadow = true;
-  _setCastShadow(state.shadows);
-  syncDirty();
-  paintActor();
-}
-function markBfDirty() {
-  state.dirtyBf = true;
-  _setBF(state.bf);
+function markDirty() {
+  state.dirty = true;
+  _setCharMeta(state.meta);
   syncDirty();
   paintActor();
 }
 function syncDirty() {
   const d = document.getElementById('ce-dirty');
-  if (!d) return;
-  const bits = [];
-  if (state.dirtyShadow) bits.push('shadow');
-  if (state.dirtyBf) bits.push('bf size');
-  d.textContent = bits.length ? `● unsaved (${bits.join(' + ')})` : 'clean';
+  if (d) d.textContent = state.dirty ? '● unsaved' : 'clean';
 }
 
 function spriteLiftPx(el) {
@@ -151,8 +150,10 @@ function paintActor() {
   const h = Math.round(ap.h * z);
   const footY = Math.round(ap.footY * z);
   const c = shadowOf(id);
+  const entry = entryOf(id);
   const idle = state.anim && FLOAT_KINDS.has(kind) ? ` idle-${kind}` : '';
-  const floatAmp = Math.round(12 * z);
+  const cssFloat = entry.cssFloat;
+  const floatAmp = Math.round((cssFloat != null ? cssFloat : 12) * z);
 
   host.innerHTML = `
     <div class="ce-ground"></div>
@@ -180,18 +181,18 @@ function paintActor() {
     const r = actor.getBoundingClientRect();
     const ox = Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100));
     const oy = Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100));
-    const entry = ensureShadow(id);
-    entry.ox = Math.round(ox * 10) / 10;
-    entry.oy = Math.round(oy * 10) / 10;
-    markShadowDirty();
+    const ent = ensureEntry(id);
+    ent.shadow ??= {};
+    ent.shadow.ox = Math.round(ox * 10) / 10;
+    ent.shadow.oy = Math.round(oy * 10) / 10;
+    markDirty();
     renderPanel();
   };
 
   if (state.anim && meshEnabled() && url) {
-    meshBind([{ el: sprite, url, kind }]);
+    meshBind([{ el: sprite, url, kind, id }]);
   }
 
-  // live shadow ↔ float/mesh lift
   const tick = () => {
     if (!sprite.isConnected) return;
     let lift = 0;
@@ -199,30 +200,48 @@ function paintActor() {
       lift = spriteLiftPx(sprite);
       if (sprite.classList.contains('mesh-live')) lift += meshLift(sprite);
     }
-    applyShadowCss(shadow, id, lift / z, ap.footY, z); // lift is in preview px; normalize
+    applyShadowCss(shadow, id, lift / z, ap.footY, z);
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
+}
+
+function rangeRow(k, value, [lo, hi], step, overridden, dataAttr) {
+  return `<label class="ce-row${overridden ? ' on' : ''}">
+    <span>${k}${overridden ? ' ●' : ''}</span>
+    <input type="range" min="${lo}" max="${hi}" step="${step}" ${dataAttr}="${k}" value="${value}">
+    <input type="number" min="${lo}" max="${hi}" step="${step}" ${dataAttr}="${k}" value="${value}">
+    ${overridden ? `<button type="button" data-clear="${dataAttr.slice(5)}" data-key="${k}" title="clear">×</button>` : '<span></span>'}
+  </label>`;
 }
 
 function renderPanel() {
   const panel = document.getElementById('ce-panel');
   if (!panel) return;
   const id = state.id;
-  const c = shadowOf(id);
-  const entry = state.shadows[id] || {};
+  const entry = entryOf(id);
+  const lay = layoutOf(id);
+  const sh = shadowOf(id);
+  const mesh = meshOf(id);
   const ap = actorParams(id);
-  const rows = CAST_SHADOW_KEYS.map((k) => {
-    const [lo, hi] = CAST_SHADOW_RANGES[k];
-    const step = (k === 'sx' || k === 'sy' || k === 'opacity') ? 0.01 : 1;
-    const overridden = entry[k] !== undefined;
-    return `<label class="ce-row${overridden ? ' on' : ''}">
-      <span>${k}${overridden ? ' ●' : ''}</span>
-      <input type="range" min="${lo}" max="${hi}" step="${step}" data-sh="${k}" value="${c[k]}">
-      <input type="number" min="${lo}" max="${hi}" step="${step}" data-sh="${k}" value="${c[k]}">
-      ${overridden ? `<button type="button" data-clear-sh="${k}" title="clear">×</button>` : '<span></span>'}
-    </label>`;
+
+  const layoutRows = LAYOUT_KEYS.map((k) => {
+    const step = k === 'scale' ? 0.05 : 1;
+    return rangeRow(k, lay[k], LAYOUT_RANGES[k], step, entry[k] !== undefined, 'data-lay');
   }).join('');
+
+  const shadowRows = SHADOW_KEYS.map((k) => {
+    const step = (k === 'sx' || k === 'sy' || k === 'opacity') ? 0.01 : 1;
+    return rangeRow(k, sh[k], SHADOW_RANGES[k], step, entry.shadow?.[k] !== undefined, 'data-sh');
+  }).join('');
+
+  const meshRows = MESH_KEYS.map((k) => {
+    const overridden = entry.mesh?.[k] !== undefined;
+    return rangeRow(k, mesh[k] ?? 0, MESH_RANGES[k], 0.05, overridden, 'data-mesh');
+  }).join('');
+
+  const cssOver = entry.cssFloat !== undefined;
+  const cssVal = entry.cssFloat ?? 12;
 
   panel.innerHTML = `
     <div class="ce-pick">
@@ -233,24 +252,31 @@ function renderPanel() {
       </label>
       <div class="ce-size">
         <span>combat box</span><b>${ap.w}×${ap.h}</b>
-        <label>scale <input type="number" id="ce-scale" min="0.2" max="6" step="0.05" value="${ap.scale}"></label>
-        <label>footY <input type="number" id="ce-footy" min="-300" max="200" step="1" value="${ap.footY}"></label>
-        <span class="ce-size-note">shared · saved to battlefield-layout.js (also ?bfedit=1)</span>
+        <span class="ce-size-note">from scale · also editable in ?bfedit=1</span>
       </div>
       <label>preview zoom <em>×${state.zoom}</em>
         <input type="range" id="ce-zoom" min="1" max="4" step="0.25" value="${state.zoom}">
       </label>
       <label class="ce-check"><input type="checkbox" id="ce-anim" ${state.anim ? 'checked' : ''}> mesh + float anim</label>
     </div>
+    <h4>layout</h4>
+    <div class="ce-fields">${layoutRows}</div>
     <h4>cast shadow</h4>
-    <div class="ce-fields">${rows}</div>
+    <div class="ce-fields">${shadowRows}</div>
+    <h4>mesh / float <em class="ce-kind">kind ${kindOf(id)}</em></h4>
+    <p class="ce-sub">Overrides kind PROFILE (base shown). Clear = use kind default.</p>
+    <div class="ce-fields">${meshRows}</div>
+    <label class="ce-row${cssOver ? ' on' : ''}">
+      <span>cssFloat${cssOver ? ' ●' : ''}</span>
+      <input type="range" min="${CSS_FLOAT_RANGE[0]}" max="${CSS_FLOAT_RANGE[1]}" step="1" data-css="cssFloat" value="${cssVal}">
+      <input type="number" min="${CSS_FLOAT_RANGE[0]}" max="${CSS_FLOAT_RANGE[1]}" step="1" data-css="cssFloat" value="${cssVal}">
+      ${cssOver ? '<button type="button" data-clear-css title="clear">×</button>' : '<span></span>'}
+    </label>
     <div class="ce-actions">
-      <button type="button" id="ce-reset">Reset shadow</button>
-      <button type="button" id="ce-save-shadow">Save shadow</button>
-      <button type="button" id="ce-save-bf">Save size</button>
-      <button type="button" id="ce-save-all">Save both</button>
+      <button type="button" id="ce-reset">Reset character</button>
+      <button type="button" id="ce-save">Save char-meta</button>
     </div>
-    <p class="ce-hint">Click sprite → plant ox/oy. Zoom is preview-only. Scale/footY write BF shared table. Shadow writes <code>cast-shadow.js</code>.</p>`;
+    <p class="ce-hint">Click sprite → plant shadow ox/oy. Zoom is preview-only. All knobs write <code>char-meta.js</code>.</p>`;
 
   panel.querySelector('#ce-id').onchange = (e) => {
     state.id = e.target.value;
@@ -269,83 +295,110 @@ function renderPanel() {
     paintActor();
     renderPanel();
   };
-  panel.querySelector('#ce-scale').onchange = (e) => {
-    const v = Number(e.target.value);
-    if (!Number.isFinite(v) || v <= 0) return;
-    const kind = isHero(id) ? 'heroes' : 'enemies';
-    ensureShared(kind, id).scale = v;
-    markBfDirty();
-    renderPanel();
-  };
-  panel.querySelector('#ce-footy').onchange = (e) => {
-    const v = Number(e.target.value);
-    if (!Number.isFinite(v)) return;
-    const kind = isHero(id) ? 'heroes' : 'enemies';
-    ensureShared(kind, id).footY = v;
-    markBfDirty();
-    renderPanel();
-  };
+
+  panel.querySelectorAll('input[data-lay]').forEach((inp) => {
+    inp.oninput = () => {
+      const k = inp.dataset.lay;
+      const v = Number(inp.value);
+      if (!Number.isFinite(v)) return;
+      ensureEntry(id)[k] = v;
+      markDirty();
+      panel.querySelectorAll(`input[data-lay="${k}"]`).forEach((n) => { if (n !== inp) n.value = String(v); });
+      const sizeB = panel.querySelector('.ce-size b');
+      if (sizeB) {
+        const ap2 = actorParams(id);
+        sizeB.textContent = `${ap2.w}×${ap2.h}`;
+      }
+    };
+  });
   panel.querySelectorAll('input[data-sh]').forEach((inp) => {
-    const apply = () => {
+    inp.oninput = () => {
       const k = inp.dataset.sh;
       const v = Number(inp.value);
       if (!Number.isFinite(v)) return;
-      ensureShadow(id)[k] = v;
-      markShadowDirty();
+      const ent = ensureEntry(id);
+      ent.shadow ??= {};
+      ent.shadow[k] = v;
+      markDirty();
       panel.querySelectorAll(`input[data-sh="${k}"]`).forEach((n) => { if (n !== inp) n.value = String(v); });
-      const row = inp.closest('.ce-row');
-      if (row && !row.classList.contains('on')) {
-        row.classList.add('on');
-        const span = row.querySelector('span');
-        if (span && !span.textContent.includes('●')) span.textContent += ' ●';
-      }
     };
-    inp.oninput = apply;
   });
-  panel.querySelectorAll('[data-clear-sh]').forEach((b) => {
-    b.onclick = () => { delete ensureShadow(id)[b.dataset.clearSh]; markShadowDirty(); renderPanel(); };
+  panel.querySelectorAll('input[data-mesh]').forEach((inp) => {
+    inp.oninput = () => {
+      const k = inp.dataset.mesh;
+      const v = Number(inp.value);
+      if (!Number.isFinite(v)) return;
+      const ent = ensureEntry(id);
+      ent.mesh ??= {};
+      ent.mesh[k] = v;
+      markDirty();
+      panel.querySelectorAll(`input[data-mesh="${k}"]`).forEach((n) => { if (n !== inp) n.value = String(v); });
+    };
   });
+  panel.querySelectorAll('input[data-css]').forEach((inp) => {
+    inp.oninput = () => {
+      const v = Number(inp.value);
+      if (!Number.isFinite(v)) return;
+      ensureEntry(id).cssFloat = v;
+      markDirty();
+      panel.querySelectorAll('input[data-css]').forEach((n) => { if (n !== inp) n.value = String(v); });
+    };
+  });
+
+  panel.querySelectorAll('[data-clear="lay"]').forEach((b) => {
+    b.onclick = () => { delete ensureEntry(id)[b.dataset.key]; markDirty(); renderPanel(); };
+  });
+  panel.querySelectorAll('[data-clear="sh"]').forEach((b) => {
+    b.onclick = () => {
+      const ent = ensureEntry(id);
+      if (ent.shadow) delete ent.shadow[b.dataset.key];
+      if (ent.shadow && !Object.keys(ent.shadow).length) delete ent.shadow;
+      markDirty();
+      renderPanel();
+    };
+  });
+  panel.querySelectorAll('[data-clear="mesh"]').forEach((b) => {
+    b.onclick = () => {
+      const ent = ensureEntry(id);
+      if (ent.mesh) delete ent.mesh[b.dataset.key];
+      if (ent.mesh && !Object.keys(ent.mesh).length) delete ent.mesh;
+      markDirty();
+      renderPanel();
+    };
+  });
+  panel.querySelector('[data-clear-css]')?.addEventListener('click', () => {
+    delete ensureEntry(id).cssFloat;
+    markDirty();
+    renderPanel();
+  });
+
   panel.querySelector('#ce-reset').onclick = () => {
-    delete state.shadows[id];
-    markShadowDirty();
+    delete state.meta[id];
+    markDirty();
     renderPanel();
   };
-  panel.querySelector('#ce-save-shadow').onclick = () => saveShadow();
-  panel.querySelector('#ce-save-bf').onclick = () => saveBf();
-  panel.querySelector('#ce-save-all').onclick = async () => {
-    await saveShadow();
-    await saveBf();
-  };
+  panel.querySelector('#ce-save').onclick = () => saveMeta();
 }
 
-async function saveShadow() {
-  const problems = validateCastShadow(state.shadows, { heroes: HERO_IDS, enemies: ENEMY_IDS });
-  if (problems.length) return alert(`shadow invalid:\n${problems.join('\n')}`);
+async function saveMeta() {
+  const pruned = pruneCharMeta(state.meta, {
+    layout: CHAR_LAYOUT_DEFAULT,
+    shadow: CHAR_SHADOW_DEFAULT,
+  });
+  const problems = validateCharMeta(pruned, { heroes: HERO_IDS, enemies: ENEMY_IDS });
+  if (problems.length) return alert(`char-meta invalid:\n${problems.join('\n')}`);
   const r = await fetch('/__char-save', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(state.shadows),
+    body: JSON.stringify(pruned),
   });
   const j = await r.json();
-  if (!j.ok) return alert(`shadow save failed:\n${(j.problems ?? []).join('\n')}`);
-  state.dirtyShadow = false;
+  if (!j.ok) return alert(`save failed:\n${(j.problems ?? []).join('\n')}`);
+  state.meta = pruned;
+  _setCharMeta(state.meta);
+  state.dirty = false;
   syncDirty();
-}
-
-async function saveBf() {
-  const problems = validateBF(state.bf, { enemies: ENEMY_IDS, heroes: HERO_IDS });
-  if (problems.length) return alert(`bf invalid:\n${problems.join('\n')}`);
-  const r = await fetch('/__bf-save', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(state.bf),
-  });
-  const j = await r.json().catch(() => ({ ok: false, problems: [`HTTP ${r.status}`] }));
-  if (!j.ok) return alert(`bf save failed:\n${(j.problems ?? []).join('\n')}`);
-  state.dirtyBf = false;
-  syncDirty();
-  // bf-save may ask for reload; keep URL so we land back here
-  if (j.reload) location.reload();
+  renderPanel();
 }
 
 function mountChrome() {
@@ -358,12 +411,11 @@ function mountChrome() {
 
   const bar = document.createElement('header');
   bar.id = 'ce-bar';
-  bar.innerHTML = `<b>cast shadow</b><span id="ce-dirty">clean</span><a href="/?bfedit=1">bfedit</a><a href="/">← game</a>`;
+  bar.innerHTML = `<b>char meta</b><span id="ce-dirty">clean</span><a href="/?bfedit=1">bfedit</a><a href="/">← game</a>`;
 
   const panel = document.createElement('aside');
   panel.id = 'ce-panel';
 
-  // actor lives INSIDE #screen so #mesh (sibling under #shake) can track it
   const host = document.createElement('div');
   host.id = 'ce-stage';
   screen.appendChild(host);
@@ -382,13 +434,14 @@ const CSS = `
 #ce-bar a { color: #9fb4ff; text-decoration: none; margin-left: 12px; }
 #ce-bar a:last-of-type { margin-left: auto; }
 #ce-dirty { color: #f0c56a; }
-#ce-panel { position: fixed; top: 44px; right: 0; bottom: 0; width: 310px; z-index: 400; overflow: auto;
+#ce-panel { position: fixed; top: 44px; right: 0; bottom: 0; width: 320px; z-index: 400; overflow: auto;
   border-left: 1px solid #333a55; background: #0b0d18f2; padding: 12px;
   font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: #cdd3ea; }
 #ce-panel h4 { margin: 14px 0 8px; color: #f0c56a; font: inherit; letter-spacing: 0.08em; text-transform: uppercase; font-size: 11px; }
-#stage { /* full window — mesh/stage sizing must stay intact */ }
+#ce-panel h4 .ce-kind { color: #9aa7c8; font-style: normal; letter-spacing: 0; text-transform: none; margin-left: 6px; }
+.ce-sub { color: #6a7288; font-size: 11px; margin: -4px 0 8px; }
 #ce-stage {
-  position: absolute; inset: 0; padding-right: 310px; box-sizing: border-box;
+  position: absolute; inset: 0; padding-right: 320px; box-sizing: border-box;
   background:
     radial-gradient(ellipse at 50% 70%, #1a2036 0%, #0b0d18 70%),
     repeating-linear-gradient(90deg, transparent, transparent 39px, #1a203622 40px);
@@ -422,11 +475,9 @@ const CSS = `
 .ce-check input { width: auto; }
 .ce-size { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; padding: 8px; border: 1px solid #333a55; border-radius: 6px; color: #9aa7c8; align-items: center; }
 .ce-size b { color: #cdd3ea; }
-.ce-size label { display: flex; gap: 6px; align-items: center; grid-column: 1 / -1; }
-.ce-size input[type=number] { width: 72px; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
 .ce-size-note { grid-column: 1 / -1; font-size: 11px; color: #6a7288; }
 .ce-fields { display: grid; gap: 6px; }
-.ce-row { display: grid; grid-template-columns: 64px 1fr 58px 18px; gap: 6px; align-items: center; color: #9aa7c8; }
+.ce-row { display: grid; grid-template-columns: 72px 1fr 58px 18px; gap: 6px; align-items: center; color: #9aa7c8; margin: 0; }
 .ce-row.on span { color: #f0c56a; }
 .ce-row input[type=number] { width: 58px; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
 .ce-row button { background: #3a2030; color: #ff9ebd; border: 1px solid #664455; border-radius: 3px; cursor: pointer; padding: 0; }
@@ -444,10 +495,8 @@ const CSS = `
 export function initCharEditor() {
   initStage();
   initMesh();
-  state.bf = clone(bfRaw());
-  _setBF(state.bf);
-  state.shadows = clone(castShadowTable());
-  _setCastShadow(state.shadows);
+  state.meta = clone(charMetaTable());
+  _setCharMeta(state.meta);
   state.id = idFromUrl();
   pushUrl();
   mountChrome();
@@ -455,7 +504,10 @@ export function initCharEditor() {
   renderPanel();
   window.__charEditor = {
     id: () => state.id,
+    meta: () => entryOf(state.id),
     shadow: () => shadowOf(state.id),
+    layout: () => layoutOf(state.id),
+    mesh: () => meshOf(state.id),
     actor: () => actorParams(state.id),
   };
 }

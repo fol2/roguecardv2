@@ -1,7 +1,9 @@
 // Battlefield layout resolver. Data lives in battlefield-layout.js (the file
 // the ?bfedit editor rewrites); this module only merges and defaults it.
+// Per-actor scale/footX/footY live in char-meta.js (via charLayout).
 // Imports nothing DOM-touching; Node-importable (test_engine.js gates it).
 import { BF as FILE_BF } from './battlefield-layout.js';
+import { charLayout } from './char-meta.js';
 
 let BF = FILE_BF;
 /** Editor/test hook: override the layout in effect (null = back to the file). */
@@ -59,9 +61,10 @@ export function bfHeroY(layout) {
   return layout.hero?.y ?? 0;
 }
 
-/** Per-actor shared modifiers with defaults. kind: 'enemies' | 'heroes'. */
+/** Per-actor layout modifiers (scale/foot*) from char-meta.js. kind kept for call-site stability. */
 export function bfActor(kind, id) {
-  return { scale: 1, footX: 0, footY: 0, ...(BF.shared?.[kind]?.[id] ?? {}) };
+  void kind;
+  return charLayout(id);
 }
 
 /** Formation for an enemy count; missing counts interpolate the widest authored one.

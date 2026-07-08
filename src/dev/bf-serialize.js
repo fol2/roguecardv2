@@ -10,13 +10,15 @@ const HEADER = `// Battlefield layout — owned by the battlefield editor (?bfed
 // All values are STAGE px for their shape (see src/stage.js). Conventions:
 //   x       — actor's horizontal CENTER
 //   y       — hero lift from the ground line (+up, default 0); foes use slot.y
-//   footX   — horizontal feet offset from the slot center (+right)
+//   footX   — horizontal feet offset from the slot center (+right) — per-slot
+//             only here; per-actor footX/footY/scale live in src/char-meta.js
 //   footY   — feet offset from the ground line (art whose feet aren't at the
-//             sprite's bottom edge), + is up
-//   scale   — multiplies the tier size (sizes.normal/elite/boss)
+//             sprite's bottom edge), + is up — per-slot override; actor default
+//             is char-meta
+//   scale   — (per-actor) multiplies tier size — see src/char-meta.js
 //   slot.s  — per-formation size multiplier (keeps wide lineups on-ledge)
 //   slot.y  — per-formation lift from the ground line (+up, default 0)
-//   slot.footX / slot.footY — optional per-slot overrides; fall back to shared.enemies[id]
+//   slot.footX / slot.footY — optional per-slot overrides; fall back to char-meta
 //   layers  — h: plate height; y: plate bottom offset from stage bottom (+up);
 //             x: horizontal offset from centered (+right); zoom: image scale;
 //             posX/posY: crop focus % (object-position); opacity;
@@ -77,8 +79,9 @@ function shapeBlock(shapeLayout, indent) {
 export function serializeBF(bf) {
   const out = [HEADER, 'export const BF = {', '  shared: {'];
   out.push(`    sizes: ${inline(bf.shared.sizes, ['normal', 'elite', 'boss'])},`);
-  out.push('    heroes: {', actorsBlock(bf.shared.heroes, '      '), '    },');
-  out.push('    enemies: {', actorsBlock(bf.shared.enemies, '      '), '    },');
+  // actor scale/foot* live in char-meta.js — keep empty maps for shape stability
+  out.push('    heroes: {},');
+  out.push('    enemies: {},');
   out.push('  },', '  base: {', shapeBlock(bf.base, '    '), '  },', '  shapes: {');
   for (const sh of SHAPES) {
     const o = bf.shapes?.[sh];
@@ -95,9 +98,10 @@ export function validateBF(bf, ids = null) {
   if (!bf.shared?.sizes || !bf.base) return ['missing shared.sizes or base'];
   for (const t of ['normal', 'elite', 'boss']) finite(bf.shared.sizes[t], `shared.sizes.${t}`);
   for (const kind of ['heroes', 'enemies']) {
+    // legacy shared actor maps are ignored (char-meta owns them); still reject junk if present
     for (const [id, a] of Object.entries(bf.shared[kind] ?? {})) {
-      finite(a.scale, `shared.${kind}.${id}.scale`);
-      finite(a.footY, `shared.${kind}.${id}.footY`);
+      if (a.scale !== undefined) finite(a.scale, `shared.${kind}.${id}.scale`);
+      if (a.footY !== undefined) finite(a.footY, `shared.${kind}.${id}.footY`);
       if (a.footX !== undefined) finite(a.footX, `shared.${kind}.${id}.footX`);
       if (ids && !ids[kind].includes(id)) problems.push(`shared.${kind}.${id}: unknown id`);
     }

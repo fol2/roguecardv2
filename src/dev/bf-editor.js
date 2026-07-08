@@ -1,9 +1,11 @@
 // Battlefield editor — dev-only (?bfedit=1 behind import.meta.env.DEV).
-// Overlays + panel edit a working copy of BF via _setBF(); Save writes
-// src/battlefield-layout.js through the vite dev endpoint.
+// Overlays + panel edit a working copy of BF via _setBF(); actor scale/foot*
+// edit char-meta via _setCharMeta(). Save writes both files through vite.
 import { ENEMIES, ASPECTS } from '../data.js';
 import { serializeBF, validateBF } from './bf-serialize.js';
+import { validateCharMeta } from './char-serialize.js';
 import { bfRaw, _setBF, bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY } from '../battlefield.js';
+import { charMetaTable, _setCharMeta } from '../char-meta.js';
 import { stageEl, stageW, stageH, stageScale, stageInfo } from '../stage.js';
 
 const SLOT_FOOT = new Set(['footX', 'footY']);
@@ -43,6 +45,12 @@ function slotFootField(kind, key, i, count, slot, shape) {
   };
 }
 function clearSlotFoot(f, shape) {
+  if (f.scope === 'shared') {
+    const e = state.meta[f.mobKey];
+    if (e) delete e[f.kind];
+    if (e && !Object.keys(e).length) delete state.meta[f.mobKey];
+    return;
+  }
   if (f.scope === 'act') {
     const arr = getPath(state.working, [...actBucketPath(shape), String(editorAct()), 'slots', f.count]);
     if (arr?.[f.slotIdx]) delete arr[f.slotIdx][f.kind];
@@ -96,6 +104,7 @@ function delPath(obj, path) {
 }
 function applyWorking() {
   _setBF(state.working);
+  _setCharMeta(state.meta);
   window.spirebound.refitCombat();
   state.dirty = true;
   const d = document.getElementById('bf-dirty');
@@ -104,9 +113,20 @@ function applyWorking() {
   renderPanel();
 }
 const isActorSharedPath = (path) => path[0] === 'sizes' || path[0] === 'heroes' || path[0] === 'enemies';
+const isCharMetaPath = (path) => (path[0] === 'heroes' || path[0] === 'enemies') && path.length >= 3;
+function ensureMeta(id) {
+  state.meta[id] ??= {};
+  return state.meta[id];
+}
 function mutateField(scope, path, value) {
   const shape = stageInfo().shape;
   const act = String(editorAct());
+  if (scope === 'shared' && isCharMetaPath(path)) {
+    const id = path[1];
+    const key = path[2];
+    ensureMeta(id)[key] = value;
+    return;
+  }
   if (scope === 'shared' && !isActorSharedPath(path)) scope = defaultScope(path);
   if (scope === 'shared') setPath(state.working.shared, path, value);
   else if (scope === 'base') setPath(state.working.base, path, value);
@@ -129,6 +149,7 @@ function writeField(scope, path, value, { drag } = {}) {
   mutateField(scope, path, value);
   if (drag) {
     _setBF(state.working);
+    _setCharMeta(state.meta);
     state.dirty = true;
     const d = document.getElementById('bf-dirty');
     if (d) d.textContent = '● unsaved';
@@ -138,7 +159,7 @@ function writeField(scope, path, value, { drag } = {}) {
   applyWorking();
 }
 const defaultScope = (path) => (path[0] === 'sizes' || path[0] === 'heroes' || path[0] === 'enemies') ? 'shared' : 'shape';
-const state = { working: null, sel: null, dirty: false, scenario: null };
+const state = { working: null, meta: null, sel: null, dirty: false, scenario: null };
 
 const q = () => new URLSearchParams(location.search);
 function scenarioFromUrl() {
@@ -493,6 +514,18 @@ function renderToolbar() {
   bar.querySelector('#bf-save').onclick = async () => {
     const problems = validateBF(state.working);
     if (problems.length) return alert(`invalid layout:\n${problems.join('\n')}`);
+    const metaProblems = validateCharMeta(state.meta, {
+      heroes: ASPECTS.map((a) => a.id),
+      enemies: Object.keys(ENEMIES),
+    });
+    if (metaProblems.length) return alert(`invalid char-meta:\n${metaProblems.join('\n')}`);
+    const rMeta = await fetch('/__char-save', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(state.meta),
+    });
+    const jMeta = await rMeta.json().catch(() => ({ ok: false, problems: [`HTTP ${rMeta.status}`] }));
+    if (!jMeta.ok) return alert(`char-meta save failed:\n${(jMeta.problems ?? []).join('\n')}`);
     const r = await fetch('/__bf-save', { method: 'POST', body: JSON.stringify(state.working) });
     const j = await r.json().catch(() => ({ ok: false, problems: [`HTTP ${r.status}`] }));
     if (!j.ok) return alert(`save failed:\n${(j.problems ?? []).join('\n')}`);
@@ -549,7 +582,9 @@ export function initBfEditor() {
   style.textContent = CSS;
   document.head.appendChild(style);
   state.working = normalizeActs(clone(bfRaw()));
+  state.meta = clone(charMetaTable());
   _setBF(state.working);
+  _setCharMeta(state.meta);
   state.scenario = scenarioFromUrl();
   pushScenarioToUrl();
   renderToolbar();
@@ -577,5 +612,5 @@ export function initBfEditor() {
       if (dy) writeField(scope, ['layers', name, 'y'], L.layers[name].y + dy);
     }
   });
-  window.__bfEditor = { resolved: () => editorResolve(), working: () => state.working };
+  window.__bfEditor = { resolved: () => editorResolve(), working: () => state.working, meta: () => state.meta };
 }

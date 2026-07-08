@@ -7,7 +7,7 @@ import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, beque
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
 import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift } from './mesh.js';
-import { castShadowLive } from './cast-shadow.js';
+import { charShadowLive, charCssFloat } from './char-meta.js';
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
@@ -1512,7 +1512,7 @@ function castShadowEl(url, svg) {
 }
 function syncCastShadow(it, lift) {
   if (!it.shadow || !it.shadowId) return;
-  const c = castShadowLive(it.shadowId);
+  const c = charShadowLive(it.shadowId);
   const max = it.shadowMax || 16;
   const t = Math.min(1, lift / max);
   const sx = c.sx * (1 - t * 0.26);
@@ -1554,6 +1554,8 @@ function rigCombatants() {
     } else if (kind) {
       sprite.classList.add(`idle-${kind}`);
       sprite.style.animationDelay = `${(-(seed % 2.8)).toFixed(2)}s`;
+      const cssF = shadowId ? charCssFloat(shadowId) : null;
+      if (cssF != null) sprite.style.setProperty('--float-y', `${cssF}px`);
       if (kind === 'wisp' || kind === 'plant') {
         const motes = el('div', 'idle-motes');
         motes.style.setProperty('--mote', `hsla(${hue},85%,62%,0.6)`);
@@ -1592,12 +1594,12 @@ function meshBindCombatants() {
   // mesh-live element or it stays visible under the warp copy (double vision),
   // and the wrap's rect includes the name label which would stretch the plane
   const heroSprite = ce.hero && ($('.hero-sprite', ce.hero) || ce.hero);
-  if (heroUrl && heroSprite) entries.push({ el: heroSprite, url: heroUrl, kind: 'humanoid' });
+  if (heroUrl && heroSprite) entries.push({ el: heroSprite, url: heroUrl, kind: 'humanoid', id: ASPECTS[S.run.aspect].id });
   cb.enemies.forEach((en, i) => {
     const url = assetUrl('enemies', en.key);
     const art = ce.enemies[i]?.art;
     const sprite = art && ($('.enemy-sprite', art) || art);
-    if (url && sprite) entries.push({ el: sprite, url, kind: ENEMIES[en.key].art.kind });
+    if (url && sprite) entries.push({ el: sprite, url, kind: ENEMIES[en.key].art.kind, id: en.key });
   });
   meshBind(entries);
 }

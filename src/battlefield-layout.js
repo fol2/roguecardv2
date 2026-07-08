@@ -3,13 +3,15 @@
 // All values are STAGE px for their shape (see src/stage.js). Conventions:
 //   x       — actor's horizontal CENTER
 //   y       — hero lift from the ground line (+up, default 0); foes use slot.y
-//   footX   — horizontal feet offset from the slot center (+right)
+//   footX   — horizontal feet offset from the slot center (+right) — per-slot
+//             only here; per-actor footX/footY/scale live in src/char-meta.js
 //   footY   — feet offset from the ground line (art whose feet aren't at the
-//             sprite's bottom edge), + is up
-//   scale   — multiplies the tier size (sizes.normal/elite/boss)
+//             sprite's bottom edge), + is up — per-slot override; actor default
+//             is char-meta
+//   scale   — (per-actor) multiplies tier size — see src/char-meta.js
 //   slot.s  — per-formation size multiplier (keeps wide lineups on-ledge)
 //   slot.y  — per-formation lift from the ground line (+up, default 0)
-//   slot.footX / slot.footY — optional per-slot overrides; fall back to shared.enemies[id]
+//   slot.footX / slot.footY — optional per-slot overrides; fall back to char-meta
 //   layers  — h: plate height; y: plate bottom offset from stage bottom (+up);
 //             x: horizontal offset from centered (+right); zoom: image scale;
 //             posX/posY: crop focus % (object-position); opacity;
@@ -21,39 +23,9 @@
 export const BF = {
   shared: {
     sizes: { normal: 185, elite: 230, boss: 280 },
-    heroes: {
-      ashwarden: { scale: 1, footY: 0 },
-      duskblade: { scale: 1, footY: -30 },
-    },
-    enemies: {
-      abyssalKnight: { scale: 1.3, footY: -20 },
-      alphaFang: { scale: 2, footX: -30, footY: -60 },
-      ashAcolyte: { scale: 0.95, footY: 0 },
-      chaosHound: { scale: 1.05, footY: 0 },
-      deepmaw: { scale: 1.14, footY: 0 },
-      drownedOne: { scale: 0.8, footY: 0 },
-      duskfang: { scale: 0.95, footY: 0 },
-      gloomslime: { scale: 0.95, footY: 0 },
-      gravewarden: { scale: 2.5, footX: -40, footY: -50 },
-      heraldOfEnd: { scale: 2.3, footX: -50, footY: 0 },
-      leviathan: { scale: 4, footX: -150, footY: -200 },
-      mirelurker: { scale: 0.9, footY: 0 },
-      obsidianGolem: { scale: 1.3, footY: 0 },
-      rootheart: { scale: 2.6, footX: -50, footY: -70 },
-      shade: { scale: 1.1, footY: 0 },
-      shellback: { scale: 1.09, footY: 0 },
-      siren: { scale: 1.6, footX: -10, footY: -20 },
-      sovereign: { scale: 1.45, footX: -100, footY: 50 },
-      sporeling: { scale: 0.62, footY: 0 },
-      starCultist: { scale: 1, footY: 0 },
-      thornling: { scale: 0.81, footY: 0 },
-      tidecaller: { scale: 1, footY: 0 },
-      voidColossus: { scale: 2.5, footX: -50, footY: 0 },
-      voidWisp: { scale: 0.67, footY: 0 },
-      voltEel: { scale: 1.1, footY: 0 },
-      watcherEye: { scale: 1.1, footY: 0 },
-      waylayer: { scale: 0.9, footY: 0 },
-    },
+    // per-actor scale/foot* moved to src/char-meta.js (?charedit=1 / ?bfedit=1)
+    heroes: {},
+    enemies: {},
   },
   base: {
     groundY: 232,

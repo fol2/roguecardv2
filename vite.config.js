@@ -6,8 +6,8 @@ const BF_SAVE_PORT = 5174;
 const BF_SAVE_HOSTS = ["localhost", "127.0.0.1", "macm4.tail55e87e.ts.net"];
 const BF_LAYOUT_PATH = resolve("src/battlefield-layout.js");
 const BF_LAYOUT_TMP = `${BF_LAYOUT_PATH}.tmp`;
-const CHAR_SHADOW_PATH = resolve("src/cast-shadow.js");
-const CHAR_SHADOW_TMP = `${CHAR_SHADOW_PATH}.tmp`;
+const CHAR_META_PATH = resolve("src/char-meta.js");
+const CHAR_META_TMP = `${CHAR_META_PATH}.tmp`;
 let suppressBFHotUpdateUntil = 0;
 let suppressBFHotUpdateText = "";
 let suppressCharHotUntil = 0;
@@ -55,7 +55,7 @@ function bfSavePlugin() {
           if (readFileSync(file, "utf8") === suppressBFHotUpdateText) return [];
         } catch {}
       }
-      if (file === CHAR_SHADOW_PATH && suppressCharHotText && Date.now() < suppressCharHotUntil) {
+      if (file === CHAR_META_PATH && suppressCharHotText && Date.now() < suppressCharHotUntil) {
         try {
           if (readFileSync(file, "utf8") === suppressCharHotText) return [];
         } catch {}
@@ -93,7 +93,7 @@ function bfSavePlugin() {
         }
       });
 
-      // ?charedit=1 → POST /__char-save writes src/cast-shadow.js
+      // ?charedit=1 / ?bfedit=1 actor fields → POST /__char-save writes src/char-meta.js
       server.middlewares.use("/__char-save", async (req, res) => {
         if (req.method !== "POST") { res.statusCode = 405; return res.end(); }
         if (!bfSaveOriginOk(req)) {
@@ -105,22 +105,22 @@ function bfSavePlugin() {
         if (body == null) return;
         res.setHeader("content-type", "application/json");
         try {
-          const [{ serializeCastShadow, validateCastShadow }, { CAST_SHADOW_DEFAULT }, { ENEMIES, ASPECTS }] = await Promise.all([
+          const [{ serializeCharMeta, validateCharMeta }, { CHAR_LAYOUT_DEFAULT, CHAR_SHADOW_DEFAULT }, { ENEMIES, ASPECTS }] = await Promise.all([
             import("./src/dev/char-serialize.js"),
-            import("./src/cast-shadow.js"),
+            import("./src/char-meta.js"),
             import("./src/data.js"),
           ]);
           const table = JSON.parse(body);
-          const problems = validateCastShadow(table, {
+          const problems = validateCharMeta(table, {
             enemies: Object.keys(ENEMIES),
             heroes: ASPECTS.map((a) => a.id),
           });
           if (problems.length) { res.statusCode = 400; return res.end(JSON.stringify({ ok: false, problems })); }
-          const next = serializeCastShadow(table, CAST_SHADOW_DEFAULT);
+          const next = serializeCharMeta(table, { layout: CHAR_LAYOUT_DEFAULT, shadow: CHAR_SHADOW_DEFAULT });
           suppressCharHotText = next;
           suppressCharHotUntil = Date.now() + 10000;
-          writeFileSync(CHAR_SHADOW_TMP, next);
-          renameSync(CHAR_SHADOW_TMP, CHAR_SHADOW_PATH);
+          writeFileSync(CHAR_META_TMP, next);
+          renameSync(CHAR_META_TMP, CHAR_META_PATH);
           server.moduleGraph.invalidateAll();
           res.end(JSON.stringify({ ok: true }));
         } catch (e) {
