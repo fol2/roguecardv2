@@ -4,13 +4,13 @@
 import { ENEMIES, ASPECTS } from '../data.js';
 import { assetUrl } from '../art.js';
 import {
-  CHAR_LAYOUT_DEFAULT, CHAR_SHADOW_DEFAULT,
+  CHAR_LAYOUT_DEFAULT, CHAR_SHADOW_DEFAULT, CHAR_AIM_DEFAULT,
   charMetaTable, _setCharMeta, charLayout, charShadow, onCharMetaChange,
 } from '../char-meta.js';
 import {
   validateCharMeta, pruneCharMeta,
-  LAYOUT_KEYS, SHADOW_KEYS, MESH_KEYS,
-  LAYOUT_RANGES, SHADOW_RANGES, MESH_RANGES, CSS_FLOAT_RANGE,
+  LAYOUT_KEYS, SHADOW_KEYS, MESH_KEYS, AIM_KEYS, AIM_STYLES,
+  LAYOUT_RANGES, SHADOW_RANGES, MESH_RANGES, AIM_SPEED_RANGE, CSS_FLOAT_RANGE,
 } from './char-serialize.js';
 import { bfResolve, bfEnemySize } from '../battlefield.js';
 import { initStage } from '../stage.js';
@@ -31,6 +31,9 @@ const state = {
   zoom: 2.5, // preview-only; ox/oy are % so they transfer
   anim: true,
   outline: false, // off by default — silhouette ring clutters feet/shadow edits
+  aimDefault: { ...CHAR_AIM_DEFAULT },
+  // per-field write target; scope select chooses where the next edit writes
+  aimScope: { style: 'global', speed: 'global', color: 'global' },
 };
 
 const q = () => new URLSearchParams(location.search);
@@ -80,6 +83,44 @@ function shadowOf(id) {
 }
 function meshOf(id) {
   return meshProfileFor(kindOf(id), id);
+}
+function aimOf(id) {
+  return { ...state.aimDefault, ...((state.meta[id] || {}).aim || {}) };
+}
+function aimOverridden(id, key) {
+  const a = (state.meta[id] || {}).aim;
+  return !!(a && a[key] !== undefined);
+}
+function syncAimScopes(id) {
+  for (const k of AIM_KEYS) {
+    state.aimScope[k] = aimOverridden(id, k) ? 'character' : 'global';
+  }
+}
+function previewAimCfg(id) {
+  const cfg = aimOf(id);
+  return isHero(id) ? { ...cfg, color: '#e8f7ff' } : cfg;
+}
+function applyAimPreview() {
+  const sprite = document.querySelector('.ce-sprite');
+  if (!state.outline || !sprite?.classList.contains('mesh-live')) {
+    if (!state.outline) meshAimClear();
+    return;
+  }
+  meshAim(sprite, true, previewAimCfg(state.id));
+}
+function writeAim(id, key, value) {
+  const was = aimOverridden(id, key);
+  if (state.aimScope[key] === 'character') {
+    const ent = ensureEntry(id);
+    ent.aim ??= {};
+    ent.aim[key] = value;
+  } else {
+    state.aimDefault[key] = value;
+  }
+  state.dirty = true;
+  syncDirty();
+  applyAimPreview();
+  return was !== aimOverridden(id, key);
 }
 function actorParams(id) {
   _setCharMeta(state.meta, { silent: true });
@@ -198,7 +239,7 @@ function paintActor() {
 
   if (state.anim && meshEnabled() && url) {
     meshBind([{ el: sprite, url, kind, id }]);
-    if (state.outline) meshAim(sprite, true, isHero(id) ? { style: 'spin', speed: 1, color: '#e8f7ff' } : { style: 'spin', speed: 1, color: '#fff6ec' });
+    if (state.outline) meshAim(sprite, true, previewAimCfg(id));
     else meshAimClear();
   } else {
     meshAimClear();
@@ -253,6 +294,44 @@ function renderPanel() {
 
   const cssOver = entry.cssFloat !== undefined;
   const cssVal = entry.cssFloat ?? 12;
+  const aim = aimOf(id);
+  const [spdLo, spdHi] = AIM_SPEED_RANGE;
+
+  const aimRows = AIM_KEYS.map((k) => {
+    const over = aimOverridden(id, k);
+    const scope = state.aimScope[k] || (over ? 'character' : 'global');
+    const scopeSel = `<select data-aim-scope="${k}" title="scope chooses where the next edit writes">
+      <option value="global"${scope === 'global' ? ' selected' : ''}>global</option>
+      <option value="character"${scope === 'character' ? ' selected' : ''}>character</option>
+    </select>`;
+    const clear = over
+      ? `<button type="button" data-clear-aim="${k}" title="clear character override">×</button>`
+      : '<span></span>';
+    if (k === 'style') {
+      return `<label class="ce-aim-row${over ? ' on' : ''}">
+        <span>style${over ? ' ●' : ''}</span>
+        <select data-aim="style">${AIM_STYLES.map((s) =>
+          `<option value="${s}"${aim.style === s ? ' selected' : ''}>${s}</option>`).join('')}
+        </select>
+        ${scopeSel}${clear}
+      </label>`;
+    }
+    if (k === 'speed') {
+      return `<label class="ce-aim-row${over ? ' on' : ''}">
+        <span>speed${over ? ' ●' : ''}</span>
+        <span class="ce-aim-pair">
+          <input type="range" min="${spdLo}" max="${spdHi}" step="0.05" data-aim="speed" value="${aim.speed}">
+          <input type="number" min="${spdLo}" max="${spdHi}" step="0.05" data-aim="speed" value="${aim.speed}">
+        </span>
+        ${scopeSel}${clear}
+      </label>`;
+    }
+    return `<label class="ce-aim-row${over ? ' on' : ''}">
+      <span>color${over ? ' ●' : ''}</span>
+      <input type="color" data-aim="color" value="${aim.color}">
+      ${scopeSel}${clear}
+    </label>`;
+  }).join('');
 
   panel.innerHTML = `
     <div class="ce-pick">
@@ -271,6 +350,9 @@ function renderPanel() {
       <label class="ce-check"><input type="checkbox" id="ce-anim" ${state.anim ? 'checked' : ''}> mesh + float anim</label>
       <label class="ce-check"><input type="checkbox" id="ce-outline" ${state.outline ? 'checked' : ''} ${state.anim && meshEnabled() ? '' : 'disabled'}> aim outline preview</label>
     </div>
+    <h4>aim outline</h4>
+    <p class="ce-sub">Scope chooses where the next edit writes (global default vs this character). × clears character override.</p>
+    <div class="ce-fields ce-aim">${aimRows}</div>
     <h4>layout</h4>
     <div class="ce-fields">${layoutRows}</div>
     <h4>cast shadow</h4>
@@ -291,10 +373,11 @@ function renderPanel() {
       <button type="button" id="ce-reset">Reset character</button>
       <button type="button" id="ce-save">Save char-meta</button>
     </div>
-    <p class="ce-hint">Layout (scale/footX/footY) moves the art box — shadow follows as a child (same as combat). Click / auto-detect plant ox/oy; dx/dy are shadow-only fine-tunes. Saves to <code>char-meta.js</code>.</p>`;
+    <p class="ce-hint">Layout (scale/footX/footY) moves the art box — shadow follows as a child (same as combat). Click / auto-detect plant ox/oy; dx/dy are shadow-only fine-tunes. Saves to <code>char-meta.js</code> (aim default + per-id overrides).</p>`;
 
   panel.querySelector('#ce-id').onchange = (e) => {
     state.id = e.target.value;
+    syncAimScopes(state.id);
     pushUrl();
     paintActor();
     renderPanel();
@@ -315,9 +398,51 @@ function renderPanel() {
     state.outline = e.target.checked;
     const sprite = document.querySelector('.ce-sprite');
     if (!sprite?.classList.contains('mesh-live')) { paintActor(); return; }
-    if (state.outline) meshAim(sprite, true, isHero(state.id) ? { style: 'spin', speed: 1, color: '#e8f7ff' } : { style: 'spin', speed: 1, color: '#fff6ec' });
-    else meshAimClear();
+    applyAimPreview();
   };
+
+  panel.querySelectorAll('[data-aim-scope]').forEach((sel) => {
+    sel.onchange = () => {
+      const k = sel.dataset.aimScope;
+      const next = sel.value;
+      if (next === 'character' && !aimOverridden(id, k)) {
+        const ent = ensureEntry(id);
+        ent.aim ??= {};
+        ent.aim[k] = aimOf(id)[k];
+        state.dirty = true;
+        syncDirty();
+      }
+      state.aimScope[k] = next;
+      renderPanel();
+      applyAimPreview();
+    };
+  });
+  panel.querySelectorAll('[data-aim]').forEach((inp) => {
+    const apply = () => {
+      const k = inp.dataset.aim;
+      let v = inp.value;
+      if (k === 'speed') {
+        v = Number(v);
+        if (!Number.isFinite(v)) return;
+        panel.querySelectorAll('input[data-aim="speed"]').forEach((n) => { if (n !== inp) n.value = String(v); });
+      }
+      if (writeAim(id, k, v)) renderPanel();
+    };
+    inp.oninput = apply;
+    inp.onchange = apply;
+  });
+  panel.querySelectorAll('[data-clear-aim]').forEach((b) => {
+    b.onclick = () => {
+      const k = b.dataset.clearAim;
+      const ent = ensureEntry(id);
+      if (ent.aim) delete ent.aim[k];
+      if (ent.aim && !Object.keys(ent.aim).length) delete ent.aim;
+      state.aimScope[k] = 'global';
+      markDirty();
+      renderPanel();
+      applyAimPreview();
+    };
+  });
 
   panel.querySelectorAll('input[data-lay]').forEach((inp) => {
     inp.oninput = () => {
@@ -398,6 +523,7 @@ function renderPanel() {
   panel.querySelector('#ce-autodetect').onclick = () => autoDetectFeet();
   panel.querySelector('#ce-reset').onclick = () => {
     delete state.meta[id];
+    syncAimScopes(id);
     markDirty();
     renderPanel();
   };
@@ -425,17 +551,19 @@ async function saveMeta() {
   const pruned = pruneCharMeta(state.meta, {
     layout: CHAR_LAYOUT_DEFAULT,
     shadow: CHAR_SHADOW_DEFAULT,
+    aim: state.aimDefault,
   });
   const problems = validateCharMeta(pruned, { heroes: HERO_IDS, enemies: ENEMY_IDS });
   if (problems.length) return alert(`char-meta invalid:\n${problems.join('\n')}`);
   const r = await fetch('/__char-save', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(pruned),
+    body: JSON.stringify({ meta: pruned, aim: state.aimDefault }),
   });
   const j = await r.json();
   if (!j.ok) return alert(`save failed:\n${(j.problems ?? []).join('\n')}`);
   state.meta = pruned;
+  Object.assign(CHAR_AIM_DEFAULT, state.aimDefault);
   _setCharMeta(state.meta, { silent: true });
   state.dirty = false;
   syncDirty();
@@ -526,6 +654,13 @@ const CSS = `
 .ce-row.on span { color: #f0c56a; }
 .ce-row input[type=number] { width: 58px; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
 .ce-row button { background: #3a2030; color: #ff9ebd; border: 1px solid #664455; border-radius: 3px; cursor: pointer; padding: 0; }
+.ce-aim-row { display: grid; grid-template-columns: 72px 1fr 88px 18px; gap: 6px; align-items: center; color: #9aa7c8; margin: 0; }
+.ce-aim-row.on > span:first-child { color: #f0c56a; }
+.ce-aim-row select, .ce-aim-row input[type=color] { width: 100%; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
+.ce-aim-row input[type=color] { height: 28px; padding: 0; cursor: pointer; }
+.ce-aim-pair { display: grid; grid-template-columns: 1fr 58px; gap: 6px; align-items: center; }
+.ce-aim-pair input[type=number] { width: 58px; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
+.ce-aim-row button { background: #3a2030; color: #ff9ebd; border: 1px solid #664455; border-radius: 3px; cursor: pointer; padding: 0; }
 .ce-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .ce-actions button { font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 4px; padding: 4px 10px; cursor: pointer; }
 .ce-actions button:hover { border-color: #f0c56a; color: #f0c56a; }
@@ -541,8 +676,10 @@ export function initCharEditor() {
   initStage();
   initMesh();
   state.meta = clone(charMetaTable());
+  state.aimDefault = { ...CHAR_AIM_DEFAULT };
   _setCharMeta(state.meta, { silent: true });
   state.id = idFromUrl();
+  syncAimScopes(state.id);
   pushUrl();
   mountChrome();
   paintActor();
@@ -551,6 +688,8 @@ export function initCharEditor() {
   onCharMetaChange(() => {
     if (state.dirty) return;
     state.meta = clone(charMetaTable());
+    state.aimDefault = { ...CHAR_AIM_DEFAULT };
+    syncAimScopes(state.id);
     paintActor();
     renderPanel();
     syncDirty();
@@ -561,6 +700,8 @@ export function initCharEditor() {
     shadow: () => shadowOf(state.id),
     layout: () => layoutOf(state.id),
     mesh: () => meshOf(state.id),
+    aim: () => aimOf(state.id),
+    aimDefault: () => ({ ...state.aimDefault }),
     actor: () => actorParams(state.id),
   };
 }
