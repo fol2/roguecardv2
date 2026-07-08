@@ -13,6 +13,7 @@ import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, 
 import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
+import { pileTier, flightSchedule, PILE_IDS } from '../src/pile-chrome.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -1047,6 +1048,24 @@ function randomAgentRun(seed) {
   checkManifest('heroes', ASPECTS.map((a) => a.id));
   checkManifest('stage', [1, 2, 3].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => `act${a}-${l}`)));
   checkManifest('props', ['campfire', 'chest', 'chest-open', 'merchant']);
+}
+
+// ---- pile chrome helpers (pure) ----
+{
+  assert.equal(pileTier(0), 0);
+  assert.equal(pileTier(1), 1);
+  assert.equal(pileTier(4), 4);
+  assert.equal(pileTier(5), 5);
+  assert.equal(pileTier(99), 5);
+  assert.equal(pileTier(-1), 0);
+
+  const s1 = flightSchedule(1, 400);
+  assert.ok(s1.awaitMs <= 400 && s1.awaitMs >= 200);
+  const s10 = flightSchedule(10, 400);
+  assert.ok(s10.stagger <= s1.stagger || s10.stagger <= 48);
+  assert.ok(s10.awaitMs <= 480, 'large n stays near budget');
+  assert.ok(s10.stagger >= 8);
+  assert.deepEqual(PILE_IDS, ['draw', 'discard', 'ashes']);
 }
 
 // ---- battlefield layout schema (spec 2026-07-06-battlefield-editor-design) ----
