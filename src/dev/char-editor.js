@@ -10,7 +10,7 @@ import {
 import {
   validateCharMeta, pruneCharMeta,
   LAYOUT_KEYS, SHADOW_KEYS, MESH_KEYS, AIM_KEYS, AIM_STYLES,
-  LAYOUT_RANGES, SHADOW_RANGES, MESH_RANGES, AIM_SPEED_RANGE, CSS_FLOAT_RANGE,
+  LAYOUT_RANGES, SHADOW_RANGES, MESH_RANGES, AIM_SPEED_RANGE, AIM_COUNT_RANGE, CSS_FLOAT_RANGE,
 } from './char-serialize.js';
 import { bfResolve, bfEnemySize } from '../battlefield.js';
 import { initStage } from '../stage.js';
@@ -33,7 +33,7 @@ const state = {
   outline: false, // off by default — silhouette ring clutters feet/shadow edits
   aimDefault: { ...CHAR_AIM_DEFAULT },
   // per-field write target; scope select chooses where the next edit writes
-  aimScope: { style: 'global', speed: 'global', color: 'global' },
+  aimScope: Object.fromEntries(AIM_KEYS.map((k) => [k, 'global'])),
 };
 
 const q = () => new URLSearchParams(location.search);
@@ -326,6 +326,17 @@ function renderPanel() {
         ${scopeSel}${clear}
       </label>`;
     }
+    if (k === 'beams' || k === 'dashes') {
+      const [lo, hi] = AIM_COUNT_RANGE;
+      return `<label class="ce-aim-row${over ? ' on' : ''}">
+        <span>${k}${over ? ' ●' : ''}</span>
+        <span class="ce-aim-pair">
+          <input type="range" min="${lo}" max="${hi}" step="1" data-aim="${k}" value="${aim[k]}">
+          <input type="number" min="${lo}" max="${hi}" step="1" data-aim="${k}" value="${aim[k]}">
+        </span>
+        ${scopeSel}${clear}
+      </label>`;
+    }
     return `<label class="ce-aim-row${over ? ' on' : ''}">
       <span>color${over ? ' ●' : ''}</span>
       <input type="color" data-aim="color" value="${aim.color}">
@@ -351,7 +362,7 @@ function renderPanel() {
       <label class="ce-check"><input type="checkbox" id="ce-outline" ${state.outline ? 'checked' : ''} ${state.anim && meshEnabled() ? '' : 'disabled'}> aim outline preview</label>
     </div>
     <h4>aim outline</h4>
-    <p class="ce-sub">Scope chooses where the next edit writes (global default vs this character). × clears character override.</p>
+    <p class="ce-sub">beams → chase; dashes → spin (1–4). Scope chooses where the next edit writes. × clears character override.</p>
     <div class="ce-fields ce-aim">${aimRows}</div>
     <h4>layout</h4>
     <div class="ce-fields">${layoutRows}</div>
@@ -421,10 +432,11 @@ function renderPanel() {
     const apply = () => {
       const k = inp.dataset.aim;
       let v = inp.value;
-      if (k === 'speed') {
+      if (k === 'speed' || k === 'beams' || k === 'dashes') {
         v = Number(v);
         if (!Number.isFinite(v)) return;
-        panel.querySelectorAll('input[data-aim="speed"]').forEach((n) => { if (n !== inp) n.value = String(v); });
+        if (k === 'beams' || k === 'dashes') v = Math.min(4, Math.max(1, Math.round(v)));
+        panel.querySelectorAll(`input[data-aim="${k}"]`).forEach((n) => { if (n !== inp) n.value = String(v); });
       }
       if (writeAim(id, k, v)) renderPanel();
     };
