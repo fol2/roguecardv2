@@ -1005,7 +1005,7 @@ function renderCombat() {
       <div class="enemy-zone"></div>
     </div>
     <div class="energy-orb" aria-label="Energy"><div class="candles"></div><div class="num">0</div></div>
-    <button class="lantern-btn"><span class="lb-ic">${uiIcon('lantern', 36)}</span><span class="lb-count">0</span><div class="lb-pips"></div><span class="lb-art"></span></button>
+    <button class="lantern-btn"><span class="lb-ic"></span><span class="lb-count">0</span><div class="lb-pips"></div></button>
     <button class="end-turn" type="button"><span class="et-ic">${uiIcon('end-turn', 120)}</span><span class="et-lbl">End</span></button>
     <button class="pile-btn pile-draw" type="button" aria-label="Draw pile">
       <span class="pile-stack" data-pile="draw" data-count="-1" data-tier="-1"></span>
@@ -1073,11 +1073,14 @@ function renderCombat() {
   ce.lantern = $('.lantern-btn', sc);
   const artId = S.run.art;
   const art = ARTS[artId];
-  if (art) {
-    const artU = assetUrl('arts', artId);
-    /* art chip only — cost lives in the tip; no overlapping cost badge digit */
-    $('.lb-art', ce.lantern).innerHTML = `<i>${artU ? `<img class="ui-icon lb-art-img" src="${artU}" width="18" height="18" alt="">` : iconSvg(`art-${artId}`, 18)}</i>`;
-    $('.lb-art', ce.lantern).style.color = art.tone;
+  /* primary face = Lantern Art raster (or SVG fallback); cost lives in the tip */
+  {
+    const artU = artId ? assetUrl('arts', artId) : null;
+    const face = artU
+      ? `<img class="ui-icon" src="${artU}" width="64" height="64" alt="" draggable="false">`
+      : (artId && hasIcon(`art-${artId}`) ? iconSvg(`art-${artId}`, 64) : uiIcon('lantern', 64));
+    $('.lb-ic', ce.lantern).innerHTML = face;
+    if (art) ce.lantern.style.color = art.tone;
   }
   ce.lantern._tip = {
     title: art ? `Lantern Art — ${art.name}` : 'The Lantern',
@@ -1332,6 +1335,7 @@ function syncCombat() {
   // the lantern: ember count + a ring of sparks; glows when its Art can answer
   if (ce.lantern) {
     $('.lb-count', ce.lantern).textContent = cb.embers;
+    /* ember pips arc around the arts face via --a */
     $('.lb-pips', ce.lantern).innerHTML = Array.from({ length: cb.emberCap }, (_, i) =>
       `<span class="lbp${i < cb.embers ? ' lit' : ''}" style="--a:${Math.round((i / (cb.emberCap - 1)) * 280 - 140)}deg"></span>`).join('');
     ce.lantern.classList.toggle('unlit', cb.embers === 0);
