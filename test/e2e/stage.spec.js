@@ -53,24 +53,23 @@ test('a 4:3-ish desktop window keeps the pad-landscape stage', async ({ page }) 
   expect(st.w).toBe(1180);
 });
 
-test('title screen fits its stage: no scrollable overflow anywhere', async ({ page }) => {
+test('title and embark screens fit their stage: no scrollable overflow anywhere', async ({ page }) => {
   await boot(page);
-  // the fullest title a real profile can produce: Continue button (saved
-  // run), both heroes, vow stepper at V with the five-line vow ledger —
-  // this is the content that once overflowed and drew a scrollbar
+  // the fullest profile a veteran can produce: saved run (Continue button),
+  // both aspects, vow stepper at V with the five-line vow ledger, and the
+  // Vigil news pulse — the vow content now lives on the Embark screen
   await page.evaluate(() => {
-    localStorage.setItem('spirebound_vigil_v1', JSON.stringify({
-      v: 1,
+    localStorage.setItem('spirebound_vigil_v2', JSON.stringify({
+      v: 2,
       deeds: { runs: 40, wins: 9, slain: 500, shatters: 90, kindles: 60, perfects: 12, smolderKills: 60, unlitVisited: 30, embersSpent: 900, bestVow: 5, bestFloor: 45 },
-      unlocks: ['ashwarden'], vowUnlocked: 5, lastFall: null,
+      unlocks: ['aspect2'], vowUnlocked: 5, lastFall: null,
+      runsPlayed: 40, quests: {}, shards: [], whispers: 0, news: true,
     }));
     window.spirebound.E.saveRun(window.spirebound.E.newRun(1234, { aspect: 0 }));
   });
   await page.reload();
   await page.waitForFunction(() => window.spirebound && window.__probe);
-  for (let i = 0; i < 5; i++) await page.click('[data-a="vow+"]');
-  await page.waitForTimeout(600);
-  const bad = await page.evaluate(() => {
+  const scan = () => page.evaluate(() => {
     const out = [];
     const de = document.scrollingElement;
     if (de.scrollHeight > de.clientHeight || de.scrollWidth > de.clientWidth) {
@@ -85,7 +84,13 @@ test('title screen fits its stage: no scrollable overflow anywhere', async ({ pa
     }
     return out;
   });
-  expect(bad, bad.join('; ')).toEqual([]);
+  const badTitle = await scan();
+  expect(badTitle, `title: ${badTitle.join('; ')}`).toEqual([]);
+  await page.click('[data-a="embark"]');
+  for (let i = 0; i < 5; i++) await page.click('[data-a="vow+"]');
+  await page.waitForTimeout(600);
+  const badEmbark = await scan();
+  expect(badEmbark, `embark: ${badEmbark.join('; ')}`).toEqual([]);
 });
 
 test('window size changes scale, never layout: geometry is identical at two window sizes', async ({ page }) => {
