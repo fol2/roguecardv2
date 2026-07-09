@@ -940,14 +940,17 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.65));
 }
 .pile-btn .cnt {
-  position: absolute; right: -4px; bottom: 14px; z-index: 2;
-  min-width: 1.35em; padding: 1px 6px;
-  font-size: 15px; font-weight: 800; line-height: 1.2; color: var(--parchment);
-  text-align: center;
-  background: rgba(5, 7, 14, 0.88);
-  border: 1px solid rgba(242, 193, 78, 0.4);
-  border-radius: 7px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+  position: absolute; right: 2px; bottom: 16px; z-index: 2;
+  font-size: 16px; font-weight: 800; line-height: 1; color: var(--parchment);
+  text-align: right;
+  background: none; border: 0; border-radius: 0; box-shadow: none; padding: 0;
+  /* dark outline so the count stays readable on card art */
+  text-shadow:
+    -1.5px -1.5px 0 #05070e,
+     1.5px -1.5px 0 #05070e,
+    -1.5px  1.5px 0 #05070e,
+     1.5px  1.5px 0 #05070e,
+     0 0 4px rgba(0, 0, 0, 0.9);
 }
 .pile-btn .lbl {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
@@ -1502,7 +1505,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .pile-btn { width: 54px; height: 88px; bottom: calc(6px + var(--sab)); }
   .pile-stack { left: 0; right: 0; top: 0; bottom: 14px; }
   .pile-layer { width: 96%; }
-  .pile-btn .cnt { font-size: 12px; right: -3px; bottom: 12px; padding: 0 5px; border-radius: 6px; }
+  .pile-btn .cnt { font-size: 13px; right: 1px; bottom: 13px; }
   .pile-btn .lbl { font-size: 7.5px; letter-spacing: 0.08em; }
   .pile-draw { left: calc(6px + var(--sal)); }
   .pile-discard { right: calc(6px + var(--sar)); }
@@ -1576,7 +1579,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
     width: 96%;
     transform: translate(-50%, calc(var(--i) * -3.5px)) rotate(calc(var(--i) * 2deg));
   }
-  .pile-btn .cnt { font-size: 12px; right: -3px; bottom: 12px; padding: 0 5px; border-radius: 6px; }
+  .pile-btn .cnt { font-size: 13px; right: 1px; bottom: 13px; }
   .pile-btn .lbl { font-size: 7px; letter-spacing: 0.08em; }
   .pile-draw { left: calc(8px + var(--sal)); }
   .pile-discard { right: calc(8px + var(--sar)); }
