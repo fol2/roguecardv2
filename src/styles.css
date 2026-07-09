@@ -1642,3 +1642,19 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
   cursor: pointer;
 }
 .vigil-tabs .vtab.on { opacity: 1; border-color: rgba(255, 209, 102, 0.6); }
+
+/* ---- entrance redesign: Vigil news pulse */
+.btn.news { position: relative; }
+.btn.news::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 209, 102, 0.85);
+  pointer-events: none;
+  animation: vigil-news 1.6s ease-in-out infinite;
+}
+@keyframes vigil-news {
+  0%, 100% { opacity: 0.25; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.04); }
+}

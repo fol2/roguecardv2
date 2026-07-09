@@ -499,29 +499,7 @@ function renderTitle() {
   setTheme(0);
   const vigil = syncVigil(); // reconcile any owed unlocks (e.g. seeded from old stats)
   const saved = E.loadRun();
-  const sel = (S.title ||= { aspect: 0, vow: 0 });
-  if (sel.aspect > 0 && ASPECTS[sel.aspect].unlock && !vigil.unlocks.includes(ASPECTS[sel.aspect].unlock)) sel.aspect = 0;
-  sel.vow = Math.max(0, Math.min(sel.vow | 0, vigil.vowUnlocked));
   const d = vigil.deeds;
-  const aspectCards = ASPECTS.map((a, i) => {
-    const locked = i > 0 && a.unlock && !vigil.unlocks.includes(a.unlock);
-    return `<button class="aspect-card${sel.aspect === i ? ' on' : ''}${locked ? ' locked' : ''}" data-a="asp" data-i="${i}"${locked ? ' disabled' : ''}>
-      <div class="asp-hero">${heroArt(i)}</div>
-      <div class="asp-name">${a.name}${locked ? ' 🔒' : ''}</div>
-      <div class="asp-blurb">${locked ? 'Reach the first dawn to walk as the Ashwarden.' : a.blurb}</div>
-    </button>`;
-  }).join('');
-  const vowLine = sel.vow === 0
-    ? 'The Spire as it is. No vows sworn.'
-    : VOWS.slice(0, sel.vow).map((v) => `<b style="color:#ff9a4d">${v.name}</b> — ${v.desc}`).join('<br>');
-  const vowBlock = vigil.vowUnlocked > 0 ? `<div class="vow-block">
-      <div class="vow-stepper">
-        <button class="vow-btn" data-a="vow-"${sel.vow === 0 ? ' disabled' : ''}>−</button>
-        <div class="vow-level">VOW ${ROMAN[sel.vow]}<span class="vow-max"> / ${ROMAN[vigil.vowUnlocked] || '0'}</span></div>
-        <button class="vow-btn" data-a="vow+"${sel.vow < vigil.vowUnlocked ? '' : ' disabled'}>+</button>
-      </div>
-      <div class="vow-desc">${vowLine}</div>
-    </div>` : '';
   const banner = assetUrl('title-background', 'background');
   const titleText = assetUrl('title', 'title');
   const sc = screenEl();
@@ -529,12 +507,10 @@ function renderTitle() {
     ${banner ? `<div class="title-banner"><div class="title-banner-frame"><img class="raster-art" src="${banner}" alt=""></div></div>` : ''}
     <div class="logo${titleText ? ' logo-raster' : ''}">${titleText ? `<img class="title-wordmark" src="${titleText}" alt="SPIREBOUND">` : 'SPIREBOUND'}</div>
     <div class="tagline">A Roguelite Deckbuilder · The Vigil Remembers</div>
-    <div class="aspect-row">${aspectCards}</div>
-    ${vowBlock}
     <div class="title-btns">
       ${saved ? '<button class="btn" data-a="continue">Continue Climb</button>' : ''}
-      <button class="btn" data-a="new">${saved ? 'Begin Anew' : 'Begin the Climb'}</button>
-      <button class="btn ghost" data-a="vigil">The Vigil</button>
+      <button class="btn" data-a="embark">${saved ? 'Begin Anew' : 'Begin the Climb'}</button>
+      <button class="btn ghost${vigil.news && !REDUCED ? ' news' : ''}" data-a="vigil">The Vigil</button>
       <button class="btn ghost" data-a="help">How to Play</button>
       <button class="btn ghost" data-a="mute">${isMuted() ? 'Unmute' : 'Mute'}</button>
     </div>
@@ -545,10 +521,7 @@ function renderTitle() {
     if (!t || t.disabled) return;
     const a = t.dataset.a;
     unlock(); sfx.click();
-    if (a === 'asp') { sel.aspect = +t.dataset.i; renderTitle(); }
-    else if (a === 'vow-') { sel.vow = Math.max(0, sel.vow - 1); renderTitle(); }
-    else if (a === 'vow+') { sel.vow = Math.min(vigil.vowUnlocked, sel.vow + 1); renderTitle(); }
-    else if (a === 'new') { if (saved) E.clearSave(); startRun(E.newRun(undefined, { aspect: sel.aspect, vow: sel.vow, lamplighter: true, monument: vigil.lastFall })); }
+    if (a === 'embark') show('embark');
     else if (a === 'continue' && saved) startRun(saved, true);
     else if (a === 'vigil') show('vigil');
     else if (a === 'help') showHelp();
