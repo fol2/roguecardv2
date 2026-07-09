@@ -877,6 +877,17 @@ function forceHand(run, cb, ids) {
   assert.ok(!isRevealed(v, 'lamplighter') && !isRevealed(v, 'emberglass'));
   assert.ok(!isRevealed(v, 'nonsense'), 'unknown reveal ids are never revealed');
 
+  // Begin Anew (abandon a saved climb) must advance the ladder — same ledger
+  // path as confirmAbandon — so the next run's snapshot sees new reveals.
+  const abandoned = newRun(300, { reveals: [] });
+  v = commitRunEnd(abandoned);
+  assert.equal(v.runsPlayed, 1, 'Begin Anew counts as a run end');
+  assert.ok(isRevealed(v, 'lamplighter'), 'abandon unlocks Lamplighter for the next climb');
+  const afterAbandon = newRun(3001, { reveals: revealSnapshot(v) });
+  assert.ok(runRevealed(afterAbandon, 'lamplighter'), 'next run receives the post-abandon snapshot');
+  _setStore(null);
+  v = loadVigil();
+
   // run ends advance the ladder — win, fall, or abandon alike — exactly once
   const r1 = newRun(301);
   v = commitRunEnd(r1);

@@ -733,14 +733,21 @@ function renderEmbark() {
     else if (a === 'vow+') { sel.vow = Math.min(vigil.vowUnlocked, sel.vow + 1); renderEmbark(); }
     else if (a === 'back') show('title');
     else if (a === 'begin') {
-      if (saved) E.clearSave();
+      // Begin Anew is abandon: advance runsPlayed (and lifetime stats) before
+      // the new climb, matching confirmAbandon / design §2.
+      if (saved) {
+        commitRunEnd(saved);
+        E.recordRunEnd(saved, false);
+        S.run = null; S.cb = null;
+      }
+      const v = syncVigil(); // re-read after abandon so the next snapshot sees new reveals
       startRun(E.newRun(undefined, {
         aspect: sel.aspect,
         vow: sel.vow,
-        lamplighter: isRevealed(vigil, 'lamplighter'),
-        monument: vigil.lastFall,
-        unlocks: vigil.unlocks, // the fix: deed unlocks finally reach live pools
-        reveals: revealSnapshot(vigil),
+        lamplighter: isRevealed(v, 'lamplighter'),
+        monument: v.lastFall,
+        unlocks: v.unlocks, // the fix: deed unlocks finally reach live pools
+        reveals: revealSnapshot(v),
       }));
     }
   };
