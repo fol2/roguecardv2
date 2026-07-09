@@ -420,7 +420,7 @@ export function archetypeHit(x, y, archetype = 'slash', power = 0.3) {
       if (big) flash('#c99aff', 0.08, 0.25);
       break;
     case 'ward':
-      // raster ward-gain sprite owns the read; keep a light mote underlay only
+      // meshWard owns the gemstone shell; keep a light mote underlay only
       motes(x, y, tone, big ? 8 : 5);
       break;
   }

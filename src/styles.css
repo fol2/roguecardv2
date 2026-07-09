@@ -893,34 +893,14 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .candle.lit:nth-child(4) { animation-delay: 0.2s; }
 .candle.lit:nth-child(5) { animation-delay: 0.7s; }
 @keyframes candleFlick { 50% { box-shadow: 0 0 4px rgba(255, 190, 90, 0.55); transform: scaleY(0.92); } }
-/* the ward: block made visible — 4-frame glass shell (src/assets/vfx/ward-loop.png)
-   Sprite sheets: N frames need steps(N-1) when tweening background-position 0%→100%
-   (percentage positions are 0, 1/(N-1), …, 1). steps(4) lands on 25/50/75 and
-   shows between-cells — looks like horizontal drift vs the pixel-scrub editor. */
-.ward-fx {
-  position: absolute; inset: -8%; z-index: 4; pointer-events: none;
-  background-repeat: no-repeat; background-position: 0 0;
-  background-size: 400% 100%;
-  mix-blend-mode: screen; opacity: 0;
+/* Ward: meshWard gemstone shell when warp is live; soft oval fallback when mesh is off */
+.hero-wrap.warded::before, .enemy-art.warded::before {
+  content: ''; position: absolute; inset: -6%; border-radius: 50%; pointer-events: none; z-index: 3;
+  border: 1.5px solid rgba(150, 200, 255, 0.45);
+  box-shadow: 0 0 18px rgba(130, 185, 255, 0.35), inset 0 0 28px rgba(130, 185, 255, 0.18);
 }
-.hero-wrap.warded .ward-fx,
-.enemy-art.warded .ward-fx {
-  opacity: 0.9;
-  animation: wardLoop 2.4s steps(3) infinite;
-}
-@keyframes wardLoop {
-  to { background-position: 100% 0; }
-}
-.ward-gain-fx {
-  position: absolute; inset: -14%; z-index: 6; pointer-events: none;
-  background-repeat: no-repeat; background-position: 0 0;
-  background-size: 400% 100%;
-  mix-blend-mode: screen;
-  animation: wardGain 0.42s steps(3) forwards;
-}
-@keyframes wardGain {
-  to { background-position: 100% 0; opacity: 0; }
-}
+html.mesh-on .hero-wrap.warded::before,
+html.mesh-on .enemy-art.warded::before { display: none; }
 .end-turn {
   position: absolute; right: calc(34px + var(--sar)); bottom: calc(168px + var(--sab)); z-index: 24; padding: 13px 30px;
   box-shadow: inset 0 0 0 1px var(--gold), inset 0 10px 20px -12px rgba(255, 255, 255, 0.14), 0 4px 14px rgba(0, 0, 0, 0.5);
@@ -1368,7 +1348,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   #grain { display: none; }
   #wipe, #transit, .rose-window { display: none; }
   .logo, .card.r-rare .card-inner::after, .energy-orb::before { animation: none; }
-  #lantern.gutter, .candle.lit, .hero-wrap.warded .ward-fx, .enemy-art.warded .ward-fx { animation: none; }
+  #lantern.gutter, .candle.lit, .hero-wrap.warded::before, .enemy-art.warded::before { animation: none; }
   .ember, .mon-flame, .enemy.doomed .enemy-art { animation: none; }
   .enemy-sprite[class*="idle-"], .idle-motes::before, .idle-motes::after { animation: none; }
   #tooltip { animation: fadein 0.1s both; }

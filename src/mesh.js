@@ -38,6 +38,11 @@ const BEAM_REACH = 1.1;    // how far the shafts stretch
 const BEAM_DECAY = 1.55;   // how fast a ray dies along its length
 const BEAM_PAD = 1.6;      // beams plane is padded past the body so rays leave the sprite
 const BAKE_N = 192;        // bake resolution: crack maps are soft — 192² keeps rebakes quick
+// Ward shell — gemstone glass envelope outside the body (reuses transmission + Voronoi).
+const WARD_PAD = 1.24;
+const WARD_ALPHA = 0.72;
+const WARD_GROW_MS = 420;
+const WARD_SITES = 16;
 
 const bell = (v, c, s) => Math.exp(-((v - c) ** 2) / (2 * s * s));
 // deform weights by body archetype (data.js art.kind); float = whole-body hover scale
@@ -171,6 +176,7 @@ function makePlane(url, profile, seed, img) {
   const p = {
     geo, base, profile, seed, el: null, aspect: artAspect(img, null) || 2 / 3,
     sites: [], death: 0, glass: null, fire: null, beams: null, bodyPx: null, outline: null, aimOn: false,
+    ward: null, wardOn: false, wardGrow: 0, wardGrowFrom: 0, wardT0: 0, wardSites: null, wardPhase: 0,
   };
   const tex = loadTex(url, (t) => { p.aspect = artAspect(img, t); });
   p.tex = tex;
@@ -220,7 +226,7 @@ function bodyPixels(p) {
   p.bodyPx = ctx.getImageData(0, 0, BAKE_N, BAKE_N).data;
   return p.bodyPx;
 }
-const siteXY = (p) => p.sites.map((s) => ({ x: s.u * BAKE_N, y: (1 - s.v) * BAKE_N })); // canvas y-down vs uv
+const siteXY = (p, sites = p.sites) => (sites || []).map((s) => ({ x: s.u * BAKE_N, y: (1 - s.v) * BAKE_N })); // canvas y-down vs uv
 
 // Crack-region mask: bright where the glass fractured AND we're on the body,
 // feathering to 0 at the region edge. The shell wears this as its alpha, so
@@ -342,6 +348,106 @@ function bakeCrackBeams(p) {
   return c;
 }
 
+/** Stable gemstone facet sites for the ward envelope (not body cracks). */
+function wardSitesFor(p) {
+  if (p.wardSites?.length) return p.wardSites;
+  const sites = [];
+  const n = WARD_SITES;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + p.seed * 0.17;
+    const r = 0.28 + ((i * 37) % 7) * 0.018;
+    sites.push({
+      u: clampUv(0.5 + Math.cos(a) * r),
+      v: clampUv(0.52 + Math.sin(a) * r * 0.92),
+    });
+  }
+  // a few interior facets so the shell reads as cut glass, not a hollow ring only
+  for (let i = 0; i < 5; i++) {
+    const a = p.seed + i * 1.7;
+    sites.push({
+      u: clampUv(0.5 + Math.cos(a) * 0.12),
+      v: clampUv(0.5 + Math.sin(a) * 0.14),
+    });
+  }
+  p.wardSites = sites;
+  return sites;
+}
+
+/** Full oval shell mask — own shape, not clipped to body silhouette. */
+function bakeWardMask(_p) {
+  const N = BAKE_N;
+  const c = Object.assign(document.createElement('canvas'), { width: N, height: N });
+  const ctx = c.getContext('2d');
+  const out = ctx.createImageData(N, N);
+  const cx = N * 0.5, cy = N * 0.52, rx = N * 0.46, ry = N * 0.48;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = (y * N + x) * 4;
+    const nx = (x - cx) / rx, ny = (y - cy) / ry;
+    const d = Math.hypot(nx, ny);
+    let t = d <= 0.78 ? 1 : d >= 1 ? 0 : 1 - (d - 0.78) / 0.22;
+    t = t * t * (3 - 2 * t);
+    // soft inner hollow so the body stays readable through the shell
+    const hole = Math.hypot(nx / 0.55, ny / 0.58);
+    if (hole < 0.72) t *= Math.max(0.18, (hole - 0.35) / 0.37);
+    const on = Math.round(255 * Math.max(0, Math.min(1, t)));
+    out.data[i] = out.data[i + 1] = out.data[i + 2] = on;
+    out.data[i + 3] = 255;
+  }
+  ctx.putImageData(out, 0, 0);
+  return c;
+}
+
+/** Same Voronoi seam normals as crack glass, driven by ward facet sites. */
+function bakeWardNormal(p) {
+  const N = BAKE_N;
+  const c = Object.assign(document.createElement('canvas'), { width: N, height: N });
+  const ctx = c.getContext('2d'), img = ctx.createImageData(N, N);
+  const S = siteXY(p, wardSitesFor(p));
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    let d1 = 1e12, d2 = 1e12, s1 = null, s2 = null;
+    for (const s of S) {
+      const dx = x - s.x, dy = y - s.y, d = dx * dx + dy * dy;
+      if (d < d1) { d2 = d1; s2 = s1; d1 = d; s1 = s; }
+      else if (d < d2) { d2 = d; s2 = s; }
+    }
+    let nx = 0, ny = 0;
+    const edge = Math.sqrt(d2) - Math.sqrt(d1);
+    const SEAM = N * 0.016;
+    if (s2 && edge < SEAM) {
+      const vx = s1.x - s2.x, vy = s1.y - s2.y, vl = Math.hypot(vx, vy) || 1;
+      const k = (1 - edge / SEAM) * 1.05;
+      nx = (vx / vl) * k; ny = -(vy / vl) * k;
+    }
+    const nz = Math.sqrt(Math.max(0.05, 1 - nx * nx - ny * ny));
+    const i = (y * N + x) * 4;
+    img.data[i] = (nx * 0.5 + 0.5) * 255;
+    img.data[i + 1] = (ny * 0.5 + 0.5) * 255;
+    img.data[i + 2] = (nz * 0.5 + 0.5) * 255;
+    img.data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+
+function buildWard(p) {
+  ensureEnv();
+  disposeLayer(p, 'ward');
+  const mat = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color('#9fd4ff'),
+    transmission: 1, ior: 1.38, thickness: 0.16, roughness: 0.045, metalness: 0,
+    normalMap: canvasTex(bakeWardNormal(p)), normalScale: new THREE.Vector2(1.45, 1.45),
+    alphaMap: canvasTex(bakeWardMask(p)), transparent: true, alphaTest: 0.02, opacity: 0,
+    clearcoat: 0.45, clearcoatRoughness: 0.18, envMapIntensity: 0.55,
+    depthTest: false, depthWrite: false,
+  });
+  // own geo — shell shape/scale independent of body warp
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.visible = false;
+  mesh.renderOrder = 5;
+  scene.add(mesh);
+  p.ward = mesh;
+}
+
 // ---- the glass stack ----
 function ensureEnv() {
   if (envReady || !renderer) return;
@@ -366,6 +472,8 @@ function disposeLayer(p, key) {
   scene.remove(m);
   for (const k of ['map', 'alphaMap', 'normalMap']) m.material[k]?.dispose?.();
   m.material.dispose();
+  // ward/beams own a PlaneGeometry; glass/fire share p.geo — only dispose owned
+  if (m.geometry && m.geometry !== p.geo) m.geometry.dispose();
   p[key] = null;
 }
 // Rebake + rebuild the transmission shell from the current sites (each landed
@@ -437,7 +545,7 @@ function deformPlane(p, t) {
 }
 
 function layerMeshes(p) {
-  return [p.outline, p.mesh, p.fire, p.glass, p.beams].filter(Boolean);
+  return [p.outline, p.mesh, p.fire, p.glass, p.beams, p.ward].filter(Boolean);
 }
 function bodyMeshes(p) {
   return [p.mesh, p.fire, p.glass, p.beams].filter(Boolean);
@@ -454,6 +562,7 @@ function layoutPlane(p, t = 0, off = { left: 0, top: 0 }) {
   const show = (on) => {
     for (const m of bodyMeshes(p)) m.visible = on;
     if (p.outline) p.outline.visible = on && !!p.aimOn;
+    if (p.ward) p.ward.visible = on && !!p.wardOn && (p.wardGrow || 0) > 0.02;
   };
   if (!p.el.isConnected || !(p.el.checkVisibility?.({ visibilityProperty: true }) ?? true)) { show(false); return; }
   const r = stageRect(p.el);
@@ -471,10 +580,19 @@ function layoutPlane(p, t = 0, off = { left: 0, top: 0 }) {
   const depth = Math.round(r.bottom);
   if (p.outline) p.outline.renderOrder = depth * 4; // behind body so the ring hugs the silhouette
   bodyMeshes(p).forEach((m, li) => { m.renderOrder = depth * 4 + 1 + li; });
+  if (p.ward) p.ward.renderOrder = depth * 4 + 6;
   let z = 0;
   for (const m of layerMeshes(p)) {
     m.position.set(x, y, z);
-    const pad = m === p.beams ? BEAM_PAD : 1; // rays overflow the sprite on purpose
+    let pad = 1;
+    if (m === p.beams) pad = BEAM_PAD;
+    else if (m === p.ward) {
+      const grow = p.wardGrow || 0;
+      pad = WARD_PAD * (0.55 + 0.45 * grow);
+      m.rotation.z = Math.sin((t || 0) * 0.55 + p.seed + (p.wardPhase || 0)) * 0.045;
+      m.material.opacity = WARD_ALPHA * grow;
+      m.visible = !!p.wardOn && grow > 0.02;
+    }
     m.scale.set(sx * pad, sy * pad, 1);
     z += 0.01;
   }
@@ -494,6 +612,20 @@ function tick(t) {
   const sec = t * 0.001;
   const off = canvasOffset();
   for (const p of planes) {
+    if (p.wardOn && p.wardGrow < 1) {
+      const u = Math.min(1, (t - p.wardT0) / WARD_GROW_MS);
+      const s = u * u * (3 - 2 * u);
+      p.wardGrow = p.wardGrowFrom + (1 - p.wardGrowFrom) * s;
+    } else if (!p.wardOn && p.wardGrow > 0) {
+      const u = Math.min(1, (t - p.wardT0) / (WARD_GROW_MS * 0.7));
+      const s = u * u * (3 - 2 * u);
+      p.wardGrow = p.wardGrowFrom * (1 - s);
+      if (p.wardGrow < 0.02) {
+        p.wardGrow = 0;
+        disposeLayer(p, 'ward');
+      }
+    }
+    if (p.wardOn) p.wardPhase = sec;
     deformPlane(p, sec);
     layoutPlane(p, sec, off);
     if (p.aimMat && p.aimOn) p.aimMat.uniforms.uTime.value = sec;
@@ -522,6 +654,7 @@ function disposePlane(p) {
   disposeLayer(p, 'glass');
   disposeLayer(p, 'fire');
   disposeLayer(p, 'beams');
+  disposeLayer(p, 'ward');
   if (p.outline) {
     scene.remove(p.outline);
     p.aimMat?.dispose();
@@ -723,6 +856,33 @@ export function meshAim(el, on, cfg = null) {
     p.aimMat.uniforms.uDashes.value = Math.min(4, Math.max(1, dashes));
   }
   return true;
+}
+
+/** Gemstone glass Ward shell outside the body. Grows in on first gain; holds while on.
+ *  Reuses MeshPhysicalMaterial transmission + Voronoi normals (not body crack sites). */
+export function meshWard(el, on, { grow = true } = {}) {
+  if (LITE || !meshEnabled()) return false;
+  const p = findPlane(el);
+  if (!p) return false;
+  const want = !!on;
+  if (want === p.wardOn && p.ward) return true;
+  p.wardOn = want;
+  p.wardGrowFrom = p.wardGrow || 0;
+  p.wardT0 = performance.now();
+  if (want) {
+    if (!p.ward) buildWard(p);
+    if (!grow) p.wardGrow = 1;
+  }
+  return true;
+}
+
+export function meshWardClear() {
+  for (const p of planes) {
+    if (!p.wardOn && !p.ward) continue;
+    p.wardOn = false;
+    p.wardGrowFrom = p.wardGrow || 0;
+    p.wardT0 = performance.now();
+  }
 }
 
 /** Clear every aim ring (card hover ended / targeting armed). */

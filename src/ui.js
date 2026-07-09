@@ -6,7 +6,7 @@ import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
-import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift, meshAim, meshAimClear } from './mesh.js';
+import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift, meshAim, meshAimClear, meshWard } from './mesh.js';
 import { charShadowLive, charCssFloat, charAim, onCharMetaChange } from './char-meta.js';
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
@@ -66,24 +66,17 @@ const omenMark = (oid, imgClass, fallbackClass, size = 22) => {
 const aimRing = (url, kind) => url
   ? `<svg class="aim-ring" aria-hidden="true"><image href="${escHtml(url)}" x="0" y="0" width="100%" height="100%" preserveAspectRatio="xMidYMax meet" filter="url(#aim-outline-${kind})"/></svg>`
   : '';
-// persistent Ward shell — 4-frame raster strip (CSS steps); missing asset → no layer
-const wardFxHtml = () => {
-  const u = assetUrl('vfx', 'ward-loop');
-  return u ? `<div class="ward-fx" style="background-image:url(${escHtml(u)})" aria-hidden="true"></div>` : '';
-};
-function playWardGain(root) {
-  const url = assetUrl('vfx', 'ward-gain');
-  if (!url || !root) return;
-  const el = document.createElement('div');
-  el.className = 'ward-gain-fx';
-  el.style.backgroundImage = `url(${url})`;
-  root.appendChild(el);
-  el.addEventListener('animationend', () => el.remove(), { once: true });
+function syncWardMesh(el, on, grow = false) {
+  if (!el) return;
+  const sprite = el.classList?.contains('hero-sprite') || el.classList?.contains('enemy-sprite')
+    ? el
+    : ($('.hero-sprite, .enemy-sprite', el) || el);
+  meshWard(sprite, !!on, { grow });
 }
 const heroArt = (i) => {
   const u = assetUrl('heroes', ASPECTS[i].id);
-  if (!u) return `<div class="hero-sprite">${wardFxHtml()}${heroSvg(i)}</div>`;
-  return `<div class="hero-sprite">${wardFxHtml()}${aimRing(u, 'self')}${rasterOr('heroes', ASPECTS[i].id, heroSvg(i))}<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg></div>`;
+  if (!u) return `<div class="hero-sprite">${heroSvg(i)}</div>`;
+  return `<div class="hero-sprite">${aimRing(u, 'self')}${rasterOr('heroes', ASPECTS[i].id, heroSvg(i))}<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg></div>`;
 };
 
 let assetsWarmed = false;
@@ -926,7 +919,7 @@ function renderCombat() {
     box.dataset.idx = i;
     box.style.animationDelay = `${160 + i * 130}ms`;
     box.innerHTML = `<div class="intent"></div>
-      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${wardFxHtml()}${aimRing(assetUrl('enemies', en.key), 'atk')}${rasterOr('enemies', en.key, enemySvg(d.art))}<div class="vessel-fire"></div>${assetUrl('enemies', en.key) ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
+      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${aimRing(assetUrl('enemies', en.key), 'atk')}${rasterOr('enemies', en.key, enemySvg(d.art))}<div class="vessel-fire"></div>${assetUrl('enemies', en.key) ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
       <div class="cplate">
         <div class="name">${afx ? `<span class="affix-name" style="color:${afx.tone}">${afx.name.toUpperCase()}</span> ` : ''}${en.name.toUpperCase()}</div>
         <div class="hpbar-wrap"><span class="block-chip zero">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div><span class="hp-label"></span></div>
@@ -1117,6 +1110,7 @@ function syncCombat() {
     x.block.classList.toggle('zero', en.block <= 0);
     x.block.innerHTML = `${iconSvg('shield', 13)} ${en.block}`;
     x.art.classList.toggle('warded', en.block > 0);
+    syncWardMesh(x.art, en.block > 0, false);
     x.root.classList.toggle('lowhp', en.hp > 0 && en.hp / en.maxHp <= 0.3);
     statusChips(x.statuses, en.statuses, false);
     if (en.hp > 0) x.facets.innerHTML = facetPips(en);
@@ -1153,6 +1147,7 @@ function syncCombat() {
   ce.pBlock.classList.toggle('zero', P.block <= 0);
   ce.pBlock.innerHTML = `${iconSvg('shield', 13)} ${P.block}`;
   ce.hero.classList.toggle('warded', P.block > 0);
+  syncWardMesh(ce.hero, P.block > 0, false);
   ce.hero.classList.toggle('lowhp', P.hp / P.maxHp <= 0.3);
   statusChips(ce.pStatus, P.statuses, true);
   $('.num', ce.energy).textContent = P.energy;
@@ -2146,7 +2141,7 @@ async function handleEvent(ev, targetIdx) {
       const host = isP
         ? ($('.hero-sprite', ce.hero) || ce.hero)
         : ($('.enemy-sprite', ce.enemies[ev.who]?.art) || ce.enemies[ev.who]?.art);
-      playWardGain(host);
+      syncWardMesh(host, true, true);
       V.floatText(x, y - 10, `${iconSvg('shield', 22)} ${ev.n}`, 'blockf');
       const chip = isP ? ce.pBlock : ce.enemies[ev.who].block;
       chip.classList.remove('pulse');
@@ -2941,7 +2936,6 @@ function renderGallery() {
     deeds: Object.keys(DEEDS).map((k) => [k, () => iconSvg(`deed-${k}`, 64)]),
     bequests: ['relic', 'card', 'gold'].map((k) => [k, () => iconSvg(`bequest-${k}`, 64)]),
     meta: ['fallen', 'ascended', 'monument-node'].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
-    vfx: ['ward-loop', 'ward-gain'].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
   };
   screenEl().className = 'gallery-mode';
   screenEl().innerHTML = `<div class="g-toolbar">
