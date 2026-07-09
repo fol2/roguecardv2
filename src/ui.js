@@ -1,7 +1,7 @@
 // SPIREBOUND UI — screens, combat playback, interactions.
 import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
-import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
+import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, uiIcon, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
 import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule, drawBatchSchedule } from './pile-chrome.js';
 import { UI_CHROME_IDS, uiFallbackName } from './ui-chrome.js';
 // drawBatchSchedule also paces discardHand (same even-stagger clock)
@@ -259,15 +259,15 @@ function renderHud() {
   const act = ACTS[S.run.act];
   hud.innerHTML = `<div class="hud-bar">
       <div class="hud-hp-wrap">
-        <div class="hud-stat">${iconSvg('heart', 14)} <span class="hp-num">${hp} / ${p.maxHp}</span></div>
+        <div class="hud-stat">${uiIcon('heart', 14)} <span class="hp-num">${hp} / ${p.maxHp}</span></div>
         <div class="hud-hpbar"><div style="width:${(100 * hp) / p.maxHp}%"></div></div>
       </div>
-      <div class="hud-stat">${iconSvg('coin', 14)} <span class="gold-num">${p.gold}</span></div>
+      <div class="hud-stat">${uiIcon('coin', 14)} <span class="gold-num">${p.gold}</span></div>
       <div class="hud-mid"><b>${act.name.toUpperCase()}</b> &nbsp;·&nbsp; Act ${S.run.act + 1} &nbsp;·&nbsp; Floor ${S.run.floorsClimbed} &nbsp;·&nbsp; ${act.bossName}</div>
       <div class="hud-right">
         ${E.runRevealed(S.run, 'phials') ? p.potions.map((id, i) => `<button class="potion-slot ${id ? 'full' : ''}" data-slot="${i}">${id ? rasterOr('potions', id, potionSvg(POTIONS[id].tone)) : ''}</button>`).join('') : ''}
-        <button class="icon-btn" data-act="deck">${iconSvg('cards', 19)}<span style="font-size:11px">${p.deck.length}</span></button>
-        <button class="icon-btn" data-act="menu">≡</button>
+        <button class="icon-btn" data-act="deck">${uiIcon('deck', 19)}<span style="font-size:11px">${p.deck.length}</span></button>
+        <button class="icon-btn" data-act="menu" aria-label="Menu">${uiIcon('menu', 19)}</button>
       </div>
     </div>
     <div id="relicbar"></div>`;
@@ -3494,7 +3494,7 @@ function renderShop() {
         buy(it.price);
       };
       wrap.appendChild(c);
-      wrap.appendChild(el('div', 'price', `${iconSvg('coin', 14)} ${it.price}`));
+      wrap.appendChild(el('div', 'price', `${uiIcon('coin', 14)} ${it.price}`));
       cardsRow.appendChild(wrap);
     }
     for (const it of st.relics) {
@@ -3509,7 +3509,7 @@ function renderShop() {
         buy(it.price);
       };
       wrap.appendChild(b);
-      wrap.appendChild(el('div', 'price', `${iconSvg('coin', 14)} ${it.price}`));
+      wrap.appendChild(el('div', 'price', `${uiIcon('coin', 14)} ${it.price}`));
       miscRow.appendChild(wrap);
     }
     for (const it of st.potions) {
@@ -3524,7 +3524,7 @@ function renderShop() {
         buy(it.price);
       };
       wrap.appendChild(b);
-      wrap.appendChild(el('div', 'price', `${iconSvg('coin', 14)} ${it.price}`));
+      wrap.appendChild(el('div', 'price', `${uiIcon('coin', 14)} ${it.price}`));
       miscRow.appendChild(wrap);
     }
     // card removal service
@@ -3548,7 +3548,7 @@ function renderShop() {
       });
     };
     wrap.appendChild(b);
-    wrap.appendChild(el('div', 'price', `${iconSvg('coin', 14)} ${st.removeCost}`));
+    wrap.appendChild(el('div', 'price', `${uiIcon('coin', 14)} ${st.removeCost}`));
     miscRow.appendChild(wrap);
     shopSeeded = true;
   }

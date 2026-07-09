@@ -166,6 +166,9 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 }
 .hud-stat { display: flex; align-items: center; gap: 7px; font-family: 'Cinzel', serif; font-weight: 600; font-size: 17px; }
 .hud-stat .gicon { color: var(--hp); flex-shrink: 0; }
+.ui-icon { display: block; flex-shrink: 0; object-fit: contain; }
+.hud-stat .ui-icon { width: 14px; height: 14px; }
+.icon-btn .ui-icon { width: 19px; height: 19px; }
 .hud-hp-wrap { display: flex; flex-direction: column; gap: 3px; min-width: 170px; }
 .hud-hpbar { height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
 .hud-hpbar > div { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #c22f43, #ff7060); transition: width 0.4s cubic-bezier(0.3, 1, 0.4, 1); }
