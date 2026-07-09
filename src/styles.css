@@ -1141,7 +1141,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 html.mesh-on .hero-wrap.warded::before,
 html.mesh-on .enemy-art.warded::before { display: none; }
 .end-turn {
-  position: absolute; right: calc(22px + var(--sar)); bottom: calc(140px + var(--sab)); z-index: 24;
+  position: absolute; right: calc(22px + var(--sar)); bottom: calc(128px + var(--sab)); z-index: 24;
   /* larger end-turn glyph, nudged down; label overlays — no square chrome */
   display: grid; place-items: center;
   width: 120px; height: 120px; padding: 0; margin: 0;
@@ -1727,7 +1727,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .lantern-btn { --lbr: 44px; width: 94px; height: 94px; left: calc(28px + var(--sal)); bottom: calc(222px + var(--sab)); }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 84px; height: 84px; }
   .lantern-btn .lb-count { font-size: 22px; }
-  .end-turn { right: calc(16px + var(--sar)); bottom: calc(118px + var(--sab)); width: 104px; height: 104px; }
+  .end-turn { right: calc(16px + var(--sar)); bottom: calc(106px + var(--sab)); width: 104px; height: 104px; }
   .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 104px; height: 104px; }
   .end-turn .et-lbl { font-size: 16px; }
   .stats-grid { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
@@ -1807,7 +1807,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .candle { width: 16px; height: 22px; }
   .candle:has(.candle-img) { width: 28px; height: 40px; }
   .end-turn {
-    right: calc(3px + var(--sar)); bottom: calc(100px + var(--sab));
+    right: calc(3px + var(--sar)); bottom: calc(88px + var(--sab));
     width: 96px; height: 96px;
   }
   .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 96px; height: 96px; }
@@ -1886,7 +1886,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .facet-row .pip:has(.facet-img), .facet-row .pip .facet-img { width: 12px; height: 12px; }
   .candle { width: 14px; height: 18px; }
   .candle:has(.candle-img) { width: 24px; height: 34px; }
-  .end-turn { right: calc(6px + var(--sar)); bottom: calc(48px + var(--sab)); width: 84px; height: 84px; }
+  .end-turn { right: calc(6px + var(--sar)); bottom: calc(40px + var(--sab)); width: 84px; height: 84px; }
   .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 84px; height: 84px; }
   .end-turn .et-lbl { font-size: 14px; letter-spacing: 0.1em; }
   .pile-btn { width: 64px; height: 102px; bottom: calc(4px + var(--sab)); }
