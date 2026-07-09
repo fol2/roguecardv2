@@ -28,6 +28,9 @@ import { serializeAudioSelection } from '../src/dev/audio-selection-serialize.js
 import { fetchAudioSelectionJson } from '../src/audio-selection-fetch.js';
 import { createChoiceLatch } from '../src/choice-latch.js';
 import { finaliseTerminalOutbox, journalTerminalOutcome, savedRunRequiresFinalisation } from '../src/terminal-outbox.js';
+import {
+  SHADE_DUEL_TX, settleShadeDuel, shadeVictorySkipsRewards, shadeLossBequestState,
+} from '../src/shade-duel-transaction.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -264,6 +267,61 @@ function forceHand(run, cb, ids) {
   assert.equal(latch.claim(), true, 'the first choice claims the interaction');
   assert.equal(latch.claim(), false, 'a second rapid choice is rejected');
   assert.equal(latch.locked, true, 'the latch exposes its settled state');
+}
+{
+  // Pending Shade claim persistence is one ordered transaction: save the duel,
+  // clear the cross-run stone, then roll back only when the clear is rejected.
+  const trace = [];
+  const rejectedSave = settleShadeDuel({
+    phase: 'claim',
+    saveRun: () => { trace.push('save-pending'); return false; },
+    clearBequest: () => { trace.push('clear'); return true; },
+    rollbackClaim: () => { trace.push('rollback'); },
+  });
+  assert.deepEqual(rejectedSave, { status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false });
+  assert.deepEqual(trace, ['save-pending', 'rollback'], 'a rejected pending save never clears the stone');
+
+  trace.length = 0;
+  let saveAttempt = 0;
+  const rolledBack = settleShadeDuel({
+    phase: 'claim',
+    saveRun: () => { trace.push(++saveAttempt === 1 ? 'save-pending' : 'save-rollback'); return true; },
+    clearBequest: () => { trace.push('clear'); return false; },
+    rollbackClaim: () => { trace.push('rollback'); },
+  });
+  assert.deepEqual(rolledBack, { status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false });
+  assert.deepEqual(trace, ['save-pending', 'clear', 'rollback', 'save-rollback']);
+
+  trace.length = 0;
+  saveAttempt = 0;
+  const durablePending = settleShadeDuel({
+    phase: 'claim',
+    saveRun: () => { trace.push(++saveAttempt === 1 ? 'save-pending' : 'save-rollback'); return saveAttempt === 1; },
+    clearBequest: () => { trace.push('clear'); return false; },
+    rollbackClaim: () => { trace.push('rollback'); },
+  });
+  assert.deepEqual(durablePending, { status: SHADE_DUEL_TX.RELOAD_PENDING, durablePending: true });
+  assert.deepEqual(trace, ['save-pending', 'clear', 'rollback', 'save-rollback'], 'the accepted pending snapshot remains authoritative');
+
+  trace.length = 0;
+  let stoneCleared = false;
+  const clearStone = () => { trace.push('clear'); return stoneCleared; };
+  const beforeClear = settleShadeDuel({ phase: 'resume', clearBequest: clearStone });
+  assert.deepEqual(beforeClear, { status: SHADE_DUEL_TX.RETRY_CLEAR, durablePending: true });
+  stoneCleared = true;
+  const afterClear = settleShadeDuel({ phase: 'resume', clearBequest: clearStone });
+  const idempotentRetry = settleShadeDuel({ phase: 'resume', clearBequest: clearStone });
+  assert.deepEqual(afterClear, { status: SHADE_DUEL_TX.READY, durablePending: true });
+  assert.deepEqual(idempotentRetry, afterClear, 'resume after an already-cleared stone stays ready');
+  assert.deepEqual(trace, ['clear', 'clear', 'clear'], 'resume never rewrites or rolls back the accepted pending duel');
+
+  assert.equal(shadeVictorySkipsRewards({ pendingQuestId: 'ownShade' }), true);
+  assert.equal(shadeVictorySkipsRewards({ pendingQuestId: 'paleOnes' }), false);
+  assert.deepEqual(shadeLossBequestState({
+    questScratch: { ownShade: { fall: { bequest: { kind: 'gold', amount: 50 } } } },
+  }), { unpaidBequest: true, offerNewBequest: false });
+  assert.deepEqual(shadeLossBequestState({ questScratch: { ownShade: { fall: { bequest: null } } } }),
+    { unpaidBequest: false, offerNewBequest: true });
 }
 {
   // Title and Embark must preserve a terminal outbox instead of abandoning it.
@@ -2006,6 +2064,18 @@ function forceHand(run, cb, ids) {
   v.quests.ownShade.state = 'armed';
   saveVigil(v);
 
+  const tooEarly = newRun(4390, { quests: questSnapshot(v) });
+  assert.equal(markShadeFall(tooEarly, 0, 7), false, 'Act 1 index 0 cannot carve a standing Shade');
+  assert.equal(tooEarly.questScratch.ownShade, undefined);
+  const dormantQuests = questSnapshot(v);
+  dormantQuests.ownShade.state = 'dormant';
+  const dormantFall = newRun(4391, { quests: dormantQuests });
+  assert.equal(markShadeFall(dormantFall, 1, 7), false, 'a dormant Shade quest cannot mark a fall');
+  const completeQuests = questSnapshot(v);
+  completeQuests.ownShade = { state: 'complete', progress: 3, memory: {} };
+  const completeFall = newRun(4392, { quests: completeQuests });
+  assert.equal(markShadeFall(completeFall, 1, 7), false, 'a completed Shade quest cannot mark another fall');
+
   const fallen = newRun(440, { aspect: 1, quests: questSnapshot(v) });
   fallen.act = 1;
   assert.equal(markShadeFall(fallen, 1, 7), true);
@@ -2017,6 +2087,26 @@ function forceHand(run, cb, ids) {
   setBequest(1, 7, { kind: 'gold', amount: 50 });
   assert.equal(loadVigil().lastFall.standing, true);
   assert.equal(loadVigil().lastFall.shadeAspect, 1);
+
+  const tierIds = [];
+  for (let stage = 0; stage < 3; stage++) {
+    const tierQuests = questSnapshot(loadVigil());
+    tierQuests.ownShade = { state: 'revealed', progress: stage, memory: {} };
+    const tierRun = newRun(4400 + stage, {
+      aspect: 0, quests: tierQuests, monument: loadVigil().lastFall,
+    });
+    const tierDuel = claimMonument(tierRun);
+    const id = `ownShade${stage + 1}`;
+    tierIds.push(tierDuel.variantId);
+    assert.equal(tierDuel.variantId, id, `progress ${stage} selects Shade tier ${stage + 1}`);
+    const resolved = resolveCombatant(tierRun, id);
+    const mods = PROGRESSION.emberglass.ownShade.tiers[stage];
+    assert.deepEqual(resolved.def.hp, [Math.round(110 * mods.hpMult), Math.round(110 * mods.hpMult)]);
+    assert.equal(resolved.def.moves.ashbite.dmg, Math.round(SHADE_KITS.ashwarden.moves.ashbite.dmg * mods.dmgMult));
+    assert.equal(resolved.def.startStatus.str || 0, mods.addStatuses.str || 0);
+    assert.equal(resolved.presentation.scale, mods.scale);
+  }
+  assert.deepEqual(tierIds, ['ownShade1', 'ownShade2', 'ownShade3']);
 
   const next = newRun(441, { aspect: 0, quests: questSnapshot(loadVigil()), monument: loadVigil().lastFall });
   next.act = 1;
@@ -2078,6 +2168,113 @@ function forceHand(run, cb, ids) {
   grantBequest(directGift, { kind: 'gold', amount: 12 }, giftQueue);
   assert.equal(directGift.player.gold, giftGold + 12);
   assert.deepEqual(giftQueue, [{ t: 'monumentGift', bequest: { kind: 'gold', amount: 12 } }]);
+  _setStore(null);
+}
+{
+  // A rejected post-victory checkpoint reloads the accepted pending duel. The
+  // replay pays the held gift once; the unsaved in-memory victory is discarded.
+  const previousLocalStorage = globalThis.localStorage;
+  const persisted = new Map();
+  let rejectWrites = false;
+  try {
+    globalThis.localStorage = {
+      getItem: (key) => persisted.get(key) ?? null,
+      setItem: (key, value) => {
+        if (rejectWrites) throw new Error('quota');
+        persisted.set(key, value);
+      },
+      removeItem: (key) => persisted.delete(key),
+    };
+    const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'ownShade' ? 'revealed' : 'dormant', progress: 0, memory: {},
+    }]));
+    const run = newRun(445, {
+      quests,
+      monument: { act: 1, row: 7, bequest: { kind: 'gold', amount: 50 }, standing: true, shadeAspect: 1 },
+    });
+    const startGold = run.player.gold;
+    const duel = claimMonument(run);
+    setPendingEncounter(run, 'monster', [duel.variantId], 'ownShade');
+    assert.equal(saveRun(run), true, 'the pending duel is the durable pre-combat checkpoint');
+
+    const winShade = (candidate) => {
+      const cb = startCombat(candidate, candidate.pendingEnemyIds, candidate.pendingCombat);
+      cb.enemies[0].hp = 1;
+      forceHand(candidate, cb, ['strike']);
+      cb.player.energy = 3;
+      playCard(candidate, cb, cb.hand[0].uid, 0);
+      assert.equal(cb.result, 'win');
+    };
+
+    const rejectedVictory = loadRun();
+    winShade(rejectedVictory);
+    assert.equal(rejectedVictory.player.gold, startGold + 50);
+    assert.equal(shadeVictorySkipsRewards(rejectedVictory), true, 'the ownShade checkpoint bypasses ordinary rewards');
+    clearPendingEncounter(rejectedVictory);
+    rejectWrites = true;
+    assert.equal(saveRun(rejectedVictory), false, 'the post-victory checkpoint reports quota rejection');
+
+    rejectWrites = false;
+    const replay = loadRun();
+    assert.equal(replay.player.gold, startGold, 'reload discards the uncheckpointed gift');
+    assert.equal(replay.quests.ownShade.progress, 0);
+    assert.equal(replay.pendingQuestId, 'ownShade');
+    assert.deepEqual(replay.questScratch.ownShade.pendingBequest, { kind: 'gold', amount: 50 });
+    winShade(replay);
+    clearPendingEncounter(replay);
+    assert.equal(saveRun(replay), true);
+
+    const settled = loadRun();
+    assert.equal(settled.player.gold, startGold + 50, 'the replayed victory pays exactly once');
+    assert.equal(settled.quests.ownShade.progress, 1);
+    assert.equal(settled.pendingCombat, null);
+    assert.equal(settled.questScratch.ownShade.pendingBequest, undefined);
+    assert.equal(claimMonument(settled), null, 'the claimed stone cannot replay after the accepted victory');
+  } finally {
+    if (previousLocalStorage) globalThis.localStorage = previousLocalStorage;
+    else delete globalThis.localStorage;
+  }
+}
+{
+  // A rejected Shade-loss run-end receipt leaves no partial standing gift. A
+  // fresh-object retry persists it once and the receipt makes later retries inert.
+  _setStore(null);
+  const initial = loadVigil();
+  initial.quests.ownShade = { state: 'revealed', progress: 0, memory: {} };
+  const persisted = new Map([['spirebound_vigil_v2', JSON.stringify(initial)]]);
+  let rejectWrites = true;
+  let acceptedWrites = 0;
+  _setStore({
+    getItem: (key) => persisted.get(key) ?? null,
+    setItem: (key, value) => {
+      if (rejectWrites) throw new Error('quota');
+      acceptedWrites++;
+      persisted.set(key, value);
+    },
+    removeItem: (key) => persisted.delete(key),
+  });
+  const unpaid = { kind: 'gold', amount: 50 };
+  const lost = newRun(446, {
+    quests: questSnapshot(loadVigil()),
+    monument: { act: 1, row: 7, bequest: unpaid, standing: true, shadeAspect: 1 },
+  });
+  lost.act = 1;
+  claimMonument(lost);
+  assert.equal(markShadeFall(lost, 1, 8), true);
+  const savedLoss = JSON.stringify(lost);
+  assert.throws(() => commitRunEnd(lost, 'death'), /Vigil storage rejected the run end/);
+  assert.equal(loadVigil().lastFall, null, 'a rejected receipt writes no partial standing monument');
+  assert.equal(acceptedWrites, 0);
+
+  rejectWrites = false;
+  const accepted = commitRunEnd(JSON.parse(savedLoss), 'death');
+  assert.deepEqual(accepted.vigil.lastFall, {
+    act: 1, row: 8, bequest: unpaid, standing: true, shadeAspect: 0,
+  });
+  assert.equal(acceptedWrites, 1, 'fall and receipt share one accepted write');
+  const retry = commitRunEnd(JSON.parse(savedLoss), 'death');
+  assert.deepEqual(retry.vigil.lastFall.bequest, unpaid);
+  assert.equal(acceptedWrites, 1, 'fresh-object receipt retry cannot duplicate the standing gift');
   _setStore(null);
 }
 {

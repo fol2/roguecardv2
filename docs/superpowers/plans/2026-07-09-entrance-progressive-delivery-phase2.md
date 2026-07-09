@@ -1492,16 +1492,20 @@ git commit -m "Implement the Pale Ones Trail and Witchlight Lens"
 - Modify: src/engine.js (fall marker, monument claim, Shade resolver/drop)
 - Modify: src/vigil.js (standing lastFall and bequest preservation)
 - Modify: src/ui.js:990-1006, 3409-3432, 3909-3978
+- Create: src/shade-duel-transaction.js (Node-safe injected-callback save/clear/rollback ordering and pure UI decisions)
 - Test: test/test_engine.js
 
 **Interfaces:**
 - Produces: markShadeFall(run,act,row), claimMonument(run) returning either a normal bequest or { kind:'shadeDuel', variantId, bequest }, and grantBequest(run,bequest,queue).
+- Produces `settleShadeDuel({phase,saveRun,clearBequest,rollbackClaim})`, `shadeVictorySkipsRewards(run)`, and `shadeLossBequestState(run)` as the production-backed test seam for claim/resume persistence, reward bypass, and unpaid-gift presentation.
 - New normal `lastFall` records add `standing:false`; standing records add `standing:true` and `shadeAspect:0|1`. Persisted legacy Phase 1 run monuments retain their exact four-field compatibility shape.
 - pendingQuestId ownShade suppresses ordinary combat rewards and returns to the map after a won duel.
 
 - [ ] **Step 1: Write failing standing, capture, and three-tier tests**
 
 Also round-trip the exact Phase 2 normal and standing persisted monument shapes while retaining the Phase 1 four-field compatibility test. Reject non-boolean `standing`, a standing record without `shadeAspect`, an out-of-range `shadeAspect`, and a non-standing record that carries `shadeAspect`.
+
+Regression coverage must fault-inject every cross-store ordering branch: initial pending-duel save rejection; clear rejection with an accepted rollback save; clear plus rollback-save rejection retaining the accepted pending duel; resume before and after a successful clear; and idempotent retry. Through real engine/Vigil storage adapters, reject the Shade post-victory checkpoint then reload/replay without duplicating its gift, and reject the Shade-loss run-end receipt then retry from a fresh object with one standing gift. Pin reward bypass, unpaid-picker suppression, all three progress-to-variant mappings and tier stats, plus the Act 1/dormant/complete negative fall gates.
 
 ~~~js
 {
@@ -1614,8 +1618,10 @@ Add grantBequest using the old card/relic/gold code and queue {t:'monumentGift',
 
 In claimMonumentNode, call setPendingEncounter with kind monster, `[variantId]`, and questId ownShade; then require `E.saveRun(run) === true`. After that require `clearBequest() === true` before starting combat. If the run save fails, keep lastFall untouched, call clearPendingEncounter, reset `run.monument.claimed=false`, delete `run.questScratch.ownShade.pendingBequest`, and show “The stone could not hold this duel. Free storage and try again.” If clearBequest fails after the run save, perform the same in-memory rollback and attempt one acknowledged E.saveRun rollback; if that rollback also fails, leave the saved pending duel intact so resume retries clearBequest rather than duplicating the gift. On resume, a valid pending ownShade encounter requires clearBequest to succeed before combat begins, making the sequence idempotent across a crash or quota failure between the two stores.
 
-In victoryFlow, capture pendingQuestId before clearPendingEncounter. If it is ownShade, save and show map without genCombatRewards. On loss, the normal defeat flow records a new standing fall when Act 2+, so the next run re-offers the current tier.
-If that Shade loss carried pendingBequest, renderEnd suppresses the ordinary new-bequest picker and shows “The unpaid gift remains in the standing stone”; this prevents the later UI call from replacing the preserved gift.
+`settleShadeDuel` owns that exact order for both claim and resume. `claimMonumentNode`, `startRun`, and `renderMap` inject the real callbacks; the two resume call sites share one UI recovery wrapper and may not reimplement the ordering independently.
+
+In victoryFlow, capture `shadeVictorySkipsRewards(run)` before `clearPendingEncounter`. If true, save and show map without `genCombatRewards`. On loss, the normal defeat flow records a new standing fall when Act 2+, so the next run re-offers the current tier.
+If `shadeLossBequestState(run)` reports that the Shade loss carried `pendingBequest`, renderEnd suppresses the ordinary new-bequest picker and shows “The unpaid gift remains in the standing stone”; this prevents the later UI call from replacing the preserved gift.
 
 - [ ] **Step 5: Run green and commit**
 
@@ -1625,6 +1631,15 @@ Expected: PASS.
 ~~~bash
 git add src/engine.js src/vigil.js src/ui.js test/test_engine.js docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md
 git commit -m "Implement the three-stage Own Shade Trail"
+~~~
+
+#### Review hardening checkpoint
+
+Run the regression suite and isolated build again after extracting the transaction seam. Preserve the clarified product behaviour for an unclaimed prior standing monument; document it as a non-blocking product note rather than changing Task 6 semantics.
+
+~~~bash
+git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/shade-duel-transaction.js src/ui.js test/test_engine.js
+git commit -m "Cover Shade transaction failure paths"
 ~~~
 
 ---

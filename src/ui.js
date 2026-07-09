@@ -21,6 +21,9 @@ import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, b
 import { uicResolve, onUICChange } from './uic.js';
 import { createChoiceLatch } from './choice-latch.js';
 import { finaliseTerminalOutbox, journalTerminalOutcome, savedRunRequiresFinalisation } from './terminal-outbox.js';
+import {
+  SHADE_DUEL_TX, settleShadeDuel, shadeVictorySkipsRewards, shadeLossBequestState,
+} from './shade-duel-transaction.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
@@ -548,6 +551,19 @@ function requireBequestClear(onCleared) {
   });
   return false;
 }
+function requirePendingShadeDuelClear(onCleared) {
+  const result = settleShadeDuel({ phase: 'resume', clearBequest });
+  if (result.status === SHADE_DUEL_TX.READY) return true;
+  showStonePersistenceFailure(() => {
+    if (requirePendingShadeDuelClear(onCleared)) onCleared();
+  });
+  return false;
+}
+function resumeSavedCombat(run, onReady) {
+  if (run.pendingQuestId === 'ownShade' && !requirePendingShadeDuelClear(onReady)) return false;
+  onReady();
+  return true;
+}
 function showRunEndPersistenceFailure(run, onFinalised = null) {
   openOverlay(`<div class="panel ov-panel" style="text-align:center">
     <div class="ov-title">The Vigil Could Not Hold</div>
@@ -879,10 +895,7 @@ function startRun(run, resumed = false) {
       startCombatUI(ids, run.pendingCombat);
       renderHud();
     };
-    const resumePersistedCombat = () => {
-      if (run.pendingQuestId === 'ownShade' && !requireBequestClear(resumeCombat)) return;
-      resumeCombat();
-    };
+    const resumePersistedCombat = () => resumeSavedCombat(run, resumeCombat);
     if (!run.pendingEnemyIds) {
       E.setPendingEncounter(run, run.pendingCombat, ids, run.pendingQuestId);
       if (!requireRunSave(run, resumePersistedCombat)) return;
@@ -985,10 +998,7 @@ function renderMap() {
       S.screen = 'combat';
       startCombatUI(ids, run.pendingCombat);
     };
-    const resumePersistedCombat = () => {
-      if (run.pendingQuestId === 'ownShade' && !requireBequestClear(resumeCombat)) return;
-      resumeCombat();
-    };
+    const resumePersistedCombat = () => resumeSavedCombat(run, resumeCombat);
     if (!run.pendingEnemyIds) {
       E.setPendingEncounter(run, run.pendingCombat, ids, run.pendingQuestId);
       if (!requireRunSave(run, resumePersistedCombat)) return;
@@ -1208,21 +1218,21 @@ function claimMonumentNode(node) {
       if (run.questScratch?.ownShade) delete run.questScratch.ownShade.pendingBequest;
     };
     E.setPendingEncounter(run, 'monster', [b.variantId], 'ownShade');
-    if (!E.saveRun(run)) {
-      rollbackClaim();
-      showStonePersistenceFailure(() => claimMonumentNode(node));
+    const transaction = settleShadeDuel({
+      phase: 'claim',
+      saveRun: () => E.saveRun(run),
+      clearBequest,
+      rollbackClaim,
+    });
+    if (transaction.status === SHADE_DUEL_TX.READY) {
+      beginDuel();
       return;
     }
-    if (!clearBequest()) {
-      rollbackClaim();
-      const rollbackSaved = E.saveRun(run);
-      showStonePersistenceFailure(
-        rollbackSaved ? () => claimMonumentNode(node) : () => location.reload(),
-        rollbackSaved ? 'Retry' : 'Reload Saved Duel',
-      );
-      return;
-    }
-    beginDuel();
+    const reloadPending = transaction.status === SHADE_DUEL_TX.RELOAD_PENDING;
+    showStonePersistenceFailure(
+      reloadPending ? () => location.reload() : () => claimMonumentNode(node),
+      reloadPending ? 'Reload Saved Duel' : 'Retry',
+    );
     return;
   }
   const finishGift = () => {
@@ -3688,12 +3698,12 @@ function afterAction() {
 function victoryFlow() {
   transition('victory-out');
   const run = S.run, kind = S.cb.kind, affix = S.cb.affix;
-  const pendingQuestId = run.pendingQuestId;
+  const skipOrdinaryRewards = shadeVictorySkipsRewards(run);
   if (kind === 'boss' && run.act >= 2) {
     journalRunEnd(run, 'win');
     return;
   }
-  if (pendingQuestId === 'ownShade') {
+  if (skipOrdinaryRewards) {
     E.clearPendingEncounter(run);
     const continueShadeVictory = () => {
       S.cb = null;
@@ -3741,11 +3751,11 @@ function finalisePendingRunEnd(run, onFinalised = null) {
         show('end', { won: true, newUnlocks, ledger });
       } else if (outcome === 'death') {
         const node = run.map.nodes.find((candidate) => candidate.id === run.nodeId);
-        const unpaidBequest = run.questScratch?.ownShade?.fall?.bequest != null;
+        const { unpaidBequest, offerNewBequest } = shadeLossBequestState(run);
         show('end', {
           won: false,
           newUnlocks,
-          offers: unpaidBequest ? [] : bequestOptions(run),
+          offers: offerNewBequest ? bequestOptions(run) : [],
           fallAct: run.act,
           fallRow: node ? node.row : Math.max(1, run.floorsClimbed - 1),
           unpaidBequest,
