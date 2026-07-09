@@ -1602,25 +1602,99 @@ function bumpPile(btn) {
   btn.classList.add('pile-bump');
 }
 
-function flyCardBacks(fromList, toEl, budgetMs) {
+/** Last on-stage card rects for toDiscard (captured at play before lift/remove). */
+const cardFlightAnchor = new Map();
+function captureCardAnchor(uid, cardEl) {
+  if (uid == null || !cardEl) return;
+  const r = stageRect(cardEl);
+  if (r.width < 2) return;
+  cardFlightAnchor.set(String(uid), {
+    x: r.left + r.width / 2,
+    y: r.top + r.height / 2,
+    w: r.width,
+    h: r.height,
+  });
+}
+function takeCardAnchor(uid) {
+  const k = String(uid);
+  const a = cardFlightAnchor.get(k);
+  cardFlightAnchor.delete(k);
+  return a || null;
+}
+
+/** Visible pile face size (matches .pile-layer / stack). */
+function pileFaceSize(pileBtn) {
+  const layer = pileBtn?.querySelector('.pile-layer');
+  if (layer) {
+    const r = stageRect(layer);
+    if (r.width > 2 && r.height > 2) return { w: r.width, h: r.height };
+  }
+  const stack = pileBtn?.querySelector('.pile-stack');
+  if (stack) {
+    const r = stageRect(stack);
+    if (r.width > 2) return { w: r.width, h: r.width * (148 / 96) };
+  }
+  return { w: 96, h: 130 };
+}
+
+function handFaceSize() {
+  const sample = S.ce?.hand?.querySelector('.card:not(.played-up)') || S.ce?.hand?.querySelector('.card');
+  if (sample) {
+    const r = stageRect(sample);
+    if (r.width > 2) return { w: r.width, h: r.height };
+  }
+  return { w: 152, h: Math.round(152 * 1.42) };
+}
+
+function resolveFlightSize(spec, { pileBtn, src, fallback } = {}) {
+  if (spec && typeof spec === 'object' && spec.w) return { w: spec.w, h: spec.h };
+  if (spec === 'hand') return handFaceSize();
+  if (spec === 'src' && src?.w) return { w: src.w, h: src.h };
+  if (spec === 'src' && src?.el) {
+    const r = stageRect(src.el);
+    if (r.width > 2) return { w: r.width, h: r.height };
+  }
+  if (spec === 'pile' || spec == null) return pileFaceSize(pileBtn);
+  return fallback || pileFaceSize(pileBtn);
+}
+
+/**
+ * Pile-ceremony flights. Default face size = current pile card size.
+ * opts.fromSize / toSize: {w,h} | 'pile' | 'hand' | 'src'  (omit toSize → same as from)
+ * opts.pileArt: draw|discard|ashes master for the flyer
+ * opts.sizePile: pile button used when resolving 'pile' sizes (defaults to toEl)
+ */
+function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
   const layer = $('#floaties');
   const dest = V.centerOf(toEl);
   const n = fromList.length;
   const { stagger, flightDur, awaitMs } = flightSchedule(n, budgetMs);
   if (REDUCED || n === 0) return Promise.resolve(0);
+  const sizePile = opts.sizePile || toEl;
+  const artUrl = assetUrl('piles', pileMasterId(opts.pileArt || 'draw'));
   fromList.forEach((src, i) => {
-    const origin = src.el ? V.centerOf(src.el) : src;
-    const m = el('div', 'flycard flycard-back');
+    const origin = src.el
+      ? (() => { const r = stageRect(src.el); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }; })()
+      : src;
+    const fromSize = resolveFlightSize(opts.fromSize || 'pile', { pileBtn: sizePile, src: origin });
+    const toSize = opts.toSize == null
+      ? fromSize
+      : resolveFlightSize(opts.toSize, { pileBtn: sizePile, src: origin, fallback: fromSize });
+    const endScale = fromSize.w > 0 ? toSize.w / fromSize.w : 1;
+    const m = el('div', artUrl ? 'flycard flycard-pile' : 'flycard flycard-back');
     m.style.left = `${origin.x}px`;
     m.style.top = `${origin.y}px`;
+    m.style.width = `${fromSize.w}px`;
+    m.style.height = `${fromSize.h}px`;
+    if (artUrl) m.style.backgroundImage = `url(${artUrl})`;
     layer.appendChild(m);
     const mx = (origin.x + dest.x) / 2 + (Math.random() - 0.5) * 80;
     const my = Math.min(origin.y, dest.y) - 40 - Math.random() * 50;
     m.animate(
       [
-        { transform: 'translate(-50%,-50%) scale(0.85)', opacity: 0.9 },
-        { transform: `translate(calc(-50% + ${mx - origin.x}px), calc(-50% + ${my - origin.y}px)) scale(1)`, opacity: 1, offset: 0.45 },
-        { transform: `translate(calc(-50% + ${dest.x - origin.x}px), calc(-50% + ${dest.y - origin.y}px)) scale(0.55)`, opacity: 0.85 },
+        { transform: 'translate(-50%,-50%) scale(1)', opacity: 0.95 },
+        { transform: `translate(calc(-50% + ${mx - origin.x}px), calc(-50% + ${my - origin.y}px)) scale(${1 + (endScale - 1) * 0.45})`, opacity: 1, offset: 0.45 },
+        { transform: `translate(calc(-50% + ${dest.x - origin.x}px), calc(-50% + ${dest.y - origin.y}px)) scale(${endScale})`, opacity: 0.9 },
       ],
       { duration: flightDur, delay: i * stagger, easing: 'cubic-bezier(.32,.05,.35,1)', fill: 'forwards' }
     ).onfinish = () => m.remove();
@@ -2061,7 +2135,9 @@ async function handleEvent(ev, targetIdx) {
     case 'draw': {
       // fire-and-forget flights so consecutive draws overlap under ~180–320ms total
       if (!REDUCED) {
-        flyCardBacks([V.centerOf(ce.draw)], ce.hand, 220);
+        flyCardBacks([V.centerOf(ce.draw)], ce.hand, 220, {
+          fromSize: 'pile', toSize: 'hand', sizePile: ce.draw, pileArt: 'draw',
+        });
         bumpPile(ce.draw);
       }
       syncHand(); syncCombat(); sfx.draw();
@@ -2072,7 +2148,9 @@ async function handleEvent(ev, targetIdx) {
       sfx.card();
       const n = ev.n || 6;
       const origins = Array.from({ length: n }, () => V.centerOf(ce.discard));
-      await flyCardBacks(origins, ce.draw, 560);
+      await flyCardBacks(origins, ce.draw, 560, {
+        fromSize: 'pile', sizePile: ce.discard, pileArt: 'discard',
+      });
       bumpPile(ce.draw);
       V.floatText(V.centerOf(ce.draw).x, V.centerOf(ce.draw).y - 46, 'Reshuffle', 'notice');
       syncCombat();
@@ -2094,6 +2172,7 @@ async function handleEvent(ev, targetIdx) {
       }
       if (c && targetIdx != null && cb.enemies[targetIdx]) {
         // targeted attacks: the card itself streaks into the enemy
+        captureCardAnchor(ev.uid, c);
         const r = stageRect(c); // ghost is fixed inside the stage
         const { x: tx, y: ty } = enemyCenter(targetIdx);
         const ghost = c.cloneNode(true);
@@ -2105,8 +2184,8 @@ async function handleEvent(ev, targetIdx) {
           { duration: 270, easing: 'cubic-bezier(.45,0,.9,.5)' }
         ).onfinish = () => ghost.remove();
       } else if (c) {
-        // lift only — leave DOM for toDiscard / exhaust / powerConsumed
-        // (early remove raced those handlers and skipped discard flights)
+        // anchor before lift so toDiscard / exhaust start from the played seat
+        captureCardAnchor(ev.uid, c);
         c.classList.add('played-up');
       }
       syncCombat();
@@ -2280,29 +2359,46 @@ async function handleEvent(ev, targetIdx) {
     case 'energy': syncCombat(); ce.energy.classList.remove('pop'); void ce.energy.offsetWidth; ce.energy.classList.add('pop'); break;
     case 'exhaust': {
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
+      const anchor = takeCardAnchor(ev.uid);
       if (c && REDUCED) {
         c.remove();
-      } else if (c) {
-        // the card burns away edge-inward, embers rising off it
-        const r = stageRect(c);
-        const ghost = c.cloneNode(true);
-        Object.assign(ghost.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, margin: 0, transform: 'none', zIndex: 56, pointerEvents: 'none' });
-        document.getElementById('floaties').appendChild(ghost);
-        c.remove();
-        ghost.animate(
-          [
-            { clipPath: 'circle(80% at 50% 55%)', filter: 'brightness(1)' },
-            { clipPath: 'circle(44% at 50% 55%)', filter: 'brightness(1.8) saturate(1.6) sepia(0.45)', offset: 0.45 },
-            { clipPath: 'circle(0% at 50% 55%)', filter: 'brightness(2.6) saturate(2) sepia(0.85)' },
-          ],
-          { duration: 540, easing: 'ease-in' }
-        ).onfinish = () => ghost.remove();
-        V.burst(r.left + r.width / 2, r.top + r.height / 2, { color: '#ffb066', n: 22, speed: 190, grav: -150, size: 2.4, life: 0.85 });
-        const a0 = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-        const a1 = V.centerOf(ce.exhaust);
-        flyTo(a0.x, a0.y, a1.x, a1.y, { n: 8, color: '#ffb066', size: 5, dur: 480 });
+      } else if (!REDUCED) {
+        // burn at play-seat anchor (not played-up lift), then pile-sized ashes face flies
+        const live = c ? stageRect(c) : null;
+        const start = anchor || (live && live.width > 2
+          ? { x: live.left + live.width / 2, y: live.top + live.height / 2, w: live.width, h: live.height }
+          : null);
+        if (c && start) {
+          const ghost = c.cloneNode(true);
+          Object.assign(ghost.style, {
+            position: 'fixed', left: `${start.x - start.w / 2}px`, top: `${start.y - start.h / 2}px`,
+            width: `${start.w}px`, height: `${start.h}px`, margin: 0, transform: 'none',
+            zIndex: 56, pointerEvents: 'none', opacity: '1',
+          });
+          document.getElementById('floaties').appendChild(ghost);
+          c.remove();
+          ghost.animate(
+            [
+              { clipPath: 'circle(80% at 50% 55%)', filter: 'brightness(1)' },
+              { clipPath: 'circle(44% at 50% 55%)', filter: 'brightness(1.8) saturate(1.6) sepia(0.45)', offset: 0.45 },
+              { clipPath: 'circle(0% at 50% 55%)', filter: 'brightness(2.6) saturate(2) sepia(0.85)' },
+            ],
+            { duration: 540, easing: 'ease-in' }
+          ).onfinish = () => ghost.remove();
+          V.burst(start.x, start.y, { color: '#ffb066', n: 22, speed: 190, grav: -150, size: 2.4, life: 0.85 });
+        } else if (c) {
+          c.remove();
+        }
+        const pileSz = pileFaceSize(ce.exhaust);
+        const origin = start
+          ? { x: start.x, y: start.y, w: pileSz.w, h: pileSz.h }
+          : { ...V.centerOf(ce.hand), ...pileSz };
+        await flyCardBacks([origin], ce.exhaust, 480, {
+          fromSize: pileSz, sizePile: ce.exhaust, pileArt: 'ashes',
+        });
         bumpPile(ce.exhaust);
-        await sleep(260);
+      } else if (c) {
+        c.remove();
       }
       syncCombat();
       break;
@@ -2312,7 +2408,9 @@ async function handleEvent(ev, targetIdx) {
       const els = uids.map((uid) => $(`.card[data-uid="${uid}"]`, ce.hand)).filter(Boolean);
       sfx.card();
       if (!REDUCED && els.length) {
-        await flyCardBacks(els.map((elc) => ({ el: elc })), ce.discard, 400);
+        await flyCardBacks(els.map((elc) => ({ el: elc })), ce.discard, 400, {
+          fromSize: 'src', toSize: 'pile', sizePile: ce.discard, pileArt: 'discard',
+        });
         els.forEach((c) => c.remove());
       } else {
         els.forEach((c) => c.remove());
@@ -2323,14 +2421,22 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'toDiscard': {
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
-      if (c && !REDUCED) {
-        await flyCardBacks([{ el: c }], ce.discard, 320);
-        c.remove();
+      const anchor = takeCardAnchor(ev.uid);
+      if (!REDUCED && (c || anchor)) {
+        const origin = anchor || (() => {
+          const r = stageRect(c);
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
+        })();
+        await flyCardBacks([origin], ce.discard, 320, {
+          fromSize: 'src', toSize: 'pile', sizePile: ce.discard, pileArt: 'discard',
+        });
+        if (c) c.remove();
       } else if (c) {
         c.remove();
       } else if (!REDUCED) {
-        // hand-centre fallback if syncHand already cleared the played card
-        await flyCardBacks([V.centerOf(ce.hand)], ce.discard, 320);
+        await flyCardBacks([V.centerOf(ce.hand)], ce.discard, 320, {
+          fromSize: 'hand', toSize: 'pile', sizePile: ce.discard, pileArt: 'discard',
+        });
       }
       bumpPile(ce.discard);
       syncCombat();

@@ -622,28 +622,12 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 }
 .schip-art {
   width: 32px; height: 32px; object-fit: contain; pointer-events: none;
-  /* silhouette outline so icons read on busy stage plates */
-  filter:
-    drop-shadow(1.25px 0 0 #000)
-    drop-shadow(-1.25px 0 0 #000)
-    drop-shadow(0 1.25px 0 #000)
-    drop-shadow(0 -1.25px 0 #000)
-    drop-shadow(0.9px 0.9px 0 #000)
-    drop-shadow(-0.9px 0.9px 0 #000)
-    drop-shadow(0.9px -0.9px 0 #000)
-    drop-shadow(-0.9px -0.9px 0 #000);
+  /* sharp silhouette via feMorphology dilate 0.9 (same language as character aim rings) */
+  filter: url(#status-outline);
 }
 .schip svg {
   width: 28px; height: 28px; pointer-events: none;
-  filter:
-    drop-shadow(1.25px 0 0 #000)
-    drop-shadow(-1.25px 0 0 #000)
-    drop-shadow(0 1.25px 0 #000)
-    drop-shadow(0 -1.25px 0 #000)
-    drop-shadow(0.9px 0.9px 0 #000)
-    drop-shadow(-0.9px 0.9px 0 #000)
-    drop-shadow(0.9px -0.9px 0 #000)
-    drop-shadow(-0.9px -0.9px 0 #000);
+  filter: url(#status-outline);
 }
 .schip .n {
   position: absolute; right: -2px; bottom: -4px; padding: 0;
@@ -1088,6 +1072,12 @@ html.mesh-on .enemy-art.warded::before { display: none; }
     linear-gradient(160deg, #243056, #0c101f 72%);
   border-color: rgba(242, 193, 78, 0.65);
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.65), inset 0 0 10px rgba(120, 140, 210, 0.35);
+}
+/* pile-ceremony flights: sized to match pile / hand faces; art via inline background */
+.flycard-pile {
+  border: 0; border-radius: 6px; background-color: transparent;
+  background-position: center; background-size: contain; background-repeat: no-repeat;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
 }
 /* the boss is announced through a rose window: rings and spokes of leaded light */
 .rose-window {
