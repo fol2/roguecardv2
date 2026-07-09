@@ -2,7 +2,7 @@
 import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
 import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
-import { pileTier, pileMasterId, flightSchedule } from './pile-chrome.js';
+import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule } from './pile-chrome.js';
 import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
@@ -905,17 +905,17 @@ function renderCombat() {
     <button class="lantern-btn"><span class="lb-ic">${iconSvg('lantern', 26)}</span><span class="lb-count">0</span><div class="lb-pips"></div><span class="lb-art"></span></button>
     <button class="btn end-turn">End Turn</button>
     <button class="pile-btn pile-draw" type="button" aria-label="Draw pile">
-      <span class="pile-stack" data-pile="draw" data-tier="-1"></span>
+      <span class="pile-stack" data-pile="draw" data-count="-1" data-tier="-1"></span>
       <span class="cnt">0</span>
       <span class="lbl">DRAW</span>
     </button>
     <button class="pile-btn pile-discard" type="button" aria-label="Discard pile">
-      <span class="pile-stack" data-pile="discard" data-tier="-1"></span>
+      <span class="pile-stack" data-pile="discard" data-count="-1" data-tier="-1"></span>
       <span class="cnt">0</span>
       <span class="lbl">DISCARD</span>
     </button>
     <button class="pile-btn pile-exhaust" type="button" aria-label="Ashes pile">
-      <span class="pile-stack" data-pile="ashes" data-tier="-1"></span>
+      <span class="pile-stack" data-pile="ashes" data-count="-1" data-tier="-1"></span>
       <span class="cnt">0</span>
       <span class="lbl">ASHES</span>
     </button>
@@ -1187,28 +1187,30 @@ function syncPileWidgets(cb) {
   for (const [btn, pile, n] of map) {
     if (!btn) continue;
     const tier = pileTier(n);
+    const layers = pileFanLayers(n);
     const stack = btn.querySelector('.pile-stack');
     $('.cnt', btn).textContent = n;
     if (!stack) continue;
-    if (Number(stack.dataset.tier) === tier) continue;
+    if (Number(stack.dataset.count) === n) continue;
+    stack.dataset.count = String(n);
     stack.dataset.tier = String(tier);
     const url = assetUrl('piles', pileMasterId(pile));
     stack.replaceChildren();
-    stack.classList.toggle('is-empty', tier === 0);
+    stack.classList.toggle('is-empty', layers === 0);
     if (!url) {
       // glass label+count stay usable when a master PNG is missing
       stack.classList.add('pile-stack-fallback');
       continue;
     }
     stack.classList.remove('pile-stack-fallback');
-    // Bold unboxed piles read depth better; still cap at 4 so 5+ stays a thick stack (count is SoT).
-    const layers = tier === 0 ? 0 : Math.min(tier, 4);
+    // Fan spread: ~2° per card, whole pile ≤30° so it never rounds; count is SoT.
     for (let i = 0; i < layers; i++) {
       const img = document.createElement('img');
       img.src = url;
       img.alt = '';
       img.className = 'pile-layer';
       img.style.setProperty('--i', String(i));
+      img.style.setProperty('--rot', `${pileFanAngleDeg(i, layers)}deg`);
       stack.appendChild(img);
     }
   }
