@@ -1253,17 +1253,16 @@ function syncHand() {
   for (const inst of cb.hand) {
     if (!have.has(String(inst.uid))) {
       const c = cardEl(inst, { inCombat: true });
-      // Hold invisible until the draw flight is near landing, then echo on .card-lift
+      // Invisible until the card-back flyer lands, then reveal the face
       if (!REDUCED) {
         c.classList.add('draw-pending');
         const { flightDur } = flightSchedule(1, 220);
-        const landAt = Math.round(flightDur * 0.55);
         setTimeout(() => {
           if (!c.isConnected) return;
           c.classList.remove('draw-pending');
           c.classList.add('draw-in');
-          setTimeout(() => c.classList.remove('draw-in'), 340);
-        }, landAt);
+          setTimeout(() => c.classList.remove('draw-in'), 280);
+        }, flightDur);
       }
       c.onclick = (e) => { e.stopPropagation(); onCardClick(inst.uid); };
       if (FINE) {
@@ -1691,7 +1690,8 @@ function resolveFlightSize(spec, { pileBtn, src, fallback } = {}) {
 /**
  * Pile-ceremony flights. Default face size = current pile card size.
  * opts.fromSize / toSize: {w,h} | 'pile' | 'hand' | 'src'  (omit toSize → same as from)
- * opts.pileArt: draw|discard|ashes master for the flyer
+ * opts.face: 'back' = sealed card-back (draw); otherwise pile master art
+ * opts.pileArt: draw|discard|ashes master when face !== 'back'
  * opts.sizePile: pile button used when resolving 'pile' sizes (defaults to toEl)
  */
 function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
@@ -1701,7 +1701,7 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
   const { stagger, flightDur, awaitMs } = flightSchedule(n, budgetMs);
   if (REDUCED || n === 0) return Promise.resolve(0);
   const sizePile = opts.sizePile || toEl;
-  const artUrl = assetUrl('piles', pileMasterId(opts.pileArt || 'draw'));
+  const artUrl = opts.face === 'back' ? null : assetUrl('piles', pileMasterId(opts.pileArt || 'draw'));
   fromList.forEach((src, i) => {
     const origin = src.el
       ? (() => { const r = stageRect(src.el); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }; })()
@@ -2166,7 +2166,7 @@ async function handleEvent(ev, targetIdx) {
       // fire-and-forget flights so consecutive draws overlap under ~180–320ms total
       if (!REDUCED) {
         flyCardBacks([V.centerOf(ce.draw)], ce.hand, 220, {
-          fromSize: 'pile', toSize: 'hand', sizePile: ce.draw, pileArt: 'draw',
+          fromSize: 'pile', toSize: 'hand', sizePile: ce.draw, face: 'back',
         });
         bumpPile(ce.draw);
       }

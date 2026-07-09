@@ -440,21 +440,13 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.7), 0 0 24px color-mix(in srgb, var(--tint) 40%, transparent);
 }
 .hand-zone .card.draw-pending { opacity: 0; pointer-events: none; }
-/* Echo the pile→hand flight on the seat itself (lift only — fan transform stays on .card). */
+/* Face reveals only after the card-back flyer lands. */
 .hand-zone .card.draw-in .card-lift {
-  animation: drawLiftIn 0.3s cubic-bezier(.32,.05,.35,1) both;
+  animation: drawReveal 0.24s cubic-bezier(.2,.8,.3,1.05) both;
 }
-@keyframes drawLiftIn {
-  from {
-    transform: translate(-42%, 36%) scale(0.62) rotate(-10deg);
-    opacity: 0.35;
-    filter: brightness(1.15);
-  }
-  to {
-    transform: none;
-    opacity: 1;
-    filter: none;
-  }
+@keyframes drawReveal {
+  from { transform: scale(0.9); opacity: 0; filter: brightness(1.18); }
+  to { transform: none; opacity: 1; filter: none; }
 }
 .card.played-up { transition: transform 0.3s ease-in, opacity 0.3s ease-in !important; transform: translate(-50%, -240px) scale(0.72) !important; opacity: 0; }
 .card.exhausting { transition: transform 0.5s, opacity 0.5s, filter 0.5s !important; transform: translate(-50%, -140px) scale(0.6) rotate(8deg) !important; opacity: 0; filter: brightness(2.4) saturate(0.2) blur(2px); }
@@ -1077,16 +1069,17 @@ html.mesh-on .enemy-art.warded::before { display: none; }
 /* arc-flights: coins to the purse, a relic to its seat, card-backs to the deck */
 .flymote { position: absolute; border-radius: 50%; pointer-events: none; z-index: 58; font-size: 22px; line-height: 1; text-shadow: 0 0 10px currentColor; }
 .flycard {
-  position: absolute; width: 26px; height: 36px; border-radius: 4px; pointer-events: none; z-index: 58;
+  position: absolute; width: 26px; height: 36px; border-radius: 8px; pointer-events: none; z-index: 58;
   background: linear-gradient(160deg, #1d2440, #0c101f 70%);
   border: 1px solid rgba(242, 193, 78, 0.5); box-shadow: 0 3px 9px rgba(0, 0, 0, 0.6), inset 0 0 8px rgba(90, 110, 180, 0.3);
 }
 .flycard-back {
   background:
-    radial-gradient(ellipse at 50% 42%, rgba(242, 193, 78, 0.22), transparent 55%),
-    linear-gradient(160deg, #243056, #0c101f 72%);
-  border-color: rgba(242, 193, 78, 0.65);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.65), inset 0 0 10px rgba(120, 140, 210, 0.35);
+    radial-gradient(ellipse at 50% 38%, rgba(242, 193, 78, 0.28), transparent 52%),
+    repeating-linear-gradient(135deg, rgba(255,255,255,0.03) 0 2px, transparent 2px 7px),
+    linear-gradient(160deg, #2a3558, #0c101f 72%);
+  border: 1.5px solid rgba(242, 193, 78, 0.7);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7), inset 0 0 14px rgba(120, 140, 210, 0.35);
 }
 /* pile-ceremony flights: sized to match pile / hand faces; art via inline background */
 .flycard-pile {
