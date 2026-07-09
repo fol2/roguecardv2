@@ -149,10 +149,9 @@ function fadeOutCurrent() {
   setTimeout(() => { try { src.disconnect(); } catch { /* ok */ } try { g.disconnect(); } catch { /* ok */ } }, (CROSSFADE + 0.1) * 1000);
 }
 
-/** Play a Music Cue. Unwired / unknown cues no-op. Same cue re-entry is a no-op. */
-export async function play(cueId) {
+async function playInternal(cueId, { force = false } = {}) {
   const entry = REGISTRY[cueId];
-  if (!entry || !entry.wired) return;
+  if (!entry || (!entry.wired && !force)) return;
   if (cueId === activeId && activeSrc) {
     if (entry.warmWith) warm(entry.warmWith);
     return;
@@ -177,6 +176,12 @@ export async function play(cueId) {
   activeGain = g;
   if (entry.warmWith) warm(entry.warmWith);
 }
+
+/** Play a Music Cue. Unwired / unknown cues no-op. Same cue re-entry is a no-op. */
+export function play(cueId) { return playInternal(cueId); }
+
+/** Dev/gallery: play even if the cue is not wired into live screens yet. */
+export function preview(cueId) { return playInternal(cueId, { force: true }); }
 
 export function stop() {
   playGen++;

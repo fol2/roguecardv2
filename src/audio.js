@@ -6,6 +6,12 @@ import cardUrl from './assets/sfx/card.mp3';
 import drawUrl from './assets/sfx/draw.mp3';
 import slashUrl from './assets/sfx/slash.mp3';
 import hitUrl from './assets/sfx/hit.mp3';
+import atkHeroLightUrl from './assets/sfx/atkHeroLight.mp3';
+import atkHeroMedUrl from './assets/sfx/atkHeroMed.mp3';
+import atkHeroHeavyUrl from './assets/sfx/atkHeroHeavy.mp3';
+import atkEnemyLightUrl from './assets/sfx/atkEnemyLight.mp3';
+import atkEnemyMedUrl from './assets/sfx/atkEnemyMed.mp3';
+import atkEnemyHeavyUrl from './assets/sfx/atkEnemyHeavy.mp3';
 import blockedUrl from './assets/sfx/blocked.mp3';
 import blockUrl from './assets/sfx/block.mp3';
 import poisonUrl from './assets/sfx/poison.mp3';
@@ -53,7 +59,10 @@ const loading = Object.create(null);
 
 const SAMPLE_URLS = {
   click: clickUrl, hover: hoverUrl, card: cardUrl, draw: drawUrl,
-  slash: slashUrl, hit: hitUrl, blocked: blockedUrl, block: blockUrl,
+  slash: slashUrl, hit: hitUrl,
+  atkHeroLight: atkHeroLightUrl, atkHeroMed: atkHeroMedUrl, atkHeroHeavy: atkHeroHeavyUrl,
+  atkEnemyLight: atkEnemyLightUrl, atkEnemyMed: atkEnemyMedUrl, atkEnemyHeavy: atkEnemyHeavyUrl,
+  blocked: blockedUrl, block: blockUrl,
   poison: poisonUrl, debuff: debuffUrl, buff: buffUrl, heal: healUrl,
   energy: energyUrl, coin: coinUrl, potion: potionUrl, death: deathUrl,
   bigDeath: bigDeathUrl, turn: turnUrl, victory: victoryUrl, defeat: defeatUrl,
@@ -188,17 +197,23 @@ export function preloadSfx() {
 }
 
 const synth = {
-  click: () => { tone(660, { type: 'triangle', d: 0.05, peak: 0.12 }); },
-  hover: () => { tone(880, { type: 'sine', d: 0.03, peak: 0.05 }); },
+  click: () => { tone(520, { type: 'triangle', d: 0.045, peak: 0.13 }); tone(780, { type: 'sine', d: 0.035, peak: 0.06, delay: 0.008 }); },
+  hover: () => { tone(640, { type: 'sine', d: 0.03, peak: 0.045 }); },
   card: () => { noise({ d: 0.12, f0: 1800, f1: 500, peak: 0.14 }); },
   draw: () => { noise({ d: 0.08, f0: 2400, f1: 900, peak: 0.08 }); },
   slash: () => { noise({ d: 0.18, f0: 3200, f1: 300, peak: 0.3, q: 1.4 }); tone(180, { type: 'sine', d: 0.12, peak: 0.25, slide: -120 }); },
   hit: () => { tone(120, { type: 'sine', d: 0.22, peak: 0.4, slide: -70 }); noise({ d: 0.1, f0: 500, f1: 120, peak: 0.2, type: 'lowpass' }); },
-  blocked: () => { tone(320, { type: 'square', d: 0.08, peak: 0.1 }); noise({ d: 0.1, f0: 4000, f1: 2000, peak: 0.1, q: 6 }); },
-  block: () => { tone(240, { type: 'triangle', d: 0.12, peak: 0.18 }); tone(360, { type: 'triangle', d: 0.1, peak: 0.1, delay: 0.03 }); },
-  poison: () => { tone(300, { type: 'sine', d: 0.2, peak: 0.14, slide: -160 }); noise({ d: 0.22, f0: 900, f1: 300, peak: 0.08, q: 3 }); },
-  debuff: () => { tone(420, { type: 'sawtooth', d: 0.25, peak: 0.08, slide: -220 }); },
-  buff: () => { tone(392, { type: 'triangle', d: 0.14, peak: 0.14 }); tone(523, { type: 'triangle', d: 0.16, peak: 0.14, delay: 0.07 }); },
+  atkHeroLight: () => { noise({ d: 0.1, f0: 3600, f1: 700, peak: 0.18, q: 1.2 }); tone(220, { type: 'sine', d: 0.08, peak: 0.16, slide: -80 }); },
+  atkHeroMed: () => { noise({ d: 0.16, f0: 3000, f1: 350, peak: 0.28, q: 1.3 }); tone(160, { type: 'sine', d: 0.14, peak: 0.28, slide: -100 }); },
+  atkHeroHeavy: () => { noise({ d: 0.22, f0: 2800, f1: 220, peak: 0.34, q: 1.5 }); tone(110, { type: 'sine', d: 0.2, peak: 0.38, slide: -70 }); tone(90, { type: 'triangle', d: 0.12, peak: 0.16, delay: 0.02 }); },
+  atkEnemyLight: () => { noise({ d: 0.11, f0: 2400, f1: 500, peak: 0.2, q: 1.1 }); tone(180, { type: 'sawtooth', d: 0.09, peak: 0.1, slide: -90 }); },
+  atkEnemyMed: () => { noise({ d: 0.18, f0: 2000, f1: 280, peak: 0.3, q: 1.2 }); tone(130, { type: 'sine', d: 0.16, peak: 0.3, slide: -60 }); },
+  atkEnemyHeavy: () => { noise({ d: 0.26, f0: 1600, f1: 140, peak: 0.36, type: 'lowpass' }); tone(80, { type: 'sawtooth', d: 0.24, peak: 0.28, slide: -40 }); },
+  blocked: () => { tone(180, { type: 'square', d: 0.1, peak: 0.16 }); noise({ d: 0.14, f0: 1800, f1: 400, peak: 0.22, q: 2 }); },
+  block: () => { tone(280, { type: 'triangle', d: 0.08, peak: 0.16 }); tone(420, { type: 'triangle', d: 0.1, peak: 0.14, delay: 0.04 }); tone(560, { type: 'sine', d: 0.08, peak: 0.08, delay: 0.08 }); },
+  poison: () => { noise({ d: 0.22, f0: 700, f1: 220, peak: 0.14, q: 2.5 }); tone(260, { type: 'sine', d: 0.18, peak: 0.1, slide: -120 }); },
+  debuff: () => { tone(360, { type: 'sawtooth', d: 0.16, peak: 0.1, slide: -180 }); },
+  buff: () => { tone(360, { type: 'triangle', d: 0.1, peak: 0.12 }); tone(480, { type: 'triangle', d: 0.12, peak: 0.12, delay: 0.05 }); },
   heal: () => { tone(523, { type: 'sine', d: 0.2, peak: 0.14 }); tone(659, { type: 'sine', d: 0.24, peak: 0.12, delay: 0.09 }); tone(784, { type: 'sine', d: 0.3, peak: 0.1, delay: 0.18 }); },
   energy: () => { tone(700, { type: 'triangle', d: 0.1, peak: 0.12, slide: 300 }); },
   coin: () => { tone(988, { type: 'square', d: 0.06, peak: 0.08 }); tone(1319, { type: 'square', d: 0.12, peak: 0.08, delay: 0.06 }); },
@@ -220,9 +235,25 @@ const synth = {
   omen: () => { tone(98, { type: 'sine', d: 1.1, peak: 0.2 }); tone(196, { type: 'sine', d: 0.9, peak: 0.1, delay: 0.12 }); tone(147, { type: 'triangle', d: 0.8, peak: 0.06, delay: 0.3 }); },
 };
 
+function attackKey(who, amount = 0, blocked = 0) {
+  const weight = Math.max(0, (amount | 0) + (blocked | 0));
+  const tier = weight >= 16 ? 'Heavy' : weight <= 5 ? 'Light' : 'Med';
+  return `${who === 'enemy' ? 'atkEnemy' : 'atkHero'}${tier}`;
+}
+
+/** One-shot attack: who = 'hero'|'enemy'; tier from amount+blocked (≤5 light, ≥16 heavy). */
+export function playAttack({ who = 'hero', amount = 0, blocked = 0 } = {}) {
+  const key = attackKey(who, amount, blocked);
+  play(key, synth[key] || synth.slash);
+}
+
 export const sfx = Object.fromEntries(
   Object.keys(synth).map((name) => [name, () => play(name, synth[name])])
 );
+sfx.attack = playAttack;
+// Legacy: old slash+hit pair → medium hero swing (combined sample).
+sfx.slash = () => playAttack({ who: 'hero', amount: 8 });
+sfx.hit = () => {};
 
 // Retired Ambience Drone — kept as no-ops so stray imports don't throw during HMR.
 export function setAmbience() {}

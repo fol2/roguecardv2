@@ -9,6 +9,7 @@ import * as V from './vfx.js';
 import { syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from './vigil.js';
 import { sfx, unlock, getSfxVolume, setSfxVolume, isSfxMuted, setSfxMuted } from './audio.js';
 import * as music from './music.js';
+import { SFX_CATALOG, MUSIC_CATALOG } from './audio-catalog.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
 import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift, meshAim, meshAimClear, meshWard } from './mesh.js';
 import { charShadowLive, charCssFloat, charAim, onCharMetaChange } from './char-meta.js';
@@ -2921,8 +2922,7 @@ async function handleEvent(ev, targetIdx) {
         if (heroActing && vfxSource.cardId && !String(vfxSource.cardId).startsWith('art:')) {
           if (!choreoDone) { await choreoAttack(ce.hero, 1, 'humanoid'); choreoDone = true; }
         }
-        sfx.slash();
-        if (ev.amount > 0) sfx.hit();
+        sfx.attack({ who: 'hero', amount: ev.amount, blocked: ev.blocked });
         if (!bespokeFired && vfxSource.cardId && V.BESPOKE_VFX[vfxSource.cardId]) {
           V.BESPOKE_VFX[vfxSource.cardId](ex, ey);
           bespokeFired = true;
@@ -3009,8 +3009,8 @@ async function handleEvent(ev, targetIdx) {
       else if (ev.source === 'burn' || ev.source === 'self') sfx.debuff();
       else if (ev.source === 'thorns') sfx.blocked();
       else {
-        sfx.slash();
-        if (ev.amount > 0) { sfx.hit(); V.flash('#ff2233', Math.min(0.05 + ev.amount * 0.012, 0.3), 0.3); }
+        sfx.attack({ who: 'enemy', amount: ev.amount, blocked: ev.blocked });
+        if (ev.amount > 0) V.flash('#ff2233', Math.min(0.05 + ev.amount * 0.012, 0.3), 0.3);
         V.archetypeHit(hx, hy, vfxSource.archetype, Math.min(1, ev.amount / 24));
         choreoHit(ce.hero, -1);
       }
@@ -4067,6 +4067,60 @@ function renderGallery() {
   };
 }
 
+// ------------------------------------------------------------ audio gallery (?audio=1)
+function renderAudioGallery() {
+  const sc = screenEl();
+  sc.className = 'gallery-mode audio-gallery-mode';
+  const sfxGroups = {};
+  for (const row of SFX_CATALOG) (sfxGroups[row.group] ||= []).push(row);
+  const sfxHtml = Object.entries(sfxGroups).map(([group, rows]) => `
+    <h3 class="ag-sub">${escHtml(group)}</h3>
+    <div class="ag-list">${rows.map((row) => `
+      <button type="button" class="ag-row" data-kind="sfx" data-id="${escHtml(row.id)}"
+        ${row.play === 'attack' ? `data-attack-who="${escHtml(row.attack.who)}" data-attack-amount="${row.attack.amount}"` : ''}>
+        <span class="ag-play">▶</span>
+        <span class="ag-id">${escHtml(row.id)}</span>
+        <span class="ag-use">${escHtml(row.use)}</span>
+        ${row.note ? `<span class="ag-badge">${escHtml(row.note)}</span>` : ''}
+      </button>`).join('')}</div>`).join('');
+  const musicHtml = `<div class="ag-list">${MUSIC_CATALOG.map((row) => `
+    <button type="button" class="ag-row ${row.wired ? '' : 'ag-unwired'}" data-kind="music" data-id="${escHtml(row.id)}">
+      <span class="ag-play">▶</span>
+      <span class="ag-id">${escHtml(row.id)}</span>
+      <span class="ag-title">${escHtml(row.title)}</span>
+      <span class="ag-use">${escHtml(row.use)}</span>
+      <span class="ag-badge">${row.wired ? 'wired' : 'unwired'}</span>
+    </button>`).join('')}</div>`;
+  sc.innerHTML = `<div class="g-toolbar">
+    <div><b>Audio gallery</b> · click a row to preview · <a href="?">back to game</a> · <a href="?gallery=1">art gallery</a></div>
+    <nav>
+      <a href="#ag-sfx">SFX</a>
+      <a href="#ag-music">Music</a>
+      <button type="button" class="ag-stop" data-a="stop">Stop music</button>
+    </nav>
+  </div>
+  <p class="ag-note">SFX are one-shots. Music loops until you pick another cue or Stop. Unwired music cues are registered for future content — preview still works here.</p>
+  <h2 class="g-head" id="ag-sfx">SFX — ${SFX_CATALOG.length}</h2>
+  ${sfxHtml}
+  <h2 class="g-head" id="ag-music">Music — ${MUSIC_CATALOG.length}</h2>
+  ${musicHtml}`;
+  sc.onclick = (e) => {
+    const stop = e.target.closest('[data-a="stop"]');
+    if (stop) { music.stop(); return; }
+    const row = e.target.closest('.ag-row');
+    if (!row) return;
+    unlock();
+    const id = row.dataset.id;
+    if (row.dataset.kind === 'sfx') {
+      music.stop();
+      if (row.dataset.attackWho) sfx.attack({ who: row.dataset.attackWho, amount: +row.dataset.attackAmount });
+      else if (typeof sfx[id] === 'function') sfx[id]();
+      return;
+    }
+    music.preview(id);
+  };
+}
+
 // ------------------------------------------------------------ boot
 // ------------------------------------------------------------ test probe
 // window.__probe — the contract the visual layer must satisfy, readable from
@@ -4190,7 +4244,9 @@ function installProbe() {
 }
 
 export function initUI() {
-  if (new URLSearchParams(location.search).has('gallery')) return renderGallery();
+  const bootQ = new URLSearchParams(location.search);
+  if (bootQ.has('gallery')) return renderGallery();
+  if (bootQ.has('audio')) return renderAudioGallery();
   initTooltip();
   document.addEventListener('pointerdown', () => unlock(), { once: true });
   document.addEventListener('contextmenu', (e) => { if (S.targeting) { e.preventDefault(); clearTargeting(); } });
