@@ -979,19 +979,18 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   pointer-events: none;
   overflow: visible;
 }
-.pile-stack.is-empty {
-  outline: 1.5px dashed rgba(242, 193, 78, 0.28);
-  border-radius: 8px;
-  opacity: 0.5;
+/* Empty piles: hide plate only; keep count + label. */
+.pile-btn.is-empty .pile-stack {
+  visibility: hidden;
 }
 .pile-stack-fallback {
   border-radius: 8px;
   background: linear-gradient(160deg, rgba(36, 48, 86, 0.55), rgba(12, 16, 31, 0.35));
   outline: 1px solid rgba(242, 193, 78, 0.28);
 }
-.pile-stack-fallback.is-empty {
+.pile-btn.is-empty .pile-stack-fallback {
   background: transparent;
-  outline: 1.5px dashed rgba(242, 193, 78, 0.28);
+  outline: none;
 }
 .pile-layer {
   position: absolute; left: 50%; bottom: 0;

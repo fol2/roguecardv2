@@ -1262,6 +1262,7 @@ function syncPileWidgets(cb) {
     const tier = pileTier(n);
     const layers = pileFanLayers(n);
     const stack = btn.querySelector('.pile-stack');
+    btn.classList.toggle('is-empty', n === 0);
     $('.cnt', btn).textContent = n;
     if (!stack) continue;
     if (Number(stack.dataset.count) === n) continue;
