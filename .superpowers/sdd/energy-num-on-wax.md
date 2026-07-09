@@ -2,7 +2,8 @@
 
 **Date:** 2026-07-09  
 **Status:** done  
-**Commit:** 685e646 — `Seat energy count on candle bodies, not above flames.`  
+**Commit:** `8898fa8` — `Seat energy count on candle bodies, not above flames.`  
+**Note:** CSS `top: 52% → 70%` is in tree (also landed via parallel `2255cd3` styles.css stage race); this commit records the SDD.  
 **Scope:** `src/styles.css` only (`.energy-orb .num`). No ENERGY label. Candles unchanged size.
 
 ## Changes

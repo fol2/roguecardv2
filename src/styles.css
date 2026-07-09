@@ -908,10 +908,10 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .floaty.staggerf { color: #ffd8a0; font-size: 24px; letter-spacing: 0.1em; text-shadow: var(--ink), 0 0 14px rgba(255, 195, 120, 0.95), 0 3px 6px #000; }
 /* the lantern: Lantern Art face + ember count overlay; ember pips arc around; kindle by drag */
 .lantern-btn {
-  --lbr: 38px;
+  --lbr: 50px;
   position: absolute; left: calc(42px + var(--sal)); bottom: calc(262px + var(--sab)); z-index: 24;
   display: grid; place-items: center;
-  width: 80px; height: 80px; border-radius: 0; padding: 0;
+  width: 104px; height: 104px; border-radius: 0; padding: 0;
   background: transparent; border: none; box-shadow: none;
   color: #ffca6e;
   font-family: 'Cinzel', serif; cursor: help; transition: filter 0.25s, transform 0.25s;
@@ -924,14 +924,14 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   filter: drop-shadow(0 0 8px rgba(255, 180, 80, 0.85)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.75));
 }
 .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon {
-  width: 72px; height: 72px; display: block; object-fit: contain;
-  margin: 4px auto 0;
+  width: 94px; height: 94px; display: block; object-fit: contain;
+  margin: 5px auto 0;
 }
 .lantern-btn .lb-count {
   grid-area: 1 / 1; z-index: 1;
-  font-size: 20px; font-weight: 800; line-height: 1;
+  font-size: 26px; font-weight: 800; line-height: 1;
   color: #fff8e8;
-  -webkit-text-stroke: 1.1px rgba(0, 0, 0, 0.9);
+  -webkit-text-stroke: 1.3px rgba(0, 0, 0, 0.9);
   paint-order: stroke fill;
   text-shadow:
     -1px -1px 0 #000, 1px -1px 0 #000,
@@ -946,7 +946,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 }
 .lantern-btn .lbp {
   --a: 0deg;
-  position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; border-radius: 50%;
+  position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; border-radius: 50%;
   background: rgba(120, 100, 70, 0.35);
   transform: translate(-50%, -50%) rotate(var(--a)) translateY(calc(-1 * var(--lbr)));
   transition: background 0.25s, box-shadow 0.25s;
@@ -1715,9 +1715,9 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .energy-orb { bottom: calc(128px + var(--sab)); left: calc(16px + var(--sal)); }
   .energy-orb .num { font-size: 31px; }
   .candle:has(.candle-img) { width: 34px; height: 48px; }
-  .lantern-btn { --lbr: 34px; width: 72px; height: 72px; left: calc(28px + var(--sal)); bottom: calc(222px + var(--sab)); }
-  .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 64px; height: 64px; }
-  .lantern-btn .lb-count { font-size: 17px; }
+  .lantern-btn { --lbr: 44px; width: 94px; height: 94px; left: calc(28px + var(--sal)); bottom: calc(222px + var(--sab)); }
+  .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 84px; height: 84px; }
+  .lantern-btn .lb-count { font-size: 22px; }
   .end-turn { right: calc(16px + var(--sar)); bottom: calc(118px + var(--sab)); width: 104px; height: 104px; }
   .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 104px; height: 104px; }
   .end-turn .et-lbl { font-size: 16px; }
@@ -1789,9 +1789,9 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .energy-orb { left: calc(3px + var(--sal)); bottom: calc(118px + var(--sab)); }
   .energy-orb .num { font-size: 28px; }
   .energy-orb .candles { gap: 4px; }
-  .lantern-btn { --lbr: 28px; width: 60px; height: 60px; left: calc(7px + var(--sal)); bottom: calc(62px + var(--sab)); }
-  .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 52px; height: 52px; }
-  .lantern-btn .lb-count { font-size: 15px; }
+  .lantern-btn { --lbr: 36px; width: 78px; height: 78px; left: calc(7px + var(--sal)); bottom: calc(62px + var(--sab)); }
+  .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 68px; height: 68px; }
+  .lantern-btn .lb-count { font-size: 20px; }
   .facet-row { gap: 4px; margin-top: 3px; }
   .facet-row .pip { width: 8px; height: 8px; }
   .facet-row .pip:has(.facet-img), .facet-row .pip .facet-img { width: 14px; height: 14px; }
@@ -1869,9 +1869,9 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .energy-orb { left: calc(8px + var(--sal)); bottom: calc(56px + var(--sab)); }
   .energy-orb .num { font-size: 25px; }
   .energy-orb .candles { gap: 3px; }
-  .lantern-btn { --lbr: 24px; width: 52px; height: 52px; left: calc(62px + var(--sal)); bottom: calc(66px + var(--sab)); }
-  .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 48px; height: 48px; }
-  .lantern-btn .lb-count { font-size: 14px; }
+  .lantern-btn { --lbr: 31px; width: 68px; height: 68px; left: calc(62px + var(--sal)); bottom: calc(66px + var(--sab)); }
+  .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 62px; height: 62px; }
+  .lantern-btn .lb-count { font-size: 18px; }
   .facet-row { gap: 3px; margin-top: 2px; }
   .facet-row .pip { width: 7px; height: 7px; }
   .facet-row .pip:has(.facet-img), .facet-row .pip .facet-img { width: 12px; height: 12px; }
