@@ -16,8 +16,8 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/icon-180.png" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>🃏</text></svg>" />
-  <script type="module" crossorigin src="/assets/index-CxGUz-1_.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-BBW4-e6a.css">
+  <script type="module" crossorigin src="/assets/index-D8QcdMqZ.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-CNw9SkDa.css">
 </head>
 <body>
   <div id="stage">
@@ -31,6 +31,23 @@
       <div id="hud"></div>
     </div>
     <svg id="aim"></svg>
+    <!-- shared silhouette outline filters for card-hover aim rings -->
+    <svg width="0" height="0" aria-hidden="true" style="position:absolute;overflow:hidden">
+      <defs>
+        <filter id="aim-outline-atk" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+          <feMorphology in="SourceAlpha" operator="dilate" radius="2" result="dilated"/>
+          <feComposite in="dilated" in2="SourceAlpha" operator="out" result="ring"/>
+          <feFlood flood-color="#fff6ec" flood-opacity="1" result="fill"/>
+          <feComposite in="fill" in2="ring" operator="in"/>
+        </filter>
+        <filter id="aim-outline-self" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+          <feMorphology in="SourceAlpha" operator="dilate" radius="2" result="dilated"/>
+          <feComposite in="dilated" in2="SourceAlpha" operator="out" result="ring"/>
+          <feFlood flood-color="#fff6ec" flood-opacity="1" result="fill"/>
+          <feComposite in="fill" in2="ring" operator="in"/>
+        </filter>
+      </defs>
+    </svg>
     <canvas id="vfx"></canvas>
     <div id="floaties"></div>
     <div id="overlay"></div>

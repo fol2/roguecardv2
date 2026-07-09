@@ -19,6 +19,8 @@ Quick map for agents and humans. Operational truth for running the game lives in
 
 | Doc | Status |
 |---|---|
+| [`superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md`](superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md) | **Current** — progressive delivery engine, entrance redesign, Emberglass chain (Phase 2 pending) |
+| [`superpowers/plans/2026-07-09-entrance-progressive-delivery-phase1.md`](superpowers/plans/2026-07-09-entrance-progressive-delivery-phase1.md) | Executor plan, Phase 1 (delivery engine + entrances — **shipped**) |
 | [`superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md`](superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md) | **Current** — fixes (ground line, mesh death), Playwright kit, polish workstreams |
 | [`superpowers/plans/2026-07-06-visualisation-hardening-polish.md`](superpowers/plans/2026-07-06-visualisation-hardening-polish.md) | Executor plan (12 tasks); §Already landed covers fixed stage + 16:9 desktop |
 | [`superpowers/specs/2026-07-06-visualisation-boost-design.md`](superpowers/specs/2026-07-06-visualisation-boost-design.md) | Predecessor spec (14 tasks executed) |
