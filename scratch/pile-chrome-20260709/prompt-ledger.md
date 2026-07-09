@@ -24,6 +24,18 @@ Serious cartoon-gothic stained-glass game art: chunky dark outer silhouette, sim
 
 | id | subject | source | notes |
 |---|---|---|---|
-| draw | a neat sealed face-down card stack, cool parchment and lead glass panes, tidy aligned backs, unread deck chrome | source/draw.png | ok; NB source/draw-nb.jpg → alpha → piles/draw.png |
-| discard | the same card-stack body slightly askew and worn, warmer spent parchment tone, used discard pile chrome | source/discard.png | ok; NB source/discard-nb.jpg → alpha → piles/discard.png |
-| ashes | the same card-stack body with charred blackened edges and tiny ember flecks, burnt ashes pile chrome | source/ashes.png | ok; NB source/ashes-nb.jpg → alpha → piles/ashes.png |
+| draw | a neat sealed face-down card stack, cool parchment and lead glass panes, tidy aligned backs, unread deck chrome | source/draw.png | v1 WRONG: read as ornate book/tome (archived `source/v1-wrong/draw.png`) |
+| discard | the same card-stack body slightly askew and worn, warmer spent parchment tone, used discard pile chrome | source/discard.png | ok; kept as shared silhouette reference; NB → alpha → piles/discard.png |
+| ashes | the same card-stack body with charred blackened edges and tiny ember flecks, burnt ashes pile chrome | source/ashes.png | v1 WRONG: skull emblem (archived `source/v1-wrong/ashes.png`) |
+
+## Silhouette fix pass (2026-07-09)
+
+Review: draw ≠ card stack (book); ashes skull ≠ discard arch/gem family. Regenerated
+draw + ashes with `--image=scratch/pile-chrome-20260709/source/discard.png` so body
+matches discard. Discard live asset unchanged.
+
+| id | subject | source | notes |
+|---|---|---|---|
+| draw | NEAT SEALED unread draw deck: perfectly aligned face-down backs, cool parchment/lead-blue glass, same arch-and-gem motif as reference (cooler sapphire/teal), NOT book/tome | source/draw.png | v2 askew intermediate archived as `source/draw-v2-askew.png`; v3 neat sealed promoted; NB → alpha → piles/draw.png |
+| ashes | same card-stack body as reference + charred edges + ember flecks; keep gothic arch-and-gem motif (NO skull) | source/ashes.png | ref=discard; NB → alpha → piles/ashes.png |
+| discard | (unchanged) | source/discard.png | kept as shared body reference |
