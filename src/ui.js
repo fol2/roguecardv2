@@ -888,13 +888,15 @@ function renderCombat() {
     <div class="cast-shadow-layer" aria-hidden="true"></div>
     <div class="battlefield">
       <div class="player-zone">
+        <div class="top-chrome">
+          <div class="status-row p-status"></div>
+        </div>
         <div class="hero-wrap">
-          <div class="hero-name">${ASPECTS[S.run.aspect].name.toUpperCase()}</div>
           ${heroArt(S.run.aspect)}
         </div>
         <div class="cplate">
+          <div class="hero-name">${ASPECTS[S.run.aspect].name.toUpperCase()}</div>
           <div class="hpbar-wrap"><span class="block-chip zero p-block">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div></div><span class="hp-label p-hp"></span></div>
-          <div class="status-row p-status"></div>
         </div>
       </div>
       <div class="enemy-zone"></div>
@@ -931,13 +933,15 @@ function renderCombat() {
     if (afx) box.style.setProperty('--affix-tone', afx.tone);
     box.dataset.idx = i;
     box.style.animationDelay = `${160 + i * 130}ms`;
-    box.innerHTML = `<div class="intent"></div>
+    box.innerHTML = `<div class="top-chrome">
+        <div class="intent"></div>
+        <div class="status-row"></div>
+      </div>
       <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${aimRing(assetUrl('enemies', en.key), 'atk')}${rasterOr('enemies', en.key, enemySvg(d.art))}<div class="vessel-fire"></div>${assetUrl('enemies', en.key) ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
       <div class="cplate">
         <div class="name">${afx ? `<span class="affix-name" style="color:${afx.tone}">${afx.name.toUpperCase()}</span> ` : ''}${en.name.toUpperCase()}</div>
         <div class="hpbar-wrap"><span class="block-chip zero">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div><span class="hp-label"></span></div>
         <div class="facet-row"></div>
-        <div class="status-row"></div>
       </div>`;
     zone.appendChild(box);
     ce.enemies.push({
