@@ -1003,6 +1003,8 @@ function renderCombat() {
     if (S.targeting) clearTargeting();
     else if (S.hoveredCard != null) { S.hoveredCard = null; layoutHand(); } // tap the stage to set the pane back down
   });
+  // startCombat already queued opening draws — hide seats + restore pile chrome first
+  armQueuedDrawPending(cb);
   syncCombat();
   syncHand();
 }
@@ -1238,6 +1240,46 @@ function holdPendingPileArrivals(cb, uid) {
 /** uid → ms from batch start when that hand seat should appear (matches flyer land). */
 const drawRevealPlan = new Map();
 
+/** Peek draw/reshuffle segments without consuming the queue (combat-enter paint). */
+function peekDrawWaveSegments(queue) {
+  const segments = [];
+  let i = 0;
+  while (i < queue.length && (queue[i].t === 'draw' || queue[i].t === 'reshuffle')) {
+    if (queue[i].t === 'reshuffle') {
+      segments.push({ t: 'reshuffle', ev: queue[i] });
+      i++;
+    } else {
+      const draws = [];
+      while (i < queue.length && queue[i].t === 'draw') draws.push(queue[i++]);
+      segments.push({ t: 'draws', draws });
+    }
+  }
+  return segments;
+}
+
+/** Before first drain: hide hand seats + restore pile chrome for queued opening draws. */
+function armQueuedDrawPending(cb) {
+  if (REDUCED || !cb?.queue?.length) return;
+  const segments = peekDrawWaveSegments(cb.queue);
+  if (!segments.length) return;
+  const reshuffle = segments.find((s) => s.t === 'reshuffle');
+  const firstSegDraws = segments[0]?.t === 'draws' ? segments[0].draws.length : 0;
+  pileVisualOverride = {
+    draw: segments[0]?.t === 'draws'
+      ? (reshuffle ? firstSegDraws : cb.draw.length + firstSegDraws)
+      : 0,
+    discard: reshuffle ? (reshuffle.ev.n || 0) : 0,
+  };
+  let seq = 0;
+  for (const seg of segments) {
+    if (seg.t !== 'draws') continue;
+    for (const ev of seg.draws) {
+      const uid = String(ev.uid);
+      if (!drawRevealPlan.has(uid)) drawRevealPlan.set(uid, { landAt: null, seq: seq++ });
+    }
+  }
+}
+
 function pendingPileCeremonyUids(cb) {
   const keep = new Set();
   for (const ev of cb.queue) {
@@ -1268,17 +1310,19 @@ function syncHand() {
   for (const inst of cb.hand) {
     if (!have.has(String(inst.uid))) {
       const c = cardEl(inst, { inCombat: true });
-      // Invisible until matching draw flyer lands — same uid/order as the pile flight
-      const plan = drawRevealPlan.get(String(inst.uid));
-      if (!REDUCED && plan != null) {
-        if (typeof plan === 'object' && plan.seq != null) c.dataset.drawSeq = String(plan.seq);
+      // Invisible until matching draw flyer lands — plan OR still-queued draw event
+      const uid = String(inst.uid);
+      const plan = drawRevealPlan.get(uid);
+      const queuedDraw = cb.queue.some((e) => e.t === 'draw' && String(e.uid) === uid);
+      if (!REDUCED && (plan != null || queuedDraw)) {
+        if (typeof plan === 'object' && plan?.seq != null) c.dataset.drawSeq = String(plan.seq);
         c.classList.add('draw-pending');
-        const landAt = typeof plan === 'number' ? plan : plan.landAt;
+        const landAt = plan == null ? null : (typeof plan === 'number' ? plan : plan.landAt);
         if (landAt != null) {
-          drawRevealPlan.delete(String(inst.uid));
+          drawRevealPlan.delete(uid);
           scheduleHandReveal(c, landAt);
         }
-        // landAt null: stay pending until draw-wave segment arms the timer
+        // landAt null / queued only: stay pending until draw-wave segment arms the timer
       }
       c.onclick = (e) => { e.stopPropagation(); onCardClick(inst.uid); };
       if (FINE) {
