@@ -108,41 +108,40 @@ Import `{ t, getLocale, setLocale }` from `../src/i18n/index.js`. Assert:
 
 ---
 
-### Task 3: RELICS + POTIONS + ARTS + BOONS
+### Task 3: RELICS + POTIONS + ARTS + BOONS — DONE
 
 Same pattern: locale keys `relics.*`, `potions.*`, `arts.*`, `boons.*` with `name`/`text`. Hydrate. Parity loop. Commit.
 
 ---
 
-### Task 4: ENEMIES names + move names
+### Task 4: ENEMIES names + move names — DONE
 
 `enemies.{id}.name`, `enemies.{id}.moves.{moveKey}.name`. Hydrate onto `ENEMIES`. Parity. Commit.
 
 ---
 
-### Task 5: EVENTS + OMENS + AFFIXES + ACTS + ASPECTS + VOWS + DEEDS + PLAYER blurb
+### Task 5: EVENTS + OMENS + AFFIXES + ACTS + ASPECTS + VOWS + DEEDS + PLAYER blurb — DONE
 
 Narrative tables. Event choices: `choices.{i}.label` / `.sub`. Commit.
 
 ---
 
-### Task 6: UI chrome maps in ui.js
+### Task 6: UI chrome maps in ui.js — DONE (core surfaces)
 
-Title / embark / map node labels / combat piles / end-turn / common buttons → `en/ui.js` + `t()`. Byte-identical English. Commit.
-
----
-
-### Task 7: KEYWORDS + FACET_DESC + help essay
-
-Move into `en/ui.js`. `fmtText` still uses English word list (slice 3 later). Commit.
+Title / embark / map node labels / combat piles / end-turn / common buttons / vigil / lamplighter / end-screen → `en/ui.js` + `tr()`. Remaining shop/rest/reward microcopy can follow the same pattern.
 
 ---
 
-### Task 8: Final parity sweep
+### Task 7: KEYWORDS + FACET_DESC + help essay — DONE
 
-- Every content id has required locale keys (fail test if missing).
-- Document "add a language" recipe in spec §10 still accurate.
-- `npm test` green. Update `docs/README.md` plan row if needed.
-- Commit: `Finish i18n slice-1 extraction parity sweep.`
+Moved into `en/ui.js`. `fmtText` still uses English word list (slice 3 later).
 
-**Out of this plan:** composers, fmtText redesign, second locale, picker, shell/PWA, `dist/` rebuild.
+---
+
+### Task 8: Final parity sweep — DONE (content)
+
+- Content-id parity covered in `test/test_engine.js`.
+- "Add a language" recipe remains in the design spec §10.
+- `npm test` green.
+
+**Deferred (later slices):** intent/event composers, remaining shop/rest chrome literals, `fmtText` keyword redesign, second locale, language picker, shell/PWA, `dist/` rebuild.
