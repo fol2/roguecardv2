@@ -1056,9 +1056,9 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 /* count centered over the whole candle row — thin outline like deck/End */
 .energy-orb .num {
   position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%);
-  z-index: 2; font-size: 22px; font-weight: 800; line-height: 1;
+  z-index: 2; font-size: 34px; font-weight: 800; line-height: 1;
   color: #fff8e8; pointer-events: none;
-  -webkit-text-stroke: 1.1px rgba(0, 0, 0, 0.9);
+  -webkit-text-stroke: 1.25px rgba(0, 0, 0, 0.9);
   paint-order: stroke fill;
   text-shadow:
     -1px -1px 0 #000, 1px -1px 0 #000,
@@ -1698,7 +1698,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .choice-cards .card { --cw: 150px; }
   .hand-zone { height: 230px; }
   .energy-orb { bottom: calc(128px + var(--sab)); left: calc(16px + var(--sal)); }
-  .energy-orb .num { font-size: 20px; }
+  .energy-orb .num { font-size: 31px; }
   .candle:has(.candle-img) { width: 34px; height: 48px; }
   .lantern-btn { --lbr: 30px; width: 64px; height: 64px; left: calc(28px + var(--sal)); bottom: calc(222px + var(--sab)); }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 34px; height: 34px; }
@@ -1772,7 +1772,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .hand-zone .card { bottom: 46px; }
   /* chrome lives in the fan's side gutters: two thumb columns */
   .energy-orb { left: calc(3px + var(--sal)); bottom: calc(118px + var(--sab)); }
-  .energy-orb .num { font-size: 18px; }
+  .energy-orb .num { font-size: 28px; }
   .energy-orb .candles { gap: 4px; }
   .lantern-btn { --lbr: 26px; width: 56px; height: 56px; left: calc(7px + var(--sal)); bottom: calc(62px + var(--sab)); }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 30px; height: 30px; }
@@ -1852,7 +1852,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .hand-zone { height: 128px; bottom: calc(-34px + var(--sab)); }
   .hand-zone .card { bottom: 0; }
   .energy-orb { left: calc(8px + var(--sal)); bottom: calc(56px + var(--sab)); }
-  .energy-orb .num { font-size: 16px; }
+  .energy-orb .num { font-size: 25px; }
   .energy-orb .candles { gap: 3px; }
   .lantern-btn { --lbr: 22px; width: 48px; height: 48px; left: calc(62px + var(--sal)); bottom: calc(66px + var(--sab)); }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 26px; height: 26px; }
