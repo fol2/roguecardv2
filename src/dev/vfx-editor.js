@@ -84,17 +84,21 @@ function setWard(mode) {
   syncPanelStatus();
 }
 
-function grow() { setWard('grow'); }
+function grow() {
+  // always re-trigger grow-in (even if already warded) so Grow vs Hold is obvious
+  state.ward = 'grow';
+  const sprite = spriteEl();
+  if (sprite?.classList.contains('mesh-live')) meshWard(sprite, true, { grow: true });
+  syncBar();
+  syncPanelStatus();
+}
 function hold() {
-  // already on → keep shell without re-grow; off → snap on at full
-  if (state.ward === 'off') setWard('hold');
-  else {
-    state.ward = 'hold';
-    const sprite = spriteEl();
-    if (sprite?.classList.contains('mesh-live')) meshWard(sprite, true, { grow: false });
-    syncBar();
-    syncPanelStatus();
-  }
+  // snap / stay at full — no grow animation
+  state.ward = 'hold';
+  const sprite = spriteEl();
+  if (sprite?.classList.contains('mesh-live')) meshWard(sprite, true, { grow: false });
+  syncBar();
+  syncPanelStatus();
 }
 function clear() {
   meshWardClear();
@@ -175,8 +179,8 @@ function renderPanel() {
     <h4>ward shell</h4>
     <p class="vx-sub">status: <em id="vx-ward-status">${state.ward}</em></p>
     <div class="vx-actions">
-      <button type="button" id="vx-grow" title="meshWard on + grow">Grow</button>
-      <button type="button" id="vx-hold" title="meshWard on, no grow">Hold</button>
+      <button type="button" id="vx-grow" title="Grow = animate in from small">Grow</button>
+      <button type="button" id="vx-hold" title="Hold = instant full, no anim">Hold</button>
       <button type="button" id="vx-clear" title="meshWard off">Clear</button>
     </div>
     <h4>preview</h4>
@@ -184,8 +188,8 @@ function renderPanel() {
       <input type="range" id="vx-zoom" min="1" max="4" step="0.25" value="${state.zoom}">
       <em id="vx-zoom-em">×${state.zoom}</em>
     </label>
-    <p class="vx-hint"><b>Grow</b> turns the gemstone Ward on with the grow-in animation.
-      <b>Hold</b> keeps / snaps the shell at full without re-growing.
+    <p class="vx-hint"><b>Grow</b> = animate in (scale small→full; re-click restarts).
+      <b>Hold</b> = instant full, no grow anim.
       <b>Clear</b> fades it off via <code>meshWardClear</code>.</p>
     <p class="vx-hint">Open: <code>?vfxedit=1&amp;char=${state.id}</code></p>`;
 
