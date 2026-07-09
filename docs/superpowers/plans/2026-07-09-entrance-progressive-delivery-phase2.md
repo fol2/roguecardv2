@@ -380,6 +380,7 @@ git commit -m "Define Emberglass quests variants and authored copy"
 - Changes saveVigil(vigil), setBequest(...), and clearBequest() to return true on a persisted write and false when storage rejects it; current fire-and-forget callers remain valid.
 - commitRunEnd outcome is exactly win, death, or abandon.
 - commitRunEnd returns { vigil, whisper, armed, completed, newShards }.
+- commitRunEnd marks and caches the run only after saveVigil succeeds; a rejected write throws a retryable persistence error and leaves the run eligible for retry.
 - Later tasks put run-local quest records in run.quests and earned-order IDs in run.questCompletions.
 
 - [ ] **Step 1: Write failing hydration, arming, and exactly-once tests**
@@ -563,7 +564,6 @@ function mergeRunQuests(v, run) {
 export function commitRunEnd(run, outcome = 'abandon') {
   if (!['win', 'death', 'abandon'].includes(outcome)) throw new Error('invalid run outcome: ' + outcome);
   if (run.runEndResult) return run.runEndResult;
-  run.runEndCommitted = true;
 
   const v = loadVigil();
   const beforeRevealCount = revealSnapshot(v).length;
@@ -599,13 +599,15 @@ export function commitRunEnd(run, outcome = 'abandon') {
   });
   const revealLanded = revealSnapshot(v).length > beforeRevealCount;
   if (before !== after || revealLanded) v.news = true;
-  saveVigil(v);
+  if (!saveVigil(v)) throw new Error('Vigil storage rejected the run end; retry when storage is available');
+  run.runEndCommitted = true;
   run.runEndResult = { vigil: v, whisper, armed, completed, newShards: completed };
   return run.runEndResult;
 }
 ~~~
 
 The beforeRevealCount line and revealLanded comparison are both inside the function, preventing every old profile from pulsing forever.
+The durable save check is deliberately before both runEndCommitted and runEndResult. A rejected write throws the retryable error without marking or caching the run, so the same run object can repeat the transaction after storage recovers; only the first accepted write becomes the cached exactly-once result.
 The authoritative memory replacement is intentional: run snapshots are complete, not sparse patches. It is what makes `delete q.memory.dueIn` and `delete q.memory.emberDebt` persist; a run with no record for an ID is skipped and cannot wipe a newer Vigil record.
 
 - [ ] **Step 5: Run the green gate and commit**

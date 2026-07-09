@@ -194,7 +194,6 @@ function mergeRunQuests(v, run) {
 export function commitRunEnd(run, outcome = 'abandon') {
   if (!['win', 'death', 'abandon'].includes(outcome)) throw new Error('invalid run outcome: ' + outcome);
   if (run.runEndResult) return run.runEndResult;
-  run.runEndCommitted = true;
 
   const v = loadVigil();
   const beforeRevealCount = revealSnapshot(v).length;
@@ -230,7 +229,8 @@ export function commitRunEnd(run, outcome = 'abandon') {
   });
   const revealLanded = revealSnapshot(v).length > beforeRevealCount;
   if (before !== after || revealLanded) v.news = true;
-  saveVigil(v);
+  if (!saveVigil(v)) throw new Error('Vigil storage rejected the run end; retry when storage is available');
+  run.runEndCommitted = true;
   run.runEndResult = { vigil: v, whisper, armed, completed, newShards: completed };
   return run.runEndResult;
 }

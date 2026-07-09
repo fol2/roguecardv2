@@ -1211,6 +1211,46 @@ function forceHand(run, cb, ids) {
   _setStore(null);
 }
 {
+  // A run end is committed only after the Vigil write becomes durable.
+  _setStore(null);
+  const initial = loadVigil();
+  const persisted = new Map([['spirebound_vigil_v2', JSON.stringify(initial)]]);
+  let rejectWrites = true;
+  let acceptedWrites = 0;
+  _setStore({
+    getItem: (k) => (persisted.has(k) ? persisted.get(k) : null),
+    setItem: (k, v) => {
+      if (rejectWrites) throw new Error('quota');
+      acceptedWrites++;
+      persisted.set(k, v);
+    },
+    removeItem: (k) => persisted.delete(k),
+  });
+
+  const retryable = newRun(405);
+  retryable.quests = questSnapshot(loadVigil());
+  assert.throws(
+    () => commitRunEnd(retryable, 'abandon'),
+    /Vigil storage rejected the run end; retry when storage is available/,
+  );
+  assert.ok(!Object.hasOwn(retryable, 'runEndCommitted'), 'failed write leaves the run uncommitted');
+  assert.ok(!Object.hasOwn(retryable, 'runEndResult'), 'failed write leaves no cached result');
+  assert.equal(loadVigil().runsPlayed, 0, 'failed write does not advance durable state');
+  assert.equal(acceptedWrites, 0);
+
+  rejectWrites = false;
+  const committed = commitRunEnd(retryable, 'abandon');
+  assert.equal(committed.vigil.runsPlayed, 1);
+  assert.equal(retryable.runEndCommitted, true);
+  assert.equal(loadVigil().runsPlayed, 1, 'recovery retry persists exactly once');
+  assert.equal(acceptedWrites, 1);
+  assert.strictEqual(commitRunEnd(retryable, 'abandon'), committed, 'successful retry is then cached');
+  assert.equal(loadVigil().runsPlayed, 1, 'cached repeat cannot double-commit');
+  assert.equal(acceptedWrites, 1);
+
+  _setStore(null);
+}
+{
   // the reveal ladder: counters only ever open doors
   _setStore(null);
   let v = loadVigil();
