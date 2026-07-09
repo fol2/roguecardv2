@@ -328,9 +328,12 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .medge.walked { opacity: 0.25; stroke: rgba(242, 193, 78, 0.55); stroke-dasharray: none; filter: drop-shadow(0 0 4px rgba(242, 193, 78, 0.5)); }
 .mnode { cursor: default; }
 .mnode circle.bg { fill: #141a30; stroke: var(--gold-dim); stroke-width: 1.2; transition: all 0.2s; }
+.mnode .nframe, .mnode .nglyph { pointer-events: none; transition: filter 0.2s, opacity 0.2s; }
 .mnode .icg { color: #98a2c4; pointer-events: none; }
 .mnode.type-elite circle.bg { stroke: #ff7847; }
+.mnode.type-elite .nframe { filter: drop-shadow(0 0 6px rgba(255, 120, 71, 0.55)); }
 .mnode.type-boss circle.bg { stroke: #ff4fd8; stroke-width: 2; }
+.mnode.type-boss .nframe { filter: drop-shadow(0 0 10px rgba(255, 79, 216, 0.7)); }
 .mnode.type-boss .icg { color: #ff8fe4; }
 .mnode.type-rest .icg { color: #ffb066; }
 .mnode.type-shop .icg { color: var(--gold); }
@@ -338,9 +341,14 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .mnode.type-elite .icg { color: #ff8f66; }
 .mnode.visited circle.bg { fill: #2a2416; stroke: var(--gold-dim); }
 .mnode.visited .icg { color: var(--gold); }
+.mnode.visited .nframe { filter: saturate(0.7) brightness(0.85); }
+.mnode.visited .nglyph { opacity: 0.85; }
 .mnode.current circle.bg { stroke: var(--gold); stroke-width: 2; filter: drop-shadow(0 0 14px rgba(242, 193, 78, 0.8)); }
+.mnode.current .nframe { filter: drop-shadow(0 0 14px rgba(242, 193, 78, 0.85)); }
+.mnode.current .nglyph { filter: drop-shadow(0 0 6px rgba(242, 193, 78, 0.55)); }
 .mnode.avail { cursor: pointer; }
 .mnode.avail circle.bg { stroke: var(--gold); stroke-width: 2; }
+.mnode.avail .nframe { filter: drop-shadow(0 0 10px rgba(242, 193, 78, 0.65)); }
 .mnode.avail .nwrap { animation: nodePulse 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 /* desync the beckon so the tower shimmers organically, not in lockstep */
 .mnode:nth-child(4n) .nwrap   { animation-delay: -0.4s; }
@@ -348,8 +356,11 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .mnode:nth-child(4n+2) .nwrap { animation-delay: -1.2s; }
 .mnode:nth-child(4n+3) .nwrap { animation-delay: -1.55s; }
 .mnode.avail .icg { color: var(--parchment); animation: beckonIcon 1.6s ease-in-out infinite; }
+.mnode.avail .nglyph { animation: beckonGlyph 1.6s ease-in-out infinite; }
 @keyframes beckonIcon { 0%, 100% { opacity: 0.9; } 50% { opacity: 1; filter: drop-shadow(0 0 5px currentColor); } }
+@keyframes beckonGlyph { 0%, 100% { opacity: 0.92; } 50% { opacity: 1; filter: drop-shadow(0 0 5px rgba(255, 243, 214, 0.7)); } }
 .mnode.avail:hover circle.bg { fill: #38301a; transform: scale(1.15); transform-origin: center; transform-box: fill-box; }
+.mnode.avail:hover .nframe { filter: drop-shadow(0 0 16px rgba(242, 193, 78, 0.9)) brightness(1.08); }
 .mnode.visited:not(.current) { opacity: 0.55; }
 @keyframes nodePulse { 50% { transform: scale(1.09); } }
 .map-title { position: absolute; top: 62px; left: 0; right: 0; text-align: center; font-family: 'Cinzel', serif; letter-spacing: 0.3em; font-size: 15px; color: var(--text-dim); z-index: 2; pointer-events: none; }
@@ -826,6 +837,13 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   filter: drop-shadow(0 0 4px rgba(255, 233, 172, 0.95)) brightness(1.15);
 }
 .facet-row.willshatter .pip { border-color: #ffd8a0; box-shadow: 0 0 6px rgba(255, 200, 130, 0.5); }
+.facet-row.willshatter .pip:has(.facet-img) {
+  border-color: transparent; box-shadow: none;
+  filter: drop-shadow(0 0 5px rgba(255, 200, 130, 0.95)) brightness(1.12);
+}
+.facet-row.willshatter .pip .facet-img {
+  filter: drop-shadow(0 0 4px rgba(255, 216, 160, 0.95)) brightness(1.2);
+}
 .facet-row.pop { animation: chipPop 0.4s ease-out; }
 .facet-row .pipnum { font-family: 'Cinzel', serif; font-size: 12.5px; font-weight: 800; color: #bfe0ff; display: inline-flex; align-items: center; gap: 3px; }
 .facet-row .pipnum i { color: #ffe9ac; font-style: normal; }
@@ -935,9 +953,12 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px;
 }
-.mnode.unlit .bg { fill: #0a0d18; stroke: rgba(150, 165, 200, 0.4); stroke-dasharray: 3 4; }
+.mnode.unlit .bg, .mnode.unlit circle.bg { fill: #0a0d18; stroke: rgba(150, 165, 200, 0.4); stroke-dasharray: 3 4; }
 .mnode.unlit .icg { opacity: 0.55; }
-.mnode.unlit.avail .bg { stroke: rgba(255, 233, 172, 0.5); }
+.mnode.unlit .nframe { filter: saturate(0.35) brightness(0.55); opacity: 0.85; }
+.mnode.unlit .nglyph { opacity: 0.55; filter: grayscale(0.35) brightness(0.8); }
+.mnode.unlit.avail .bg, .mnode.unlit.avail circle.bg { stroke: rgba(255, 233, 172, 0.5); }
+.mnode.unlit.avail .nframe { filter: saturate(0.45) brightness(0.7) drop-shadow(0 0 8px rgba(255, 233, 172, 0.35)); }
 .enemy.affixed .enemy-art { filter: drop-shadow(0 0 14px color-mix(in srgb, var(--affix-tone) 55%, transparent)); }
 .enemy.affixed .name .affix-name {
   letter-spacing: 0.1em;
@@ -974,20 +995,22 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .energy-orb {
   position: absolute; left: calc(30px + var(--sal)); bottom: calc(150px + var(--sab)); width: 88px; height: 88px; border-radius: 50%; z-index: 26;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: var(--glass-fill);
-  border: 1.5px solid var(--lead);
-  box-shadow: inset 0 0 0 1px var(--gold-line), inset 0 10px 20px -12px rgba(255, 255, 255, 0.14), 0 8px 24px rgba(0, 0, 0, 0.6);
+  /* candle meter is primary — transparent hit shell, not a glass disc */
+  background: transparent;
+  border: none;
+  box-shadow: none;
   font-family: 'Cinzel', serif; color: var(--parchment);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 10px rgba(0, 0, 0, 0.55);
 }
 .energy-orb .num { font-size: 30px; font-weight: 800; line-height: 1; }
-.energy-orb .lbl { font-size: 10px; letter-spacing: 0.2em; font-weight: 700; }
+.energy-orb .lbl { font-size: 10px; letter-spacing: 0.2em; font-weight: 700; opacity: 0.85; }
 /* candles carry the energy read — hide the old orbiting comet */
 .energy-orb::before { display: none; }
 .energy-orb.spent { filter: saturate(0.35) brightness(0.75); }
 .energy-orb.pop { animation: chipPop 0.35s ease-out; }
 /* candles: one flame per point of energy, guttering out as they're spent */
 .energy-orb .candles {
-  position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%);
+  position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
   display: flex; gap: 4px; align-items: flex-end; z-index: 1;
   pointer-events: none;
 }
@@ -1033,9 +1056,21 @@ html.mesh-on .enemy-art.warded::before { display: none; }
 .end-turn {
   position: absolute; right: calc(34px + var(--sar)); bottom: calc(168px + var(--sab)); z-index: 24;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 4px; padding: 10px 16px; min-width: 64px;
-  box-shadow: inset 0 0 0 1px var(--gold), inset 0 10px 20px -12px rgba(255, 255, 255, 0.14), 0 4px 14px rgba(0, 0, 0, 0.5);
+  gap: 4px; padding: 8px 10px; min-width: 56px;
+  /* icon + End — no stained-glass plate */
+  background: transparent; border: none; border-radius: 0;
+  box-shadow: none;
+  color: var(--parchment);
+  font-family: 'Cinzel', serif;
+  cursor: pointer;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  transition: transform 0.15s, filter 0.15s;
 }
+.end-turn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+.end-turn:active { transform: translateY(0); }
 .end-turn .et-lbl {
   font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: 0.14em; font-weight: 700;
 }
@@ -1569,7 +1604,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .hand-zone .card.draw-pending { opacity: 1; pointer-events: auto; }
   .hand-zone .card.draw-in .card-lift { animation: none; }
   #tooltip { animation: fadein 0.1s both; }
-  .mnode.avail .nwrap, .mnode.avail .icg { animation: none; }
+  .mnode.avail .nwrap, .mnode.avail .icg, .mnode.avail .nglyph { animation: none; }
   .reward-list .reward-row, .shop-row .shop-item, .deed-list .deed-row { animation: none; }
 }
 
@@ -1650,7 +1685,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .energy-orb { width: 60px; height: 60px; left: calc(3px + var(--sal)); bottom: calc(128px + var(--sab)); }
   .energy-orb .num { font-size: 24px; }
   .energy-orb .lbl { display: none; }
-  .energy-orb .candles { bottom: -22px; gap: 4px; }
+  .energy-orb .candles { bottom: -4px; gap: 4px; }
   .lantern-btn { --lbr: 29px; width: 52px; height: 52px; left: calc(7px + var(--sal)); bottom: calc(62px + var(--sab)); }
   .lantern-btn .lb-ic svg, .lantern-btn .lb-ic .ui-icon { width: 18px; height: 18px; }
   .lantern-btn .lb-count { font-size: 13px; }
@@ -1727,7 +1762,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .energy-orb { width: 54px; height: 54px; left: calc(10px + var(--sal)); bottom: calc(64px + var(--sab)); }
   .energy-orb .num { font-size: 20px; }
   .energy-orb .lbl { display: none; }
-  .energy-orb .candles { bottom: -20px; gap: 3px; }
+  .energy-orb .candles { bottom: -2px; gap: 3px; }
   .lantern-btn { --lbr: 25px; width: 44px; height: 44px; left: calc(62px + var(--sal)); bottom: calc(66px + var(--sab)); }
   .lantern-btn .lb-ic svg, .lantern-btn .lb-ic .ui-icon { width: 15px; height: 15px; }
   .lantern-btn .lb-count { font-size: 11.5px; }
