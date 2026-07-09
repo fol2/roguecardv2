@@ -3,7 +3,7 @@ import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
 import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, uiIcon, uiIconUrl, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
 import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule, drawBatchSchedule } from './pile-chrome.js';
-import { UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds } from './ui-chrome.js';
+import { UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyphId } from './ui-chrome.js';
 // drawBatchSchedule also paces discardHand (same even-stagger clock)
 import * as V from './vfx.js';
 import { syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from './vigil.js';
@@ -784,12 +784,27 @@ function renderMap() {
     const tf = COARSE ? 1.3 : 1; // lanterns grow to meet a fingertip
     const r = (n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 19 : 16) * tf;
     const isz = Math.round((n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 20 : 17) * tf);
-    const monUrl = (n.type === 'monument' && isz >= 32) ? assetUrl('meta', 'monument-node') : null;
-    const iconHtml = monUrl
-      ? `<image href="${monUrl}" x="${-isz / 2}" y="${-isz / 2}" width="${isz}" height="${isz}" />`
-      : iconInline(dark ? 'unlitLantern' : NODE_ICONS[n.type], dark ? Math.round(17 * tf) : isz);
+    const glyphId = nodeGlyphId(n.type, dark);
+    const frameU = uiIconUrl('node-frame');
+    const glyphU = uiIconUrl(glyphId);
+    // Prefer kit; monument meta raster remains fallback for monument when glyph missing
+    const monUrl = (n.type === 'monument' && !glyphU) ? assetUrl('meta', 'monument-node') : null;
+    let iconHtml;
+    if (frameU || glyphU || monUrl) {
+      const gs = isz;
+      const fs = Math.round(r * 2);
+      const frame = frameU
+        ? `<image class="nframe" href="${frameU}" x="${-fs / 2}" y="${-fs / 2}" width="${fs}" height="${fs}" />`
+        : `<circle class="bg" r="${dark ? 16 * tf : r}"/>`;
+      const glyph = (glyphU || monUrl)
+        ? `<image class="nglyph" href="${glyphU || monUrl}" x="${-gs / 2}" y="${-gs / 2}" width="${gs}" height="${gs}" />`
+        : `<g class="icg">${iconInline(dark ? 'unlitLantern' : NODE_ICONS[n.type], dark ? Math.round(17 * tf) : isz)}</g>`;
+      iconHtml = `${frame}${glyph}`;
+    } else {
+      iconHtml = `<circle class="bg" r="${dark ? 16 * tf : r}"/><g class="icg">${iconInline(dark ? 'unlitLantern' : NODE_ICONS[n.type], dark ? Math.round(17 * tf) : isz)}</g>`;
+    }
     dots += `<g class="${cls}" data-node="${n.id}" style="--d:${n.row * 34}ms">
-      <g class="nwrap"><circle class="bg" r="${dark ? 16 * tf : r}"/><g class="icg">${iconHtml}</g></g>
+      <g class="nwrap">${iconHtml}</g>
     </g>`;
   }
   const act = ACTS[run.act];
