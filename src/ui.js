@@ -24,6 +24,7 @@ import { finaliseTerminalOutbox, journalTerminalOutcome, savedRunRequiresFinalis
 import {
   SHADE_DUEL_TX, settleShadeDuel, shadeVictorySkipsRewards, shadeLossBequestState,
 } from './shade-duel-transaction.js';
+import { shopStockForSession } from './shop-session.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
@@ -4046,11 +4047,7 @@ function renderTreasure() {
 function renderShop() {
   const run = S.run;
   const shop = (S.shopData ||= {});
-  if (S.screen !== 'shop' || !shop.stock || shop.forNode !== run.nodeId) {
-    shop.stock = E.genShop(run);
-    shop.forNode = run.nodeId;
-  }
-  const st = shop.stock;
+  const st = shopStockForSession(shop, run, E.genShop);
   const sc = screenEl();
   sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel ov-panel" style="width:min(980px,96vw)">
     <div style="display:flex;align-items:center;justify-content:center;gap:18px">

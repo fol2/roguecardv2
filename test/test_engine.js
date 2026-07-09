@@ -13,6 +13,7 @@ import {
   revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter,
   setPendingReward, takePendingReward, clearPendingReward, hasPendingBossRelic, recordRunEnd, loadStats, paleVariantForAct,
 } from '../src/engine.js';
+import { shopSessionKey, shopStockForSession } from '../src/shop-session.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS } from '../src/data.js';
 import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, commitPendingRunEnd, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
@@ -419,6 +420,9 @@ function forceHand(run, cb, ids) {
   assert.deepEqual(bossCb.queue.slice(0, 4).map((event) => event.t),
     ['bossIntro', 'variantDialogue', 'variantDialogue', 'variantDialogue']);
   assert.match(bossCb.queue[1].text, /^Duskblade\./, 'dialogue expands the aspect name without its article');
+  const ashBossCb = startCombat(newRun(422, { aspect: 1 }), ['usurpedSovereign'], 'boss');
+  assert.match(ashBossCb.queue[1].text, /^Ashwarden\./,
+    'variant dialogue expands the alternate aspect name without its article');
 }
 {
   const run = newRun(420);
@@ -1541,16 +1545,29 @@ function forceHand(run, cb, ids) {
   const run = newRun(450, { quests: q });
   run.act = 0;
   assert.deepEqual(genShop(run).questItems, []);
+  const earlyGold = run.player.gold;
+  assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: false, reason: 'act' });
+  assert.equal(run.player.gold, earlyGold, 'an early direct purchase cannot spend gold');
+  assert.deepEqual(run.questScratch, {}, 'an early direct purchase cannot write scratch state');
   run.act = 1;
   let shop = genShop(run);
   assert.equal(shop.questItems[0].price, 650);
   assert.equal(shop.cards.length, 5, 'quest stock never displaces ordinary cards');
   assert.equal(genShop(run).questItems.length, 1, 'every qualifying shop repeats the fixed item until purchase');
   assert.equal(run.quests.usurper.state, 'revealed', 'first sight reveals inscription');
+  const poorGold = run.player.gold;
+  const poorScratch = structuredClone(run.questScratch);
   assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: false, reason: 'gold' });
+  assert.equal(run.player.gold, poorGold, 'an unaffordable purchase cannot spend gold');
+  assert.deepEqual(run.questScratch, poorScratch, 'an unaffordable purchase cannot write scratch state');
   run.player.gold = 650;
   assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: true, reason: null });
   assert.equal(run.player.gold, 0);
+  run.player.gold = 650;
+  const boughtScratch = structuredClone(run.questScratch);
+  assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: false, reason: 'bought' });
+  assert.equal(run.player.gold, 650, 'a duplicate purchase cannot spend gold');
+  assert.deepEqual(run.questScratch, boughtScratch, 'a duplicate purchase cannot rewrite scratch state');
   assert.deepEqual(genShop(run).questItems, [], 'later shops omit the item bought in this run');
   run.act = 2;
   assert.deepEqual(rollEncounter(run, 'boss', 14), ['usurpedSovereign']);
@@ -1568,6 +1585,44 @@ function forceHand(run, cb, ids) {
   const deathLine = boss.queue.findIndex((event) => event.t === 'variantDialogue' && event.text === QUESTS.usurper.death);
   const victory = boss.queue.findIndex((event) => event.t === 'victory');
   assert.ok(deathLine >= 0 && deathLine < victory, 'the authored death line and drop queue before victory');
+}
+{
+  const inactive = newRun(454);
+  const gold = inactive.player.gold;
+  assert.deepEqual(buyQuestItem(inactive, 'wrongItem'), { ok: false, reason: 'unknown' });
+  assert.deepEqual(buyQuestItem(inactive, 'flamelessLantern'), { ok: false, reason: 'inactive' });
+  assert.equal(inactive.player.gold, gold, 'unknown and inactive purchases cannot spend gold');
+  assert.deepEqual(inactive.questScratch, {}, 'unknown and inactive purchases cannot write scratch state');
+}
+{
+  const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, { state: id === 'usurper' ? 'armed' : 'dormant', progress: 0, memory: {} }]));
+  const run = newRun(455, { quests });
+  run.nodeId = 'shared-shop-coordinate';
+  run.act = 0;
+  const shopSession = {};
+  const ineligible = shopStockForSession(shopSession, run, genShop);
+  const actOneKey = shopSessionKey(run);
+  assert.deepEqual(ineligible.questItems, []);
+
+  run.act = 1;
+  assert.notEqual(shopSessionKey(run), actOneKey, 'act identity is part of the shop session key');
+  const eligible = shopStockForSession(shopSession, run, genShop);
+  assert.notStrictEqual(eligible, ineligible, 'the same node coordinate in another act regenerates stock');
+  assert.equal(eligible.questItems.length, 1, 'the regenerated Act 2 shop gains eligible quest stock');
+  run.player.gold = 650;
+  assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: true, reason: null });
+  eligible.questItems[0].sold = true;
+  assert.strictEqual(shopStockForSession(shopSession, run, genShop), eligible,
+    'a same-shop rerender preserves the sold row');
+
+  const nextRun = newRun(456, { quests: run.quests });
+  nextRun.nodeId = run.nodeId;
+  nextRun.act = run.act;
+  assert.notEqual(shopSessionKey(nextRun), shopSessionKey(run), 'run identity is part of the shop session key');
+  const nextStock = shopStockForSession(shopSession, nextRun, genShop);
+  assert.notStrictEqual(nextStock, eligible, 'the same node coordinate in another run regenerates stock');
+  assert.equal(nextStock.questItems.length, 1);
+  assert.equal(nextStock.questItems[0].sold, false, 'a new run cannot inherit the prior shop row state');
 }
 {
   const q = Object.fromEntries(QUEST_IDS.map((id) => [id, { state: id === 'paleOnes' ? 'armed' : 'dormant', progress: 0, memory: {} }]));

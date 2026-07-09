@@ -578,6 +578,8 @@ export function buyQuestItem(run, itemId) {
   if (itemId !== 'flamelessLantern') return { ok: false, reason: 'unknown' };
   const q = questRecord(run, 'usurper');
   if (!q || !['armed', 'revealed'].includes(q.state)) return { ok: false, reason: 'inactive' };
+  if (run.act < PROGRESSION.emberglass.usurper.minShopAct) return { ok: false, reason: 'act' };
+  if (run.questScratch?.usurper?.bought) return { ok: false, reason: 'bought' };
   const price = PROGRESSION.emberglass.usurper.price;
   if (run.player.gold < price) return { ok: false, reason: 'gold' };
   run.player.gold -= price;

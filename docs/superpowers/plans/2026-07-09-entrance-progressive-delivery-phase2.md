@@ -1651,11 +1651,13 @@ git commit -m "Cover Shade transaction failure paths"
 - Modify: src/ui.js:3685-3784
 - Modify: src/styles.css (quest shop item)
 - Modify: src/art.js (structural empty-lantern icon)
+- Create: src/shop-session.js (Node-safe stable shop cache seam)
 - Test: test/test_engine.js
 
 **Interfaces:**
 - genShop returns questItems: [] or [{ id:'flamelessLantern', name, text, price:650, sold:false }].
-- Produces: buyQuestItem(run,itemId): { ok, reason }.
+- Produces: buyQuestItem(run,itemId): { ok, reason }, where reason is `unknown`, `inactive`, `act`, `bought`, `gold`, or null.
+- shopSessionKey(run) includes stable runId + act + nodeId; shopStockForSession(session,run,generate) preserves only an exact matching shop session.
 - run.questScratch.usurper.bought is same-run only.
 
 - [ ] **Step 1: Write failing shop/boss tests**
@@ -1666,14 +1668,24 @@ git commit -m "Cover Shade transaction failure paths"
   const run = newRun(450, { quests: q });
   run.act = 0;
   assert.deepEqual(genShop(run).questItems, []);
+  const earlyGold = run.player.gold;
+  assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: false, reason: 'act' });
+  assert.equal(run.player.gold, earlyGold);
+  assert.deepEqual(run.questScratch, {});
   run.act = 1;
   let shop = genShop(run);
   assert.equal(shop.questItems[0].price, 650);
   assert.equal(run.quests.usurper.state, 'revealed', 'first sight reveals inscription');
+  const poorGold = run.player.gold;
   assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: false, reason: 'gold' });
+  assert.equal(run.player.gold, poorGold);
+  assert.deepEqual(run.questScratch, {});
   run.player.gold = 650;
   assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: true, reason: null });
   assert.equal(run.player.gold, 0);
+  run.player.gold = 650;
+  assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: false, reason: 'bought' });
+  assert.equal(run.player.gold, 650);
   run.act = 2;
   assert.deepEqual(rollEncounter(run, 'boss', 14), ['usurpedSovereign']);
 }
@@ -1694,6 +1706,12 @@ Append this exact kill assertion:
 Extend the existing Vite-loaded structural icon check so `iconSvg('emptyLantern')`
 must contain a non-empty hand-drawn path. Run RED before adding it to `ICONS`.
 
+Add a shop-session regression using the production helper: the same run/act/node
+returns the same stock object (preserving the sold row), while the same node
+coordinate in another act or run regenerates stock. Pin an ineligible Act 1
+shop becoming an eligible Act 2 shop after that regeneration. Also pin the
+Usurper intro's `{aspect}` expansion for an Ashwarden run.
+
 - [ ] **Step 2: Run red**
 
 Run: npm test
@@ -1708,6 +1726,8 @@ export function buyQuestItem(run, itemId) {
   if (itemId !== 'flamelessLantern') return { ok: false, reason: 'unknown' };
   const q = questRecord(run, 'usurper');
   if (!q || !['armed', 'revealed'].includes(q.state)) return { ok: false, reason: 'inactive' };
+  if (run.act < PROGRESSION.emberglass.usurper.minShopAct) return { ok: false, reason: 'act' };
+  if (run.questScratch?.usurper?.bought) return { ok: false, reason: 'bought' };
   const price = PROGRESSION.emberglass.usurper.price;
   if (run.player.gold < price) return { ok: false, reason: 'gold' };
   run.player.gold -= price;
@@ -1722,6 +1742,10 @@ In rollEncounter, before the normal boss pool, return usurpedSovereign only when
 
 Render questItems after relics. Use iconSvg('emptyLantern'), the authored name/text, and exact price. An unaffordable click displays QUESTS.usurper.poor; a successful purchase displays QUESTS.usurper.bought and marks only the current shop row sold. Later shops omit it because run scratch is bought.
 
+`renderShop` must obtain stock through `shopStockForSession`. Never use
+`nodeId` or `S.screen` alone as cache identity: map coordinates repeat across
+acts and runs.
+
 Add `emptyLantern` to `art.js` now; Task 7 must render a real structural icon rather than waiting for the later Rose fallback work.
 
 The variant intro replaces {aspect} with Duskblade or Ashwarden. Its death queue uses QUESTS.usurper.death. Do not wire the usurper music cue.
@@ -1732,8 +1756,29 @@ Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyO
 Expected: PASS.
 
 ~~~bash
-git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/art.js src/engine.js src/ui.js src/styles.css test/test_engine.js
+git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/art.js src/engine.js src/ui.js src/styles.css src/shop-session.js test/test_engine.js
 git commit -m "Add the flameless lantern and Usurper Gate"
+~~~
+
+#### Review hardening checkpoint
+
+The first review found two invariants that must be production-backed rather
+than report-only: shop stock identity spans run + act + node, and the purchase
+API itself rejects early/duplicate calls without mutation.
+
+RED 1: after importing and exercising the new shop-session seam, `npm test`
+fails with `ERR_MODULE_NOT_FOUND` for `src/shop-session.js`.
+
+RED 2: after adding only that seam, `npm test` reaches the purchase regression
+and receives `{ ok:false, reason:'gold' }` instead of the required
+`{ ok:false, reason:'act' }`.
+
+After both fixes, run the full unit/Monte-Carlo and isolated build gate above.
+Stage the follow-up exactly:
+
+~~~bash
+git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/engine.js src/shop-session.js src/ui.js test/test_engine.js
+git commit -m "Harden Usurper shop session invariants"
 ~~~
 
 ---
