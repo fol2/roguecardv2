@@ -1033,26 +1033,37 @@ export function meshAim(el, on, cfg = null) {
 }
 
 /** Gemstone glass Ward shell outside the body (transmission + Voronoi).
- *  grow:true → alpha + site count 0→full (no zoom); grow:false → snap to full. */
+ *  grow:true → alpha + site count 0→full (no zoom); grow:false → snap to full if newly on.
+ *  Idempotent: syncCombat must not restart an in-flight grow/fade. */
 export function meshWard(el, on, { grow = true } = {}) {
   if (LITE || !meshEnabled()) return false;
   const p = findPlane(el);
   if (!p) return false;
   const want = !!on;
   if (!want) {
-    if (!p.wardOn && !p.ward) return true;
+    // already off or fading — don't reset wardT0 (syncCombat spam)
+    if (!p.wardOn) return true;
     p.wardOn = false;
     p.wardGrowFrom = p.wardGrow || 0;
     p.wardT0 = performance.now();
+    return true;
+  }
+  // already on: grow:false = hold (combat sync); grow:true = restart demo/gain pulse
+  if (p.wardOn && p.ward) {
+    if (!grow) return true;
+    p.wardGrow = 0;
+    p.wardGrowFrom = 0;
+    p.wardT0 = performance.now();
+    p.wardSitesUsed = -1;
     return true;
   }
   if (!p.ward) buildWard(p);
   p.wardOn = true;
   p.wardT0 = performance.now();
   if (grow) {
-    // restart fade-in: opacity + sites from 0 (pad stays constant)
     p.wardGrow = 0;
     p.wardGrowFrom = 0;
+    p.wardSitesUsed = -1;
   } else {
     p.wardGrow = 1;
     p.wardGrowFrom = 1;
