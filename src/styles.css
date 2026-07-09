@@ -382,7 +382,11 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   animation-name: nodeIn; animation-duration: 0.5s; animation-delay: var(--d, 0ms); animation-fill-mode: backwards; }
 .mnode { animation-name: nodeIn; animation-duration: 0.4s; animation-delay: var(--d, 0ms); animation-fill-mode: backwards; }
 @keyframes nodeIn { from { opacity: 0; } }
-.medge.walked { opacity: 0.25; stroke: rgba(242, 193, 78, 0.55); stroke-dasharray: none; filter: drop-shadow(0 0 4px rgba(242, 193, 78, 0.5)); }
+/* walked path: ash trail — solid B&W so progress reads against the tower */
+.medge.walked {
+  stroke: #d8dce8; stroke-width: 3.25; stroke-dasharray: none;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.85));
+}
 .mnode { cursor: default; }
 .mnode circle.bg { fill: #141a30; stroke: var(--gold-dim); stroke-width: 1.2; transition: all 0.2s; }
 /* glyph sized in ui.js (~1.28× frame) so the type asset overlaps the ring */
@@ -390,6 +394,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 /* nhit = invisible disc sized to the oversized glyph; art stays PE:none */
 .mnode .nhit { pointer-events: fill; }
 .mnode .nframe, .mnode .nglyph { pointer-events: none; transition: filter 0.2s, opacity 0.2s; }
+.mnode .nsil { pointer-events: none; }
 .mnode .icg { color: #98a2c4; pointer-events: none; }
 .mnode.type-elite circle.bg { stroke: #ff7847; }
 .mnode.type-elite .nframe { filter: drop-shadow(0 0 6px rgba(255, 120, 71, 0.55)); }
@@ -400,29 +405,45 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .mnode.type-shop .icg { color: var(--gold); }
 .mnode.type-treasure .icg { color: var(--gold); }
 .mnode.type-elite .icg { color: #ff8f66; }
-.mnode.visited circle.bg { fill: #2a2416; stroke: var(--gold-dim); }
-.mnode.visited .icg { color: var(--gold); }
-.mnode.visited .nframe { filter: saturate(0.7) brightness(0.85); }
-.mnode.visited .nglyph { opacity: 0.85; }
+/* done path: drained lanterns — grayscale, still legible */
+.mnode.visited:not(.current) circle.bg { fill: #1a1a1e; stroke: #8a8a92; }
+.mnode.visited:not(.current) .icg { color: #b0b0b8; }
+.mnode.visited:not(.current) .nframe,
+.mnode.visited:not(.current) .nglyph { filter: grayscale(1) brightness(0.92) contrast(1.05); }
+.mnode.visited:not(.current) .nglyph { opacity: 0.9; }
 .mnode.current circle.bg { stroke: var(--gold); stroke-width: 2; filter: drop-shadow(0 0 14px rgba(242, 193, 78, 0.8)); }
 .mnode.current .nframe { filter: drop-shadow(0 0 14px rgba(242, 193, 78, 0.85)); }
 .mnode.current .nglyph { filter: drop-shadow(0 0 6px rgba(242, 193, 78, 0.55)); }
 .mnode.avail { cursor: pointer; }
 .mnode.avail circle.bg { stroke: var(--gold); stroke-width: 2; }
 .mnode.avail .nframe { filter: drop-shadow(0 0 10px rgba(242, 193, 78, 0.65)); }
+/* selectable silhouette rim — feMorphology ring hugs glyph+frame alpha */
+.mnode.avail .nsil {
+  filter: url(#map-node-outline);
+  animation: silPulse 1.6s ease-in-out infinite;
+}
 .mnode.avail .nwrap { animation: nodePulse 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 /* desync the beckon so the tower shimmers organically, not in lockstep */
 .mnode:nth-child(4n) .nwrap   { animation-delay: -0.4s; }
 .mnode:nth-child(4n+1) .nwrap { animation-delay: -0.8s; }
 .mnode:nth-child(4n+2) .nwrap { animation-delay: -1.2s; }
 .mnode:nth-child(4n+3) .nwrap { animation-delay: -1.55s; }
+.mnode:nth-child(4n) .nsil   { animation-delay: -0.4s; }
+.mnode:nth-child(4n+1) .nsil { animation-delay: -0.8s; }
+.mnode:nth-child(4n+2) .nsil { animation-delay: -1.2s; }
+.mnode:nth-child(4n+3) .nsil { animation-delay: -1.55s; }
 .mnode.avail .icg { color: var(--parchment); animation: beckonIcon 1.6s ease-in-out infinite; }
 .mnode.avail .nglyph { animation: beckonGlyph 1.6s ease-in-out infinite; }
 @keyframes beckonIcon { 0%, 100% { opacity: 0.9; } 50% { opacity: 1; filter: drop-shadow(0 0 5px currentColor); } }
 @keyframes beckonGlyph { 0%, 100% { opacity: 0.92; } 50% { opacity: 1; filter: drop-shadow(0 0 5px rgba(255, 243, 214, 0.7)); } }
+@keyframes silPulse {
+  0%, 100% { opacity: 0.82; }
+  50% { opacity: 1; }
+}
 .mnode.avail:hover circle.bg { fill: #38301a; transform: scale(1.15); transform-origin: center; transform-box: fill-box; }
 .mnode.avail:hover .nframe { filter: drop-shadow(0 0 16px rgba(242, 193, 78, 0.9)) brightness(1.08); }
-.mnode.visited:not(.current) { opacity: 0.55; }
+.mnode.avail:hover .nsil { opacity: 1; }
+.mnode.visited:not(.current) { opacity: 0.78; }
 @keyframes nodePulse { 50% { transform: scale(1.09); } }
 .map-title { position: absolute; top: 62px; left: 0; right: 0; text-align: center; font-family: 'Cinzel', serif; letter-spacing: 0.3em; font-size: 15px; color: var(--text-dim); z-index: 2; pointer-events: none; }
 .map-title b { color: var(--parchment); }

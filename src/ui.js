@@ -860,7 +860,7 @@ function renderMap() {
     // transparent hit disc — nframe/nglyph are PE:none decorative; without this
     // .mnode { pointer-events: visiblePainted } has nothing to hit on the raster path
     const hit = `<circle class="nhit" r="${Math.round(gs / 2)}" fill="transparent"/>`;
-    let iconHtml;
+    let artHtml;
     if (frameU || glyphU || monUrl) {
       const frame = frameU
         ? `<image class="nframe" href="${frameU}" x="${-fs / 2}" y="${-fs / 2}" width="${fs}" height="${fs}" />`
@@ -868,22 +868,31 @@ function renderMap() {
       const glyph = (glyphU || monUrl)
         ? `<image class="nglyph" href="${glyphU || monUrl}" x="${-gs / 2}" y="${-gs / 2}" width="${gs}" height="${gs}" />`
         : `<g class="icg">${iconInline(dark ? 'unlitLantern' : NODE_ICONS[n.type], gs)}</g>`;
-      iconHtml = `${frame}${glyph}`;
+      artHtml = `${frame}${glyph}`;
     } else {
-      iconHtml = `<circle class="bg" r="${dark ? 16 * tf : r}"/><g class="icg">${iconInline(dark ? 'unlitLantern' : NODE_ICONS[n.type], gs)}</g>`;
+      artHtml = `<circle class="bg" r="${dark ? 16 * tf : r}"/><g class="icg">${iconInline(dark ? 'unlitLantern' : NODE_ICONS[n.type], gs)}</g>`;
     }
+    // selectable: duplicate art under feMorphology ring (same language as aim outlines)
+    const sil = avail.has(n.id) ? `<g class="nsil">${artHtml}</g>` : '';
     dots += `<g class="${cls}" data-node="${n.id}" style="--d:${n.row * 34}ms">
-      ${hit}<g class="nwrap">${iconHtml}</g>
+      ${hit}<g class="nwrap">${sil}${artHtml}</g>
     </g>`;
   }
   const act = ACTS[run.act];
   const omenId = run.omens?.[run.act];
   const omen = OMENS[omenId];
+  // map-node-outline: dilate alpha → ring only (mirrors #aim-outline-*)
+  const mapDefs = `<defs><filter id="map-node-outline" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+    <feMorphology in="SourceAlpha" operator="dilate" radius="2.4" result="dilated"/>
+    <feComposite in="dilated" in2="SourceAlpha" operator="out" result="ring"/>
+    <feFlood flood-color="#fff6e0" flood-opacity="1" result="fill"/>
+    <feComposite in="fill" in2="ring" operator="in"/>
+  </filter></defs>`;
   screenEl().innerHTML = `
     <div class="map-title">ACT ${run.act + 1} — <b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits${omen ? ` &nbsp;·&nbsp; <span class="mt-omen" style="color:${omen.tone}">${omenMark(omenId, 'mt-omen-art', 'mt-omen-fallback', 18)}<span class="mt-omen-name">${omen.name}</span></span>` : ''}</div>
     <div class="map-screen screen-enter">
       <div class="map-haze" style="--haze:${['#2a3a2e', '#1f2e40', '#3a2030'][run.act] ?? '#2a3a2e'}"></div>
-      <svg class="map-svg" width="100%" height="100%">${edges}${dots}</svg>
+      <svg class="map-svg" width="100%" height="100%">${mapDefs}${edges}${dots}</svg>
       <div class="map-hint">${COARSE ? 'drag' : 'scroll'} to survey the Spire</div>
     </div>`;
   const svg = $('.map-svg');
@@ -915,14 +924,16 @@ function renderMap() {
     for (const [id, g] of nodeEls) {
       const pt = P.get(id);
       g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)}) scale(${pt.s.toFixed(3)})`);
-      const seenDim = g.classList.contains('visited') && !g.classList.contains('current') ? 0.55 : 1;
+      // visited B&W is CSS; keep opacity high so the ash trail stays readable
+      const seenDim = g.classList.contains('visited') && !g.classList.contains('current') ? 0.78 : 1;
       g.style.opacity = (pt.fade * (dimIds.has(id) ? 0.4 : 1) * seenDim).toFixed(3);
     }
     for (const { p, a, b } of edgeEls) {
       const A = P.get(a), B = P.get(b);
       const sag = 9 * (A.s + B.s) / 2; // chains between lanterns hang a little
       p.setAttribute('d', `M${A.x.toFixed(1)} ${A.y.toFixed(1)} Q${((A.x + B.x) / 2).toFixed(1)} ${((A.y + B.y) / 2 + sag).toFixed(1)} ${B.x.toFixed(1)} ${B.y.toFixed(1)}`);
-      p.style.opacity = (Math.min(A.fade, B.fade) * (p.classList.contains('walked') ? 0.25 : 1)).toFixed(3);
+      // walked edges stay bright (CSS paints them B&W); only fade with camera depth
+      p.style.opacity = Math.min(A.fade, B.fade).toFixed(3);
     }
   });
   V.setWeather(run.act, { mult: 0.3 });
