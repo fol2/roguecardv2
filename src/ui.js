@@ -1,9 +1,9 @@
 // SPIREBOUND UI — screens, combat playback, interactions.
 import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
-import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, uiIcon, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
+import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, uiIcon, uiIconUrl, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
 import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule, drawBatchSchedule } from './pile-chrome.js';
-import { UI_CHROME_IDS, uiFallbackName } from './ui-chrome.js';
+import { UI_CHROME_IDS, uiFallbackName, energySlotStates } from './ui-chrome.js';
 // drawBatchSchedule also paces discardHand (same even-stagger clock)
 import * as V from './vfx.js';
 import { syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from './vigil.js';
@@ -1315,11 +1315,29 @@ function syncCombat() {
   statusChips(ce.pStatus, P.statuses, true);
   $('.num', ce.energy).textContent = P.energy;
   ce.energy.classList.toggle('spent', P.energy === 0);
-  // candles gutter as energy is spent
   const cd = $('.candles', ce.energy);
-  const maxE = Math.max(P.energyMax, P.energy);
-  if (cd.children.length !== maxE) cd.innerHTML = Array.from({ length: maxE }, () => '<span class="candle"></span>').join('');
-  [...cd.children].forEach((c, i) => c.classList.toggle('lit', i < P.energy));
+  const states = energySlotStates(P.energy, P.energyMax);
+  const litUrl = uiIconUrl('candle-lit');
+  const spentUrl = uiIconUrl('candle-spent');
+  const same = cd.children.length === states.length
+    && [...cd.children].every((el, i) => el.dataset.state === states[i]);
+  if (!same) {
+    cd.innerHTML = states.map((st) => {
+      const url = st === 'lit' ? litUrl : spentUrl;
+      if (url) {
+        return `<span class="candle is-${st}" data-state="${st}"><img class="ui-icon candle-img" src="${url}" alt="" draggable="false"></span>`;
+      }
+      return `<span class="candle ${st === 'lit' ? 'lit' : ''} is-${st}" data-state="${st}"></span>`;
+    }).join('');
+  } else {
+    [...cd.children].forEach((c, i) => {
+      const st = states[i];
+      c.dataset.state = st;
+      c.classList.toggle('lit', st === 'lit');
+      c.classList.toggle('is-lit', st === 'lit');
+      c.classList.toggle('is-spent', st === 'spent');
+    });
+  }
   syncPileWidgets(cb);
   scheduleChromeClamp();
 }
