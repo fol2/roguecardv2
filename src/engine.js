@@ -541,6 +541,20 @@ export function genShop(run) {
   const rng = runRng(run);
   const price = ([a, b], disc) => Math.round(irange(rng, [a, b]) * disc);
   const disc = (hasRelic(run, 'merchantsMark') ? 0.75 : 1) * (omenMods(run).shopMult || 1);
+  const questItems = [];
+  const usurper = questRecord(run, 'usurper');
+  if (usurper && ['armed', 'revealed'].includes(usurper.state) &&
+      run.act >= PROGRESSION.emberglass.usurper.minShopAct &&
+      !run.questScratch?.usurper?.bought) {
+    revealQuest(run, 'usurper');
+    questItems.push({
+      id: 'flamelessLantern',
+      name: QUESTS.usurper.itemName,
+      text: QUESTS.usurper.itemText,
+      price: PROGRESSION.emberglass.usurper.price,
+      sold: false,
+    });
+  }
   const cardIds = [];
   const wants = ['common', 'common', 'uncommon', 'uncommon', 'rare'];
   for (const t of wants) {
@@ -558,7 +572,17 @@ export function genShop(run) {
   if (runRevealed(run, 'phials')) {
     for (let i = 0; i < 2; i++) potions.push({ id: pick(rng, Object.keys(POTIONS)), price: price(SHOP.potionPrice, disc), sold: false });
   }
-  return { cards: cardIds, relics, potions, removeCost: Math.round(SHOP.removeCost * disc), removed: false };
+  return { cards: cardIds, relics, potions, questItems, removeCost: Math.round(SHOP.removeCost * disc), removed: false };
+}
+export function buyQuestItem(run, itemId) {
+  if (itemId !== 'flamelessLantern') return { ok: false, reason: 'unknown' };
+  const q = questRecord(run, 'usurper');
+  if (!q || !['armed', 'revealed'].includes(q.state)) return { ok: false, reason: 'inactive' };
+  const price = PROGRESSION.emberglass.usurper.price;
+  if (run.player.gold < price) return { ok: false, reason: 'gold' };
+  run.player.gold -= price;
+  run.questScratch.usurper = { bought: true };
+  return { ok: true, reason: null };
 }
 export function rollEvent(run) {
   const rng = runRng(run);
@@ -575,6 +599,9 @@ export function rollEncounter(run, type, row, node) {
   if (type === 'monster' && pale?.hiddenDue) {
     pale.hiddenDue = false;
     return [paleVariantForAct(run.act)];
+  }
+  if (type === 'boss' && run.act === 2 && run.questScratch?.usurper?.bought) {
+    return ['usurpedSovereign'];
   }
   const rng = runRng(run);
   const pools = ENCOUNTERS[run.act];
@@ -923,6 +950,13 @@ function onEnemyDeath(run, cb, e) {
     if (!wasComplete && q?.state === 'complete' &&
         !run.endQueue.some((event) => event.t === 'shadeResolved')) {
       run.endQueue.push({ t: 'shadeResolved', text: QUESTS.ownShade.final });
+    }
+  }
+  if (e.def.drop?.quest === 'usurper') {
+    const wasComplete = questRecord(run, 'usurper')?.state === 'complete';
+    const q = advanceQuest(run, 'usurper', e.def.drop.n, cb.queue);
+    if (!wasComplete && q?.state === 'complete') {
+      cb.queue.push({ t: 'variantDialogue', idx: e.idx, text: QUESTS.usurper.death });
     }
   }
   if (cb.enemies.every((x) => x.hp <= 0)) { winCombat(run, cb); return; }

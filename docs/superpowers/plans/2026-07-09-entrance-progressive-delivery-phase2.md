@@ -1650,6 +1650,7 @@ git commit -m "Cover Shade transaction failure paths"
 - Modify: src/engine.js (genShop, rollEncounter, variant drop)
 - Modify: src/ui.js:3685-3784
 - Modify: src/styles.css (quest shop item)
+- Modify: src/art.js (structural empty-lantern icon)
 - Test: test/test_engine.js
 
 **Interfaces:**
@@ -1690,6 +1691,9 @@ Append this exact kill assertion:
   assert.equal(run.questCompletions.filter((id) => id === 'usurper').length, 1);
 ~~~
 
+Extend the existing Vite-loaded structural icon check so `iconSvg('emptyLantern')`
+must contain a non-empty hand-drawn path. Run RED before adding it to `ICONS`.
+
 - [ ] **Step 2: Run red**
 
 Run: npm test
@@ -1718,6 +1722,8 @@ In rollEncounter, before the normal boss pool, return usurpedSovereign only when
 
 Render questItems after relics. Use iconSvg('emptyLantern'), the authored name/text, and exact price. An unaffordable click displays QUESTS.usurper.poor; a successful purchase displays QUESTS.usurper.bought and marks only the current shop row sold. Later shops omit it because run scratch is bought.
 
+Add `emptyLantern` to `art.js` now; Task 7 must render a real structural icon rather than waiting for the later Rose fallback work.
+
 The variant intro replaces {aspect} with Duskblade or Ashwarden. Its death queue uses QUESTS.usurper.death. Do not wire the usurper music cue.
 
 - [ ] **Step 5: Run green and commit**
@@ -1726,7 +1732,7 @@ Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyO
 Expected: PASS.
 
 ~~~bash
-git add src/engine.js src/ui.js src/styles.css test/test_engine.js
+git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/art.js src/engine.js src/ui.js src/styles.css test/test_engine.js
 git commit -m "Add the flameless lantern and Usurper Gate"
 ~~~
 
@@ -2673,7 +2679,7 @@ On title, show a medallion only when v.shards.length>=1 and roseAssets() is non-
 
 - [ ] **Step 5: Add the non-path door, fallbacks, tests, and commit**
 
-Add the remaining art.js icons: emberglassShard, roseWindow, emptyLantern, eighthOmen, unreadablePage, hollowLantern, and sealedDoor. (`paleMote` is already owned by Task 5.) They are paths in the structural ICONS table, never font glyphs.
+Add the remaining art.js icons: emberglassShard, roseWindow, eighthOmen, unreadablePage, hollowLantern, and sealedDoor. (`paleMote` is already owned by Task 5; `emptyLantern` is owned by Task 7.) They are paths in the structural ICONS table, never font glyphs.
 
 When `run.act===2`, `E.runRevealed(run,'act4')`, and `run.shards.length >= PROGRESSION.revealThresholds.act4.shards`, render a separate summit button above the boss projection. The explicit shard guard keeps `newRun()`'s fully-revealed compatibility default from showing the door with an empty shard snapshot. It is not in run.map.nodes. Clicking opens:
 

@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { createServer as createViteServer } from 'vite';
 import {
   newRun, startCombat, playCard, endTurn, drawCards, makeCard, makeVariant, cardData, availableNodes, genMap,
-  rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, finalizeNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, nodeEventInFlight, saveRun, loadRun, genCombatRewards, genShop, gainRelic, randomRelic,
+  rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, finalizeNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, nodeEventInFlight, saveRun, loadRun, genCombatRewards, genShop, buyQuestItem, gainRelic, randomRelic,
   rollBossRelics, addCardToDeck, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
   MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, grantBequest, markShadeFall, resolveCombatant, cardPool, relicPool,
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
@@ -1537,6 +1537,39 @@ function forceHand(run, cb, ids) {
   assert.equal(P.hollowLamplighter.completeAt, 5);
 }
 {
+  const q = Object.fromEntries(QUEST_IDS.map((id) => [id, { state: id === 'usurper' ? 'armed' : 'dormant', progress: 0, memory: {} }]));
+  const run = newRun(450, { quests: q });
+  run.act = 0;
+  assert.deepEqual(genShop(run).questItems, []);
+  run.act = 1;
+  let shop = genShop(run);
+  assert.equal(shop.questItems[0].price, 650);
+  assert.equal(shop.cards.length, 5, 'quest stock never displaces ordinary cards');
+  assert.equal(genShop(run).questItems.length, 1, 'every qualifying shop repeats the fixed item until purchase');
+  assert.equal(run.quests.usurper.state, 'revealed', 'first sight reveals inscription');
+  assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: false, reason: 'gold' });
+  run.player.gold = 650;
+  assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: true, reason: null });
+  assert.equal(run.player.gold, 0);
+  assert.deepEqual(genShop(run).questItems, [], 'later shops omit the item bought in this run');
+  run.act = 2;
+  assert.deepEqual(rollEncounter(run, 'boss', 14), ['usurpedSovereign']);
+  setPendingEncounter(run, 'boss', rollEncounter(run, 'boss', 14));
+  assert.deepEqual(run.pendingEnemyIds, ['usurpedSovereign'], 'the exact Usurper identity is held pending');
+  clearPendingEncounter(run);
+
+  const boss = startCombat(run, ['usurpedSovereign'], 'boss');
+  boss.enemies[0].hp = 1;
+  forceHand(run, boss, ['strike']);
+  boss.player.energy = 3;
+  playCard(run, boss, boss.hand[0].uid, 0);
+  assert.equal(run.quests.usurper.state, 'complete');
+  assert.equal(run.questCompletions.filter((id) => id === 'usurper').length, 1);
+  const deathLine = boss.queue.findIndex((event) => event.t === 'variantDialogue' && event.text === QUESTS.usurper.death);
+  const victory = boss.queue.findIndex((event) => event.t === 'victory');
+  assert.ok(deathLine >= 0 && deathLine < victory, 'the authored death line and drop queue before victory');
+}
+{
   const q = Object.fromEntries(QUEST_IDS.map((id) => [id, { state: id === 'paleOnes' ? 'armed' : 'dormant', progress: 0, memory: {} }]));
   const run = newRun(410, { quests: q, shards: ['paleOnes'] });
   q.paleOnes.state = 'complete';
@@ -2626,15 +2659,18 @@ function randomAgentRun(seed) {
 // iconSvg output used by the browser, not merely the structural registry source.
 {
   const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
-  let paleMote;
+  let paleMote, emptyLantern;
   try {
     const { iconSvg } = await vite.ssrLoadModule('/src/art.js');
     paleMote = iconSvg('paleMote', 18);
+    emptyLantern = iconSvg('emptyLantern', 18);
   } finally {
     await vite.close();
   }
   assert.match(paleMote, /<path\b[^>]*\bd="[^"]+"[^>]*>/,
     'paleMote iconSvg output contains a non-empty path d');
+  assert.match(emptyLantern, /<path\b[^>]*\bd="[^"]+"[^>]*>/,
+    'emptyLantern iconSvg output contains a non-empty path d');
 }
 
 // ---- battlefield layout schema (spec 2026-07-06-battlefield-editor-design) ----

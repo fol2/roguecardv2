@@ -1,6 +1,6 @@
 // SPIREBOUND UI — screens, combat playback, interactions.
 import * as E from './engine.js';
-import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
+import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS, QUESTS } from './data.js';
 import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, uiIcon, uiIconUrl, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
 import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule, drawBatchSchedule } from './pile-chrome.js';
 import { UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyphId } from './ui-chrome.js';
@@ -4056,7 +4056,7 @@ function renderShop() {
     <div style="display:flex;align-items:center;justify-content:center;gap:18px">
       <div style="width:130px">${rasterOr('props', 'merchant', merchantSvg())}</div>
       <div><div class="ov-title" style="text-align:left">THE MERCHANT</div>
-      <div class="ov-sub" style="text-align:left;margin:0">"Gold for glory, stranger. Everything's fair-priced — for the doomed."</div></div>
+      <div class="ov-sub shop-dialogue" style="text-align:left;margin:0">"Gold for glory, stranger. Everything's fair-priced — for the doomed."</div></div>
     </div>
     <div class="shop-grid">
       <div class="shop-row cards-row"></div>
@@ -4069,6 +4069,12 @@ function renderShop() {
   let shopSeeded = false;
   const gold = () => run.player.gold;
   const buy = (price) => { run.player.gold -= price; sfx.coin(); E.saveRun(run); renderHud(); refresh(); };
+  const say = (text) => {
+    const dialogue = $('.shop-dialogue', sc);
+    if (!dialogue) return;
+    dialogue.textContent = `"${text}"`;
+    dialogue.classList.add('quest-dialogue');
+  };
   function refresh() {
     if (shopGrid) shopGrid.classList.toggle('list-seq-done', shopSeeded);
     cardsRow.innerHTML = '';
@@ -4096,6 +4102,28 @@ function renderShop() {
         E.gainRelic(run, it.id);
         sfx.relic();
         buy(it.price);
+      };
+      wrap.appendChild(b);
+      wrap.appendChild(el('div', 'price', `${uiIcon('coin', 14)} ${it.price}`));
+      miscRow.appendChild(wrap);
+    }
+    for (const it of st.questItems) {
+      const wrap = el('div', `shop-item quest-shop-item ${it.sold ? 'sold' : ''} ${gold() < it.price ? 'cant' : ''}`);
+      const b = el('button', 'shop-relic shop-quest', `<span class="shop-quest-icon">${iconSvg('emptyLantern', 42)}</span><b>${escHtml(it.name)}</b>${escHtml(it.text)}`);
+      b.onclick = () => {
+        if (it.sold) return;
+        const result = E.buyQuestItem(run, it.id);
+        if (!result.ok) {
+          sfx.debuff();
+          if (result.reason === 'gold') say(QUESTS.usurper.poor);
+          return;
+        }
+        it.sold = true;
+        sfx.coin();
+        say(QUESTS.usurper.bought);
+        E.saveRun(run);
+        renderHud();
+        refresh();
       };
       wrap.appendChild(b);
       wrap.appendChild(el('div', 'price', `${uiIcon('coin', 14)} ${it.price}`));

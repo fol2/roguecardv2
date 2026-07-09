@@ -1624,6 +1624,18 @@ html.mesh-on .enemy-art.warded::before { display: none; }
 }
 .shop-relic:hover { border-color: var(--gold); transform: translateY(-3px); }
 .shop-relic b { color: var(--parchment); font-family: 'Cinzel', serif; font-size: 12.5px; }
+.shop-dialogue { min-height: 2.8em; transition: color 0.2s, text-shadow 0.2s; }
+.shop-dialogue.quest-dialogue { color: #d4f5ed; text-shadow: 0 0 14px rgba(113, 220, 194, 0.28); }
+.shop-quest {
+  width: 164px; min-height: 146px; padding-inline: 12px;
+  border-color: rgba(113, 220, 194, 0.42);
+  background: radial-gradient(circle at 50% 20%, rgba(113, 220, 194, 0.12), rgba(255, 255, 255, 0.035) 62%);
+}
+.shop-quest:hover { border-color: #8ce0cc; box-shadow: 0 0 22px rgba(113, 220, 194, 0.14); }
+.shop-quest-icon { width: 44px; height: 44px; display: grid; place-items: center; color: #9ce5d5; }
+.shop-quest-icon .gicon { width: 42px; height: 42px; }
+.quest-shop-item .price { color: #c7eadf; }
+.quest-shop-item.cant .price { color: var(--atk); }
 
 /* event */
 .event-panel { width: min(660px, 92cqw); }
