@@ -54,6 +54,20 @@
             <feMergeNode in="SourceGraphic"/>
           </feMerge>
         </filter>
+        <!-- intent icons on dark battlefield: thick black outer + light rim (status stays thin) -->
+        <filter id="intent-outline" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
+          <feMorphology in="SourceAlpha" operator="dilate" radius="2.6" result="outer"/>
+          <feFlood flood-color="#000000" flood-opacity="1" result="black"/>
+          <feComposite in="black" in2="outer" operator="in" result="dark-halo"/>
+          <feMorphology in="SourceAlpha" operator="dilate" radius="1.35" result="rim"/>
+          <feFlood flood-color="#fff6ec" flood-opacity="0.95" result="cream"/>
+          <feComposite in="cream" in2="rim" operator="in" result="light-rim"/>
+          <feMerge>
+            <feMergeNode in="dark-halo"/>
+            <feMergeNode in="light-rim"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
         <!-- soft-eat light alpha fringe on DOM sprites (mesh path does this in BODY_FRAG) -->
         <filter id="alpha-erode" x="-2%" y="-2%" width="104%" height="104%" color-interpolation-filters="sRGB">
           <feMorphology in="SourceAlpha" operator="erode" radius="0.65" result="eroded"/>

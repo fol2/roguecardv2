@@ -771,7 +771,12 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .block-chip .ui-icon { width: 13px; height: 13px; }
 .intent .ui-icon, .intent .gicon {
   width: 38px; height: 38px;
-  filter: url(#status-outline);
+  /* thick SVG silhouette + soft outer shadows for dark battlefield contrast */
+  filter:
+    url(#intent-outline)
+    drop-shadow(0 0 1.5px rgba(0, 0, 0, 1))
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.95))
+    drop-shadow(0 0 3px rgba(0, 0, 0, 0.85));
 }
 .intent .ic .ui-icon:nth-child(n+2), .intent .ic .gicon:nth-child(n+2) { width: 28px; height: 28px; }
 .intent.i-attack, .intent.i-attack_debuff, .intent.i-attack_block, .intent.i-attack_buff { color: #ff8d8d; }
@@ -1063,7 +1068,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .energy-orb {
   position: absolute; left: calc(24px + var(--sal)); bottom: calc(148px + var(--sab));
   width: auto; height: auto; min-height: 0; padding: 0; border-radius: 0; z-index: 26;
-  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 0;
   /* candle stack is the meter — transparent shell, no glass orb */
   background: transparent;
   border: none;
@@ -1074,6 +1079,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 /* count above the candle row — no overlap; thin outline like deck/End */
 .energy-orb .num {
   position: relative; left: auto; top: auto; transform: none;
+  margin-bottom: -4px;
   z-index: 2; font-size: 34px; font-weight: 800; line-height: 1;
   color: #fff8e8; pointer-events: none;
   -webkit-text-stroke: 1.25px rgba(0, 0, 0, 0.9);
