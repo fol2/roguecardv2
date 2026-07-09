@@ -86,11 +86,98 @@ test('title and embark screens fit their stage: no scrollable overflow anywhere'
   });
   const badTitle = await scan();
   expect(badTitle, `title: ${badTitle.join('; ')}`).toEqual([]);
+  // title always says Begin the Climb (Begin Anew confirmation lives on Embark)
+  await expect(page.locator('[data-a="embark"]')).toHaveText('Begin the Climb');
   await page.click('[data-a="embark"]');
   for (let i = 0; i < 5; i++) await page.click('[data-a="vow+"]');
   await page.waitForTimeout(600);
   const badEmbark = await scan();
   expect(badEmbark, `embark: ${badEmbark.join('; ')}`).toEqual([]);
+});
+
+// Spec §6 light assertions: fresh title has no aspect row; Embark grows
+// sections only as the Vigil reveals them.
+test('fresh profile title has no aspect row; Embark shows zero sections', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'entrance behaviour is shape-independent');
+  await page.goto('/');
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  await expect(page.locator('.title-screen .aspect-row')).toHaveCount(0);
+  await expect(page.locator('.title-screen .vow-block')).toHaveCount(0);
+  await expect(page.locator('[data-a="embark"]')).toHaveText('Begin the Climb');
+  await expect(page.locator('[data-a="continue"]')).toHaveCount(0);
+  await page.click('[data-a="embark"]');
+  await expect(page.locator('.embark-screen .aspect-row')).toHaveCount(0);
+  await expect(page.locator('.embark-screen .vow-block')).toHaveCount(0);
+  await expect(page.locator('.embark-screen [data-a="begin"]')).toHaveText('Begin the Climb');
+});
+
+test('seeded veteran Embark shows aspect and vow sections', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'entrance behaviour is shape-independent');
+  await page.goto('/');
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  await page.evaluate(() => {
+    localStorage.clear();
+    localStorage.setItem('spirebound_vigil_v2', JSON.stringify({
+      v: 2,
+      deeds: { runs: 40, wins: 9, slain: 500, shatters: 90, kindles: 60, perfects: 12, smolderKills: 60, unlitVisited: 30, embersSpent: 900, bestVow: 5, bestFloor: 45 },
+      unlocks: ['aspect2'], vowUnlocked: 5, lastFall: null,
+      runsPlayed: 40, quests: {}, shards: [], whispers: 0, news: false,
+    }));
+  });
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  await expect(page.locator('.title-screen .aspect-row')).toHaveCount(0);
+  await page.click('[data-a="embark"]');
+  await expect(page.locator('.embark-screen .aspect-row')).toHaveCount(1);
+  await expect(page.locator('.embark-screen .aspect-card')).toHaveCount(2);
+  await expect(page.locator('.embark-screen .vow-block')).toHaveCount(1);
+});
+
+test('Begin Anew on Embark confirms before abandoning a saved climb', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'entrance behaviour is shape-independent');
+  await page.goto('/');
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  await page.evaluate(() => {
+    localStorage.clear();
+    window.spirebound.E.saveRun(window.spirebound.E.newRun(1234, { aspect: 0, reveals: [] }));
+  });
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  await expect(page.locator('[data-a="continue"]')).toHaveCount(1);
+  await expect(page.locator('[data-a="embark"]')).toHaveText('Begin the Climb');
+  await page.click('[data-a="embark"]');
+  await expect(page.locator('.embark-screen [data-a="begin"]')).toHaveText('Begin Anew');
+  await page.click('.embark-screen [data-a="begin"]');
+  // confirmation modal — save must still exist until the player confirms
+  await expect(page.locator('#overlay.open .ov-title')).toHaveText('Begin Anew?');
+  const before = await page.evaluate(() => ({
+    seed: window.spirebound.E.loadRun()?.seed,
+    runsPlayed: JSON.parse(localStorage.getItem('spirebound_vigil_v2') || '{}').runsPlayed || 0,
+  }));
+  expect(before.seed).toBe(1234);
+  await page.click('#overlay [data-a="no"]');
+  await expect(page.locator('#overlay.open')).toHaveCount(0);
+  expect(await page.evaluate(() => window.spirebound.E.loadRun()?.seed)).toBe(1234);
+  // confirm path: abandon advances the ladder, then a new climb starts (and autosaves)
+  await page.click('.embark-screen [data-a="begin"]');
+  await page.click('#overlay [data-a="yes"]');
+  await page.waitForFunction(() => window.spirebound.S.screen !== 'embark');
+  const after = await page.evaluate(() => {
+    const run = window.spirebound.E.loadRun() || window.spirebound.S.run;
+    return {
+      seed: run?.seed,
+      runsPlayed: JSON.parse(localStorage.getItem('spirebound_vigil_v2') || '{}').runsPlayed || 0,
+      reveals: run?.reveals,
+      screen: window.spirebound.S.screen,
+    };
+  });
+  expect(after.runsPlayed).toBe(before.runsPlayed + 1);
+  expect(after.seed).not.toBe(1234);
+  expect(after.reveals).toContain('lamplighter');
+  expect(['lamplighter', 'map', 'combat']).toContain(after.screen);
 });
 
 test('window size changes scale, never layout: geometry is identical at two window sizes', async ({ page }) => {

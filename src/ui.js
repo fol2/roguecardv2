@@ -504,7 +504,7 @@ function renderTitle() {
     <div class="tagline">A Roguelite Deckbuilder · The Vigil Remembers</div>
     <div class="title-btns">
       ${saved ? '<button class="btn" data-a="continue">Continue Climb</button>' : ''}
-      <button class="btn" data-a="embark">${saved ? 'Begin Anew' : 'Begin the Climb'}</button>
+      <button class="btn" data-a="embark">Begin the Climb</button>
       <button class="btn ghost${vigil.news && !REDUCED ? ' news' : ''}" data-a="vigil">The Vigil</button>
       <button class="btn ghost" data-a="help">How to Play</button>
       <button class="btn ghost" data-a="mute">${isMuted() ? 'Unmute' : 'Mute'}</button>
@@ -566,6 +566,17 @@ function renderEmbark() {
       <button class="btn ghost" data-a="back">Back</button>
     </div>
   </div>`;
+  const beginClimb = () => {
+    const v = syncVigil(); // re-read after abandon so the next snapshot sees new reveals
+    startRun(E.newRun(undefined, {
+      aspect: sel.aspect,
+      vow: sel.vow,
+      lamplighter: isRevealed(v, 'lamplighter'),
+      monument: v.lastFall,
+      unlocks: v.unlocks, // the fix: deed unlocks finally reach live pools
+      reveals: revealSnapshot(v),
+    }));
+  };
   sc.onclick = (e) => {
     const t = e.target.closest('[data-a]');
     if (!t || t.disabled) return;
@@ -576,22 +587,29 @@ function renderEmbark() {
     else if (a === 'vow+') { sel.vow = Math.min(vigil.vowUnlocked, sel.vow + 1); renderEmbark(); }
     else if (a === 'back') show('title');
     else if (a === 'begin') {
-      // Begin Anew is abandon: advance runsPlayed (and lifetime stats) before
-      // the new climb, matching confirmAbandon / design §2.
-      if (saved) {
-        commitRunEnd(saved);
-        E.recordRunEnd(saved, false);
-        S.run = null; S.cb = null;
-      }
-      const v = syncVigil(); // re-read after abandon so the next snapshot sees new reveals
-      startRun(E.newRun(undefined, {
-        aspect: sel.aspect,
-        vow: sel.vow,
-        lamplighter: isRevealed(v, 'lamplighter'),
-        monument: v.lastFall,
-        unlocks: v.unlocks, // the fix: deed unlocks finally reach live pools
-        reveals: revealSnapshot(v),
-      }));
+      // Spec §3: title stays "Begin the Climb"; Begin Anew confirmation lives
+      // on Embark. Abandon advances runsPlayed like confirmAbandon.
+      if (!saved) { beginClimb(); return; }
+      openOverlay(`<div class="panel ov-panel" style="text-align:center">
+        <div class="ov-title">Begin Anew?</div>
+        <div class="ov-sub">Your saved climb will be lost to the void.</div>
+        <div class="ov-actions"><button class="btn danger" data-a="yes">Begin Anew</button><button class="btn ghost" data-a="no">Keep Climbing</button></div>
+      </div>`, (root) => {
+        root.onclick = (ev) => {
+          const ans = ev.target.dataset.a;
+          if (ans === 'yes') {
+            const abandoned = E.loadRun();
+            if (abandoned) {
+              commitRunEnd(abandoned);
+              E.recordRunEnd(abandoned, false);
+            }
+            S.run = null; S.cb = null;
+            closeOverlay();
+            beginClimb();
+          }
+          if (ans === 'no') closeOverlay();
+        };
+      });
     }
   };
 }
