@@ -485,7 +485,7 @@ export function show(name, data) {
   sc.className = '';
   sc.onclick = null; // screens share #screen — never let a stale delegate survive
   ({
-    title: renderTitle, map: renderMap, combat: () => {}, reward: renderReward, rest: renderRest,
+    title: renderTitle, embark: renderEmbark, map: renderMap, combat: () => {}, reward: renderReward, rest: renderRest,
     shop: renderShop, event: renderEvent, treasure: renderTreasure, bossRelic: renderBossRelic, end: renderEnd,
   })[name](data);
   if (name === 'map') warmAssets();
@@ -555,6 +555,70 @@ function renderTitle() {
     else if (a === 'mute') { toggleMute(); renderTitle(); }
   };
   meshBindTitle();
+}
+// EMBARK — where a climb is configured. Grows as the Vigil reveals more: a
+// fresh profile sees a single Begin button; the aspect choice arrives with
+// 'aspect2', the vow ladder with the first dawn.
+function renderEmbark() {
+  stopAmbience();
+  setTheme(0);
+  const vigil = syncVigil();
+  const saved = E.loadRun();
+  const sel = (S.title ||= { aspect: 0, vow: 0 });
+  const hasAspects = vigil.unlocks.includes('aspect2');
+  if (!hasAspects) sel.aspect = 0;
+  sel.vow = Math.max(0, Math.min(sel.vow | 0, vigil.vowUnlocked));
+  const aspectRow = hasAspects ? `<div class="embark-label">Who carries the lantern</div>
+    <div class="aspect-row">${ASPECTS.map((a, i) => `
+      <button class="aspect-card${sel.aspect === i ? ' on' : ''}" data-a="asp" data-i="${i}">
+        <div class="asp-hero">${heroArt(i)}</div>
+        <div class="asp-name">${a.name}</div>
+        <div class="asp-blurb">${a.blurb}</div>
+      </button>`).join('')}</div>` : '';
+  const vowLine = sel.vow === 0
+    ? 'The Spire as it is. No vows sworn.'
+    : VOWS.slice(0, sel.vow).map((v) => `<b style="color:#ff9a4d">${v.name}</b> — ${v.desc}`).join('<br>');
+  const vowBlock = vigil.vowUnlocked > 0 ? `<div class="vow-block">
+      <div class="vow-stepper">
+        <button class="vow-btn" data-a="vow-"${sel.vow === 0 ? ' disabled' : ''}>−</button>
+        <div class="vow-level">VOW ${ROMAN[sel.vow]}<span class="vow-max"> / ${ROMAN[vigil.vowUnlocked] || '0'}</span></div>
+        <button class="vow-btn" data-a="vow+"${sel.vow < vigil.vowUnlocked ? '' : ' disabled'}>+</button>
+      </div>
+      <div class="vow-desc">${vowLine}</div>
+    </div>` : '';
+  const sc = screenEl();
+  sc.innerHTML = `<div class="embark-screen screen-enter">
+    <div class="embark-title">THE CLIMB BEGINS</div>
+    <div class="embark-sub">${hasAspects || vigil.vowUnlocked > 0 ? 'Choose how you meet the Spire.' : 'The lantern is lit. The Spire waits.'}</div>
+    ${aspectRow}
+    ${vowBlock}
+    ${saved ? '<div class="embark-warn">Beginning anew abandons your saved climb.</div>' : ''}
+    <div class="title-btns">
+      <button class="btn btn-primary" data-a="begin">${saved ? 'Begin Anew' : 'Begin the Climb'}</button>
+      <button class="btn ghost" data-a="back">Back</button>
+    </div>
+  </div>`;
+  sc.onclick = (e) => {
+    const t = e.target.closest('[data-a]');
+    if (!t || t.disabled) return;
+    const a = t.dataset.a;
+    unlock(); sfx.click();
+    if (a === 'asp') { sel.aspect = +t.dataset.i; renderEmbark(); }
+    else if (a === 'vow-') { sel.vow = Math.max(0, sel.vow - 1); renderEmbark(); }
+    else if (a === 'vow+') { sel.vow = Math.min(vigil.vowUnlocked, sel.vow + 1); renderEmbark(); }
+    else if (a === 'back') show('title');
+    else if (a === 'begin') {
+      if (saved) E.clearSave();
+      startRun(E.newRun(undefined, {
+        aspect: sel.aspect,
+        vow: sel.vow,
+        lamplighter: isRevealed(vigil, 'lamplighter'),
+        monument: vigil.lastFall,
+        unlocks: vigil.unlocks, // the fix: deed unlocks finally reach live pools
+        reveals: revealSnapshot(vigil),
+      }));
+    }
+  };
 }
 // the vigil ledger: lifetime deeds and the content they've unearthed
 function showVigil() {
