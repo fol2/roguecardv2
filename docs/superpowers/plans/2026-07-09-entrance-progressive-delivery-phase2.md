@@ -86,7 +86,7 @@ Update imports in the first task that needs each name; by Task 12 these lists mu
 - src/engine.js from data.js: existing names plus `PROGRESSION, QUEST_IDS, QUESTS, SHADE_KITS, VARIANTS, BOONS`.
 - src/vigil.js from data.js: existing names plus `PROGRESSION, QUEST_IDS, QUESTS, WHISPERS`.
 - src/ui.js from data.js: existing names plus `PROGRESSION, QUEST_IDS, QUESTS, WHISPERS`; use the existing `E.runRevealed(...)` namespace call rather than a bare runRevealed import.
-- test/test_engine.js from engine.js: `questRecord, revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter, makeVariant, resolveCombatant, paleVariantForAct, markShadeFall, grantBequest, buyQuestItem, _setQuestRng, omenEnabled, removableCards, applyBoon, reverseBoon, payHollowPrice` in addition to its current imports.
+- test/test_engine.js from engine.js: `questRecord, revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter, setPendingReward, takePendingReward, clearPendingReward, makeVariant, resolveCombatant, paleVariantForAct, markShadeFall, grantBequest, buyQuestItem, _setQuestRng, omenEnabled, removableCards, applyBoon, reverseBoon, payHollowPrice` in addition to its current imports.
 - test/test_engine.js from data.js: `QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS` in addition to its current imports.
 - test/test_engine.js from vigil.js: `_setRng, questSnapshot, whisperAt` in addition to its current imports.
 - test/test_engine.js from Node: `spawnSync` from node:child_process and `fileURLToPath` from node:url.
@@ -626,16 +626,22 @@ git commit -m "Hydrate Emberglass ledgers and arm quests on run end"
 
 **Files:**
 - Modify: src/engine.js:2-47, 1176-1204
+- Modify: src/vigil.js:20-245
 - Modify: src/ui.js:9, 636-645, 725-741, 978-984, 3409-3432
+- Create: src/choice-latch.js
 - Test: test/test_engine.js
 
 **Interfaces:**
-- Produces: questRecord(run,id), revealQuest(run,id,queue), advanceQuest(run,id,n,queue), setPendingEncounter(run,kind,enemyIds,questId), and clearPendingEncounter(run).
-- Changes saveRun(run) to return true after localStorage accepts the snapshot and false when storage throws; existing callers may ignore the return.
+- Produces: questRecord(run,id), revealQuest(run,id,queue), advanceQuest(run,id,n,queue), setPendingEncounter(run,kind,enemyIds,questId), clearPendingEncounter(run), setPendingReward(run,kind,rewards,perfect), takePendingReward(run,key,cardId), clearPendingReward(run), hasPendingBossRelic(run), createChoiceLatch(), and commitPendingRunEnd(run,recordRunEnd).
+- Changes saveRun(run) to return true after localStorage accepts the snapshot and false when storage throws. Existing fire-and-forget callers may ignore the return, but Task 3 combat-entry, resume-backfill, and post-victory checkpoints must require true before continuing.
 - newRun opts add quests and shards.
+- Every run owns a stable validated runId. Legacy saves self-heal a deterministic `legacy-*` id before their next acknowledged checkpoint.
 - run.pendingEnemyIds stores exact base or VARIANTS IDs. run.pendingQuestId is null or a QUEST_IDS value.
+- run.pendingReward stores one exact non-final reward payload plus durable gold/potion/relic/card taken flags. run.pendingRunEnd is null or `{outcome}` where outcome is win, death, or abandon while that conclusion awaits cross-store completion and run-save cleanup.
+- Vigil v2 owns compact last-run `receipts.deeds` and `receipts.runEnd` records keyed by runId. Each ledger mutation and its receipt share one acknowledged `saveVigil` write, making fresh-object retries idempotent across reload.
+- A rejected Task 3 checkpoint opens one retry/reload-safe persistence overlay; no combat, reward, map, or end continuation may run until the same snapshot is accepted.
 
-- [ ] **Step 1: Write failing run-snapshot and save-validation tests**
+- [x] **Step 1: Write failing run-snapshot and save-validation tests**
 
 ~~~js
 {
@@ -645,12 +651,19 @@ git commit -m "Hydrate Emberglass ledgers and arm quests on run end"
   assert.equal(run.quests.paleOnes.state, 'armed', 'run owns a deep snapshot');
   assert.deepEqual(run.shards, ['paleOnes']);
 
+  const dormantEvents = [];
+  advanceQuest(run, 'ownShade', QUESTS.ownShade.target, dormantEvents);
+  assert.equal(run.quests.ownShade.state, 'dormant');
+  assert.equal(run.quests.ownShade.progress, 0, 'a dormant quest cannot progress');
+  assert.deepEqual(dormantEvents, [], 'a dormant quest emits no events');
+
   const events = [];
   assert.equal(revealQuest(run, 'paleOnes', events).state, 'revealed');
   assert.equal(events[0].t, 'questReveal');
   advanceQuest(run, 'paleOnes', 9, events);
   assert.equal(run.quests.paleOnes.state, 'complete');
   assert.deepEqual(run.questCompletions, ['paleOnes']);
+  assert.deepEqual(events.map((e) => e.t), ['questReveal', 'questProgress', 'questComplete']);
   advanceQuest(run, 'paleOnes', 1, events);
   assert.deepEqual(run.questCompletions, ['paleOnes'], 'completion emitted once');
 
@@ -680,6 +693,35 @@ Inside the existing temporary-localStorage try block, add this exact save matrix
   assert.equal(saveRun(pending), false, 'saveRun reports a rejected write');
   globalThis.localStorage.setItem = workingSetItem;
 
+  setPendingReward(pending, 'monster', {
+    gold: 25, cards: ['strike', 'defend'], potion: 'healing', relic: null,
+  }, true);
+  clearPendingEncounter(pending);
+  assert.equal(saveRun(pending), true, 'victory reward requires a durable checkpoint');
+  let rewardReload = loadRun();
+  assert.equal(rewardReload.pendingCombat, null);
+  assert.equal(rewardReload.pendingEnemyIds, null);
+  assert.deepEqual(rewardReload.pendingReward.rewards.cards, ['strike', 'defend']);
+  assert.equal(takePendingReward(rewardReload, 'gold'), true);
+  assert.equal(saveRun(rewardReload), true);
+  rewardReload = loadRun();
+  assert.equal(rewardReload.pendingReward.taken.gold, true);
+  assert.equal(takePendingReward(rewardReload, 'gold'), false, 'taken reward cannot duplicate after reload');
+
+  const legacyPending = newRun(413, { quests: saveQuests });
+  legacyPending.pendingCombat = 'monster';
+  delete legacyPending.pendingEnemyIds;
+  delete legacyPending.pendingQuestId;
+  saveRun(legacyPending);
+  const backfill = loadRun();
+  setPendingEncounter(backfill, 'monster', ['paleDuskfang'], 'paleOnes');
+  globalThis.localStorage.setItem = () => { throw new Error('quota'); };
+  assert.equal(saveRun(backfill), false, 'rejected backfill is not durable');
+  globalThis.localStorage.setItem = workingSetItem;
+  assert.equal(loadRun().pendingEnemyIds, null, 'rejected backfill leaves storage unchanged');
+  assert.equal(saveRun(backfill), true, 'legacy backfill can be retried');
+  assert.deepEqual(loadRun().pendingEnemyIds, ['paleDuskfang']);
+
   const rejectSaved = (label, mutate) => {
     const bad = newRun(412, { quests: saveQuests });
     mutate(bad);
@@ -696,16 +738,37 @@ Inside the existing temporary-localStorage try block, add this exact save matrix
   rejectSaved('unknown completion', (r) => { r.questCompletions = ['unknown']; });
   rejectSaved('unknown end event', (r) => { r.endQueue = [{ t: 'mystery' }]; });
   rejectSaved('unknown marked-node variant', (r) => { r.map.nodes[0].questVariantId = 'paleUnknown'; });
+  for (const inheritedId of ['toString', 'constructor']) {
+    rejectSaved(`inherited pending enemy ${inheritedId}`, (r) => setPendingEncounter(r, 'monster', [inheritedId]));
+    rejectSaved(`inherited marked variant ${inheritedId}`, (r) => { r.map.nodes[0].questVariantId = inheritedId; });
+    rejectSaved(`inherited card bequest ${inheritedId}`, (r) => {
+      r.questScratch.ownShade = { pendingBequest: { kind: 'card', id: inheritedId } };
+    });
+    rejectSaved(`inherited relic bequest ${inheritedId}`, (r) => {
+      r.questScratch.ownShade = { pendingBequest: { kind: 'relic', id: inheritedId } };
+    });
+  }
+  rejectSaved('malformed run id', (r) => { r.runId = '__proto__'; });
+  rejectSaved('invalid pending run end', (r) => { r.pendingRunEnd = { outcome: 'retreat' }; });
+  rejectSaved('malformed pending reward', (r) => {
+    setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+    r.pendingReward.taken.card = 'yes';
+  });
+  rejectSaved('prototype pending reward id', (r) => {
+    setPendingReward(r, 'monster', { gold: 1, cards: ['toString'], potion: null, relic: null });
+  });
 ~~~
 
-- [ ] **Step 2: Run the test and verify the red state**
+Add failure-injection coverage using one persistent Map-backed Vigil adapter and JSON-cloned copies of the same run. A rejected `commitRunToVigil` must leave no run marker/cache and no deed mutation. After recovery, a fresh copy must return the deed receipt without incrementing again. Then reject `commitRunEnd`, reload the original saved run, retry both stages, and assert deeds.wins, runsPlayed, whispers, shard completion, and arming advance exactly once. A third fresh copy must return both stored results without another write or counter increment. Separately reject current-run removal after the legacy stats receipt is accepted; retrying cleanup with the same runId must not increment `runs` or `wins` twice.
+
+- [x] **Step 2: Run the test and verify the red state**
 
 Run: npm test
-Expected: FAIL because revealQuest is not exported.
+Expected initial RED: FAIL because the new quest helpers are not exported. On the `15cf247` hardening checkpoint, the covering regressions fail in sequence because a dormant quest advances, inherited registry names such as `toString` are accepted, pendingReward helpers are absent, and commitRunToVigil does not throw or receipt a rejected deed write.
 
-- [ ] **Step 3: Add the run-local quest helpers**
+- [x] **Step 3: Add the run-local quest helpers**
 
-Import QUEST_IDS, QUESTS, and VARIANTS. In newRun add:
+Import QUEST_IDS, QUESTS, and VARIANTS. Capture one `startedAt`, assign a collision-resistant `run-*` id (with an opts.runId override for deterministic callers), and use that same timestamp for stats.start. In newRun add:
 
 ~~~js
 quests: opts.quests
@@ -723,6 +786,8 @@ endQueue: [],
 pendingCombat: null,
 pendingEnemyIds: null,
 pendingQuestId: null,
+pendingReward: null,
+pendingRunEnd: null,
 ~~~
 
 Add:
@@ -744,7 +809,7 @@ export function revealQuest(run, id, queue = run.endQueue) {
 
 export function advanceQuest(run, id, n = 1, queue = run.endQueue) {
   const q = revealQuest(run, id, queue);
-  if (!q || q.state === 'complete' || n <= 0) return q;
+  if (!q || q.state === 'dormant' || q.state === 'complete' || n <= 0) return q;
   q.progress = Math.min(QUESTS[id].target, q.progress + n);
   queue?.push({ t: 'questProgress', id, progress: q.progress, target: QUESTS[id].target });
   if (q.progress >= QUESTS[id].target) {
@@ -767,13 +832,31 @@ export function clearPendingEncounter(run) {
   run.pendingEnemyIds = null;
   run.pendingQuestId = null;
 }
+
+export function setPendingReward(run, kind, rewards, perfect = false) {
+  run.pendingReward = {
+    kind,
+    rewards: { gold: rewards.gold, cards: [...rewards.cards], potion: rewards.potion ?? null, relic: rewards.relic ?? null },
+    taken: { gold: false, potion: false, relic: false, card: false },
+    perfect: !!perfect,
+  };
+  return run.pendingReward;
+}
+
+// Applies each reward at most once. A null cardId is a final skip.
+export function takePendingReward(run, key, cardId = null) {
+  // reject missing/already-taken keys; apply gold/potion/relic/card; then set taken[key]=true
+}
+
+export function clearPendingReward(run) { run.pendingReward = null; }
 ~~~
 
-- [ ] **Step 4: Extend loadRun and live UI wiring**
+- [x] **Step 4: Extend loadRun and live UI wiring**
 
 Self-heal additive fields before validation so a pre-Phase-2 v2 run remains resumable:
 
 ~~~js
+run.runId ??= legacyRunId(run);
 run.quests ??= {};
 run.shards ??= [];
 run.questScratch ??= {};
@@ -781,6 +864,8 @@ run.questCompletions ??= [];
 run.endQueue ??= [];
 run.pendingEnemyIds ??= null;
 run.pendingQuestId ??= null;
+run.pendingReward ??= null;
+run.pendingRunEnd ??= null;
 ~~~
 
 Then validate:
@@ -788,10 +873,12 @@ Then validate:
 ~~~js
 const plainObject = (x) => x && typeof x === 'object' && !Array.isArray(x);
 const onlyKeys = (x, keys) => Object.keys(x).every((k) => keys.includes(k));
+const hasOwn = (x, k) => Object.hasOwn(x, k);
+const exactKeys = (x, keys) => plainObject(x) && onlyKeys(x, keys) && keys.every((k) => hasOwn(x, k));
 const optionalBool = (x, k) => x[k] == null || typeof x[k] === 'boolean';
 const validBequest = (b) => b == null || (plainObject(b) && (
-  (b.kind === 'card' && !!CARDS[b.id] && optionalBool(b, 'up')) ||
-  (b.kind === 'relic' && !!RELICS[b.id]) ||
+  (b.kind === 'card' && hasOwn(CARDS, b.id) && optionalBool(b, 'up')) ||
+  (b.kind === 'relic' && hasOwn(RELICS, b.id)) ||
   (b.kind === 'gold' && Number.isFinite(b.amount) && b.amount >= 0)
 ));
 const validMemory = (id, m) => {
@@ -808,7 +895,20 @@ const validQuest = (id, q) =>
   ['dormant', 'armed', 'revealed', 'complete'].includes(q.state) &&
   Number.isInteger(q.progress) && q.progress >= 0 && q.progress <= QUESTS[id].target &&
   validMemory(id, q.memory);
-const validEnemyId = (id) => !!ENEMIES[id] || !!VARIANTS[id];
+const validEnemyId = (id) => hasOwn(ENEMIES, id) || hasOwn(VARIANTS, id);
+const validPendingReward = (pending) => pending == null || (
+  exactKeys(pending, ['kind', 'rewards', 'taken', 'perfect']) &&
+  ['monster', 'elite', 'boss'].includes(pending.kind) && typeof pending.perfect === 'boolean' &&
+  exactKeys(pending.rewards, ['gold', 'cards', 'potion', 'relic']) &&
+  Number.isInteger(pending.rewards.gold) && pending.rewards.gold >= 0 &&
+  Array.isArray(pending.rewards.cards) && pending.rewards.cards.length > 0 &&
+  pending.rewards.cards.every((id) => hasOwn(CARDS, id)) &&
+  new Set(pending.rewards.cards).size === pending.rewards.cards.length &&
+  (pending.rewards.potion == null || hasOwn(POTIONS, pending.rewards.potion)) &&
+  (pending.rewards.relic == null || hasOwn(RELICS, pending.rewards.relic)) &&
+  exactKeys(pending.taken, ['gold', 'potion', 'relic', 'card']) &&
+  Object.values(pending.taken).every((value) => typeof value === 'boolean')
+);
 
 const validScratch = (scratch) => {
   if (!plainObject(scratch) || Object.keys(scratch).some((id) => !QUEST_IDS.includes(id))) return false;
@@ -854,8 +954,12 @@ if (run.pendingEnemyIds != null && !(Array.isArray(run.pendingEnemyIds) && run.p
 if (run.pendingQuestId != null && !QUEST_IDS.includes(run.pendingQuestId)) return null;
 if (run.pendingEnemyIds != null && run.pendingCombat == null) return null;
 if (run.pendingQuestId != null && run.pendingCombat == null) return null;
+if (!validRunId(run.runId) || !validPendingReward(run.pendingReward)) return null;
+if (run.pendingRunEnd != null && !(exactKeys(run.pendingRunEnd, ['outcome']) && ['win', 'death', 'abandon'].includes(run.pendingRunEnd.outcome))) return null;
+if (run.pendingReward != null && run.pendingCombat != null) return null;
+if (run.pendingRunEnd != null && (run.pendingCombat != null || run.pendingReward != null)) return null;
 if (!run.map.nodes.every((n) =>
-  (n.questVariantId == null || !!VARIANTS[n.questVariantId]) &&
+  (n.questVariantId == null || hasOwn(VARIANTS, n.questVariantId)) &&
   (n.questMarked == null || typeof n.questMarked === 'boolean'))) return null;
 ~~~
 
@@ -874,29 +978,58 @@ export function saveRun(run) {
 }
 ~~~
 
-Replace every combat start with exact pending IDs:
+Add one acknowledged-save boundary in the UI. `requireRunSave(run,onSaved)` first calls `E.saveRun(run)`. On false it opens a non-closable “Save Failed” overlay with “Retry Save” and “Reload Saved Climb”. Retry repeats only the save and invokes `onSaved` exactly once after success; reload restores the last durable climb state. The caller returns while the overlay is open.
+
+Replace every pending-combat resume with exact pending IDs and durably backfill legacy saves before starting:
 
 ~~~js
 const ids = run.pendingEnemyIds || E.rollEncounter(run, run.pendingCombat, node ? node.row : 5, node);
-if (!run.pendingEnemyIds) E.setPendingEncounter(run, run.pendingCombat, ids, run.pendingQuestId);
-startCombatUI(ids, run.pendingCombat);
+const resumeCombat = () => startCombatUI(ids, run.pendingCombat);
+if (!run.pendingEnemyIds) {
+  E.setPendingEncounter(run, run.pendingCombat, ids, run.pendingQuestId);
+  if (!requireRunSave(run, resumeCombat)) return;
+}
+resumeCombat();
 ~~~
 
-When entering a new combat, roll once, call setPendingEncounter, save, then start it. On victory call clearPendingEncounter.
+When entering a new combat, do not persist the visited node separately first. Roll once, call setPendingEncounter, and require `requireRunSave(run,beginCombat)` before starting. This makes the visit plus exact IDs one durable checkpoint and ensures no combat starts from IDs rejected by storage.
 
-Update every run-end call:
-- confirmed abandon: commitRunEnd(run, 'abandon')
-- final victory: commitRunEnd(run, 'win')
-- defeat: commitRunEnd(run, 'death')
+For a non-final victory, generate the exact reward before the checkpoint, store it, clear the encounter, and save both changes atomically before rendering:
 
-- [ ] **Step 5: Run gates and commit**
+~~~js
+const rewards = E.genCombatRewards(run, kind, affix);
+E.setPendingReward(run, kind, rewards, S.lastPerfect);
+E.clearPendingEncounter(run);
+const continueVictory = () => {
+  S.cb = null;
+  show('reward');
+};
+if (!requireRunSave(run, continueVictory)) return;
+continueVictory();
+~~~
+
+`startRun` routes in this exact priority: pendingRunEnd, pendingReward, pendingCombat, pending boss-relic ceremony, pendingLamplighter, map. `hasPendingBossRelic` detects a visited Act 1/2 boss after its encounter and reward are durably cleared; it remains true after a saved claim until `advanceAct`, closing reload gaps on both sides of the relic choice. `renderReward` reads only run.pendingReward. Every claim calls takePendingReward, then requires an acknowledged save before showing its success state. A taken row renders disabled after reload. Card skip calls takePendingReward with null and permanently sets taken.card. Continue clears pendingReward, requires an acknowledged save, then routes to boss relic or map. A rejected claim/continue save retries only that same mutated snapshot, so it never reapplies the reward. `createChoiceLatch` locks every card and Skip on the first choice so a second delayed callback cannot dismiss a newer save-failure overlay.
+
+For every run conclusion, clear pending reward/encounter state, set `pendingRunEnd={outcome}`, and require the run save before any Vigil transaction. Final Act 3 victory uses win, defeat uses death, and both abandon entry points use abandon:
+
+~~~js
+journalRunEnd(run, outcome, onFinalised);
+~~~
+
+Hydrate Vigil v2 with `receipts:{deeds:null,runEnd:null}`. The deeds receipt is exactly `{runId,won,newUnlocks}`; the run-end receipt is exactly `{runId,outcome,whisper,armed,completed,newShards}`. `commitRunToVigil` and `commitRunEnd` load the receipt first. A matching runId and semantic input returns the stored result without mutation. Otherwise the function applies its ledger changes, installs its receipt, requires one successful saveVigil, and only then sets any live-run cache. Rejected writes throw the existing retryable run-end error or `Vigil storage rejected the deed commit; retry when storage is available`, with no live marker/cache.
+
+`commitPendingRunEnd` preserves the existing outcome semantics: win and death run the deed receipt, while abandon does not; all outcomes then run the run-end receipt and legacy stats/cleanup receipt. `finalisePendingRunEnd` treats its accepted flag as a gate. Any rejected stage leaves the acknowledged pendingRunEnd save intact and opens “Retry Finalisation” / “Reload Saved Finalisation”; both routes rerun the resolver safely through receipts. `recordRunEnd` stores lastRunId atomically with its counters and removes the current run save last. A failed cleanup returns false; retry with the same runId skips the counter increment and retries only removal. Once all required stages succeed, win/death show their normal end screen and abandon returns to the requested title/new-climb continuation.
+
+Both live-result caches store their semantic input (`vigilWon` / `runEndOutcome`) and reject a conflicting same-object retry before returning the cached result, matching the durable receipt contract.
+
+- [x] **Step 5: Run gates and commit**
 
 Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyOutDir
 Expected: both PASS; no undefined import or Vite error.
 
 ~~~bash
-git add src/engine.js src/ui.js test/test_engine.js
-git commit -m "Persist quest snapshots and exact pending encounters"
+git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/choice-latch.js src/engine.js src/vigil.js src/ui.js test/test_engine.js
+git commit -m "Harden pending encounters and quest validation"
 ~~~
 
 ---
@@ -2382,12 +2515,11 @@ Expected: FAIL because tab-rose and sealed-door do not exist.
 
 - [ ] **Step 3: Render queue-driven dawn ceremonies**
 
-In victoryFlow preserve ordering:
+In finalisePendingRunEnd preserve the receipt-backed ordering established by Task 3:
 
 ~~~js
-const { newUnlocks } = commitRunToVigil(run, true);
-const ledger = commitRunEnd(run, 'win');
-E.recordRunEnd(run, true);
+const { accepted, newUnlocks, ledger } = commitPendingRunEnd(run, E.recordRunEnd);
+if (!accepted) return showRunEndPersistenceFailure(run);
 show('end', { won: true, newUnlocks, ledger });
 ~~~
 

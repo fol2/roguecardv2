@@ -15,15 +15,22 @@ export function makeRng(state) {
 const pick = (rng, arr) => arr[Math.floor(rng() * arr.length)];
 const irange = (rng, [a, b]) => a + Math.floor(rng() * (b - a + 1));
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+let runSequence = 0;
+const freshRunId = (seed, startedAt) =>
+  `run-${startedAt.toString(36)}-${(seed >>> 0).toString(36)}-${(++runSequence).toString(36)}`;
+const legacyRunId = (run) =>
+  `legacy-${(Number(run.seed) >>> 0).toString(36)}-${Math.max(0, Math.floor(Number(run.stats?.start) || 0)).toString(36)}`;
+const validRunId = (id) => typeof id === 'string' && /^(?:run|legacy)-[a-z0-9]+(?:-[a-z0-9]+){1,3}$/.test(id);
 
 // ---------------------------------------------------------------- run lifecycle
 // opts: { aspect, vow, unlocks (vigil snapshot), reveals (vigil snapshot; null/absent = fully revealed), monument (last fall), lamplighter, quests, shards }
 export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
+  const startedAt = Date.now();
   const aspect = clamp(opts.aspect || 0, 0, ASPECTS.length - 1);
   const A = ASPECTS[aspect];
   const vow = clamp(opts.vow || 0, 0, VOWS.length);
   const run = {
-    v: 2, seed, rngState: seed, uid: 1, act: 0, nodeId: null, floorsClimbed: 0, bossRelicAct: -1, orphanRewardClaimed: false, orphanRewardResolving: false,
+    v: 2, runId: opts.runId || freshRunId(seed, startedAt), seed, rngState: seed, uid: 1, act: 0, nodeId: null, floorsClimbed: 0, bossRelicAct: -1, orphanRewardClaimed: false, orphanRewardResolving: false,
     aspect, vow, art: opts.art || A.art || 'flare', omens: [], boon: opts.boon || null,
     unlocks: [...(opts.unlocks || [])],
     reveals: opts.reveals ? [...opts.reveals] : null,
@@ -43,13 +50,15 @@ export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
     pendingCombat: null,
     pendingEnemyIds: null,
     pendingQuestId: null,
+    pendingReward: null,
+    pendingRunEnd: null,
     player: {
       hp: A.maxHp, maxHp: A.maxHp, gold: A.startGold, energyMax: A.energy,
       relics: [A.startRelic], potions: Array(A.potionSlots || 3).fill(null), deck: [],
     },
     stats: {
       slain: 0, elites: 0, bosses: 0, dmgDealt: 0, dmgTaken: 0, cardsPlayed: 0, goldEarned: 0,
-      shatters: 0, kindles: 0, perfects: 0, smolderKills: 0, unlitVisited: 0, embersSpent: 0, start: Date.now(),
+      shatters: 0, kindles: 0, perfects: 0, smolderKills: 0, unlitVisited: 0, embersSpent: 0, start: startedAt,
     },
     map: null,
   };
@@ -76,7 +85,7 @@ export function revealQuest(run, id, queue = run.endQueue) {
 
 export function advanceQuest(run, id, n = 1, queue = run.endQueue) {
   const q = revealQuest(run, id, queue);
-  if (!q || q.state === 'complete' || n <= 0) return q;
+  if (!q || q.state === 'dormant' || q.state === 'complete' || n <= 0) return q;
   q.progress = Math.min(QUESTS[id].target, q.progress + n);
   queue?.push({ t: 'questProgress', id, progress: q.progress, target: QUESTS[id].target });
   if (q.progress >= QUESTS[id].target) {
@@ -98,6 +107,44 @@ export function clearPendingEncounter(run) {
   run.pendingCombat = null;
   run.pendingEnemyIds = null;
   run.pendingQuestId = null;
+}
+
+export function setPendingReward(run, kind, rewards, perfect = false) {
+  run.pendingReward = {
+    kind,
+    rewards: {
+      gold: rewards.gold,
+      cards: [...rewards.cards],
+      potion: rewards.potion ?? null,
+      relic: rewards.relic ?? null,
+    },
+    taken: { gold: false, potion: false, relic: false, card: false },
+    perfect: !!perfect,
+  };
+  return run.pendingReward;
+}
+
+export function takePendingReward(run, key, cardId = null) {
+  const pending = run.pendingReward;
+  if (!pending || !Object.hasOwn(pending.taken, key) || pending.taken[key]) return false;
+  if (key === 'gold') {
+    run.player.gold += pending.rewards.gold;
+    run.stats.goldEarned += pending.rewards.gold;
+  } else if (key === 'potion') {
+    if (!pending.rewards.potion || !gainPotion(run, pending.rewards.potion)) return false;
+  } else if (key === 'relic') {
+    if (!pending.rewards.relic) return false;
+    gainRelic(run, pending.rewards.relic);
+  } else if (key === 'card') {
+    if (cardId != null && !pending.rewards.cards.includes(cardId)) return false;
+    if (cardId != null) addCardToDeck(run, cardId);
+  } else return false;
+  pending.taken[key] = true;
+  return true;
+}
+
+export function clearPendingReward(run) {
+  run.pendingReward = null;
 }
 // vows stack: at Vow N, vows 1..N are all in force. Reads VOWS[i].mods.
 export function vowMods(run) {
@@ -367,6 +414,11 @@ export function claimBossRelic(run, id) {
   run.bossRelicAct = run.act;
   if (id) gainRelic(run, id);
   return { already: false, id: id || null };
+}
+export function hasPendingBossRelic(run) {
+  if (!run || run.act >= 2 || run.pendingCombat || run.pendingReward || run.pendingRunEnd) return false;
+  const node = run.map?.nodes?.find((candidate) => candidate.id === run.nodeId);
+  return node?.type === 'boss' && run.map.visited?.includes(node.id) === true;
 }
 export function gainPotion(run, id) {
   if (!runRevealed(run, 'phials')) return false;
@@ -1254,6 +1306,7 @@ export function loadRun() {
     // additive fields self-heal: a save from an older v2 build stays playable
     run.art ??= 'flare';
     run.aspect = clamp(run.aspect ?? 0, 0, ASPECTS.length - 1); run.vow = clamp(run.vow ?? 0, 0, VOWS.length);
+    run.runId ??= legacyRunId(run);
     run.unlocks ??= []; run.omens ??= []; run.boon ??= null; run.bossRelicAct ??= -1; run.orphanRewardClaimed ??= false; run.orphanRewardResolving ??= false;
     run.reveals ??= null;
     run.quests ??= {};
@@ -1263,13 +1316,17 @@ export function loadRun() {
     run.endQueue ??= [];
     run.pendingEnemyIds ??= null;
     run.pendingQuestId ??= null;
+    run.pendingReward ??= null;
+    run.pendingRunEnd ??= null;
     if (run.reveals != null && !(Array.isArray(run.reveals) && run.reveals.every((id) => REVEALS.some((r) => r.id === id)))) return null;
     const plainObject = (x) => x && typeof x === 'object' && !Array.isArray(x);
     const onlyKeys = (x, keys) => Object.keys(x).every((k) => keys.includes(k));
+    const hasOwn = (x, k) => Object.hasOwn(x, k);
+    const exactKeys = (x, keys) => plainObject(x) && onlyKeys(x, keys) && keys.every((k) => hasOwn(x, k));
     const optionalBool = (x, k) => x[k] == null || typeof x[k] === 'boolean';
     const validBequest = (b) => b == null || (plainObject(b) && (
-      (b.kind === 'card' && !!CARDS[b.id] && optionalBool(b, 'up')) ||
-      (b.kind === 'relic' && !!RELICS[b.id]) ||
+      (b.kind === 'card' && hasOwn(CARDS, b.id) && optionalBool(b, 'up')) ||
+      (b.kind === 'relic' && hasOwn(RELICS, b.id)) ||
       (b.kind === 'gold' && Number.isFinite(b.amount) && b.amount >= 0)
     ));
     const validMemory = (id, m) => {
@@ -1286,7 +1343,23 @@ export function loadRun() {
       ['dormant', 'armed', 'revealed', 'complete'].includes(q.state) &&
       Number.isInteger(q.progress) && q.progress >= 0 && q.progress <= QUESTS[id].target &&
       validMemory(id, q.memory);
-    const validEnemyId = (id) => !!ENEMIES[id] || !!VARIANTS[id];
+    const validEnemyId = (id) => hasOwn(ENEMIES, id) || hasOwn(VARIANTS, id);
+    const validPendingReward = (pending) => {
+      if (pending == null) return true;
+      if (!exactKeys(pending, ['kind', 'rewards', 'taken', 'perfect']) ||
+        !['monster', 'elite', 'boss'].includes(pending.kind) || typeof pending.perfect !== 'boolean') return false;
+      const rewards = pending.rewards;
+      if (!exactKeys(rewards, ['gold', 'cards', 'potion', 'relic']) ||
+        !Number.isInteger(rewards.gold) || rewards.gold < 0 ||
+        !Array.isArray(rewards.cards) || !rewards.cards.length ||
+        rewards.cards.some((id) => !hasOwn(CARDS, id)) || new Set(rewards.cards).size !== rewards.cards.length ||
+        (rewards.potion != null && !hasOwn(POTIONS, rewards.potion)) ||
+        (rewards.relic != null && !hasOwn(RELICS, rewards.relic))) return false;
+      return exactKeys(pending.taken, ['gold', 'potion', 'relic', 'card']) &&
+        Object.values(pending.taken).every((value) => typeof value === 'boolean');
+    };
+    const validPendingRunEnd = (pending) =>
+      pending == null || (exactKeys(pending, ['outcome']) && ['win', 'death', 'abandon'].includes(pending.outcome));
 
     const validScratch = (scratch) => {
       if (!plainObject(scratch) || Object.keys(scratch).some((id) => !QUEST_IDS.includes(id))) return false;
@@ -1321,6 +1394,7 @@ export function loadRun() {
     };
 
     if (!plainObject(run.quests)) return null;
+    if (!validRunId(run.runId)) return null;
     if (Object.keys(run.quests).some((id) => !QUEST_IDS.includes(id))) return null;
     if (Object.entries(run.quests).some(([id, q]) => !validQuest(id, q))) return null;
     if (!(Array.isArray(run.shards) && run.shards.every((id) => QUEST_IDS.includes(id)) && new Set(run.shards).size === run.shards.length)) return null;
@@ -1332,8 +1406,12 @@ export function loadRun() {
     if (run.pendingQuestId != null && !QUEST_IDS.includes(run.pendingQuestId)) return null;
     if (run.pendingEnemyIds != null && run.pendingCombat == null) return null;
     if (run.pendingQuestId != null && run.pendingCombat == null) return null;
+    if (!validPendingReward(run.pendingReward)) return null;
+    if (!validPendingRunEnd(run.pendingRunEnd)) return null;
+    if (run.pendingReward != null && run.pendingCombat != null) return null;
+    if (run.pendingRunEnd != null && (run.pendingCombat != null || run.pendingReward != null)) return null;
     if (!run.map.nodes.every((n) =>
-      (n.questVariantId == null || !!VARIANTS[n.questVariantId]) &&
+      (n.questVariantId == null || hasOwn(VARIANTS, n.questVariantId)) &&
       (n.questMarked == null || typeof n.questMarked === 'boolean'))) return null;
     while (run.omens.length <= run.act) run.omens.push(runRevealed(run, 'omens') ? rollOmen(run) : null);
     for (const k of ['shatters', 'kindles', 'perfects', 'smolderKills', 'unlitVisited', 'embersSpent']) run.stats[k] ??= 0;
@@ -1342,21 +1420,30 @@ export function loadRun() {
 }
 export function clearSave() {
   try {
-    localStorage.removeItem(SAVE_KEY);
     localStorage.removeItem('spirebound_save_v1'); // pre-vigil saves are unresumable
-  } catch { /* noop */ }
+    localStorage.removeItem(SAVE_KEY); // current run last: a failed cleanup remains resumable
+    return true;
+  } catch {
+    return false;
+  }
 }
 export function loadStats() {
-  try { return JSON.parse(localStorage.getItem(STATS_KEY)) || { runs: 0, wins: 0, best: 0 }; }
-  catch { return { runs: 0, wins: 0, best: 0 }; }
+  try {
+    const raw = JSON.parse(localStorage.getItem(STATS_KEY)) || {};
+    return { runs: 0, wins: 0, best: 0, lastRunId: null, ...raw };
+  } catch { return { runs: 0, wins: 0, best: 0, lastRunId: null }; }
 }
 export function recordRunEnd(run, won) {
   const s = loadStats();
-  s.runs++;
-  if (won) s.wins++;
-  s.best = Math.max(s.best, run.act * MAP_ROWS + run.floorsClimbed);
-  try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); } catch { /* noop */ }
-  clearSave();
+  if (s.lastRunId !== run.runId) {
+    s.runs++;
+    if (won) s.wins++;
+    s.best = Math.max(s.best, run.act * MAP_ROWS + run.floorsClimbed);
+    s.lastRunId = run.runId;
+    try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); }
+    catch { return false; }
+  }
+  return clearSave();
 }
 
 // event op executor (interactive picks handled by UI; returns list of pending picks)

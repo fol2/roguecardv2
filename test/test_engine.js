@@ -10,9 +10,10 @@ import {
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
   previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
   revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter,
+  setPendingReward, takePendingReward, clearPendingReward, hasPendingBossRelic, recordRunEnd, loadStats,
 } from '../src/engine.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS } from '../src/data.js';
-import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
+import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, commitPendingRunEnd, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
 import { uicResolve, _setUIC, uicRaw } from '../src/uic.js';
@@ -24,6 +25,7 @@ import {
 import { BASE_AUDIO_VERSIONS, DEFAULT_AUDIO_SELECTION, audioRefFromPath, canonicalAudioFilename, normaliseAudioSelection, resolveAudioRef, validateAudioSelection } from '../src/audio-packs.js';
 import { serializeAudioSelection } from '../src/dev/audio-selection-serialize.js';
 import { fetchAudioSelectionJson } from '../src/audio-selection-fetch.js';
+import { createChoiceLatch } from '../src/choice-latch.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -256,7 +258,17 @@ function forceHand(run, cb, ids) {
   }
 }
 {
+  const latch = createChoiceLatch();
+  assert.equal(latch.claim(), true, 'the first choice claims the interaction');
+  assert.equal(latch.claim(), false, 'a second rapid choice is rejected');
+  assert.equal(latch.locked, true, 'the latch exposes its settled state');
+}
+{
   const run = newRun(1);
+  assert.match(run.runId, /^run-[a-z0-9-]+$/, 'new runs own a stable receipt id');
+  assert.notEqual(newRun(1).runId, run.runId, 'same-seed runs still receive distinct ids');
+  assert.equal(run.pendingReward, null);
+  assert.equal(run.pendingRunEnd, null);
   assert.equal(run.player.deck.length, 10, 'starter deck');
   assert.equal(run.player.hp, 72);
   assert.ok(run.map.nodes.length > 20, 'map has nodes');
@@ -265,6 +277,38 @@ function forceHand(run, cb, ids) {
     for (const id of n.next) assert.ok(run.map.nodes.find((m) => m.id === id), 'edge target exists');
   }
   assert.ok(availableNodes(run).length > 0, 'start choices exist');
+}
+{
+  const run = newRun(420);
+  const boss = run.map.nodes.find((node) => node.type === 'boss');
+  visitNode(run, boss);
+  setPendingEncounter(run, 'boss', ['rootheart']);
+  assert.equal(hasPendingBossRelic(run), false, 'an unfinished boss fight is not a relic ceremony');
+  clearPendingEncounter(run);
+  assert.equal(hasPendingBossRelic(run), true, 'a cleared visited Act 1 boss resumes its relic ceremony');
+  claimBossRelic(run, null);
+  assert.equal(hasPendingBossRelic(run), true, 'a saved relic claim still resumes the act transition');
+  run.act = 2;
+  assert.equal(hasPendingBossRelic(run), false, 'the final boss never offers a boss relic');
+}
+{
+  const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+    state: id === 'paleOnes' ? 'armed' : 'dormant', progress: 0, memory: {},
+  }]));
+  const run = newRun(410, { quests });
+
+  const dormantEvents = [];
+  const dormant = advanceQuest(run, 'ownShade', QUESTS.ownShade.target, dormantEvents);
+  assert.equal(dormant.state, 'dormant', 'a dormant quest stays dormant');
+  assert.equal(dormant.progress, 0, 'a dormant quest cannot progress');
+  assert.deepEqual(dormantEvents, [], 'a dormant quest emits no events');
+  assert.deepEqual(run.questCompletions, [], 'a dormant quest cannot complete');
+
+  const armedEvents = [];
+  const armed = advanceQuest(run, 'paleOnes', 1, armedEvents);
+  assert.equal(armed.state, 'revealed', 'an armed quest reveals before progressing');
+  assert.equal(armed.progress, 1, 'an armed quest can progress');
+  assert.deepEqual(armedEvents.map((e) => e.t), ['questReveal', 'questProgress']);
 }
 {
   const { run, cb } = freshCombat();
@@ -806,6 +850,59 @@ function forceHand(run, cb, ids) {
     assert.equal(saveRun(pending), false, 'saveRun reports a rejected write');
     globalThis.localStorage.setItem = workingSetItem;
 
+    clearPendingEncounter(pending);
+    assert.equal(saveRun(pending), true, 'victory clear requires a durable checkpoint');
+    const cleared = loadRun();
+    assert.equal(cleared.pendingCombat, null, 'victory checkpoint clears pending combat on reload');
+    assert.equal(cleared.pendingEnemyIds, null, 'victory checkpoint clears exact enemies on reload');
+    assert.equal(cleared.pendingQuestId, null, 'victory checkpoint clears pending quest on reload');
+
+    const rewardPending = newRun(416, { quests: saveQuests });
+    setPendingReward(rewardPending, 'elite', {
+      gold: 25, cards: ['strike', 'defend'], potion: 'healing', relic: 'ironTalisman',
+    }, true);
+    saveRun(rewardPending);
+    let rewardReload = loadRun();
+    assert.deepEqual(rewardReload.pendingReward, rewardPending.pendingReward, 'pending reward survives reload exactly');
+    const rewardGold0 = rewardReload.player.gold;
+    assert.equal(takePendingReward(rewardReload, 'gold'), true);
+    assert.equal(saveRun(rewardReload), true);
+    rewardReload = loadRun();
+    assert.equal(rewardReload.pendingReward.taken.gold, true);
+    assert.equal(rewardReload.player.gold, rewardGold0 + 25);
+    assert.equal(takePendingReward(rewardReload, 'gold'), false, 'reloaded taken reward stays idempotent');
+
+    for (const outcome of ['win', 'death', 'abandon']) {
+      const finalPending = newRun(417, { quests: saveQuests });
+      finalPending.pendingRunEnd = { outcome };
+      saveRun(finalPending);
+      assert.deepEqual(loadRun().pendingRunEnd, { outcome }, `${outcome} run-end journal survives reload`);
+    }
+
+    const legacyId = newRun(418, { quests: saveQuests });
+    delete legacyId.runId;
+    saveRun(legacyId);
+    const healedLegacy = loadRun();
+    assert.match(healedLegacy.runId, /^legacy-[a-z0-9-]+$/, 'legacy run id self-heals deterministically');
+    const healedId = healedLegacy.runId;
+    saveRun(healedLegacy);
+    assert.equal(loadRun().runId, healedId, 'healed legacy run id remains stable');
+
+    const legacyPending = newRun(413, { quests: saveQuests });
+    legacyPending.pendingCombat = 'monster';
+    delete legacyPending.pendingEnemyIds;
+    delete legacyPending.pendingQuestId;
+    saveRun(legacyPending);
+    const backfill = loadRun();
+    assert.equal(backfill.pendingEnemyIds, null, 'legacy pending save self-heals missing enemy ids');
+    setPendingEncounter(backfill, 'monster', ['paleDuskfang'], 'paleOnes');
+    globalThis.localStorage.setItem = () => { throw new Error('quota'); };
+    assert.equal(saveRun(backfill), false, 'rejected backfill is not durable');
+    globalThis.localStorage.setItem = workingSetItem;
+    assert.equal(loadRun().pendingEnemyIds, null, 'rejected backfill leaves the stored encounter unmodified');
+    assert.equal(saveRun(backfill), true, 'legacy backfill can be retried');
+    assert.deepEqual(loadRun().pendingEnemyIds, ['paleDuskfang'], 'accepted backfill survives reload');
+
     const rejectSaved = (label, mutate) => {
       const bad = newRun(412, { quests: saveQuests });
       mutate(bad);
@@ -822,6 +919,94 @@ function forceHand(run, cb, ids) {
     rejectSaved('unknown completion', (r) => { r.questCompletions = ['unknown']; });
     rejectSaved('unknown end event', (r) => { r.endQueue = [{ t: 'mystery' }]; });
     rejectSaved('unknown marked-node variant', (r) => { r.map.nodes[0].questVariantId = 'paleUnknown'; });
+    rejectSaved('malformed run id', (r) => { r.runId = '__proto__'; });
+    rejectSaved('invalid pending run end', (r) => { r.pendingRunEnd = { outcome: 'retreat' }; });
+    rejectSaved('extra pending run-end key', (r) => { r.pendingRunEnd = { outcome: 'win', extra: true }; });
+    rejectSaved('negative pending reward gold', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.rewards.gold = -1;
+    });
+    rejectSaved('invalid pending reward kind', (r) => {
+      setPendingReward(r, 'event', { gold: 1, cards: ['strike'], potion: null, relic: null });
+    });
+    rejectSaved('duplicate pending reward cards', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike', 'strike'], potion: null, relic: null });
+    });
+    rejectSaved('unknown pending reward card', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.rewards.cards = ['toString'];
+    });
+    rejectSaved('unknown pending reward potion', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.rewards.potion = 'constructor';
+    });
+    rejectSaved('unknown pending reward relic', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.rewards.relic = 'toString';
+    });
+    rejectSaved('invalid pending reward taken flag', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.taken.card = 'yes';
+    });
+    rejectSaved('missing pending reward taken flag', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      delete r.pendingReward.taken.card;
+    });
+    rejectSaved('invalid pending reward perfect flag', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.perfect = 1;
+    });
+    rejectSaved('extra pending reward key', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.extra = true;
+    });
+    rejectSaved('extra pending reward payload key', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.rewards.extra = true;
+    });
+    for (const inheritedId of ['toString', 'constructor']) {
+      rejectSaved(`inherited pending enemy ${inheritedId}`, (r) => setPendingEncounter(r, 'monster', [inheritedId]));
+      rejectSaved(`inherited marked variant ${inheritedId}`, (r) => { r.map.nodes[0].questVariantId = inheritedId; });
+      rejectSaved(`inherited card bequest ${inheritedId}`, (r) => {
+        r.questScratch.ownShade = { pendingBequest: { kind: 'card', id: inheritedId } };
+      });
+      rejectSaved(`inherited relic bequest ${inheritedId}`, (r) => {
+        r.questScratch.ownShade = { pendingBequest: { kind: 'relic', id: inheritedId } };
+      });
+    }
+  } finally {
+    if (prevLs) globalThis.localStorage = prevLs;
+    else delete globalThis.localStorage;
+  }
+}
+{
+  // Legacy stats plus run-save cleanup are exactly once across a failed clear.
+  const store = new Map();
+  const prevLs = globalThis.localStorage;
+  let rejectRunClear = true;
+  try {
+    globalThis.localStorage = {
+      getItem: (k) => store.get(k) ?? null,
+      setItem: (k, v) => { store.set(k, v); },
+      removeItem: (k) => {
+        if (k === 'spirebound_save_v2' && rejectRunClear) throw new Error('busy');
+        store.delete(k);
+      },
+    };
+    const run = newRun(419);
+    run.pendingRunEnd = { outcome: 'win' };
+    saveRun(run);
+    assert.equal(recordRunEnd(run, true), false, 'failed run-save cleanup is retryable');
+    assert.equal(loadStats().runs, 1);
+    assert.equal(loadStats().wins, 1);
+    assert.equal(loadStats().lastRunId, run.runId);
+    assert.ok(loadRun(), 'failed cleanup leaves the final journal resumable');
+
+    rejectRunClear = false;
+    assert.equal(recordRunEnd(loadRun(), true), true, 'cleanup retry succeeds');
+    assert.equal(loadStats().runs, 1, 'cleanup retry cannot double-count runs');
+    assert.equal(loadStats().wins, 1, 'cleanup retry cannot double-count wins');
+    assert.equal(loadRun(), null, 'accepted cleanup removes the current run last');
   } finally {
     if (prevLs) globalThis.localStorage = prevLs;
     else delete globalThis.localStorage;
@@ -1031,7 +1216,7 @@ function forceHand(run, cb, ids) {
   assert.equal(vigil.deeds.shatters, 15, 'deed stat folded in');
   assert.ok(newUnlocks.includes('card:quakeblow'), 'shatter deed pays out');
   assert.equal(vigil.news, true, 'deed progress pulses the Vigil');
-  assert.equal(commitRunToVigil(run, false).newUnlocks.length, 0, 'commit is idempotent');
+  assert.deepEqual(commitRunToVigil(run, false).newUnlocks, newUnlocks, 'receipt returns the original idempotent result');
   assert.equal(loadVigil().deeds.runs, 1, 'no double count');
   // a win unlocks the second aspect and the first vow
   const run2 = newRun(43);
@@ -1153,6 +1338,50 @@ function forceHand(run, cb, ids) {
   assert.equal(run.pendingCombat, null);
   assert.equal(run.pendingEnemyIds, null);
   assert.equal(run.pendingQuestId, null);
+}
+{
+  const run = newRun(414);
+  const rewards = {
+    gold: 40,
+    cards: ['strike', 'defend', 'chisel'],
+    potion: 'healing',
+    relic: 'ironTalisman',
+  };
+  setPendingReward(run, 'elite', rewards, true);
+  assert.deepEqual(run.pendingReward, {
+    kind: 'elite',
+    rewards,
+    taken: { gold: false, potion: false, relic: false, card: false },
+    perfect: true,
+  });
+  assert.notStrictEqual(run.pendingReward.rewards, rewards, 'pending reward owns its payload');
+  assert.notStrictEqual(run.pendingReward.rewards.cards, rewards.cards, 'pending reward owns its card list');
+
+  const gold0 = run.player.gold;
+  assert.equal(takePendingReward(run, 'gold'), true);
+  assert.equal(takePendingReward(run, 'gold'), false, 'gold cannot be claimed twice');
+  assert.equal(run.player.gold, gold0 + rewards.gold);
+
+  assert.equal(takePendingReward(run, 'potion'), true);
+  assert.equal(takePendingReward(run, 'potion'), false, 'potion cannot be claimed twice');
+  assert.equal(run.player.potions.filter((id) => id === rewards.potion).length, 1);
+
+  assert.equal(takePendingReward(run, 'relic'), true);
+  assert.equal(takePendingReward(run, 'relic'), false, 'relic cannot be claimed twice');
+  assert.equal(run.player.relics.filter((id) => id === rewards.relic).length, 1);
+
+  const deck0 = run.player.deck.length;
+  assert.equal(takePendingReward(run, 'card', 'strike'), true);
+  assert.equal(takePendingReward(run, 'card', 'defend'), false, 'card choice is final');
+  assert.equal(run.player.deck.length, deck0 + 1);
+
+  const skipped = newRun(415);
+  setPendingReward(skipped, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+  assert.equal(takePendingReward(skipped, 'card', null), true, 'skipping is a final card choice');
+  assert.equal(takePendingReward(skipped, 'card', 'strike'), false, 'a skipped card cannot be reclaimed');
+
+  clearPendingReward(run);
+  assert.equal(run.pendingReward, null);
 }
 {
   // vigil v2: fresh shape, and one-way migration from v1 that leaves v1 intact
@@ -1303,6 +1532,107 @@ function forceHand(run, cb, ids) {
   assert.equal(loadVigil().runsPlayed, 1, 'cached repeat cannot double-commit');
   assert.equal(acceptedWrites, 1);
 
+  _setStore(null);
+}
+{
+  // Every journalled outcome treats legacy stats/save cleanup as the final gate.
+  for (const outcome of ['win', 'death', 'abandon']) {
+    _setStore(null);
+    const run = newRun(421 + outcome.length);
+    run.quests = questSnapshot(loadVigil());
+    run.pendingRunEnd = { outcome };
+    let cleanupCalls = 0;
+    const rejected = commitPendingRunEnd(run, (_run, won) => {
+      cleanupCalls++;
+      assert.equal(won, outcome === 'win');
+      return false;
+    });
+    assert.equal(rejected.accepted, false, `${outcome} waits for cleanup acknowledgement`);
+    assert.equal(rejected.ledger.vigil.runsPlayed, 1);
+    assert.equal(rejected.newUnlocks.length >= 0, true);
+    assert.equal(loadVigil().deeds.runs, outcome === 'abandon' ? 0 : 1, `${outcome} preserves its existing deed semantics`);
+
+    const accepted = commitPendingRunEnd(run, () => { cleanupCalls++; return true; });
+    assert.equal(accepted.accepted, true, `${outcome} cleanup can be retried`);
+    assert.equal(cleanupCalls, 2);
+    assert.equal(loadVigil().runsPlayed, 1, `${outcome} retry cannot duplicate the run-end ledger`);
+    assert.equal(loadVigil().deeds.runs, outcome === 'abandon' ? 0 : 1, `${outcome} retry cannot duplicate deeds`);
+  }
+  _setStore(null);
+}
+{
+  // Run-id receipts make both Vigil stages exactly once across failure and reload.
+  _setStore(null);
+  _setRng(() => 0);
+  const initial = loadVigil();
+  const persisted = new Map([['spirebound_vigil_v2', JSON.stringify(initial)]]);
+  let rejectWrites = false;
+  _setStore({
+    getItem: (k) => (persisted.has(k) ? persisted.get(k) : null),
+    setItem: (k, v) => {
+      if (rejectWrites) throw new Error('quota');
+      persisted.set(k, v);
+    },
+    removeItem: (k) => persisted.delete(k),
+  });
+
+  const run = newRun(406);
+  run.quests = questSnapshot(loadVigil());
+  run.pendingRunEnd = { outcome: 'win' };
+  const savedRun = JSON.stringify(run);
+
+  rejectWrites = true;
+  assert.throws(
+    () => commitRunToVigil(run, true),
+    /Vigil storage rejected the deed commit; retry when storage is available/,
+  );
+  assert.ok(!Object.hasOwn(run, 'vigilCommitted'), 'rejected deed write leaves no marker');
+  assert.ok(!Object.hasOwn(run, 'vigilResult'), 'rejected deed write leaves no cache');
+  assert.equal(loadVigil().deeds.wins, 0);
+
+  rejectWrites = false;
+  const deeds = commitRunToVigil(run, true);
+  assert.equal(deeds.vigil.deeds.wins, 1);
+  assert.equal(loadVigil().receipts.deeds.runId, run.runId);
+  assert.throws(() => commitRunToVigil(run, false), /does not match durable deed receipt/, 'same-object deed retries preserve their semantic input');
+
+  const afterDeedReload = JSON.parse(savedRun);
+  const receiptDeeds = commitRunToVigil(afterDeedReload, true);
+  assert.deepEqual(receiptDeeds.newUnlocks, deeds.newUnlocks);
+  assert.equal(loadVigil().deeds.wins, 1, 'deed receipt prevents reload duplication');
+
+  rejectWrites = true;
+  assert.throws(
+    () => commitRunEnd(afterDeedReload, 'win'),
+    /Vigil storage rejected the run end; retry when storage is available/,
+  );
+  assert.ok(!Object.hasOwn(afterDeedReload, 'runEndCommitted'));
+  assert.ok(!Object.hasOwn(afterDeedReload, 'runEndResult'));
+  assert.equal(loadVigil().runsPlayed, 0);
+  assert.equal(loadVigil().whispers, 0);
+
+  rejectWrites = false;
+  const finalReload = JSON.parse(savedRun);
+  commitRunToVigil(finalReload, true);
+  const ended = commitRunEnd(finalReload, 'win');
+  assert.equal(ended.vigil.deeds.wins, 1);
+  assert.equal(ended.vigil.runsPlayed, 1);
+  assert.equal(ended.vigil.whispers, 1);
+  assert.equal(loadVigil().receipts.runEnd.runId, run.runId);
+  assert.throws(() => commitRunEnd(finalReload, 'death'), /does not match durable receipt/, 'same-object end retries preserve their semantic input');
+
+  const duplicateReload = JSON.parse(savedRun);
+  assert.deepEqual(commitRunToVigil(duplicateReload, true).newUnlocks, deeds.newUnlocks);
+  const duplicateEnd = commitRunEnd(duplicateReload, 'win');
+  assert.equal(duplicateEnd.vigil.deeds.wins, 1);
+  assert.equal(duplicateEnd.vigil.runsPlayed, 1);
+  assert.equal(duplicateEnd.vigil.whispers, 1);
+  assert.equal(loadVigil().deeds.wins, 1, 'fresh reload cannot duplicate deeds');
+  assert.equal(loadVigil().runsPlayed, 1, 'fresh reload cannot duplicate run end');
+  assert.throws(() => commitRunToVigil(JSON.parse(savedRun), false), /does not match durable deed receipt/);
+  assert.throws(() => commitRunEnd(JSON.parse(savedRun), 'death'), /does not match durable receipt/);
+
+  _setRng(null);
   _setStore(null);
 }
 {

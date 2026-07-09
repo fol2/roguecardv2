@@ -6,7 +6,7 @@ import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule,
 import { UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyphId } from './ui-chrome.js';
 // drawBatchSchedule also paces discardHand (same even-stagger clock)
 import * as V from './vfx.js';
-import { syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews, clearVigil, questSnapshot } from './vigil.js';
+import { syncVigil, commitPendingRunEnd, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, clearNews, clearVigil, questSnapshot } from './vigil.js';
 import { sfx, unlock, getSfxVolume, setSfxVolume, isSfxMuted, setSfxMuted } from './audio.js';
 import * as music from './music.js';
 import { SFX_CATALOG, MUSIC_CATALOG } from './audio-catalog.js';
@@ -19,6 +19,7 @@ import { charShadowLive, charCssFloat, charAim, onCharMetaChange } from './char-
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, onBFChange } from './battlefield.js';
 import { uicResolve, onUICChange } from './uic.js';
+import { createChoiceLatch } from './choice-latch.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
@@ -458,7 +459,16 @@ function confirmAbandon() {
   </div>`, (root) => {
     root.onclick = (e) => {
       const a = e.target.dataset.a;
-      if (a === 'yes') { commitRunEnd(S.run, 'abandon'); E.recordRunEnd(S.run, false); S.run = null; S.cb = null; closeOverlay(); show('title'); }
+      if (a === 'yes') {
+        const run = S.run;
+        root.onclick = null;
+        closeOverlay();
+        journalRunEnd(run, 'abandon', () => {
+          S.run = null;
+          S.cb = null;
+          show('title');
+        });
+      }
       if (a === 'no') closeOverlay();
     };
   });
@@ -477,21 +487,76 @@ function closeOverlay() {
   ov.classList.remove('open');
   ov.innerHTML = '';
 }
+function requireRunSave(run, onSaved) {
+  if (E.saveRun(run)) return true;
+  openOverlay(`<div class="panel ov-panel" style="text-align:center">
+    <div class="ov-title">Save Failed</div>
+    <div class="ov-sub">The climb could not be secured. Free storage and retry, or reload the last durable climb state.</div>
+    <div class="ov-actions"><button class="btn btn-primary" data-a="retry-save">Retry Save</button><button class="btn ghost" data-a="reload-save">Reload Saved Climb</button></div>
+  </div>`, (root) => {
+    root.onclick = (e) => {
+      const a = e.target.closest('[data-a]')?.dataset.a;
+      if (a === 'reload-save') { location.reload(); return; }
+      if (a !== 'retry-save') return;
+      sfx.click();
+      if (!E.saveRun(run)) {
+        $('.ov-sub', root).textContent = 'The save is still unavailable. Free storage, then retry or reload the last durable climb state.';
+        return;
+      }
+      root.onclick = null;
+      closeOverlay();
+      onSaved();
+    };
+  });
+  return false;
+}
+function showRunEndPersistenceFailure(run, onFinalised = null) {
+  openOverlay(`<div class="panel ov-panel" style="text-align:center">
+    <div class="ov-title">The Vigil Could Not Hold</div>
+    <div class="ov-sub">This run end is safely journalled, but its ledgers could not be completed. Free storage and retry, or reload this saved finalisation.</div>
+    <div class="ov-actions"><button class="btn btn-primary" data-a="retry-end">Retry Finalisation</button><button class="btn ghost" data-a="reload-end">Reload Saved Finalisation</button></div>
+  </div>`, (root) => {
+    root.onclick = (e) => {
+      const a = e.target.closest('[data-a]')?.dataset.a;
+      if (a === 'reload-end') { location.reload(); return; }
+      if (a !== 'retry-end') return;
+      sfx.click();
+      root.onclick = null;
+      closeOverlay();
+      finalisePendingRunEnd(run, onFinalised);
+    };
+  });
+}
 function showCardGrid(title, instances, { sub = '', pick = null, canSkip = false, skipLabel = 'Skip', inCombat = false } = {}) {
   const panel = el('div', 'panel ov-panel');
   panel.innerHTML = `<div class="ov-title">${title}</div>${sub ? `<div class="ov-sub">${sub}</div>` : ''}`;
   const grid = el('div', `card-grid ${pick ? 'choice-cards' : ''}`);
   const sorted = pick ? instances : [...instances].sort((a, b) => E.cardData(a).name.localeCompare(E.cardData(b).name));
+  const latch = createChoiceLatch();
+  let skip = null;
+  const choose = (inst, card = null, delay = 0) => {
+    if (!latch.claim()) return;
+    if (card) card.classList.add('picked');
+    [...grid.children].forEach((choice) => {
+      choice.onclick = null;
+      choice.style.pointerEvents = 'none';
+      choice.setAttribute('aria-disabled', 'true');
+    });
+    if (skip) { skip.disabled = true; skip.onclick = null; }
+    const finish = () => { closeOverlay(); pick(inst); };
+    if (delay) setTimeout(finish, delay);
+    else finish();
+  };
   for (const inst of sorted) {
     const c = cardEl(inst, { inCombat });
-    if (pick) c.onclick = () => { sfx.click(); c.classList.add('picked'); setTimeout(() => { closeOverlay(); pick(inst); }, 240); };
+    if (pick) c.onclick = () => { sfx.click(); choose(inst, c, 240); };
     grid.appendChild(c);
   }
   panel.appendChild(grid);
   const actions = el('div', 'ov-actions');
   if (canSkip && pick) {
-    const skip = el('button', 'btn ghost', skipLabel);
-    skip.onclick = () => { sfx.click(); closeOverlay(); pick(null); };
+    skip = el('button', 'btn ghost', skipLabel);
+    skip.onclick = () => { sfx.click(); choose(null); };
     actions.appendChild(skip);
   }
   if (!pick) {
@@ -699,13 +764,14 @@ function renderEmbark() {
           const ans = ev.target.dataset.a;
           if (ans === 'yes') {
             const abandoned = E.loadRun();
-            if (abandoned) {
-              commitRunEnd(abandoned, 'abandon');
-              E.recordRunEnd(abandoned, false);
-            }
-            S.run = null; S.cb = null;
+            root.onclick = null;
             closeOverlay();
-            beginClimb();
+            if (!abandoned) { beginClimb(); return; }
+            journalRunEnd(abandoned, 'abandon', () => {
+              S.run = null;
+              S.cb = null;
+              beginClimb();
+            });
           }
           if (ans === 'no') closeOverlay();
         };
@@ -762,16 +828,25 @@ function startRun(run, resumed = false) {
   const curNode = run.nodeId ? run.map.nodes.find((n) => n.id === run.nodeId) : null;
   setAltitude(run.act, curNode ? curNode.row : 0);
   if (!resumed) E.saveRun(run);
+  if (run.pendingRunEnd) { finalisePendingRunEnd(run); return; }
+  if (run.pendingReward) { show('reward'); return; }
   if (resumed && run.pendingCombat) {
     // died-to-reload protection: an unfinished fight restarts fresh
     const node = run.map.nodes.find((n) => n.id === run.nodeId);
-    S.screen = 'combat';
     const ids = run.pendingEnemyIds || E.rollEncounter(run, run.pendingCombat, node ? node.row : 5, node);
-    if (!run.pendingEnemyIds) E.setPendingEncounter(run, run.pendingCombat, ids, run.pendingQuestId);
-    startCombatUI(ids, run.pendingCombat);
-    renderHud();
+    const resumeCombat = () => {
+      S.screen = 'combat';
+      startCombatUI(ids, run.pendingCombat);
+      renderHud();
+    };
+    if (!run.pendingEnemyIds) {
+      E.setPendingEncounter(run, run.pendingCombat, ids, run.pendingQuestId);
+      if (!requireRunSave(run, resumeCombat)) return;
+    }
+    resumeCombat();
     return;
   }
+  if (E.hasPendingBossRelic(run)) { show('bossRelic'); return; }
   if (run.pendingLamplighter) { renderLamplighter(); return; } // the gift comes before the first step
   show('map');
   if (!resumed) setTimeout(() => omenBanner(run), 900);
@@ -854,10 +929,16 @@ function renderMap() {
   const run = S.run;
   if (run.pendingCombat) { // invariant: an unresolved fight always resumes
     const node = run.map.nodes.find((n) => n.id === run.nodeId);
-    S.screen = 'combat';
     const ids = run.pendingEnemyIds || E.rollEncounter(run, run.pendingCombat, node ? node.row : 5, node);
-    if (!run.pendingEnemyIds) E.setPendingEncounter(run, run.pendingCombat, ids, run.pendingQuestId);
-    startCombatUI(ids, run.pendingCombat);
+    const resumeCombat = () => {
+      S.screen = 'combat';
+      startCombatUI(ids, run.pendingCombat);
+    };
+    if (!run.pendingEnemyIds) {
+      E.setPendingEncounter(run, run.pendingCombat, ids, run.pendingQuestId);
+      if (!requireRunSave(run, resumeCombat)) return;
+    }
+    resumeCombat();
     return;
   }
   E.saveRun(run);
@@ -1014,7 +1095,8 @@ function enterNode(node) {
   sfx.map();
   setAltitude(run.act, node.row);
   const { type, bounty } = E.visitNode(run, node);
-  E.saveRun(run);
+  const isCombat = type === 'monster' || type === 'elite' || type === 'boss';
+  if (!isCombat) E.saveRun(run);
   if (bounty) {
     // first light: the dark lantern pays for the walking
     sfx.coin();
@@ -1023,13 +1105,16 @@ function enterNode(node) {
     V.floatText(from.x, from.y - 34, `${iconSvg('coin', 12)} +${bounty}`, 'goldf');
     flyTo(from.x, from.y, 120, 30, { n: 5, color: '#ffe9ac', size: 7, dur: 620 });
   }
-  if (type === 'monster' || type === 'elite' || type === 'boss') {
+  if (isCombat) {
     const ids = E.rollEncounter(run, type, node.row, node);
     E.setPendingEncounter(run, type, ids);
-    E.saveRun(run);
-    const g = $(`.mnode[data-node="${node.id}"]`);
-    transition('combat-in', g ? V.centerOf(g) : {});
-    startCombatUI(ids, type);
+    const beginCombat = () => {
+      const g = $(`.mnode[data-node="${node.id}"]`);
+      transition('combat-in', g ? V.centerOf(g) : {});
+      startCombatUI(ids, type);
+    };
+    if (!requireRunSave(run, beginCombat)) return;
+    beginCombat();
   } else if (type === 'rest') show('rest');
   else if (type === 'shop') show('shop');
   else if (type === 'treasure') show('treasure');
@@ -3466,37 +3551,83 @@ function afterAction() {
 function victoryFlow() {
   transition('victory-out');
   const run = S.run, kind = S.cb.kind, affix = S.cb.affix;
-  S.cb = null;
-  E.clearPendingEncounter(run);
   if (kind === 'boss' && run.act >= 2) {
-    const { newUnlocks } = commitRunToVigil(run, true); // the dawn is remembered
-    commitRunEnd(run, 'win'); // the ledger that paces reveals counts every ending
-    E.recordRunEnd(run, true);
-    show('end', { won: true, newUnlocks });
+    journalRunEnd(run, 'win');
     return;
   }
-  // Act 1/2 boss kill ceremony — same victory cue as final dawn; holds until map.
-  if (kind === 'boss') music.play('victory');
-  show('reward', { kind, rewards: E.genCombatRewards(run, kind, affix) });
+
+  const rewards = E.genCombatRewards(run, kind, affix);
+  E.setPendingReward(run, kind, rewards, S.lastPerfect);
+  E.clearPendingEncounter(run);
+  const continueVictory = () => {
+    S.cb = null;
+    // Act 1/2 boss kill ceremony — same victory cue as final dawn; holds until map.
+    if (kind === 'boss') music.play('victory');
+    show('reward');
+  };
+  if (!requireRunSave(run, continueVictory)) return;
+  continueVictory();
+}
+function journalRunEnd(run, outcome, onFinalised = null) {
+  E.clearPendingReward(run);
+  E.clearPendingEncounter(run);
+  run.pendingRunEnd = { outcome };
+  const continueRunEnd = () => {
+    S.cb = null;
+    finalisePendingRunEnd(run, onFinalised);
+  };
+  if (!requireRunSave(run, continueRunEnd)) return false;
+  continueRunEnd();
+  return true;
+}
+function finalisePendingRunEnd(run, onFinalised = null) {
+  const outcome = run.pendingRunEnd?.outcome;
+  if (!['win', 'death', 'abandon'].includes(outcome)) return false;
+  try {
+    const { accepted, newUnlocks, ledger } = commitPendingRunEnd(run, E.recordRunEnd);
+    if (!accepted) {
+      showRunEndPersistenceFailure(run, onFinalised);
+      return false;
+    }
+    S.cb = null;
+    if (onFinalised) {
+      onFinalised({ outcome, newUnlocks, ledger });
+    } else if (outcome === 'win') {
+      show('end', { won: true, newUnlocks, ledger });
+    } else if (outcome === 'death') {
+      const node = run.map.nodes.find((candidate) => candidate.id === run.nodeId);
+      show('end', {
+        won: false,
+        newUnlocks,
+        offers: bequestOptions(run),
+        fallAct: run.act,
+        fallRow: node ? node.row : Math.max(1, run.floorsClimbed - 1),
+      });
+    } else {
+      S.run = null;
+      S.lamp = null;
+      show('title');
+    }
+    return true;
+  } catch {
+    showRunEndPersistenceFailure(run, onFinalised);
+    return false;
+  }
 }
 function defeatFlow() {
   transition('defeat');
-  const run = S.run;
-  const offers = bequestOptions(run); // what the stone could keep — read before the deck is gone
-  const node = run.map.nodes.find((n) => n.id === run.nodeId);
-  const fallRow = node ? node.row : Math.max(1, run.floorsClimbed - 1);
-  const { newUnlocks } = commitRunToVigil(run, false);
-  commitRunEnd(run, 'death');
-  E.recordRunEnd(run, false);
-  show('end', { won: false, newUnlocks, offers, fallAct: run.act, fallRow });
+  journalRunEnd(S.run, 'death');
 }
 
 // ------------------------------------------------------------ rewards
-function renderReward({ kind, rewards }) {
+function renderReward() {
   const run = S.run;
+  const pending = run.pendingReward;
+  if (!pending) { show('map'); return; }
+  const { kind, rewards, taken, perfect } = pending;
   const sc = screenEl();
   const title = kind === 'boss' ? 'BOSS VANQUISHED' : kind === 'elite' ? 'ELITE SLAIN' : 'VICTORY';
-  const seal = S.lastPerfect ? '<div class="perfect-seal">✦ PERFECT — the glass untouched ✦</div>' : '<div class="ornament">✦ ✦ ✦</div>';
+  const seal = perfect ? '<div class="perfect-seal">✦ PERFECT — the glass untouched ✦</div>' : '<div class="ornament">✦ ✦ ✦</div>';
   S.lastPerfect = false;
   sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
     <div class="ov-title">${title}</div>
@@ -3505,75 +3636,88 @@ function renderReward({ kind, rewards }) {
     <div class="ov-actions"><button class="btn btn-primary" data-a="continue">Continue</button></div>
   </div></div>`;
   const list = $('.reward-list', sc);
-  const addRow = (icon, label, fn, tip = null) => {
+  const settleRow = (row, onSaved) => {
+    row.classList.add('taken');
+    row.disabled = true;
+    row.onclick = null;
+    renderHud();
+    onSaved?.();
+  };
+  const addRow = (key, icon, label, take = null, onSaved = null, tip = null) => {
     const row = el('button', 'reward-row', `<span class="ric">${icon}</span><span>${label}</span>`);
     if (tip) row._tip = tip;
-    row.onclick = () => { if (fn() !== false) { row.classList.add('taken'); E.saveRun(run); renderHud(); } };
+    if (taken[key]) settleRow(row);
+    else if (take) row.onclick = () => {
+      if (!take()) return;
+      const finish = () => settleRow(row, onSaved);
+      if (!requireRunSave(run, finish)) return;
+      finish();
+    };
     list.appendChild(row);
     return row;
   };
-  addRow(iconSvg('coin', 18), `<b class="gold-num">${rewards.gold}</b> gold`, () => {
-    run.player.gold += rewards.gold;
-    run.stats.goldEarned += rewards.gold;
-    sfx.coin();
-    // the coins travel to the purse
-    requestAnimationFrame(() => {
-      const purse = $('#hud .gold-num');
-      const from = { x: stageW() / 2, y: stageH() / 2 - 40 };
-      const to = purse ? V.centerOf(purse) : { x: 120, y: 24 };
-      const before = run.player.gold - rewards.gold;
-      if (purse) purse.textContent = before; // hold the old total; the coins bring the rest
-      flyTo(from.x, from.y, to.x, to.y, { n: Math.min(9, 4 + Math.floor(rewards.gold / 12)), color: '#ffd76e', dur: 600, done: () => sfx.coin() });
-      if (purse) tweenNum(purse, before, run.player.gold, 640);
+  addRow('gold', iconSvg('coin', 18), `<b class="gold-num">${rewards.gold}</b> gold`,
+    () => E.takePendingReward(run, 'gold'), () => {
+      sfx.coin();
+      // the coins travel to the purse only after their taken flag is durable
+      requestAnimationFrame(() => {
+        const purse = $('#hud .gold-num');
+        const from = { x: stageW() / 2, y: stageH() / 2 - 40 };
+        const to = purse ? V.centerOf(purse) : { x: 120, y: 24 };
+        const before = run.player.gold - rewards.gold;
+        if (purse) purse.textContent = before;
+        flyTo(from.x, from.y, to.x, to.y, { n: Math.min(9, 4 + Math.floor(rewards.gold / 12)), color: '#ffd76e', dur: 600, done: () => sfx.coin() });
+        if (purse) tweenNum(purse, before, run.player.gold, 640);
+      });
     });
-  });
   if (rewards.potion) {
     const p = POTIONS[rewards.potion];
-    addRow(rasterOr('potions', rewards.potion, potionSvg(p.tone)), `${p.name}`, () => {
-      if (!E.gainPotion(run, rewards.potion)) {
-        V.floatText(stageW() / 2, stageH() / 2, 'Potion slots full!', 'notice');
-        return false;
-      }
-      sfx.potion();
-    }, { title: p.name, body: p.text });
+    addRow('potion', rasterOr('potions', rewards.potion, potionSvg(p.tone)), `${p.name}`, () => {
+      if (E.takePendingReward(run, 'potion')) return true;
+      V.floatText(stageW() / 2, stageH() / 2, 'Potion slots full!', 'notice');
+      return false;
+    }, () => sfx.potion(), { title: p.name, body: p.text });
   }
   if (rewards.relic) {
     const r = RELICS[rewards.relic];
-    addRow(`<span style="color:${r.tone};text-shadow:0 0 8px ${r.tone}">${relicArt(rewards.relic, 24)}</span>`, `<b>${r.name}</b>`, () => {
-      E.gainRelic(run, rewards.relic);
-      sfx.relic();
-      // the relic takes its seat on the bar
-      requestAnimationFrame(() => {
-        const chip = $(`.hud-relic[data-relic="${rewards.relic}"]`);
-        if (!chip) return;
-        const to = V.centerOf(chip);
-        flyTo(stageW() / 2, stageH() / 2 - 40, to.x, to.y, {
-          n: 1, glyph: r.glyph, color: r.tone, dur: 680,
-          done: () => { chip.classList.remove('proc'); void chip.offsetWidth; chip.classList.add('proc'); },
+    addRow('relic', `<span style="color:${r.tone};text-shadow:0 0 8px ${r.tone}">${relicArt(rewards.relic, 24)}</span>`, `<b>${r.name}</b>`,
+      () => E.takePendingReward(run, 'relic'), () => {
+        sfx.relic();
+        requestAnimationFrame(() => {
+          const chip = $(`.hud-relic[data-relic="${rewards.relic}"]`);
+          if (!chip) return;
+          const to = V.centerOf(chip);
+          flyTo(stageW() / 2, stageH() / 2 - 40, to.x, to.y, {
+            n: 1, glyph: r.glyph, color: r.tone, dur: 680,
+            done: () => { chip.classList.remove('proc'); void chip.offsetWidth; chip.classList.add('proc'); },
+          });
         });
-      });
-    }, { title: r.name, body: r.text });
+      }, { title: r.name, body: r.text });
   }
-  addRow(iconSvg('cards', 26), 'Add a card to your deck', () => {
-    pickCardReward(rewards.cards, () => {});
-    return false; // taken handled by picker
-  });
-  const cardRow = list.lastElementChild;
+  const cardRow = addRow('card', iconSvg('cards', 26), 'Add a card to your deck');
   cardRow.dataset.cardrow = '1';
-  $('[data-a="continue"]', sc).onclick = () => { sfx.click(); E.saveRun(run); if (kind === 'boss') show('bossRelic'); else show('map'); };
+  if (!taken.card) cardRow.onclick = () => pickCardReward(rewards.cards);
 
-  function pickCardReward(ids, done) {
+  $('[data-a="continue"]', sc).onclick = () => {
+    sfx.click();
+    E.clearPendingReward(run);
+    const continueReward = () => { if (kind === 'boss') show('bossRelic'); else show('map'); };
+    if (!requireRunSave(run, continueReward)) return;
+    continueReward();
+  };
+
+  function pickCardReward(ids) {
     showCardGrid('Choose a Card', ids.map((id) => ({ id, up: false, uid: null })), {
       sub: 'Add one card to your deck — or skip to keep it lean.',
       pick: (inst) => {
-        if (inst) {
-          E.addCardToDeck(run, inst.id);
+        if (!E.takePendingReward(run, 'card', inst?.id ?? null)) return;
+        const finish = () => settleRow(cardRow, () => {
+          if (!inst) return;
           sfx.upgrade();
           V.floatText(stageW() / 2, stageH() / 2, `${E.cardData(inst).name} added`, 'notice');
-        }
-        cardRow.classList.add('taken');
-        E.saveRun(run);
-        done();
+        });
+        if (!requireRunSave(run, finish)) return;
+        finish();
       },
       canSkip: true,
     });
@@ -3605,7 +3749,7 @@ function renderBossRelic() {
     if (result.already) { advanceAct(); return; }
     if (id) sfx.relic();
     else sfx.click();
-    E.saveRun(run);
+    if (!requireRunSave(run, advanceAct)) return;
     advanceAct();
   };
   for (const id of picks) {

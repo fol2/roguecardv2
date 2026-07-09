@@ -24,6 +24,7 @@ function getStore() {
 export function _setStore(s) { store = s; memory = new Map(); }
 
 const QUEST_STATES = ['dormant', 'armed', 'revealed', 'complete'];
+const RUN_ID_RE = /^(?:run|legacy)-[a-z0-9]+(?:-[a-z0-9]+){1,3}$/;
 let armRng = Math.random;
 export function _setRng(fn) { armRng = typeof fn === 'function' ? fn : Math.random; }
 
@@ -33,6 +34,35 @@ const cloneQuest = (q) => ({
   progress: Math.max(0, Math.floor(Number(q?.progress) || 0)),
   memory: q?.memory && typeof q.memory === 'object' && !Array.isArray(q.memory) ? { ...q.memory } : {},
 });
+const plainObject = (x) => x && typeof x === 'object' && !Array.isArray(x);
+const exactKeys = (x, keys) => plainObject(x) && Object.keys(x).length === keys.length && keys.every((k) => Object.hasOwn(x, k));
+const validRunId = (id) => typeof id === 'string' && RUN_ID_RE.test(id);
+const validQuestIds = (ids) => Array.isArray(ids) && ids.every((id) => QUEST_IDS.includes(id));
+const cleanDeedReceipt = (receipt) => exactKeys(receipt, ['runId', 'won', 'newUnlocks']) &&
+  validRunId(receipt.runId) && typeof receipt.won === 'boolean' &&
+  Array.isArray(receipt.newUnlocks) && receipt.newUnlocks.every((id) => typeof id === 'string')
+  ? { runId: receipt.runId, won: receipt.won, newUnlocks: [...receipt.newUnlocks] }
+  : null;
+const cleanRunEndReceipt = (receipt) => exactKeys(receipt, ['runId', 'outcome', 'whisper', 'armed', 'completed', 'newShards']) &&
+  validRunId(receipt.runId) && ['win', 'death', 'abandon'].includes(receipt.outcome) &&
+  (receipt.whisper == null || typeof receipt.whisper === 'string') &&
+  validQuestIds(receipt.armed) && validQuestIds(receipt.completed) && validQuestIds(receipt.newShards)
+  ? {
+      runId: receipt.runId, outcome: receipt.outcome, whisper: receipt.whisper ?? null,
+      armed: [...receipt.armed], completed: [...receipt.completed], newShards: [...receipt.newShards],
+    }
+  : null;
+
+function hydrateReceipts(v) {
+  const source = plainObject(v.receipts) ? v.receipts : {};
+  const receipts = {
+    deeds: cleanDeedReceipt(source.deeds),
+    runEnd: cleanRunEndReceipt(source.runEnd),
+  };
+  const changed = !exactKeys(source, ['deeds', 'runEnd']) || JSON.stringify(source) !== JSON.stringify(receipts);
+  v.receipts = receipts;
+  return changed;
+}
 
 function hydrateV2(v) {
   let changed = false;
@@ -52,6 +82,7 @@ function hydrateV2(v) {
   }
   v.shards = [...new Set((Array.isArray(v.shards) ? v.shards : []).filter((id) => QUEST_IDS.includes(id)))];
   v.whispers = Math.max(0, Math.floor(Number(v.whispers) || 0));
+  if (hydrateReceipts(v)) changed = true;
   return changed;
 }
 
@@ -78,6 +109,7 @@ export function loadVigil() {
   const out = {
     v: 2, deeds: {}, unlocks: [], vowUnlocked: 0, lastFall: null,
     runsPlayed: 0, quests: {}, shards: [], whispers: 0, news: false,
+    receipts: { deeds: null, runEnd: null },
     ...(v || {}),
   };
   out.v = 2;
@@ -100,6 +132,7 @@ function migrateToV2() {
   const out = {
     v: 2, deeds: { ...DEFAULT_DEEDS }, unlocks: [], vowUnlocked: 0, lastFall: null,
     runsPlayed: 0, quests: {}, shards: [], whispers: 0, news: false,
+    receipts: { deeds: null, runEnd: null },
   };
   if (v1) {
     out.deeds = { ...DEFAULT_DEEDS, ...(v1.deeds || {}) };
@@ -193,9 +226,22 @@ function mergeRunQuests(v, run) {
 
 export function commitRunEnd(run, outcome = 'abandon') {
   if (!['win', 'death', 'abandon'].includes(outcome)) throw new Error('invalid run outcome: ' + outcome);
-  if (run.runEndResult) return run.runEndResult;
+  if (run.runEndResult) {
+    if (run.runEndOutcome !== outcome) throw new Error('run end outcome does not match durable receipt');
+    return run.runEndResult;
+  }
 
   const v = loadVigil();
+  const prior = v.receipts.runEnd;
+  if (prior?.runId === run.runId) {
+    if (prior.outcome !== outcome) throw new Error('run end outcome does not match durable receipt');
+    run.runEndCommitted = true;
+    run.runEndOutcome = outcome;
+    run.runEndResult = {
+      vigil: v, whisper: prior.whisper, armed: [...prior.armed], completed: [...prior.completed], newShards: [...prior.newShards],
+    };
+    return run.runEndResult;
+  }
   const beforeRevealCount = revealSnapshot(v).length;
   const before = JSON.stringify({
     quests: v.quests, shards: v.shards, unlocks: v.unlocks, whispers: v.whispers,
@@ -229,8 +275,12 @@ export function commitRunEnd(run, outcome = 'abandon') {
   });
   const revealLanded = revealSnapshot(v).length > beforeRevealCount;
   if (before !== after || revealLanded) v.news = true;
+  v.receipts.runEnd = {
+    runId: run.runId, outcome, whisper, armed: [...armed], completed: [...completed], newShards: [...completed],
+  };
   if (!saveVigil(v)) throw new Error('Vigil storage rejected the run end; retry when storage is available');
   run.runEndCommitted = true;
+  run.runEndOutcome = outcome;
   run.runEndResult = { vigil: v, whisper, armed, completed, newShards: completed };
   return run.runEndResult;
 }
@@ -243,9 +293,19 @@ export function clearNews() {
 
 // fold a finished (or fallen) run into the vigil; idempotent per run
 export function commitRunToVigil(run, won) {
-  if (run.vigilCommitted) return { vigil: loadVigil(), newUnlocks: [] };
-  run.vigilCommitted = true;
+  if (run.vigilResult) {
+    if (run.vigilWon !== !!won) throw new Error('run win state does not match durable deed receipt');
+    return run.vigilResult;
+  }
   const v = loadVigil();
+  const prior = v.receipts.deeds;
+  if (prior?.runId === run.runId) {
+    if (prior.won !== !!won) throw new Error('run win state does not match durable deed receipt');
+    run.vigilCommitted = true;
+    run.vigilWon = !!won;
+    run.vigilResult = { vigil: v, newUnlocks: [...prior.newUnlocks] };
+    return run.vigilResult;
+  }
   const beforeDeeds = { ...v.deeds };
   v.deeds.runs++;
   if (won) {
@@ -263,8 +323,27 @@ export function commitRunToVigil(run, won) {
   // pulse on any deed-bar movement (not only threshold unlocks) — design §3
   const deedProgressed = Object.keys(DEFAULT_DEEDS).some((k) => v.deeds[k] !== beforeDeeds[k]);
   if (deedProgressed || newUnlocks.length) v.news = true;
-  saveVigil(v);
-  return { vigil: v, newUnlocks };
+  v.receipts.deeds = { runId: run.runId, won: !!won, newUnlocks: [...newUnlocks] };
+  if (!saveVigil(v)) throw new Error('Vigil storage rejected the deed commit; retry when storage is available');
+  run.vigilCommitted = true;
+  run.vigilWon = !!won;
+  run.vigilResult = { vigil: v, newUnlocks };
+  return run.vigilResult;
+}
+
+export function commitPendingRunEnd(run, recordRunEnd) {
+  const outcome = run.pendingRunEnd?.outcome;
+  if (!['win', 'death', 'abandon'].includes(outcome)) throw new Error('run has no valid pending outcome');
+  if (typeof recordRunEnd !== 'function') throw new Error('run cleanup acknowledgement is required');
+  const won = outcome === 'win';
+  const deedResult = outcome === 'abandon' ? { newUnlocks: [] } : commitRunToVigil(run, won);
+  const ledger = commitRunEnd(run, outcome);
+  return {
+    accepted: recordRunEnd(run, won) === true,
+    newUnlocks: [...deedResult.newUnlocks],
+    ledger,
+    outcome,
+  };
 }
 
 // the monument of the last fall
