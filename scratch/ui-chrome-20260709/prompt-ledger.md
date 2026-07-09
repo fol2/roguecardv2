@@ -20,7 +20,7 @@ Style block (shared):
 | facet-empty | intact diamond glass chip, clear panes | `source/facet-empty.png` | same | yes |
 | facet-chipped | same chip with lit crack / missing corner | `source/facet-chipped.png` | same | yes |
 | hp-vial-frame | ornate stained-glass vial bezel (frame only, hollow centre) | `source/hp-vial-frame.png` | hollow enclosed cleanup | yes |
-| heart | compact glass heart emblem for HUD HP | `source/heart.png` | same | yes |
+| heart | compact glass heart emblem for HUD HP (v3: silhouette-first, 2–3 colour masses) | `source/heart.png` | same + hard alpha | yes |
 | coin | brass coin with simple embossed mark | `source/coin.png` | same | yes |
 | deck | small stacked pair of cards, edge-on readable | `source/deck.png` | same | yes |
 | menu | three thick horizontal bars (hamburger), lead-lined | `source/menu.png` | same | yes |
@@ -84,3 +84,19 @@ inputs → `remove_chroma_key.py --auto-key border` → `strip-alpha-rim.py
 
 Sources overwritten in `source/<id>.png`; alpha/rim refreshed; promoted to
 `src/assets/ui/<id>.png`. Manifest still 27 ui ids.
+
+## Heart regen — 2026-07-09 (HUD readability)
+
+Owner: ornate faceted heart muddies at ~14px HUD. Replace with silhouette-first
+glass heart (chunky contour, 2–3 colour masses, no filigree / crown spikes /
+many facets).
+
+Pipeline: Cursor `GenerateImage` → `remove_chroma_key.py --auto-key border`
+→ hard-threshold alpha (a<128 → 0 else 255) → `sips -Z 512` → promote.
+`strip-alpha-rim.py` ran; 0 warm rim pixels on v3.
+
+| id | subject prompt | source | notes |
+|---|---|---|---|
+| heart | Ultra-simple HUD heart: classic silhouette, thick single dark lead outline, solid deep crimson + one soft highlight crescent; 2–3 colours max; no facets/filigree/spikes; white bg | `source/heart.png` (v3) | v2 ornate bevel rejected (`source/heart-gen-v2-ornate-rejected.png`); hard alpha for 14px; spot-checks `alpha/heart-{14,24,48}px-check.png` |
+
+Promoted: `src/assets/ui/heart.png` (512² RGBA). Manifest id unchanged.
