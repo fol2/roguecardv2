@@ -1279,11 +1279,13 @@ function intentFor(e) {
 }
 // the facet gauge: glass chip rasters (CSS diamond fallback); text once boss glass past a row
 function facetPips(en, ghost = 0) {
+  // Display mapping is swapped vs asset filenames: empty/intact → facet-chipped PNG,
+  // filled/chipped → facet-empty PNG. CSS .filled red outline stays on game state.
   if (en.facetMax > 8) {
-    return `<span class="pipnum">${uiIcon('facet-chipped', 11)} ${en.chips}${ghost ? `<i>+${ghost}</i>` : ''}/${en.facetMax}</span>`;
+    return `<span class="pipnum">${uiIcon('facet-empty', 11)} ${en.chips}${ghost ? `<i>+${ghost}</i>` : ''}/${en.facetMax}</span>`;
   }
-  const emptyU = uiIconUrl('facet-empty');
-  const chipU = uiIconUrl('facet-chipped');
+  const emptyU = uiIconUrl('facet-chipped');
+  const chipU = uiIconUrl('facet-empty');
   let h = '';
   for (let i = 0; i < en.facetMax; i++) {
     const filled = i < en.chips;
