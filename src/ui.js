@@ -1082,11 +1082,14 @@ function handChromeCeiling() {
 /**
  * Keep combat chrome on-stage: tall sprites push top chrome down into the art;
  * bottom plate (name/HP/facets) cannot sit under the hand.
+ * Top clearance sits under the HUD menu bar (not the stage edge).
  */
 function clampCombatChrome() {
   const ce = S.ce;
   if (!ce || S.screen !== 'combat') return;
-  const marginTop = 6;
+  const hudBar = $('#hud.show .hud-bar') || $('#hud .hud-bar');
+  const hudBottom = hudBar ? stageRect(hudBar).bottom : 0;
+  const marginTop = Math.max(6, Math.round(hudBottom) + 4);
   const maxBottom = handChromeCeiling() - 4;
   const clampOne = (topEl, plateEl) => {
     if (topEl) {
