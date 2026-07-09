@@ -224,29 +224,41 @@ function cardEl(inst, { inCombat = false, size = null } = {}) {
 }
 
 // ------------------------------------------------------------ HUD
-// the light economy: your HP is your lantern — the world itself darkens as you
-// bleed, closing to a guttering circle of light at death's door.
+// the light economy: your HP is your lantern — stage plates darken as you
+// bleed (foes / UI stay lit). Combat paints via .stage-dim under the battlefield.
 function updateLantern() {
   const L = $('#lantern');
+  const dim = S.screen === 'combat' ? $('.combat-screen .stage-dim') : null;
   if (!S.run || S.screen === 'title' || S.screen === 'end' || S.screen === 'lamplighter') {
     L.style.setProperty('--la', 0);
-    L.classList.remove('gutter');
+    L.classList.remove('gutter', 'snuff');
+    if (dim) { dim.style.setProperty('--la', 0); dim.classList.remove('gutter'); }
     return;
   }
   const p = S.run.player;
   const hp = S.cb && !S.cb.over ? S.cb.player.hp : p.hp;
   const t = Math.max(0, Math.min(1, (0.68 - hp / p.maxHp) / 0.53));
-  L.style.setProperty('--la', (t * 0.82).toFixed(3)); // capped: intents stay readable in the dark
-  L.style.setProperty('--lr', `${Math.round(1500 - t * 1000)}px`);
+  const la = (t * 0.82).toFixed(3);
+  const lr = `${Math.round(1500 - t * 1000)}px`;
   let x = '50%', y = '55%';
   if (S.screen === 'combat' && S.ce?.hero) {
     const c = V.centerOf(S.ce.hero);
     x = `${Math.round(c.x)}px`;
     y = `${Math.round(c.y)}px`;
   }
+  // keep vars on #lantern for defeat snuff; paint lives on .stage-dim in combat
+  L.style.setProperty('--la', la);
+  L.style.setProperty('--lr', lr);
   L.style.setProperty('--lx', x);
   L.style.setProperty('--ly', y);
-  L.classList.toggle('gutter', t > 0.55);
+  L.classList.toggle('gutter', t > 0.55 && !L.classList.contains('snuff'));
+  if (dim) {
+    dim.style.setProperty('--la', la);
+    dim.style.setProperty('--lr', lr);
+    dim.style.setProperty('--lx', x);
+    dim.style.setProperty('--ly', y);
+    dim.classList.toggle('gutter', t > 0.55);
+  }
 }
 function renderHud() {
   updateLantern();
@@ -976,6 +988,7 @@ function renderCombat() {
       const u = assetUrl('stage', `act${S.run.act + 1}-${l}`);
       return u ? `<img class="sl sl-${l}" src="${u}" alt="" aria-hidden="true">` : '';
     }).join('')}
+    <div class="stage-dim" aria-hidden="true"></div>
     <div class="stage-ledge"></div>
     <div class="stage-breath b1"></div><div class="stage-breath b2"></div>
     <div class="cast-shadow-layer" aria-hidden="true"></div>
@@ -995,7 +1008,7 @@ function renderCombat() {
     </div>
     <div class="energy-orb"><div class="num">0</div><div class="lbl">ENERGY</div><div class="candles"></div></div>
     <button class="lantern-btn"><span class="lb-ic">${uiIcon('lantern', 26)}</span><span class="lb-count">0</span><div class="lb-pips"></div><span class="lb-art"></span></button>
-    <button class="btn end-turn" type="button"><span class="et-ic">${uiIcon('end-turn', 22)}</span><span class="et-lbl">End</span></button>
+    <button class="end-turn" type="button"><span class="et-ic">${uiIcon('end-turn', 22)}</span><span class="et-lbl">End</span></button>
     <button class="pile-btn pile-draw" type="button" aria-label="Draw pile">
       <span class="pile-stack" data-pile="draw" data-count="-1" data-tier="-1"></span>
       <span class="cnt">0</span>
@@ -1349,10 +1362,11 @@ function syncCombat() {
   if (!same) {
     cd.innerHTML = states.map((st) => {
       const url = st === 'lit' ? litUrl : spentUrl;
+      const litCls = st === 'lit' ? ' lit' : '';
       if (url) {
-        return `<span class="candle is-${st}" data-state="${st}"><img class="ui-icon candle-img" src="${url}" alt="" draggable="false"></span>`;
+        return `<span class="candle is-${st}${litCls}" data-state="${st}"><img class="ui-icon candle-img" src="${url}" alt="" draggable="false"></span>`;
       }
-      return `<span class="candle ${st === 'lit' ? 'lit' : ''} is-${st}" data-state="${st}"></span>`;
+      return `<span class="candle${litCls} is-${st}" data-state="${st}"></span>`;
     }).join('');
   } else {
     [...cd.children].forEach((c, i) => {
@@ -1361,6 +1375,11 @@ function syncCombat() {
       c.classList.toggle('lit', st === 'lit');
       c.classList.toggle('is-lit', st === 'lit');
       c.classList.toggle('is-spent', st === 'spent');
+      const img = c.querySelector('.candle-img');
+      if (img) {
+        const url = st === 'lit' ? litUrl : spentUrl;
+        if (url && img.getAttribute('src') !== url) img.setAttribute('src', url);
+      }
     });
   }
   syncPileWidgets(cb);
@@ -1832,9 +1851,16 @@ function aimMove(e) {
   // the lantern leans toward where you mean to strike: intent illuminates
   if (S.ce?.hero) {
     const h = V.centerOf(S.ce.hero);
+    const lx = `${Math.round(h.x + (mx - h.x) * 0.3)}px`;
+    const ly = `${Math.round(h.y + (my - h.y) * 0.3)}px`;
     const L = $('#lantern');
-    L.style.setProperty('--lx', `${Math.round(h.x + (mx - h.x) * 0.3)}px`);
-    L.style.setProperty('--ly', `${Math.round(h.y + (my - h.y) * 0.3)}px`);
+    L.style.setProperty('--lx', lx);
+    L.style.setProperty('--ly', ly);
+    const dim = $('.combat-screen .stage-dim');
+    if (dim) {
+      dim.style.setProperty('--lx', lx);
+      dim.style.setProperty('--ly', ly);
+    }
   }
 }
 async function doPlay(uid, targetIdx) {
@@ -3204,11 +3230,13 @@ async function handleEvent(ev, targetIdx) {
       await sleep(400);
       sfx.defeat();
       V.flash('#300', 0.5, 1.2);
-      // the lantern snuffs out: the world collapses to a dying point of light
+      // the lantern snuffs out: collapse the view (full-screen snuff, not stage-dim)
       const L = $('#lantern');
-      L.classList.add('gutter');
+      L.classList.add('snuff', 'gutter');
       L.style.setProperty('--la', '1');
       L.style.setProperty('--lr', '160px');
+      const dim = $('.combat-screen .stage-dim');
+      if (dim) { dim.style.setProperty('--la', '0'); dim.classList.remove('gutter'); }
       await sleep(900);
       break;
     }
