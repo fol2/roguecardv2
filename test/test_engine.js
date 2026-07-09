@@ -9,7 +9,7 @@ import {
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
   previewBlock, previewEnemyDmg, rollCardReward, vowMods,
 } from '../src/engine.js';
-import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS } from '../src/data.js';
+import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, REVEALS, PROGRESSION, POOL_GATE } from '../src/data.js';
 import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
@@ -792,6 +792,23 @@ function forceHand(run, cb, ids) {
   const run2 = newRun(44, { unlocks: ['card:doesNotExist', 'relic:alsoNot'] });
   assert.deepEqual(cardPool(run2, 'common'), CARD_POOLS.common, 'unknown card unlock ignored');
   assert.deepEqual(relicPool(run2, 'common'), RELIC_POOLS.common, 'unknown relic unlock ignored');
+}
+{
+  // progressive delivery tables are well-formed
+  assert.ok(Array.isArray(REVEALS) && REVEALS.length >= 6, 'reveal table present');
+  assert.equal(new Set(REVEALS.map((r) => r.id)).size, REVEALS.length, 'reveal ids unique');
+  for (const r of REVEALS) {
+    assert.ok(r.trigger && (r.trigger.runsPlayed != null || r.trigger.wins != null), `reveal ${r.id} has a counter trigger`);
+  }
+  for (const id of ['lamplighter', 'phials', 'omens', 'poolWave2', 'poolWave3', 'poolFull', 'emberglass']) {
+    assert.ok(REVEALS.some((r) => r.id === id), `reveal ${id} declared`);
+  }
+  for (const [rev, w] of Object.entries(PROGRESSION.poolWaves)) {
+    assert.ok(REVEALS.some((r) => r.id === rev), `wave ${rev} matches a reveal id`);
+    for (const id of w.cards) assert.ok(CARDS[id] && !CARDS[id].locked, `wave card ${id} exists, not deed-locked`);
+    for (const id of w.relics) assert.ok(RELICS[id] && !RELICS[id].locked && RELICS[id].rarity !== 'boss', `wave relic ${id} exists, not deed-locked, not a crown`);
+  }
+  assert.ok(Object.keys(POOL_GATE.cards).length && Object.keys(POOL_GATE.relics).length, 'pool gate derived');
 }
 {
   // monuments: a bequest is claimed exactly once
