@@ -1832,17 +1832,33 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
       if (artUrl) m.style.backgroundImage = `url(${artUrl})`;
     }
     layer.appendChild(m);
-    const mx = (origin.x + land.x) / 2 + (Math.random() - 0.5) * 80;
-    const my = Math.min(origin.y, land.y) - 40 - Math.random() * 50;
-    const base = 'translate(-50%,-50%)';
-    m.animate(
-      [
-        { transform: `${base} scale(1)`, opacity: 0.95 },
-        { transform: `translate(calc(-50% + ${mx - origin.x}px), calc(-50% + ${my - origin.y}px)) scale(${1 + (endScale - 1) * 0.45})`, opacity: 1, offset: 0.45 },
-        { transform: `translate(calc(-50% + ${land.x - origin.x}px), calc(-50% + ${land.y - origin.y}px)) scale(${endScale})`, opacity: 0.9 },
-      ],
-      { duration: flightDur, delay: i * stagger, easing: 'cubic-bezier(.32,.05,.35,1)', fill: 'forwards' }
-    ).onfinish = () => m.remove();
+    const smooth = opts.arc === 'smooth';
+    const easing = opts.easing || (smooth ? 'cubic-bezier(.22,.7,.28,1)' : 'cubic-bezier(.32,.05,.35,1)');
+    // Smooth arc: short lift toward discard, little jitter. Default: loftier random mid.
+    const mx = smooth
+      ? origin.x + (land.x - origin.x) * 0.42 + (Math.random() - 0.5) * 18
+      : (origin.x + land.x) / 2 + (Math.random() - 0.5) * 80;
+    const my = smooth
+      ? Math.min(origin.y, land.y) - 18 - Math.random() * 16
+      : Math.min(origin.y, land.y) - 40 - Math.random() * 50;
+    const dx1 = mx - origin.x, dy1 = my - origin.y;
+    const dx2 = land.x - origin.x, dy2 = land.y - origin.y;
+    const midScale = 1 + (endScale - 1) * (smooth ? 0.55 : 0.45);
+    const keyframes = smooth
+      ? [
+        { transform: 'translate(-50%,-50%) scale(1)', opacity: 1, offset: 0 },
+        { transform: `translate(calc(-50% + ${dx1 * 0.55}px), calc(-50% + ${dy1 * 0.55}px)) scale(${1 + (midScale - 1) * 0.5})`, opacity: 1, offset: 0.35 },
+        { transform: `translate(calc(-50% + ${dx1}px), calc(-50% + ${dy1}px)) scale(${midScale})`, opacity: 0.98, offset: 0.62 },
+        { transform: `translate(calc(-50% + ${dx2}px), calc(-50% + ${dy2}px)) scale(${endScale})`, opacity: 0.92, offset: 1 },
+      ]
+      : [
+        { transform: 'translate(-50%,-50%) scale(1)', opacity: 0.95 },
+        { transform: `translate(calc(-50% + ${dx1}px), calc(-50% + ${dy1}px)) scale(${midScale})`, opacity: 1, offset: 0.45 },
+        { transform: `translate(calc(-50% + ${dx2}px), calc(-50% + ${dy2}px)) scale(${endScale})`, opacity: 0.9 },
+      ];
+    m.animate(keyframes, {
+      duration: flightDur, delay: i * stagger, easing, fill: 'forwards',
+    }).onfinish = () => m.remove();
   });
   return sleep(awaitMs);
 }
@@ -2781,15 +2797,19 @@ async function handleEvent(ev, targetIdx) {
           c.classList.add('draw-pending');
           layoutHand();
         }
-        await flyCardBacks([origin], ce.discard, 320, {
+        await flyCardBacks([origin], ce.discard, 200, {
           fromSize: 'src', toSize: 'pile', sizePile: ce.discard, face: 'card', cardInst: inst,
+          schedule: { stagger: 0, flightDur: 200, awaitMs: 200 },
+          arc: 'smooth', easing: 'cubic-bezier(.22,.7,.28,1)',
         });
         if (c) c.remove();
       } else if (c) {
         c.remove();
       } else if (!REDUCED && inst) {
-        await flyCardBacks([{ ...V.centerOf(ce.hand), ...handFaceSize(), inst }], ce.discard, 320, {
+        await flyCardBacks([{ ...V.centerOf(ce.hand), ...handFaceSize(), inst }], ce.discard, 200, {
           fromSize: 'hand', toSize: 'pile', sizePile: ce.discard, face: 'card', cardInst: inst,
+          schedule: { stagger: 0, flightDur: 200, awaitMs: 200 },
+          arc: 'smooth', easing: 'cubic-bezier(.22,.7,.28,1)',
         });
       }
       releasePileVisual('discard', 1);
