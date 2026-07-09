@@ -932,10 +932,10 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   box-shadow: inset 0 0 0 1px var(--gold), inset 0 10px 20px -12px rgba(255, 255, 255, 0.14), 0 4px 14px rgba(0, 0, 0, 0.5);
 }
 .end-turn.enemy-phase { opacity: 0.45; pointer-events: none; }
-/* Unboxed pile chrome: single-card masters + fan spread; label + count stay readable. */
+/* Unboxed pile chrome: single-card masters + runtime depth; label + count stay readable. */
 .pile-btn {
-  position: absolute; bottom: calc(14px + var(--sab)); z-index: 24;
-  width: 96px; height: 148px; padding: 0; border: 0; border-radius: 0;
+  position: absolute; bottom: calc(18px + var(--sab)); z-index: 24;
+  width: 78px; height: 124px; padding: 0; border: 0; border-radius: 0;
   background: transparent; box-shadow: none;
   display: block; font-family: 'Cinzel', serif;
   transition: transform 0.15s, filter 0.15s;
@@ -944,7 +944,6 @@ html.mesh-on .enemy-art.warded::before { display: none; }
 .pile-stack {
   position: absolute; left: 0; right: 0; top: 0; bottom: 18px;
   pointer-events: none;
-  overflow: visible;
 }
 .pile-stack.is-empty {
   outline: 1.5px dashed rgba(242, 193, 78, 0.28);
@@ -962,14 +961,13 @@ html.mesh-on .enemy-art.warded::before { display: none; }
 }
 .pile-layer {
   position: absolute; left: 50%; bottom: 0;
-  width: 100%; height: auto;
-  transform-origin: 50% 92%;
-  transform: translate(-50%, calc(var(--i) * -2.5px)) rotate(var(--rot, 0deg));
+  width: 96%; height: auto;
+  transform: translate(-50%, calc(var(--i) * -3px)) rotate(calc(var(--i) * 1.5deg));
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.65));
 }
 .pile-btn .cnt {
   position: absolute; right: 2px; bottom: 16px; z-index: 2;
-  font-size: 17px; font-weight: 800; line-height: 1; color: var(--parchment);
+  font-size: 16px; font-weight: 800; line-height: 1; color: var(--parchment);
   text-align: right;
   background: none; border: 0; border-radius: 0; box-shadow: none; padding: 0;
   /* dark outline so the count stays readable on card art */
@@ -993,9 +991,9 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   40% { transform: translateY(-4px) scale(1.05); }
   100% { transform: translateY(0) scale(1); }
 }
-.pile-draw { left: calc(16px + var(--sal)); }
-.pile-discard { right: calc(22px + var(--sar)); }
-.pile-exhaust { right: calc(132px + var(--sar)); opacity: 0.9; }
+.pile-draw { left: calc(22px + var(--sal)); }
+.pile-discard { right: calc(28px + var(--sar)); }
+.pile-exhaust { right: calc(118px + var(--sar)); opacity: 0.9; }
 .turn-banner {
   position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%); z-index: 42; pointer-events: none;
   font-family: 'Cinzel', serif; font-size: 42px; font-weight: 800; letter-spacing: 0.3em; color: var(--parchment);
@@ -1530,14 +1528,14 @@ html.mesh-on .enemy-art.warded::before { display: none; }
     width: 60px; height: 60px; border-radius: 50%; padding: 0;
     font-size: 11.5px; letter-spacing: 0.04em; line-height: 1.15;
   }
-  .pile-btn { width: 68px; height: 108px; bottom: calc(4px + var(--sab)); }
+  .pile-btn { width: 54px; height: 88px; bottom: calc(6px + var(--sab)); }
   .pile-stack { left: 0; right: 0; top: 0; bottom: 14px; }
-  .pile-layer { width: 100%; }
-  .pile-btn .cnt { font-size: 14px; right: 1px; bottom: 13px; }
+  .pile-layer { width: 96%; }
+  .pile-btn .cnt { font-size: 13px; right: 1px; bottom: 13px; }
   .pile-btn .lbl { font-size: 7.5px; letter-spacing: 0.08em; }
-  .pile-draw { left: calc(4px + var(--sal)); }
-  .pile-discard { right: calc(4px + var(--sar)); }
-  .pile-exhaust { right: calc(4px + var(--sar)); bottom: calc(120px + var(--sab)); }
+  .pile-draw { left: calc(6px + var(--sal)); }
+  .pile-discard { right: calc(6px + var(--sar)); }
+  .pile-exhaust { right: calc(6px + var(--sar)); bottom: calc(102px + var(--sab)); }
   .turn-banner { font-size: 27px; letter-spacing: 0.2em; }
   .turn-banner.boss-banner { font-size: clamp(24px, 7cqw, 38px); }
   .combat-msg { top: calc(78px + var(--sat)); font-size: 12px; }
@@ -1601,14 +1599,17 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .facet-row .pip { width: 5px; height: 5px; }
   .candle { width: 6px; height: 8px; }
   .end-turn { right: calc(10px + var(--sar)); bottom: calc(74px + var(--sab)); padding: 8px 14px; font-size: 13.5px; }
-  .pile-btn { width: 64px; height: 102px; bottom: calc(4px + var(--sab)); }
+  .pile-btn { width: 52px; height: 86px; bottom: calc(6px + var(--sab)); }
   .pile-stack { left: 0; right: 0; top: 0; bottom: 14px; }
-  .pile-layer { width: 100%; }
-  .pile-btn .cnt { font-size: 14px; right: 1px; bottom: 13px; }
+  .pile-layer {
+    width: 96%;
+    transform: translate(-50%, calc(var(--i) * -3.5px)) rotate(calc(var(--i) * 2deg));
+  }
+  .pile-btn .cnt { font-size: 13px; right: 1px; bottom: 13px; }
   .pile-btn .lbl { font-size: 7px; letter-spacing: 0.08em; }
-  .pile-draw { left: calc(6px + var(--sal)); }
-  .pile-discard { right: calc(6px + var(--sar)); }
-  .pile-exhaust { right: calc(78px + var(--sar)); }
+  .pile-draw { left: calc(8px + var(--sal)); }
+  .pile-discard { right: calc(8px + var(--sar)); }
+  .pile-exhaust { right: calc(68px + var(--sar)); }
   .turn-banner { font-size: 26px; }
   .floaty { font-size: 22px; }
   .floaty.crit { font-size: 32px; }
