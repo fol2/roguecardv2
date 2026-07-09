@@ -1,5 +1,5 @@
 // Mesh Ward shell preview — dev-only (?vfxedit=1).
-// Boots stage + mesh warp, binds a hero/enemy sprite, Grow / Hold / Clear the gemstone Ward.
+// Boots stage + mesh warp, binds a hero/enemy sprite, Grow / Fade the gemstone Ward.
 // Live knobs call meshWardSetParams so look updates without leaving the editor.
 import { ENEMIES, ASPECTS } from '../data.js';
 import { assetUrl } from '../art.js';
@@ -38,7 +38,7 @@ const PARAM_SLIDERS = [
 const state = {
   id: HERO_IDS[0] || ENEMY_IDS[0],
   zoom: 2.5,
-  ward: 'off', // 'off' | 'grow' | 'hold'
+  ward: 'off', // 'off' | 'grow'
 };
 
 const q = () => new URLSearchParams(location.search);
@@ -115,14 +115,8 @@ function grow() {
   syncBar();
   syncPanelStatus();
 }
-function hold() {
-  state.ward = 'hold';
-  const sprite = spriteEl();
-  if (sprite?.classList.contains('mesh-live')) meshWard(sprite, true, { grow: false });
-  syncBar();
-  syncPanelStatus();
-}
-function clear() {
+/** Animated dismiss — reverse grow (alpha + facets → 0), same path as meshWard(…, false). */
+function fade() {
   meshWardClear();
   state.ward = 'off';
   syncBar();
@@ -255,8 +249,7 @@ function renderPanel() {
     <p class="vx-sub">status: <em id="vx-ward-status">${state.ward}</em></p>
     <div class="vx-actions">
       <button type="button" id="vx-grow" title="Grow = alpha + facets 0→full (no zoom)">Grow</button>
-      <button type="button" id="vx-hold" title="Hold = instant full, no anim">Hold</button>
-      <button type="button" id="vx-clear" title="Clear = reverse fade (same growMs)">Clear</button>
+      <button type="button" id="vx-fade" title="Fade = reverse clear (alpha + facets → 0)">Fade</button>
     </div>
     <h4>look</h4>
     <p class="vx-sub">facets (N) = normalScale · grow ramps opacity + facets · pad fixed</p>
@@ -275,8 +268,8 @@ function renderPanel() {
       <input type="range" id="vx-zoom" min="1" max="4" step="0.25" value="${state.zoom}">
       <em id="vx-zoom-em">×${state.zoom}</em>
     </label>
-    <p class="vx-hint"><b>Grow</b> = alpha + facets in (no zoom). <b>Hold</b> = instant full.
-      <b>Clear</b> = reverse fade. <b>Save</b> writes <code>ward-params.js</code>.</p>
+    <p class="vx-hint"><b>Grow</b> = alpha + facets in (no zoom). <b>Fade</b> = reverse clear (same growMs).
+      <b>Save</b> writes <code>ward-params.js</code>.</p>
     <p class="vx-hint">Open: <code>?vfxedit=1&amp;char=${state.id}</code>
       · console: <code>__vfxEditor.getParams()</code></p>`;
 
@@ -286,8 +279,7 @@ function renderPanel() {
     paintActor();
   };
   panel.querySelector('#vx-grow').onclick = () => grow();
-  panel.querySelector('#vx-hold').onclick = () => hold();
-  panel.querySelector('#vx-clear').onclick = () => clear();
+  panel.querySelector('#vx-fade').onclick = () => fade();
   panel.querySelector('#vx-reset').onclick = () => resetParams();
   panel.querySelector('#vx-save').onclick = () => { saveParams(); };
   panel.querySelector('#vx-zoom').oninput = (e) => {
@@ -353,8 +345,7 @@ function mountChrome() {
   window.addEventListener('keydown', (e) => {
     if (e.target.matches?.('input, select, textarea')) return;
     if (e.key === 'g') { e.preventDefault(); grow(); }
-    else if (e.key === 'h') { e.preventDefault(); hold(); }
-    else if (e.key === 'c' || e.key === 'Escape') { e.preventDefault(); clear(); }
+    else if (e.key === 'f' || e.key === 'Escape') { e.preventDefault(); fade(); }
   });
 }
 
@@ -430,10 +421,9 @@ export function initVfxEditor() {
     id: () => state.id,
     ward: () => state.ward,
     grow,
-    hold,
-    clear,
-    on: () => hold(),
-    off: () => clear(),
+    fade,
+    on: () => grow(),
+    off: () => fade(),
     paint: paintActor,
     mesh: meshDebug,
     getParams: meshWardParams,
