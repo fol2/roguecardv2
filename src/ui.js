@@ -1197,8 +1197,8 @@ function syncPileWidgets(cb) {
       continue;
     }
     stack.classList.remove('pile-stack-fallback');
-    // Prefer 3 masters; cap visible layers at 3 so ~42px phone chrome stays readable (count still shows true size).
-    const layers = tier === 0 ? 0 : Math.min(tier, 3);
+    // Bold unboxed piles read depth better; still cap at 4 so 5+ stays a thick stack (count is SoT).
+    const layers = tier === 0 ? 0 : Math.min(tier, 4);
     for (let i = 0; i < layers; i++) {
       const img = document.createElement('img');
       img.src = url;

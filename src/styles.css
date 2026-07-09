@@ -906,52 +906,62 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   box-shadow: inset 0 0 0 1px var(--gold), inset 0 10px 20px -12px rgba(255, 255, 255, 0.14), 0 4px 14px rgba(0, 0, 0, 0.5);
 }
 .end-turn.enemy-phase { opacity: 0.45; pointer-events: none; }
+/* Unboxed pile chrome: the card-stack art IS the control (no glass frame). */
 .pile-btn {
-  position: absolute; bottom: calc(24px + var(--sab)); z-index: 24; width: 62px; height: 62px; border-radius: 12px;
-  background: var(--glass-fill); border: 1.5px solid var(--lead);
-  box-shadow: inset 0 0 0 1px var(--gold-line), inset 0 10px 20px -12px rgba(255, 255, 255, 0.14), 0 4px 14px rgba(0, 0, 0, 0.5);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-  font-family: 'Cinzel', serif; transition: border-color 0.15s, transform 0.15s;
+  position: absolute; bottom: calc(18px + var(--sab)); z-index: 24;
+  width: 78px; height: 108px; padding: 0; border: 0; border-radius: 0;
+  background: transparent; box-shadow: none;
+  display: block; font-family: 'Cinzel', serif;
+  transition: transform 0.15s, filter 0.15s;
 }
-.pile-btn:hover { border-color: var(--gold); transform: translateY(-2px); }
+.pile-btn:hover { transform: translateY(-3px); filter: brightness(1.08); }
 .pile-stack {
-  position: absolute; inset: 6px 6px 18px;
+  position: absolute; inset: 0;
   pointer-events: none;
 }
 .pile-stack.is-empty {
-  outline: 1px dashed rgba(242, 193, 78, 0.25);
-  border-radius: 4px;
-  opacity: 0.45;
+  outline: 1.5px dashed rgba(242, 193, 78, 0.28);
+  border-radius: 8px;
+  opacity: 0.5;
 }
 .pile-stack-fallback {
-  border-radius: 4px;
-  background: linear-gradient(160deg, rgba(36, 48, 86, 0.4), rgba(12, 16, 31, 0.22));
-  outline: 1px solid rgba(242, 193, 78, 0.22);
+  border-radius: 8px;
+  background: linear-gradient(160deg, rgba(36, 48, 86, 0.55), rgba(12, 16, 31, 0.35));
+  outline: 1px solid rgba(242, 193, 78, 0.28);
 }
 .pile-stack-fallback.is-empty {
   background: transparent;
-  outline: 1px dashed rgba(242, 193, 78, 0.25);
+  outline: 1.5px dashed rgba(242, 193, 78, 0.28);
 }
 .pile-layer {
   position: absolute; left: 50%; bottom: 0;
-  width: 70%; height: auto;
-  transform: translate(-50%, calc(var(--i) * -2.5px)) rotate(calc(var(--i) * 1.4deg));
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.55));
+  width: 96%; height: auto;
+  transform: translate(-50%, calc(var(--i) * -3px)) rotate(calc(var(--i) * 1.5deg));
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.65));
 }
 .pile-btn .cnt {
-  position: relative; z-index: 1;
-  font-size: 19px; font-weight: 800; color: var(--parchment);
+  position: absolute; right: -4px; bottom: -2px; z-index: 2;
+  min-width: 1.35em; padding: 1px 6px;
+  font-size: 15px; font-weight: 800; line-height: 1.2; color: var(--parchment);
+  text-align: center;
+  background: rgba(5, 7, 14, 0.88);
+  border: 1px solid rgba(242, 193, 78, 0.4);
+  border-radius: 7px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
 }
-.pile-btn .lbl { position: relative; z-index: 1; font-size: 9.5px; letter-spacing: 0.12em; color: var(--text-dim); }
+.pile-btn .lbl {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
 .pile-btn.pile-bump { animation: pileBump 0.28s ease-out; }
 @keyframes pileBump {
   0% { transform: translateY(0) scale(1); }
-  40% { transform: translateY(-3px) scale(1.06); }
+  40% { transform: translateY(-4px) scale(1.05); }
   100% { transform: translateY(0) scale(1); }
 }
-.pile-draw { left: calc(30px + var(--sal)); }
-.pile-discard { right: calc(34px + var(--sar)); }
-.pile-exhaust { right: calc(110px + var(--sar)); opacity: 0.85; }
+.pile-draw { left: calc(22px + var(--sal)); }
+.pile-discard { right: calc(28px + var(--sar)); }
+.pile-exhaust { right: calc(118px + var(--sar)); opacity: 0.9; }
 .turn-banner {
   position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%); z-index: 42; pointer-events: none;
   font-family: 'Cinzel', serif; font-size: 42px; font-weight: 800; letter-spacing: 0.3em; color: var(--parchment);
@@ -1486,14 +1496,13 @@ html.mesh-on .enemy-art.warded::before { display: none; }
     width: 60px; height: 60px; border-radius: 50%; padding: 0;
     font-size: 11.5px; letter-spacing: 0.04em; line-height: 1.15;
   }
-  .pile-btn { width: 46px; height: 46px; bottom: calc(6px + var(--sab)); border-radius: 10px; }
-  .pile-stack { inset: 4px 4px 14px; }
-  .pile-layer { width: 72%; }
-  .pile-btn .cnt { font-size: 15px; }
-  .pile-btn .lbl { font-size: 7.5px; }
-  .pile-draw { left: calc(8px + var(--sal)); }
-  .pile-discard { right: calc(8px + var(--sar)); }
-  .pile-exhaust { right: calc(8px + var(--sar)); bottom: calc(58px + var(--sab)); }
+  .pile-btn { width: 54px; height: 74px; bottom: calc(6px + var(--sab)); }
+  .pile-stack { inset: 0; }
+  .pile-layer { width: 96%; }
+  .pile-btn .cnt { font-size: 12px; right: -3px; bottom: -1px; padding: 0 5px; border-radius: 6px; }
+  .pile-draw { left: calc(6px + var(--sal)); }
+  .pile-discard { right: calc(6px + var(--sar)); }
+  .pile-exhaust { right: calc(6px + var(--sar)); bottom: calc(88px + var(--sab)); }
   .turn-banner { font-size: 27px; letter-spacing: 0.2em; }
   .turn-banner.boss-banner { font-size: clamp(24px, 7cqw, 38px); }
   .combat-msg { top: calc(78px + var(--sat)); font-size: 12px; }
@@ -1557,17 +1566,16 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .facet-row .pip { width: 5px; height: 5px; }
   .candle { width: 6px; height: 8px; }
   .end-turn { right: calc(10px + var(--sar)); bottom: calc(74px + var(--sab)); padding: 8px 14px; font-size: 13.5px; }
-  .pile-btn { width: 42px; height: 42px; bottom: calc(8px + var(--sab)); }
-  .pile-stack { inset: 3px 3px 12px; }
+  .pile-btn { width: 52px; height: 72px; bottom: calc(6px + var(--sab)); }
+  .pile-stack { inset: 0; }
   .pile-layer {
-    width: 74%;
-    transform: translate(-50%, calc(var(--i) * -3px)) rotate(calc(var(--i) * 2deg));
+    width: 96%;
+    transform: translate(-50%, calc(var(--i) * -3.5px)) rotate(calc(var(--i) * 2deg));
   }
-  .pile-btn .cnt { font-size: 14px; }
-  .pile-btn .lbl { font-size: 7px; }
-  .pile-draw { left: calc(10px + var(--sal)); }
-  .pile-discard { right: calc(10px + var(--sar)); }
-  .pile-exhaust { right: calc(58px + var(--sar)); }
+  .pile-btn .cnt { font-size: 12px; right: -3px; bottom: -1px; padding: 0 5px; border-radius: 6px; }
+  .pile-draw { left: calc(8px + var(--sal)); }
+  .pile-discard { right: calc(8px + var(--sar)); }
+  .pile-exhaust { right: calc(68px + var(--sar)); }
   .turn-banner { font-size: 26px; }
   .floaty { font-size: 22px; }
   .floaty.crit { font-size: 32px; }
