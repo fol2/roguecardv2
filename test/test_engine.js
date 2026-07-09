@@ -14,6 +14,9 @@ import { _setStore, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateD
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
 import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, drawBatchSchedule, PILE_IDS, PILE_FAN_DEG, PILE_FAN_MAX_DEG, PILE_FAN_MAX_LAYERS } from '../src/pile-chrome.js';
+import {
+  UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyphId,
+} from '../src/ui-chrome.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -1294,6 +1297,26 @@ function randomAgentRun(seed) {
   assert.ok(d1.flightDur <= 280);
 
   assert.deepEqual(PILE_IDS, ['draw', 'discard', 'ashes']);
+}
+
+// ---- ui chrome helpers (pure) ----
+{
+  assert.ok(UI_CHROME_IDS.includes('candle-lit'));
+  assert.ok(UI_CHROME_IDS.includes('node-monument'));
+  assert.equal(UI_CHROME_IDS.length, 27);
+  assert.equal(uiFallbackName('deck'), 'cards');
+  assert.equal(uiFallbackName('ward'), 'shield');
+  assert.equal(uiFallbackName('menu'), 'menu');
+  assert.equal(uiFallbackName('node-frame'), null);
+  assert.deepEqual(energySlotStates(2, 3), ['lit', 'lit', 'spent']);
+  assert.deepEqual(energySlotStates(0, 3), ['spent', 'spent', 'spent']);
+  assert.deepEqual(energySlotStates(5, 3), ['lit', 'lit', 'lit', 'lit', 'lit']); // length follows max(energy, energyMax)
+  assert.deepEqual(intentUiIds('attack'), ['intent-attack']);
+  assert.deepEqual(intentUiIds('attack_debuff'), ['intent-attack', 'intent-debuff']);
+  assert.deepEqual(intentUiIds('block'), ['intent-block']);
+  assert.deepEqual(intentUiIds('mystery'), ['intent-attack']);
+  assert.equal(nodeGlyphId('elite', false), 'node-elite');
+  assert.equal(nodeGlyphId('monster', true), 'node-unlit');
 }
 
 // ---- battlefield layout schema (spec 2026-07-06-battlefield-editor-design) ----

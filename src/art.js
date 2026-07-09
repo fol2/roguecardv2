@@ -1,6 +1,8 @@
 // Procedural SVG art — plus the resolver for generated raster assets.
 // Asset folders mirror <root>/<category>/<id>.<png|jpg|jpeg|webp> (ids = data.js internal keys);
 // a missing file resolves to null and callers fall back to the SVG below.
+import { uiFallbackName } from './ui-chrome.js';
+
 const ASSET_URLS = import.meta.glob(['./assets*/*/*.png', './assets*/*/*.jpg', './assets*/*/*.jpeg', './assets*/*/*.webp'], { eager: true, query: '?url', import: 'default' });
 const ASSET_EXTS = ['png', 'jpg', 'jpeg', 'webp'];
 export const ASSET_SETS = {
@@ -487,6 +489,7 @@ const ICONS = {
   plus: `<path d="M12 5.2 v13.6 M5.2 12 h13.6" stroke-width="3.4"/>`,
   up: `<path d="M12 4 L19 12 h-4.1 v8 h-5.8 v-8 H5 Z" fill="currentColor" stroke="none"/>`,
   cards: `<rect x="4.4" y="5.6" width="9.4" height="13.4" rx="1.8" transform="rotate(-8 9 12.5)" fill="none" stroke-width="2"/><rect x="10.6" y="5" width="9.4" height="13.4" rx="1.8" transform="rotate(7 15.5 11.5)" fill="none" stroke-width="2"/>`,
+  menu: `<path d="M5 7.5 h14 M5 12 h14 M5 16.5 h14" stroke-width="2.4"/>`,
   hammer: `<rect x="9.6" y="3.4" width="9.6" height="5.4" rx="1.2" transform="rotate(22 14.5 6)" fill="currentColor" stroke="none"/><path d="M11.6 10.2 L5.2 20" stroke-width="2.6"/>`,
   scissors: `<path d="M7.6 7.6 L17.5 17.8 M16.4 7.6 L6.5 17.8" stroke-width="2.2"/><circle cx="6" cy="19.2" r="2.2" fill="none" stroke-width="1.8"/><circle cx="18" cy="19.2" r="2.2" fill="none" stroke-width="1.8"/>`,
   question: `<path d="M8.6 8.6 a3.4 3.4 0 1 1 5 3 c-1.1 .7-1.6 1.4-1.6 2.8" fill="none" stroke-width="2.6"/><circle cx="12" cy="18.6" r="1.7" fill="currentColor" stroke="none"/>`,
@@ -555,6 +558,17 @@ export const hasIcon = (name) => !!ICONS[name];
 const iconBody = (name) => `<g fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</g>`;
 export function iconSvg(name, size = 18) {
   return `<svg class="gicon" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${iconBody(name)}</svg>`;
+}
+export function uiIconUrl(id) {
+  return assetUrl('ui', id);
+}
+export function uiIcon(id, size = 18) {
+  const u = assetUrl('ui', id);
+  if (u) {
+    return `<img class="ui-icon" src="${u}" width="${size}" height="${size}" alt="" draggable="false">`;
+  }
+  const fb = uiFallbackName(id);
+  return fb ? iconSvg(fb, size) : '';
 }
 // for embedding inside an existing <svg> (the map): centered at 0,0 at the given pixel size
 export function iconInline(name, size = 18) {
