@@ -9,7 +9,7 @@ import {
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
   previewBlock, previewEnemyDmg, rollCardReward, vowMods,
 } from '../src/engine.js';
-import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS } from '../src/data.js';
+import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS } from '../src/data.js';
 import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
@@ -1048,6 +1048,10 @@ function randomAgentRun(seed) {
   checkManifest('heroes', ASPECTS.map((a) => a.id));
   checkManifest('stage', [1, 2, 3].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => `act${a}-${l}`)));
   checkManifest('props', ['campfire', 'chest', 'chest-open', 'merchant']);
+  checkManifest('statuses', Object.keys(STATUS_INFO));
+  checkManifest('deeds', Object.keys(DEEDS));
+  checkManifest('bequests', ['relic', 'card', 'gold']);
+  checkManifest('meta', ['fallen', 'ascended', 'monument-node']);
 }
 
 // ---- pile chrome helpers (pure) ----
