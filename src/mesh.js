@@ -204,8 +204,28 @@ const BODY_FRAG = /* glsl */`
   uniform float uFlash;  // white hit beat
   uniform float uCut;    // 0 = soft transparent edges; >0 = opaque with alpha discard
   uniform float uErode;  // UV radius — soft-eat alpha fringe (matte halo)
+  uniform float uHue;
+  uniform float uSaturation;
+  uniform float uBrightness;
+  vec3 hueRotate(vec3 c, float a) {
+    const mat3 toYiq = mat3(
+      0.299, 0.587, 0.114,
+      0.596, -0.275, -0.321,
+      0.212, -0.523, 0.311
+    );
+    const mat3 toRgb = mat3(
+      1.0, 0.956, 0.621,
+      1.0, -0.272, -0.647,
+      1.0, -1.106, 1.703
+    );
+    vec3 yiq = toYiq * c;
+    float h = atan(yiq.z, yiq.y) + a;
+    float chroma = length(yiq.yz) * uSaturation;
+    return toRgb * vec3(yiq.x, chroma * cos(h), chroma * sin(h));
+  }
   void main() {
     vec4 base = texture2D(map, vUv);
+    base.rgb = clamp(hueRotate(base.rgb, uHue) * uBrightness, 0.0, 1.0);
     float a = base.a;
     // Tiny corrosive: neighborhood-min alpha, then soft tighten — kills light fringe
     // without a hard cutout. uErode ~0.002 ≈ 1px on a 512 atlas.
@@ -290,7 +310,10 @@ function makePlane(url, profile, seed, img) {
   };
   const tex = loadTex(url, (t) => { p.aspect = artAspect(img, t); });
   p.tex = tex;
-  const uniforms = { map: { value: tex }, uFlash: { value: 0 }, uCut: { value: 0 }, uErode: { value: 0.0024 } };
+  const uniforms = {
+    map: { value: tex }, uFlash: { value: 0 }, uCut: { value: 0 }, uErode: { value: 0.0024 },
+    uHue: { value: 0 }, uSaturation: { value: 1 }, uBrightness: { value: 1 },
+  };
   const mat = new THREE.ShaderMaterial({ uniforms, vertexShader: BODY_VERT, fragmentShader: BODY_FRAG, transparent: true, depthTest: false, depthWrite: false });
   p.mat = mat;
   const mesh = new THREE.Mesh(geo, mat);
@@ -1114,13 +1137,13 @@ export function meshProfileFor(kind, id) {
   return Object.keys(over).length ? { ...base, ...over } : base;
 }
 
-/** @param {{ el: Element, url: string, kind?: string, id?: string }[]} entries */
+/** @param {{ el: Element, url: string, kind?: string, id?: string, variantId?: string, tint?: object }[]} entries */
 export function meshBind(entries) {
   meshClear();
   if (!meshEnabled()) return;
   if (!renderer) initMesh();
   if (!renderer) return;
-  for (const { el, url, kind, id, flip } of entries) {
+  for (const { el, url, kind, id, flip, variantId, tint } of entries) {
     if (!url || !el) continue;
     const img = el.querySelector('.raster-art');
     if (!img) continue;
@@ -1128,6 +1151,10 @@ export function meshBind(entries) {
     const profile = meshProfileFor(kind, id);
     const seed = Math.random() * 10;
     const p = makePlane(url, profile, seed, img);
+    p.variantId = variantId ?? null;
+    p.mat.uniforms.uHue.value = THREE.MathUtils.degToRad(tint?.hue || 0);
+    p.mat.uniforms.uSaturation.value = tint?.saturation ?? 1;
+    p.mat.uniforms.uBrightness.value = tint?.brightness ?? 1;
     p.el = el;
     p.flip = !!flip;
     p.profile = profile;
@@ -1247,6 +1274,12 @@ export const meshDebug = () => ({
   sites: planes.reduce((m, p) => Math.max(m, p.sites.length), 0),
   death: planes.reduce((m, p) => Math.max(m, p.death), 0),
   glass: planes.filter((p) => p.glass).length,
+  variants: planes.map((p) => ({
+    id: p.variantId,
+    hue: p.mat.uniforms.uHue.value,
+    saturation: p.mat.uniforms.uSaturation.value,
+    brightness: p.mat.uniforms.uBrightness.value,
+  })),
 });
 
 export function meshProfile(kind) { return PROFILE[kind] || PROFILE.humanoid; }

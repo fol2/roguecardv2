@@ -62,6 +62,45 @@ async function expectMeshLive(page) {
     .catch(() => { throw new Error('mesh planes never bound — is WebGL unavailable in this environment?'); });
 }
 
+async function startShadeAndSeeDialogue(page, query) {
+  await boot(page, { query });
+  const dialogue = page.locator('.variant-dialogue');
+  await page.evaluate(() => window.spirebound.startCombatUI(['ownShade1'], 'monster'));
+  await expect(dialogue).toContainText('I remember the stone', { timeout: 7000 });
+  await settle(page);
+}
+
+test('variant tint and identity reach the live mesh', async ({ page }) => {
+  const errors = collectErrors(page);
+  await startShadeAndSeeDialogue(page, 'mesh=1');
+  await expectMeshLive(page);
+  const result = await page.evaluate(() => ({
+    enemy: window.__probe.state().enemies[0],
+    mesh: window.spirebound.meshDebug().variants.find((v) => v.id === 'ownShade1'),
+  }));
+  expect(result.enemy).toMatchObject({ key: 'shade', variantId: 'ownShade1', artId: 'duskblade', maxHp: 110 });
+  expect(result.mesh).toBeTruthy();
+  expect(Math.abs(result.mesh.hue)).toBeGreaterThan(0.01);
+  expect(result.mesh.saturation).toBeCloseTo(0.25, 5);
+  await expect(page.locator('.enemy[data-base-id="shade"][data-variant-id="ownShade1"][data-art-id="duskblade"]')).toHaveCount(1);
+  await expectInvariants(page, 'shade mesh variant');
+  expectNoErrors(errors, 'shade mesh variant');
+});
+
+test('variant CSS fallback matches mesh-off identity and stats', async ({ page }) => {
+  const errors = collectErrors(page);
+  await startShadeAndSeeDialogue(page, 'mesh=0');
+  const enemy = await probeState(page).then((s) => s.enemies[0]);
+  expect(enemy).toMatchObject({ key: 'shade', variantId: 'ownShade1', artId: 'duskblade', maxHp: 110 });
+  await expect(page.locator('.enemy[data-variant-id="ownShade1"] .name')).toContainText('THE SHADE THAT FELL');
+  const filter = await page.locator('.enemy[data-variant-id="ownShade1"] .enemy-sprite')
+    .evaluate((el) => getComputedStyle(el).filter);
+  expect(filter).not.toBe('none');
+  expect((await page.evaluate(() => window.spirebound.meshDebug().planes))).toBe(0);
+  await expectInvariants(page, 'shade CSS variant');
+  expectNoErrors(errors, 'shade CSS variant');
+});
+
 test('mid-fight kill leaves no corpse on stage (mesh on)', async ({ page }) => {
   const errors = collectErrors(page);
   await boot(page, { query: 'mesh=1' }); // force the warp layer regardless of environment

@@ -1,5 +1,5 @@
 // SPIREBOUND engine — pure game logic, no DOM. UI consumes cb.queue for animation.
-import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE, QUEST_IDS, QUESTS, VARIANTS } from './data.js';
+import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE, QUEST_IDS, QUESTS, VARIANTS, SHADE_KITS } from './data.js';
 
 // ---------------------------------------------------------------- RNG (mulberry32)
 export function makeRng(state) {
@@ -527,6 +527,65 @@ export function rollEncounter(run, type, row) {
 }
 
 // ---------------------------------------------------------------- combat
+const scaleMoveDamage = (move, mult) => ({
+  ...move,
+  ...(move.dmg == null ? {} : { dmg: Math.max(0, Math.round(move.dmg * mult)) }),
+});
+
+export function makeVariant(baseDef, variantDef) {
+  const mods = variantDef.statMods || {};
+  const hpMult = mods.hpMult ?? 1;
+  const dmgMult = mods.dmgMult ?? 1;
+  return {
+    ...baseDef,
+    name: variantDef.name,
+    hp: baseDef.hp.map((n) => Math.max(1, Math.round(n * hpMult))),
+    moves: Object.fromEntries(Object.entries(baseDef.moves).map(([id, move]) => [id, scaleMoveDamage(move, dmgMult)])),
+    startStatus: { ...(baseDef.startStatus || {}), ...(mods.addStatuses || {}) },
+    variantId: variantDef.id,
+    dialogue: [...variantDef.dialogue],
+    drop: variantDef.drop,
+  };
+}
+
+function heroShadeBase(run) {
+  const aspectIndex = run.monument?.shadeAspect ?? run.aspect ?? 0;
+  const aspect = ASPECTS[aspectIndex] || ASPECTS[0];
+  const kit = SHADE_KITS[aspect.id];
+  return {
+    name: aspect.name + ' Shade', hp: [110, 110], facets: 6, boss: true,
+    art: ENEMIES.shade.art, moves: kit.moves, ai: kit.ai,
+    presentation: {
+      artCategory: 'heroes', artId: aspect.id, layoutKey: 'shade',
+      kind: 'humanoid', hue: aspect.hue || 0,
+    },
+  };
+}
+
+export function resolveCombatant(run, id) {
+  const variant = VARIANTS[id];
+  if (!variant) {
+    const def = ENEMIES[id];
+    return {
+      def, baseKey: id, variantId: null,
+      presentation: {
+        artCategory: 'enemies', artId: id, layoutKey: id,
+        kind: def.art.kind, hue: def.art.hue, tint: null, scale: 1,
+      },
+    };
+  }
+  const base = variant.base === 'hero' ? heroShadeBase(run) : ENEMIES[variant.base];
+  const def = makeVariant(base, variant);
+  const basePresentation = base.presentation || {
+    artCategory: 'enemies', artId: variant.base, layoutKey: variant.base,
+    kind: base.art.kind, hue: base.art.hue,
+  };
+  return {
+    def, baseKey: variant.base === 'hero' ? 'shade' : variant.base, variantId: variant.id,
+    presentation: { ...basePresentation, tint: variant.tint, scale: variant.scale },
+  };
+}
+
 export function startCombat(run, enemyIds, kind = 'normal', opts = {}) {
   const rng = runRng(run);
   const om = omenMods(run);
@@ -541,9 +600,11 @@ export function startCombat(run, enemyIds, kind = 'normal', opts = {}) {
       statuses: {},
     },
     enemies: enemyIds.map((id, i) => {
-      const d = ENEMIES[id];
+      const resolved = resolveCombatant(run, id);
+      const d = resolved.def;
       return {
-        key: id, idx: i, name: d.name,
+        key: resolved.baseKey, variantId: resolved.variantId, def: d, presentation: resolved.presentation,
+        idx: i, name: d.name,
         maxHp: Math.round(irange(rng, d.hp) * (om.hpMult || 1) * (af.hpMult || 1) * (vm.hpMult || 1)), block: af.startBlock || 0,
         statuses: { ...(d.startStatus || {}) }, flags: af.adamant ? { adamant: true } : {}, lastMoves: [], moveKey: null,
         elite: !!d.elite, boss: !!d.boss,
@@ -556,6 +617,13 @@ export function startCombat(run, enemyIds, kind = 'normal', opts = {}) {
     counters: { played: 0, attacks: 0, firstCardPlayed: false, hpLost: 0 },
   };
   cb.enemies.forEach((e) => (e.hp = e.maxHp));
+  if (kind === 'boss' && cb.enemies[0]) cb.queue.push({ t: 'bossIntro', name: cb.enemies[0].name });
+  const aspectName = ASPECTS[run.aspect].name.replace(/^The\s+/, '');
+  for (const e of cb.enemies) {
+    for (const line of e.def.dialogue || []) {
+      cb.queue.push({ t: 'variantDialogue', idx: e.idx, text: line.replace(/\{aspect\}/g, aspectName) });
+    }
+  }
   // what the night and the title impose on the glass
   for (const e of cb.enemies) {
     for (const [sid, n] of Object.entries({ ...(om.enemyStartStatus || {}), ...(af.startStatus || {}) })) {
@@ -606,15 +674,14 @@ function computeIntents(run, cb) {
   const rng = runRng(run);
   for (const e of cb.enemies) {
     if (e.hp <= 0) continue;
-    const d = ENEMIES[e.key];
-    e.moveKey = d.ai({
+    e.moveKey = e.def.ai({
       turn: cb.turn + 1, last: e.lastMoves[e.lastMoves.length - 1], prev: e.lastMoves[e.lastMoves.length - 2],
       rng, hpFrac: e.hp / e.maxHp, self: e,
     });
     cb.queue.push({ t: 'intent', idx: e.idx, move: e.moveKey });
   }
 }
-export function enemyMove(e) { return ENEMIES[e.key].moves[e.moveKey]; }
+export function enemyMove(e) { return e.def.moves[e.moveKey]; }
 
 // ---------------------------------------------------------------- shatter & embers
 // spilled fire, caught by your lantern. Negative n = spent.

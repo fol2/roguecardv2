@@ -87,6 +87,18 @@ const heroArt = (i) => {
   if (!u) return `<div class="hero-sprite">${heroSvg(i)}</div>`;
   return `<div class="hero-sprite">${aimRing(u, 'self')}${rasterOr('heroes', ASPECTS[i].id, heroSvg(i))}<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg></div>`;
 };
+const combatantView = (en) => {
+  const p = en.presentation || {};
+  return {
+    artCategory: p.artCategory || 'enemies',
+    artId: p.artId || en.key,
+    layoutKey: p.layoutKey || en.key,
+    kind: p.kind || ENEMIES[en.key].art.kind,
+    hue: p.hue ?? ENEMIES[en.key].art.hue,
+    tint: p.tint || null,
+    scale: p.scale || 1,
+  };
+};
 
 let assetsWarmed = false;
 function warmAssets() { // pre-decode combat art so fights never pop in
@@ -1154,20 +1166,6 @@ function startCombatUI(enemyIds, kind) {
   V.setWeather(S.run.act, { boss: kind === 'boss' });
   renderCombat();
   renderHud();
-  if (kind === 'boss') {
-    // Name plate only — rose-window behind it read as a second overlapping intro.
-    const bossLabel = S.cb.enemies[0].name.toUpperCase();
-    const sp = bossLabel.indexOf(' ');
-    const bossHtml = sp < 0
-      ? escHtml(bossLabel)
-      : `${escHtml(bossLabel.slice(0, sp))}<br>${escHtml(bossLabel.slice(sp + 1))}`;
-    const b = el('div', 'turn-banner boss-banner', `<span class="bb-name">${bossHtml}</span>`);
-    screenEl().appendChild(b);
-    setTimeout(() => b.remove(), 2100);
-    V.flash('#1a0a20', 0.5, 0.9);
-    kick(1.6);
-    sfx.bigDeath();
-  }
   drain().then(afterAction);
 }
 function renderCombat() {
@@ -1224,17 +1222,27 @@ function renderCombat() {
   const L = bfResolve(stageInfo().shape, S.run.act);
   const slots = bfSlots(L, cb.enemies.length);
   cb.enemies.forEach((en, i) => {
-    const d = ENEMIES[en.key];
-    const size = bfEnemySize(L, en.key, d.boss ? 'boss' : d.elite ? 'elite' : 'normal', slots[i], stageW(), stageH());
+    const d = en.def || ENEMIES[en.key];
+    const view = combatantView(en);
+    const size = bfEnemySize(L, view.layoutKey, d.boss ? 'boss' : d.elite ? 'elite' : 'normal', slots[i], stageW(), stageH()) * view.scale;
+    const artUrl = assetUrl(view.artCategory, view.artId);
     const box = el('div', `enemy${d.elite ? ' elite-e' : ''}${d.boss ? ' boss-e' : ''}${afx ? ' affixed' : ''}`);
     if (afx) box.style.setProperty('--affix-tone', afx.tone);
     box.dataset.idx = i;
+    box.dataset.baseId = en.key;
+    if (en.variantId) box.dataset.variantId = en.variantId;
+    box.dataset.artId = view.artId;
+    if (view.tint) {
+      box.style.setProperty('--variant-hue', view.tint.hue + 'deg');
+      box.style.setProperty('--variant-sat', String(view.tint.saturation));
+      box.style.setProperty('--variant-bright', String(view.tint.brightness));
+    }
     box.style.animationDelay = `${160 + i * 130}ms`;
     box.innerHTML = `<div class="top-chrome">
         <div class="intent"></div>
         <div class="status-row"></div>
       </div>
-      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${aimRing(assetUrl('enemies', en.key), 'atk')}${rasterOr('enemies', en.key, enemySvg(d.art))}<div class="vessel-fire"></div>${assetUrl('enemies', en.key) ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
+      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${aimRing(artUrl, 'atk')}${rasterOr(view.artCategory, view.artId, enemySvg({ ...d.art, kind: view.kind, hue: view.hue }))}<div class="vessel-fire"></div>${artUrl ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
       <div class="cplate">
         <div class="name">${afx ? `<span class="affix-name" style="color:${afx.tone}">${afx.name.toUpperCase()}</span> ` : ''}${en.name.toUpperCase()}</div>
         <div class="hpbar-wrap"><span class="block-chip zero"><span class="ic">${uiIcon('ward', 28)}</span> 0</span><div class="hp-vial"><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div></div><span class="hp-label"></span></div>
@@ -1348,15 +1356,16 @@ function applyBattlefieldLayout(resolved) {
   pz.style.left = `${Math.round(L.hero.x - hw / 2)}px`;
   pz.style.bottom = `${bfHeroY(L) + hero.footY}px`; // layout y + art feet offset
   const slots = bfSlots(L, cb.enemies.length);
-  const keys = cb.enemies.map((en) => en.key);
+  const keys = cb.enemies.map((en) => combatantView(en).layoutKey);
   const zOrder = bfEnemyZOrder(slots, keys);
   cb.enemies.forEach((en, i) => {
-    const d = ENEMIES[en.key];
+    const d = en.def || ENEMIES[en.key];
+    const view = combatantView(en);
     const tier = d.boss ? 'boss' : d.elite ? 'elite' : 'normal';
-    const size = bfEnemySize(L, en.key, tier, slots[i], stageW(), stageH());
+    const size = bfEnemySize(L, view.layoutKey, tier, slots[i], stageW(), stageH()) * view.scale;
     const box = ce.enemies[i].root;
-    box.style.left = `${Math.round(slots[i].x - size / 2 + bfEnemyFootX(slots[i], en.key))}px`;
-    box.style.bottom = `${(slots[i].y ?? 0) + bfEnemyFootY(slots[i], en.key)}px`;
+    box.style.left = `${Math.round(slots[i].x - size / 2 + bfEnemyFootX(slots[i], view.layoutKey))}px`;
+    box.style.bottom = `${(slots[i].y ?? 0) + bfEnemyFootY(slots[i], view.layoutKey)}px`;
     box.style.width = box.style.height = `${size}px`;
     box.style.zIndex = String(zOrder[i]);
     ce.enemies[i].art.style.width = ce.enemies[i].art.style.height = `${size}px`;
@@ -2030,7 +2039,7 @@ function updatePreviews() {
     x.root.classList.toggle('aim-target', aim);
     if (aim) {
       const sprite = $('.enemy-sprite', x.art) || x.art;
-      if (meshAim(sprite, true, charAim(en.key))) x.root.classList.add('aim-mesh');
+      if (meshAim(sprite, true, charAim(combatantView(en).layoutKey))) x.root.classList.add('aim-mesh');
       else x.root.classList.remove('aim-mesh');
     } else x.root.classList.remove('aim-mesh');
     if (pv && (pv.total > 0 || pv.chips > 0)) {
@@ -2534,8 +2543,9 @@ function rigCombatants() {
   const L = bfResolve(stageInfo().shape, S.run.act);
   const slots = bfSlots(L, cb.enemies.length);
   cb.enemies.forEach((en, i) => {
-    const a = ENEMIES[en.key].art;
-    add(ce.enemies[i].root, ce.enemies[i].art, `hsla(${a.hue},90%,66%,.72)`, false, i, a.kind, a.hue, assetUrl('enemies', en.key), en.key, bfEnemyFootY(slots[i], en.key));
+    const view = combatantView(en);
+    add(ce.enemies[i].root, ce.enemies[i].art, `hsla(${view.hue},90%,66%,.72)`, false, i, view.kind, view.hue,
+      assetUrl(view.artCategory, view.artId), view.layoutKey, bfEnemyFootY(slots[i], view.layoutKey));
   });
   const heroId = ASPECTS[S.run.aspect].id;
   add(ce.hero, ce.hero, 'rgba(127,212,255,.62)', true, 0, 'humanoid', 0, assetUrl('heroes', heroId), heroId, bfActor('heroes', heroId).footY);
@@ -2552,10 +2562,14 @@ function meshBindCombatants() {
   const heroSprite = ce.hero && ($('.hero-sprite', ce.hero) || ce.hero);
   if (heroUrl && heroSprite) entries.push({ el: heroSprite, url: heroUrl, kind: 'humanoid', id: ASPECTS[S.run.aspect].id });
   cb.enemies.forEach((en, i) => {
-    const url = assetUrl('enemies', en.key);
+    const view = combatantView(en);
+    const url = assetUrl(view.artCategory, view.artId);
     const art = ce.enemies[i]?.art;
     const sprite = art && ($('.enemy-sprite', art) || art);
-    if (url && sprite) entries.push({ el: sprite, url, kind: ENEMIES[en.key].art.kind, id: en.key });
+    if (url && sprite) entries.push({
+      el: sprite, url, kind: view.kind, id: view.layoutKey,
+      variantId: en.variantId, tint: view.tint,
+    });
   });
   meshBind(entries);
   // combat-start relics (e.g. basaltIdol) add block without blockGain — restore shell after bind
@@ -2881,6 +2895,35 @@ let emberFrom = null; // where the last fire spilled from (shatter/death/kindle)
 async function handleEvent(ev, targetIdx) {
   const cb = S.cb, ce = S.ce;
   switch (ev.t) {
+    case 'bossIntro': {
+      // Name plate only — rose-window behind it read as a second overlapping intro.
+      const bossLabel = String(ev.name || cb.enemies[0]?.name || '').toUpperCase();
+      const sp = bossLabel.indexOf(' ');
+      const bossHtml = sp < 0
+        ? escHtml(bossLabel)
+        : `${escHtml(bossLabel.slice(0, sp))}<br>${escHtml(bossLabel.slice(sp + 1))}`;
+      const b = el('div', 'turn-banner boss-banner', `<span class="bb-name">${bossHtml}</span>`);
+      const duration = REDUCED ? 80 : 2100;
+      if (REDUCED) b.style.animation = 'none';
+      screenEl().appendChild(b);
+      setTimeout(() => b.remove(), duration);
+      if (!REDUCED) {
+        V.flash('#1a0a20', 0.5, 0.9);
+        kick(1.6);
+      }
+      sfx.bigDeath();
+      await sleep(duration);
+      break;
+    }
+    case 'variantDialogue': {
+      const b = el('div', 'turn-banner variant-dialogue', escHtml(ev.text));
+      const duration = REDUCED ? 80 : 1800;
+      if (REDUCED) b.style.animation = 'none';
+      screenEl().appendChild(b);
+      setTimeout(() => b.remove(), duration);
+      await sleep(duration);
+      break;
+    }
     case 'chip': {
       const x = ce.enemies[ev.idx];
       const { x: ex, y: ey } = enemyCenter(ev.idx);
@@ -3455,10 +3498,12 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'enemyAct': {
       const x = ce.enemies[ev.idx];
+      const enemy = cb.enemies[ev.idx];
+      const view = combatantView(enemy);
       const { x: ex, y: ey } = enemyCenter(ev.idx);
       hitSeq = 0;
-      const mvDef = ENEMIES[cb.enemies[ev.idx].key]?.moves?.[ev.move];
-      const kindArch = ENEMY_KIND_VFX[ENEMIES[cb.enemies[ev.idx].key]?.art?.kind] || 'slash';
+      const mvDef = enemy.def?.moves?.[ev.move];
+      const kindArch = ENEMY_KIND_VFX[view.kind] || 'slash';
       vfxSource = {
         archetype: mvDef?.intent?.startsWith('attack') ? kindArch
           : mvDef?.intent === 'debuff' ? 'void'
@@ -3474,7 +3519,7 @@ async function handleEvent(ev, targetIdx) {
       V.floatText(ex, ey - 90, ev.name, 'movef');
       await sleep(300);
       if (mvDef?.intent?.startsWith('attack')) {
-        await choreoAttack(x.root, -1, ENEMIES[cb.enemies[ev.idx].key]?.art?.kind);
+        await choreoAttack(x.root, -1, view.kind);
         choreoDone = true;
       } else await sleep(320);
       x.intent.classList.remove('telegraph');
@@ -4474,7 +4519,10 @@ function installProbe() {
         over: cb?.over ?? null, result: cb?.result ?? null, turn: cb?.turn ?? null,
         player: cb ? { hp: cb.player.hp, maxHp: cb.player.maxHp, block: cb.player.block, energy: cb.player.energy } : null,
         embers: cb?.embers ?? null,
-        enemies: cb ? cb.enemies.map((e) => ({ key: e.key, hp: e.hp, maxHp: e.maxHp, block: e.block })) : null,
+        enemies: cb ? cb.enemies.map((e) => ({
+          key: e.key, variantId: e.variantId, artId: combatantView(e).artId,
+          hp: e.hp, maxHp: e.maxHp, block: e.block,
+        })) : null,
         hand: cb ? cb.hand.map((c) => ({ uid: c.uid, id: c.id })) : null,
       };
     },

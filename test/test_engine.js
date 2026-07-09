@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import {
-  newRun, startCombat, playCard, endTurn, drawCards, makeCard, cardData, availableNodes, genMap,
+  newRun, startCombat, playCard, endTurn, drawCards, makeCard, makeVariant, cardData, availableNodes, genMap,
   rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, finalizeNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, nodeEventInFlight, saveRun, loadRun, genCombatRewards, genShop, gainRelic, randomRelic,
   rollBossRelics, addCardToDeck, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
   MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, cardPool, relicPool,
@@ -328,6 +328,38 @@ function forceHand(run, cb, ids) {
     for (const id of n.next) assert.ok(run.map.nodes.find((m) => m.id === id), 'edge target exists');
   }
   assert.ok(availableNodes(run).length > 0, 'start choices exist');
+}
+{
+  const base = {
+    name: 'Base', hp: [100, 120], facets: 4, art: { kind: 'beast', hue: 20, size: 1 },
+    startStatus: { thorns: 1 },
+    moves: { hit: { name: 'Hit', intent: 'attack', dmg: 10 }, guard: { name: 'Guard', intent: 'block', block: 8 } },
+    ai: () => 'hit',
+  };
+  const variant = {
+    id: 'testVariant', base: 'base', name: 'Wrong Glass',
+    tint: { hue: 90, saturation: 0.5, brightness: 1.1 }, scale: 1.2,
+    statMods: { hpMult: 1.25, dmgMult: 1.3, addStatuses: { str: 2 } },
+    dialogue: ['Speak.'], drop: null,
+  };
+  const made = makeVariant(base, variant);
+  assert.deepEqual(made.hp, [125, 150]);
+  assert.equal(made.moves.hit.dmg, 13);
+  assert.equal(made.moves.guard.block, 8, 'damage scaling does not change block');
+  assert.deepEqual(made.startStatus, { thorns: 1, str: 2 });
+  assert.equal(base.moves.hit.dmg, 10, 'base definition not mutated');
+
+  const run = newRun(420);
+  const cb = startCombat(run, ['paleDuskfang']);
+  assert.equal(cb.enemies[0].key, 'duskfang');
+  assert.equal(cb.enemies[0].variantId, 'paleDuskfang');
+  assert.equal(cb.enemies[0].presentation.artId, 'duskfang');
+  assert.ok(cb.enemies[0].maxHp > 30);
+
+  const bossCb = startCombat(newRun(421), ['usurpedSovereign'], 'boss');
+  assert.deepEqual(bossCb.queue.slice(0, 4).map((event) => event.t),
+    ['bossIntro', 'variantDialogue', 'variantDialogue', 'variantDialogue']);
+  assert.match(bossCb.queue[1].text, /^Duskblade\./, 'dialogue expands the aspect name without its article');
 }
 {
   const run = newRun(420);
