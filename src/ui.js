@@ -1256,16 +1256,18 @@ function syncHand() {
   for (const inst of cb.hand) {
     if (!have.has(String(inst.uid))) {
       const c = cardEl(inst, { inCombat: true });
-      // Invisible until matching draw flyer lands (landAt from drawRevealPlan)
-      const landAt = drawRevealPlan.get(String(inst.uid));
-      if (!REDUCED && landAt != null) {
+      // Invisible until matching draw flyer lands — same uid/order as the pile flight
+      const plan = drawRevealPlan.get(String(inst.uid));
+      if (!REDUCED && plan != null) {
+        const landAt = typeof plan === 'number' ? plan : plan.landAt;
+        if (typeof plan === 'object' && plan.seq != null) c.dataset.drawSeq = String(plan.seq);
         c.classList.add('draw-pending');
         drawRevealPlan.delete(String(inst.uid));
         setTimeout(() => {
           if (!c.isConnected) return;
           c.classList.remove('draw-pending');
           c.classList.add('draw-in');
-          layoutHand(); // fan spreads as each seat appears
+          layoutHand(); // fan spreads in arrival order as each seat appears
           setTimeout(() => c.classList.remove('draw-in'), 240);
         }, landAt);
       }
@@ -1682,12 +1684,27 @@ function pileFaceSize(pileBtn) {
 }
 
 function handFaceSize() {
-  const sample = S.ce?.hand?.querySelector('.card:not(.played-up)') || S.ce?.hand?.querySelector('.card');
+  const sample = S.ce?.hand?.querySelector('.card:not(.played-up):not(.draw-pending)') || S.ce?.hand?.querySelector('.card');
   if (sample) {
     const r = stageRect(sample);
     if (r.width > 2) return { w: r.width, h: r.height };
   }
   return { w: 152, h: Math.round(152 * 1.42) };
+}
+
+/** Stage centre of a hand-fan seat (fanIndex within fanCount revealed cards). */
+function handSeatCenter(fanIndex, fanCount) {
+  const n = Math.max(1, fanCount | 0);
+  const i = Math.max(0, Math.min(n - 1, fanIndex | 0));
+  const gap = Math.min(112, 640 / n, (stageW() - 246) / Math.max(n - 1, 1));
+  const rot = n > 1 ? (i - (n - 1) / 2) * Math.min(5, 42 / n) : 0;
+  const x = (i - (n - 1) / 2) * gap;
+  const y = Math.abs(rot) * 3.2 + 26;
+  const sz = handFaceSize();
+  return {
+    x: stageW() / 2 + x,
+    y: stageH() - 8 - sz.h / 2 - y,
+  };
 }
 
 function resolveFlightSize(spec, { pileBtn, src, fallback } = {}) {
@@ -1724,6 +1741,7 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
     const origin = src.el
       ? (() => { const r = stageRect(src.el); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }; })()
       : src;
+    const land = src.dest || dest;
     const fromSize = resolveFlightSize(opts.fromSize || 'pile', { pileBtn: sizePile, src: origin });
     const toSize = opts.toSize == null
       ? fromSize
@@ -1737,7 +1755,7 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
       Object.assign(m.style, {
         position: 'absolute', left: `${origin.x}px`, top: `${origin.y}px`,
         width: `${fromSize.w}px`, height: `${fromSize.h}px`, margin: 0,
-        transform: 'translate(-50%,-50%)', zIndex: 58, pointerEvents: 'none',
+        transform: 'translate(-50%,-50%)', zIndex: 58 + i, pointerEvents: 'none',
       });
     } else {
       m = el('div', artUrl ? 'flycard flycard-pile' : 'flycard flycard-back');
@@ -1745,17 +1763,18 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
       m.style.top = `${origin.y}px`;
       m.style.width = `${fromSize.w}px`;
       m.style.height = `${fromSize.h}px`;
+      m.style.zIndex = String(58 + i);
       if (artUrl) m.style.backgroundImage = `url(${artUrl})`;
     }
     layer.appendChild(m);
-    const mx = (origin.x + dest.x) / 2 + (Math.random() - 0.5) * 80;
-    const my = Math.min(origin.y, dest.y) - 40 - Math.random() * 50;
+    const mx = (origin.x + land.x) / 2 + (Math.random() - 0.5) * 80;
+    const my = Math.min(origin.y, land.y) - 40 - Math.random() * 50;
     const base = 'translate(-50%,-50%)';
     m.animate(
       [
         { transform: `${base} scale(1)`, opacity: 0.95 },
         { transform: `translate(calc(-50% + ${mx - origin.x}px), calc(-50% + ${my - origin.y}px)) scale(${1 + (endScale - 1) * 0.45})`, opacity: 1, offset: 0.45 },
-        { transform: `translate(calc(-50% + ${dest.x - origin.x}px), calc(-50% + ${dest.y - origin.y}px)) scale(${endScale})`, opacity: 0.9 },
+        { transform: `translate(calc(-50% + ${land.x - origin.x}px), calc(-50% + ${land.y - origin.y}px)) scale(${endScale})`, opacity: 0.9 },
       ],
       { duration: flightDur, delay: i * stagger, easing: 'cubic-bezier(.32,.05,.35,1)', fill: 'forwards' }
     ).onfinish = () => m.remove();
@@ -2086,21 +2105,28 @@ async function drain(targetIdx = null) {
   renderHud();
 }
 
-/** One draw wave: flights + hand reveals share the same stagger clock. */
+/** One draw wave: flights + hand reveals share the same stagger clock & arrival order. */
 async function handleDrawBatch(draws) {
   const cb = S.cb, ce = S.ce;
   const n = draws.length;
   const sched = drawBatchSchedule(n, 500);
+  // Already-visible seats stay put; new arrivals append in pile-draw order
+  const baseFan = $$('.card', ce.hand).filter((c) => !c.classList.contains('draw-pending')).length;
   drawRevealPlan.clear();
   draws.forEach((ev, i) => {
-    drawRevealPlan.set(String(ev.uid), sched.flightDur + i * sched.stagger);
+    drawRevealPlan.set(String(ev.uid), {
+      landAt: sched.flightDur + i * sched.stagger,
+      seq: i,
+    });
   });
   if (!REDUCED) {
     const origin = V.centerOf(ce.draw);
-    const fromList = draws.map((ev) => {
+    const fromList = draws.map((ev, i) => {
       const inst = cb.hand.find((c) => String(c.uid) === String(ev.uid))
         || { uid: ev.uid, id: ev.id, up: false, bonus: 0 };
-      return { x: origin.x, y: origin.y, inst };
+      // Land on the seat this card will occupy when it reveals (arrival order)
+      const dest = handSeatCenter(baseFan + i, baseFan + i + 1);
+      return { x: origin.x, y: origin.y, inst, dest };
     });
     flyCardBacks(fromList, ce.hand, 500, {
       fromSize: 'pile', toSize: 'hand', sizePile: ce.draw, face: 'card', schedule: sched,
