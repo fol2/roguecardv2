@@ -565,26 +565,25 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .player-zone { transform: none; }
 .hero-wrap { position: relative; width: 100%; height: 100%; }
 .hero-sprite, .enemy-sprite { position: relative; width: 100%; height: 100%; z-index: 1; }
-/* subtitle-style burn so names stay legible on busy stage plates */
-/* hero name lives in .cplate under the art (same band as enemy names) */
-.cplate .hero-name {
-  position: static; transform: none; left: auto; top: auto;
-  font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: 0.12em; color: #c8d0ea; white-space: nowrap;
-  text-shadow:
-    -1px -1px 0 rgba(0, 0, 0, 0.95), 1px -1px 0 rgba(0, 0, 0, 0.95),
-    -1px 1px 0 rgba(0, 0, 0, 0.95), 1px 1px 0 rgba(0, 0, 0, 0.95),
-    0 0 4px rgba(0, 0, 0, 0.9), 0 2px 8px rgba(0, 0, 0, 0.85);
-}
 .hero-wrap svg { width: 100%; height: 100%; }
 .enemy { transition: filter 0.2s, transform 0.25s; }
 /* the chrome plate: name/HP/facets hang below the art box, out of flow,
    so the combatant's box bottom IS its feet (ground-line contract).
-   Statuses sit ABOVE the art; intent sits one row above statuses. */
-.cplate { position: absolute; top: 100%; left: 50%; translate: -50% 0; display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 3; padding-top: 6px; width: max-content; max-width: 260px; }
+   Statuses sit ABOVE the art; intent sits one row above statuses.
+   --chrome-dy nudges them when tall sprites would push chrome off-stage. */
+.cplate {
+  position: absolute; top: 100%; left: 50%;
+  translate: -50% var(--chrome-dy, 0px);
+  display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 3;
+  padding-top: 6px; width: max-content; max-width: 260px;
+}
 .top-chrome {
-  position: absolute; bottom: calc(100% + 8px); left: 50%; translate: -50% 0; z-index: 3;
+  position: absolute; bottom: calc(100% + 8px); left: 50%;
+  translate: -50% var(--chrome-dy, 0px); z-index: 3;
   display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none;
 }
+/* hero has no name row — sit status closer to the art crown */
+.player-zone .top-chrome { bottom: calc(100% + 2px); }
 .top-chrome .intent { position: static; translate: none; pointer-events: auto; }
 .top-chrome .status-row { pointer-events: auto; }
 .enemy-art { position: relative; }
@@ -1554,7 +1553,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .stage-ledge { --glow-h: 90px; }
   .hpbar-wrap { width: 118px; }
   .status-row { max-width: 34cqw; }
-  .enemy .name, .cplate .hero-name { font-size: 10.5px; letter-spacing: 0.06em; }
+  .enemy .name { font-size: 10.5px; letter-spacing: 0.06em; }
   .enemy.boss-e .name { font-size: 12px; }
   .intent { height: 26px; font-size: 14px; padding: 0 8px; gap: 4px; }
   /* the fan */
@@ -1632,7 +1631,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .map-title { top: calc(42px + var(--sat)); font-size: 11.5px; }
   .stage-ledge { --glow-h: 70px; }
   .player-zone .hpbar-wrap, .hpbar-wrap { width: 118px; }
-  .enemy .name, .hero-wrap .hero-name { font-size: 10.5px; }
+  .enemy .name { font-size: 10.5px; }
   .intent { height: 24px; font-size: 13px; }
   .card { --cw: 104px; }
   .card-text { font-size: 10.5px; }
