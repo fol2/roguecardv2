@@ -15,6 +15,7 @@ import { charShadowLive, charCssFloat, charAim, onCharMetaChange } from './char-
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, onBFChange } from './battlefield.js';
+import { uicResolve, onUICChange } from './uic.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
@@ -310,6 +311,7 @@ function renderHud() {
   $('[data-act="deck"]', hud).onclick = () => { sfx.click(); showCardGrid('Your Deck', S.run.player.deck, { sub: `${S.run.player.deck.length} cards` }); };
   $('[data-act="menu"]', hud).onclick = (e) => { sfx.click(); openMenu(e.clientX, e.clientY); };
   $$('.potion-slot.full', hud).forEach((slot) => (slot.onclick = (e) => potionMenu(+slot.dataset.slot, e)));
+  applyUiChromeLayout();
 }
 function openMenu(cx, cy) {
   closeMenus();
@@ -1168,6 +1170,33 @@ function applyBattlefieldLayout(resolved) {
     ce.enemies[i].art.style.width = ce.enemies[i].art.style.height = `${size}px`;
   });
   clampCombatChrome();
+  applyUiChromeLayout();
+}
+
+/** Apply resolved UIC (stage px, safe-area baked) to combat chrome nodes. */
+function applyUiChromeLayout() {
+  const L = uicResolve(stageInfo().shape);
+  const hud = $('#hud .hud-bar');
+  if (hud && L.hud) {
+    hud.style.height = `${L.hud.height}px`;
+    hud.style.transformOrigin = 'top center';
+    hud.style.transform = L.hud.scale === 1 ? '' : `scale(${L.hud.scale})`;
+  }
+  if (!S.ce || S.screen !== 'combat') return;
+  const place = (el, w) => {
+    if (!el || !w) return;
+    if (w.left !== undefined) { el.style.left = `${w.left}px`; el.style.right = ''; }
+    else if (w.right !== undefined) { el.style.right = `${w.right}px`; el.style.left = ''; }
+    if (w.bottom !== undefined) el.style.bottom = `${w.bottom}px`;
+    if (w.w !== undefined) el.style.width = `${w.w}px`;
+    if (w.h !== undefined) el.style.height = `${w.h}px`;
+  };
+  place(S.ce.energy, L.energy);
+  place(S.ce.lantern, L.lantern);
+  place(S.ce.endTurn, L.endTurn);
+  place(S.ce.draw, L.draw);
+  place(S.ce.discard, L.discard);
+  place(S.ce.exhaust, L.ashes);
 }
 
 /** Top edge of resting hand cards — bottom chrome must stay above this. */
@@ -4056,9 +4085,10 @@ export function initUI() {
   window.spirebound = { S, E, startCombatUI, show, meshEnabled, meshDebug, refitCombat }; // ponytail: console debug hook, harmless in prod
   installProbe(); // window.__probe — contract readers + drivers for test/e2e
   requestAnimationFrame(rigTick); // living-glass rig: no-op outside combat
-  // char-meta / battlefield-layout HMR → soft-apply without reload
+  // char-meta / battlefield-layout / ui-chrome-layout HMR → soft-apply without reload
   const softCombat = () => { if (S.screen === 'combat' && S.cb && S.ce) refitCombat(); };
   onCharMetaChange(softCombat);
   onBFChange(softCombat);
+  onUICChange(softCombat);
   show('title');
 }

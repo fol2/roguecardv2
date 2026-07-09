@@ -95,6 +95,7 @@ SHATTER (facets/chips/shatter/embers/kindle + Lantern Arts), Omens & the Unlit W
 - **Structural UI icons must come from `art.js`** (`iconSvg`/`iconInline`) — never font glyphs like ⚔/♛ for map nodes, intents, shields, or piles. Font glyphs render as tofu on non-Mac platforms. Decorative relic/status sigils are the deliberate exception.
 - **`window.spirebound = { S, E, startCombatUI, show }`** and **`window.__probe`** (ui.js) are console/test hooks — god-mode bots, geometry readers, battle drivers. The probe reports coordinates in **stage px**.
 - **Combat-stage geometry lives in `src/battlefield-layout.js`**, not CSS — hero/enemy positions & sizes, formations, the 3 background plates and the ground line, per stage shape. Edit it by hand or with the dev-only editor at `http://localhost:5174/?bfedit=1` (drag/resize, per-shape overrides, Save writes the file). `src/battlefield.js` is the resolver; both must stay Node-importable and import nothing.
+- **Combat chrome geometry lives in `src/ui-chrome-layout.js`**, not CSS — energy / lantern / end-turn / piles / top HUD unit, per stage shape. Dev editor: `http://localhost:5174/?bfuiedit=1` (Save → `POST /__bfui-save`). Resolver is `src/uic.js` (not `src/ui-chrome.js`, which is asset helpers). Safe-area is baked into the numbers.
 - **Mobile is first-class**: three layout regimes inside the fixed stage (`@container stage` max-width 1100 / 740, and max-height 480 landscape) with drag-to-play, safe-area insets, and a lower-perf `LITE` render tier on coarse pointers.
 
 ## Authoring raster images

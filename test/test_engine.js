@@ -13,6 +13,8 @@ import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, 
 import { _setStore, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
+import { uicResolve, _setUIC, uicRaw } from '../src/uic.js';
+import { serializeUIC, validateUIC } from '../src/dev/bfui-serialize.js';
 import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, drawBatchSchedule, PILE_IDS, PILE_FAN_DEG, PILE_FAN_MAX_DEG, PILE_FAN_MAX_LAYERS } from '../src/pile-chrome.js';
 import {
   UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyphId,
@@ -1392,6 +1394,43 @@ function randomAgentRun(seed) {
   const mod = await import(`data:text/javascript,${encodeURIComponent(src1)}`);
   assert.equal(serializeBF(mod.BF), src1, 'bf: serialize(import(serialize(BF))) is byte-identical');
   assert.ok(validateBF({ base: {} }).length > 0, 'bf: broken layout rejected');
+}
+
+// ---- UI chrome layout (?bfuiedit=1) ------------------------------------------
+{
+  const shapes = ['phone-portrait', 'phone-landscape', 'pad-portrait', 'pad-landscape', 'desktop-landscape'];
+  const widgets = ['energy', 'lantern', 'endTurn', 'draw', 'discard', 'ashes', 'hud'];
+  for (const sh of shapes) {
+    const L = uicResolve(sh);
+    for (const id of widgets) {
+      assert.ok(L[id], `uic: ${sh} ${id}`);
+      for (const [k, v] of Object.entries(L[id])) {
+        assert.ok(Number.isFinite(v), `uic: ${sh} ${id}.${k}`);
+      }
+    }
+    for (const id of ['endTurn', 'discard', 'ashes']) {
+      assert.ok(Number.isFinite(L[id].right), `uic: ${sh} ${id}.right`);
+      assert.equal(L[id].left, undefined, `uic: ${sh} ${id} stays right-anchored`);
+    }
+    assert.ok(Number.isFinite(L.energy.left) && Number.isFinite(L.energy.bottom), `uic: ${sh} energy edges`);
+    assert.ok(Number.isFinite(L.hud.height) && Number.isFinite(L.hud.scale), `uic: ${sh} hud unit`);
+  }
+  const baseE = uicResolve('desktop-landscape').energy.bottom;
+  _setUIC({
+    ...uicRaw(),
+    shapes: { ...uicRaw().shapes, 'desktop-landscape': { energy: { left: 24, bottom: baseE + 17 } } },
+  });
+  assert.equal(uicResolve('desktop-landscape').energy.bottom, baseE + 17, 'uic: shape override');
+  assert.equal(uicResolve('phone-portrait').energy.bottom, uicRaw().shapes['phone-portrait'].energy.bottom, 'uic: override does not leak');
+  _setUIC(null);
+  assert.equal(uicResolve('desktop-landscape').energy.bottom, baseE, 'uic: _setUIC(null) restores');
+  assert.equal(validateUIC(uicRaw()).ok, true, 'uic: file validates');
+  assert.deepEqual(validateUIC(uicRaw()).problems, [], 'uic: no problems');
+  const src1 = serializeUIC(uicRaw());
+  assert.ok(src1.startsWith('// UI chrome layout'), 'uic: serialized header');
+  const mod = await import(`data:text/javascript,${encodeURIComponent(src1)}`);
+  assert.equal(serializeUIC(mod.UIC), src1, 'uic: serialize round-trip byte-identical');
+  assert.equal(validateUIC({ base: {} }).ok, false, 'uic: broken layout rejected');
 }
 
 // ---- char-meta table (?charedit=1) -------------------------------------------

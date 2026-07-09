@@ -164,8 +164,10 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 #hud { position: absolute; top: 0; left: 0; right: 0; z-index: 30; display: none; flex-direction: column; pointer-events: none; }
 #hud.show { display: flex; }
 .hud-bar {
+  /* height/scale from ui-chrome-layout.js (?bfuiedit=1); padding is visual only */
   display: flex; align-items: center; gap: 18px; pointer-events: auto;
-  padding: calc(8px + var(--sat)) calc(16px + var(--sar)) 8px calc(16px + var(--sal));
+  box-sizing: border-box;
+  padding: 8px 16px 8px 16px;
   background: linear-gradient(180deg, rgba(8, 10, 22, 0.92), rgba(8, 10, 22, 0.55) 80%, transparent);
 }
 .hud-stat { display: flex; align-items: center; gap: 7px; font-family: 'Cinzel', serif; font-weight: 600; font-size: 17px; }
@@ -917,9 +919,10 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 /* the lantern: Lantern Art face + ember count overlay; ember pips arc around; kindle by drag */
 .lantern-btn {
   --lbr: 50px;
-  position: absolute; left: calc(42px + var(--sal)); bottom: calc(262px + var(--sab)); z-index: 24;
+  /* left/bottom/w/h from ui-chrome-layout.js (?bfuiedit=1) */
+  position: absolute; z-index: 24;
   display: grid; place-items: center;
-  width: 104px; height: 104px; border-radius: 0; padding: 0;
+  border-radius: 0; padding: 0;
   background: transparent; border: none; box-shadow: none;
   color: #ffca6e;
   font-family: 'Cinzel', serif; cursor: help; transition: filter 0.25s, transform 0.25s;
@@ -1067,7 +1070,8 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .hero-wrap.aim-target:not(.aim-mesh) .aim-ring { opacity: 1; }
 
 .energy-orb {
-  position: absolute; left: calc(24px + var(--sal)); bottom: calc(148px + var(--sab));
+  /* left/bottom from ui-chrome-layout.js (?bfuiedit=1) */
+  position: absolute;
   width: auto; height: auto; min-height: 0; padding: 0; border-radius: 0; z-index: 26;
   display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 0;
   /* candle stack is the meter — transparent shell, no glass orb */
@@ -1141,10 +1145,11 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 html.mesh-on .hero-wrap.warded::before,
 html.mesh-on .enemy-art.warded::before { display: none; }
 .end-turn {
-  position: absolute; right: calc(22px + var(--sar)); bottom: calc(128px + var(--sab)); z-index: 24;
+  /* right/bottom/w/h from ui-chrome-layout.js (?bfuiedit=1) */
+  position: absolute; z-index: 24;
   /* larger end-turn glyph, nudged down; label overlays — no square chrome */
   display: grid; place-items: center;
-  width: 120px; height: 120px; padding: 0; margin: 0;
+  padding: 0; margin: 0;
   background: transparent; border: none; border-radius: 0;
   box-shadow: none; outline: none;
   color: #fff6e0;
@@ -1185,8 +1190,9 @@ html.mesh-on .enemy-art.warded::before { display: none; }
 .end-turn.enemy-phase { opacity: 0.45; pointer-events: none; }
 /* Unboxed pile chrome: flat fan (no vertical stack); label + count stay readable. */
 .pile-btn {
-  position: absolute; bottom: calc(14px + var(--sab)); z-index: 24;
-  width: 96px; height: 148px; padding: 0; border: 0; border-radius: 0;
+  /* left|right/bottom/w/h from ui-chrome-layout.js (?bfuiedit=1) */
+  position: absolute; z-index: 24;
+  padding: 0; border: 0; border-radius: 0;
   background: transparent; box-shadow: none;
   display: block; font-family: 'Cinzel', serif;
   transition: transform 0.15s, filter 0.15s;
@@ -1243,9 +1249,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   40% { transform: translateY(-4px) scale(1.05); }
   100% { transform: translateY(0) scale(1); }
 }
-.pile-draw { left: calc(16px + var(--sal)); }
-.pile-discard { right: calc(22px + var(--sar)); }
-.pile-exhaust { right: calc(132px + var(--sar)); opacity: 0.9; }
+.pile-exhaust { opacity: 0.9; }
 .turn-banner {
   position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%); z-index: 42; pointer-events: none;
   font-family: 'Cinzel', serif; font-size: 42px; font-weight: 800; letter-spacing: 0.3em; color: var(--parchment);
@@ -1721,13 +1725,11 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .card { --cw: 132px; }
   .choice-cards .card { --cw: 150px; }
   .hand-zone { height: 230px; }
-  .energy-orb { bottom: calc(128px + var(--sab)); left: calc(16px + var(--sal)); }
   .energy-orb .num { font-size: 40px; }
   .candle:has(.candle-img) { width: 34px; height: 48px; }
-  .lantern-btn { --lbr: 44px; width: 94px; height: 94px; left: calc(28px + var(--sal)); bottom: calc(222px + var(--sab)); }
+  .lantern-btn { --lbr: 44px; }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 84px; height: 84px; }
   .lantern-btn .lb-count { font-size: 22px; }
-  .end-turn { right: calc(16px + var(--sar)); bottom: calc(106px + var(--sab)); width: 104px; height: 104px; }
   .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 104px; height: 104px; }
   .end-turn .et-lbl { font-size: 16px; }
   .stats-grid { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
@@ -1765,7 +1767,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .lamp-arts { gap: 7px; }
   .lamp-art { padding: 6px 12px; font-size: 12.5px; }
   .bequest-opt { width: 44cqw; max-width: 160px; }
-  .hud-bar { gap: 10px; padding: calc(6px + var(--sat)) calc(10px + var(--sar)) 5px calc(10px + var(--sal)); }
+  .hud-bar { gap: 10px; padding: 6px 10px 5px 10px; }
   .hud-stat { font-size: 14px; gap: 5px; }
   .hud-hp-wrap { min-width: 96px; }
   .hud-mid { display: none; } /* act & floor live on the map title instead */
@@ -1794,11 +1796,10 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .card-cost { width: 29px; height: 29px; font-size: 15px; top: -6px; left: -6px; }
   .hand-zone { height: 214px; bottom: calc(-6px + var(--sab)); }
   .hand-zone .card { bottom: 46px; }
-  /* chrome lives in the fan's side gutters: two thumb columns */
-  .energy-orb { left: calc(3px + var(--sal)); bottom: calc(118px + var(--sab)); }
+  /* chrome positions: ui-chrome-layout.js (?bfuiedit=1) */
   .energy-orb .num { font-size: 36px; }
   .energy-orb .candles { gap: 4px; }
-  .lantern-btn { --lbr: 36px; width: 78px; height: 78px; left: calc(7px + var(--sal)); bottom: calc(62px + var(--sab)); }
+  .lantern-btn { --lbr: 36px; }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 68px; height: 68px; }
   .lantern-btn .lb-count { font-size: 20px; }
   .facet-row { gap: 4px; margin-top: 3px; }
@@ -1806,20 +1807,12 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .facet-row .pip:has(.facet-img), .facet-row .pip .facet-img { width: 14px; height: 14px; }
   .candle { width: 16px; height: 22px; }
   .candle:has(.candle-img) { width: 28px; height: 40px; }
-  .end-turn {
-    right: calc(3px + var(--sar)); bottom: calc(88px + var(--sab));
-    width: 96px; height: 96px;
-  }
   .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 96px; height: 96px; }
   .end-turn .et-lbl { font-size: 15px; letter-spacing: 0.12em; }
-  .pile-btn { width: 68px; height: 108px; bottom: calc(4px + var(--sab)); }
   .pile-stack { left: 0; right: 0; top: 0; bottom: 14px; }
   .pile-layer { width: 100%; }
   .pile-btn .cnt { font-size: 14px; right: 1px; bottom: 13px; }
   .pile-btn .lbl { font-size: 7.5px; letter-spacing: 0.08em; }
-  .pile-draw { left: calc(4px + var(--sal)); }
-  .pile-discard { right: calc(4px + var(--sar)); }
-  .pile-exhaust { right: calc(4px + var(--sar)); bottom: calc(120px + var(--sab)); }
   .turn-banner { font-size: 27px; letter-spacing: 0.2em; }
   .turn-banner.boss-banner { font-size: clamp(24px, 7cqw, 38px); }
   .combat-msg { top: calc(78px + var(--sat)); font-size: 12px; }
@@ -1852,7 +1845,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
 /* ============ phone landscape: a low wide window — everything ducks, the
    hand tucks below the sill and rises to meet a lifted finger */
 @container stage (max-height: 480px) and (min-width: 500px) {
-  .hud-bar { gap: 10px; padding: calc(4px + var(--sat)) calc(12px + var(--sar)) 4px calc(12px + var(--sal)); }
+  .hud-bar { gap: 10px; padding: 4px 12px 4px 12px; }
   .hud-stat { font-size: 13.5px; }
   .hud-hp-wrap { min-width: 110px; }
   .hud-mid { font-size: 11px; letter-spacing: 0.08em; }
@@ -1875,10 +1868,10 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .card-cost { width: 27px; height: 27px; font-size: 14px; }
   .hand-zone { height: 128px; bottom: calc(-34px + var(--sab)); }
   .hand-zone .card { bottom: 0; }
-  .energy-orb { left: calc(8px + var(--sal)); bottom: calc(56px + var(--sab)); }
+  /* chrome positions: ui-chrome-layout.js (?bfuiedit=1) */
   .energy-orb .num { font-size: 33px; }
   .energy-orb .candles { gap: 3px; }
-  .lantern-btn { --lbr: 31px; width: 68px; height: 68px; left: calc(62px + var(--sal)); bottom: calc(66px + var(--sab)); }
+  .lantern-btn { --lbr: 31px; }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 62px; height: 62px; }
   .lantern-btn .lb-count { font-size: 18px; }
   .facet-row { gap: 3px; margin-top: 2px; }
@@ -1886,17 +1879,12 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .facet-row .pip:has(.facet-img), .facet-row .pip .facet-img { width: 12px; height: 12px; }
   .candle { width: 14px; height: 18px; }
   .candle:has(.candle-img) { width: 24px; height: 34px; }
-  .end-turn { right: calc(6px + var(--sar)); bottom: calc(40px + var(--sab)); width: 84px; height: 84px; }
   .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 84px; height: 84px; }
   .end-turn .et-lbl { font-size: 14px; letter-spacing: 0.1em; }
-  .pile-btn { width: 64px; height: 102px; bottom: calc(4px + var(--sab)); }
   .pile-stack { left: 0; right: 0; top: 0; bottom: 14px; }
   .pile-layer { width: 100%; }
   .pile-btn .cnt { font-size: 14px; right: 1px; bottom: 13px; }
   .pile-btn .lbl { font-size: 7px; letter-spacing: 0.08em; }
-  .pile-draw { left: calc(6px + var(--sal)); }
-  .pile-discard { right: calc(6px + var(--sar)); }
-  .pile-exhaust { right: calc(78px + var(--sar)); }
   .turn-banner { font-size: 26px; }
   .floaty { font-size: 22px; }
   .floaty.crit { font-size: 32px; }

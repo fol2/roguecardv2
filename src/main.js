@@ -26,4 +26,7 @@ if (import.meta.env.DEV && qs.has('charedit')) {
   if (import.meta.env.DEV && qs.has('bfedit')) {
     import('./dev/bf-editor.js').then((m) => m.initBfEditor());
   }
+  if (import.meta.env.DEV && qs.has('bfuiedit')) {
+    import('./dev/bfui-editor.js').then((m) => m.initBfuiEditor());
+  }
 }

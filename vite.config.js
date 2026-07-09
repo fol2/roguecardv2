@@ -6,6 +6,8 @@ const BF_SAVE_PORT = 5174;
 const BF_SAVE_HOSTS = ["localhost", "127.0.0.1", "macm4.tail55e87e.ts.net"];
 const BF_LAYOUT_PATH = resolve("src/battlefield-layout.js");
 const BF_LAYOUT_TMP = `${BF_LAYOUT_PATH}.tmp`;
+const UIC_LAYOUT_PATH = resolve("src/ui-chrome-layout.js");
+const UIC_LAYOUT_TMP = `${UIC_LAYOUT_PATH}.tmp`;
 const CHAR_META_PATH = resolve("src/char-meta.js");
 const CHAR_META_TMP = `${CHAR_META_PATH}.tmp`;
 const WARD_PARAMS_PATH = resolve("src/ward-params.js");
@@ -133,6 +135,33 @@ function bfSavePlugin() {
           // Invalidate only this module — char-meta.js self-accepts HMR and
           // soft-applies via onCharMetaChange (no full page reload).
           const mods = server.moduleGraph.getModulesByFile(CHAR_META_PATH);
+          if (mods) for (const m of mods) server.moduleGraph.invalidateModule(m);
+          res.end(JSON.stringify({ ok: true, reload: false }));
+        } catch (e) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ ok: false, problems: [String(e?.message ?? e)] }));
+        }
+      });
+
+      // ?bfuiedit=1 → POST /__bfui-save writes src/ui-chrome-layout.js
+      server.middlewares.use("/__bfui-save", async (req, res) => {
+        if (req.method !== "POST") { res.statusCode = 405; return res.end(); }
+        if (!bfSaveOriginOk(req)) {
+          res.statusCode = 403;
+          res.setHeader("content-type", "application/json");
+          return res.end(JSON.stringify({ ok: false, problems: ["forbidden origin"] }));
+        }
+        const body = await readJsonBody(req, res);
+        if (body == null) return;
+        res.setHeader("content-type", "application/json");
+        try {
+          const { serializeUIC, validateUIC } = await import("./src/dev/bfui-serialize.js");
+          const uic = JSON.parse(body);
+          const { ok, problems } = validateUIC(uic);
+          if (!ok) { res.statusCode = 400; return res.end(JSON.stringify({ ok: false, problems })); }
+          writeFileSync(UIC_LAYOUT_TMP, serializeUIC(uic));
+          renameSync(UIC_LAYOUT_TMP, UIC_LAYOUT_PATH);
+          const mods = server.moduleGraph.getModulesByFile(UIC_LAYOUT_PATH);
           if (mods) for (const m of mods) server.moduleGraph.invalidateModule(m);
           res.end(JSON.stringify({ ok: true, reload: false }));
         } catch (e) {
