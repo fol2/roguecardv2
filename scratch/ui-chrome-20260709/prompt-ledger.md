@@ -50,3 +50,21 @@ Notes:
 - Nano Banana Pro polish was skipped for this chrome batch (silhouette-first
   HUD glyphs; Cursor GenerateImage sources were sufficient after cutout).
 - All 27 ids match `UI_CHROME_IDS` in `src/ui-chrome.js`.
+
+## Review fix pass — 2026-07-09 (subjects)
+
+Replaced 5 ids after Task 8 review (wrong subjects / unusable aspect). Same
+pipeline: Cursor `GenerateImage` → `remove_chroma_key.py --auto-key border` →
+`strip-alpha-rim.py --radius 6 --mode darken` → `sips -Z 512` → promote.
+
+| id | fix subject (literal) | notes |
+|---|---|---|
+| coin | brass coin, simple embossed diamond mark, circle silhouette | was crest/spear emblem |
+| hp-vial-frame | **horizontal** stained-glass bar bezel, frame only, hollow centre | was vertical flask; midband alpha 0 |
+| facet-empty | intact diamond glass chip, clear panes only | no castle / heavy damage texture |
+| facet-chipped | same chip family + missing corner + lit crack | no castle silhouette |
+| menu | three thick horizontal bars only (hamburger) | dropped ornate gems / multi-colour bands |
+
+Sources overwritten in `source/<id>.png` (v2 gens); alpha/rim refreshed; promoted
+to `src/assets/ui/<id>.png`. No JS/CSS changes (`object-fit: fill` already OK
+once the frame is horizontal).
