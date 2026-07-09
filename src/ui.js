@@ -1070,7 +1070,7 @@ function statusChips(container, statuses, isPlayer) {
     const u = assetUrl('statuses', id);
     const art = u
       ? `<img class="schip-art" src="${u}" alt="">`
-      : (hasIcon(`st-${id}`) ? iconSvg(`st-${id}`, 28) : info.icon);
+      : (hasIcon(`st-${id}`) ? iconSvg(`st-${id}`, 32) : info.icon);
     const count = Math.abs(n) >= 2 ? `<span class="n">${n}</span>` : '';
     const chip = el('span', `schip ${kind}`, `${art}${count}`);
     chip._tip = { title: info.name, body: info.desc.replace(/\bN\b/g, Math.abs(n)), sub: kind === 'debuff' ? 'Debuff' : 'Buff' };

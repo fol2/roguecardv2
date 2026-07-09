@@ -606,21 +606,22 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   display: flex; gap: 6px; min-height: 36px; flex-wrap: wrap; justify-content: center;
   max-width: 240px; align-items: center;
 }
+/* no chip box — raster/SVG is the whole read; stack badge only */
 .schip {
-  display: inline-flex; align-items: center; justify-content: center; gap: 2px;
-  position: relative; width: 36px; height: 36px; padding: 0;
-  border-radius: 10px; font-size: 12px; font-weight: 800;
-  background: rgba(10, 13, 26, 0.82); border: 1px solid rgba(255, 255, 255, 0.16); cursor: help;
+  display: inline-flex; align-items: center; justify-content: center;
+  position: relative; width: 32px; height: 32px; padding: 0;
+  background: none; border: none; cursor: help; font-weight: 800;
 }
-.schip-art { width: 28px; height: 28px; object-fit: contain; pointer-events: none; }
+.schip-art { width: 32px; height: 32px; object-fit: contain; pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.85)); }
 .schip svg { width: 28px; height: 28px; }
 .schip .n {
-  position: absolute; right: -2px; bottom: -2px; min-width: 14px; height: 14px; padding: 0 3px;
+  position: absolute; right: -3px; bottom: -3px; min-width: 14px; height: 14px; padding: 0 3px;
   border-radius: 7px; font-size: 10px; font-variant-numeric: tabular-nums; line-height: 14px; text-align: center;
   background: #0a0d1a; border: 1px solid rgba(255,255,255,.25); color: #fff;
 }
-.schip.buff { color: #9fd8ff; border-color: rgba(127, 212, 255, 0.45); }
-.schip.debuff { color: #ffb08d; border-color: rgba(255, 122, 71, 0.5); }
+.schip.buff { color: #9fd8ff; }
+.schip.debuff { color: #ffb08d; }
 .schip.pop { animation: chipPop 0.35s ease-out; }
 @keyframes chipPop { 40% { transform: scale(1.35); } }
 
