@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { readdirSync } from 'node:fs';
 import {
-  newRun, startCombat, playCard, endTurn, makeCard, cardData, availableNodes, genMap,
+  newRun, startCombat, playCard, endTurn, drawCards, makeCard, cardData, availableNodes, genMap,
   rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, finalizeNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, nodeEventInFlight, saveRun, loadRun, genCombatRewards, genShop, gainRelic, randomRelic,
   rollBossRelics, addCardToDeck, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
   MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, cardPool, relicPool,
@@ -917,6 +917,36 @@ function forceHand(run, cb, ids) {
   assert.equal(claimMonument(next), null, 'the stone gives once');
   clearBequest();
   _setStore(null);
+}
+{
+  // pile ceremony queue payloads: discardHand uids, reshuffle n, toDiscard uid
+  const { run, cb } = freshCombat();
+  forceHand(run, cb, ['defend', 'strike', 'defend']);
+  const H = cb.hand.length;
+  const handUids = cb.hand.map((c) => c.uid);
+  cb.queue.length = 0;
+  endTurn(run, cb);
+  const dh = cb.queue.filter((e) => e.t === 'discardHand');
+  assert.equal(dh.length, 1, 'one discardHand event');
+  assert.equal(dh[0].uids.length, H, 'discardHand carries hand size');
+  assert.deepEqual(dh[0].uids, handUids, 'discardHand uids match pre-clear hand');
+
+  const { run: r2, cb: c2 } = freshCombat();
+  c2.draw = [];
+  c2.discard = [makeCard(r2, 'strike'), makeCard(r2, 'defend'), makeCard(r2, 'strike')];
+  const nDiscard = c2.discard.length;
+  c2.queue.length = 0;
+  drawCards(r2, c2, 1);
+  const rs = c2.queue.find((e) => e.t === 'reshuffle');
+  assert.ok(rs && Number.isInteger(rs.n) && rs.n > 0, 'reshuffle carries n');
+  assert.equal(rs.n, nDiscard, 'reshuffle n is pre-move discard size');
+
+  const { run: r3, cb: c3 } = freshCombat();
+  forceHand(r3, c3, ['defend']);
+  const playUid = c3.hand[0].uid;
+  c3.queue.length = 0;
+  assert.ok(playCard(r3, c3, playUid), 'defend plays');
+  assert.ok(c3.queue.some((e) => e.t === 'toDiscard' && e.uid === playUid), 'non-exhaust skill emits toDiscard');
 }
 
 // ---- monte-carlo: random agent plays full runs -----------------------------

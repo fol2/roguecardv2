@@ -716,10 +716,11 @@ export function drawCards(run, cb, n) {
     if (cb.hand.length >= 10) break;
     if (!cb.draw.length) {
       if (!cb.discard.length) break;
+      const n = cb.discard.length;
       cb.draw = cb.discard;
       cb.discard = [];
       shuffle(rng, cb.draw);
-      cb.queue.push({ t: 'reshuffle' });
+      cb.queue.push({ t: 'reshuffle', n });
     }
     const c = cb.draw.pop();
     cb.hand.push(c);
@@ -828,7 +829,10 @@ export function playCard(run, cb, uid, targetIdx = null) {
 
   if (d.type === 'power') cb.queue.push({ t: 'powerConsumed', uid: inst.uid });
   else if (d.exhaust) exhaustCard(run, cb, inst);
-  else cb.discard.push(inst);
+  else {
+    cb.discard.push(inst);
+    cb.queue.push({ t: 'toDiscard', uid: inst.uid });
+  }
   return true;
 }
 
@@ -978,9 +982,10 @@ export function endTurn(run, cb) {
   if (P.statuses.metallicize) gainBlock(run, cb, P, P.statuses.metallicize, false);
   if (P.statuses.regen) healPlayer(run, P.statuses.regen, cb);
   // discard hand
+  const uids = cb.hand.map((c) => c.uid);
   cb.discard.push(...cb.hand);
   cb.hand = [];
-  cb.queue.push({ t: 'discardHand' });
+  cb.queue.push({ t: 'discardHand', uids });
   // player debuffs (and turn-scoped buffs) tick down at end of your turn
   for (const s of ['vulnerable', 'weak', 'frail', 'beacon']) {
     if (P.statuses[s]) { P.statuses[s]--; if (!P.statuses[s]) delete P.statuses[s]; }
