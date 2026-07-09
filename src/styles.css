@@ -1043,19 +1043,29 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .hero-wrap.aim-target:not(.aim-mesh) .aim-ring { opacity: 1; }
 
 .energy-orb {
-  position: absolute; left: calc(30px + var(--sal)); bottom: calc(150px + var(--sab)); width: 110px; height: auto; min-height: 96px; border-radius: 0; z-index: 26;
-  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px;
-  /* candle meter is primary — transparent hit shell, not a glass disc */
+  position: absolute; left: calc(24px + var(--sal)); bottom: calc(148px + var(--sab));
+  width: auto; height: auto; min-height: 0; padding: 0; border-radius: 0; z-index: 26;
+  display: flex; align-items: flex-end; justify-content: center;
+  /* candle stack is the meter — transparent shell, no glass orb */
   background: transparent;
   border: none;
   box-shadow: none;
   font-family: 'Cinzel', serif; color: var(--parchment);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 10px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
 }
-/* number above candles; ENERGY label under — both quieter than the meter */
-.energy-orb .num { font-size: 18px; font-weight: 700; line-height: 1; order: 1; opacity: 0.95; }
-.energy-orb .candles { order: 2; }
-.energy-orb .lbl { font-size: 8px; letter-spacing: 0.18em; font-weight: 700; opacity: 0.75; order: 3; }
+/* count centered over the whole candle row — thin outline like deck/End */
+.energy-orb .num {
+  position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%);
+  z-index: 2; font-size: 22px; font-weight: 800; line-height: 1;
+  color: #fff8e8; pointer-events: none;
+  -webkit-text-stroke: 1.1px rgba(0, 0, 0, 0.9);
+  paint-order: stroke fill;
+  text-shadow:
+    -1px -1px 0 #000, 1px -1px 0 #000,
+    -1px 1px 0 #000, 1px 1px 0 #000,
+    0 2px 5px rgba(0, 0, 0, 0.95);
+}
+.energy-orb .lbl { display: none; }
 /* candles carry the energy read — hide the old orbiting comet */
 .energy-orb::before { display: none; }
 .energy-orb.spent { filter: saturate(0.35) brightness(0.75); }
@@ -1063,16 +1073,16 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 /* candles: one flame per point of energy, guttering out as they're spent */
 .energy-orb .candles {
   position: relative; left: auto; bottom: auto; transform: none;
-  display: flex; gap: 5px; align-items: flex-end; z-index: 1;
+  display: flex; gap: 6px; align-items: flex-end; z-index: 1;
   pointer-events: none;
 }
 .candle {
-  width: 18px; height: 24px; border-radius: 50% 50% 46% 46% / 66% 66% 34% 34%;
+  width: 22px; height: 30px; border-radius: 50% 50% 46% 46% / 66% 66% 34% 34%;
   background: #232a40; border: 1px solid rgba(180, 195, 235, 0.16); transition: background 0.3s, box-shadow 0.3s;
   display: flex; align-items: flex-end; justify-content: center; overflow: hidden;
 }
 .candle:has(.candle-img) {
-  width: 30px; height: 42px;
+  width: 40px; height: 56px;
   background: transparent; border: none; border-radius: 0; overflow: visible;
 }
 .candle-img {
@@ -1687,9 +1697,9 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .card { --cw: 132px; }
   .choice-cards .card { --cw: 150px; }
   .hand-zone { height: 230px; }
-  .energy-orb { width: 96px; min-height: 84px; bottom: calc(130px + var(--sab)); left: calc(20px + var(--sal)); }
-  .energy-orb .num { font-size: 16px; }
-  .energy-orb .lbl { font-size: 7.5px; }
+  .energy-orb { bottom: calc(128px + var(--sab)); left: calc(16px + var(--sal)); }
+  .energy-orb .num { font-size: 20px; }
+  .candle:has(.candle-img) { width: 34px; height: 48px; }
   .lantern-btn { --lbr: 30px; width: 64px; height: 64px; left: calc(28px + var(--sal)); bottom: calc(222px + var(--sab)); }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 34px; height: 34px; }
   .lantern-btn .lb-count { font-size: 15px; }
@@ -1761,9 +1771,8 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .hand-zone { height: 214px; bottom: calc(-6px + var(--sab)); }
   .hand-zone .card { bottom: 46px; }
   /* chrome lives in the fan's side gutters: two thumb columns */
-  .energy-orb { width: 78px; min-height: 72px; height: auto; left: calc(3px + var(--sal)); bottom: calc(120px + var(--sab)); }
-  .energy-orb .num { font-size: 14px; }
-  .energy-orb .lbl { display: none; }
+  .energy-orb { left: calc(3px + var(--sal)); bottom: calc(118px + var(--sab)); }
+  .energy-orb .num { font-size: 18px; }
   .energy-orb .candles { gap: 4px; }
   .lantern-btn { --lbr: 26px; width: 56px; height: 56px; left: calc(7px + var(--sal)); bottom: calc(62px + var(--sab)); }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 30px; height: 30px; }
@@ -1771,8 +1780,8 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .facet-row { gap: 4px; margin-top: 3px; }
   .facet-row .pip { width: 8px; height: 8px; }
   .facet-row .pip:has(.facet-img), .facet-row .pip .facet-img { width: 14px; height: 14px; }
-  .candle { width: 14px; height: 18px; }
-  .candle:has(.candle-img) { width: 22px; height: 32px; }
+  .candle { width: 16px; height: 22px; }
+  .candle:has(.candle-img) { width: 28px; height: 40px; }
   .end-turn {
     right: calc(3px + var(--sar)); bottom: calc(112px + var(--sab));
     width: 78px; height: 78px;
@@ -1842,9 +1851,8 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .card-cost { width: 27px; height: 27px; font-size: 14px; }
   .hand-zone { height: 128px; bottom: calc(-34px + var(--sab)); }
   .hand-zone .card { bottom: 0; }
-  .energy-orb { width: 70px; min-height: 64px; height: auto; left: calc(10px + var(--sal)); bottom: calc(58px + var(--sab)); }
-  .energy-orb .num { font-size: 13px; }
-  .energy-orb .lbl { display: none; }
+  .energy-orb { left: calc(8px + var(--sal)); bottom: calc(56px + var(--sab)); }
+  .energy-orb .num { font-size: 16px; }
   .energy-orb .candles { gap: 3px; }
   .lantern-btn { --lbr: 22px; width: 48px; height: 48px; left: calc(62px + var(--sal)); bottom: calc(66px + var(--sab)); }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 26px; height: 26px; }
@@ -1852,8 +1860,8 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .facet-row { gap: 3px; margin-top: 2px; }
   .facet-row .pip { width: 7px; height: 7px; }
   .facet-row .pip:has(.facet-img), .facet-row .pip .facet-img { width: 12px; height: 12px; }
-  .candle { width: 12px; height: 16px; }
-  .candle:has(.candle-img) { width: 20px; height: 28px; }
+  .candle { width: 14px; height: 18px; }
+  .candle:has(.candle-img) { width: 24px; height: 34px; }
   .end-turn { right: calc(6px + var(--sar)); bottom: calc(60px + var(--sab)); width: 68px; height: 68px; }
   .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 68px; height: 68px; }
   .end-turn .et-lbl { font-size: 13px; letter-spacing: 0.1em; }
