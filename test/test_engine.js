@@ -11,7 +11,7 @@ import {
   previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
 } from '../src/engine.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS } from '../src/data.js';
-import { _setStore, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from '../src/vigil.js';
+import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
 import { uicResolve, _setUIC, uicRaw } from '../src/uic.js';
@@ -1009,9 +1009,9 @@ function forceHand(run, cb, ids) {
   assert.equal(w.vigil.vowUnlocked, 1, 'vow I offered after a win');
   assert.deepEqual(syncVigil().unlocks, w.vigil.unlocks, 'sync finds nothing more owed');
   // bequests round-trip
-  setBequest(1, 7, { kind: 'gold', amount: 50 });
+  assert.equal(setBequest(1, 7, { kind: 'gold', amount: 50 }), true, 'bequest write persisted');
   assert.deepEqual(loadVigil().lastFall, { act: 1, row: 7, bequest: { kind: 'gold', amount: 50 } });
-  clearBequest();
+  assert.equal(clearBequest(), true, 'bequest clear persisted');
   assert.equal(loadVigil().lastFall, null, 'monument claimed and cleared');
   _setStore(null);
 }
@@ -1053,11 +1053,12 @@ function forceHand(run, cb, ids) {
     'REVEALS derived from PROGRESSION.revealThresholds',
   );
   for (const r of REVEALS) {
-    assert.ok(r.trigger && (r.trigger.runsPlayed != null || r.trigger.wins != null), `reveal ${r.id} has a counter trigger`);
+    assert.ok(r.trigger && (r.trigger.runsPlayed != null || r.trigger.wins != null || r.trigger.shards != null), `reveal ${r.id} has a counter trigger`);
   }
-  for (const id of ['lamplighter', 'phials', 'omens', 'poolWave2', 'poolWave3', 'poolFull', 'emberglass']) {
+  for (const id of ['lamplighter', 'phials', 'omens', 'poolWave2', 'poolWave3', 'poolFull', 'emberglass', 'act4']) {
     assert.ok(REVEALS.some((r) => r.id === id), `reveal ${id} declared`);
   }
+  assert.equal(PROGRESSION.revealThresholds.act4.shards, QUEST_IDS.length, 'Act 4 waits for all quest shards');
   for (const [rev, w] of Object.entries(PROGRESSION.poolWaves)) {
     assert.ok(REVEALS.some((r) => r.id === rev), `wave ${rev} matches a reveal id`);
     for (const id of w.cards) assert.ok(CARDS[id] && !CARDS[id].locked, `wave card ${id} exists, not deed-locked`);
@@ -1105,7 +1106,8 @@ function forceHand(run, cb, ids) {
   assert.equal(fresh.v, 2, 'fresh vigil is v2');
   assert.equal(fresh.runsPlayed, 0);
   assert.deepEqual(fresh.shards, []);
-  assert.deepEqual(fresh.quests, {});
+  assert.deepEqual(Object.keys(fresh.quests), QUEST_IDS);
+  assert.ok(QUEST_IDS.every((id) => fresh.quests[id].state === 'dormant'));
   assert.equal(fresh.news, false);
 
   // a veteran v1 profile migrates: counters carry, news pulses once, v1 stays
@@ -1132,6 +1134,83 @@ function forceHand(run, cb, ids) {
   _setStore(null);
 }
 {
+  _setStore({ getItem: () => null, setItem: () => { throw new Error('quota'); }, removeItem: () => {} });
+  assert.equal(saveVigil({ v: 2 }), false, 'saveVigil reports a rejected write');
+  _setStore(null);
+}
+{
+  _setStore(null);
+  _setRng(() => 0);
+  let v = loadVigil();
+  assert.deepEqual(Object.keys(v.quests), QUEST_IDS);
+  assert.ok(QUEST_IDS.every((id) => v.quests[id].state === 'dormant'));
+
+  v.deeds.wins = 1;
+  saveVigil(v);
+  v = loadVigil();
+  assert.equal(v.quests.paleOnes.state, 'armed', 'Phase 1 v2 save hydrates Pale opener');
+  assert.ok(QUEST_IDS.slice(1).every((id) => v.quests[id].state === 'dormant'));
+
+  const won = newRun(401);
+  won.quests = questSnapshot(v);
+  commitRunToVigil(won, true); // deeds.wins is now 2
+  let out = commitRunEnd(won, 'win');
+  assert.equal(out.vigil.runsPlayed, 1);
+  assert.equal(out.whisper, WHISPERS[0]);
+  assert.deepEqual(out.armed, ['ownShade']);
+  assert.equal(out.vigil.quests.ownShade.state, 'armed');
+  assert.equal(out.vigil.whispers, 1);
+
+  assert.deepEqual(commitRunEnd(won, 'win'), out, 'same run returns the cached result');
+
+  const completed = newRun(402);
+  completed.quests = questSnapshot(out.vigil);
+  completed.quests.paleOnes = { state: 'complete', progress: 9, memory: {} };
+  completed.questCompletions = ['paleOnes'];
+  out = commitRunEnd(completed, 'death');
+  assert.deepEqual(out.newShards, ['paleOnes']);
+  assert.deepEqual(out.vigil.shards, ['paleOnes']);
+  assert.equal(out.whisper, null, 'death does not consume a global whisper');
+
+  const duplicate = newRun(403);
+  duplicate.quests = questSnapshot(out.vigil);
+  duplicate.questCompletions = ['paleOnes'];
+  out = commitRunEnd(duplicate, 'abandon');
+  assert.deepEqual(out.newShards, []);
+  assert.deepEqual(out.vigil.shards, ['paleOnes']);
+
+  assert.equal(whisperAt(1), WHISPERS[0]);
+  assert.equal(whisperAt(999), WHISPERS.at(-1));
+
+  _setStore(null);
+  for (let win = 1; win <= 10; win++) {
+    const before = loadVigil();
+    const cadenceRun = newRun(4100 + win);
+    cadenceRun.quests = questSnapshot(before);
+    commitRunToVigil(cadenceRun, true);
+    const cadence = commitRunEnd(cadenceRun, 'win').vigil;
+    const expectedArmed = 1 + Math.floor(win / 2);
+    assert.equal(QUEST_IDS.filter((id) => cadence.quests[id].state !== 'dormant').length,
+      expectedArmed, 'one opener plus one quest per even win ' + win);
+    if (win === 1) assert.equal(cadence.quests.ownShade.state, 'dormant');
+  }
+  assert.ok(QUEST_IDS.every((id) => loadVigil().quests[id].state !== 'dormant'),
+    'all six quests are armed by win 10');
+
+  const veteran = loadVigil();
+  veteran.deeds.wins = 40;
+  for (const id of QUEST_IDS.slice(1)) veteran.quests[id] = { state: 'dormant', progress: 0, memory: {} };
+  saveVigil(veteran);
+  const veteranWin = newRun(404);
+  veteranWin.quests = questSnapshot(veteran);
+  commitRunToVigil(veteranWin, true);
+  out = commitRunEnd(veteranWin, 'win');
+  assert.equal(out.armed.length, 1, 'post-Phase-1 veteran catches up one quest per future win');
+
+  _setRng(null);
+  _setStore(null);
+}
+{
   // the reveal ladder: counters only ever open doors
   _setStore(null);
   let v = loadVigil();
@@ -1142,7 +1221,7 @@ function forceHand(run, cb, ids) {
   // Begin Anew (abandon a saved climb) must advance the ladder — same ledger
   // path as confirmAbandon — so the next run's snapshot sees new reveals.
   const abandoned = newRun(300, { reveals: [] });
-  v = commitRunEnd(abandoned);
+  v = commitRunEnd(abandoned, 'abandon').vigil;
   assert.equal(v.runsPlayed, 1, 'Begin Anew counts as a run end');
   assert.ok(isRevealed(v, 'lamplighter'), 'abandon unlocks Lamplighter for the next climb');
   const afterAbandon = newRun(3001, { reveals: revealSnapshot(v) });
@@ -1152,28 +1231,28 @@ function forceHand(run, cb, ids) {
 
   // run ends advance the ladder — win, fall, or abandon alike — exactly once
   const r1 = newRun(301);
-  v = commitRunEnd(r1);
+  v = commitRunEnd(r1, 'abandon').vigil;
   assert.equal(v.runsPlayed, 1);
-  assert.equal(commitRunEnd(r1).runsPlayed, 1, 'commitRunEnd idempotent per run');
+  assert.equal(commitRunEnd(r1, 'abandon').vigil.runsPlayed, 1, 'commitRunEnd idempotent per run');
   assert.ok(isRevealed(v, 'lamplighter'), 'run 2 gets the Lamplighter');
   assert.equal(v.news, true, 'crossing a reveal pulses the Vigil');
   assert.equal(clearNews().news, false, 'opening the Vigil clears the pulse');
 
-  v = commitRunEnd(newRun(302));
+  v = commitRunEnd(newRun(302), 'abandon').vigil;
   assert.ok(isRevealed(v, 'phials') && isRevealed(v, 'poolWave2'), 'runsPlayed 2 tier');
-  v = commitRunEnd(newRun(303));
+  v = commitRunEnd(newRun(303), 'abandon').vigil;
   assert.ok(isRevealed(v, 'omens'), 'runsPlayed 3 tier');
-  commitRunEnd(newRun(304));
-  v = commitRunEnd(newRun(305));
+  commitRunEnd(newRun(304), 'abandon');
+  v = commitRunEnd(newRun(305), 'abandon').vigil;
   assert.ok(isRevealed(v, 'poolWave3'), 'runsPlayed 4 tier (already crossed)');
-  v = commitRunEnd(newRun(306));
+  v = commitRunEnd(newRun(306), 'abandon').vigil;
   assert.ok(isRevealed(v, 'poolFull'), 'runsPlayed 6 tier');
   assert.ok(!isRevealed(v, 'emberglass'), 'wins-gated reveal still dark');
 
   // a win reveals the emberglass chain and marks news
   const wr = newRun(307);
   commitRunToVigil(wr, true);
-  v = loadVigil();
+  v = commitRunEnd(wr, 'win').vigil;
   assert.ok(isRevealed(v, 'emberglass'), 'first dawn arms the chain');
   assert.equal(v.news, true, 'unlocks pulse the Vigil too');
   _setStore(null);

@@ -1138,6 +1138,7 @@ export const PROGRESSION = {
     poolWave3: { runsPlayed: 4 },
     poolFull: { runsPlayed: 6 },    // today's full base pool
     emberglass: { wins: 1 },        // the chain arms (Phase 2)
+    act4: { shards: 6 }, // derived sealed-door surface, no playable act
   },
   poolWaves: {
     poolWave2: {
