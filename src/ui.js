@@ -1130,7 +1130,9 @@ function syncCombat() {
     x.block.classList.toggle('zero', en.block <= 0);
     x.block.innerHTML = `${iconSvg('shield', 13)} ${en.block}`;
     x.art.classList.toggle('warded', en.block > 0);
-    syncWardMesh(x.art, en.block > 0, false);
+    // Ward ON is owned by blockGain (animated grow). syncCombat only fades when block hits 0 —
+    // otherwise an earlier sync in the same drain wave snaps the shell on before blockGain runs.
+    if (en.block <= 0) syncWardMesh(x.art, false);
     x.root.classList.toggle('lowhp', en.hp > 0 && en.hp / en.maxHp <= 0.3);
     statusChips(x.statuses, en.statuses, false);
     if (en.hp > 0) x.facets.innerHTML = facetPips(en);
@@ -1167,7 +1169,8 @@ function syncCombat() {
   ce.pBlock.classList.toggle('zero', P.block <= 0);
   ce.pBlock.innerHTML = `${iconSvg('shield', 13)} ${P.block}`;
   ce.hero.classList.toggle('warded', P.block > 0);
-  syncWardMesh(ce.hero, P.block > 0, false);
+  // Ward ON is owned by blockGain (animated grow). syncCombat only fades when block hits 0.
+  if (P.block <= 0) syncWardMesh(ce.hero, false);
   ce.hero.classList.toggle('lowhp', P.hp / P.maxHp <= 0.3);
   statusChips(ce.pStatus, P.statuses, true);
   $('.num', ce.energy).textContent = P.energy;
@@ -2045,6 +2048,14 @@ function meshBindCombatants() {
     if (url && sprite) entries.push({ el: sprite, url, kind: ENEMIES[en.key].art.kind, id: en.key });
   });
   meshBind(entries);
+  // combat-start relics (e.g. basaltIdol) add block without blockGain — restore shell after bind
+  if (cb.player.block > 0 && heroSprite) syncWardMesh(heroSprite, true, true);
+  cb.enemies.forEach((en, i) => {
+    if (en.block <= 0) return;
+    const art = ce.enemies[i]?.art;
+    const sprite = art && ($('.enemy-sprite', art) || art);
+    if (sprite) syncWardMesh(sprite, true, true);
+  });
 }
 function scheduleMeshBind() {
   requestAnimationFrame(() => requestAnimationFrame(meshBindCombatants));
