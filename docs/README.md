@@ -15,19 +15,21 @@ Quick map for agents and humans. Operational truth for running the game lives in
 |---|---|
 | [`glass-crack-rendering.md`](glass-crack-rendering.md) | **Current** — transmission-glass crack/death rite (shipped), approved measures, superseded shader for the record, playground tuning workflow |
 
-## Active implementation specs (2026-07-06)
+## Active implementation specs
 
 | Doc | Status |
 |---|---|
-| [`superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md`](superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md) | **Current** — fixes (ground line, mesh death), Playwright kit, polish workstreams |
-| [`superpowers/plans/2026-07-06-visualisation-hardening-polish.md`](superpowers/plans/2026-07-06-visualisation-hardening-polish.md) | Executor plan (12 tasks); §Already landed covers fixed stage + 16:9 desktop |
+| [`superpowers/specs/2026-07-08-vigil-surfaces-status-art-design.md`](superpowers/specs/2026-07-08-vigil-surfaces-status-art-design.md) | **Current** — status strip rasters, Vigil/meta emblems, defeat/victory plates, gallery + manifest gates |
+| [`superpowers/plans/2026-07-08-vigil-surfaces-status-art.md`](superpowers/plans/2026-07-08-vigil-surfaces-status-art.md) | Executor plan (8 tasks); Task 8 = baselines + final sweep |
+| [`superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md`](superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md) | **Complete / predecessor** — ground line, mesh death, Playwright kit, polish workstreams |
+| [`superpowers/plans/2026-07-06-visualisation-hardening-polish.md`](superpowers/plans/2026-07-06-visualisation-hardening-polish.md) | Predecessor executor plan (12 tasks); fixed stage + 16:9 desktop |
 | [`superpowers/specs/2026-07-06-visualisation-boost-design.md`](superpowers/specs/2026-07-06-visualisation-boost-design.md) | Predecessor spec (14 tasks executed) |
 | [`superpowers/plans/2026-07-06-visualisation-boost.md`](superpowers/plans/2026-07-06-visualisation-boost.md) | Predecessor executor plan (historical) |
 
 ## Visual QA kit
 
 - Config: [`../playwright.config.js`](../playwright.config.js) — desktop 1600×900, portrait 375×812, landscape 812×375; dev server **5174**
-- Suites: [`../test/e2e/`](../test/e2e/) — `stage.spec` (fixed viewport, **green**), `geometry.spec` (ground line, red until Task 1), `battle.spec`, `visual.spec`, `perf.spec`
+- Suites: [`../test/e2e/`](../test/e2e/) — `stage.spec` (fixed viewport), `geometry.spec` (ground-line feet), `battle.spec`, `visual.spec` (baselines refreshed for Vigil status/meta art), `perf.spec`
 - In-page API: `window.__probe` in `src/ui.js` — geometry in **stage px**
 
 ## Fixed virtual stage (summary)
