@@ -8,8 +8,9 @@ import { bfResolve, bfEnemySize } from '../battlefield.js';
 import { initStage } from '../stage.js';
 import {
   initMesh, meshBind, meshClear, meshEnabled, meshWard, meshWardClear, meshDebug,
-  WARD_DEFAULTS, meshWardParams, meshWardSetParams, meshWardResetParams,
+  WARD_DEFAULTS, meshWardParams, meshWardSetParams, meshWardResetParams, meshWardCommitDefaults,
 } from '../mesh.js';
+import { validateWardParams } from './ward-serialize.js';
 
 const HERO_IDS = ASPECTS.map((a) => a.id);
 const ENEMY_IDS = Object.keys(ENEMIES).sort();
@@ -22,7 +23,7 @@ const PARAM_SLIDERS = [
   { key: 'transmission', label: 'transmission', min: 0, max: 1, step: 0.05 },
   { key: 'thickness', label: 'thickness', min: 0, max: 0.6, step: 0.01 },
   { key: 'ior', label: 'IOR', min: 1, max: 2.4, step: 0.05 },
-  { key: 'normalScale', label: 'voronoi', min: 0, max: 3, step: 0.05 },
+  { key: 'normalScale', label: 'facets (N)', min: 0, max: 3, step: 0.05 },
   { key: 'transparency', label: 'transparency', min: 0, max: 1, step: 0.05 },
   { key: 'opacity', label: 'opacity', min: 0, max: 1, step: 0.05 },
   { key: 'edgeSoftness', label: 'edge soft', min: 0, max: 0.5, step: 0.01 },
@@ -31,7 +32,7 @@ const PARAM_SLIDERS = [
   { key: 'roughness', label: 'roughness', min: 0, max: 0.5, step: 0.01 },
   { key: 'pad', label: 'pad size', min: 1, max: 1.8, step: 0.02 },
   { key: 'growMs', label: 'grow ms', min: 80, max: 2000, step: 20 },
-  { key: 'sites', label: 'facets', min: 4, max: 32, step: 1 },
+  { key: 'sites', label: 'sites', min: 4, max: 32, step: 1 },
 ];
 
 const state = {
@@ -139,6 +140,23 @@ function resetParams() {
   return next;
 }
 
+async function saveParams() {
+  const params = meshWardParams();
+  const problems = validateWardParams(params);
+  if (problems.length) return alert(`ward params invalid:\n${problems.join('\n')}`);
+  const r = await fetch('/__ward-save', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  const j = await r.json().catch(() => ({ ok: false, problems: [`HTTP ${r.status}`] }));
+  if (!j.ok) return alert(`save failed:\n${(j.problems ?? []).join('\n')}`);
+  meshWardCommitDefaults(params);
+  syncParamUI(meshWardParams());
+  const status = document.getElementById('vx-status');
+  if (status) status.textContent = `${labelOf(state.id)} · ward ${state.ward} · saved ✓`;
+}
+
 function syncBar() {
   const el = document.getElementById('vx-status');
   if (el) el.textContent = `${labelOf(state.id)} · ward ${state.ward}`;
@@ -236,12 +254,12 @@ function renderPanel() {
     <h4>ward shell</h4>
     <p class="vx-sub">status: <em id="vx-ward-status">${state.ward}</em></p>
     <div class="vx-actions">
-      <button type="button" id="vx-grow" title="Grow = animate in from small">Grow</button>
+      <button type="button" id="vx-grow" title="Grow = alpha + facets 0→full (no zoom)">Grow</button>
       <button type="button" id="vx-hold" title="Hold = instant full, no anim">Hold</button>
-      <button type="button" id="vx-clear" title="meshWard off">Clear</button>
+      <button type="button" id="vx-clear" title="Clear = reverse fade (same growMs)">Clear</button>
     </div>
     <h4>look</h4>
-    <p class="vx-sub">edge soft 0 = sharp · refraction scales glass bend</p>
+    <p class="vx-sub">facets (N) = normalScale · grow ramps opacity + facets · pad fixed</p>
     ${PARAM_SLIDERS.map((d) => sliderRow(d, params)).join('')}
     <label class="vx-row vx-tint-row"><span>tint</span>
       <input type="color" id="vx-tint" value="${params.tint}">
@@ -249,15 +267,16 @@ function renderPanel() {
     </label>
     <label class="vx-check"><input type="checkbox" id="vx-wobble" ${params.idleWobble ? 'checked' : ''}> idle wobble</label>
     <div class="vx-actions">
-      <button type="button" id="vx-reset" title="Restore WARD_DEFAULTS">Reset defaults</button>
+      <button type="button" id="vx-reset" title="Restore WARD_DEFAULTS">Reset</button>
+      <button type="button" id="vx-save" title="Write WARD_DEFAULTS to src/ward-params.js">Save</button>
     </div>
     <h4>preview</h4>
     <label class="vx-row"><span>zoom</span>
       <input type="range" id="vx-zoom" min="1" max="4" step="0.25" value="${state.zoom}">
       <em id="vx-zoom-em">×${state.zoom}</em>
     </label>
-    <p class="vx-hint"><b>Grow</b> = animate in. <b>Hold</b> = instant full.
-      <b>Clear</b> fades off. Sliders call <code>meshWardSetParams</code> live.</p>
+    <p class="vx-hint"><b>Grow</b> = alpha + facets in (no zoom). <b>Hold</b> = instant full.
+      <b>Clear</b> = reverse fade. <b>Save</b> writes <code>ward-params.js</code>.</p>
     <p class="vx-hint">Open: <code>?vfxedit=1&amp;char=${state.id}</code>
       · console: <code>__vfxEditor.getParams()</code></p>`;
 
@@ -270,6 +289,7 @@ function renderPanel() {
   panel.querySelector('#vx-hold').onclick = () => hold();
   panel.querySelector('#vx-clear').onclick = () => clear();
   panel.querySelector('#vx-reset').onclick = () => resetParams();
+  panel.querySelector('#vx-save').onclick = () => { saveParams(); };
   panel.querySelector('#vx-zoom').oninput = (e) => {
     state.zoom = Number(e.target.value);
     const em = document.getElementById('vx-zoom-em');
@@ -419,6 +439,7 @@ export function initVfxEditor() {
     getParams: meshWardParams,
     setParams,
     resetParams,
+    saveParams,
     defaults: () => ({ ...WARD_DEFAULTS }),
   };
 }
