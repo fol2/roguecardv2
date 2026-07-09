@@ -71,20 +71,19 @@ export function meshWardCommitDefaults(params = wardParams) {
   return meshWardParams();
 }
 
-function wardRefract(grow = 1) {
-  const g = Math.max(0, Math.min(1, Number(grow) || 0));
+function wardRefract() {
   const r = Math.max(0, Number(wardParams.refraction) || 0);
   return {
     transmission: Math.min(1, Math.max(0, wardParams.transmission * r)),
     thickness: Math.max(0, wardParams.thickness * r),
-    // facets appear via normal strength (no site-count rebake per frame)
-    normalScale: Math.max(0, wardParams.normalScale * r * g),
+    // facet strength is fixed; grow/fade ramps site *count* via rebake
+    normalScale: Math.max(0, wardParams.normalScale * r),
   };
 }
 
 function applyWardMaterial(mat, { grow = 1 } = {}) {
   const g = Math.max(0, Math.min(1, Number(grow) || 0));
-  const r = wardRefract(g);
+  const r = wardRefract();
   mat.color.set(wardParams.tint || WARD_DEFAULTS.tint);
   mat.transmission = r.transmission;
   mat.ior = Math.max(1, Number(wardParams.ior) || 1.4);
@@ -248,7 +247,8 @@ function makePlane(url, profile, seed, img) {
   const p = {
     geo, base, profile, seed, el: null, aspect: artAspect(img, null) || 2 / 3,
     sites: [], death: 0, glass: null, fire: null, beams: null, bodyPx: null, outline: null, aimOn: false,
-    ward: null, wardOn: false, wardGrow: 0, wardGrowFrom: 0, wardT0: 0, wardSites: null,
+    ward: null, wardOn: false, wardGrow: 0, wardGrowFrom: 0, wardT0: 0,
+    wardSites: null, wardSitesUsed: -1,
   };
   const tex = loadTex(url, (t) => { p.aspect = artAspect(img, t); });
   p.tex = tex;
@@ -443,7 +443,15 @@ function wardSitesFor(p) {
   }
   p.wardSites = sites;
   p.wardSitesN = n;
+  p.wardSitesUsed = -1; // force normalMap rebake — positions changed
   return sites;
+}
+
+/** Grow/fade reveals a prefix of the full site list (0 → all). */
+function wardSiteCountForGrow(p, grow) {
+  const all = wardSitesFor(p);
+  const g = Math.max(0, Math.min(1, Number(grow) || 0));
+  return Math.max(0, Math.round(all.length * g));
 }
 
 /** Full oval glass piece — solid shell for transmission.
@@ -489,26 +497,31 @@ function bakeWardMask(_p) {
   return c;
 }
 
-/** Same Voronoi seam normals as crack glass, driven by ward facet sites. */
-function bakeWardNormal(p) {
+/** Same Voronoi seam normals as crack glass, driven by ward facet sites.
+ *  siteCount: use only the first N sites (grow/fade prefix); omit = full list. */
+function bakeWardNormal(p, siteCount) {
   const N = BAKE_N;
   const c = Object.assign(document.createElement('canvas'), { width: N, height: N });
   const ctx = c.getContext('2d'), img = ctx.createImageData(N, N);
-  const S = siteXY(p, wardSitesFor(p));
+  const all = wardSitesFor(p);
+  const n = siteCount == null ? all.length : Math.max(0, Math.min(all.length, Math.round(siteCount)));
+  const S = siteXY(p, all.slice(0, n));
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    let d1 = 1e12, d2 = 1e12, s1 = null, s2 = null;
-    for (const s of S) {
-      const dx = x - s.x, dy = y - s.y, d = dx * dx + dy * dy;
-      if (d < d1) { d2 = d1; s2 = s1; d1 = d; s1 = s; }
-      else if (d < d2) { d2 = d; s2 = s; }
-    }
     let nx = 0, ny = 0;
-    const edge = Math.sqrt(d2) - Math.sqrt(d1);
-    const SEAM = N * 0.016;
-    if (s2 && edge < SEAM) {
-      const vx = s1.x - s2.x, vy = s1.y - s2.y, vl = Math.hypot(vx, vy) || 1;
-      const k = (1 - edge / SEAM) * 1.05;
-      nx = (vx / vl) * k; ny = -(vy / vl) * k;
+    if (S.length >= 2) {
+      let d1 = 1e12, d2 = 1e12, s1 = null, s2 = null;
+      for (const s of S) {
+        const dx = x - s.x, dy = y - s.y, d = dx * dx + dy * dy;
+        if (d < d1) { d2 = d1; s2 = s1; d1 = d; s1 = s; }
+        else if (d < d2) { d2 = d; s2 = s; }
+      }
+      const edge = Math.sqrt(d2) - Math.sqrt(d1);
+      const SEAM = N * 0.016;
+      if (s2 && edge < SEAM) {
+        const vx = s1.x - s2.x, vy = s1.y - s2.y, vl = Math.hypot(vx, vy) || 1;
+        const k = (1 - edge / SEAM) * 1.05;
+        nx = (vx / vl) * k; ny = -(vy / vl) * k;
+      }
     }
     const nz = Math.sqrt(Math.max(0.05, 1 - nx * nx - ny * ny));
     const i = (y * N + x) * 4;
@@ -519,6 +532,19 @@ function bakeWardNormal(p) {
   }
   ctx.putImageData(img, 0, 0);
   return c;
+}
+
+/** Rebake normalMap only when the floored site count steps (not every frame). */
+function syncWardNormalMap(p, grow) {
+  if (!p?.ward?.material) return;
+  const n = wardSiteCountForGrow(p, grow);
+  if (n === p.wardSitesUsed) return;
+  p.wardSitesUsed = n;
+  const mat = p.ward.material;
+  const prev = mat.normalMap;
+  mat.normalMap = canvasTex(bakeWardNormal(p, n));
+  prev?.dispose?.();
+  mat.needsUpdate = true;
 }
 
 /** Transmission only samples the opaque scene — same flip meshCrack uses. */
@@ -544,8 +570,12 @@ function buildWard(p) {
   disposeLayer(p, 'ward');
   // body must be opaque or the shell has nothing to refract (reads as a flat tint)
   setBodyOpaqueForGlass(p, true);
-  const r = wardRefract(1);
+  const r = wardRefract();
+  const grow = p.wardGrow || 0;
+  const siteN = wardSiteCountForGrow(p, grow);
+  p.wardSitesUsed = siteN;
   // Crack-glass transmission + Voronoi; knobs from wardParams.
+  // Grow/fade ramps opacity + site count (rebake on step); normalScale stays full.
   const mat = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color(wardParams.tint || WARD_DEFAULTS.tint),
     transmission: r.transmission,
@@ -553,8 +583,8 @@ function buildWard(p) {
     thickness: r.thickness,
     roughness: Math.min(1, Math.max(0, Number(wardParams.roughness) || 0)),
     metalness: 0,
-    normalMap: canvasTex(bakeWardNormal(p)),
-    normalScale: new THREE.Vector2(0, 0), // grow ramps facets via applyWardMaterial
+    normalMap: canvasTex(bakeWardNormal(p, siteN)),
+    normalScale: new THREE.Vector2(r.normalScale, r.normalScale),
     alphaMap: canvasTex(bakeWardMask(p)), transparent: true, alphaTest: 0.01, opacity: 0,
     clearcoat: 0, clearcoatRoughness: 1,
     envMapIntensity: Math.max(0, Number(wardParams.envMapIntensity) || 0),
@@ -595,6 +625,7 @@ function disposeLayer(p, key) {
   // ward/beams own a PlaneGeometry; glass/fire share p.geo — only dispose owned
   if (m.geometry && m.geometry !== p.geo) m.geometry.dispose();
   p[key] = null;
+  if (key === 'ward') p.wardSitesUsed = -1;
 }
 // Rebake + rebuild the transmission shell from the current sites (each landed
 // hit reshapes the fracture region, so the maps must follow).
@@ -710,13 +741,14 @@ function layoutPlane(p, t = 0, off = { left: 0, top: 0 }) {
     if (m === p.beams) pad = BEAM_PAD;
     else if (isWard) {
       const grow = p.wardGrow || 0;
-      // pad stays constant — grow/fade is alpha + facet (normalScale), not zoom
+      // pad stays constant — grow/fade is alpha + site count, not zoom
       pad = Number(wardParams.pad) || WARD_DEFAULTS.pad;
       if (wardParams.idleWobble) {
         m.rotation.z = Math.sin(t * 1.4 + p.seed) * 0.04;
       } else {
         m.rotation.z = 0;
       }
+      syncWardNormalMap(p, grow);
       applyWardMaterial(m.material, { grow });
       m.visible = (!!p.wardOn || grow > 0) && grow > 0.02;
     }
@@ -984,7 +1016,7 @@ export function meshAim(el, on, cfg = null) {
 }
 
 /** Gemstone glass Ward shell outside the body (transmission + Voronoi).
- *  grow:true → alpha + facets 0→full (no zoom); grow:false → snap to full. */
+ *  grow:true → alpha + site count 0→full (no zoom); grow:false → snap to full. */
 export function meshWard(el, on, { grow = true } = {}) {
   if (LITE || !meshEnabled()) return false;
   const p = findPlane(el);
@@ -1001,7 +1033,7 @@ export function meshWard(el, on, { grow = true } = {}) {
   p.wardOn = true;
   p.wardT0 = performance.now();
   if (grow) {
-    // restart fade-in: opacity + normalScale from 0 (pad stays constant)
+    // restart fade-in: opacity + sites from 0 (pad stays constant)
     p.wardGrow = 0;
     p.wardGrowFrom = 0;
   } else {

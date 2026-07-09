@@ -23,7 +23,7 @@ const PARAM_SLIDERS = [
   { key: 'transmission', label: 'transmission', min: 0, max: 1, step: 0.05 },
   { key: 'thickness', label: 'thickness', min: 0, max: 0.6, step: 0.01 },
   { key: 'ior', label: 'IOR', min: 1, max: 2.4, step: 0.05 },
-  { key: 'normalScale', label: 'facets (N)', min: 0, max: 3, step: 0.05 },
+  { key: 'normalScale', label: 'N strength', min: 0, max: 3, step: 0.05 },
   { key: 'transparency', label: 'transparency', min: 0, max: 1, step: 0.05 },
   { key: 'opacity', label: 'opacity', min: 0, max: 1, step: 0.05 },
   { key: 'edgeSoftness', label: 'edge soft', min: 0, max: 0.5, step: 0.01 },
@@ -115,7 +115,7 @@ function grow() {
   syncBar();
   syncPanelStatus();
 }
-/** Animated dismiss — reverse grow (alpha + facets → 0), same path as meshWard(…, false). */
+/** Animated dismiss — reverse grow (alpha + sites → 0), same path as meshWard(…, false). */
 function fade() {
   meshWardClear();
   state.ward = 'off';
@@ -248,11 +248,11 @@ function renderPanel() {
     <h4>ward shell</h4>
     <p class="vx-sub">status: <em id="vx-ward-status">${state.ward}</em></p>
     <div class="vx-actions">
-      <button type="button" id="vx-grow" title="Grow = alpha + facets 0→full (no zoom)">Grow</button>
-      <button type="button" id="vx-fade" title="Fade = reverse clear (alpha + facets → 0)">Fade</button>
+      <button type="button" id="vx-grow" title="Grow = alpha + sites 0→full (no zoom)">Grow</button>
+      <button type="button" id="vx-fade" title="Fade = reverse clear (alpha + sites → 0)">Fade</button>
     </div>
     <h4>look</h4>
-    <p class="vx-sub">facets (N) = normalScale · grow ramps opacity + facets · pad fixed</p>
+    <p class="vx-sub">grow ramps opacity + site count · N strength = normalScale · pad fixed</p>
     ${PARAM_SLIDERS.map((d) => sliderRow(d, params)).join('')}
     <label class="vx-row vx-tint-row"><span>tint</span>
       <input type="color" id="vx-tint" value="${params.tint}">
@@ -268,7 +268,7 @@ function renderPanel() {
       <input type="range" id="vx-zoom" min="1" max="4" step="0.25" value="${state.zoom}">
       <em id="vx-zoom-em">×${state.zoom}</em>
     </label>
-    <p class="vx-hint"><b>Grow</b> = alpha + facets in (no zoom). <b>Fade</b> = reverse clear (same growMs).
+    <p class="vx-hint"><b>Grow</b> = alpha + sites in (no zoom). <b>Fade</b> = reverse clear (same growMs).
       <b>Save</b> writes <code>ward-params.js</code>.</p>
     <p class="vx-hint">Open: <code>?vfxedit=1&amp;char=${state.id}</code>
       · console: <code>__vfxEditor.getParams()</code></p>`;
