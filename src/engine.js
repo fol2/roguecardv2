@@ -97,6 +97,16 @@ export function advanceQuest(run, id, n = 1, queue = run.endQueue) {
   return q;
 }
 
+export function markShadeFall(run, act, row) {
+  const q = questRecord(run, 'ownShade');
+  if (!q || q.state === 'dormant' || q.state === 'complete') return false;
+  if (act < PROGRESSION.emberglass.ownShade.minDeathAct) return false;
+  run.questScratch.ownShade ||= {};
+  const bequest = run.questScratch.ownShade.pendingBequest ?? null;
+  run.questScratch.ownShade.fall = { act, row, shadeAspect: run.aspect, bequest };
+  return true;
+}
+
 export function setPendingEncounter(run, kind, enemyIds, questId = null) {
   run.pendingCombat = kind;
   run.pendingEnemyIds = [...enemyIds];
@@ -303,16 +313,35 @@ export function visitNode(run, node) {
   }
   return { type: node.type, bounty };
 }
+export function grantBequest(run, bequest, queue = null) {
+  if (!bequest) return false;
+  if (bequest.kind === 'card') addCardToDeck(run, bequest.id, bequest.up);
+  else if (bequest.kind === 'relic') gainRelic(run, bequest.id);
+  else if (bequest.kind === 'gold') {
+    run.player.gold += bequest.amount;
+    run.stats.goldEarned += bequest.amount;
+  } else return false;
+  queue?.push({ t: 'monumentGift', bequest });
+  return true;
+}
+
 // recover what the last Duskblade left in the stone
 export function claimMonument(run) {
   const m = run.monument;
-  if (!m || m.claimed || !m.bequest) return null;
+  if (!m || m.claimed || (!m.standing && !m.bequest)) return null;
   m.claimed = true;
-  const b = m.bequest;
-  if (b.kind === 'card') addCardToDeck(run, b.id, b.up);
-  else if (b.kind === 'relic') gainRelic(run, b.id);
-  else if (b.kind === 'gold') { run.player.gold += b.amount; run.stats.goldEarned += b.amount; }
-  return b;
+  if (m.standing) {
+    run.questScratch.ownShade ||= {};
+    run.questScratch.ownShade.pendingBequest = m.bequest ?? null;
+    const progress = questRecord(run, 'ownShade')?.progress || 0;
+    return {
+      kind: 'shadeDuel',
+      variantId: `ownShade${Math.min(3, progress + 1)}`,
+      bequest: m.bequest ?? null,
+    };
+  }
+  grantBequest(run, m.bequest);
+  return m.bequest;
 }
 
 // ---------------------------------------------------------------- helpers
@@ -882,6 +911,20 @@ function onEnemyDeath(run, cb, e) {
       cb.queue.push({ t: 'questUnlock', id: 'insight:witchlightLens' });
     }
   }
+  if (e.def.drop?.quest === 'ownShade') {
+    const before = questRecord(run, 'ownShade');
+    const wasComplete = before?.state === 'complete';
+    const q = advanceQuest(run, 'ownShade', e.def.drop.n, cb.queue);
+    const scratch = run.questScratch?.ownShade;
+    if (scratch && Object.hasOwn(scratch, 'pendingBequest')) {
+      grantBequest(run, scratch.pendingBequest, cb.queue);
+      delete scratch.pendingBequest;
+    }
+    if (!wasComplete && q?.state === 'complete' &&
+        !run.endQueue.some((event) => event.t === 'shadeResolved')) {
+      run.endQueue.push({ t: 'shadeResolved', text: QUESTS.ownShade.final });
+    }
+  }
   if (cb.enemies.every((x) => x.hp <= 0)) { winCombat(run, cb); return; }
   gainEmbers(run, cb, 1); // the fire inside spills to your lantern
   jumpSmolder(run, cb, e, smolder);
@@ -1437,10 +1480,14 @@ export function loadRun() {
       (b.kind === 'gold' && Number.isFinite(b.amount) && b.amount >= 0)
     ));
     const validMonument = (monument) => monument == null || (
-      exactKeys(monument, ['act', 'row', 'bequest', 'claimed']) &&
       Number.isInteger(monument.act) && monument.act >= 0 && monument.act <= 2 &&
       Number.isInteger(monument.row) && monument.row >= 0 &&
-      validBequest(monument.bequest) && typeof monument.claimed === 'boolean'
+      validBequest(monument.bequest) && typeof monument.claimed === 'boolean' && (
+        exactKeys(monument, ['act', 'row', 'bequest', 'claimed']) ||
+        (exactKeys(monument, ['act', 'row', 'bequest', 'standing', 'claimed']) && monument.standing === false) ||
+        (exactKeys(monument, ['act', 'row', 'bequest', 'standing', 'shadeAspect', 'claimed']) &&
+          monument.standing === true && (monument.shadeAspect === 0 || monument.shadeAspect === 1))
+      )
     );
     const validMemory = (id, m) => {
       if (!plainObject(m)) return false;

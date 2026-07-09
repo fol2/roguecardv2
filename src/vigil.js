@@ -249,6 +249,16 @@ export function commitRunEnd(run, outcome = 'abandon') {
   const completed = mergeRunQuests(v, run);
   for (const id of completed) v.shards.push(id);
   for (const id of run.unlocks || []) if (!v.unlocks.includes(id)) v.unlocks.push(id);
+  const fall = run.questScratch?.ownShade?.fall;
+  if (outcome === 'death' && fall) {
+    v.lastFall = {
+      act: fall.act,
+      row: fall.row,
+      bequest: fall.bequest ?? null,
+      standing: true,
+      shadeAspect: fall.shadeAspect,
+    };
+  }
 
   v.runsPlayed++;
   const armed = [];
@@ -349,7 +359,14 @@ export function commitPendingRunEnd(run, recordRunEnd) {
 // the monument of the last fall
 export function setBequest(act, row, bequest) {
   const v = loadVigil();
-  v.lastFall = { act, row, bequest };
+  if (v.lastFall?.standing === true && v.lastFall.act === act && v.lastFall.row === row) {
+    v.lastFall = {
+      ...v.lastFall,
+      bequest: v.lastFall.bequest ?? bequest,
+    };
+  } else {
+    v.lastFall = { act, row, bequest, standing: false };
+  }
   return saveVigil(v);
 }
 export function clearBequest() {

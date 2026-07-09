@@ -639,7 +639,7 @@ git commit -m "Hydrate Emberglass ledgers and arm quests on run end"
 - Every run owns a stable validated runId. Legacy saves self-heal a deterministic `legacy-*` id before their next acknowledged checkpoint.
 - run.pendingEnemyIds stores exact base or VARIANTS IDs. run.pendingQuestId is null or a QUEST_IDS value.
 - run.pendingReward stores one exact non-final reward payload plus durable gold/potion/relic/card taken flags. run.pendingRunEnd is null or `{outcome}` where outcome is win, death, or abandon while that conclusion awaits cross-store completion and run-save cleanup.
-- Persisted run.monument is null or exactly `{act,row,bequest,claimed}`. Act/row are non-negative integers within the Phase 1 act range, claimed is boolean, and bequest uses the same own-property validBequest contract as quest scratch.
+- Persisted `run.monument` is null or one of three exact shapes: legacy Phase 1 `{act,row,bequest,claimed}`, Phase 2 normal `{act,row,bequest,standing:false,claimed}`, or standing Shade `{act,row,bequest,standing:true,shadeAspect,claimed}`. Act/row are non-negative integers within the Phase 1 act range, `shadeAspect` is `0|1`, claimed is boolean, and bequest uses the same own-property `validBequest` contract as quest scratch.
 - A non-null pendingRunEnd is an immutable terminal outbox. Title and Embark immediately resume it; Begin Anew cannot replace win/death with abandon. The screen continuation runs outside the persistence catch and is latched before invocation so its own exception cannot become or replay a storage retry.
 - Vigil v2 owns compact last-run `receipts.deeds` and `receipts.runEnd` records keyed by runId. Each ledger mutation and its receipt share one acknowledged `saveVigil` write, making fresh-object retries idempotent across reload.
 - A rejected Task 3 checkpoint opens one retry/reload-safe persistence overlay; no combat, reward, map, or end continuation may run until the same snapshot is accepted.
@@ -885,10 +885,14 @@ const validBequest = (b) => b == null || (plainObject(b) && (
   (b.kind === 'gold' && Number.isFinite(b.amount) && b.amount >= 0)
 ));
 const validMonument = (monument) => monument == null || (
-  exactKeys(monument, ['act', 'row', 'bequest', 'claimed']) &&
   Number.isInteger(monument.act) && monument.act >= 0 && monument.act <= 2 &&
   Number.isInteger(monument.row) && monument.row >= 0 &&
-  validBequest(monument.bequest) && typeof monument.claimed === 'boolean'
+  validBequest(monument.bequest) && typeof monument.claimed === 'boolean' && (
+    exactKeys(monument, ['act', 'row', 'bequest', 'claimed']) ||
+    (exactKeys(monument, ['act', 'row', 'bequest', 'standing', 'claimed']) && monument.standing === false) ||
+    (exactKeys(monument, ['act', 'row', 'bequest', 'standing', 'shadeAspect', 'claimed']) &&
+      monument.standing === true && (monument.shadeAspect === 0 || monument.shadeAspect === 1))
+  )
 );
 const validMemory = (id, m) => {
   if (!plainObject(m)) return false;
@@ -1492,10 +1496,12 @@ git commit -m "Implement the Pale Ones Trail and Witchlight Lens"
 
 **Interfaces:**
 - Produces: markShadeFall(run,act,row), claimMonument(run) returning either a normal bequest or { kind:'shadeDuel', variantId, bequest }, and grantBequest(run,bequest,queue).
-- lastFall adds standing:boolean and shadeAspect:0|1.
+- New normal `lastFall` records add `standing:false`; standing records add `standing:true` and `shadeAspect:0|1`. Persisted legacy Phase 1 run monuments retain their exact four-field compatibility shape.
 - pendingQuestId ownShade suppresses ordinary combat rewards and returns to the map after a won duel.
 
 - [ ] **Step 1: Write failing standing, capture, and three-tier tests**
+
+Also round-trip the exact Phase 2 normal and standing persisted monument shapes while retaining the Phase 1 four-field compatibility test. Reject non-boolean `standing`, a standing record without `shadeAspect`, an out-of-range `shadeAspect`, and a non-standing record that carries `shadeAspect`.
 
 ~~~js
 {
@@ -1617,7 +1623,7 @@ Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyO
 Expected: PASS.
 
 ~~~bash
-git add src/engine.js src/vigil.js src/ui.js test/test_engine.js
+git add src/engine.js src/vigil.js src/ui.js test/test_engine.js docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md
 git commit -m "Implement the three-stage Own Shade Trail"
 ~~~
 

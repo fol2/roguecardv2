@@ -523,6 +523,31 @@ function requireRunSave(run, onSaved) {
   });
   return false;
 }
+function showStonePersistenceFailure(onRetry, retryLabel = 'Retry') {
+  openOverlay(`<div class="panel ov-panel" style="text-align:center">
+    <div class="ov-title">The Stone Could Not Hold</div>
+    <div class="ov-sub">The stone could not hold this duel. Free storage and try again.</div>
+    <div class="ov-actions"><button class="btn btn-primary" data-a="retry-stone">${retryLabel}</button><button class="btn ghost" data-a="reload-stone">Reload Saved Climb</button></div>
+  </div>`, (root) => {
+    root.onclick = (e) => {
+      const a = e.target.closest('[data-a]')?.dataset.a;
+      if (a === 'reload-stone') { location.reload(); return; }
+      if (a !== 'retry-stone') return;
+      sfx.click();
+      root.onclick = null;
+      closeOverlay();
+      onRetry();
+    };
+  });
+}
+function requireBequestClear(onCleared) {
+  if (clearBequest()) return true;
+  showStonePersistenceFailure(() => {
+    if (clearBequest()) onCleared();
+    else requireBequestClear(onCleared);
+  });
+  return false;
+}
 function showRunEndPersistenceFailure(run, onFinalised = null) {
   openOverlay(`<div class="panel ov-panel" style="text-align:center">
     <div class="ov-title">The Vigil Could Not Hold</div>
@@ -854,11 +879,22 @@ function startRun(run, resumed = false) {
       startCombatUI(ids, run.pendingCombat);
       renderHud();
     };
+    const resumePersistedCombat = () => {
+      if (run.pendingQuestId === 'ownShade' && !requireBequestClear(resumeCombat)) return;
+      resumeCombat();
+    };
     if (!run.pendingEnemyIds) {
       E.setPendingEncounter(run, run.pendingCombat, ids, run.pendingQuestId);
-      if (!requireRunSave(run, resumeCombat)) return;
+      if (!requireRunSave(run, resumePersistedCombat)) return;
     }
-    resumeCombat();
+    resumePersistedCombat();
+    return;
+  }
+  if (resumed && curNode?.type === 'monument' && run.monument) {
+    if (!run.monument.claimed) { claimMonumentNode(curNode); return; }
+    const continueMap = () => show('map');
+    if (!requireBequestClear(continueMap)) return;
+    continueMap();
     return;
   }
   if (E.hasPendingBossRelic(run)) { show('bossRelic'); return; }
@@ -949,11 +985,15 @@ function renderMap() {
       S.screen = 'combat';
       startCombatUI(ids, run.pendingCombat);
     };
+    const resumePersistedCombat = () => {
+      if (run.pendingQuestId === 'ownShade' && !requireBequestClear(resumeCombat)) return;
+      resumeCombat();
+    };
     if (!run.pendingEnemyIds) {
       E.setPendingEncounter(run, run.pendingCombat, ids, run.pendingQuestId);
-      if (!requireRunSave(run, resumeCombat)) return;
+      if (!requireRunSave(run, resumePersistedCombat)) return;
     }
-    resumeCombat();
+    resumePersistedCombat();
     return;
   }
   E.saveRun(run);
@@ -1121,7 +1161,7 @@ function enterNode(node) {
   setAltitude(run.act, node.row);
   const { type, bounty } = E.visitNode(run, node);
   const isCombat = type === 'monster' || type === 'elite' || type === 'boss';
-  if (!isCombat) E.saveRun(run);
+  if (!isCombat && type !== 'monument') E.saveRun(run);
   if (bounty) {
     // first light: the dark lantern pays for the walking
     sfx.coin();
@@ -1150,9 +1190,42 @@ function enterNode(node) {
 function claimMonumentNode(node) {
   const run = S.run;
   const b = E.claimMonument(run);
-  if (b) clearBequest(); // recovered once — the stone is spent
-  E.saveRun(run);
-  if (b) {
+  const continueMap = () => show('map');
+  if (!b) {
+    if (!requireRunSave(run, continueMap)) return;
+    continueMap();
+    return;
+  }
+  if (b.kind === 'shadeDuel') {
+    const beginDuel = () => {
+      const g = $(`.mnode[data-node="${node.id}"]`);
+      transition('combat-in', g ? V.centerOf(g) : {});
+      startCombatUI([b.variantId], 'monster');
+    };
+    const rollbackClaim = () => {
+      E.clearPendingEncounter(run);
+      run.monument.claimed = false;
+      if (run.questScratch?.ownShade) delete run.questScratch.ownShade.pendingBequest;
+    };
+    E.setPendingEncounter(run, 'monster', [b.variantId], 'ownShade');
+    if (!E.saveRun(run)) {
+      rollbackClaim();
+      showStonePersistenceFailure(() => claimMonumentNode(node));
+      return;
+    }
+    if (!clearBequest()) {
+      rollbackClaim();
+      const rollbackSaved = E.saveRun(run);
+      showStonePersistenceFailure(
+        rollbackSaved ? () => claimMonumentNode(node) : () => location.reload(),
+        rollbackSaved ? 'Retry' : 'Reload Saved Duel',
+      );
+      return;
+    }
+    beginDuel();
+    return;
+  }
+  const finishGift = () => {
     sfx.relic();
     const label = b.kind === 'relic' ? RELICS[b.id]?.name : b.kind === 'card' ? CARDS[b.id]?.name : `${b.amount} gold`;
     const g = $(`.mnode[data-node="${node.id}"]`);
@@ -1160,8 +1233,14 @@ function claimMonumentNode(node) {
     V.floatText(from.x, from.y - 34, `✦ ${label}`, 'goldf');
     flyTo(from.x, from.y, stageW() / 2, stageH() * 0.5, { n: 8, color: '#ffe9ac', size: 8, dur: 720 });
     banner('THE STONE REMEMBERS');
-  }
-  show('map');
+    show('map');
+  };
+  const clearThenFinish = () => {
+    if (!requireBequestClear(finishGift)) return;
+    finishGift();
+  };
+  if (!requireRunSave(run, clearThenFinish)) return;
+  clearThenFinish();
 }
 
 // ------------------------------------------------------------ combat
@@ -3609,8 +3688,19 @@ function afterAction() {
 function victoryFlow() {
   transition('victory-out');
   const run = S.run, kind = S.cb.kind, affix = S.cb.affix;
+  const pendingQuestId = run.pendingQuestId;
   if (kind === 'boss' && run.act >= 2) {
     journalRunEnd(run, 'win');
+    return;
+  }
+  if (pendingQuestId === 'ownShade') {
+    E.clearPendingEncounter(run);
+    const continueShadeVictory = () => {
+      S.cb = null;
+      show('map');
+    };
+    if (!requireRunSave(run, continueShadeVictory)) return;
+    continueShadeVictory();
     return;
   }
 
@@ -3651,12 +3741,14 @@ function finalisePendingRunEnd(run, onFinalised = null) {
         show('end', { won: true, newUnlocks, ledger });
       } else if (outcome === 'death') {
         const node = run.map.nodes.find((candidate) => candidate.id === run.nodeId);
+        const unpaidBequest = run.questScratch?.ownShade?.fall?.bequest != null;
         show('end', {
           won: false,
           newUnlocks,
-          offers: bequestOptions(run),
+          offers: unpaidBequest ? [] : bequestOptions(run),
           fallAct: run.act,
           fallRow: node ? node.row : Math.max(1, run.floorsClimbed - 1),
+          unpaidBequest,
         });
       } else {
         S.run = null;
@@ -3668,7 +3760,11 @@ function finalisePendingRunEnd(run, onFinalised = null) {
 }
 function defeatFlow() {
   transition('defeat');
-  journalRunEnd(S.run, 'death');
+  const run = S.run;
+  const node = run.map.nodes.find((candidate) => candidate.id === run.nodeId);
+  const fallRow = node ? node.row : Math.max(1, run.floorsClimbed - 1);
+  E.markShadeFall(run, run.act, fallRow);
+  journalRunEnd(run, 'death');
 }
 
 // ------------------------------------------------------------ rewards
@@ -4161,7 +4257,7 @@ function showUnlockToasts(list = []) {
     }, 700 + i * 800);
   });
 }
-function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1 }) {
+function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1, unpaidBequest = false }) {
   const run = S.run;
   music.playForRunEnd(!!won);
   const st = run.stats;
@@ -4195,7 +4291,9 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
     setTimeout(() => clearInterval(conf), 4200);
   } else {
     // the fallen may carve one thing into the stone for the next climber to find
-    const bequestHtml = offers.length ? `<div class="bequest" id="bequest">
+    const bequestHtml = unpaidBequest
+      ? '<div class="bequest"><div class="bequest-done">The unpaid gift remains in the standing stone</div></div>'
+      : offers.length ? `<div class="bequest" id="bequest">
         <div class="bequest-title">Carve one thing into the stone — the next climb may recover it in <b>${ACTS[fallAct].name}</b>.</div>
         <div class="bequest-opts">${offers.map((o, i) => {
       const L = bequestLabel(o);

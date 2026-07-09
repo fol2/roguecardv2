@@ -7,7 +7,7 @@ import {
   newRun, startCombat, playCard, endTurn, drawCards, makeCard, makeVariant, cardData, availableNodes, genMap,
   rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, finalizeNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, nodeEventInFlight, saveRun, loadRun, genCombatRewards, genShop, gainRelic, randomRelic,
   rollBossRelics, addCardToDeck, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
-  MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, cardPool, relicPool,
+  MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, grantBequest, markShadeFall, resolveCombatant, cardPool, relicPool,
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
   previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
   revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter,
@@ -1004,6 +1004,22 @@ function forceHand(run, cb, ids) {
     assert.equal(claimedMonumentReload.player.deck.length, monumentDeckSize + 1);
     assert.equal(claimMonument(claimedMonumentReload), null, 'a reloaded monument cannot pay twice');
 
+    const standingMonumentRun = newRun(426, {
+      monument: { act: 1, row: 8, bequest: { kind: 'gold', amount: 50 }, standing: true, shadeAspect: 1 },
+    });
+    assert.equal(saveRun(standingMonumentRun), true);
+    assert.deepEqual(loadRun().monument, {
+      act: 1, row: 8, bequest: { kind: 'gold', amount: 50 }, standing: true, shadeAspect: 1, claimed: false,
+    }, 'a standing Shade monument survives save/load exactly');
+
+    const phase2NormalMonumentRun = newRun(427, {
+      monument: { act: 1, row: 6, bequest: { kind: 'gold', amount: 40 }, standing: false },
+    });
+    assert.equal(saveRun(phase2NormalMonumentRun), true);
+    assert.deepEqual(loadRun().monument, {
+      act: 1, row: 6, bequest: { kind: 'gold', amount: 40 }, standing: false, claimed: false,
+    }, 'a Phase 2 normal monument keeps its explicit non-standing marker');
+
     const rejectSaved = (label, mutate) => {
       const bad = newRun(412, { quests: saveQuests });
       mutate(bad);
@@ -1085,6 +1101,18 @@ function forceHand(run, cb, ids) {
     });
     rejectSaved('missing monument claimed flag', (r) => {
       r.monument = { act: 0, row: 5, bequest: null };
+    });
+    rejectSaved('invalid monument standing type', (r) => {
+      r.monument = { act: 1, row: 5, bequest: null, standing: 'true', shadeAspect: 1, claimed: false };
+    });
+    rejectSaved('standing monument missing shade aspect', (r) => {
+      r.monument = { act: 1, row: 5, bequest: null, standing: true, claimed: false };
+    });
+    rejectSaved('standing monument invalid shade aspect', (r) => {
+      r.monument = { act: 1, row: 5, bequest: null, standing: true, shadeAspect: 2, claimed: false };
+    });
+    rejectSaved('normal monument cannot carry shade aspect', (r) => {
+      r.monument = { act: 1, row: 5, bequest: null, standing: false, shadeAspect: 1, claimed: false };
     });
     for (const inheritedId of ['toString', 'constructor']) {
       rejectSaved(`inherited deck card ${inheritedId}`, (r) => { r.player.deck[0].id = inheritedId; });
@@ -1361,7 +1389,7 @@ function forceHand(run, cb, ids) {
   assert.deepEqual(syncVigil().unlocks, w.vigil.unlocks, 'sync finds nothing more owed');
   // bequests round-trip
   assert.equal(setBequest(1, 7, { kind: 'gold', amount: 50 }), true, 'bequest write persisted');
-  assert.deepEqual(loadVigil().lastFall, { act: 1, row: 7, bequest: { kind: 'gold', amount: 50 } });
+  assert.deepEqual(loadVigil().lastFall, { act: 1, row: 7, bequest: { kind: 'gold', amount: 50 }, standing: false });
   assert.equal(clearBequest(), true, 'bequest clear persisted');
   assert.equal(loadVigil().lastFall, null, 'monument claimed and cleared');
   _setStore(null);
@@ -1969,6 +1997,88 @@ function forceHand(run, cb, ids) {
   claimMonument(run3);
   const got = run3.player.deck.find((c) => c.id === 'oblivionStrike');
   assert.ok(got && got.up, 'card bequest arrives upgraded');
+}
+{
+  // Your Own Shade: eligible deaths stand, their gift waits for victory, and
+  // each fallen aspect returns through the three-stage duel.
+  _setStore(null);
+  const v = loadVigil();
+  v.quests.ownShade.state = 'armed';
+  saveVigil(v);
+
+  const fallen = newRun(440, { aspect: 1, quests: questSnapshot(v) });
+  fallen.act = 1;
+  assert.equal(markShadeFall(fallen, 1, 7), true);
+  let out = commitRunEnd(fallen, 'death');
+  assert.deepEqual(out.vigil.lastFall, {
+    act: 1, row: 7, bequest: null, standing: true, shadeAspect: 1,
+  });
+
+  setBequest(1, 7, { kind: 'gold', amount: 50 });
+  assert.equal(loadVigil().lastFall.standing, true);
+  assert.equal(loadVigil().lastFall.shadeAspect, 1);
+
+  const next = newRun(441, { aspect: 0, quests: questSnapshot(loadVigil()), monument: loadVigil().lastFall });
+  next.act = 1;
+  next.map = genMap(next);
+  const beforeDuelGold = next.player.gold;
+  const duel = claimMonument(next);
+  assert.equal(duel.kind, 'shadeDuel');
+  assert.equal(duel.variantId, 'ownShade1');
+  assert.equal(next.player.gold, beforeDuelGold, 'a standing stone does not pay before victory');
+  const shade = resolveCombatant(next, duel.variantId);
+  assert.equal(shade.presentation.artId, 'ashwarden', 'uses fallen aspect, not current aspect');
+
+  for (let stage = 0; stage < 3; stage++) {
+    next.quests.ownShade.state = 'revealed';
+    next.quests.ownShade.progress = stage;
+    const id = 'ownShade' + (stage + 1);
+    const cb = startCombat(next, [id], 'monster');
+    cb.enemies[0].hp = 1;
+    forceHand(next, cb, ['strike']);
+    cb.player.energy = 3;
+    playCard(next, cb, cb.hand[0].uid, 0);
+    assert.equal(next.quests.ownShade.progress, stage + 1);
+    if (stage === 0) {
+      assert.equal(next.player.gold, beforeDuelGold + 50, 'the won duel pays the held gift');
+      assert.ok(cb.queue.some((e) => e.t === 'monumentGift' && e.bequest.amount === 50));
+      assert.equal(next.questScratch.ownShade.pendingBequest, undefined, 'a paid gift cannot replay');
+    }
+  }
+  assert.equal(next.quests.ownShade.state, 'complete');
+  assert.equal(next.endQueue.filter((e) => e.t === 'shadeResolved' && e.text === QUESTS.ownShade.final).length, 1);
+
+  const unpaid = { kind: 'gold', amount: 50 };
+  const lostDuel = newRun(442, {
+    aspect: 0, quests: questSnapshot(loadVigil()),
+    monument: { act: 1, row: 7, bequest: unpaid, standing: true, shadeAspect: 1 },
+  });
+  lostDuel.act = 1;
+  assert.equal(claimMonument(lostDuel).kind, 'shadeDuel');
+  assert.equal(markShadeFall(lostDuel, 1, 7), true);
+  out = commitRunEnd(lostDuel, 'death');
+  assert.deepEqual(out.vigil.lastFall.bequest, unpaid, 'a lost duel preserves the unpaid gift');
+  setBequest(1, 7, { kind: 'gold', amount: 99 });
+  assert.deepEqual(loadVigil().lastFall.bequest, unpaid, 'later defeat selection cannot overwrite the unpaid gift');
+
+  const claimedNormal = newRun(443, {
+    aspect: 0, quests: questSnapshot(loadVigil()),
+    monument: { act: 1, row: 6, bequest: { kind: 'gold', amount: 40 }, standing: false },
+  });
+  const beforeGold = claimedNormal.player.gold;
+  assert.equal(claimMonument(claimedNormal).kind, 'gold');
+  assert.equal(claimedNormal.player.gold, beforeGold + 40);
+  assert.equal(markShadeFall(claimedNormal, 1, 8), true);
+  out = commitRunEnd(claimedNormal, 'death');
+  assert.equal(out.vigil.lastFall.bequest, null, 'an already-paid normal monument is not duplicated');
+
+  const directGift = newRun(444);
+  const giftQueue = [];
+  const giftGold = directGift.player.gold;
+  grantBequest(directGift, { kind: 'gold', amount: 12 }, giftQueue);
+  assert.equal(directGift.player.gold, giftGold + 12);
+  assert.deepEqual(giftQueue, [{ t: 'monumentGift', bequest: { kind: 'gold', amount: 12 } }]);
+  _setStore(null);
 }
 {
   // bequestOptions offers the best of what was carried
