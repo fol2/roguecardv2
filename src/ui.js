@@ -2054,8 +2054,9 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'endTurn': heroActing = false; banner('ENEMY TURN'); await sleep(480); break;
     case 'draw': {
+      // fire-and-forget flights so consecutive draws overlap under ~180–320ms total
       if (!REDUCED) {
-        await flyCardBacks([V.centerOf(ce.draw)], ce.hand, 220);
+        flyCardBacks([V.centerOf(ce.draw)], ce.hand, 220);
         bumpPile(ce.draw);
       }
       syncHand(); syncCombat(); sfx.draw();
