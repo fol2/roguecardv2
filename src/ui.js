@@ -3,7 +3,7 @@ import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
 import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
 import * as V from './vfx.js';
-import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from './vigil.js';
+import { syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
 import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift, meshAim, meshAimClear } from './mesh.js';
@@ -485,7 +485,7 @@ export function show(name, data) {
   sc.className = '';
   sc.onclick = null; // screens share #screen — never let a stale delegate survive
   ({
-    title: renderTitle, embark: renderEmbark, map: renderMap, combat: () => {}, reward: renderReward, rest: renderRest,
+    title: renderTitle, embark: renderEmbark, vigil: renderVigil, map: renderMap, combat: () => {}, reward: renderReward, rest: renderRest,
     shop: renderShop, event: renderEvent, treasure: renderTreasure, bossRelic: renderBossRelic, end: renderEnd,
   })[name](data);
   if (name === 'map') warmAssets();
@@ -550,7 +550,7 @@ function renderTitle() {
     else if (a === 'vow+') { sel.vow = Math.min(vigil.vowUnlocked, sel.vow + 1); renderTitle(); }
     else if (a === 'new') { if (saved) E.clearSave(); startRun(E.newRun(undefined, { aspect: sel.aspect, vow: sel.vow, lamplighter: true, monument: vigil.lastFall })); }
     else if (a === 'continue' && saved) startRun(saved, true);
-    else if (a === 'vigil') showVigil();
+    else if (a === 'vigil') show('vigil');
     else if (a === 'help') showHelp();
     else if (a === 'mute') { toggleMute(); renderTitle(); }
   };
@@ -620,9 +620,12 @@ function renderEmbark() {
     }
   };
 }
-// the vigil ledger: lifetime deeds and the content they've unearthed
-function showVigil() {
-  const v = loadVigil();
+// THE VIGIL — the hall between climbs. Phase 1 ships the Deeds tab; the
+// Emberglass rose window joins it when the chain arms (Phase 2).
+function renderVigil() {
+  stopAmbience();
+  setTheme(0);
+  const v = clearNews(); // opening the hall reads the news
   const deedRows = Object.entries(DEEDS).map(([id, deed]) => {
     const cur = v.deeds[deed.stat] || 0;
     const done = cur >= deed.n;
@@ -645,12 +648,20 @@ function showVigil() {
       </div>
     </div>`;
   }).join('');
-  openOverlay(`<div class="panel ov-panel vigil-panel">
+  const sc = screenEl();
+  sc.innerHTML = `<div class="center-panel screen-enter"><div class="panel vigil-panel">
     <div class="ov-title">The Vigil</div>
     <div class="ov-sub">${v.deeds.runs} climbs · ${v.deeds.wins} dawns · deepest Vow: ${ROMAN[v.deeds.bestVow] || '—'}</div>
+    <div class="vigil-tabs"><button class="vtab on" data-a="tab-deeds">Deeds</button></div>
     <div class="deed-list">${deedRows}</div>
-    <div class="ov-actions"><button class="btn" data-a="ok">Close</button></div>
-  </div>`, (root) => { $('[data-a="ok"]', root).onclick = () => { sfx.click(); closeOverlay(); }; }, true);
+    <div class="ov-actions"><button class="btn" data-a="back">Return</button></div>
+  </div></div>`;
+  sc.onclick = (e) => {
+    const t = e.target.closest('[data-a]');
+    if (!t) return;
+    sfx.click();
+    if (t.dataset.a === 'back') show('title');
+  };
 }
 function startRun(run, resumed = false) {
   S.run = run;

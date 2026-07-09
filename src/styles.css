@@ -1626,3 +1626,19 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
 .embark-sub { opacity: 0.75; font-size: 14px; }
 .embark-label { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.6; }
 .embark-warn { color: #ff8d8d; font-size: 12px; }
+
+/* ---- entrance redesign: vigil screen tabs */
+#screen .vigil-panel { max-height: 90cqh; }
+.vigil-tabs { display: flex; gap: 8px; justify-content: center; margin: 4px 0 10px; }
+.vigil-tabs .vtab {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 4px 14px;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  opacity: 0.6;
+  cursor: pointer;
+}
+.vigil-tabs .vtab.on { opacity: 1; border-color: rgba(255, 209, 102, 0.6); }
