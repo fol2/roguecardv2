@@ -1252,6 +1252,23 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   filter: brightness(1.08);
 }
 .end-turn:active { transform: translateY(0); }
+/* energy spent — same beckon as .lantern-btn.ready */
+.end-turn.ready {
+  animation: artReady 1.6s ease-in-out infinite;
+}
+.end-turn.ready .et-ic .ui-icon, .end-turn.ready .et-ic .gicon {
+  filter:
+    drop-shadow(0 2px 6px rgba(0, 0, 0, 0.75))
+    drop-shadow(0 0 10px rgba(255, 190, 90, 0.55))
+    drop-shadow(0 0 22px rgba(255, 180, 80, 0.4));
+}
+.end-turn.ready .et-lbl {
+  text-shadow:
+    -1px -1px 0 #000, 1px -1px 0 #000,
+    -1px 1px 0 #000, 1px 1px 0 #000,
+    0 2px 5px rgba(0, 0, 0, 0.95),
+    0 0 12px rgba(255, 200, 110, 0.75);
+}
 .end-turn .et-ic {
   grid-area: 1 / 1;
   display: block; line-height: 0;
@@ -1277,7 +1294,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
     0 2px 5px rgba(0, 0, 0, 0.95);
   pointer-events: none;
 }
-.end-turn.enemy-phase { opacity: 0.45; pointer-events: none; }
+.end-turn.enemy-phase { opacity: 0.45; pointer-events: none; animation: none; }
 /* Unboxed pile chrome: flat fan (no vertical stack); label + count stay readable. */
 .pile-btn {
   /* left|right/bottom/w/h from ui-chrome-layout.js (?bfuiedit=1) */
@@ -1798,6 +1815,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   #wipe, #transit, .rose-window { display: none; }
   .logo, .card.r-rare .card-inner::after, .energy-orb::before { animation: none; }
   #lantern.gutter, .stage-dim.gutter, .candle.lit, .hero-wrap.warded::before, .enemy-art.warded::before { animation: none; }
+  .lantern-btn.ready, .end-turn.ready { animation: none; }
   .ember, .mon-flame, .enemy.doomed .enemy-art { animation: none; }
   .enemy-sprite[class*="idle-"], .idle-motes::before, .idle-motes::after { animation: none; }
   .pile-btn.pile-bump { animation: none; }

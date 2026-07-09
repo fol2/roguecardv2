@@ -1504,6 +1504,8 @@ function syncCombat() {
   statusChips(ce.pStatus, P.statuses, true);
   $('.num', ce.energy).textContent = P.energy;
   ce.energy.classList.toggle('spent', P.energy === 0);
+  // candles out → End beckons (same ready language as the lantern Art)
+  ce.endTurn.classList.toggle('ready', P.energy === 0 && !cb.over && !S.busy);
   const cd = $('.candles', ce.energy);
   const states = energySlotStates(P.energy, P.energyMax);
   const litUrl = uiIconUrl('candle-lit');
