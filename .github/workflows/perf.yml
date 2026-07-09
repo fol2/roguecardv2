@@ -1,0 +1,31 @@
+name: perf
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  perf:
+    name: perf
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Non-gating by spec: CI runner fps numbers are noisy (software WebGL).
+      # The measured numbers are recorded in this step's log, never enforced.
+      - run: npm run test:e2e:perf
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-results
+          path: test-results/
+          retention-days: 30
+          if-no-files-found: ignore

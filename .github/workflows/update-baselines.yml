@@ -1,0 +1,26 @@
+name: update-baselines
+
+on:
+  workflow_dispatch:
+
+jobs:
+  update:
+    name: update
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Regenerate ONLY the visual suite's snapshots on a real ubuntu runner;
+      # the darwin reference machine cannot produce linux pixels.
+      - run: npx playwright test visual --update-snapshots
+      - uses: actions/upload-artifact@v4
+        with:
+          name: visual-baselines-linux
+          path: test/e2e/visual.spec.js-snapshots/*-linux.png
+          retention-days: 7
