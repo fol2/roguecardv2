@@ -1121,10 +1121,10 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 html.mesh-on .hero-wrap.warded::before,
 html.mesh-on .enemy-art.warded::before { display: none; }
 .end-turn {
-  position: absolute; right: calc(22px + var(--sar)); bottom: calc(152px + var(--sab)); z-index: 24;
-  /* even larger end-turn glyph; label overlays — no square chrome */
+  position: absolute; right: calc(22px + var(--sar)); bottom: calc(140px + var(--sab)); z-index: 24;
+  /* larger end-turn glyph, nudged down; label overlays — no square chrome */
   display: grid; place-items: center;
-  width: 96px; height: 96px; padding: 0; margin: 0;
+  width: 120px; height: 120px; padding: 0; margin: 0;
   background: transparent; border: none; border-radius: 0;
   box-shadow: none; outline: none;
   color: #fff6e0;
@@ -1144,14 +1144,14 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   pointer-events: none;
 }
 .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon {
-  width: 96px; height: 96px; display: block; object-fit: contain;
+  width: 120px; height: 120px; display: block; object-fit: contain;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.75));
 }
 .end-turn .et-lbl {
   grid-area: 1 / 1;
   z-index: 1;
   font-family: 'Cinzel', serif;
-  font-size: 16px; letter-spacing: 0.16em; font-weight: 800;
+  font-size: 18px; letter-spacing: 0.16em; font-weight: 800;
   text-transform: uppercase; line-height: 1;
   color: #fff8e8;
   -webkit-text-stroke: 1.1px rgba(0, 0, 0, 0.9);
@@ -1708,9 +1708,9 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .lantern-btn { --lbr: 30px; width: 64px; height: 64px; left: calc(28px + var(--sal)); bottom: calc(222px + var(--sab)); }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 34px; height: 34px; }
   .lantern-btn .lb-count { font-size: 15px; }
-  .end-turn { right: calc(16px + var(--sar)); bottom: calc(132px + var(--sab)); width: 84px; height: 84px; }
-  .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 84px; height: 84px; }
-  .end-turn .et-lbl { font-size: 15px; }
+  .end-turn { right: calc(16px + var(--sar)); bottom: calc(118px + var(--sab)); width: 104px; height: 104px; }
+  .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 104px; height: 104px; }
+  .end-turn .et-lbl { font-size: 16px; }
   .stats-grid { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
 }
 
@@ -1788,11 +1788,11 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .candle { width: 16px; height: 22px; }
   .candle:has(.candle-img) { width: 28px; height: 40px; }
   .end-turn {
-    right: calc(3px + var(--sar)); bottom: calc(112px + var(--sab));
-    width: 78px; height: 78px;
+    right: calc(3px + var(--sar)); bottom: calc(100px + var(--sab));
+    width: 96px; height: 96px;
   }
-  .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 78px; height: 78px; }
-  .end-turn .et-lbl { font-size: 14px; letter-spacing: 0.12em; }
+  .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 96px; height: 96px; }
+  .end-turn .et-lbl { font-size: 15px; letter-spacing: 0.12em; }
   .pile-btn { width: 68px; height: 108px; bottom: calc(4px + var(--sab)); }
   .pile-stack { left: 0; right: 0; top: 0; bottom: 14px; }
   .pile-layer { width: 100%; }
@@ -1867,9 +1867,9 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .facet-row .pip:has(.facet-img), .facet-row .pip .facet-img { width: 12px; height: 12px; }
   .candle { width: 14px; height: 18px; }
   .candle:has(.candle-img) { width: 24px; height: 34px; }
-  .end-turn { right: calc(6px + var(--sar)); bottom: calc(60px + var(--sab)); width: 68px; height: 68px; }
-  .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 68px; height: 68px; }
-  .end-turn .et-lbl { font-size: 13px; letter-spacing: 0.1em; }
+  .end-turn { right: calc(6px + var(--sar)); bottom: calc(48px + var(--sab)); width: 84px; height: 84px; }
+  .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 84px; height: 84px; }
+  .end-turn .et-lbl { font-size: 14px; letter-spacing: 0.1em; }
   .pile-btn { width: 64px; height: 102px; bottom: calc(4px + var(--sab)); }
   .pile-stack { left: 0; right: 0; top: 0; bottom: 14px; }
   .pile-layer { width: 100%; }
