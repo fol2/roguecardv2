@@ -1236,6 +1236,7 @@ if (view.tint) {
   max-width: min(660px, 86cqw);
   border-color: rgba(210, 226, 255, 0.48);
   background: rgba(8, 10, 18, 0.94);
+  animation-duration: 1.8s;
 }
 ~~~
 
@@ -1243,7 +1244,7 @@ Do not use transform: scale on the sprite.
 
 Replace the immediate boss banner in startCombatUI with queue event handling:
 - bossIntro uses the existing boss-banner markup and 2100 ms timing.
-- variantDialogue uses escHtml(ev.text), the class turn-banner variant-dialogue, and 1800 ms.
+- variantDialogue uses escHtml(ev.text), the class turn-banner variant-dialogue, and 1800 ms; its CSS animation duration is also 1.8s so the visible keyframe lifetime matches the queued wait.
 - REDUCED uses 80 ms and no keyframe.
 
 Extend __probe.state enemies with key, variantId, artId, hp, maxHp, and block.
@@ -1254,15 +1255,16 @@ Add BODY_FRAG uniforms uHue, uSaturation, and uBrightness. Place this helper at 
 
 ~~~glsl
 vec3 hueRotate(vec3 c, float a) {
+  // GLSL matrix constructors are column-major: each group is one column.
   const mat3 toYiq = mat3(
-    0.299, 0.587, 0.114,
-    0.596, -0.275, -0.321,
-    0.212, -0.523, 0.311
+    0.299, 0.596, 0.212,
+    0.587, -0.275, -0.523,
+    0.114, -0.321, 0.311
   );
   const mat3 toRgb = mat3(
-    1.0, 0.956, 0.621,
-    1.0, -0.272, -0.647,
-    1.0, -1.106, 1.703
+    1.0, 1.0, 1.0,
+    0.956, -0.272, -1.106,
+    0.621, -0.647, 1.703
   );
   vec3 yiq = toYiq * c;
   float h = atan(yiq.z, yiq.y) + a;

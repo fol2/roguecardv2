@@ -67,21 +67,33 @@ async function startShadeAndSeeDialogue(page, query) {
   const dialogue = page.locator('.variant-dialogue');
   await page.evaluate(() => window.spirebound.startCombatUI(['ownShade1'], 'monster'));
   await expect(dialogue).toContainText('I remember the stone', { timeout: 7000 });
+  const animationDuration = await dialogue.evaluate((el) => getComputedStyle(el).animationDuration);
   await settle(page);
+  return animationDuration;
 }
 
 test('variant tint and identity reach the live mesh', async ({ page }) => {
   const errors = collectErrors(page);
   await startShadeAndSeeDialogue(page, 'mesh=1');
   await expectMeshLive(page);
-  const result = await page.evaluate(() => ({
-    enemy: window.__probe.state().enemies[0],
-    mesh: window.spirebound.meshDebug().variants.find((v) => v.id === 'ownShade1'),
-  }));
+  const result = await page.evaluate(() => {
+    const debug = window.spirebound.meshDebug();
+    const tint = { hue: 35, saturation: 0.25 };
+    return {
+      enemy: window.__probe.state().enemies[0],
+      mesh: debug.variants.find((v) => v.id === 'ownShade1'),
+      neutralDim: debug.probeBodyColour({ rgb: [0.5, 0.5, 0.5], ...tint, brightness: 0.62 }),
+      neutralFull: debug.probeBodyColour({ rgb: [0.5, 0.5, 0.5], ...tint, brightness: 1 }),
+    };
+  });
   expect(result.enemy).toMatchObject({ key: 'shade', variantId: 'ownShade1', artId: 'duskblade', maxHp: 110 });
   expect(result.mesh).toBeTruthy();
   expect(Math.abs(result.mesh.hue)).toBeGreaterThan(0.01);
   expect(result.mesh.saturation).toBeCloseTo(0.25, 5);
+  const dimChannels = [result.neutralDim.r, result.neutralDim.g, result.neutralDim.b];
+  expect(Math.max(...dimChannels) - Math.min(...dimChannels), 'neutral grey must remain chromatically neutral').toBeLessThanOrEqual(1);
+  expect(result.neutralDim.a).toBe(255);
+  expect(result.neutralDim.r, 'brightness alone should dim neutral grey').toBeLessThan(result.neutralFull.r);
   await expect(page.locator('.enemy[data-base-id="shade"][data-variant-id="ownShade1"][data-art-id="duskblade"]')).toHaveCount(1);
   await expectInvariants(page, 'shade mesh variant');
   expectNoErrors(errors, 'shade mesh variant');
@@ -89,7 +101,8 @@ test('variant tint and identity reach the live mesh', async ({ page }) => {
 
 test('variant CSS fallback matches mesh-off identity and stats', async ({ page }) => {
   const errors = collectErrors(page);
-  await startShadeAndSeeDialogue(page, 'mesh=0');
+  const animationDuration = await startShadeAndSeeDialogue(page, 'mesh=0');
+  expect(animationDuration).toBe('1.8s');
   const enemy = await probeState(page).then((s) => s.enemies[0]);
   expect(enemy).toMatchObject({ key: 'shade', variantId: 'ownShade1', artId: 'duskblade', maxHp: 110 });
   await expect(page.locator('.enemy[data-variant-id="ownShade1"] .name')).toContainText('THE SHADE THAT FELL');

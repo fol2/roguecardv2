@@ -208,15 +208,16 @@ const BODY_FRAG = /* glsl */`
   uniform float uSaturation;
   uniform float uBrightness;
   vec3 hueRotate(vec3 c, float a) {
+    // GLSL matrix constructors are column-major: each group is one column.
     const mat3 toYiq = mat3(
-      0.299, 0.587, 0.114,
-      0.596, -0.275, -0.321,
-      0.212, -0.523, 0.311
+      0.299, 0.596, 0.212,
+      0.587, -0.275, -0.523,
+      0.114, -0.321, 0.311
     );
     const mat3 toRgb = mat3(
-      1.0, 0.956, 0.621,
-      1.0, -0.272, -0.647,
-      1.0, -1.106, 1.703
+      1.0, 1.0, 1.0,
+      0.956, -0.272, -1.106,
+      0.621, -0.647, 1.703
     );
     vec3 yiq = toYiq * c;
     float h = atan(yiq.z, yiq.y) + a;
@@ -1265,6 +1266,52 @@ export function meshAimClear() {
   }
 }
 
+// Debug-only rendered-colour probe: exercise the shipped body fragment shader
+// through the live WebGL renderer without coupling tests to a painted asset.
+function debugProbeBodyColour({ rgb = [0.5, 0.5, 0.5], hue = 0, saturation = 1, brightness = 1 } = {}) {
+  if (!renderer) return null;
+  const bytes = new Uint8Array([
+    ...rgb.map((channel) => Math.round(Math.max(0, Math.min(1, channel)) * 255)),
+    255,
+  ]);
+  const tex = new THREE.DataTexture(bytes, 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.NearestFilter;
+  tex.magFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  const uniforms = {
+    map: { value: tex }, uFlash: { value: 0 }, uCut: { value: 0 }, uErode: { value: 0 },
+    uHue: { value: THREE.MathUtils.degToRad(hue) },
+    uSaturation: { value: saturation }, uBrightness: { value: brightness },
+  };
+  const material = new THREE.ShaderMaterial({
+    uniforms, vertexShader: BODY_VERT, fragmentShader: BODY_FRAG,
+    depthTest: false, depthWrite: false,
+  });
+  const geometry = new THREE.PlaneGeometry(2, 2);
+  const probeScene = new THREE.Scene();
+  probeScene.add(new THREE.Mesh(geometry, material));
+  const probeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 2);
+  probeCamera.position.z = 1;
+  const target = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: false, stencilBuffer: false });
+  const previousTarget = renderer.getRenderTarget();
+  const pixel = new Uint8Array(4);
+  try {
+    renderer.setRenderTarget(target);
+    renderer.clear();
+    renderer.render(probeScene, probeCamera);
+    renderer.readRenderTargetPixels(target, 0, 0, 1, 1, pixel);
+  } finally {
+    renderer.setRenderTarget(previousTarget);
+    target.dispose();
+    geometry.dispose();
+    material.dispose();
+    tex.dispose();
+  }
+  return { r: pixel[0], g: pixel[1], b: pixel[2], a: pixel[3] };
+}
+
 export const meshDebug = () => ({
   enabled: meshEnabled(),
   planes: planes.length,
@@ -1280,6 +1327,7 @@ export const meshDebug = () => ({
     saturation: p.mat.uniforms.uSaturation.value,
     brightness: p.mat.uniforms.uBrightness.value,
   })),
+  probeBodyColour: debugProbeBodyColour,
 });
 
 export function meshProfile(kind) { return PROFILE[kind] || PROFILE.humanoid; }

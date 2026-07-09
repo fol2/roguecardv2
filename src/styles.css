@@ -1404,6 +1404,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   max-width: min(660px, 86cqw);
   border-color: rgba(210, 226, 255, 0.48);
   background: rgba(8, 10, 18, 0.94);
+  animation-duration: 1.8s;
 }
 @keyframes bossBanner {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(1.4); letter-spacing: 0.5em; }
