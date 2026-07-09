@@ -639,6 +639,7 @@ git commit -m "Hydrate Emberglass ledgers and arm quests on run end"
 - Every run owns a stable validated runId. Legacy saves self-heal a deterministic `legacy-*` id before their next acknowledged checkpoint.
 - run.pendingEnemyIds stores exact base or VARIANTS IDs. run.pendingQuestId is null or a QUEST_IDS value.
 - run.pendingReward stores one exact non-final reward payload plus durable gold/potion/relic/card taken flags. run.pendingRunEnd is null or `{outcome}` where outcome is win, death, or abandon while that conclusion awaits cross-store completion and run-save cleanup.
+- Persisted run.monument is null or exactly `{act,row,bequest,claimed}`. Act/row are non-negative integers within the Phase 1 act range, claimed is boolean, and bequest uses the same own-property validBequest contract as quest scratch.
 - A non-null pendingRunEnd is an immutable terminal outbox. Title and Embark immediately resume it; Begin Anew cannot replace win/death with abandon. The screen continuation runs outside the persistence catch and is latched before invocation so its own exception cannot become or replay a storage retry.
 - Vigil v2 owns compact last-run `receipts.deeds` and `receipts.runEnd` records keyed by runId. Each ledger mutation and its receipt share one acknowledged `saveVigil` write, making fresh-object retries idempotent across reload.
 - A rejected Task 3 checkpoint opens one retry/reload-safe persistence overlay; no combat, reward, map, or end continuation may run until the same snapshot is accepted.
@@ -883,6 +884,12 @@ const validBequest = (b) => b == null || (plainObject(b) && (
   (b.kind === 'relic' && hasOwn(RELICS, b.id)) ||
   (b.kind === 'gold' && Number.isFinite(b.amount) && b.amount >= 0)
 ));
+const validMonument = (monument) => monument == null || (
+  exactKeys(monument, ['act', 'row', 'bequest', 'claimed']) &&
+  Number.isInteger(monument.act) && monument.act >= 0 && monument.act <= 2 &&
+  Number.isInteger(monument.row) && monument.row >= 0 &&
+  validBequest(monument.bequest) && typeof monument.claimed === 'boolean'
+);
 const validMemory = (id, m) => {
   if (!plainObject(m)) return false;
   if (id === 'eighthOmen') return onlyKeys(m, ['dueIn', 'seen']) &&
@@ -945,6 +952,7 @@ const validEndEvent = (e) => {
 };
 
 if (!plainObject(run.quests)) return null;
+if (!validMonument(run.monument)) return null;
 if (Object.keys(run.quests).some((id) => !QUEST_IDS.includes(id))) return null;
 if (Object.entries(run.quests).some(([id, q]) => !validQuest(id, q))) return null;
 if (!(Array.isArray(run.shards) && run.shards.every((id) => QUEST_IDS.includes(id)) && new Set(run.shards).size === run.shards.length)) return null;
@@ -1048,6 +1056,18 @@ Expected: both PASS; terminal-caller source audit reports only journalTerminalOu
 ~~~bash
 git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/engine.js src/terminal-outbox.js src/ui.js test/test_engine.js
 git commit -m "Harden terminal outbox finalisation"
+~~~
+
+- [x] **Step 7: Validate persisted monument bequests after final review**
+
+At the save/load seam, round-trip a valid upgraded-card monument, claim it once, save the boolean claimed state, reload, and prove it cannot pay twice. Reject monument card `toString`, relic `constructor`, unknown monument fields, non-integer act/row, and missing/non-boolean claimed. Reuse validBequest so persisted monuments and quest scratch share the same content-ID contract.
+
+Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyOutDir
+Expected: both PASS; no valid Phase 1 monument is dropped and inherited bequest IDs return null from loadRun.
+
+~~~bash
+git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/engine.js test/test_engine.js
+git commit -m "Validate persisted monument bequests"
 ~~~
 
 ---

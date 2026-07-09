@@ -1329,6 +1329,12 @@ export function loadRun() {
       (b.kind === 'relic' && hasOwn(RELICS, b.id)) ||
       (b.kind === 'gold' && Number.isFinite(b.amount) && b.amount >= 0)
     ));
+    const validMonument = (monument) => monument == null || (
+      exactKeys(monument, ['act', 'row', 'bequest', 'claimed']) &&
+      Number.isInteger(monument.act) && monument.act >= 0 && monument.act <= 2 &&
+      Number.isInteger(monument.row) && monument.row >= 0 &&
+      validBequest(monument.bequest) && typeof monument.claimed === 'boolean'
+    );
     const validMemory = (id, m) => {
       if (!plainObject(m)) return false;
       if (id === 'eighthOmen') return onlyKeys(m, ['dueIn', 'seen']) &&
@@ -1395,6 +1401,7 @@ export function loadRun() {
 
     if (!plainObject(run.quests)) return null;
     if (!validRunId(run.runId)) return null;
+    if (!validMonument(run.monument)) return null;
     if (Object.keys(run.quests).some((id) => !QUEST_IDS.includes(id))) return null;
     if (Object.entries(run.quests).some(([id, q]) => !validQuest(id, q))) return null;
     if (!(Array.isArray(run.shards) && run.shards.every((id) => QUEST_IDS.includes(id)) && new Set(run.shards).size === run.shards.length)) return null;

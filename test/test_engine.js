@@ -954,6 +954,23 @@ function forceHand(run, cb, ids) {
     assert.equal(saveRun(backfill), true, 'legacy backfill can be retried');
     assert.deepEqual(loadRun().pendingEnemyIds, ['paleDuskfang'], 'accepted backfill survives reload');
 
+    const monumentRun = newRun(425, {
+      monument: { act: 1, row: 7, bequest: { kind: 'card', id: 'oblivionStrike', up: true } },
+    });
+    assert.equal(saveRun(monumentRun), true);
+    const monumentReload = loadRun();
+    assert.deepEqual(monumentReload.monument, {
+      act: 1, row: 7, bequest: { kind: 'card', id: 'oblivionStrike', up: true }, claimed: false,
+    }, 'a Phase 1 monument survives save/load exactly');
+    const monumentDeckSize = monumentReload.player.deck.length;
+    assert.deepEqual(claimMonument(monumentReload), { kind: 'card', id: 'oblivionStrike', up: true });
+    assert.equal(monumentReload.monument.claimed, true, 'claim state is a persisted boolean');
+    assert.equal(saveRun(monumentReload), true);
+    const claimedMonumentReload = loadRun();
+    assert.equal(claimedMonumentReload.monument.claimed, true);
+    assert.equal(claimedMonumentReload.player.deck.length, monumentDeckSize + 1);
+    assert.equal(claimMonument(claimedMonumentReload), null, 'a reloaded monument cannot pay twice');
+
     const rejectSaved = (label, mutate) => {
       const bad = newRun(412, { quests: saveQuests });
       mutate(bad);
@@ -1014,6 +1031,27 @@ function forceHand(run, cb, ids) {
     rejectSaved('extra pending reward payload key', (r) => {
       setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
       r.pendingReward.rewards.extra = true;
+    });
+    rejectSaved('inherited monument card toString', (r) => {
+      r.monument = { act: 0, row: 5, bequest: { kind: 'card', id: 'toString', up: false }, claimed: false };
+    });
+    rejectSaved('inherited monument relic constructor', (r) => {
+      r.monument = { act: 0, row: 5, bequest: { kind: 'relic', id: 'constructor' }, claimed: false };
+    });
+    rejectSaved('unknown monument field', (r) => {
+      r.monument = { act: 0, row: 5, bequest: null, claimed: false, unknown: true };
+    });
+    rejectSaved('invalid monument act type', (r) => {
+      r.monument = { act: '0', row: 5, bequest: null, claimed: false };
+    });
+    rejectSaved('invalid monument row type', (r) => {
+      r.monument = { act: 0, row: 5.5, bequest: null, claimed: false };
+    });
+    rejectSaved('invalid monument claimed type', (r) => {
+      r.monument = { act: 0, row: 5, bequest: null, claimed: 'false' };
+    });
+    rejectSaved('missing monument claimed flag', (r) => {
+      r.monument = { act: 0, row: 5, bequest: null };
     });
     for (const inheritedId of ['toString', 'constructor']) {
       rejectSaved(`inherited deck card ${inheritedId}`, (r) => { r.player.deck[0].id = inheritedId; });
