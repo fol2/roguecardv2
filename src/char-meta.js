@@ -8,7 +8,7 @@ export const CHAR_LAYOUT_DEFAULT = { scale: 1, footX: 0, footY: 0 };
 export const CHAR_SHADOW_DEFAULT = { ox: 50, oy: 100, sx: 1, sy: 0.24, skew: 0, blur: 1.5, opacity: 0.62, dx: 0, dy: 0 };
 
 /** Card-hover aim outline — global default; per-id `aim` overrides partially. */
-export const CHAR_AIM_DEFAULT = { style: "solid", speed: 2.55, color: "#e4d5fb", width: 0.018, beams: 4, dashes: 2 };
+export const CHAR_AIM_DEFAULT = { style: "solid", speed: 2.55, color: "#e4d5fb", width: 0.012, beams: 4, dashes: 2 };
 
 /** Mesh profile keys (absolute overrides on top of art.kind PROFILE). */
 export const CHAR_MESH_KEYS = ["sway","bob","breathe","head","cloth","pin","float"];
@@ -40,7 +40,7 @@ export const CHAR_META = {
   leviathan: { scale: 4, footX: -150, footY: -200, shadow: { ox: 49.4, oy: 84 } },
   mirelurker: { scale: 0.9, shadow: { ox: 43.2, oy: 87 } },
   obsidianGolem: { scale: 1.3, shadow: { ox: 50.8, oy: 85.2 } },
-  rootheart: { scale: 2.6, footX: -50, footY: -70, shadow: { ox: 45.9, oy: 93.4 } },
+  rootheart: { scale: 2.6, footX: -50, footY: -70, shadow: { ox: 45.9, oy: 93.4 }, aim: { width: 0.006 } },
   shade: { scale: 1.1, shadow: { ox: 49.8, dy: 16 } },
   shellback: { scale: 1.09, shadow: { ox: 56, oy: 78.1 } },
   siren: { scale: 1.6, footX: -10, footY: -20, shadow: { ox: 48, oy: 99 } },
