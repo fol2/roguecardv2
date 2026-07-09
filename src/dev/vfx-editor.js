@@ -248,11 +248,11 @@ function renderPanel() {
     <h4>ward shell</h4>
     <p class="vx-sub">status: <em id="vx-ward-status">${state.ward}</em></p>
     <div class="vx-actions">
-      <button type="button" id="vx-grow" title="Grow = alpha + sites 0→full (no zoom)">Grow</button>
+      <button type="button" id="vx-grow" title="First: alpha+sites in. Already on: sites shrink→grow">Grow</button>
       <button type="button" id="vx-fade" title="Fade = reverse clear (alpha + sites → 0)">Fade</button>
     </div>
     <h4>look</h4>
-    <p class="vx-sub">grow ramps opacity + site count · N strength = normalScale · pad fixed</p>
+    <p class="vx-sub">first grow = opacity + sites · re-grow = sites pulse · pad fixed</p>
     ${PARAM_SLIDERS.map((d) => sliderRow(d, params)).join('')}
     <label class="vx-row vx-tint-row"><span>tint</span>
       <input type="color" id="vx-tint" value="${params.tint}">
