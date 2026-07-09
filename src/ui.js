@@ -2,7 +2,7 @@
 import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
 import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
-import { pileTier, pileMasterId } from './pile-chrome.js';
+import { pileTier, pileMasterId, flightSchedule } from './pile-chrome.js';
 import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
@@ -1578,6 +1578,39 @@ function flyTo(x0, y0, x1, y1, { n = 6, color = '#ffe9ac', size = 8, dur = 640, 
   }
 }
 
+function bumpPile(btn) {
+  if (!btn || REDUCED) return;
+  btn.classList.remove('pile-bump');
+  void btn.offsetWidth;
+  btn.classList.add('pile-bump');
+}
+
+function flyCardBacks(fromList, toEl, budgetMs) {
+  const layer = $('#floaties');
+  const dest = V.centerOf(toEl);
+  const n = fromList.length;
+  const { stagger, flightDur, awaitMs } = flightSchedule(n, budgetMs);
+  if (REDUCED || n === 0) return Promise.resolve(0);
+  fromList.forEach((src, i) => {
+    const origin = src.el ? V.centerOf(src.el) : src;
+    const m = el('div', 'flycard flycard-back');
+    m.style.left = `${origin.x}px`;
+    m.style.top = `${origin.y}px`;
+    layer.appendChild(m);
+    const mx = (origin.x + dest.x) / 2 + (Math.random() - 0.5) * 80;
+    const my = Math.min(origin.y, dest.y) - 40 - Math.random() * 50;
+    m.animate(
+      [
+        { transform: 'translate(-50%,-50%) scale(0.85)', opacity: 0.9 },
+        { transform: `translate(calc(-50% + ${mx - origin.x}px), calc(-50% + ${my - origin.y}px)) scale(1)`, opacity: 1, offset: 0.45 },
+        { transform: `translate(calc(-50% + ${dest.x - origin.x}px), calc(-50% + ${dest.y - origin.y}px)) scale(0.55)`, opacity: 0.85 },
+      ],
+      { duration: flightDur, delay: i * stagger, easing: 'cubic-bezier(.32,.05,.35,1)', fill: 'forwards' }
+    ).onfinish = () => m.remove();
+  });
+  return sleep(awaitMs);
+}
+
 // --------- the living-glass rig: one rAF drives eyes, inner fire and light pools
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // count a number element up/down to a target (ease-out cubic), with a set-pulse
@@ -2009,17 +2042,22 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'endTurn': heroActing = false; banner('ENEMY TURN'); await sleep(480); break;
     case 'draw': {
+      if (!REDUCED) {
+        await flyCardBacks([V.centerOf(ce.draw)], ce.hand, 220);
+        bumpPile(ce.draw);
+      }
       syncHand(); syncCombat(); sfx.draw();
-      await sleep(75);
+      await sleep(REDUCED ? 40 : 75);
       break;
     }
     case 'reshuffle': {
-      // the ritual of the turned deck: card-backs arc from discard to draw
       sfx.card();
-      const d0 = V.centerOf(ce.discard), d1 = V.centerOf(ce.draw);
-      flyTo(d0.x, d0.y, d1.x, d1.y, { n: 6, cls: 'flycard', dur: 520 });
-      V.floatText(d1.x, d1.y - 46, 'Reshuffle', 'notice');
-      await sleep(420);
+      const n = ev.n || 6;
+      const origins = Array.from({ length: n }, () => V.centerOf(ce.discard));
+      await flyCardBacks(origins, ce.draw, 560);
+      bumpPile(ce.draw);
+      V.floatText(V.centerOf(ce.draw).x, V.centerOf(ce.draw).y - 46, 'Reshuffle', 'notice');
+      syncCombat();
       break;
     }
     case 'play': {
@@ -2239,21 +2277,38 @@ async function handleEvent(ev, targetIdx) {
           { duration: 540, easing: 'ease-in' }
         ).onfinish = () => ghost.remove();
         V.burst(r.left + r.width / 2, r.top + r.height / 2, { color: '#ffb066', n: 22, speed: 190, grav: -150, size: 2.4, life: 0.85 });
+        const a0 = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        const a1 = V.centerOf(ce.exhaust);
+        flyTo(a0.x, a0.y, a1.x, a1.y, { n: 8, color: '#ffb066', size: 5, dur: 480 });
+        bumpPile(ce.exhaust);
         await sleep(260);
       }
       syncCombat();
       break;
     }
     case 'discardHand': {
-      const els = $$('.card', ce.hand);
-      if (els.length) {
-        sfx.card();
-        els.forEach((c, i) => {
-          c.animate([{ opacity: 1 }, { transform: `${c.style.transform} translateX(340px) rotate(20deg)`, opacity: 0 }],
-            { duration: 260, delay: i * 28, easing: 'ease-in' }).onfinish = () => c.remove();
-        });
-        await sleep(280 + els.length * 28);
+      const uids = ev.uids || [];
+      const els = uids.map((uid) => $(`.card[data-uid="${uid}"]`, ce.hand)).filter(Boolean);
+      sfx.card();
+      if (!REDUCED && els.length) {
+        await flyCardBacks(els.map((elc) => ({ el: elc })), ce.discard, 400);
+        els.forEach((c) => c.remove());
+      } else {
+        els.forEach((c) => c.remove());
       }
+      bumpPile(ce.discard);
+      syncCombat();
+      break;
+    }
+    case 'toDiscard': {
+      const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
+      if (c && !REDUCED) {
+        await flyCardBacks([{ el: c }], ce.discard, 320);
+        c.remove();
+      } else if (c) {
+        c.remove();
+      }
+      bumpPile(ce.discard);
       syncCombat();
       break;
     }

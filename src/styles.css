@@ -1021,6 +1021,13 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   background: linear-gradient(160deg, #1d2440, #0c101f 70%);
   border: 1px solid rgba(242, 193, 78, 0.5); box-shadow: 0 3px 9px rgba(0, 0, 0, 0.6), inset 0 0 8px rgba(90, 110, 180, 0.3);
 }
+.flycard-back {
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(242, 193, 78, 0.22), transparent 55%),
+    linear-gradient(160deg, #243056, #0c101f 72%);
+  border-color: rgba(242, 193, 78, 0.65);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.65), inset 0 0 10px rgba(120, 140, 210, 0.35);
+}
 /* the boss is announced through a rose window: rings and spokes of leaded light */
 .rose-window {
   position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%);
