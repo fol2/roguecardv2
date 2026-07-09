@@ -1418,7 +1418,7 @@ function bindCardDrag(c, uid) {
     const st = S.drag;
     if (!st || st.uid !== uid || e.pointerId !== st.id) return;
     // Capture last on-screen seat (incl. free-drag transform) before chrome resets
-    if (!cancelled && st.live) captureCardAnchor(uid, c);
+    if (!cancelled && st.live) captureCardAnchor(uid, c, { fromDrag: true });
     S.drag = null;
     if (!st.live) return;
     dragConsumedAt = performance.now();
@@ -1711,7 +1711,7 @@ function bumpPile(btn) {
 
 /** Last on-stage card rects for toDiscard (captured at play before lift/remove). */
 const cardFlightAnchor = new Map();
-function captureCardAnchor(uid, cardEl) {
+function captureCardAnchor(uid, cardEl, meta = {}) {
   if (uid == null || !cardEl) return;
   const r = stageRect(cardEl);
   if (r.width < 2) return;
@@ -1720,6 +1720,7 @@ function captureCardAnchor(uid, cardEl) {
     y: r.top + r.height / 2,
     w: r.width,
     h: r.height,
+    fromDrag: !!meta.fromDrag,
   });
 }
 function peekCardAnchor(uid) {
@@ -2450,9 +2451,10 @@ async function handleEvent(ev, targetIdx) {
       }
       if (c && targetIdx != null && cb.enemies[targetIdx]) {
         // targeted attacks: the card itself streaks into the enemy
-        if (!peekCardAnchor(ev.uid)) captureCardAnchor(ev.uid, c);
         const r = stageRect(c); // ghost is fixed inside the stage
         const { x: tx, y: ty } = enemyCenter(targetIdx);
+        // Discard/exhaust should resume from where the streak ends, not the hand seat
+        cardFlightAnchor.set(String(ev.uid), { x: tx, y: ty, w: r.width * 0.22, h: r.height * 0.22 });
         const ghost = c.cloneNode(true);
         Object.assign(ghost.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, margin: 0, transform: 'none', zIndex: 56, pointerEvents: 'none' });
         document.getElementById('floaties').appendChild(ghost);
@@ -2462,9 +2464,12 @@ async function handleEvent(ev, targetIdx) {
           { duration: 270, easing: 'cubic-bezier(.45,0,.9,.5)' }
         ).onfinish = () => ghost.remove();
       } else if (c) {
-        // keep drag/doPlay anchor; only capture if we somehow missed it
-        if (!peekCardAnchor(ev.uid)) captureCardAnchor(ev.uid, c);
+        // Tap/click: play lifts the card — recapture AFTER played-up so discard starts there.
+        // Drag: keep the release-seat anchor (fromDrag); clearTargeting already reflowed the DOM.
         c.classList.add('played-up');
+        void c.offsetWidth;
+        const prev = peekCardAnchor(ev.uid);
+        if (!prev?.fromDrag) captureCardAnchor(ev.uid, c);
       }
       // engine already pushed discard/exhaust; hold pile chrome until those flights land
       holdPendingPileArrivals(cb, ev.uid);
@@ -2645,11 +2650,11 @@ async function handleEvent(ev, targetIdx) {
         c.remove();
         releasePileVisual('ashes', 1);
       } else if (!REDUCED) {
-        // burn at play-seat anchor (not played-up lift), then real face flies to ashes
+        // Prefer live seat (played-up / drag); stored anchor only if the node is already gone
         const live = c ? stageRect(c) : null;
-        const start = anchor || (live && live.width > 2
+        const start = (live && live.width > 2)
           ? { x: live.left + live.width / 2, y: live.top + live.height / 2, w: live.width, h: live.height }
-          : null);
+          : anchor;
         if (c && start) {
           const ghost = c.cloneNode(true);
           Object.assign(ghost.style, {
@@ -2752,13 +2757,26 @@ async function handleEvent(ev, targetIdx) {
       const anchor = takeCardAnchor(ev.uid);
       const inst = pileCardByUid(cb.discard, ev.uid);
       if (!REDUCED && inst && (c || anchor)) {
-        // Start from last located seat (drag release / play capture), not fan reflow
-        const origin = anchor
-          ? { ...anchor, inst }
-          : (() => {
-            const r = stageRect(c);
-            return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, inst };
-          })();
+        // Drag release → use stored seat. Tap/click → live played-up seat (or refreshed anchor).
+        let origin = null;
+        if (anchor?.fromDrag) {
+          origin = { ...anchor, inst };
+        } else if (c) {
+          const r = stageRect(c);
+          if (r.width > 2) {
+            origin = {
+              x: r.left + r.width / 2, y: r.top + r.height / 2,
+              w: r.width, h: r.height, inst,
+            };
+          }
+        }
+        if (!origin && anchor) origin = { ...anchor, inst };
+        if (!origin) {
+          releasePileVisual('discard', 1);
+          bumpPile(ce.discard);
+          syncCombat();
+          break;
+        }
         if (c) {
           c.classList.add('draw-pending');
           layoutHand();
