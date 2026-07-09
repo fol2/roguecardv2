@@ -269,7 +269,7 @@ function makePlane(url, profile, seed, img) {
     sites: [], death: 0, glass: null, fire: null, beams: null, bodyPx: null, outline: null, aimOn: false,
     ward: null, wardOn: false, wardGrow: 0, wardGrowFrom: 0, wardT0: 0,
     wardSites: null, wardSitesUsed: -1, wardAlphaUsed: -1,
-    wardOutline: null, wardOutlineKey: null,
+    wardOutline: null, wardOutlineKey: null, wardShapeSeed: null,
     // re-gain pulse: site factor only (alpha stays full while ward is already on)
     wardSiteF: 1, wardSiteFrom: 1, wardSiteTo: 1, wardSiteT0: 0, wardSitePhase: null,
   };
@@ -443,14 +443,15 @@ function bakeCrackBeams(p) {
   return c;
 }
 
-/** Stable gemstone facet sites for the ward envelope (not body cracks). */
+/** Stable-enough gemstone facet sites for the current wardShapeSeed (not body cracks). */
 function wardSitesFor(p) {
   const n = Math.max(3, Math.round(Number(wardParams.sites) || WARD_DEFAULTS.sites));
   if (p.wardSites?.length && p.wardSitesN === n) return p.wardSites;
   const sites = [];
+  const shapeSeed = Number.isFinite(p.wardShapeSeed) ? p.wardShapeSeed : (p.seed || 0);
   for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 + p.seed * 0.17;
-    const r = 0.28 + ((i * 37) % 7) * 0.018;
+    const a = (i / n) * Math.PI * 2 + shapeSeed * 0.17;
+    const r = 0.28 + wardHash(shapeSeed, i + 40) * 0.12;
     sites.push({
       u: clampUv(0.5 + Math.cos(a) * r),
       v: clampUv(0.52 + Math.sin(a) * r * 0.92),
@@ -458,7 +459,7 @@ function wardSitesFor(p) {
   }
   // a few interior facets so the shell reads as cut glass, not a hollow ring only
   for (let i = 0; i < 5; i++) {
-    const a = p.seed + i * 1.7;
+    const a = shapeSeed + i * 1.7;
     sites.push({
       u: clampUv(0.5 + Math.cos(a) * 0.12),
       v: clampUv(0.5 + Math.sin(a) * 0.14),
@@ -483,23 +484,23 @@ function wardHash(seed, i) {
   return x - Math.floor(x);
 }
 
-/** Irregular raw-gemstone outline in unit oval space (cached per plane + shape knobs). */
+/** Irregular raw-gemstone outline in unit oval space (cached until reshuffled). */
 function wardOutline(p) {
   const n = Math.max(5, Math.min(16, Math.round(Number(wardParams.shapeVerts) || 8)));
   const jitter = Math.max(0, Math.min(1, Number(wardParams.shapeJitter) || 0));
-  const key = `${n}|${jitter.toFixed(3)}|${(p.seed || 0).toFixed(4)}`;
+  const shapeSeed = Number.isFinite(p.wardShapeSeed) ? p.wardShapeSeed : (p.seed || 0);
+  const key = `${n}|${jitter.toFixed(3)}|${shapeSeed.toFixed(4)}`;
   if (p.wardOutlineKey === key && p.wardOutline?.length) return p.wardOutline;
   const verts = [];
-  const base = p.seed || 0;
   for (let i = 0; i < n; i++) {
     const u = i / n;
     // uneven angular spacing + radius spikes → raw crystal silhouette (not a smooth oval)
-    const angJ = (wardHash(base, i) - 0.5) * jitter * 0.55;
-    const ang = u * Math.PI * 2 + base * 0.31 + angJ;
+    const angJ = (wardHash(shapeSeed, i) - 0.5) * jitter * 0.55;
+    const ang = u * Math.PI * 2 + shapeSeed * 0.31 + angJ;
     const rad = 0.78
-      + (wardHash(base, i + 17) - 0.5) * jitter * 0.42
-      + 0.1 * Math.sin(i * 2.15 + base)
-      + 0.06 * Math.cos(i * 3.7 - base * 0.7);
+      + (wardHash(shapeSeed, i + 17) - 0.5) * jitter * 0.42
+      + 0.1 * Math.sin(i * 2.15 + shapeSeed)
+      + 0.06 * Math.cos(i * 3.7 - shapeSeed * 0.7);
     verts.push({
       x: Math.cos(ang) * Math.max(0.55, Math.min(1.18, rad)),
       y: Math.sin(ang) * Math.max(0.55, Math.min(1.18, rad)) * 1.06,
@@ -508,6 +509,17 @@ function wardOutline(p) {
   p.wardOutline = verts;
   p.wardOutlineKey = key;
   return verts;
+}
+
+/** New random gem silhouette (+ facet sites) for the next grow-in. */
+function reshuffleWardShape(p) {
+  p.wardShapeSeed = Math.random() * 10000;
+  p.wardOutline = null;
+  p.wardOutlineKey = null;
+  p.wardSites = null;
+  p.wardSitesN = undefined;
+  p.wardSitesUsed = -1;
+  p.wardAlphaUsed = -1;
 }
 
 /** Signed distance to closed polygon (negative = inside). */
@@ -1163,7 +1175,7 @@ export function meshWard(el, on, { grow = true } = {}) {
   // already on: grow:false = hold (combat sync); grow:true = sites shrink/grow pulse
   if (p.wardOn && p.ward) {
     if (!grow) return true;
-    // don't restart full alpha grow — pulse facets only
+    // don't restart full alpha grow — pulse facets only (keep current silhouette)
     p.wardGrow = 1;
     p.wardGrowFrom = 1;
     p.wardSitePhase = 'shrink';
@@ -1173,7 +1185,9 @@ export function meshWard(el, on, { grow = true } = {}) {
     p.wardSitesUsed = -1;
     return true;
   }
-  if (!p.ward) buildWard(p);
+  // each fresh appear gets a new random raw-gem silhouette
+  reshuffleWardShape(p);
+  buildWard(p);
   p.wardOn = true;
   p.wardSitePhase = null;
   p.wardT0 = performance.now();

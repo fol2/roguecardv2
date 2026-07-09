@@ -254,7 +254,7 @@ function renderPanel() {
       <button type="button" id="vx-fade" title="Fade = reverse clear (alpha + sites → 0)">Fade</button>
     </div>
     <h4>look</h4>
-    <p class="vx-sub">first grow = opacity + sites · re-grow = sites pulse · shape = raw gem (verts/jitter)</p>
+    <p class="vx-sub">first grow = opacity + sites · new random gem each appear · re-grow = sites pulse</p>
     ${PARAM_SLIDERS.map((d) => sliderRow(d, params)).join('')}
     <label class="vx-row vx-tint-row"><span>tint</span>
       <input type="color" id="vx-tint" value="${params.tint}">
