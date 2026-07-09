@@ -40,7 +40,7 @@ const BEAM_PAD = 1.6;      // beams plane is padded past the body so rays leave 
 const BAKE_N = 192;        // bake resolution: crack maps are soft — 192² keeps rebakes quick
 // Ward shell — gemstone glass envelope outside the body (reuses transmission + Voronoi).
 const WARD_PAD = 1.24;
-const WARD_ALPHA = 0.72;
+const WARD_ALPHA = 1;      // match GLASS_ALPHA — dimming killed the refractive read
 const WARD_GROW_MS = 420;
 const WARD_SITES = 16;
 
@@ -373,7 +373,9 @@ function wardSitesFor(p) {
   return sites;
 }
 
-/** Full oval shell mask — own shape, not clipped to body silhouette. */
+/** Full oval shell mask — own shape, not clipped to body silhouette.
+ *  Kept mostly solid over the body so transmission can refract the hero;
+ *  only a gentle center dip so it still reads as a cut gem, not a flat pane. */
 function bakeWardMask(_p) {
   const N = BAKE_N;
   const c = Object.assign(document.createElement('canvas'), { width: N, height: N });
@@ -384,11 +386,11 @@ function bakeWardMask(_p) {
     const i = (y * N + x) * 4;
     const nx = (x - cx) / rx, ny = (y - cy) / ry;
     const d = Math.hypot(nx, ny);
-    let t = d <= 0.78 ? 1 : d >= 1 ? 0 : 1 - (d - 0.78) / 0.22;
+    let t = d <= 0.82 ? 1 : d >= 1 ? 0 : 1 - (d - 0.82) / 0.18;
     t = t * t * (3 - 2 * t);
-    // soft inner hollow so the body stays readable through the shell
-    const hole = Math.hypot(nx / 0.55, ny / 0.58);
-    if (hole < 0.72) t *= Math.max(0.18, (hole - 0.35) / 0.37);
+    // mild center dip (floor ~0.62) — body must stay under glass for refraction
+    const hole = Math.hypot(nx / 0.62, ny / 0.66);
+    if (hole < 0.55) t *= 0.62 + 0.38 * (hole / 0.55);
     const on = Math.round(255 * Math.max(0, Math.min(1, t)));
     out.data[i] = out.data[i + 1] = out.data[i + 2] = on;
     out.data[i + 3] = 255;
@@ -429,15 +431,36 @@ function bakeWardNormal(p) {
   return c;
 }
 
+/** Transmission only samples the opaque scene — same flip meshCrack uses. */
+function setBodyOpaqueForGlass(p, on) {
+  if (!p?.mat) return;
+  if (on) {
+    if (p.mat.uniforms.uCut.value === 0) {
+      p.mat.uniforms.uCut.value = 0.35;
+      p.mat.transparent = false;
+      p.mat.needsUpdate = true;
+    }
+    return;
+  }
+  // restore soft edges only when nothing else needs the opaque back-buffer
+  if (p.sites.length || p.death > 0) return;
+  p.mat.uniforms.uCut.value = 0;
+  p.mat.transparent = true;
+  p.mat.needsUpdate = true;
+}
+
 function buildWard(p) {
   ensureEnv();
   disposeLayer(p, 'ward');
+  // body must be opaque or the shell has nothing to refract (reads as a flat tint)
+  setBodyOpaqueForGlass(p, true);
+  // Match crack glass measures; keep a cool tint so Ward reads distinct from shatter.
   const mat = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color('#9fd4ff'),
-    transmission: 1, ior: 1.38, thickness: 0.16, roughness: 0.045, metalness: 0,
-    normalMap: canvasTex(bakeWardNormal(p)), normalScale: new THREE.Vector2(1.45, 1.45),
-    alphaMap: canvasTex(bakeWardMask(p)), transparent: true, alphaTest: 0.02, opacity: 0,
-    clearcoat: 0.45, clearcoatRoughness: 0.18, envMapIntensity: 0.55,
+    color: new THREE.Color('#c5e8ff'),
+    transmission: 1, ior: 1.4, thickness: 0.14, roughness: 0.03, metalness: 0,
+    normalMap: canvasTex(bakeWardNormal(p)), normalScale: new THREE.Vector2(1.35, 1.35),
+    alphaMap: canvasTex(bakeWardMask(p)), transparent: true, alphaTest: 0.01, opacity: 0,
+    clearcoat: 0.35, clearcoatRoughness: 0.18, envMapIntensity: 0.45,
     depthTest: false, depthWrite: false,
   });
   // own geo — shell shape/scale independent of body warp
@@ -580,13 +603,15 @@ function layoutPlane(p, t = 0, off = { left: 0, top: 0 }) {
   const depth = Math.round(r.bottom);
   if (p.outline) p.outline.renderOrder = depth * 4; // behind body so the ring hugs the silhouette
   bodyMeshes(p).forEach((m, li) => { m.renderOrder = depth * 4 + 1 + li; });
-  if (p.ward) p.ward.renderOrder = depth * 4 + 6;
+  // ward above body/glass/beams within the stack (higher renderOrder + z)
+  if (p.ward) p.ward.renderOrder = depth * 4 + 8;
   let z = 0;
   for (const m of layerMeshes(p)) {
-    m.position.set(x, y, z);
+    const isWard = m === p.ward;
+    m.position.set(x, y, isWard ? z + 0.5 : z);
     let pad = 1;
     if (m === p.beams) pad = BEAM_PAD;
-    else if (m === p.ward) {
+    else if (isWard) {
       const grow = p.wardGrow || 0;
       pad = WARD_PAD * (0.55 + 0.45 * grow);
       m.rotation.z = Math.sin((t || 0) * 0.55 + p.seed + (p.wardPhase || 0)) * 0.045;
@@ -623,6 +648,7 @@ function tick(t) {
       if (p.wardGrow < 0.02) {
         p.wardGrow = 0;
         disposeLayer(p, 'ward');
+        setBodyOpaqueForGlass(p, false);
       }
     }
     if (p.wardOn) p.wardPhase = sec;
@@ -712,11 +738,7 @@ export function meshCrack(el, u = 0.32 + Math.random() * 0.36, v = 0.3 + Math.ra
     p.sites.push({ u: clampUv(u + Math.cos(a) * r), v: clampUv(v + Math.sin(a) * r) });
   }
   // cracked glass must sit in the transmission back-buffer: flip the body opaque
-  if (p.mat.uniforms.uCut.value === 0) {
-    p.mat.uniforms.uCut.value = 0.35;
-    p.mat.transparent = false;
-    p.mat.needsUpdate = true;
-  }
+  setBodyOpaqueForGlass(p, true);
   buildGlass(p);
   if (p.death > 0) buildFire(p); // mid-death recrack: keep the fire on the new seams
   return true;

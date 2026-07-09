@@ -210,6 +210,7 @@ function mountChrome() {
   for (const id of ['bg3d', 'vignette', 'grain', 'lantern', 'hud', 'aim', 'vfx', 'floaties', 'overlay', 'wipe', 'transit', 'tooltip']) {
     document.getElementById(id)?.remove();
   }
+  document.documentElement.classList.add('vfx-edit');
   const screen = document.getElementById('screen');
   screen.innerHTML = '';
   screen.className = 'vx-screen';
@@ -267,6 +268,8 @@ const CSS = `
 .vx-hint { color: #6a7288; font-size: 11px; margin-top: 14px; }
 .vx-hint code { color: #9fb4ff; }
 .vx-hint b { color: #cdd3ea; font-weight: 600; }
+/* #mesh (sibling of #screen) must sit above the DOM preview so Ward draws in front */
+html.vfx-edit #mesh { z-index: 8; }
 #vx-stage {
   position: absolute; inset: 0; padding-right: 300px; box-sizing: border-box;
   background:
@@ -277,11 +280,13 @@ const CSS = `
 .vx-ground {
   position: absolute; left: 8%; right: calc(300px + 8%); bottom: 18%; height: 2px;
   background: linear-gradient(90deg, transparent, #9fd4ff66 20%, #9fd4ff66 80%, transparent);
+  z-index: 0;
 }
 .vx-actor {
   position: absolute; left: calc(50% - 150px); translate: -50% 0;
+  z-index: 1;
 }
-.vx-sprite { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; }
+.vx-sprite { position: absolute; inset: 0; width: 100%; height: 100%; }
 .vx-sprite img { width: 100%; height: 100%; object-fit: contain; object-position: center bottom; display: block; }
 .vx-meta { position: absolute; left: 12px; top: 12px; color: #9aa7c8; z-index: 3; pointer-events: none; }
 .vx-missing { position: absolute; inset: 0; display: grid; place-items: center; color: #664; z-index: 6; text-align: center; padding: 12px; }
