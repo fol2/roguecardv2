@@ -3,6 +3,7 @@ import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
 import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
 import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule, drawBatchSchedule } from './pile-chrome.js';
+// drawBatchSchedule also paces discardHand (same even-stagger clock)
 import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
@@ -1416,6 +1417,8 @@ function bindCardDrag(c, uid) {
   const finish = (e, cancelled) => {
     const st = S.drag;
     if (!st || st.uid !== uid || e.pointerId !== st.id) return;
+    // Capture last on-screen seat (incl. free-drag transform) before chrome resets
+    if (!cancelled && st.live) captureCardAnchor(uid, c);
     S.drag = null;
     if (!st.live) return;
     dragConsumedAt = performance.now();
@@ -1646,6 +1649,11 @@ function aimMove(e) {
   }
 }
 async function doPlay(uid, targetIdx) {
+  // Prefer drag-captured seat; else freeze current hand seat before clearTargeting reflows
+  if (!cardFlightAnchor.has(String(uid))) {
+    const c = $(`.card[data-uid="${uid}"]`, S.ce?.hand);
+    if (c) captureCardAnchor(uid, c);
+  }
   clearTargeting();
   S.hoveredCard = null;
   if (!E.playCard(S.run, S.cb, uid, targetIdx)) return;
@@ -1713,6 +1721,9 @@ function captureCardAnchor(uid, cardEl) {
     w: r.width,
     h: r.height,
   });
+}
+function peekCardAnchor(uid) {
+  return cardFlightAnchor.get(String(uid)) || null;
 }
 function takeCardAnchor(uid) {
   const k = String(uid);
@@ -2439,7 +2450,7 @@ async function handleEvent(ev, targetIdx) {
       }
       if (c && targetIdx != null && cb.enemies[targetIdx]) {
         // targeted attacks: the card itself streaks into the enemy
-        captureCardAnchor(ev.uid, c);
+        if (!peekCardAnchor(ev.uid)) captureCardAnchor(ev.uid, c);
         const r = stageRect(c); // ghost is fixed inside the stage
         const { x: tx, y: ty } = enemyCenter(targetIdx);
         const ghost = c.cloneNode(true);
@@ -2451,8 +2462,8 @@ async function handleEvent(ev, targetIdx) {
           { duration: 270, easing: 'cubic-bezier(.45,0,.9,.5)' }
         ).onfinish = () => ghost.remove();
       } else if (c) {
-        // anchor before lift so toDiscard / exhaust start from the played seat
-        captureCardAnchor(ev.uid, c);
+        // keep drag/doPlay anchor; only capture if we somehow missed it
+        if (!peekCardAnchor(ev.uid)) captureCardAnchor(ev.uid, c);
         c.classList.add('played-up');
       }
       // engine already pushed discard/exhaust; hold pile chrome until those flights land
@@ -2680,30 +2691,59 @@ async function handleEvent(ev, targetIdx) {
       break;
     }
     case 'discardHand': {
+      // Same even-stagger clock as draw: each unplayed hand card flies in order
       const uids = ev.uids || [];
-      const els = uids.map((uid) => $(`.card[data-uid="${uid}"]`, ce.hand)).filter(Boolean);
-      const n = uids.length || els.length;
+      const n = uids.length;
       sfx.card();
-      if (!REDUCED && n) holdPileVisual('discard', n);
-      if (!REDUCED && n) {
+      if (!n) { syncCombat(); break; }
+      if (!REDUCED) holdPileVisual('discard', n);
+      const sched = drawBatchSchedule(n, 400);
+      if (!REDUCED) {
         const flights = uids.map((uid) => {
           const elc = $(`.card[data-uid="${uid}"]`, ce.hand);
           const inst = pileCardByUid(cb.discard, uid);
           if (!inst) return null;
-          if (elc) return { el: elc, inst };
+          const anchor = takeCardAnchor(uid);
+          if (anchor) return { ...anchor, inst };
+          if (elc) {
+            const r = stageRect(elc);
+            return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, inst };
+          }
           return { ...V.centerOf(ce.hand), ...handFaceSize(), inst };
         }).filter(Boolean);
+        // Hide seats immediately so fan doesn't leave ghosts while staggered flights run
+        uids.forEach((uid) => {
+          const elc = $(`.card[data-uid="${uid}"]`, ce.hand);
+          if (elc) elc.classList.add('draw-pending');
+        });
+        layoutHand();
         if (flights.length) {
-          await flyCardBacks(flights, ce.discard, 400, {
-            fromSize: 'src', toSize: 'pile', sizePile: ce.discard, face: 'card',
+          flyCardBacks(flights, ce.discard, 400, {
+            fromSize: 'src', toSize: 'pile', sizePile: ce.discard, face: 'card', schedule: sched,
           });
+          // Grow discard chrome as each card lands (mirror draw pile shrink)
+          flights.forEach((_, i) => {
+            setTimeout(() => {
+              releasePileVisual('discard', 1);
+              syncPileWidgets(cb);
+              bumpPile(ce.discard);
+            }, sched.flightDur + i * sched.stagger);
+          });
+          await sleep(sched.awaitMs);
+          // any hold left if some uids lacked instances
+          const left = n - flights.length;
+          if (left > 0) releasePileVisual('discard', left);
+        } else {
+          releasePileVisual('discard', n);
         }
-        els.forEach((c) => c.remove());
+        uids.forEach((uid) => $(`.card[data-uid="${uid}"]`, ce.hand)?.remove());
       } else {
-        els.forEach((c) => c.remove());
+        uids.forEach((uid) => {
+          takeCardAnchor(uid);
+          $(`.card[data-uid="${uid}"]`, ce.hand)?.remove();
+        });
+        releasePileVisual('discard', n);
       }
-      if (!REDUCED && n) releasePileVisual('discard', n);
-      bumpPile(ce.discard);
       syncCombat();
       break;
     }
@@ -2712,12 +2752,17 @@ async function handleEvent(ev, targetIdx) {
       const anchor = takeCardAnchor(ev.uid);
       const inst = pileCardByUid(cb.discard, ev.uid);
       if (!REDUCED && inst && (c || anchor)) {
+        // Start from last located seat (drag release / play capture), not fan reflow
         const origin = anchor
           ? { ...anchor, inst }
           : (() => {
             const r = stageRect(c);
             return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, inst };
           })();
+        if (c) {
+          c.classList.add('draw-pending');
+          layoutHand();
+        }
         await flyCardBacks([origin], ce.discard, 320, {
           fromSize: 'src', toSize: 'pile', sizePile: ce.discard, face: 'card', cardInst: inst,
         });
