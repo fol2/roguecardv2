@@ -79,15 +79,15 @@ All game layers live inside `#stage` in `index.html`. The stage picks one of fiv
 
 ### Screens & the single #screen element
 
-All screens (title, map, combat, rewards, lamplighter, end/bequest, vigil panel) render into one `#screen` div. `show()` is the switcher and **must clear `sc.onclick`** — a stale title-screen click delegate once hijacked reward-screen buttons. The 3D map nodes are DOM elements projected onto the three.js tower every frame via `setOverlay(anchors, cb)`; the map literally *is* the tower.
+All screens (title, embark, map, combat, rewards, lamplighter, end/bequest, vigil) render into one `#screen` div. `show()` is the switcher and **must clear `sc.onclick`** — a stale title-screen click delegate once hijacked reward-screen buttons. The 3D map nodes are DOM elements projected onto the three.js tower every frame via `setOverlay(anchors, cb)`; the map literally *is* the tower.
 
 ### Persistence & save-shape validation
 
-localStorage keys: `spirebound_save_v2` (current run), `spirebound_stats_v1` (lifetime stats), `spirebound_vigil_v1` (meta-progression), `spirebound_mute`. `loadRun` validates every content id on load — this doubles as the shield against stale content after an HMR edit or a card/relic rename. `run.pendingCombat` guards against reload-to-skip-fight.
+localStorage keys: `spirebound_save_v2` (current run), `spirebound_stats_v1` (lifetime stats), `spirebound_vigil_v2` (meta-progression; one-way migrate from `spirebound_vigil_v1` on first load, v1 left as read-only backup), `spirebound_mute`. `loadRun` validates every content id on load — this doubles as the shield against stale content after an HMR edit or a card/relic rename. `run.pendingCombat` guards against reload-to-skip-fight.
 
 ### The four game systems (all in engine + data, surfaced by ui)
 
-SHATTER (facets/chips/shatter/embers/kindle + Lantern Arts), Omens & the Unlit Way (per-act rule twists, unlit nodes, elite affixes), the Vigil (aspects, vows, lamplighter boons, monuments/bequests, deed unlocks — the only module that persists across runs), and the "native tongue" rename. See the "Reckoning Round" notes in the project memory and `README.md` for the full mechanics.
+SHATTER (facets/chips/shatter/embers/kindle + Lantern Arts), Omens & the Unlit Way (per-act rule twists, unlit nodes, elite affixes), the Vigil (aspects, vows, lamplighter boons, monuments/bequests, deed unlocks, and the progressive-delivery reveal ladder — the only module that persists across runs), and the "native tongue" rename. Lamplighter / phials / omens / pool waves are gated by `REVEALS`/`PROGRESSION` in `data.js` (evaluated via `vigil.js`); a fresh profile's first climb is the curated core only. See the "Reckoning Round" notes in the project memory and `README.md` for the full mechanics.
 
 ## Conventions that will bite you if unknown
 

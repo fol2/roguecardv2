@@ -71,7 +71,7 @@ test('reward screen', async ({ page }) => {
   await shoot(page, 'reward');
 });
 
-for (const screen of ['shop', 'rest', 'treasure']) {
+for (const screen of ['shop', 'rest', 'treasure', 'embark', 'vigil']) {
   test(`${screen} screen`, async ({ page }) => {
     await boot(page, { query: 'mesh=0' });
     await page.evaluate((s) => window.spirebound.show(s), screen);

@@ -1738,3 +1738,51 @@ html.mesh-on .enemy-art.warded::before { display: none; }
    particle canvas, mesh warp planes, animated grain, in-flight floaters) */
 html.freeze *, html.freeze *::before, html.freeze *::after { animation-play-state: paused !important; transition: none !important; }
 html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html.freeze #floaties { visibility: hidden !important; }
+
+/* ---- entrance redesign: embark screen */
+.embark-screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 20px;
+  text-align: center;
+}
+.embark-title { font-size: 26px; letter-spacing: 4px; color: #ffd166; }
+.embark-sub { opacity: 0.75; font-size: 14px; }
+.embark-label { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.6; }
+.embark-warn { color: #ff8d8d; font-size: 12px; }
+
+/* ---- entrance redesign: vigil screen tabs */
+#screen .vigil-panel { max-height: 90cqh; }
+.vigil-tabs { display: flex; gap: 8px; justify-content: center; margin: 4px 0 10px; }
+.vigil-tabs .vtab {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 4px 14px;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  opacity: 0.6;
+  cursor: pointer;
+}
+.vigil-tabs .vtab.on { opacity: 1; border-color: rgba(255, 209, 102, 0.6); }
+
+/* ---- entrance redesign: Vigil news pulse */
+.btn.news { position: relative; }
+.btn.news::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 209, 102, 0.85);
+  pointer-events: none;
+  animation: vigil-news 1.6s ease-in-out infinite;
+}
+@keyframes vigil-news {
+  0%, 100% { opacity: 0.25; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.04); }
+}

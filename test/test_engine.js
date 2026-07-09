@@ -7,10 +7,10 @@ import {
   rollBossRelics, addCardToDeck, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
   MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, cardPool, relicPool,
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
-  previewBlock, previewEnemyDmg, rollCardReward, vowMods,
+  previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
 } from '../src/engine.js';
-import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS } from '../src/data.js';
-import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from '../src/vigil.js';
+import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE } from '../src/data.js';
+import { _setStore, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
 import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, drawBatchSchedule, PILE_IDS, PILE_FAN_DEG, PILE_FAN_MAX_DEG, PILE_FAN_MAX_LAYERS } from '../src/pile-chrome.js';
@@ -770,6 +770,7 @@ function forceHand(run, cb, ids) {
   assert.equal(vigil.deeds.runs, 1, 'run counted');
   assert.equal(vigil.deeds.shatters, 15, 'deed stat folded in');
   assert.ok(newUnlocks.includes('card:quakeblow'), 'shatter deed pays out');
+  assert.equal(vigil.news, true, 'deed progress pulses the Vigil');
   assert.equal(commitRunToVigil(run, false).newUnlocks.length, 0, 'commit is idempotent');
   assert.equal(loadVigil().deeds.runs, 1, 'no double count');
   // a win unlocks the second aspect and the first vow
@@ -786,6 +787,24 @@ function forceHand(run, cb, ids) {
   _setStore(null);
 }
 {
+  // deed-bar progress (no new unlock) still pulses the Vigil — design §3
+  _setStore(null);
+  // seed past the shatter deed threshold so +1 shatter unlocks nothing new
+  const seed = loadVigil();
+  seed.deeds.shatters = 15;
+  seed.unlocks = evaluateDeeds(seed);
+  saveVigil(seed);
+  clearNews();
+  const run = newRun(420);
+  run.stats.shatters = 1;
+  run.floorsClimbed = 0;
+  const { vigil, newUnlocks } = commitRunToVigil(run, false);
+  assert.equal(newUnlocks.length, 0, 'no new unlock this run');
+  assert.equal(vigil.deeds.shatters, 16, 'deed bar moved');
+  assert.equal(vigil.news, true, 'deed progress alone pulses the Vigil');
+  _setStore(null);
+}
+{
   // pools: base content without unlocks, unknown unlock tokens ignored
   const run = newRun(44);
   assert.deepEqual(cardPool(run, 'common'), CARD_POOLS.common);
@@ -793,6 +812,152 @@ function forceHand(run, cb, ids) {
   const run2 = newRun(44, { unlocks: ['card:doesNotExist', 'relic:alsoNot'] });
   assert.deepEqual(cardPool(run2, 'common'), CARD_POOLS.common, 'unknown card unlock ignored');
   assert.deepEqual(relicPool(run2, 'common'), RELIC_POOLS.common, 'unknown relic unlock ignored');
+}
+{
+  // progressive delivery tables are well-formed; thresholds live in PROGRESSION
+  assert.ok(PROGRESSION.revealThresholds && typeof PROGRESSION.revealThresholds === 'object', 'reveal thresholds in PROGRESSION');
+  assert.ok(Array.isArray(REVEALS) && REVEALS.length >= 6, 'reveal table present');
+  assert.equal(new Set(REVEALS.map((r) => r.id)).size, REVEALS.length, 'reveal ids unique');
+  assert.deepEqual(
+    Object.fromEntries(REVEALS.map((r) => [r.id, r.trigger])),
+    PROGRESSION.revealThresholds,
+    'REVEALS derived from PROGRESSION.revealThresholds',
+  );
+  for (const r of REVEALS) {
+    assert.ok(r.trigger && (r.trigger.runsPlayed != null || r.trigger.wins != null), `reveal ${r.id} has a counter trigger`);
+  }
+  for (const id of ['lamplighter', 'phials', 'omens', 'poolWave2', 'poolWave3', 'poolFull', 'emberglass']) {
+    assert.ok(REVEALS.some((r) => r.id === id), `reveal ${id} declared`);
+  }
+  for (const [rev, w] of Object.entries(PROGRESSION.poolWaves)) {
+    assert.ok(REVEALS.some((r) => r.id === rev), `wave ${rev} matches a reveal id`);
+    for (const id of w.cards) assert.ok(CARDS[id] && !CARDS[id].locked, `wave card ${id} exists, not deed-locked`);
+    for (const id of w.relics) assert.ok(RELICS[id] && !RELICS[id].locked && RELICS[id].rarity !== 'boss', `wave relic ${id} exists, not deed-locked, not a crown`);
+  }
+  assert.ok(Object.keys(POOL_GATE.cards).length && Object.keys(POOL_GATE.relics).length, 'pool gate derived');
+}
+{
+  // vigil v2: fresh shape, and one-way migration from v1 that leaves v1 intact
+  _setStore(null);
+  const fresh = loadVigil();
+  assert.equal(fresh.v, 2, 'fresh vigil is v2');
+  assert.equal(fresh.runsPlayed, 0);
+  assert.deepEqual(fresh.shards, []);
+  assert.deepEqual(fresh.quests, {});
+  assert.equal(fresh.news, false);
+
+  // a veteran v1 profile migrates: counters carry, news pulses once, v1 stays
+  const mem = new Map([
+    ['spirebound_vigil_v1', JSON.stringify({
+      v: 1,
+      deeds: { runs: 40, wins: 9, slain: 500, shatters: 90, kindles: 60, perfects: 12, smolderKills: 60, unlitVisited: 30, embersSpent: 900, bestVow: 5, bestFloor: 45 },
+      unlocks: ['aspect2', 'card:quakeblow'], vowUnlocked: 5,
+      lastFall: { act: 1, row: 7, bequest: { kind: 'gold', amount: 50 } },
+    })],
+  ]);
+  _setStore({ getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, v), removeItem: (k) => mem.delete(k) });
+  const mig = loadVigil();
+  assert.equal(mig.v, 2);
+  assert.equal(mig.runsPlayed, 40, 'runsPlayed seeded from v1 deeds.runs');
+  assert.equal(mig.deeds.wins, 9);
+  assert.ok(mig.unlocks.includes('card:quakeblow'), 'unlocks carried');
+  assert.equal(mig.vowUnlocked, 5);
+  assert.deepEqual(mig.lastFall, { act: 1, row: 7, bequest: { kind: 'gold', amount: 50 } });
+  assert.equal(mig.news, true, 'veterans get one pulse at the new Vigil');
+  assert.ok(mem.has('spirebound_vigil_v2'), 'v2 persisted');
+  assert.ok(mem.has('spirebound_vigil_v1'), 'v1 backup untouched');
+  assert.equal(loadVigil().runsPlayed, 40, 'migration idempotent (reads v2 now)');
+  _setStore(null);
+}
+{
+  // the reveal ladder: counters only ever open doors
+  _setStore(null);
+  let v = loadVigil();
+  assert.deepEqual(revealSnapshot(v), [], 'a fresh profile sees only the core game');
+  assert.ok(!isRevealed(v, 'lamplighter') && !isRevealed(v, 'emberglass'));
+  assert.ok(!isRevealed(v, 'nonsense'), 'unknown reveal ids are never revealed');
+
+  // Begin Anew (abandon a saved climb) must advance the ladder — same ledger
+  // path as confirmAbandon — so the next run's snapshot sees new reveals.
+  const abandoned = newRun(300, { reveals: [] });
+  v = commitRunEnd(abandoned);
+  assert.equal(v.runsPlayed, 1, 'Begin Anew counts as a run end');
+  assert.ok(isRevealed(v, 'lamplighter'), 'abandon unlocks Lamplighter for the next climb');
+  const afterAbandon = newRun(3001, { reveals: revealSnapshot(v) });
+  assert.ok(runRevealed(afterAbandon, 'lamplighter'), 'next run receives the post-abandon snapshot');
+  _setStore(null);
+  v = loadVigil();
+
+  // run ends advance the ladder — win, fall, or abandon alike — exactly once
+  const r1 = newRun(301);
+  v = commitRunEnd(r1);
+  assert.equal(v.runsPlayed, 1);
+  assert.equal(commitRunEnd(r1).runsPlayed, 1, 'commitRunEnd idempotent per run');
+  assert.ok(isRevealed(v, 'lamplighter'), 'run 2 gets the Lamplighter');
+  assert.equal(v.news, true, 'crossing a reveal pulses the Vigil');
+  assert.equal(clearNews().news, false, 'opening the Vigil clears the pulse');
+
+  v = commitRunEnd(newRun(302));
+  assert.ok(isRevealed(v, 'phials') && isRevealed(v, 'poolWave2'), 'runsPlayed 2 tier');
+  v = commitRunEnd(newRun(303));
+  assert.ok(isRevealed(v, 'omens'), 'runsPlayed 3 tier');
+  commitRunEnd(newRun(304));
+  v = commitRunEnd(newRun(305));
+  assert.ok(isRevealed(v, 'poolWave3'), 'runsPlayed 4 tier (already crossed)');
+  v = commitRunEnd(newRun(306));
+  assert.ok(isRevealed(v, 'poolFull'), 'runsPlayed 6 tier');
+  assert.ok(!isRevealed(v, 'emberglass'), 'wins-gated reveal still dark');
+
+  // a win reveals the emberglass chain and marks news
+  const wr = newRun(307);
+  commitRunToVigil(wr, true);
+  v = loadVigil();
+  assert.ok(isRevealed(v, 'emberglass'), 'first dawn arms the chain');
+  assert.equal(v.news, true, 'unlocks pulse the Vigil too');
+  _setStore(null);
+}
+{
+  // run.reveals gating: null (default) = today's game; a snapshot narrows it
+  const full = newRun(310);
+  assert.equal(full.reveals, null, 'no opt = fully revealed');
+  assert.ok(runRevealed(full, 'phials') && runRevealed(full, 'poolFull'));
+  assert.deepEqual(cardPool(full, 'rare'), CARD_POOLS.rare, 'default pools unchanged');
+  assert.deepEqual(relicPool(full, 'rare'), RELIC_POOLS.rare);
+  assert.ok(OMENS[full.omens[0]], 'default runs climb under a sky');
+
+  const core = newRun(311, { reveals: [] });
+  assert.ok(!runRevealed(core, 'phials'));
+  assert.ok(!cardPool(core, 'rare').includes('frenzy'), 'build-around rare held back');
+  assert.ok(!cardPool(core, 'uncommon').includes('toxicMist'), 'wave-2 uncommon held back');
+  assert.ok(cardPool(core, 'common').includes('twinFangs'), 'core commons present');
+  assert.ok(!relicPool(core, 'rare').includes('duskmirror'), 'late relic held back');
+  assert.deepEqual(relicPool(core, 'boss'), RELIC_POOLS.boss, 'boss crowns never gated');
+  assert.equal(core.omens[0], null, 'run 1 climbs under a clear sky');
+  assert.equal(gainPotion(core, 'healing'), false, 'phials hidden');
+  for (let s = 0; s < 12; s++) {
+    assert.equal(genCombatRewards(newRun(320 + s, { reveals: [] }), 'normal').potion, null, 'no potion drops pre-reveal');
+  }
+  const shopC = genShop(newRun(312, { reveals: [] }));
+  assert.equal(shopC.potions.length, 0, 'merchant stocks no phials pre-reveal');
+
+  const mid = newRun(313, { reveals: ['omens', 'phials', 'poolWave2'] });
+  assert.ok(OMENS[mid.omens[0]], 'omen rolls once revealed');
+  assert.equal(gainPotion(mid, 'healing'), true);
+  assert.ok(cardPool(mid, 'rare').includes('devour'), 'wave 2 open');
+  assert.ok(!cardPool(mid, 'rare').includes('frenzy'), 'later waves still closed');
+
+  // deed unlocks pierce the waves
+  const dl = newRun(314, { reveals: [], unlocks: ['card:quakeblow', 'relic:prismCharm'] });
+  assert.ok(cardPool(dl, 'uncommon').includes('quakeblow'));
+  assert.ok(relicPool(dl, 'rare').includes('prismCharm'));
+}
+{
+  // every event with a phial-granting choice keeps a non-potion alternative,
+  // so hiding phial choices pre-reveal never leaves an event unanswerable
+  for (const [id, ev] of Object.entries(EVENTS)) {
+    const nonPotion = ev.choices.filter((ch) => !ch.ops.some((op) => op.potion));
+    assert.ok(nonPotion.length >= 1, `event ${id} needs a non-potion choice`);
+  }
 }
 {
   // monuments: a bequest is claimed exactly once

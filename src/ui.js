@@ -5,7 +5,7 @@ import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, mercha
 import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule, drawBatchSchedule } from './pile-chrome.js';
 // drawBatchSchedule also paces discardHand (same even-stagger clock)
 import * as V from './vfx.js';
-import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
+import { syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
 import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift, meshAim, meshAimClear, meshWard } from './mesh.js';
@@ -250,7 +250,7 @@ function updateLantern() {
 function renderHud() {
   updateLantern();
   const hud = $('#hud');
-  if (!S.run || S.screen === 'title' || S.screen === 'end' || S.screen === 'lamplighter') { hud.classList.remove('show'); document.body.classList.remove('low-hp'); return; }
+  if (!S.run || S.screen === 'title' || S.screen === 'embark' || S.screen === 'vigil' || S.screen === 'end' || S.screen === 'lamplighter') { hud.classList.remove('show'); document.body.classList.remove('low-hp'); return; }
   hud.classList.add('show');
   const p = S.run.player;
   const hp = S.cb && !S.cb.over ? S.cb.player.hp : p.hp;
@@ -264,7 +264,7 @@ function renderHud() {
       <div class="hud-stat">${iconSvg('coin', 14)} <span class="gold-num">${p.gold}</span></div>
       <div class="hud-mid"><b>${act.name.toUpperCase()}</b> &nbsp;·&nbsp; Act ${S.run.act + 1} &nbsp;·&nbsp; Floor ${S.run.floorsClimbed} &nbsp;·&nbsp; ${act.bossName}</div>
       <div class="hud-right">
-        ${p.potions.map((id, i) => `<button class="potion-slot ${id ? 'full' : ''}" data-slot="${i}">${id ? rasterOr('potions', id, potionSvg(POTIONS[id].tone)) : ''}</button>`).join('')}
+        ${E.runRevealed(S.run, 'phials') ? p.potions.map((id, i) => `<button class="potion-slot ${id ? 'full' : ''}" data-slot="${i}">${id ? rasterOr('potions', id, potionSvg(POTIONS[id].tone)) : ''}</button>`).join('') : ''}
         <button class="icon-btn" data-act="deck">${iconSvg('cards', 19)}<span style="font-size:11px">${p.deck.length}</span></button>
         <button class="icon-btn" data-act="menu">≡</button>
       </div>
@@ -291,6 +291,7 @@ function renderHud() {
   p.potions.forEach((id, i) => {
     if (!id) return;
     const slot = $(`.potion-slot[data-slot="${i}"]`, hud);
+    if (!slot) return;
     slot._tip = { title: POTIONS[id].name, body: POTIONS[id].text, sub: 'Click to use or toss' };
   });
   $('[data-act="deck"]', hud).onclick = () => { sfx.click(); showCardGrid('Your Deck', S.run.player.deck, { sub: `${S.run.player.deck.length} cards` }); };
@@ -365,7 +366,7 @@ function confirmAbandon() {
   </div>`, (root) => {
     root.onclick = (e) => {
       const a = e.target.dataset.a;
-      if (a === 'yes') { E.recordRunEnd(S.run, false); S.run = null; S.cb = null; closeOverlay(); stopAmbience(); show('title'); }
+      if (a === 'yes') { commitRunEnd(S.run); E.recordRunEnd(S.run, false); S.run = null; S.cb = null; closeOverlay(); stopAmbience(); show('title'); }
       if (a === 'no') closeOverlay();
     };
   });
@@ -479,7 +480,7 @@ export function show(name, data) {
   sc.className = '';
   sc.onclick = null; // screens share #screen — never let a stale delegate survive
   ({
-    title: renderTitle, map: renderMap, combat: () => {}, reward: renderReward, rest: renderRest,
+    title: renderTitle, embark: renderEmbark, vigil: renderVigil, map: renderMap, combat: () => {}, reward: renderReward, rest: renderRest,
     shop: renderShop, event: renderEvent, treasure: renderTreasure, bossRelic: renderBossRelic, end: renderEnd,
   })[name](data);
   if (name === 'map') warmAssets();
@@ -493,18 +494,55 @@ function renderTitle() {
   setTheme(0);
   const vigil = syncVigil(); // reconcile any owed unlocks (e.g. seeded from old stats)
   const saved = E.loadRun();
-  const sel = (S.title ||= { aspect: 0, vow: 0 });
-  if (sel.aspect > 0 && ASPECTS[sel.aspect].unlock && !vigil.unlocks.includes(ASPECTS[sel.aspect].unlock)) sel.aspect = 0;
-  sel.vow = Math.max(0, Math.min(sel.vow | 0, vigil.vowUnlocked));
   const d = vigil.deeds;
-  const aspectCards = ASPECTS.map((a, i) => {
-    const locked = i > 0 && a.unlock && !vigil.unlocks.includes(a.unlock);
-    return `<button class="aspect-card${sel.aspect === i ? ' on' : ''}${locked ? ' locked' : ''}" data-a="asp" data-i="${i}"${locked ? ' disabled' : ''}>
-      <div class="asp-hero">${heroArt(i)}</div>
-      <div class="asp-name">${a.name}${locked ? ' 🔒' : ''}</div>
-      <div class="asp-blurb">${locked ? 'Reach the first dawn to walk as the Ashwarden.' : a.blurb}</div>
-    </button>`;
-  }).join('');
+  const banner = assetUrl('title-background', 'background');
+  const titleText = assetUrl('title', 'title');
+  const sc = screenEl();
+  sc.innerHTML = `<div class="title-screen screen-enter">
+    ${banner ? `<div class="title-banner"><div class="title-banner-frame"><img class="raster-art" src="${banner}" alt=""></div></div>` : ''}
+    <div class="logo${titleText ? ' logo-raster' : ''}">${titleText ? `<img class="title-wordmark" src="${titleText}" alt="SPIREBOUND">` : 'SPIREBOUND'}</div>
+    <div class="tagline">A Roguelite Deckbuilder · The Vigil Remembers</div>
+    <div class="title-btns">
+      ${saved ? '<button class="btn" data-a="continue">Continue Climb</button>' : ''}
+      <button class="btn" data-a="embark">Begin the Climb</button>
+      <button class="btn ghost${vigil.news && !REDUCED ? ' news' : ''}" data-a="vigil">The Vigil</button>
+      <button class="btn ghost" data-a="help">How to Play</button>
+      <button class="btn ghost" data-a="mute">${isMuted() ? 'Unmute' : 'Mute'}</button>
+    </div>
+    <div class="title-stats">${d.runs} climbs · ${d.wins} dawns · ${d.slain} slain${vigil.unlocks.length ? ` · ${vigil.unlocks.length} secrets unearthed` : ''}</div>
+  </div>`;
+  sc.onclick = (e) => {
+    const t = e.target.closest('[data-a]');
+    if (!t || t.disabled) return;
+    const a = t.dataset.a;
+    unlock(); sfx.click();
+    if (a === 'embark') show('embark');
+    else if (a === 'continue' && saved) startRun(saved, true);
+    else if (a === 'vigil') show('vigil');
+    else if (a === 'help') showHelp();
+    else if (a === 'mute') { toggleMute(); renderTitle(); }
+  };
+  meshBindTitle();
+}
+// EMBARK — where a climb is configured. Grows as the Vigil reveals more: a
+// fresh profile sees a single Begin button; the aspect choice arrives with
+// 'aspect2', the vow ladder with the first dawn.
+function renderEmbark() {
+  stopAmbience();
+  setTheme(0);
+  const vigil = syncVigil();
+  const saved = E.loadRun();
+  const sel = (S.embark ||= { aspect: 0, vow: 0 });
+  const hasAspects = vigil.unlocks.includes('aspect2');
+  if (!hasAspects) sel.aspect = 0;
+  sel.vow = Math.max(0, Math.min(sel.vow | 0, vigil.vowUnlocked));
+  const aspectRow = hasAspects ? `<div class="embark-label">Who carries the lantern</div>
+    <div class="aspect-row">${ASPECTS.map((a, i) => `
+      <button class="aspect-card${sel.aspect === i ? ' on' : ''}" data-a="asp" data-i="${i}">
+        <div class="asp-hero">${heroArt(i)}</div>
+        <div class="asp-name">${a.name}</div>
+        <div class="asp-blurb">${a.blurb}</div>
+      </button>`).join('')}</div>` : '';
   const vowLine = sel.vow === 0
     ? 'The Spire as it is. No vows sworn.'
     : VOWS.slice(0, sel.vow).map((v) => `<b style="color:#ff9a4d">${v.name}</b> — ${v.desc}`).join('<br>');
@@ -516,43 +554,71 @@ function renderTitle() {
       </div>
       <div class="vow-desc">${vowLine}</div>
     </div>` : '';
-  const banner = assetUrl('title-background', 'background');
-  const titleText = assetUrl('title', 'title');
   const sc = screenEl();
-  sc.innerHTML = `<div class="title-screen screen-enter">
-    ${banner ? `<div class="title-banner"><div class="title-banner-frame"><img class="raster-art" src="${banner}" alt=""></div></div>` : ''}
-    <div class="logo${titleText ? ' logo-raster' : ''}">${titleText ? `<img class="title-wordmark" src="${titleText}" alt="SPIREBOUND">` : 'SPIREBOUND'}</div>
-    <div class="tagline">A Roguelite Deckbuilder · The Vigil Remembers</div>
-    <div class="aspect-row">${aspectCards}</div>
+  sc.innerHTML = `<div class="embark-screen screen-enter">
+    <div class="embark-title">THE CLIMB BEGINS</div>
+    <div class="embark-sub">${hasAspects || vigil.vowUnlocked > 0 ? 'Choose how you meet the Spire.' : 'The lantern is lit. The Spire waits.'}</div>
+    ${aspectRow}
     ${vowBlock}
+    ${saved ? '<div class="embark-warn">Beginning anew abandons your saved climb.</div>' : ''}
     <div class="title-btns">
-      ${saved ? '<button class="btn" data-a="continue">Continue Climb</button>' : ''}
-      <button class="btn" data-a="new">${saved ? 'Begin Anew' : 'Begin the Climb'}</button>
-      <button class="btn ghost" data-a="vigil">The Vigil</button>
-      <button class="btn ghost" data-a="help">How to Play</button>
-      <button class="btn ghost" data-a="mute">${isMuted() ? 'Unmute' : 'Mute'}</button>
+      <button class="btn btn-primary" data-a="begin">${saved ? 'Begin Anew' : 'Begin the Climb'}</button>
+      <button class="btn ghost" data-a="back">Back</button>
     </div>
-    <div class="title-stats">${d.runs} climbs · ${d.wins} dawns · ${d.slain} slain${vigil.unlocks.length ? ` · ${vigil.unlocks.length} secrets unearthed` : ''}</div>
   </div>`;
+  const beginClimb = () => {
+    const v = syncVigil(); // re-read after abandon so the next snapshot sees new reveals
+    startRun(E.newRun(undefined, {
+      aspect: sel.aspect,
+      vow: sel.vow,
+      lamplighter: isRevealed(v, 'lamplighter'),
+      monument: v.lastFall,
+      unlocks: v.unlocks, // the fix: deed unlocks finally reach live pools
+      reveals: revealSnapshot(v),
+    }));
+  };
   sc.onclick = (e) => {
     const t = e.target.closest('[data-a]');
     if (!t || t.disabled) return;
     const a = t.dataset.a;
     unlock(); sfx.click();
-    if (a === 'asp') { sel.aspect = +t.dataset.i; renderTitle(); }
-    else if (a === 'vow-') { sel.vow = Math.max(0, sel.vow - 1); renderTitle(); }
-    else if (a === 'vow+') { sel.vow = Math.min(vigil.vowUnlocked, sel.vow + 1); renderTitle(); }
-    else if (a === 'new') { if (saved) E.clearSave(); startRun(E.newRun(undefined, { aspect: sel.aspect, vow: sel.vow, lamplighter: true, monument: vigil.lastFall })); }
-    else if (a === 'continue' && saved) startRun(saved, true);
-    else if (a === 'vigil') showVigil();
-    else if (a === 'help') showHelp();
-    else if (a === 'mute') { toggleMute(); renderTitle(); }
+    if (a === 'asp') { sel.aspect = +t.dataset.i; renderEmbark(); }
+    else if (a === 'vow-') { sel.vow = Math.max(0, sel.vow - 1); renderEmbark(); }
+    else if (a === 'vow+') { sel.vow = Math.min(vigil.vowUnlocked, sel.vow + 1); renderEmbark(); }
+    else if (a === 'back') show('title');
+    else if (a === 'begin') {
+      // Spec §3: title stays "Begin the Climb"; Begin Anew confirmation lives
+      // on Embark. Abandon advances runsPlayed like confirmAbandon.
+      if (!saved) { beginClimb(); return; }
+      openOverlay(`<div class="panel ov-panel" style="text-align:center">
+        <div class="ov-title">Begin Anew?</div>
+        <div class="ov-sub">Your saved climb will be lost to the void.</div>
+        <div class="ov-actions"><button class="btn danger" data-a="yes">Begin Anew</button><button class="btn ghost" data-a="no">Keep Climbing</button></div>
+      </div>`, (root) => {
+        root.onclick = (ev) => {
+          const ans = ev.target.dataset.a;
+          if (ans === 'yes') {
+            const abandoned = E.loadRun();
+            if (abandoned) {
+              commitRunEnd(abandoned);
+              E.recordRunEnd(abandoned, false);
+            }
+            S.run = null; S.cb = null;
+            closeOverlay();
+            beginClimb();
+          }
+          if (ans === 'no') closeOverlay();
+        };
+      });
+    }
   };
-  meshBindTitle();
 }
-// the vigil ledger: lifetime deeds and the content they've unearthed
-function showVigil() {
-  const v = loadVigil();
+// THE VIGIL — the hall between climbs. Phase 1 ships the Deeds tab; the
+// Emberglass rose window joins it when the chain arms (Phase 2).
+function renderVigil() {
+  stopAmbience();
+  setTheme(0);
+  const v = clearNews(); // opening the hall reads the news
   const deedRows = Object.entries(DEEDS).map(([id, deed]) => {
     const cur = v.deeds[deed.stat] || 0;
     const done = cur >= deed.n;
@@ -575,12 +641,20 @@ function showVigil() {
       </div>
     </div>`;
   }).join('');
-  openOverlay(`<div class="panel ov-panel vigil-panel">
+  const sc = screenEl();
+  sc.innerHTML = `<div class="center-panel screen-enter"><div class="panel vigil-panel">
     <div class="ov-title">The Vigil</div>
     <div class="ov-sub">${v.deeds.runs} climbs · ${v.deeds.wins} dawns · deepest Vow: ${ROMAN[v.deeds.bestVow] || '—'}</div>
+    <div class="vigil-tabs"><button class="vtab on" data-a="tab-deeds">Deeds</button></div>
     <div class="deed-list">${deedRows}</div>
-    <div class="ov-actions"><button class="btn" data-a="ok">Close</button></div>
-  </div>`, (root) => { $('[data-a="ok"]', root).onclick = () => { sfx.click(); closeOverlay(); }; }, true);
+    <div class="ov-actions"><button class="btn" data-a="back">Return</button></div>
+  </div></div>`;
+  sc.onclick = (e) => {
+    const t = e.target.closest('[data-a]');
+    if (!t) return;
+    sfx.click();
+    if (t.dataset.a === 'back') show('title');
+  };
 }
 function startRun(run, resumed = false) {
   S.run = run;
@@ -613,7 +687,7 @@ function renderLamplighter() {
   screenEl().className = '';
   if (!S.lamp) {
     const rng = E.runRng(run);
-    const pool = Object.keys(BOONS);
+    const pool = Object.keys(BOONS).filter((id) => E.runRevealed(run, 'phials') || !BOONS[id].ops.some((op) => op.potion));
     const boons = [];
     while (boons.length < 3 && pool.length) boons.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
     S.lamp = { boons, boon: null, art: run.art };
@@ -3109,6 +3183,7 @@ function victoryFlow() {
   run.pendingCombat = null;
   if (kind === 'boss' && run.act >= 2) {
     const { newUnlocks } = commitRunToVigil(run, true); // the dawn is remembered
+    commitRunEnd(run); // the ledger that paces reveals counts every ending
     E.recordRunEnd(run, true);
     show('end', { won: true, newUnlocks });
     return;
@@ -3122,6 +3197,7 @@ function defeatFlow() {
   const node = run.map.nodes.find((n) => n.id === run.nodeId);
   const fallRow = node ? node.row : Math.max(1, run.floorsClimbed - 1);
   const { newUnlocks } = commitRunToVigil(run, false);
+  commitRunEnd(run);
   E.recordRunEnd(run, false);
   show('end', { won: false, newUnlocks, offers, fallAct: run.act, fallRow });
 }
@@ -3258,7 +3334,7 @@ function renderBossRelic() {
 function advanceAct() {
   const run = S.run;
   run.act++;
-  run.omens.push(E.rollOmen(run)); // each act climbs under its own sky
+  run.omens.push(E.runRevealed(run, 'omens') ? E.rollOmen(run) : null); // each act climbs under its own sky
   run.nodeId = null;
   run.map = E.genMap(run);
   E.healPlayer(run, Math.round(run.player.maxHp * 0.35));
@@ -3506,7 +3582,8 @@ function renderEvent(eventId) {
     showEventContinue();
     return;
   }
-  for (const [i, ch] of ev.choices.entries()) {
+  const offered = ev.choices.filter((ch) => E.runRevealed(run, 'phials') || !ch.ops.some((op) => op.potion));
+  for (const [i, ch] of offered.entries()) {
     const b = el('button', `event-choice${i === 0 ? ' btn-primary' : ''}`, `<b>${ch.label}</b>${ch.sub ? `<div class="sub">${ch.sub}</div>` : ''}`);
     if (ch.needGold && run.player.gold < ch.needGold) b.disabled = true;
     b.onclick = () => resolveChoice(ch);
