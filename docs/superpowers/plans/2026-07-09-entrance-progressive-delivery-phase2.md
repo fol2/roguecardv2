@@ -1457,13 +1457,15 @@ When startCombat resolves a variant whose drop.quest is paleOnes, call revealQue
 ~~~js
 if (e.def.drop?.quest === 'paleOnes') {
   const q = advanceQuest(run, 'paleOnes', e.def.drop.n, cb.queue);
-  if (q.progress >= PROGRESSION.emberglass.paleOnes.lensAt &&
+  if (q && q.progress >= PROGRESSION.emberglass.paleOnes.lensAt &&
       !run.unlocks.includes('insight:witchlightLens')) {
     run.unlocks.push('insight:witchlightLens');
     cb.queue.push({ t: 'questUnlock', id: 'insight:witchlightLens' });
   }
 }
 ~~~
+
+The `q` guard is required: direct or compatibility encounters can resolve a Pale variant on a run with no active quest snapshot, and that drop must remain inert rather than reading progress or unlocking the Lens.
 
 In renderMap add pale-marked only when node.questMarked is true. Use iconSvg('paleMote',18) inside a small lens halo, title “Witchlight trembles”, and body “Pale glass waits here.” CSS may animate opacity only; REDUCED is static.
 

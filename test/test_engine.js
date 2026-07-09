@@ -2,6 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { createServer as createViteServer } from 'vite';
 import {
   newRun, startCombat, playCard, endTurn, drawCards, makeCard, makeVariant, cardData, availableNodes, genMap,
   rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, finalizeNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, nodeEventInFlight, saveRun, loadRun, genCombatRewards, genShop, gainRelic, randomRelic,
@@ -10,7 +11,7 @@ import {
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
   previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
   revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter,
-  setPendingReward, takePendingReward, clearPendingReward, hasPendingBossRelic, recordRunEnd, loadStats,
+  setPendingReward, takePendingReward, clearPendingReward, hasPendingBossRelic, recordRunEnd, loadStats, paleVariantForAct,
 } from '../src/engine.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS } from '../src/data.js';
 import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, commitPendingRunEnd, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
@@ -1474,13 +1475,33 @@ function forceHand(run, cb, ids) {
   assert.equal(run.pendingQuestId, null);
 }
 {
+  const run = newRun(429);
+  const cb = startCombat(run, ['paleDuskfang']);
+  cb.enemies[0].hp = 1;
+  forceHand(run, cb, ['strike']);
+  cb.player.energy = 3;
+  assert.doesNotThrow(
+    () => playCard(run, cb, cb.hand[0].uid, 0),
+    'a Pale variant drop is inert without an active quest snapshot',
+  );
+  assert.ok(!run.unlocks.includes('insight:witchlightLens'));
+}
+{
   const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, { state: id === 'paleOnes' ? 'armed' : 'dormant', progress: 0, memory: {} }]));
+  assert.deepEqual(
+    [0, 1, 2].map(paleVariantForAct),
+    ['paleDuskfang', 'paleDrownedOne', 'paleVoidWisp'],
+    'each act maps to its fixed Pale variant',
+  );
   const run = newRun(430, { quests, unlocks: [] });
   const first = rollEncounter(run, 'monster', 0, run.map.nodes.find((n) => n.row === 0));
   assert.deepEqual(first, ['paleDuskfang'], 'first ordinary fight is hidden guaranteed ambush');
   assert.notDeepEqual(rollEncounter(run, 'monster', 1), ['paleDuskfang'], 'only one hidden ambush per run');
 
   const cb = startCombat(run, ['paleDuskfang']);
+  assert.equal(run.quests.paleOnes.state, 'revealed', 'Pale contact reveals the Trail before the kill');
+  assert.equal(run.quests.paleOnes.progress, 0, 'contact alone does not award a mote');
+  assert.ok(cb.queue.some((e) => e.t === 'questReveal' && e.id === 'paleOnes'));
   cb.enemies[0].hp = 1;
   forceHand(run, cb, ['strike']);
   cb.player.energy = 3;
@@ -1501,6 +1522,26 @@ function forceHand(run, cb, ids) {
   const mark = marked.map.nodes.find((n) => n.questVariantId);
   assert.equal(mark.row, 0);
   assert.equal(mark.questVariantId, 'paleDuskfang');
+  assert.equal(mark.type, 'monster', 'a marked node keeps its base monster type');
+
+  marked.questScratch.paleOnes.markedAct2 = true;
+  marked.act = 1;
+  marked.map = genMap(marked);
+  const act1Marks = marked.map.nodes.filter((n) => n.questVariantId);
+  assert.equal(act1Marks.length, 1, 'the locked Act 1 conditional adds one marked node');
+  assert.equal(act1Marks[0].questVariantId, 'paleDrownedOne');
+  assert.equal(act1Marks[0].type, 'monster');
+
+  marked.questScratch.paleOnes.markedAct2 = false;
+  marked.map = genMap(marked);
+  assert.equal(marked.map.nodes.filter((n) => n.questVariantId).length, 0,
+    'Act 1 has no marked node when its locked conditional is false');
+
+  marked.questScratch.paleOnes.markedAct2 = true;
+  marked.act = 2;
+  marked.map = genMap(marked);
+  assert.equal(marked.map.nodes.filter((n) => n.questVariantId).length, 0,
+    'Act 2 never adds a marked Pale node');
 
   run.quests.paleOnes.progress = 8;
   const cb9 = startCombat(run, ['paleDuskfang']);
@@ -2274,13 +2315,19 @@ function randomAgentRun(seed) {
   assert.equal(nodeGlyphId('monster', true), 'node-unlit');
 }
 
-// art.js is browser-only because its asset manifest uses import.meta.glob;
-// inspect the structural registry directly so the Node self-check still proves
-// the Witchlight marker cannot silently render an empty icon.
+// Load through Vite so import.meta.glob is resolved and this checks the actual
+// iconSvg output used by the browser, not merely the structural registry source.
 {
-  const artSource = readFileSync(new URL('../src/art.js', import.meta.url), 'utf8');
-  const paleMote = artSource.match(/\bpaleMote:\s*`([^`]*)`/s)?.[1] || '';
-  assert.match(paleMote, /<path\b/, 'paleMote returns real SVG path output');
+  const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
+  let paleMote;
+  try {
+    const { iconSvg } = await vite.ssrLoadModule('/src/art.js');
+    paleMote = iconSvg('paleMote', 18);
+  } finally {
+    await vite.close();
+  }
+  assert.match(paleMote, /<path\b[^>]*\bd="[^"]+"[^>]*>/,
+    'paleMote iconSvg output contains a non-empty path d');
 }
 
 // ---- battlefield layout schema (spec 2026-07-06-battlefield-editor-design) ----

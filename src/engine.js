@@ -876,7 +876,7 @@ function onEnemyDeath(run, cb, e) {
   if (e.boss) run.stats.bosses++;
   if (e.def.drop?.quest === 'paleOnes') {
     const q = advanceQuest(run, 'paleOnes', e.def.drop.n, cb.queue);
-    if (q.progress >= PROGRESSION.emberglass.paleOnes.lensAt &&
+    if (q && q.progress >= PROGRESSION.emberglass.paleOnes.lensAt &&
         !run.unlocks.includes('insight:witchlightLens')) {
       run.unlocks.push('insight:witchlightLens');
       cb.queue.push({ t: 'questUnlock', id: 'insight:witchlightLens' });
