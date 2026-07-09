@@ -802,19 +802,29 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   .enemy.igniting .vessel-fire, .enemy.igniting .cracks, .enemy.igniting .enemy-art { animation: none; }
 }
 /* ---- the glass economy: facets, shatter, the lantern ---- */
-.facet-row { display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 14px; margin-top: 5px; cursor: help; }
+.facet-row { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 18px; margin-top: 5px; cursor: help; }
 .facet-row .pip {
-  width: 8px; height: 8px; transform: rotate(45deg); border-radius: 1.5px;
-  background: rgba(16, 22, 38, 0.9); border: 1px solid rgba(190, 215, 255, 0.35);
+  width: 10px; height: 10px; transform: rotate(45deg); border-radius: 1.5px;
+  /* empty CSS diamonds must read on dark stage plates */
+  background: rgba(170, 195, 235, 0.42);
+  border: 1.5px solid rgba(220, 235, 255, 0.88);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.95),
+    0 0 5px rgba(160, 200, 255, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
   transition: background 0.2s, box-shadow 0.2s, filter 0.2s;
 }
 .facet-row .pip .facet-img {
-  width: 12px; height: 12px; display: block; object-fit: contain; pointer-events: none;
-  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)) brightness(1.2);
+  width: 16px; height: 16px; display: block; object-fit: contain; pointer-events: none;
+  /* empty rasters are near-black — lift hard + ink halo so they don't vanish into roots */
+  filter:
+    drop-shadow(0 0 1.5px rgba(230, 240, 255, 0.95))
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 1))
+    brightness(2.55) contrast(1.35) saturate(1.15);
 }
 .facet-row .pip:has(.facet-img) {
   background: transparent; border-color: transparent; box-shadow: none;
-  width: 12px; height: 12px; transform: none; border-radius: 0;
+  width: 16px; height: 16px; transform: none; border-radius: 0;
 }
 .facet-row .pip.filled {
   background: radial-gradient(circle at 40% 35%, #fff, #bfe0ff 55%, #5a86c8 95%);
@@ -825,24 +835,37 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   filter: none;
 }
 .facet-row .pip.filled .facet-img {
-  filter: drop-shadow(0 0 3px rgba(160, 205, 255, 0.75)) brightness(1.25);
+  filter:
+    drop-shadow(0 0 3px rgba(180, 215, 255, 0.95))
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.95))
+    brightness(1.55) contrast(1.2);
 }
 .facet-row .pip.willchip {
-  border-color: #ffe9ac; background: rgba(110, 85, 26, 0.55);
+  border-color: #ffe9ac; background: rgba(180, 140, 50, 0.65);
+  box-shadow: 0 0 6px rgba(255, 220, 140, 0.7), 0 1px 2px rgba(0, 0, 0, 0.9);
   animation: pvPulse 0.9s ease-in-out infinite;
 }
 .facet-row .pip.willchip:has(.facet-img) {
   background: transparent; border-color: transparent; box-shadow: none;
   animation: none;
-  filter: drop-shadow(0 0 4px rgba(255, 233, 172, 0.95)) brightness(1.15);
+  filter: none;
+}
+.facet-row .pip.willchip .facet-img {
+  filter:
+    drop-shadow(0 0 4px rgba(255, 233, 172, 1))
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.95))
+    brightness(1.7) contrast(1.2);
 }
 .facet-row.willshatter .pip { border-color: #ffd8a0; box-shadow: 0 0 6px rgba(255, 200, 130, 0.5); }
 .facet-row.willshatter .pip:has(.facet-img) {
   border-color: transparent; box-shadow: none;
-  filter: drop-shadow(0 0 5px rgba(255, 200, 130, 0.95)) brightness(1.12);
+  filter: none;
 }
 .facet-row.willshatter .pip .facet-img {
-  filter: drop-shadow(0 0 4px rgba(255, 216, 160, 0.95)) brightness(1.2);
+  filter:
+    drop-shadow(0 0 4px rgba(255, 216, 160, 1))
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.95))
+    brightness(1.65) contrast(1.2);
 }
 .facet-row.pop { animation: chipPop 0.4s ease-out; }
 .facet-row .pipnum { font-family: 'Cinzel', serif; font-size: 12.5px; font-weight: 800; color: #bfe0ff; display: inline-flex; align-items: center; gap: 3px; }
@@ -1054,16 +1077,15 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 html.mesh-on .hero-wrap.warded::before,
 html.mesh-on .enemy-art.warded::before { display: none; }
 .end-turn {
-  position: absolute; right: calc(34px + var(--sar)); bottom: calc(168px + var(--sab)); z-index: 24;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 4px; padding: 8px 10px; min-width: 56px;
-  /* icon + End — no stained-glass plate */
+  position: absolute; right: calc(28px + var(--sar)); bottom: calc(160px + var(--sab)); z-index: 24;
+  /* large end-turn glyph as the face; label overlays — no square chrome */
+  display: grid; place-items: center;
+  width: 76px; height: 76px; padding: 0; margin: 0;
   background: transparent; border: none; border-radius: 0;
-  box-shadow: none;
-  color: var(--parchment);
+  box-shadow: none; outline: none;
+  color: #fff6e0;
   font-family: 'Cinzel', serif;
   cursor: pointer;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
   transition: transform 0.15s, filter 0.15s;
 }
 .end-turn:hover {
@@ -1071,10 +1093,31 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   filter: brightness(1.08);
 }
 .end-turn:active { transform: translateY(0); }
-.end-turn .et-lbl {
-  font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: 0.14em; font-weight: 700;
+.end-turn .et-ic {
+  grid-area: 1 / 1;
+  display: block; line-height: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
 }
-.end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 22px; height: 22px; }
+.end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon {
+  width: 76px; height: 76px; display: block; object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.75));
+}
+.end-turn .et-lbl {
+  grid-area: 1 / 1;
+  z-index: 1;
+  font-family: 'Cinzel', serif;
+  font-size: 15px; letter-spacing: 0.16em; font-weight: 800;
+  text-transform: uppercase; line-height: 1;
+  color: #fff8e8;
+  -webkit-text-stroke: 1.1px rgba(0, 0, 0, 0.9);
+  paint-order: stroke fill;
+  text-shadow:
+    -1px -1px 0 #000, 1px -1px 0 #000,
+    -1px 1px 0 #000, 1px 1px 0 #000,
+    0 2px 5px rgba(0, 0, 0, 0.95);
+  pointer-events: none;
+}
 .end-turn.enemy-phase { opacity: 0.45; pointer-events: none; }
 .lantern-btn .lb-art-img { width: 16px; height: 16px; object-fit: contain; }
 /* Unboxed pile chrome: flat fan (no vertical stack); label + count stay readable. */
@@ -1619,7 +1662,9 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .lantern-btn { --lbr: 32px; width: 56px; height: 56px; left: calc(28px + var(--sal)); bottom: calc(222px + var(--sab)); }
   .lantern-btn .lb-ic svg, .lantern-btn .lb-ic .ui-icon { width: 20px; height: 20px; }
   .lantern-btn .lb-count { font-size: 14px; }
-  .end-turn { right: calc(20px + var(--sar)); bottom: calc(148px + var(--sab)); padding: 10px 20px; }
+  .end-turn { right: calc(20px + var(--sar)); bottom: calc(140px + var(--sab)); width: 68px; height: 68px; }
+  .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 68px; height: 68px; }
+  .end-turn .et-lbl { font-size: 14px; }
   .stats-grid { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
 }
 
@@ -1689,16 +1734,17 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .lantern-btn { --lbr: 29px; width: 52px; height: 52px; left: calc(7px + var(--sal)); bottom: calc(62px + var(--sab)); }
   .lantern-btn .lb-ic svg, .lantern-btn .lb-ic .ui-icon { width: 18px; height: 18px; }
   .lantern-btn .lb-count { font-size: 13px; }
-  .facet-row { gap: 3px; margin-top: 3px; }
-  .facet-row .pip { width: 6px; height: 6px; }
-  .facet-row .pip:has(.facet-img), .facet-row .pip .facet-img { width: 10px; height: 10px; }
+  .facet-row { gap: 4px; margin-top: 3px; }
+  .facet-row .pip { width: 8px; height: 8px; }
+  .facet-row .pip:has(.facet-img), .facet-row .pip .facet-img { width: 14px; height: 14px; }
   .candle { width: 12px; height: 15px; }
   .candle:has(.candle-img) { width: 18px; height: 26px; }
   .end-turn {
-    right: calc(3px + var(--sar)); bottom: calc(128px + var(--sab));
-    width: 60px; height: 60px; border-radius: 50%; padding: 0;
-    font-size: 11.5px; letter-spacing: 0.04em; line-height: 1.15;
+    right: calc(3px + var(--sar)); bottom: calc(120px + var(--sab));
+    width: 64px; height: 64px;
   }
+  .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 64px; height: 64px; }
+  .end-turn .et-lbl { font-size: 13px; letter-spacing: 0.12em; }
   .pile-btn { width: 68px; height: 108px; bottom: calc(4px + var(--sab)); }
   .pile-stack { left: 0; right: 0; top: 0; bottom: 14px; }
   .pile-layer { width: 100%; }
@@ -1767,11 +1813,13 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .lantern-btn .lb-ic svg, .lantern-btn .lb-ic .ui-icon { width: 15px; height: 15px; }
   .lantern-btn .lb-count { font-size: 11.5px; }
   .facet-row { gap: 3px; margin-top: 2px; }
-  .facet-row .pip { width: 5px; height: 5px; }
-  .facet-row .pip:has(.facet-img), .facet-row .pip .facet-img { width: 9px; height: 9px; }
+  .facet-row .pip { width: 7px; height: 7px; }
+  .facet-row .pip:has(.facet-img), .facet-row .pip .facet-img { width: 12px; height: 12px; }
   .candle { width: 11px; height: 14px; }
   .candle:has(.candle-img) { width: 16px; height: 22px; }
-  .end-turn { right: calc(10px + var(--sar)); bottom: calc(74px + var(--sab)); padding: 8px 14px; font-size: 13.5px; }
+  .end-turn { right: calc(8px + var(--sar)); bottom: calc(68px + var(--sab)); width: 56px; height: 56px; }
+  .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 56px; height: 56px; }
+  .end-turn .et-lbl { font-size: 12px; letter-spacing: 0.1em; }
   .pile-btn { width: 64px; height: 102px; bottom: calc(4px + var(--sab)); }
   .pile-stack { left: 0; right: 0; top: 0; bottom: 14px; }
   .pile-layer { width: 100%; }

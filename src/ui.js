@@ -981,8 +981,6 @@ function renderCombat() {
   const sc = screenEl();
   sc.onclick = null;
   const ledge = `#${ACTS[S.run.act].theme.glow.toString(16).padStart(6, '0')}`;
-  const vialFrameU = uiIconUrl('hp-vial-frame');
-  const vialFrame = vialFrameU ? `<img class="hp-vial-frame" src="${vialFrameU}" alt="" draggable="false">` : '';
   sc.innerHTML = `<div class="combat-screen screen-enter intro" style="--ledge:${ledge}">
     ${['backdrop', 'mid', 'ledge'].map((l) => {
       const u = assetUrl('stage', `act${S.run.act + 1}-${l}`);
@@ -1001,14 +999,14 @@ function renderCombat() {
           ${heroArt(S.run.aspect)}
         </div>
         <div class="cplate">
-          <div class="hpbar-wrap"><span class="block-chip zero p-block">${uiIcon('ward', 13)} 0</span><div class="hp-vial">${vialFrame}<div class="hpbar"><div class="ghost"></div><div class="fill"></div></div></div><span class="hp-label p-hp"></span></div>
+          <div class="hpbar-wrap"><span class="block-chip zero p-block">${uiIcon('ward', 13)} 0</span><div class="hp-vial"><div class="hpbar"><div class="ghost"></div><div class="fill"></div></div></div><span class="hp-label p-hp"></span></div>
         </div>
       </div>
       <div class="enemy-zone"></div>
     </div>
     <div class="energy-orb"><div class="num">0</div><div class="lbl">ENERGY</div><div class="candles"></div></div>
     <button class="lantern-btn"><span class="lb-ic">${uiIcon('lantern', 26)}</span><span class="lb-count">0</span><div class="lb-pips"></div><span class="lb-art"></span></button>
-    <button class="end-turn" type="button"><span class="et-ic">${uiIcon('end-turn', 22)}</span><span class="et-lbl">End</span></button>
+    <button class="end-turn" type="button"><span class="et-ic">${uiIcon('end-turn', 72)}</span><span class="et-lbl">End</span></button>
     <button class="pile-btn pile-draw" type="button" aria-label="Draw pile">
       <span class="pile-stack" data-pile="draw" data-count="-1" data-tier="-1"></span>
       <span class="cnt">0</span>
@@ -1045,7 +1043,7 @@ function renderCombat() {
       <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${aimRing(assetUrl('enemies', en.key), 'atk')}${rasterOr('enemies', en.key, enemySvg(d.art))}<div class="vessel-fire"></div>${assetUrl('enemies', en.key) ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
       <div class="cplate">
         <div class="name">${afx ? `<span class="affix-name" style="color:${afx.tone}">${afx.name.toUpperCase()}</span> ` : ''}${en.name.toUpperCase()}</div>
-        <div class="hpbar-wrap"><span class="block-chip zero">${uiIcon('ward', 13)} 0</span><div class="hp-vial">${vialFrame}<div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div></div><span class="hp-label"></span></div>
+        <div class="hpbar-wrap"><span class="block-chip zero">${uiIcon('ward', 13)} 0</span><div class="hp-vial"><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div></div><span class="hp-label"></span></div>
         <div class="facet-row"></div>
       </div>`;
     zone.appendChild(box);
