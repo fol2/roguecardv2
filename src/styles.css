@@ -906,17 +906,17 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   box-shadow: inset 0 0 0 1px var(--gold), inset 0 10px 20px -12px rgba(255, 255, 255, 0.14), 0 4px 14px rgba(0, 0, 0, 0.5);
 }
 .end-turn.enemy-phase { opacity: 0.45; pointer-events: none; }
-/* Unboxed pile chrome: the card-stack art IS the control (no glass frame). */
+/* Unboxed pile chrome: single-card masters + runtime depth; label + count stay readable. */
 .pile-btn {
   position: absolute; bottom: calc(18px + var(--sab)); z-index: 24;
-  width: 78px; height: 108px; padding: 0; border: 0; border-radius: 0;
+  width: 78px; height: 124px; padding: 0; border: 0; border-radius: 0;
   background: transparent; box-shadow: none;
   display: block; font-family: 'Cinzel', serif;
   transition: transform 0.15s, filter 0.15s;
 }
 .pile-btn:hover { transform: translateY(-3px); filter: brightness(1.08); }
 .pile-stack {
-  position: absolute; inset: 0;
+  position: absolute; left: 0; right: 0; top: 0; bottom: 18px;
   pointer-events: none;
 }
 .pile-stack.is-empty {
@@ -940,7 +940,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.65));
 }
 .pile-btn .cnt {
-  position: absolute; right: -4px; bottom: -2px; z-index: 2;
+  position: absolute; right: -4px; bottom: 14px; z-index: 2;
   min-width: 1.35em; padding: 1px 6px;
   font-size: 15px; font-weight: 800; line-height: 1.2; color: var(--parchment);
   text-align: center;
@@ -950,8 +950,11 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
 }
 .pile-btn .lbl {
-  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.12em;
+  color: var(--text-dim); text-align: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
 }
 .pile-btn.pile-bump { animation: pileBump 0.28s ease-out; }
 @keyframes pileBump {
@@ -1496,13 +1499,14 @@ html.mesh-on .enemy-art.warded::before { display: none; }
     width: 60px; height: 60px; border-radius: 50%; padding: 0;
     font-size: 11.5px; letter-spacing: 0.04em; line-height: 1.15;
   }
-  .pile-btn { width: 54px; height: 74px; bottom: calc(6px + var(--sab)); }
-  .pile-stack { inset: 0; }
+  .pile-btn { width: 54px; height: 88px; bottom: calc(6px + var(--sab)); }
+  .pile-stack { left: 0; right: 0; top: 0; bottom: 14px; }
   .pile-layer { width: 96%; }
-  .pile-btn .cnt { font-size: 12px; right: -3px; bottom: -1px; padding: 0 5px; border-radius: 6px; }
+  .pile-btn .cnt { font-size: 12px; right: -3px; bottom: 12px; padding: 0 5px; border-radius: 6px; }
+  .pile-btn .lbl { font-size: 7.5px; letter-spacing: 0.08em; }
   .pile-draw { left: calc(6px + var(--sal)); }
   .pile-discard { right: calc(6px + var(--sar)); }
-  .pile-exhaust { right: calc(6px + var(--sar)); bottom: calc(88px + var(--sab)); }
+  .pile-exhaust { right: calc(6px + var(--sar)); bottom: calc(102px + var(--sab)); }
   .turn-banner { font-size: 27px; letter-spacing: 0.2em; }
   .turn-banner.boss-banner { font-size: clamp(24px, 7cqw, 38px); }
   .combat-msg { top: calc(78px + var(--sat)); font-size: 12px; }
@@ -1566,13 +1570,14 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .facet-row .pip { width: 5px; height: 5px; }
   .candle { width: 6px; height: 8px; }
   .end-turn { right: calc(10px + var(--sar)); bottom: calc(74px + var(--sab)); padding: 8px 14px; font-size: 13.5px; }
-  .pile-btn { width: 52px; height: 72px; bottom: calc(6px + var(--sab)); }
-  .pile-stack { inset: 0; }
+  .pile-btn { width: 52px; height: 86px; bottom: calc(6px + var(--sab)); }
+  .pile-stack { left: 0; right: 0; top: 0; bottom: 14px; }
   .pile-layer {
     width: 96%;
     transform: translate(-50%, calc(var(--i) * -3.5px)) rotate(calc(var(--i) * 2deg));
   }
-  .pile-btn .cnt { font-size: 12px; right: -3px; bottom: -1px; padding: 0 5px; border-radius: 6px; }
+  .pile-btn .cnt { font-size: 12px; right: -3px; bottom: 12px; padding: 0 5px; border-radius: 6px; }
+  .pile-btn .lbl { font-size: 7px; letter-spacing: 0.08em; }
   .pile-draw { left: calc(8px + var(--sal)); }
   .pile-discard { right: calc(8px + var(--sar)); }
   .pile-exhaust { right: calc(68px + var(--sar)); }

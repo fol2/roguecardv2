@@ -39,3 +39,17 @@ matches discard. Discard live asset unchanged.
 | draw | NEAT SEALED unread draw deck: perfectly aligned face-down backs, cool parchment/lead-blue glass, same arch-and-gem motif as reference (cooler sapphire/teal), NOT book/tome | source/draw.png | v2 askew intermediate archived as `source/draw-v2-askew.png`; v3 neat sealed promoted; NB → alpha → piles/draw.png |
 | ashes | same card-stack body as reference + charred edges + ember flecks; keep gothic arch-and-gem motif (NO skull) | source/ashes.png | ref=discard; NB → alpha → piles/ashes.png |
 | discard | (unchanged) | source/discard.png | kept as shared body reference |
+
+## Single-card masters pass (2026-07-09)
+
+Owner: discard/ashes were pre-piled; runtime should stack single-card masters.
+Archived piled versions under `source/v2-piled-wrong/`. Regenerated discard + ashes
+as **exactly one face-down card** with draw.png as silhouette reference.
+
+| id | subject | source | notes |
+|---|---|---|---|
+| discard | same single card as draw, slightly askew, warmer spent tone — ONE card only | source/discard.png | single-card; promoted |
+| ashes | same single card, charred edges + ember flecks — ONE card only | source/ashes.png | single-card; promoted |
+| draw | (unchanged) | piles/draw.png | kept as single-card reference |
+
+Labels restored in combat chrome (DRAW / DISCARD / ASHES under stack).
