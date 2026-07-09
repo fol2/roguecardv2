@@ -3,7 +3,8 @@
 // (tests) it keeps the ledger in memory so callers can still assert on it.
 import { DEEDS, CARDS, RELICS } from './data.js';
 
-const KEY = 'spirebound_vigil_v1';
+const KEY = 'spirebound_vigil_v2';
+const KEY_V1 = 'spirebound_vigil_v1'; // read-only: migration source, never written
 const STATS_KEY = 'spirebound_stats_v1'; // pre-vigil ledger; seeds runs/wins once
 
 let store = null;
@@ -32,17 +33,43 @@ export function loadVigil() {
   try { raw = getStore().getItem(KEY); } catch { /* private mode */ }
   let v = null;
   try { v = JSON.parse(raw); } catch { /* corrupted */ }
-  const out = { v: 1, deeds: {}, unlocks: [], vowUnlocked: 0, lastFall: null, ...(v || {}) };
+  if (!v) v = migrateToV2();
+  const out = {
+    v: 2, deeds: {}, unlocks: [], vowUnlocked: 0, lastFall: null,
+    runsPlayed: 0, quests: {}, shards: [], whispers: 0, news: false,
+    ...(v || {}),
+  };
+  out.v = 2;
   out.deeds = { ...DEFAULT_DEEDS, ...(out.deeds || {}) };
   if (!Array.isArray(out.unlocks)) out.unlocks = [];
-  if (raw == null) {
-    // first vigil: honor what the old stats ledger already knew
-    try {
-      const s = JSON.parse(getStore().getItem(STATS_KEY));
-      if (s) { out.deeds.runs = s.runs || 0; out.deeds.wins = s.wins || 0; }
-    } catch { /* none */ }
+  if (!Array.isArray(out.shards)) out.shards = [];
+  if (!out.quests || typeof out.quests !== 'object') out.quests = {};
+  return out;
+}
+
+// one-way, idempotent: v1 (or the pre-vigil stats ledger) seeds v2 exactly
+// once; the v1 key is left in place as a backup and never written again.
+function migrateToV2() {
+  let v1 = null, stats = null;
+  try { v1 = JSON.parse(getStore().getItem(KEY_V1)); } catch { /* none */ }
+  try { stats = JSON.parse(getStore().getItem(STATS_KEY)); } catch { /* none */ }
+  const out = {
+    v: 2, deeds: { ...DEFAULT_DEEDS }, unlocks: [], vowUnlocked: 0, lastFall: null,
+    runsPlayed: 0, quests: {}, shards: [], whispers: 0, news: false,
+  };
+  if (v1) {
+    out.deeds = { ...DEFAULT_DEEDS, ...(v1.deeds || {}) };
+    out.unlocks = Array.isArray(v1.unlocks) ? [...v1.unlocks] : [];
+    out.vowUnlocked = v1.vowUnlocked || 0;
+    out.lastFall = v1.lastFall || null;
+    out.news = true; // a veteran's first look at the new Vigil
+  } else if (stats) {
+    out.deeds.runs = stats.runs || 0;
+    out.deeds.wins = stats.wins || 0;
     if (out.deeds.wins > 0) out.vowUnlocked = 1;
   }
+  out.runsPlayed = Math.max(out.deeds.runs || 0, stats?.runs || 0);
+  saveVigil(out);
   return out;
 }
 export function saveVigil(v) {

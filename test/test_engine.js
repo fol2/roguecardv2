@@ -811,6 +811,39 @@ function forceHand(run, cb, ids) {
   assert.ok(Object.keys(POOL_GATE.cards).length && Object.keys(POOL_GATE.relics).length, 'pool gate derived');
 }
 {
+  // vigil v2: fresh shape, and one-way migration from v1 that leaves v1 intact
+  _setStore(null);
+  const fresh = loadVigil();
+  assert.equal(fresh.v, 2, 'fresh vigil is v2');
+  assert.equal(fresh.runsPlayed, 0);
+  assert.deepEqual(fresh.shards, []);
+  assert.deepEqual(fresh.quests, {});
+  assert.equal(fresh.news, false);
+
+  // a veteran v1 profile migrates: counters carry, news pulses once, v1 stays
+  const mem = new Map([
+    ['spirebound_vigil_v1', JSON.stringify({
+      v: 1,
+      deeds: { runs: 40, wins: 9, slain: 500, shatters: 90, kindles: 60, perfects: 12, smolderKills: 60, unlitVisited: 30, embersSpent: 900, bestVow: 5, bestFloor: 45 },
+      unlocks: ['aspect2', 'card:quakeblow'], vowUnlocked: 5,
+      lastFall: { act: 1, row: 7, bequest: { kind: 'gold', amount: 50 } },
+    })],
+  ]);
+  _setStore({ getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, v), removeItem: (k) => mem.delete(k) });
+  const mig = loadVigil();
+  assert.equal(mig.v, 2);
+  assert.equal(mig.runsPlayed, 40, 'runsPlayed seeded from v1 deeds.runs');
+  assert.equal(mig.deeds.wins, 9);
+  assert.ok(mig.unlocks.includes('card:quakeblow'), 'unlocks carried');
+  assert.equal(mig.vowUnlocked, 5);
+  assert.deepEqual(mig.lastFall, { act: 1, row: 7, bequest: { kind: 'gold', amount: 50 } });
+  assert.equal(mig.news, true, 'veterans get one pulse at the new Vigil');
+  assert.ok(mem.has('spirebound_vigil_v2'), 'v2 persisted');
+  assert.ok(mem.has('spirebound_vigil_v1'), 'v1 backup untouched');
+  assert.equal(loadVigil().runsPlayed, 40, 'migration idempotent (reads v2 now)');
+  _setStore(null);
+}
+{
   // monuments: a bequest is claimed exactly once
   const run = newRun(45, { monument: { act: 0, row: 5, bequest: { kind: 'gold', amount: 60 } } });
   const g0 = run.player.gold;
