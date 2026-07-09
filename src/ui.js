@@ -2087,8 +2087,9 @@ async function handleEvent(ev, targetIdx) {
           { duration: 270, easing: 'cubic-bezier(.45,0,.9,.5)' }
         ).onfinish = () => ghost.remove();
       } else if (c) {
+        // lift only — leave DOM for toDiscard / exhaust / powerConsumed
+        // (early remove raced those handlers and skipped discard flights)
         c.classList.add('played-up');
-        setTimeout(() => c.remove(), 320);
       }
       syncCombat();
       await sleep(200);
