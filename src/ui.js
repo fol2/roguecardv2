@@ -1179,9 +1179,10 @@ function syncCombat() {
 function syncPileWidgets(cb) {
   const ce = S.ce;
   if (!ce) return;
+  const ov = pileVisualOverride || {};
   const map = [
-    [ce.draw, 'draw', Math.max(0, cb.draw.length - (pileVisualHold.draw || 0))],
-    [ce.discard, 'discard', Math.max(0, cb.discard.length - (pileVisualHold.discard || 0))],
+    [ce.draw, 'draw', ov.draw != null ? ov.draw : Math.max(0, cb.draw.length - (pileVisualHold.draw || 0))],
+    [ce.discard, 'discard', ov.discard != null ? ov.discard : Math.max(0, cb.discard.length - (pileVisualHold.discard || 0))],
     [ce.exhaust, 'ashes', Math.max(0, cb.exhaust.length - (pileVisualHold.ashes || 0))],
   ];
   for (const [btn, pile, n] of map) {
@@ -1217,6 +1218,8 @@ function syncPileWidgets(cb) {
 
 /** Cards already in engine piles but still in flight — hide until ceremony lands. */
 const pileVisualHold = { draw: 0, discard: 0, ashes: 0 };
+/** Mid-wave chrome override (draw/discard) while engine is already at post-draw state. */
+let pileVisualOverride = null;
 function holdPileVisual(pile, n = 1) {
   if (!pileVisualHold[pile]) pileVisualHold[pile] = 0;
   pileVisualHold[pile] += Math.max(0, n | 0);
@@ -1244,6 +1247,15 @@ function pendingPileCeremonyUids(cb) {
   }
   return keep;
 }
+function scheduleHandReveal(c, landAt) {
+  setTimeout(() => {
+    if (!c.isConnected) return;
+    c.classList.remove('draw-pending');
+    c.classList.add('draw-in');
+    layoutHand();
+    setTimeout(() => c.classList.remove('draw-in'), 240);
+  }, landAt);
+}
 function syncHand() {
   const cb = S.cb, ce = S.ce;
   if (!ce) return;
@@ -1259,17 +1271,14 @@ function syncHand() {
       // Invisible until matching draw flyer lands — same uid/order as the pile flight
       const plan = drawRevealPlan.get(String(inst.uid));
       if (!REDUCED && plan != null) {
-        const landAt = typeof plan === 'number' ? plan : plan.landAt;
         if (typeof plan === 'object' && plan.seq != null) c.dataset.drawSeq = String(plan.seq);
         c.classList.add('draw-pending');
-        drawRevealPlan.delete(String(inst.uid));
-        setTimeout(() => {
-          if (!c.isConnected) return;
-          c.classList.remove('draw-pending');
-          c.classList.add('draw-in');
-          layoutHand(); // fan spreads in arrival order as each seat appears
-          setTimeout(() => c.classList.remove('draw-in'), 240);
-        }, landAt);
+        const landAt = typeof plan === 'number' ? plan : plan.landAt;
+        if (landAt != null) {
+          drawRevealPlan.delete(String(inst.uid));
+          scheduleHandReveal(c, landAt);
+        }
+        // landAt null: stay pending until draw-wave segment arms the timer
       }
       c.onclick = (e) => { e.stopPropagation(); onCardClick(inst.uid); };
       if (FINE) {
@@ -2087,57 +2096,159 @@ async function drain(targetIdx = null) {
   ce.endTurn.classList.add('enemy-phase');
   const q = cb.queue;
   while (q.length) {
-    const ev = q.shift();
+    const ev = q[0];
     try {
-      if (ev.t === 'draw') {
-        const batch = [ev];
-        while (q[0]?.t === 'draw') batch.push(q.shift());
-        await handleDrawBatch(batch);
+      // drawCards may emit draw* → reshuffle → draw*; keep one wave so hand stays paced
+      if (ev.t === 'draw' || ev.t === 'reshuffle') {
+        await handleDrawWave(q);
       } else {
+        q.shift();
         await handleEvent(ev, targetIdx);
       }
     } catch (err) { console.error('vfx event error', ev, err); }
   }
   S.busy = false;
   if (!cb.over) ce.endTurn.classList.remove('enemy-phase');
+  pileVisualOverride = null;
   syncCombat();
   syncHand();
   renderHud();
 }
 
-/** One draw wave: flights + hand reveals share the same stagger clock & arrival order. */
-async function handleDrawBatch(draws) {
+/** Parse draw/reshuffle/draw segments from the front of the queue. */
+function takeDrawWaveSegments(q) {
+  const segments = [];
+  while (q[0]?.t === 'draw' || q[0]?.t === 'reshuffle') {
+    if (q[0].t === 'reshuffle') {
+      segments.push({ t: 'reshuffle', ev: q.shift() });
+    } else {
+      const draws = [];
+      while (q[0]?.t === 'draw') draws.push(q.shift());
+      segments.push({ t: 'draws', draws });
+    }
+  }
+  return segments;
+}
+
+async function playReshuffleCeremony(ev) {
   const cb = S.cb, ce = S.ce;
-  const n = draws.length;
-  const sched = drawBatchSchedule(n, 500);
-  // Already-visible seats stay put; new arrivals append in pile-draw order
-  const baseFan = $$('.card', ce.hand).filter((c) => !c.classList.contains('draw-pending')).length;
-  drawRevealPlan.clear();
-  draws.forEach((ev, i) => {
-    drawRevealPlan.set(String(ev.uid), {
-      landAt: sched.flightDur + i * sched.stagger,
-      seq: i,
-    });
+  sfx.card();
+  const n = ev.n || 6;
+  if (pileVisualOverride) {
+    pileVisualOverride.discard = n;
+    pileVisualOverride.draw = 0;
+    syncPileWidgets(cb);
+  } else {
+    holdPileVisual('draw', n);
+    syncPileWidgets(cb);
+  }
+  const origins = Array.from({ length: n }, () => V.centerOf(ce.discard));
+  await flyCardBacks(origins, ce.draw, 560, {
+    fromSize: 'pile', sizePile: ce.discard, pileArt: 'discard',
   });
-  if (!REDUCED) {
-    const origin = V.centerOf(ce.draw);
-    const fromList = draws.map((ev, i) => {
-      const inst = cb.hand.find((c) => String(c.uid) === String(ev.uid))
-        || { uid: ev.uid, id: ev.id, up: false, bonus: 0 };
-      // Land on the seat this card will occupy when it reveals (arrival order)
-      const dest = handSeatCenter(baseFan + i, baseFan + i + 1);
-      return { x: origin.x, y: origin.y, inst, dest };
-    });
-    flyCardBacks(fromList, ce.hand, 500, {
-      fromSize: 'pile', toSize: 'hand', sizePile: ce.draw, face: 'card', schedule: sched,
-    });
-    bumpPile(ce.draw);
-    draws.forEach((_, i) => setTimeout(() => sfx.draw(), i * sched.stagger));
+  if (pileVisualOverride) {
+    pileVisualOverride.discard = 0;
+    pileVisualOverride.draw = n;
+  } else {
+    releasePileVisual('draw', n);
+  }
+  bumpPile(ce.draw);
+  V.floatText(V.centerOf(ce.draw).x, V.centerOf(ce.draw).y - 46, 'Reshuffle', 'notice');
+  syncPileWidgets(cb);
+}
+
+/** One drawCards wave: pre-pending all hand seats, then draw / reshuffle / draw in order. */
+async function handleDrawWave(q) {
+  const cb = S.cb, ce = S.ce;
+  const segments = takeDrawWaveSegments(q);
+  const reshuffle = segments.find((s) => s.t === 'reshuffle');
+
+  // Engine is already post-draw — reconstruct chrome so piles still look pre-wave
+  const firstSegDraws = segments[0]?.t === 'draws' ? segments[0].draws.length : 0;
+  pileVisualOverride = {
+    // mid-reshuffle wave: only the pre-reshuffle stock is still "in" the draw pile
+    // plain draw wave: remaining engine draw + cards about to fly
+    draw: segments[0]?.t === 'draws'
+      ? (reshuffle ? firstSegDraws : cb.draw.length + firstSegDraws)
+      : 0,
+    discard: reshuffle ? (reshuffle.ev.n || 0) : 0,
+  };
+
+  // Pre-mark EVERY card in this wave as pending before syncHand (fixes mid-reshuffle pop-in)
+  drawRevealPlan.clear();
+  let seq = 0;
+  for (const seg of segments) {
+    if (seg.t !== 'draws') continue;
+    for (const ev of seg.draws) {
+      drawRevealPlan.set(String(ev.uid), { landAt: null, seq: seq++ });
+    }
   }
   syncHand();
+  syncPileWidgets(cb);
+
+  let baseFan = $$('.card', ce.hand).filter((c) => !c.classList.contains('draw-pending')).length;
+  let arrival = 0;
+
+  for (const seg of segments) {
+    if (seg.t === 'reshuffle') {
+      await playReshuffleCeremony(seg.ev);
+      continue;
+    }
+    const draws = seg.draws;
+    const n = draws.length;
+    if (!n) continue;
+    const sched = drawBatchSchedule(n, 500);
+
+    // Arm reveal timers now that this segment's clock starts
+    draws.forEach((ev, i) => {
+      const uid = String(ev.uid);
+      const landAt = REDUCED ? 0 : sched.flightDur + i * sched.stagger;
+      drawRevealPlan.delete(uid);
+      const c = $(`.card[data-uid="${uid}"]`, ce.hand);
+      if (c && !REDUCED) scheduleHandReveal(c, landAt);
+      else if (c) {
+        c.classList.remove('draw-pending');
+      }
+    });
+
+    if (!REDUCED) {
+      const origin = V.centerOf(ce.draw);
+      const fromList = draws.map((ev, i) => {
+        const inst = cb.hand.find((c) => String(c.uid) === String(ev.uid))
+          || { uid: ev.uid, id: ev.id, up: false, bonus: 0 };
+        const dest = handSeatCenter(baseFan + arrival + i, baseFan + arrival + i + 1);
+        return { x: origin.x, y: origin.y, inst, dest };
+      });
+      // Shrink visual draw as each flyer leaves the pile
+      draws.forEach((_, i) => {
+        setTimeout(() => {
+          if (!pileVisualOverride) return;
+          pileVisualOverride.draw = Math.max(0, (pileVisualOverride.draw || 0) - 1);
+          syncPileWidgets(cb);
+        }, i * sched.stagger);
+      });
+      flyCardBacks(fromList, ce.hand, 500, {
+        fromSize: 'pile', toSize: 'hand', sizePile: ce.draw, face: 'card', schedule: sched,
+      });
+      bumpPile(ce.draw);
+      draws.forEach((_, i) => setTimeout(() => sfx.draw(), i * sched.stagger));
+      await sleep(sched.awaitMs);
+    } else {
+      layoutHand();
+      await sleep(40);
+    }
+    arrival += n;
+    if (pileVisualOverride) {
+      // snap to remaining visual after segment (post-reshuffle draw shrinks by n)
+      pileVisualOverride.draw = Math.max(0, (pileVisualOverride.draw || 0));
+    }
+    syncPileWidgets(cb);
+  }
+
+  pileVisualOverride = null;
   syncCombat();
-  await sleep(REDUCED ? 40 : sched.awaitMs);
 }
+
 let emberFrom = null; // where the last fire spilled from (shatter/death/kindle)
 async function handleEvent(ev, targetIdx) {
   const cb = S.cb, ce = S.ce;
@@ -2260,23 +2371,11 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'endTurn': heroActing = false; banner('ENEMY TURN'); await sleep(480); break;
     case 'draw': {
-      // normally coalesced in drain → handleDrawBatch; keep as single-card fallback
-      await handleDrawBatch([ev]);
+      await handleDrawWave([ev]);
       break;
     }
     case 'reshuffle': {
-      // only reshuffle keeps sealed/pile face — discard→draw is unknown order
-      sfx.card();
-      const n = ev.n || 6;
-      holdPileVisual('draw', n);
-      syncPileWidgets(cb); // keep draw chrome at pre-arrival size while backs fly
-      const origins = Array.from({ length: n }, () => V.centerOf(ce.discard));
-      await flyCardBacks(origins, ce.draw, 560, {
-        fromSize: 'pile', sizePile: ce.discard, pileArt: 'discard',
-      });
-      releasePileVisual('draw', n);
-      bumpPile(ce.draw);
-      V.floatText(V.centerOf(ce.draw).x, V.centerOf(ce.draw).y - 46, 'Reshuffle', 'notice');
+      await playReshuffleCeremony(ev);
       syncCombat();
       break;
     }
