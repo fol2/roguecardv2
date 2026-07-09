@@ -1180,9 +1180,9 @@ function syncPileWidgets(cb) {
   const ce = S.ce;
   if (!ce) return;
   const map = [
-    [ce.draw, 'draw', cb.draw.length],
-    [ce.discard, 'discard', cb.discard.length],
-    [ce.exhaust, 'ashes', cb.exhaust.length],
+    [ce.draw, 'draw', Math.max(0, cb.draw.length - (pileVisualHold.draw || 0))],
+    [ce.discard, 'discard', Math.max(0, cb.discard.length - (pileVisualHold.discard || 0))],
+    [ce.exhaust, 'ashes', Math.max(0, cb.exhaust.length - (pileVisualHold.ashes || 0))],
   ];
   for (const [btn, pile, n] of map) {
     if (!btn) continue;
@@ -1212,6 +1212,24 @@ function syncPileWidgets(cb) {
       img.style.setProperty('--rot', `${pileFanAngleDeg(i, layers)}deg`);
       stack.appendChild(img);
     }
+  }
+}
+
+/** Cards already in engine piles but still in flight — hide until ceremony lands. */
+const pileVisualHold = { draw: 0, discard: 0, ashes: 0 };
+function holdPileVisual(pile, n = 1) {
+  if (!pileVisualHold[pile]) pileVisualHold[pile] = 0;
+  pileVisualHold[pile] += Math.max(0, n | 0);
+}
+function releasePileVisual(pile, n = 1) {
+  pileVisualHold[pile] = Math.max(0, (pileVisualHold[pile] || 0) - Math.max(0, n | 0));
+}
+/** Engine already queued destination events; hold those piles through mid-play syncs. */
+function holdPendingPileArrivals(cb, uid) {
+  for (const e of cb.queue) {
+    if (e.uid == null || String(e.uid) !== String(uid)) continue;
+    if (e.t === 'toDiscard') holdPileVisual('discard', 1);
+    if (e.t === 'exhaust') holdPileVisual('ashes', 1);
   }
 }
 function pendingPileCeremonyUids(cb) {
@@ -2159,10 +2177,13 @@ async function handleEvent(ev, targetIdx) {
     case 'reshuffle': {
       sfx.card();
       const n = ev.n || 6;
+      holdPileVisual('draw', n);
+      syncPileWidgets(cb); // keep draw chrome at pre-arrival size while backs fly
       const origins = Array.from({ length: n }, () => V.centerOf(ce.discard));
       await flyCardBacks(origins, ce.draw, 560, {
         fromSize: 'pile', sizePile: ce.discard, pileArt: 'discard',
       });
+      releasePileVisual('draw', n);
       bumpPile(ce.draw);
       V.floatText(V.centerOf(ce.draw).x, V.centerOf(ce.draw).y - 46, 'Reshuffle', 'notice');
       syncCombat();
@@ -2200,6 +2221,8 @@ async function handleEvent(ev, targetIdx) {
         captureCardAnchor(ev.uid, c);
         c.classList.add('played-up');
       }
+      // engine already pushed discard/exhaust; hold pile chrome until those flights land
+      holdPendingPileArrivals(cb, ev.uid);
       syncCombat();
       await sleep(200);
       break;
@@ -2374,6 +2397,7 @@ async function handleEvent(ev, targetIdx) {
       const anchor = takeCardAnchor(ev.uid);
       if (c && REDUCED) {
         c.remove();
+        releasePileVisual('ashes', 1);
       } else if (!REDUCED) {
         // burn at play-seat anchor (not played-up lift), then pile-sized ashes face flies
         const live = c ? stageRect(c) : null;
@@ -2408,9 +2432,13 @@ async function handleEvent(ev, targetIdx) {
         await flyCardBacks([origin], ce.exhaust, 480, {
           fromSize: pileSz, sizePile: ce.exhaust, pileArt: 'ashes',
         });
+        releasePileVisual('ashes', 1);
         bumpPile(ce.exhaust);
       } else if (c) {
         c.remove();
+        releasePileVisual('ashes', 1);
+      } else {
+        releasePileVisual('ashes', 1);
       }
       syncCombat();
       break;
@@ -2418,7 +2446,9 @@ async function handleEvent(ev, targetIdx) {
     case 'discardHand': {
       const uids = ev.uids || [];
       const els = uids.map((uid) => $(`.card[data-uid="${uid}"]`, ce.hand)).filter(Boolean);
+      const n = uids.length || els.length;
       sfx.card();
+      if (!REDUCED && n) holdPileVisual('discard', n);
       if (!REDUCED && els.length) {
         await flyCardBacks(els.map((elc) => ({ el: elc })), ce.discard, 400, {
           fromSize: 'src', toSize: 'pile', sizePile: ce.discard, pileArt: 'discard',
@@ -2427,6 +2457,7 @@ async function handleEvent(ev, targetIdx) {
       } else {
         els.forEach((c) => c.remove());
       }
+      if (!REDUCED && n) releasePileVisual('discard', n);
       bumpPile(ce.discard);
       syncCombat();
       break;
@@ -2450,6 +2481,7 @@ async function handleEvent(ev, targetIdx) {
           fromSize: 'hand', toSize: 'pile', sizePile: ce.discard, pileArt: 'discard',
         });
       }
+      releasePileVisual('discard', 1);
       bumpPile(ce.discard);
       syncCombat();
       break;
