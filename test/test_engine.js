@@ -13,7 +13,7 @@ import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, 
 import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
-import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, PILE_IDS, PILE_FAN_DEG, PILE_FAN_MAX_DEG, PILE_FAN_MAX_LAYERS } from '../src/pile-chrome.js';
+import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, drawBatchSchedule, PILE_IDS, PILE_FAN_DEG, PILE_FAN_MAX_DEG, PILE_FAN_MAX_LAYERS } from '../src/pile-chrome.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -1119,6 +1119,15 @@ function randomAgentRun(seed) {
   assert.ok(s10.stagger <= s1.stagger || s10.stagger <= 48);
   assert.ok(s10.awaitMs <= 480, 'large n stays near budget');
   assert.ok(s10.stagger >= 8);
+
+  const d5 = drawBatchSchedule(5, 500);
+  assert.equal(d5.stagger, 100);
+  assert.ok(d5.flightDur >= 160 && d5.flightDur <= 280);
+  assert.equal(d5.awaitMs, d5.flightDur + 400);
+  const d1 = drawBatchSchedule(1, 500);
+  assert.equal(d1.stagger, 0);
+  assert.ok(d1.flightDur <= 280);
+
   assert.deepEqual(PILE_IDS, ['draw', 'discard', 'ashes']);
 }
 

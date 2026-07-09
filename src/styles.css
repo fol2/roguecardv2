@@ -423,7 +423,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 
 /* hand */
 .hand-zone { position: absolute; left: 0; right: 0; bottom: calc(-12px + var(--sab)); height: 260px; z-index: 22; pointer-events: none; }
-.hand-zone .card { position: absolute; left: 50%; bottom: 8px; pointer-events: auto; transition: transform 0.28s cubic-bezier(0.25, 0.9, 0.3, 1.2), filter 0.2s; transform-origin: 50% 100%; touch-action: none; }
+.hand-zone .card { position: absolute; left: 50%; bottom: 8px; pointer-events: auto; transition: transform 0.28s cubic-bezier(0.25, 0.9, 0.3, 1.2), filter 0.2s, opacity 0.12s; transform-origin: 50% 100%; touch-action: none; }
 /* lift animates .card-lift (cost + pane together); hit-testing stays on the fixed .card slot */
 .hand-zone .card .card-lift, .hand-zone .card .card-lift * { pointer-events: none; }
 .hand-zone .card .card-text .kw { pointer-events: auto; }

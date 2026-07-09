@@ -2,7 +2,7 @@
 import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
 import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
-import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule } from './pile-chrome.js';
+import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule, drawBatchSchedule } from './pile-chrome.js';
 import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
@@ -1232,6 +1232,9 @@ function holdPendingPileArrivals(cb, uid) {
     if (e.t === 'exhaust') holdPileVisual('ashes', 1);
   }
 }
+/** uid → ms from batch start when that hand seat should appear (matches flyer land). */
+const drawRevealPlan = new Map();
+
 function pendingPileCeremonyUids(cb) {
   const keep = new Set();
   for (const ev of cb.queue) {
@@ -1253,16 +1256,18 @@ function syncHand() {
   for (const inst of cb.hand) {
     if (!have.has(String(inst.uid))) {
       const c = cardEl(inst, { inCombat: true });
-      // Invisible until the card-back flyer lands, then reveal the face
-      if (!REDUCED) {
+      // Invisible until matching draw flyer lands (landAt from drawRevealPlan)
+      const landAt = drawRevealPlan.get(String(inst.uid));
+      if (!REDUCED && landAt != null) {
         c.classList.add('draw-pending');
-        const { flightDur } = flightSchedule(1, 220);
+        drawRevealPlan.delete(String(inst.uid));
         setTimeout(() => {
           if (!c.isConnected) return;
           c.classList.remove('draw-pending');
           c.classList.add('draw-in');
-          setTimeout(() => c.classList.remove('draw-in'), 280);
-        }, flightDur);
+          layoutHand(); // fan spreads as each seat appears
+          setTimeout(() => c.classList.remove('draw-in'), 240);
+        }, landAt);
       }
       c.onclick = (e) => { e.stopPropagation(); onCardClick(inst.uid); };
       if (FINE) {
@@ -1293,24 +1298,34 @@ function layoutHand() {
   if (!ce) return;
   const cards = cb.hand.map((c) => String(c.uid));
   const els = new Map($$('.card', ce.hand).map((c) => [c.dataset.uid, c]));
-  const n = cards.length;
-  // the fan never outgrows the screen: on a phone it stacks deep between two
-  // chrome gutters (energy orb left, end-turn right) instead of spreading
+  // Fan only seats already revealed — pending draws stay centred until their flyer lands
+  const fan = cards.filter((uid) => {
+    const c = els.get(uid);
+    return c && !c.classList.contains('draw-pending');
+  });
+  const n = fan.length;
   const gap = Math.min(112, 640 / Math.max(n, 1), (stageW() - 246) / Math.max(n - 1, 1));
-  cards.forEach((uid, i) => {
+  cards.forEach((uid) => {
     const c = els.get(uid);
     if (!c) return;
-    const inst = cb.hand[i];
+    const inst = cb.hand.find((h) => String(h.uid) === uid);
+    if (!inst) return;
     const d = E.cardData(inst);
     const playableNow = !d.unplayable && (E.effCost(S.run, cb, inst) ?? 99) <= cb.player.energy;
     c.classList.toggle('unplayable-now', !playableNow);
     const armed = S.targeting?.kind === 'card' && String(S.targeting.uid) === uid;
     const hovered = S.hoveredCard != null && String(S.hoveredCard) === uid;
+    c.classList.toggle('armed', armed);
+    c.classList.toggle('lifted', hovered && !S.busy && !armed);
+    if (c.classList.contains('draw-pending')) {
+      c.style.transform = 'translateX(-50%) translateY(26px) rotate(0deg)';
+      c.style.zIndex = 15;
+      return;
+    }
+    const i = fan.indexOf(uid);
     const rot = n > 1 ? (i - (n - 1) / 2) * Math.min(5, 42 / n) : 0;
     const x = (i - (n - 1) / 2) * gap;
     const y = Math.abs(rot) * 3.2;
-    c.classList.toggle('armed', armed);
-    c.classList.toggle('lifted', hovered && !S.busy && !armed);
     c.style.transform = `translateX(calc(-50% + ${armed ? x * 0.4 : x}px)) translateY(${y + 26}px) rotate(${armed ? rot * 0.5 : rot}deg)`;
     c.style.zIndex = hovered || armed ? 40 : 20 + i;
   });
@@ -1690,16 +1705,16 @@ function resolveFlightSize(spec, { pileBtn, src, fallback } = {}) {
 /**
  * Pile-ceremony flights. Default face size = current pile card size.
  * opts.fromSize / toSize: {w,h} | 'pile' | 'hand' | 'src'  (omit toSize → same as from)
- * opts.face: 'card' = real hand-card face (opts.cardInst); 'back' = sealed back; else pile art
- * opts.cardInst: card instance when face === 'card'
- * opts.pileArt: draw|discard|ashes master when using pile face
+ * opts.face: 'card' = real card face (src.inst or opts.cardInst); 'back' = sealed back; else pile art
+ * opts.cardInst: fallback card instance when face === 'card'
+ * opts.pileArt: draw|discard|ashes master when using pile face (reshuffle only)
  * opts.sizePile: pile button used when resolving 'pile' sizes (defaults to toEl)
  */
 function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
   const layer = $('#floaties');
   const dest = V.centerOf(toEl);
   const n = fromList.length;
-  const { stagger, flightDur, awaitMs } = flightSchedule(n, budgetMs);
+  const { stagger, flightDur, awaitMs } = opts.schedule || flightSchedule(n, budgetMs);
   if (REDUCED || n === 0) return Promise.resolve(0);
   const sizePile = opts.sizePile || toEl;
   const artUrl = (opts.face === 'back' || opts.face === 'card')
@@ -1714,9 +1729,10 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
       ? fromSize
       : resolveFlightSize(opts.toSize, { pileBtn: sizePile, src: origin, fallback: fromSize });
     const endScale = fromSize.w > 0 ? toSize.w / fromSize.w : 1;
+    const inst = src.inst || opts.cardInst;
     let m;
-    if (opts.face === 'card' && opts.cardInst) {
-      m = cardEl(opts.cardInst, { inCombat: true, size: fromSize.w });
+    if (opts.face === 'card' && inst) {
+      m = cardEl(inst, { inCombat: true, size: fromSize.w });
       m.classList.add('flycard-face');
       Object.assign(m.style, {
         position: 'absolute', left: `${origin.x}px`, top: `${origin.y}px`,
@@ -1734,7 +1750,7 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
     layer.appendChild(m);
     const mx = (origin.x + dest.x) / 2 + (Math.random() - 0.5) * 80;
     const my = Math.min(origin.y, dest.y) - 40 - Math.random() * 50;
-    const base = opts.face === 'card' ? 'translate(-50%,-50%)' : 'translate(-50%,-50%)';
+    const base = 'translate(-50%,-50%)';
     m.animate(
       [
         { transform: `${base} scale(1)`, opacity: 0.95 },
@@ -1745,6 +1761,11 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
     ).onfinish = () => m.remove();
   });
   return sleep(awaitMs);
+}
+
+/** Resolve a card instance already moved into a pile (engine mutates before drain). */
+function pileCardByUid(pile, uid) {
+  return (pile || []).find((c) => String(c.uid) === String(uid)) || null;
 }
 
 // --------- the living-glass rig: one rAF drives eyes, inner fire and light pools
@@ -2048,13 +2069,48 @@ async function drain(targetIdx = null) {
   const q = cb.queue;
   while (q.length) {
     const ev = q.shift();
-    try { await handleEvent(ev, targetIdx); } catch (err) { console.error('vfx event error', ev, err); }
+    try {
+      if (ev.t === 'draw') {
+        const batch = [ev];
+        while (q[0]?.t === 'draw') batch.push(q.shift());
+        await handleDrawBatch(batch);
+      } else {
+        await handleEvent(ev, targetIdx);
+      }
+    } catch (err) { console.error('vfx event error', ev, err); }
   }
   S.busy = false;
   if (!cb.over) ce.endTurn.classList.remove('enemy-phase');
   syncCombat();
   syncHand();
   renderHud();
+}
+
+/** One draw wave: flights + hand reveals share the same stagger clock. */
+async function handleDrawBatch(draws) {
+  const cb = S.cb, ce = S.ce;
+  const n = draws.length;
+  const sched = drawBatchSchedule(n, 500);
+  drawRevealPlan.clear();
+  draws.forEach((ev, i) => {
+    drawRevealPlan.set(String(ev.uid), sched.flightDur + i * sched.stagger);
+  });
+  if (!REDUCED) {
+    const origin = V.centerOf(ce.draw);
+    const fromList = draws.map((ev) => {
+      const inst = cb.hand.find((c) => String(c.uid) === String(ev.uid))
+        || { uid: ev.uid, id: ev.id, up: false, bonus: 0 };
+      return { x: origin.x, y: origin.y, inst };
+    });
+    flyCardBacks(fromList, ce.hand, 500, {
+      fromSize: 'pile', toSize: 'hand', sizePile: ce.draw, face: 'card', schedule: sched,
+    });
+    bumpPile(ce.draw);
+    draws.forEach((_, i) => setTimeout(() => sfx.draw(), i * sched.stagger));
+  }
+  syncHand();
+  syncCombat();
+  await sleep(REDUCED ? 40 : sched.awaitMs);
 }
 let emberFrom = null; // where the last fire spilled from (shatter/death/kindle)
 async function handleEvent(ev, targetIdx) {
@@ -2178,20 +2234,12 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'endTurn': heroActing = false; banner('ENEMY TURN'); await sleep(480); break;
     case 'draw': {
-      // fire-and-forget: real card face flies pile→hand; seat reveals on landing
-      if (!REDUCED) {
-        const inst = cb.hand.find((c) => String(c.uid) === String(ev.uid))
-          || { uid: ev.uid, id: ev.id, up: false, bonus: 0 };
-        flyCardBacks([V.centerOf(ce.draw)], ce.hand, 220, {
-          fromSize: 'pile', toSize: 'hand', sizePile: ce.draw, face: 'card', cardInst: inst,
-        });
-        bumpPile(ce.draw);
-      }
-      syncHand(); syncCombat(); sfx.draw();
-      await sleep(REDUCED ? 40 : 75);
+      // normally coalesced in drain → handleDrawBatch; keep as single-card fallback
+      await handleDrawBatch([ev]);
       break;
     }
     case 'reshuffle': {
+      // only reshuffle keeps sealed/pile face — discard→draw is unknown order
       sfx.card();
       const n = ev.n || 6;
       holdPileVisual('draw', n);
@@ -2412,11 +2460,12 @@ async function handleEvent(ev, targetIdx) {
     case 'exhaust': {
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
       const anchor = takeCardAnchor(ev.uid);
+      const inst = pileCardByUid(cb.exhaust, ev.uid);
       if (c && REDUCED) {
         c.remove();
         releasePileVisual('ashes', 1);
       } else if (!REDUCED) {
-        // burn at play-seat anchor (not played-up lift), then pile-sized ashes face flies
+        // burn at play-seat anchor (not played-up lift), then real face flies to ashes
         const live = c ? stageRect(c) : null;
         const start = anchor || (live && live.width > 2
           ? { x: live.left + live.width / 2, y: live.top + live.height / 2, w: live.width, h: live.height }
@@ -2442,13 +2491,14 @@ async function handleEvent(ev, targetIdx) {
         } else if (c) {
           c.remove();
         }
-        const pileSz = pileFaceSize(ce.exhaust);
-        const origin = start
-          ? { x: start.x, y: start.y, w: pileSz.w, h: pileSz.h }
-          : { ...V.centerOf(ce.hand), ...pileSz };
-        await flyCardBacks([origin], ce.exhaust, 480, {
-          fromSize: pileSz, sizePile: ce.exhaust, pileArt: 'ashes',
-        });
+        if (inst) {
+          const origin = start
+            ? { x: start.x, y: start.y, w: start.w, h: start.h, inst }
+            : { ...V.centerOf(ce.hand), ...handFaceSize(), inst };
+          await flyCardBacks([origin], ce.exhaust, 480, {
+            fromSize: 'src', toSize: 'pile', sizePile: ce.exhaust, face: 'card', cardInst: inst,
+          });
+        }
         releasePileVisual('ashes', 1);
         bumpPile(ce.exhaust);
       } else if (c) {
@@ -2466,10 +2516,19 @@ async function handleEvent(ev, targetIdx) {
       const n = uids.length || els.length;
       sfx.card();
       if (!REDUCED && n) holdPileVisual('discard', n);
-      if (!REDUCED && els.length) {
-        await flyCardBacks(els.map((elc) => ({ el: elc })), ce.discard, 400, {
-          fromSize: 'src', toSize: 'pile', sizePile: ce.discard, pileArt: 'discard',
-        });
+      if (!REDUCED && n) {
+        const flights = uids.map((uid) => {
+          const elc = $(`.card[data-uid="${uid}"]`, ce.hand);
+          const inst = pileCardByUid(cb.discard, uid);
+          if (!inst) return null;
+          if (elc) return { el: elc, inst };
+          return { ...V.centerOf(ce.hand), ...handFaceSize(), inst };
+        }).filter(Boolean);
+        if (flights.length) {
+          await flyCardBacks(flights, ce.discard, 400, {
+            fromSize: 'src', toSize: 'pile', sizePile: ce.discard, face: 'card',
+          });
+        }
         els.forEach((c) => c.remove());
       } else {
         els.forEach((c) => c.remove());
@@ -2482,20 +2541,23 @@ async function handleEvent(ev, targetIdx) {
     case 'toDiscard': {
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
       const anchor = takeCardAnchor(ev.uid);
-      if (!REDUCED && (c || anchor)) {
-        const origin = anchor || (() => {
-          const r = stageRect(c);
-          return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
-        })();
+      const inst = pileCardByUid(cb.discard, ev.uid);
+      if (!REDUCED && inst && (c || anchor)) {
+        const origin = anchor
+          ? { ...anchor, inst }
+          : (() => {
+            const r = stageRect(c);
+            return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, inst };
+          })();
         await flyCardBacks([origin], ce.discard, 320, {
-          fromSize: 'src', toSize: 'pile', sizePile: ce.discard, pileArt: 'discard',
+          fromSize: 'src', toSize: 'pile', sizePile: ce.discard, face: 'card', cardInst: inst,
         });
         if (c) c.remove();
       } else if (c) {
         c.remove();
-      } else if (!REDUCED) {
-        await flyCardBacks([V.centerOf(ce.hand)], ce.discard, 320, {
-          fromSize: 'hand', toSize: 'pile', sizePile: ce.discard, pileArt: 'discard',
+      } else if (!REDUCED && inst) {
+        await flyCardBacks([{ ...V.centerOf(ce.hand), ...handFaceSize(), inst }], ce.discard, 320, {
+          fromSize: 'hand', toSize: 'pile', sizePile: ce.discard, face: 'card', cardInst: inst,
         });
       }
       releasePileVisual('discard', 1);

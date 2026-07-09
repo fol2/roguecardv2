@@ -53,3 +53,17 @@ export function flightSchedule(n, budgetMs, {
   const awaitMs = Math.min(budget + 80, stagger * (count - 1) + dur);
   return { stagger, flightDur: dur, awaitMs };
 }
+
+/** Draw-batch timing: arrivals evenly spaced (e.g. 5 cards / 500ms → 100ms stagger). */
+export function drawBatchSchedule(n, budgetMs = 500) {
+  const count = Math.max(0, Math.floor(n) || 0);
+  const budget = Math.max(160, budgetMs | 0);
+  if (count <= 0) return { stagger: 0, flightDur: 0, awaitMs: 0 };
+  if (count === 1) {
+    const flightDur = Math.min(280, budget);
+    return { stagger: 0, flightDur, awaitMs: flightDur };
+  }
+  const stagger = Math.max(40, Math.floor(budget / count));
+  const flightDur = Math.max(160, Math.min(280, budget - stagger));
+  return { stagger, flightDur, awaitMs: flightDur + stagger * (count - 1) };
+}
