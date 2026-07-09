@@ -6,7 +6,7 @@ import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule,
 import { UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyphId } from './ui-chrome.js';
 // drawBatchSchedule also paces discardHand (same even-stagger clock)
 import * as V from './vfx.js';
-import { syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from './vigil.js';
+import { syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews, clearVigil } from './vigil.js';
 import { sfx, unlock, getSfxVolume, setSfxVolume, isSfxMuted, setSfxMuted } from './audio.js';
 import * as music from './music.js';
 import { SFX_CATALOG, MUSIC_CATALOG } from './audio-catalog.js';
@@ -321,7 +321,7 @@ function openMenu(cx, cy) {
   closeMenus();
   const { x, y } = toStage(cx, cy);
   const m = el('div', 'pop-menu');
-  m.innerHTML = `<button data-m="help">How to Play</button><button data-m="audio">Audio</button><button data-m="abandon" style="color:#ff8d8d">Abandon Run</button>`;
+  m.innerHTML = `<button data-m="help">How to Play</button><button data-m="settings">Settings</button><button data-m="abandon" style="color:#ff8d8d">Abandon Run</button>`;
   stageEl().appendChild(m); // inside the stage so it scales with the game
   m.style.left = `${Math.min(x, stageW() - 200)}px`;
   m.style.top = `${y + 8}px`;
@@ -329,17 +329,17 @@ function openMenu(cx, cy) {
     const a = e.target.dataset.m;
     closeMenus();
     if (a === 'help') showHelp();
-    if (a === 'audio') openAudioPanel();
+    if (a === 'settings') openSettingsPanel();
     if (a === 'abandon') confirmAbandon();
   };
   setTimeout(() => document.addEventListener('pointerdown', closeMenusOnce, { once: true }), 0);
 }
-const closeMenus = () => $$('.pop-menu, .audio-panel').forEach((m) => m.remove());
-const closeMenusOnce = (e) => { if (!e.target.closest('.pop-menu, .audio-panel')) closeMenus(); };
+const closeMenus = () => $$('.pop-menu, .audio-panel, .settings-panel').forEach((m) => m.remove());
+const closeMenusOnce = (e) => { if (!e.target.closest('.pop-menu, .audio-panel, .settings-panel')) closeMenus(); };
 
-function openAudioPanel() {
+function openSettingsPanel() {
   closeMenus();
-  const panel = el('div', 'audio-panel');
+  const panel = el('div', 'settings-panel audio-panel');
   const row = (label, vol, muted, bus) => `
     <div class="audio-row" data-bus="${bus}">
       <div class="audio-row-head">
@@ -349,9 +349,14 @@ function openAudioPanel() {
       <input type="range" class="audio-vol" min="0" max="100" step="1" value="${Math.round(vol * 100)}" ${muted ? 'disabled' : ''}>
     </div>`;
   panel.innerHTML = `
-    <div class="audio-panel-title">Audio</div>
+    <div class="audio-panel-title">Settings</div>
     ${row('Music', music.getMusicVolume(), music.isMusicMuted(), 'music')}
     ${row('SFX', getSfxVolume(), isSfxMuted(), 'sfx')}
+    <div class="settings-debug">
+      <div class="settings-debug-label">Debug</div>
+      <button type="button" class="btn danger settings-reset" data-a="reset">Reset Save</button>
+      <div class="settings-debug-warn">Wipes the current climb and all Vigil progress. Cannot be undone.</div>
+    </div>
     <button type="button" class="audio-close" data-a="close">Close</button>`;
   stageEl().appendChild(panel);
   const bindRow = (bus) => {
@@ -377,7 +382,31 @@ function openAudioPanel() {
   bindRow('music');
   bindRow('sfx');
   $('[data-a="close"]', panel).onclick = () => closeMenus();
+  $('[data-a="reset"]', panel).onclick = () => { closeMenus(); confirmResetSave(); };
   setTimeout(() => document.addEventListener('pointerdown', closeMenusOnce, { once: true }), 0);
+}
+
+function confirmResetSave() {
+  openOverlay(`<div class="panel ov-panel" style="text-align:center">
+    <div class="ov-title">Reset Save?</div>
+    <div class="ov-sub">This erases your <b>current climb</b> and the entire <b>Vigil</b> — deeds, unlocks, vows, monuments, and whispers.<br><br><span style="color:#ff8d8d">This cannot be undone.</span></div>
+    <div class="ov-actions"><button class="btn danger" data-a="yes">Erase Everything</button><button class="btn ghost" data-a="no">Cancel</button></div>
+  </div>`, (root) => {
+    root.onclick = (e) => {
+      const a = e.target.dataset.a;
+      if (a === 'yes') {
+        E.clearSave();
+        clearVigil();
+        S.run = null;
+        S.cb = null;
+        S.embark = null;
+        closeOverlay();
+        sfx.click();
+        show('title');
+      }
+      if (a === 'no') closeOverlay();
+    };
+  });
 }
 function potionMenu(slot, e) {
   if (S.busy) return;
@@ -576,7 +605,7 @@ function renderTitle() {
       <button class="btn" data-a="embark">Begin the Climb</button>
       <button class="btn ghost${vigil.news && !REDUCED ? ' news' : ''}" data-a="vigil">The Vigil</button>
       <button class="btn ghost" data-a="help">How to Play</button>
-      <button class="btn ghost" data-a="audio">Audio</button>
+      <button class="btn ghost" data-a="settings">Settings</button>
     </div>
     <div class="title-stats">${d.runs} climbs · ${d.wins} dawns · ${d.slain} slain${vigil.unlocks.length ? ` · ${vigil.unlocks.length} secrets unearthed` : ''}</div>
   </div>`;
@@ -589,7 +618,7 @@ function renderTitle() {
     else if (a === 'continue' && saved) startRun(saved, true);
     else if (a === 'vigil') show('vigil');
     else if (a === 'help') showHelp();
-    else if (a === 'audio') openAudioPanel();
+    else if (a === 'settings') openSettingsPanel();
   };
   meshBindTitle();
 }

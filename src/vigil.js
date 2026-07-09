@@ -76,6 +76,16 @@ export function saveVigil(v) {
   try { getStore().setItem(KEY, JSON.stringify(v)); } catch { /* full */ }
 }
 
+/** Debug / settings: wipe Vigil meta + legacy stats. Does not touch audio prefs. */
+export function clearVigil() {
+  try {
+    const s = getStore();
+    s.removeItem(KEY);
+    s.removeItem(KEY_V1);
+    s.removeItem(STATS_KEY);
+  } catch { /* noop */ }
+}
+
 // deed thresholds crossed → content ids owed but not yet granted
 export function evaluateDeeds(vigil) {
   const owed = [];
