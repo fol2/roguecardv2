@@ -1362,6 +1362,7 @@ git commit -m "Add mesh-safe enemy variant presentation"
 ### Task 5: Implement the Pale Ones Trail and Witchlight Lens
 
 **Files:**
+- Modify: src/art.js (paleMote structural icon)
 - Modify: src/engine.js (newRun, genMap, rollEncounter, startCombat, onEnemyDeath)
 - Modify: src/ui.js (map nodes and encounter call)
 - Modify: src/styles.css (marked node)
@@ -1472,7 +1473,7 @@ Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyO
 Expected: PASS.
 
 ~~~bash
-git add src/engine.js src/ui.js src/styles.css test/test_engine.js
+git add src/art.js src/engine.js src/ui.js src/styles.css test/test_engine.js
 git commit -m "Implement the Pale Ones Trail and Witchlight Lens"
 ~~~
 
@@ -2397,7 +2398,7 @@ git commit -m "Implement the Hollow Lamplighter Trail"
 ### Task 11: Add dawn ceremonies, Rose Window fallback, title medallion, and sealed door
 
 **Files:**
-- Modify: src/art.js (structural fallbacks)
+- Modify: src/art.js (remaining structural fallbacks; paleMote is owned by Task 5)
 - Modify: src/ui.js:560-724, 817-927, 3409-3432, 3878-3980, 4038-4045
 - Modify: src/styles.css
 - Modify: test/test_engine.js (optional-art manifest)
@@ -2649,7 +2650,7 @@ On title, show a medallion only when v.shards.length>=1 and roseAssets() is non-
 
 - [ ] **Step 5: Add the non-path door, fallbacks, tests, and commit**
 
-Add art.js icons: paleMote, emberglassShard, roseWindow, emptyLantern, eighthOmen, unreadablePage, hollowLantern, and sealedDoor. They are paths in the structural ICONS table, never font glyphs.
+Add the remaining art.js icons: emberglassShard, roseWindow, emptyLantern, eighthOmen, unreadablePage, hollowLantern, and sealedDoor. (`paleMote` is already owned by Task 5.) They are paths in the structural ICONS table, never font glyphs.
 
 When `run.act===2`, `E.runRevealed(run,'act4')`, and `run.shards.length >= PROGRESSION.revealThresholds.act4.shards`, render a separate summit button above the boss projection. The explicit shard guard keeps `newRun()`'s fully-revealed compatibility default from showing the door with an empty shard snapshot. It is not in run.map.nodes. Clicking opens:
 

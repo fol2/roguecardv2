@@ -1474,6 +1474,44 @@ function forceHand(run, cb, ids) {
   assert.equal(run.pendingQuestId, null);
 }
 {
+  const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, { state: id === 'paleOnes' ? 'armed' : 'dormant', progress: 0, memory: {} }]));
+  const run = newRun(430, { quests, unlocks: [] });
+  const first = rollEncounter(run, 'monster', 0, run.map.nodes.find((n) => n.row === 0));
+  assert.deepEqual(first, ['paleDuskfang'], 'first ordinary fight is hidden guaranteed ambush');
+  assert.notDeepEqual(rollEncounter(run, 'monster', 1), ['paleDuskfang'], 'only one hidden ambush per run');
+
+  const cb = startCombat(run, ['paleDuskfang']);
+  cb.enemies[0].hp = 1;
+  forceHand(run, cb, ['strike']);
+  cb.player.energy = 3;
+  playCard(run, cb, cb.hand[0].uid, 0);
+  assert.equal(run.quests.paleOnes.progress, 1);
+  assert.equal(run.quests.paleOnes.state, 'revealed');
+
+  run.quests.paleOnes.progress = 2;
+  const cb3 = startCombat(run, ['paleDuskfang']);
+  cb3.enemies[0].hp = 1;
+  forceHand(run, cb3, ['strike']);
+  cb3.player.energy = 3;
+  playCard(run, cb3, cb3.hand[0].uid, 0);
+  assert.ok(run.unlocks.includes('insight:witchlightLens'));
+
+  const marked = newRun(431, { quests: run.quests, unlocks: run.unlocks });
+  assert.equal(marked.map.nodes.filter((n) => n.questVariantId).length, 1);
+  const mark = marked.map.nodes.find((n) => n.questVariantId);
+  assert.equal(mark.row, 0);
+  assert.equal(mark.questVariantId, 'paleDuskfang');
+
+  run.quests.paleOnes.progress = 8;
+  const cb9 = startCombat(run, ['paleDuskfang']);
+  cb9.enemies[0].hp = 1;
+  forceHand(run, cb9, ['strike']);
+  cb9.player.energy = 3;
+  playCard(run, cb9, cb9.hand[0].uid, 0);
+  assert.equal(run.quests.paleOnes.state, 'complete');
+  assert.deepEqual(run.questCompletions, ['paleOnes']);
+}
+{
   const run = newRun(414);
   const rewards = {
     gold: 40,
@@ -2234,6 +2272,15 @@ function randomAgentRun(seed) {
   assert.deepEqual(intentUiIds('mystery'), ['intent-attack']);
   assert.equal(nodeGlyphId('elite', false), 'node-elite');
   assert.equal(nodeGlyphId('monster', true), 'node-unlit');
+}
+
+// art.js is browser-only because its asset manifest uses import.meta.glob;
+// inspect the structural registry directly so the Node self-check still proves
+// the Witchlight marker cannot silently render an empty icon.
+{
+  const artSource = readFileSync(new URL('../src/art.js', import.meta.url), 'utf8');
+  const paleMote = artSource.match(/\bpaleMote:\s*`([^`]*)`/s)?.[1] || '';
+  assert.match(paleMote, /<path\b/, 'paleMote returns real SVG path output');
 }
 
 // ---- battlefield layout schema (spec 2026-07-06-battlefield-editor-design) ----

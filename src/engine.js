@@ -1,5 +1,5 @@
 // SPIREBOUND engine — pure game logic, no DOM. UI consumes cb.queue for animation.
-import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE, QUEST_IDS, QUESTS, VARIANTS, SHADE_KITS } from './data.js';
+import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE, PROGRESSION, QUEST_IDS, QUESTS, VARIANTS, SHADE_KITS } from './data.js';
 
 // ---------------------------------------------------------------- RNG (mulberry32)
 export function makeRng(state) {
@@ -66,6 +66,7 @@ export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
   for (const id of A.startDeck) run.player.deck.push(makeCard(run, id));
   if (vowMods(run).startHex) run.player.deck.push(makeCard(run, 'hex'));
   run.omens.push(runRevealed(run, 'omens') ? rollOmen(run) : null);
+  preparePaleRun(run);
   run.map = genMap(run);
   return run;
 }
@@ -176,6 +177,19 @@ export function runRng(run) {
   return () => { const v = rng(); run.rngState = rng.getState(); return v; };
 }
 
+const PALE_BY_ACT = ['paleDuskfang', 'paleDrownedOne', 'paleVoidWisp'];
+export const paleVariantForAct = (act) => PALE_BY_ACT[clamp(act | 0, 0, 2)];
+
+function preparePaleRun(run) {
+  const q = questRecord(run, 'paleOnes');
+  if (!q || !['armed', 'revealed'].includes(q.state)) return;
+  const lens = run.unlocks.includes('insight:witchlightLens');
+  run.questScratch.paleOnes = {
+    hiddenDue: !lens && q.progress < PROGRESSION.emberglass.paleOnes.lensAt,
+    markedAct2: lens && runRng(run)() < PROGRESSION.emberglass.paleOnes.markedAct2Chance,
+  };
+}
+
 // ---------------------------------------------------------------- map generation
 export const MAP_ROWS = 15, MAP_COLS = 7;
 export function genMap(run) {
@@ -244,6 +258,17 @@ export function genMap(run) {
       const best = cand.reduce((a, b) => (Math.abs(b.row - targetRow) < Math.abs(a.row - targetRow) ? b : a));
       best.type = 'monument';
       delete best.unlit; delete best.bounty;
+    }
+  }
+  const pale = run.questScratch?.paleOnes;
+  const markPale = run.unlocks.includes('insight:witchlightLens') && pale &&
+    (run.act === 0 || (run.act === 1 && pale.markedAct2));
+  if (markPale) {
+    const candidates = nodes.filter((n) => n.row === 0 && n.type === 'monster');
+    if (candidates.length) {
+      const marked = pick(rng, candidates);
+      marked.questVariantId = paleVariantForAct(run.act);
+      marked.questMarked = true;
     }
   }
   return { nodes, visited: [] };
@@ -515,7 +540,13 @@ export function rollEvent(run) {
   seen.push(id);
   return id;
 }
-export function rollEncounter(run, type, row) {
+export function rollEncounter(run, type, row, node) {
+  if (node?.questVariantId) return [node.questVariantId];
+  const pale = run.questScratch?.paleOnes;
+  if (type === 'monster' && pale?.hiddenDue) {
+    pale.hiddenDue = false;
+    return [paleVariantForAct(run.act)];
+  }
   const rng = runRng(run);
   const pools = ENCOUNTERS[run.act];
   const pool = type === 'boss' ? pools.boss : type === 'elite' ? pools.elite : row < 3 ? pools.weak : pools.normal;
@@ -617,6 +648,7 @@ export function startCombat(run, enemyIds, kind = 'normal', opts = {}) {
     counters: { played: 0, attacks: 0, firstCardPlayed: false, hpLost: 0 },
   };
   cb.enemies.forEach((e) => (e.hp = e.maxHp));
+  if (cb.enemies.some((e) => e.def.drop?.quest === 'paleOnes')) revealQuest(run, 'paleOnes', cb.queue);
   if (kind === 'boss' && cb.enemies[0]) cb.queue.push({ t: 'bossIntro', name: cb.enemies[0].name });
   const aspectName = ASPECTS[run.aspect].name.replace(/^The\s+/, '');
   for (const e of cb.enemies) {
@@ -842,6 +874,14 @@ function onEnemyDeath(run, cb, e) {
   run.stats.slain++;
   if (e.elite) run.stats.elites++;
   if (e.boss) run.stats.bosses++;
+  if (e.def.drop?.quest === 'paleOnes') {
+    const q = advanceQuest(run, 'paleOnes', e.def.drop.n, cb.queue);
+    if (q.progress >= PROGRESSION.emberglass.paleOnes.lensAt &&
+        !run.unlocks.includes('insight:witchlightLens')) {
+      run.unlocks.push('insight:witchlightLens');
+      cb.queue.push({ t: 'questUnlock', id: 'insight:witchlightLens' });
+    }
+  }
   if (cb.enemies.every((x) => x.hp <= 0)) { winCombat(run, cb); return; }
   gainEmbers(run, cb, 1); // the fire inside spills to your lantern
   jumpSmolder(run, cb, e, smolder);

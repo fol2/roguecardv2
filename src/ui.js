@@ -975,6 +975,7 @@ function renderMap() {
     const dark = n.unlit && !visited.has(n.id); // an unlit lantern keeps its secret
     const cls = [
       'mnode', `type-${n.type}`, dark ? 'unlit' : '',
+      n.questMarked ? 'pale-marked' : '',
       visited.has(n.id) ? 'visited' : '',
       n.id === run.nodeId ? 'current' : '',
       avail.has(n.id) ? 'avail' : '',
@@ -1006,8 +1007,15 @@ function renderMap() {
     }
     // selectable: duplicate art under feMorphology ring (same language as aim outlines)
     const sil = avail.has(n.id) ? `<g class="nsil">${artHtml}</g>` : '';
+    const paleMark = n.questMarked
+      ? `<g class="pale-lens" transform="translate(${Math.round(r * 0.8)} ${Math.round(-r * 0.8)})">
+          <circle class="pale-lens-halo" r="11"/>
+          <circle class="pale-lens-glass" r="7.5"/>
+          <g transform="translate(-9 -9)">${iconSvg('paleMote', 18)}</g>
+        </g>`
+      : '';
     dots += `<g class="${cls}" data-node="${n.id}" style="--d:${n.row * 34}ms">
-      ${hit}<g class="nwrap">${sil}${artHtml}</g>
+      ${hit}<g class="nwrap">${sil}${artHtml}</g>${paleMark}
     </g>`;
   }
   const act = ACTS[run.act];
@@ -1041,9 +1049,11 @@ function renderMap() {
     const n = nodes.find((x) => x.id === g.dataset.node);
     const names = { monster: 'Monster', elite: 'Elite — beware', event: 'Unknown event', rest: 'Rest site', shop: 'Merchant', treasure: 'Treasure', boss: ACTS[run.act].bossName };
     const hints = { monster: 'A fight. Embers and gold for the swift.', elite: 'A titled foe - greater risk, a relic-grade purse.', event: 'Fate unwritten. Could be anything.', rest: 'Heal, or forge a card into its + form.', shop: 'Gold for cards, relics, phials.', treasure: 'A chest with no fight attached.', boss: 'The act ends here. Ready your deck.' };
-    g._tip = n.unlit && !visited.has(n.id)
-      ? { title: 'An unlit lantern', body: `What waits here is unknown — but first light pays a bounty of gold.${avail.has(n.id) ? ` ${COARSE ? 'Tap' : 'Click'} to travel here.` : ''}` }
-      : { title: names[n.type], body: avail.has(n.id) ? `${COARSE ? 'Tap' : 'Click'} to travel here.` : '', sub: hints[n.type] };
+    g._tip = n.questMarked
+      ? { title: 'Witchlight trembles', body: 'Pale glass waits here.' }
+      : n.unlit && !visited.has(n.id)
+        ? { title: 'An unlit lantern', body: `What waits here is unknown — but first light pays a bounty of gold.${avail.has(n.id) ? ` ${COARSE ? 'Tap' : 'Click'} to travel here.` : ''}` }
+        : { title: names[n.type], body: avail.has(n.id) ? `${COARSE ? 'Tap' : 'Click'} to travel here.` : '', sub: hints[n.type] };
   });
   // 3D wiring: anchors on the tower, camera dollies to the current row
   const anchors = nodes.map((n) => ({ id: n.id, pos: mapNodePos(run.act, n) }));

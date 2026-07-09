@@ -408,6 +408,11 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .mnode .nframe, .mnode .nglyph { pointer-events: none; transition: filter 0.2s, opacity 0.2s; }
 .mnode .nsil { pointer-events: none; }
 .mnode .icg { color: #98a2c4; pointer-events: none; }
+.mnode .pale-lens { pointer-events: none; opacity: 0.62; animation: paleLensPulse 1.8s ease-in-out infinite; }
+.mnode .pale-lens-halo { fill: rgba(205, 247, 244, 0.12); stroke: rgba(216, 255, 250, 0.9); stroke-width: 1.4; }
+.mnode .pale-lens-glass { fill: rgba(184, 236, 232, 0.2); stroke: rgba(231, 255, 252, 0.7); stroke-width: 0.8; }
+.mnode .pale-lens .gicon { color: #e8fffc; overflow: visible; }
+@keyframes paleLensPulse { 0%, 100% { opacity: 0.62; } 50% { opacity: 1; } }
 .mnode.type-elite circle.bg { stroke: #ff7847; }
 .mnode.type-elite .nframe { filter: drop-shadow(0 0 6px rgba(255, 120, 71, 0.55)); }
 .mnode.type-boss circle.bg { stroke: #ff4fd8; stroke-width: 2; }
@@ -1846,6 +1851,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .hand-zone .card.draw-in .card-lift { animation: none; }
   #tooltip { animation: fadein 0.1s both; }
   .mnode.avail .nwrap, .mnode.avail .icg, .mnode.avail .nglyph { animation: none; }
+  .mnode .pale-lens { animation: none; opacity: 1; }
   .reward-list .reward-row, .shop-row .shop-item, .deed-list .deed-row { animation: none; }
 }
 
