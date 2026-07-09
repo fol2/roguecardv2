@@ -954,6 +954,8 @@ function renderCombat() {
   const sc = screenEl();
   sc.onclick = null;
   const ledge = `#${ACTS[S.run.act].theme.glow.toString(16).padStart(6, '0')}`;
+  const vialFrameU = uiIconUrl('hp-vial-frame');
+  const vialFrame = vialFrameU ? `<img class="hp-vial-frame" src="${vialFrameU}" alt="" draggable="false">` : '';
   sc.innerHTML = `<div class="combat-screen screen-enter intro" style="--ledge:${ledge}">
     ${['backdrop', 'mid', 'ledge'].map((l) => {
       const u = assetUrl('stage', `act${S.run.act + 1}-${l}`);
@@ -971,7 +973,7 @@ function renderCombat() {
           ${heroArt(S.run.aspect)}
         </div>
         <div class="cplate">
-          <div class="hpbar-wrap"><span class="block-chip zero p-block">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div></div><span class="hp-label p-hp"></span></div>
+          <div class="hpbar-wrap"><span class="block-chip zero p-block">${uiIcon('ward', 13)} 0</span><div class="hp-vial">${vialFrame}<div class="hpbar"><div class="ghost"></div><div class="fill"></div></div></div><span class="hp-label p-hp"></span></div>
         </div>
       </div>
       <div class="enemy-zone"></div>
@@ -1015,7 +1017,7 @@ function renderCombat() {
       <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${aimRing(assetUrl('enemies', en.key), 'atk')}${rasterOr('enemies', en.key, enemySvg(d.art))}<div class="vessel-fire"></div>${assetUrl('enemies', en.key) ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
       <div class="cplate">
         <div class="name">${afx ? `<span class="affix-name" style="color:${afx.tone}">${afx.name.toUpperCase()}</span> ` : ''}${en.name.toUpperCase()}</div>
-        <div class="hpbar-wrap"><span class="block-chip zero">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div><span class="hp-label"></span></div>
+        <div class="hpbar-wrap"><span class="block-chip zero">${uiIcon('ward', 13)} 0</span><div class="hp-vial">${vialFrame}<div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div></div><span class="hp-label"></span></div>
         <div class="facet-row"></div>
       </div>`;
     zone.appendChild(box);
@@ -1246,15 +1248,24 @@ function intentFor(e) {
   if (mv.addCards) tipBits.push(`add ${mv.addCards.n} ${CARDS[mv.addCards.id].name}s to your discard`);
   return { icon, txt, tip: { title: mv.name, body: `Intends to ${tipBits.join(', ') || 'act'}.` } };
 }
-// the facet gauge: diamond pips, filled as the glass is chipped; a text
-// fallback once boss glass has annealed past what a row can hold
+// the facet gauge: glass chip rasters (CSS diamond fallback); text once boss glass past a row
 function facetPips(en, ghost = 0) {
   if (en.facetMax > 8) {
-    return `<span class="pipnum">${iconSvg('facet', 11)} ${en.chips}${ghost ? `<i>+${ghost}</i>` : ''}/${en.facetMax}</span>`;
+    return `<span class="pipnum">${uiIcon('facet-chipped', 11)} ${en.chips}${ghost ? `<i>+${ghost}</i>` : ''}/${en.facetMax}</span>`;
   }
+  const emptyU = uiIconUrl('facet-empty');
+  const chipU = uiIconUrl('facet-chipped');
   let h = '';
   for (let i = 0; i < en.facetMax; i++) {
-    h += `<span class="pip${i < en.chips ? ' filled' : i < en.chips + ghost ? ' willchip' : ''}"></span>`;
+    const filled = i < en.chips;
+    const will = !filled && i < en.chips + ghost;
+    const cls = `pip${filled ? ' filled' : ''}${will ? ' willchip' : ''}`;
+    if (emptyU || chipU) {
+      const src = filled || will ? (chipU || emptyU) : (emptyU || chipU);
+      h += `<span class="${cls}"><img class="ui-icon facet-img" src="${src}" alt="" draggable="false"></span>`;
+    } else {
+      h += `<span class="${cls}"></span>`;
+    }
   }
   return h;
 }
@@ -1268,7 +1279,7 @@ function syncCombat() {
     x.ghost.style.width = pct;
     x.hp.textContent = `${Math.max(0, en.hp)}/${en.maxHp}`;
     x.block.classList.toggle('zero', en.block <= 0);
-    x.block.innerHTML = `${iconSvg('shield', 13)} ${en.block}`;
+    x.block.innerHTML = `${uiIcon('ward', 13)} ${en.block}`;
     x.art.classList.toggle('warded', en.block > 0);
     // Ward ON is owned by blockGain (animated grow). syncCombat only fades when block hits 0 —
     // otherwise an earlier sync in the same drain wave snaps the shell on before blockGain runs.
@@ -1307,7 +1318,7 @@ function syncCombat() {
   ce.pGhost.style.width = pct;
   ce.pHp.textContent = `${Math.max(0, P.hp)}/${P.maxHp}`;
   ce.pBlock.classList.toggle('zero', P.block <= 0);
-  ce.pBlock.innerHTML = `${iconSvg('shield', 13)} ${P.block}`;
+  ce.pBlock.innerHTML = `${uiIcon('ward', 13)} ${P.block}`;
   ce.hero.classList.toggle('warded', P.block > 0);
   // Ward ON is owned by blockGain (animated grow). syncCombat only fades when block hits 0.
   if (P.block <= 0) syncWardMesh(ce.hero, false);
