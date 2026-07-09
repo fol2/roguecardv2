@@ -39,10 +39,88 @@ const BEAM_DECAY = 1.55;   // how fast a ray dies along its length
 const BEAM_PAD = 1.6;      // beams plane is padded past the body so rays leave the sprite
 const BAKE_N = 192;        // bake resolution: crack maps are soft — 192² keeps rebakes quick
 // Ward shell — gemstone glass envelope outside the body (reuses transmission + Voronoi).
-const WARD_PAD = 1.24;
-const WARD_ALPHA = 1;      // shell opacity (glass reads via transmission, not fill tint)
-const WARD_GROW_MS = 560;  // long enough that Grow vs Hold is obvious in ?vfxedit=1
-const WARD_SITES = 16;
+// Tunables live in wardParams; WARD_DEFAULTS is the reset baseline (?vfxedit=1 + console).
+export const WARD_DEFAULTS = Object.freeze({
+  pad: 1.24,             // shell size vs body
+  opacity: 1,            // material opacity at full grow
+  transparency: 0,       // 0 = dense fill, 1 = clear see-through (scales alphaMap fill)
+  growMs: 560,           // Grow / Clear duration (ms)
+  sites: 16,             // Voronoi facet count (rebake)
+  edgeSoftness: 0.22,    // 0 = sharp oval edge, higher = soft shaded falloff
+  centerDip: 0.38,       // center thinness (0 = solid, higher = gem dip; not rim-only)
+  refraction: 1,         // master: scales transmission + thickness + normalScale
+  transmission: 1,
+  ior: 1.4,
+  thickness: 0.14,
+  normalScale: 1.35,     // Voronoi seam strength
+  roughness: 0.03,
+  envMapIntensity: 0.08, // env reflection
+  tint: '#c5e8ff',
+  idleWobble: false,     // off by default — shell stays still
+});
+const wardParams = { ...WARD_DEFAULTS };
+const WARD_BAKE_KEYS = new Set(['edgeSoftness', 'centerDip', 'sites', 'transparency']);
+
+export function meshWardParams() { return { ...wardParams }; }
+export function meshWardSetParams(partial = {}) {
+  if (!partial || typeof partial !== 'object') return meshWardParams();
+  let rebake = false;
+  for (const [k, v] of Object.entries(partial)) {
+    if (!(k in WARD_DEFAULTS) || v === undefined) continue;
+    if (wardParams[k] === v) continue;
+    wardParams[k] = v;
+    if (WARD_BAKE_KEYS.has(k)) rebake = true;
+  }
+  refreshWardLayers(rebake);
+  return meshWardParams();
+}
+export function meshWardResetParams() {
+  Object.assign(wardParams, WARD_DEFAULTS);
+  refreshWardLayers(true);
+  return meshWardParams();
+}
+
+function wardRefract() {
+  const r = Math.max(0, Number(wardParams.refraction) || 0);
+  return {
+    transmission: Math.min(1, Math.max(0, wardParams.transmission * r)),
+    thickness: Math.max(0, wardParams.thickness * r),
+    normalScale: Math.max(0, wardParams.normalScale * r),
+  };
+}
+
+function applyWardMaterial(mat, { opacityGrow = 1 } = {}) {
+  const r = wardRefract();
+  mat.color.set(wardParams.tint || WARD_DEFAULTS.tint);
+  mat.transmission = r.transmission;
+  mat.ior = Math.max(1, Number(wardParams.ior) || 1.4);
+  mat.thickness = r.thickness;
+  mat.roughness = Math.min(1, Math.max(0, Number(wardParams.roughness) || 0));
+  mat.envMapIntensity = Math.max(0, Number(wardParams.envMapIntensity) || 0);
+  mat.normalScale.set(r.normalScale, r.normalScale);
+  mat.opacity = Math.max(0, Math.min(1, Number(wardParams.opacity) || 0)) * opacityGrow;
+  mat.needsUpdate = true;
+}
+
+function refreshWardLayers(rebake) {
+  for (const p of planes) {
+    if (!p.ward) continue;
+    if (rebake) {
+      const grow = p.wardGrow || 0;
+      const on = p.wardOn;
+      buildWard(p);
+      p.wardOn = on;
+      p.wardGrow = grow;
+      p.wardGrowFrom = grow;
+      if (p.ward) {
+        applyWardMaterial(p.ward.material, { opacityGrow: grow });
+        p.ward.visible = !!on && grow > 0.02;
+      }
+    } else {
+      applyWardMaterial(p.ward.material, { opacityGrow: p.wardGrow || 0 });
+    }
+  }
+}
 
 const bell = (v, c, s) => Math.exp(-((v - c) ** 2) / (2 * s * s));
 // deform weights by body archetype (data.js art.kind); float = whole-body hover scale
@@ -350,9 +428,9 @@ function bakeCrackBeams(p) {
 
 /** Stable gemstone facet sites for the ward envelope (not body cracks). */
 function wardSitesFor(p) {
-  if (p.wardSites?.length) return p.wardSites;
+  const n = Math.max(3, Math.round(Number(wardParams.sites) || WARD_DEFAULTS.sites));
+  if (p.wardSites?.length && p.wardSitesN === n) return p.wardSites;
   const sites = [];
-  const n = WARD_SITES;
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 + p.seed * 0.17;
     const r = 0.28 + ((i * 37) % 7) * 0.018;
@@ -370,10 +448,12 @@ function wardSitesFor(p) {
     });
   }
   p.wardSites = sites;
+  p.wardSitesN = n;
   return sites;
 }
 
-/** Full soft oval glass piece — solid shell for transmission, soft edge falloff.
+/** Full oval glass piece — solid shell for transmission.
+ *  edgeSoftness 0 = hard cut; higher = soft shaded falloff.
  *  Mild center dip keeps a cut-gem read without going rim-only / hollow. */
 function bakeWardMask(_p) {
   const N = BAKE_N;
@@ -381,16 +461,32 @@ function bakeWardMask(_p) {
   const ctx = c.getContext('2d');
   const out = ctx.createImageData(N, N);
   const cx = N * 0.5, cy = N * 0.52, rx = N * 0.46, ry = N * 0.48;
+  const soft = Math.max(0, Math.min(0.5, Number(wardParams.edgeSoftness) || 0));
+  const dip = Math.max(0, Math.min(1, Number(wardParams.centerDip) || 0));
+  // transparency: 0 dense, 1 clear — scales fill strength inside the oval
+  const fill = Math.max(0.05, 1 - Math.max(0, Math.min(1, Number(wardParams.transparency) || 0)));
+  const core = 1 - soft;
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     const i = (y * N + x) * 4;
     const nx = (x - cx) / rx, ny = (y - cy) / ry;
     const d = Math.hypot(nx, ny);
-    // slightly softer outer falloff than a hard gem cut
-    let t = d <= 0.78 ? 1 : d >= 1 ? 0 : 1 - (d - 0.78) / 0.22;
-    t = t * t * (3 - 2 * t);
-    // mild center dip (floor ~0.62) — body must stay under glass for refraction
-    const hole = Math.hypot(nx / 0.62, ny / 0.66);
-    if (hole < 0.55) t *= 0.62 + 0.38 * (hole / 0.55);
+    let t;
+    if (soft <= 0.001) {
+      t = d <= 1 ? 1 : 0;
+    } else if (d <= core) {
+      t = 1;
+    } else if (d >= 1) {
+      t = 0;
+    } else {
+      t = 1 - (d - core) / soft;
+      t = t * t * (3 - 2 * t);
+    }
+    // center dip — body must stay under glass for refraction
+    if (dip > 0 && t > 0) {
+      const hole = Math.hypot(nx / 0.62, ny / 0.66);
+      if (hole < 0.55) t *= (1 - dip) + dip * (hole / 0.55);
+    }
+    t *= fill;
     const on = Math.round(255 * Math.max(0, Math.min(1, t)));
     out.data[i] = out.data[i + 1] = out.data[i + 2] = on;
     out.data[i + 3] = 255;
@@ -454,13 +550,20 @@ function buildWard(p) {
   disposeLayer(p, 'ward');
   // body must be opaque or the shell has nothing to refract (reads as a flat tint)
   setBodyOpaqueForGlass(p, true);
-  // Crack-glass transmission + Voronoi; reflection dialed down (clear glass, not shiny).
+  const r = wardRefract();
+  // Crack-glass transmission + Voronoi; knobs from wardParams.
   const mat = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color('#c5e8ff'),
-    transmission: 1, ior: 1.4, thickness: 0.14, roughness: 0.03, metalness: 0,
-    normalMap: canvasTex(bakeWardNormal(p)), normalScale: new THREE.Vector2(1.35, 1.35),
+    color: new THREE.Color(wardParams.tint || WARD_DEFAULTS.tint),
+    transmission: r.transmission,
+    ior: Math.max(1, Number(wardParams.ior) || 1.4),
+    thickness: r.thickness,
+    roughness: Math.min(1, Math.max(0, Number(wardParams.roughness) || 0)),
+    metalness: 0,
+    normalMap: canvasTex(bakeWardNormal(p)),
+    normalScale: new THREE.Vector2(r.normalScale, r.normalScale),
     alphaMap: canvasTex(bakeWardMask(p)), transparent: true, alphaTest: 0.01, opacity: 0,
-    clearcoat: 0, clearcoatRoughness: 1, envMapIntensity: 0.08,
+    clearcoat: 0, clearcoatRoughness: 1,
+    envMapIntensity: Math.max(0, Number(wardParams.envMapIntensity) || 0),
     depthTest: false, depthWrite: false,
   });
   // own geo — shell shape/scale independent of body warp
@@ -613,10 +716,15 @@ function layoutPlane(p, t = 0, off = { left: 0, top: 0 }) {
     if (m === p.beams) pad = BEAM_PAD;
     else if (isWard) {
       const grow = p.wardGrow || 0;
-      // Grow: small → full; Hold snaps grow=1 so pad stays at WARD_PAD
-      pad = WARD_PAD * (0.12 + 0.88 * grow);
-      m.rotation.z = 0; // no idle wobble — shell stays still
-      m.material.opacity = WARD_ALPHA * grow;
+      const padBase = Number(wardParams.pad) || WARD_DEFAULTS.pad;
+      // Grow: small → full; Hold snaps grow=1 so pad stays at padBase
+      pad = padBase * (0.12 + 0.88 * grow);
+      if (wardParams.idleWobble) {
+        m.rotation.z = Math.sin(t * 1.4 + p.seed) * 0.04;
+      } else {
+        m.rotation.z = 0;
+      }
+      m.material.opacity = Math.max(0, Math.min(1, Number(wardParams.opacity) || 0)) * grow;
       m.visible = !!p.wardOn && grow > 0.02;
     }
     m.scale.set(sx * pad, sy * pad, 1);
@@ -638,12 +746,13 @@ function tick(t) {
   const sec = t * 0.001;
   const off = canvasOffset();
   for (const p of planes) {
+    const growMs = Math.max(80, Number(wardParams.growMs) || WARD_DEFAULTS.growMs);
     if (p.wardOn && p.wardGrow < 1) {
-      const u = Math.min(1, (t - p.wardT0) / WARD_GROW_MS);
+      const u = Math.min(1, (t - p.wardT0) / growMs);
       const s = u * u * (3 - 2 * u);
       p.wardGrow = p.wardGrowFrom + (1 - p.wardGrowFrom) * s;
     } else if (!p.wardOn && p.wardGrow > 0) {
-      const u = Math.min(1, (t - p.wardT0) / (WARD_GROW_MS * 0.7));
+      const u = Math.min(1, (t - p.wardT0) / (growMs * 0.7));
       const s = u * u * (3 - 2 * u);
       p.wardGrow = p.wardGrowFrom * (1 - s);
       if (p.wardGrow < 0.02) {
