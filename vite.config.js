@@ -8,6 +8,8 @@ const BF_LAYOUT_PATH = resolve("src/battlefield-layout.js");
 const BF_LAYOUT_TMP = `${BF_LAYOUT_PATH}.tmp`;
 const CHAR_META_PATH = resolve("src/char-meta.js");
 const CHAR_META_TMP = `${CHAR_META_PATH}.tmp`;
+const WARD_PARAMS_PATH = resolve("src/ward-params.js");
+const WARD_PARAMS_TMP = `${WARD_PARAMS_PATH}.tmp`;
 
 /** Reject cross-origin POSTs — only the dev server (or allowedHosts) may write. */
 function bfSaveOriginOk(req) {
@@ -131,6 +133,34 @@ function bfSavePlugin() {
           // Invalidate only this module — char-meta.js self-accepts HMR and
           // soft-applies via onCharMetaChange (no full page reload).
           const mods = server.moduleGraph.getModulesByFile(CHAR_META_PATH);
+          if (mods) for (const m of mods) server.moduleGraph.invalidateModule(m);
+          res.end(JSON.stringify({ ok: true, reload: false }));
+        } catch (e) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ ok: false, problems: [String(e?.message ?? e)] }));
+        }
+      });
+
+      // ?vfxedit=1 → POST /__ward-save writes src/ward-params.js (WARD_DEFAULTS)
+      server.middlewares.use("/__ward-save", async (req, res) => {
+        if (req.method !== "POST") { res.statusCode = 405; return res.end(); }
+        if (!bfSaveOriginOk(req)) {
+          res.statusCode = 403;
+          res.setHeader("content-type", "application/json");
+          return res.end(JSON.stringify({ ok: false, problems: ["forbidden origin"] }));
+        }
+        const body = await readJsonBody(req, res);
+        if (body == null) return;
+        res.setHeader("content-type", "application/json");
+        try {
+          const { serializeWardParams, validateWardParams } = await import("./src/dev/ward-serialize.js");
+          const params = JSON.parse(body);
+          const problems = validateWardParams(params);
+          if (problems.length) { res.statusCode = 400; return res.end(JSON.stringify({ ok: false, problems })); }
+          const next = serializeWardParams(params);
+          writeFileSync(WARD_PARAMS_TMP, next);
+          renameSync(WARD_PARAMS_TMP, WARD_PARAMS_PATH);
+          const mods = server.moduleGraph.getModulesByFile(WARD_PARAMS_PATH);
           if (mods) for (const m of mods) server.moduleGraph.invalidateModule(m);
           res.end(JSON.stringify({ ok: true, reload: false }));
         } catch (e) {

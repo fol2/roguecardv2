@@ -2,11 +2,13 @@
 import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
 import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
+import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule, drawBatchSchedule } from './pile-chrome.js';
+// drawBatchSchedule also paces discardHand (same even-stagger clock)
 import * as V from './vfx.js';
 import { syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
-import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift, meshAim, meshAimClear } from './mesh.js';
+import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift, meshAim, meshAimClear, meshWard } from './mesh.js';
 import { charShadowLive, charCssFloat, charAim, onCharMetaChange } from './char-meta.js';
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
@@ -66,24 +68,17 @@ const omenMark = (oid, imgClass, fallbackClass, size = 22) => {
 const aimRing = (url, kind) => url
   ? `<svg class="aim-ring" aria-hidden="true"><image href="${escHtml(url)}" x="0" y="0" width="100%" height="100%" preserveAspectRatio="xMidYMax meet" filter="url(#aim-outline-${kind})"/></svg>`
   : '';
-// persistent Ward shell — 4-frame raster strip (CSS steps); missing asset → no layer
-const wardFxHtml = () => {
-  const u = assetUrl('vfx', 'ward-loop');
-  return u ? `<div class="ward-fx" style="background-image:url(${escHtml(u)})" aria-hidden="true"></div>` : '';
-};
-function playWardGain(root) {
-  const url = assetUrl('vfx', 'ward-gain');
-  if (!url || !root) return;
-  const el = document.createElement('div');
-  el.className = 'ward-gain-fx';
-  el.style.backgroundImage = `url(${url})`;
-  root.appendChild(el);
-  el.addEventListener('animationend', () => el.remove(), { once: true });
+function syncWardMesh(el, on, grow = false) {
+  if (!el) return;
+  const sprite = el.classList?.contains('hero-sprite') || el.classList?.contains('enemy-sprite')
+    ? el
+    : ($('.hero-sprite, .enemy-sprite', el) || el);
+  meshWard(sprite, !!on, { grow });
 }
 const heroArt = (i) => {
   const u = assetUrl('heroes', ASPECTS[i].id);
-  if (!u) return `<div class="hero-sprite">${wardFxHtml()}${heroSvg(i)}</div>`;
-  return `<div class="hero-sprite">${wardFxHtml()}${aimRing(u, 'self')}${rasterOr('heroes', ASPECTS[i].id, heroSvg(i))}<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg></div>`;
+  if (!u) return `<div class="hero-sprite">${heroSvg(i)}</div>`;
+  return `<div class="hero-sprite">${aimRing(u, 'self')}${rasterOr('heroes', ASPECTS[i].id, heroSvg(i))}<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg></div>`;
 };
 
 let assetsWarmed = false;
@@ -763,7 +758,7 @@ function renderMap() {
     const tf = COARSE ? 1.3 : 1; // lanterns grow to meet a fingertip
     const r = (n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 19 : 16) * tf;
     const isz = Math.round((n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 20 : 17) * tf);
-    const monUrl = n.type === 'monument' ? assetUrl('meta', 'monument-node') : null;
+    const monUrl = (n.type === 'monument' && isz >= 32) ? assetUrl('meta', 'monument-node') : null;
     const iconHtml = monUrl
       ? `<image href="${monUrl}" x="${-isz / 2}" y="${-isz / 2}" width="${isz}" height="${isz}" />`
       : iconInline(dark ? 'unlitLantern' : NODE_ICONS[n.type], dark ? Math.round(17 * tf) : isz);
@@ -943,13 +938,15 @@ function renderCombat() {
     <div class="cast-shadow-layer" aria-hidden="true"></div>
     <div class="battlefield">
       <div class="player-zone">
+        <div class="top-chrome">
+          <div class="status-row p-status"></div>
+        </div>
         <div class="hero-wrap">
-          <div class="hero-name">${ASPECTS[S.run.aspect].name.toUpperCase()}</div>
           ${heroArt(S.run.aspect)}
         </div>
         <div class="cplate">
+          <div class="hero-name">${ASPECTS[S.run.aspect].name.toUpperCase()}</div>
           <div class="hpbar-wrap"><span class="block-chip zero p-block">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div></div><span class="hp-label p-hp"></span></div>
-          <div class="status-row p-status"></div>
         </div>
       </div>
       <div class="enemy-zone"></div>
@@ -957,9 +954,21 @@ function renderCombat() {
     <div class="energy-orb"><div class="num">0</div><div class="lbl">ENERGY</div><div class="candles"></div></div>
     <button class="lantern-btn"><span class="lb-ic">${iconSvg('lantern', 26)}</span><span class="lb-count">0</span><div class="lb-pips"></div><span class="lb-art"></span></button>
     <button class="btn end-turn">End Turn</button>
-    <button class="pile-btn pile-draw"><span class="cnt">0</span><span class="lbl">DRAW</span></button>
-    <button class="pile-btn pile-discard"><span class="cnt">0</span><span class="lbl">DISCARD</span></button>
-    <button class="pile-btn pile-exhaust"><span class="cnt">0</span><span class="lbl">ASHES</span></button>
+    <button class="pile-btn pile-draw" type="button" aria-label="Draw pile">
+      <span class="pile-stack" data-pile="draw" data-count="-1" data-tier="-1"></span>
+      <span class="cnt">0</span>
+      <span class="lbl">DRAW</span>
+    </button>
+    <button class="pile-btn pile-discard" type="button" aria-label="Discard pile">
+      <span class="pile-stack" data-pile="discard" data-count="-1" data-tier="-1"></span>
+      <span class="cnt">0</span>
+      <span class="lbl">DISCARD</span>
+    </button>
+    <button class="pile-btn pile-exhaust" type="button" aria-label="Ashes pile">
+      <span class="pile-stack" data-pile="ashes" data-count="-1" data-tier="-1"></span>
+      <span class="cnt">0</span>
+      <span class="lbl">ASHES</span>
+    </button>
     <div class="hand-zone"></div>
   </div>`;
   const zone = $('.enemy-zone', sc);
@@ -974,13 +983,15 @@ function renderCombat() {
     if (afx) box.style.setProperty('--affix-tone', afx.tone);
     box.dataset.idx = i;
     box.style.animationDelay = `${160 + i * 130}ms`;
-    box.innerHTML = `<div class="intent"></div>
-      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${wardFxHtml()}${aimRing(assetUrl('enemies', en.key), 'atk')}${rasterOr('enemies', en.key, enemySvg(d.art))}<div class="vessel-fire"></div>${assetUrl('enemies', en.key) ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
+    box.innerHTML = `<div class="top-chrome">
+        <div class="intent"></div>
+        <div class="status-row"></div>
+      </div>
+      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${aimRing(assetUrl('enemies', en.key), 'atk')}${rasterOr('enemies', en.key, enemySvg(d.art))}<div class="vessel-fire"></div>${assetUrl('enemies', en.key) ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
       <div class="cplate">
         <div class="name">${afx ? `<span class="affix-name" style="color:${afx.tone}">${afx.name.toUpperCase()}</span> ` : ''}${en.name.toUpperCase()}</div>
         <div class="hpbar-wrap"><span class="block-chip zero">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div><span class="hp-label"></span></div>
         <div class="facet-row"></div>
-        <div class="status-row"></div>
       </div>`;
     zone.appendChild(box);
     ce.enemies.push({
@@ -1042,6 +1053,8 @@ function renderCombat() {
     if (S.targeting) clearTargeting();
     else if (S.hoveredCard != null) { S.hoveredCard = null; layoutHand(); } // tap the stage to set the pane back down
   });
+  // startCombat already queued opening draws — hide seats + restore pile chrome first
+  armQueuedDrawPending(cb);
   syncCombat();
   syncHand();
 }
@@ -1113,7 +1126,7 @@ function statusChips(container, statuses, isPlayer) {
     const u = assetUrl('statuses', id);
     const art = u
       ? `<img class="schip-art" src="${u}" alt="">`
-      : (hasIcon(`st-${id}`) ? iconSvg(`st-${id}`, 28) : info.icon);
+      : (hasIcon(`st-${id}`) ? iconSvg(`st-${id}`, 32) : info.icon);
     const count = Math.abs(n) >= 2 ? `<span class="n">${n}</span>` : '';
     const chip = el('span', `schip ${kind}`, `${art}${count}`);
     chip._tip = { title: info.name, body: info.desc.replace(/\bN\b/g, Math.abs(n)), sub: kind === 'debuff' ? 'Debuff' : 'Buff' };
@@ -1166,6 +1179,9 @@ function syncCombat() {
     x.block.classList.toggle('zero', en.block <= 0);
     x.block.innerHTML = `${iconSvg('shield', 13)} ${en.block}`;
     x.art.classList.toggle('warded', en.block > 0);
+    // Ward ON is owned by blockGain (animated grow). syncCombat only fades when block hits 0 —
+    // otherwise an earlier sync in the same drain wave snaps the shell on before blockGain runs.
+    if (en.block <= 0) syncWardMesh(x.art, false);
     x.root.classList.toggle('lowhp', en.hp > 0 && en.hp / en.maxHp <= 0.3);
     statusChips(x.statuses, en.statuses, false);
     if (en.hp > 0) x.facets.innerHTML = facetPips(en);
@@ -1202,6 +1218,8 @@ function syncCombat() {
   ce.pBlock.classList.toggle('zero', P.block <= 0);
   ce.pBlock.innerHTML = `${iconSvg('shield', 13)} ${P.block}`;
   ce.hero.classList.toggle('warded', P.block > 0);
+  // Ward ON is owned by blockGain (animated grow). syncCombat only fades when block hits 0.
+  if (P.block <= 0) syncWardMesh(ce.hero, false);
   ce.hero.classList.toggle('lowhp', P.hp / P.maxHp <= 0.3);
   statusChips(ce.pStatus, P.statuses, true);
   $('.num', ce.energy).textContent = P.energy;
@@ -1211,9 +1229,127 @@ function syncCombat() {
   const maxE = Math.max(P.energyMax, P.energy);
   if (cd.children.length !== maxE) cd.innerHTML = Array.from({ length: maxE }, () => '<span class="candle"></span>').join('');
   [...cd.children].forEach((c, i) => c.classList.toggle('lit', i < P.energy));
-  $('.cnt', ce.draw).textContent = cb.draw.length;
-  $('.cnt', ce.discard).textContent = cb.discard.length;
-  $('.cnt', ce.exhaust).textContent = cb.exhaust.length;
+  syncPileWidgets(cb);
+}
+function syncPileWidgets(cb) {
+  const ce = S.ce;
+  if (!ce) return;
+  const ov = pileVisualOverride || {};
+  const map = [
+    [ce.draw, 'draw', ov.draw != null ? ov.draw : Math.max(0, cb.draw.length - (pileVisualHold.draw || 0))],
+    [ce.discard, 'discard', ov.discard != null ? ov.discard : Math.max(0, cb.discard.length - (pileVisualHold.discard || 0))],
+    [ce.exhaust, 'ashes', Math.max(0, cb.exhaust.length - (pileVisualHold.ashes || 0))],
+  ];
+  for (const [btn, pile, n] of map) {
+    if (!btn) continue;
+    const tier = pileTier(n);
+    const layers = pileFanLayers(n);
+    const stack = btn.querySelector('.pile-stack');
+    $('.cnt', btn).textContent = n;
+    if (!stack) continue;
+    if (Number(stack.dataset.count) === n) continue;
+    stack.dataset.count = String(n);
+    stack.dataset.tier = String(tier);
+    const url = assetUrl('piles', pileMasterId(pile));
+    stack.replaceChildren();
+    stack.classList.toggle('is-empty', layers === 0);
+    if (!url) {
+      // glass label+count stay usable when a master PNG is missing
+      stack.classList.add('pile-stack-fallback');
+      continue;
+    }
+    stack.classList.remove('pile-stack-fallback');
+    // Flat fan: prefer 5°/card, average down so whole span ≤30°; count is SoT.
+    for (let i = 0; i < layers; i++) {
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = '';
+      img.className = 'pile-layer';
+      img.style.setProperty('--rot', `${pileFanAngleDeg(i, layers)}deg`);
+      stack.appendChild(img);
+    }
+  }
+}
+
+/** Cards already in engine piles but still in flight — hide until ceremony lands. */
+const pileVisualHold = { draw: 0, discard: 0, ashes: 0 };
+/** Mid-wave chrome override (draw/discard) while engine is already at post-draw state. */
+let pileVisualOverride = null;
+function holdPileVisual(pile, n = 1) {
+  if (!pileVisualHold[pile]) pileVisualHold[pile] = 0;
+  pileVisualHold[pile] += Math.max(0, n | 0);
+}
+function releasePileVisual(pile, n = 1) {
+  pileVisualHold[pile] = Math.max(0, (pileVisualHold[pile] || 0) - Math.max(0, n | 0));
+}
+/** Engine already queued destination events; hold those piles through mid-play syncs. */
+function holdPendingPileArrivals(cb, uid) {
+  for (const e of cb.queue) {
+    if (e.uid == null || String(e.uid) !== String(uid)) continue;
+    if (e.t === 'toDiscard') holdPileVisual('discard', 1);
+    if (e.t === 'exhaust') holdPileVisual('ashes', 1);
+  }
+}
+/** uid → ms from batch start when that hand seat should appear (matches flyer land). */
+const drawRevealPlan = new Map();
+
+/** Peek draw/reshuffle segments without consuming the queue (combat-enter paint). */
+function peekDrawWaveSegments(queue) {
+  const segments = [];
+  let i = 0;
+  while (i < queue.length && (queue[i].t === 'draw' || queue[i].t === 'reshuffle')) {
+    if (queue[i].t === 'reshuffle') {
+      segments.push({ t: 'reshuffle', ev: queue[i] });
+      i++;
+    } else {
+      const draws = [];
+      while (i < queue.length && queue[i].t === 'draw') draws.push(queue[i++]);
+      segments.push({ t: 'draws', draws });
+    }
+  }
+  return segments;
+}
+
+/** Before first drain: hide hand seats + restore pile chrome for queued opening draws. */
+function armQueuedDrawPending(cb) {
+  if (REDUCED || !cb?.queue?.length) return;
+  const segments = peekDrawWaveSegments(cb.queue);
+  if (!segments.length) return;
+  const reshuffle = segments.find((s) => s.t === 'reshuffle');
+  const firstSegDraws = segments[0]?.t === 'draws' ? segments[0].draws.length : 0;
+  pileVisualOverride = {
+    draw: segments[0]?.t === 'draws'
+      ? (reshuffle ? firstSegDraws : cb.draw.length + firstSegDraws)
+      : 0,
+    discard: reshuffle ? (reshuffle.ev.n || 0) : 0,
+  };
+  let seq = 0;
+  for (const seg of segments) {
+    if (seg.t !== 'draws') continue;
+    for (const ev of seg.draws) {
+      const uid = String(ev.uid);
+      if (!drawRevealPlan.has(uid)) drawRevealPlan.set(uid, { landAt: null, seq: seq++ });
+    }
+  }
+}
+
+function pendingPileCeremonyUids(cb) {
+  const keep = new Set();
+  for (const ev of cb.queue) {
+    if ((ev.t === 'toDiscard' || ev.t === 'exhaust' || ev.t === 'powerConsumed') && ev.uid != null) {
+      keep.add(String(ev.uid));
+    }
+  }
+  return keep;
+}
+function scheduleHandReveal(c, landAt) {
+  setTimeout(() => {
+    if (!c.isConnected) return;
+    c.classList.remove('draw-pending');
+    c.classList.add('draw-in');
+    layoutHand();
+    setTimeout(() => c.classList.remove('draw-in'), 240);
+  }, landAt);
 }
 function syncHand() {
   const cb = S.cb, ce = S.ce;
@@ -1221,12 +1357,26 @@ function syncHand() {
   const wrap = ce.hand;
   const have = new Map($$('.card', wrap).map((c) => [c.dataset.uid, c]));
   const want = new Set(cb.hand.map((c) => String(c.uid)));
-  for (const [uid, elc] of have) if (!want.has(uid)) elc.remove();
+  // draw mid-play can syncHand before toDiscard/exhaust flies — keep those DOM nodes
+  const pending = pendingPileCeremonyUids(cb);
+  for (const [uid, elc] of have) if (!want.has(uid) && !pending.has(uid)) elc.remove();
   for (const inst of cb.hand) {
     if (!have.has(String(inst.uid))) {
       const c = cardEl(inst, { inCombat: true });
-      c.classList.add('draw-in');
-      setTimeout(() => c.classList.remove('draw-in'), 400);
+      // Invisible until matching draw flyer lands — plan OR still-queued draw event
+      const uid = String(inst.uid);
+      const plan = drawRevealPlan.get(uid);
+      const queuedDraw = cb.queue.some((e) => e.t === 'draw' && String(e.uid) === uid);
+      if (!REDUCED && (plan != null || queuedDraw)) {
+        if (typeof plan === 'object' && plan?.seq != null) c.dataset.drawSeq = String(plan.seq);
+        c.classList.add('draw-pending');
+        const landAt = plan == null ? null : (typeof plan === 'number' ? plan : plan.landAt);
+        if (landAt != null) {
+          drawRevealPlan.delete(uid);
+          scheduleHandReveal(c, landAt);
+        }
+        // landAt null / queued only: stay pending until draw-wave segment arms the timer
+      }
       c.onclick = (e) => { e.stopPropagation(); onCardClick(inst.uid); };
       if (FINE) {
         c.onmouseenter = () => { S.hoveredCard = inst.uid; sfx.hover(); layoutHand(); };
@@ -1238,8 +1388,10 @@ function syncHand() {
       // refresh cost/text (str/dex/duskmirror can change display)
       const fresh = cardEl(inst, { inCombat: true });
       const old = have.get(String(inst.uid));
+      const keep = ['armed', 'draw-pending', 'draw-in', 'lifted', 'dragging', 'will-cast', 'will-burn', 'played-up']
+        .filter((k) => old.classList.contains(k));
       old.replaceChildren(...fresh.childNodes);
-      old.className = fresh.className + (old.classList.contains('armed') ? ' armed' : '');
+      old.className = [fresh.className, ...keep].filter(Boolean).join(' ');
       old.onclick = (e) => { e.stopPropagation(); onCardClick(inst.uid); };
       if (FINE) {
         old.onmouseenter = () => { S.hoveredCard = inst.uid; layoutHand(); };
@@ -1254,24 +1406,34 @@ function layoutHand() {
   if (!ce) return;
   const cards = cb.hand.map((c) => String(c.uid));
   const els = new Map($$('.card', ce.hand).map((c) => [c.dataset.uid, c]));
-  const n = cards.length;
-  // the fan never outgrows the screen: on a phone it stacks deep between two
-  // chrome gutters (energy orb left, end-turn right) instead of spreading
+  // Fan only seats already revealed — pending draws stay centred until their flyer lands
+  const fan = cards.filter((uid) => {
+    const c = els.get(uid);
+    return c && !c.classList.contains('draw-pending');
+  });
+  const n = fan.length;
   const gap = Math.min(112, 640 / Math.max(n, 1), (stageW() - 246) / Math.max(n - 1, 1));
-  cards.forEach((uid, i) => {
+  cards.forEach((uid) => {
     const c = els.get(uid);
     if (!c) return;
-    const inst = cb.hand[i];
+    const inst = cb.hand.find((h) => String(h.uid) === uid);
+    if (!inst) return;
     const d = E.cardData(inst);
     const playableNow = !d.unplayable && (E.effCost(S.run, cb, inst) ?? 99) <= cb.player.energy;
     c.classList.toggle('unplayable-now', !playableNow);
     const armed = S.targeting?.kind === 'card' && String(S.targeting.uid) === uid;
     const hovered = S.hoveredCard != null && String(S.hoveredCard) === uid;
+    c.classList.toggle('armed', armed);
+    c.classList.toggle('lifted', hovered && !S.busy && !armed);
+    if (c.classList.contains('draw-pending')) {
+      c.style.transform = 'translateX(-50%) translateY(26px) rotate(0deg)';
+      c.style.zIndex = 15;
+      return;
+    }
+    const i = fan.indexOf(uid);
     const rot = n > 1 ? (i - (n - 1) / 2) * Math.min(5, 42 / n) : 0;
     const x = (i - (n - 1) / 2) * gap;
     const y = Math.abs(rot) * 3.2;
-    c.classList.toggle('armed', armed);
-    c.classList.toggle('lifted', hovered && !S.busy && !armed);
     c.style.transform = `translateX(calc(-50% + ${armed ? x * 0.4 : x}px)) translateY(${y + 26}px) rotate(${armed ? rot * 0.5 : rot}deg)`;
     c.style.zIndex = hovered || armed ? 40 : 20 + i;
   });
@@ -1307,6 +1469,8 @@ function bindCardDrag(c, uid) {
   const finish = (e, cancelled) => {
     const st = S.drag;
     if (!st || st.uid !== uid || e.pointerId !== st.id) return;
+    // Capture last on-screen seat (incl. free-drag transform) before chrome resets
+    if (!cancelled && st.live) captureCardAnchor(uid, c, { fromDrag: true });
     S.drag = null;
     if (!st.live) return;
     dragConsumedAt = performance.now();
@@ -1537,6 +1701,11 @@ function aimMove(e) {
   }
 }
 async function doPlay(uid, targetIdx) {
+  // Prefer drag-captured seat; else freeze current hand seat before clearTargeting reflows
+  if (!cardFlightAnchor.has(String(uid))) {
+    const c = $(`.card[data-uid="${uid}"]`, S.ce?.hand);
+    if (c) captureCardAnchor(uid, c);
+  }
   clearTargeting();
   S.hoveredCard = null;
   if (!E.playCard(S.run, S.cb, uid, targetIdx)) return;
@@ -1583,6 +1752,204 @@ function flyTo(x0, y0, x1, y1, { n = 6, color = '#ffe9ac', size = 8, dur = 640, 
     );
     anim.onfinish = () => { m.remove(); if (i === n - 1 && done) done(); };
   }
+}
+
+function bumpPile(btn) {
+  if (!btn || REDUCED) return;
+  btn.classList.remove('pile-bump');
+  void btn.offsetWidth;
+  btn.classList.add('pile-bump');
+}
+
+/** Last on-stage card rects for toDiscard (captured at play before lift/remove). */
+const cardFlightAnchor = new Map();
+function captureCardAnchor(uid, cardEl, meta = {}) {
+  if (uid == null || !cardEl) return;
+  const r = stageRect(cardEl);
+  if (r.width < 2) return;
+  cardFlightAnchor.set(String(uid), {
+    x: r.left + r.width / 2,
+    y: r.top + r.height / 2,
+    w: r.width,
+    h: r.height,
+    fromDrag: !!meta.fromDrag,
+  });
+}
+function peekCardAnchor(uid) {
+  return cardFlightAnchor.get(String(uid)) || null;
+}
+function takeCardAnchor(uid) {
+  const k = String(uid);
+  const a = cardFlightAnchor.get(k);
+  cardFlightAnchor.delete(k);
+  return a || null;
+}
+
+/** Visible pile face size (matches .pile-layer / stack). */
+function pileFaceSize(pileBtn) {
+  const layer = pileBtn?.querySelector('.pile-layer');
+  if (layer) {
+    const r = stageRect(layer);
+    if (r.width > 2 && r.height > 2) return { w: r.width, h: r.height };
+  }
+  const stack = pileBtn?.querySelector('.pile-stack');
+  if (stack) {
+    const r = stageRect(stack);
+    if (r.width > 2) return { w: r.width, h: r.width * (148 / 96) };
+  }
+  return { w: 96, h: 130 };
+}
+
+function handFaceSize() {
+  // Resting hand size only — never sample lifted/armed/dragging (hover scales the box)
+  const sample = S.ce?.hand?.querySelector(
+    '.card:not(.played-up):not(.draw-pending):not(.lifted):not(.armed):not(.dragging)'
+  ) || S.ce?.hand?.querySelector('.card:not(.played-up):not(.draw-pending)');
+  if (sample) {
+    const cw = parseFloat(getComputedStyle(sample).getPropertyValue('--cw'));
+    if (cw > 2) return { w: cw, h: Math.round(cw * 1.42) };
+    // offsetWidth is the layout box (ignores .card-lift hover translate/scale)
+    if (sample.offsetWidth > 2) {
+      return { w: sample.offsetWidth, h: sample.offsetHeight || Math.round(sample.offsetWidth * 1.42) };
+    }
+  }
+  return { w: 152, h: Math.round(152 * 1.42) };
+}
+
+/** CSS `bottom` inset of a hand card (shape breakpoints change it). */
+function handCardBottomInset() {
+  const sample = S.ce?.hand?.querySelector('.card');
+  if (sample) {
+    const b = parseFloat(getComputedStyle(sample).bottom);
+    if (Number.isFinite(b)) return b;
+  }
+  return 8;
+}
+
+/** Stage centre of a resting (non-hovered) hand-fan seat — matches layoutHand, not .lifted. */
+function handSeatCenter(fanIndex, fanCount) {
+  const n = Math.max(1, fanCount | 0);
+  const i = Math.max(0, Math.min(n - 1, fanIndex | 0));
+  const gap = Math.min(112, 640 / n, (stageW() - 246) / Math.max(n - 1, 1));
+  const rot = n > 1 ? (i - (n - 1) / 2) * Math.min(5, 42 / n) : 0;
+  const x = (i - (n - 1) / 2) * gap;
+  // layoutHand resting: translateY(abs(rot)*3.2 + 26) — positive Y is down
+  const sagY = Math.abs(rot) * 3.2 + 26;
+  const sz = handFaceSize();
+  let baseBottom = stageH() - handCardBottomInset();
+  const zone = S.ce?.hand;
+  if (zone) {
+    const zr = stageRect(zone);
+    if (zr.height > 2) baseBottom = zr.bottom - handCardBottomInset();
+  }
+  return {
+    x: stageW() / 2 + x,
+    y: baseBottom - sz.h / 2 + sagY,
+  };
+}
+
+function resolveFlightSize(spec, { pileBtn, src, fallback } = {}) {
+  if (spec && typeof spec === 'object' && spec.w) return { w: spec.w, h: spec.h };
+  if (spec === 'hand') return handFaceSize();
+  if (spec === 'src' && src?.w) return { w: src.w, h: src.h };
+  if (spec === 'src' && src?.el) {
+    const r = stageRect(src.el);
+    if (r.width > 2) return { w: r.width, h: r.height };
+  }
+  if (spec === 'pile' || spec == null) return pileFaceSize(pileBtn);
+  return fallback || pileFaceSize(pileBtn);
+}
+
+/**
+ * Pile-ceremony flights. Default face size = current pile card size.
+ * opts.fromSize / toSize: {w,h} | 'pile' | 'hand' | 'src'  (omit toSize → same as from)
+ * opts.face: 'card' = real card face (src.inst or opts.cardInst); 'back' = sealed back; else pile art
+ * opts.cardInst: fallback card instance when face === 'card'
+ * opts.pileArt: draw|discard|ashes master when using pile face (reshuffle only)
+ * opts.sizePile: pile button used when resolving 'pile' sizes (defaults to toEl)
+ */
+function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
+  const layer = $('#floaties');
+  const dest = V.centerOf(toEl);
+  const n = fromList.length;
+  const { stagger, flightDur, awaitMs } = opts.schedule || flightSchedule(n, budgetMs);
+  if (REDUCED || n === 0) return Promise.resolve(0);
+  const sizePile = opts.sizePile || toEl;
+  const artUrl = (opts.face === 'back' || opts.face === 'card')
+    ? null
+    : assetUrl('piles', pileMasterId(opts.pileArt || 'draw'));
+  fromList.forEach((src, i) => {
+    const origin = src.el
+      ? (() => { const r = stageRect(src.el); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }; })()
+      : src;
+    const land = src.dest || dest;
+    const fromSize = resolveFlightSize(opts.fromSize || 'pile', { pileBtn: sizePile, src: origin });
+    const toSize = opts.toSize == null
+      ? fromSize
+      : resolveFlightSize(opts.toSize, { pileBtn: sizePile, src: origin, fallback: fromSize });
+    const endScale = fromSize.w > 0 ? toSize.w / fromSize.w : 1;
+    const inst = src.inst || opts.cardInst;
+    let m;
+    let startScale = 1;
+    let landScale = endScale;
+    if (opts.face === 'card' && inst) {
+      // Always layout at hand --cw so fonts/cost match a real card; size via transform only
+      const hand = handFaceSize();
+      const layoutW = hand.w;
+      const layoutH = hand.h;
+      startScale = layoutW > 0 ? fromSize.w / layoutW : 1;
+      landScale = layoutW > 0 ? toSize.w / layoutW : endScale;
+      m = cardEl(inst, { inCombat: true, size: layoutW });
+      m.classList.add('flycard-face');
+      Object.assign(m.style, {
+        position: 'absolute', left: `${origin.x}px`, top: `${origin.y}px`,
+        width: `${layoutW}px`, height: `${layoutH}px`, margin: 0,
+        transform: `translate(-50%,-50%) scale(${startScale})`, zIndex: 58 + i, pointerEvents: 'none',
+      });
+    } else {
+      m = el('div', artUrl ? 'flycard flycard-pile' : 'flycard flycard-back');
+      m.style.left = `${origin.x}px`;
+      m.style.top = `${origin.y}px`;
+      m.style.width = `${fromSize.w}px`;
+      m.style.height = `${fromSize.h}px`;
+      m.style.zIndex = String(58 + i);
+      if (artUrl) m.style.backgroundImage = `url(${artUrl})`;
+    }
+    layer.appendChild(m);
+    const smooth = opts.arc === 'smooth';
+    const easing = opts.easing || (smooth ? 'cubic-bezier(.22,.7,.28,1)' : 'cubic-bezier(.32,.05,.35,1)');
+    // Smooth arc: short lift toward discard, little jitter. Default: loftier random mid.
+    const mx = smooth
+      ? origin.x + (land.x - origin.x) * 0.42 + (Math.random() - 0.5) * 18
+      : (origin.x + land.x) / 2 + (Math.random() - 0.5) * 80;
+    const my = smooth
+      ? Math.min(origin.y, land.y) - 18 - Math.random() * 16
+      : Math.min(origin.y, land.y) - 40 - Math.random() * 50;
+    const dx1 = mx - origin.x, dy1 = my - origin.y;
+    const dx2 = land.x - origin.x, dy2 = land.y - origin.y;
+    const midScale = startScale + (landScale - startScale) * (smooth ? 0.55 : 0.45);
+    const keyframes = smooth
+      ? [
+        { transform: `translate(-50%,-50%) scale(${startScale})`, opacity: 1, offset: 0 },
+        { transform: `translate(calc(-50% + ${dx1 * 0.55}px), calc(-50% + ${dy1 * 0.55}px)) scale(${startScale + (midScale - startScale) * 0.5})`, opacity: 1, offset: 0.35 },
+        { transform: `translate(calc(-50% + ${dx1}px), calc(-50% + ${dy1}px)) scale(${midScale})`, opacity: 0.98, offset: 0.62 },
+        { transform: `translate(calc(-50% + ${dx2}px), calc(-50% + ${dy2}px)) scale(${landScale})`, opacity: 0.92, offset: 1 },
+      ]
+      : [
+        { transform: `translate(-50%,-50%) scale(${startScale})`, opacity: 0.95 },
+        { transform: `translate(calc(-50% + ${dx1}px), calc(-50% + ${dy1}px)) scale(${midScale})`, opacity: 1, offset: 0.45 },
+        { transform: `translate(calc(-50% + ${dx2}px), calc(-50% + ${dy2}px)) scale(${landScale})`, opacity: 0.9 },
+      ];
+    m.animate(keyframes, {
+      duration: flightDur, delay: i * stagger, easing, fill: 'forwards',
+    }).onfinish = () => m.remove();
+  });
+  return sleep(awaitMs);
+}
+
+/** Resolve a card instance already moved into a pile (engine mutates before drain). */
+function pileCardByUid(pile, uid) {
+  return (pile || []).find((c) => String(c.uid) === String(uid)) || null;
 }
 
 // --------- the living-glass rig: one rAF drives eyes, inner fire and light pools
@@ -1730,6 +2097,14 @@ function meshBindCombatants() {
     if (url && sprite) entries.push({ el: sprite, url, kind: ENEMIES[en.key].art.kind, id: en.key });
   });
   meshBind(entries);
+  // combat-start relics (e.g. basaltIdol) add block without blockGain — restore shell after bind
+  if (cb.player.block > 0 && heroSprite) syncWardMesh(heroSprite, true, true);
+  cb.enemies.forEach((en, i) => {
+    if (en.block <= 0) return;
+    const art = ce.enemies[i]?.art;
+    const sprite = art && ($('.enemy-sprite', art) || art);
+    if (sprite) syncWardMesh(sprite, true, true);
+  });
 }
 function scheduleMeshBind() {
   requestAnimationFrame(() => requestAnimationFrame(meshBindCombatants));
@@ -1885,15 +2260,162 @@ async function drain(targetIdx = null) {
   ce.endTurn.classList.add('enemy-phase');
   const q = cb.queue;
   while (q.length) {
-    const ev = q.shift();
-    try { await handleEvent(ev, targetIdx); } catch (err) { console.error('vfx event error', ev, err); }
+    const ev = q[0];
+    try {
+      // drawCards may emit draw* → reshuffle → draw*; keep one wave so hand stays paced
+      if (ev.t === 'draw' || ev.t === 'reshuffle') {
+        await handleDrawWave(q);
+      } else {
+        q.shift();
+        await handleEvent(ev, targetIdx);
+      }
+    } catch (err) { console.error('vfx event error', ev, err); }
   }
   S.busy = false;
   if (!cb.over) ce.endTurn.classList.remove('enemy-phase');
+  pileVisualOverride = null;
   syncCombat();
   syncHand();
   renderHud();
 }
+
+/** Parse draw/reshuffle/draw segments from the front of the queue. */
+function takeDrawWaveSegments(q) {
+  const segments = [];
+  while (q[0]?.t === 'draw' || q[0]?.t === 'reshuffle') {
+    if (q[0].t === 'reshuffle') {
+      segments.push({ t: 'reshuffle', ev: q.shift() });
+    } else {
+      const draws = [];
+      while (q[0]?.t === 'draw') draws.push(q.shift());
+      segments.push({ t: 'draws', draws });
+    }
+  }
+  return segments;
+}
+
+async function playReshuffleCeremony(ev) {
+  const cb = S.cb, ce = S.ce;
+  sfx.card();
+  const n = ev.n || 6;
+  if (pileVisualOverride) {
+    pileVisualOverride.discard = n;
+    pileVisualOverride.draw = 0;
+    syncPileWidgets(cb);
+  } else {
+    holdPileVisual('draw', n);
+    syncPileWidgets(cb);
+  }
+  const origins = Array.from({ length: n }, () => V.centerOf(ce.discard));
+  await flyCardBacks(origins, ce.draw, 560, {
+    fromSize: 'pile', sizePile: ce.discard, pileArt: 'discard',
+  });
+  if (pileVisualOverride) {
+    pileVisualOverride.discard = 0;
+    pileVisualOverride.draw = n;
+  } else {
+    releasePileVisual('draw', n);
+  }
+  bumpPile(ce.draw);
+  V.floatText(V.centerOf(ce.draw).x, V.centerOf(ce.draw).y - 46, 'Reshuffle', 'notice');
+  syncPileWidgets(cb);
+}
+
+/** One drawCards wave: pre-pending all hand seats, then draw / reshuffle / draw in order. */
+async function handleDrawWave(q) {
+  const cb = S.cb, ce = S.ce;
+  const segments = takeDrawWaveSegments(q);
+  const reshuffle = segments.find((s) => s.t === 'reshuffle');
+
+  // Resting seats only — clear hover so flyers never aim at a lifted card
+  if (S.hoveredCard != null) S.hoveredCard = null;
+
+  // Engine is already post-draw — reconstruct chrome so piles still look pre-wave
+  const firstSegDraws = segments[0]?.t === 'draws' ? segments[0].draws.length : 0;
+  pileVisualOverride = {
+    // mid-reshuffle wave: only the pre-reshuffle stock is still "in" the draw pile
+    // plain draw wave: remaining engine draw + cards about to fly
+    draw: segments[0]?.t === 'draws'
+      ? (reshuffle ? firstSegDraws : cb.draw.length + firstSegDraws)
+      : 0,
+    discard: reshuffle ? (reshuffle.ev.n || 0) : 0,
+  };
+
+  // Pre-mark EVERY card in this wave as pending before syncHand (fixes mid-reshuffle pop-in)
+  drawRevealPlan.clear();
+  let seq = 0;
+  for (const seg of segments) {
+    if (seg.t !== 'draws') continue;
+    for (const ev of seg.draws) {
+      drawRevealPlan.set(String(ev.uid), { landAt: null, seq: seq++ });
+    }
+  }
+  syncHand();
+  syncPileWidgets(cb);
+
+  let baseFan = $$('.card', ce.hand).filter((c) => !c.classList.contains('draw-pending')).length;
+  let arrival = 0;
+
+  for (const seg of segments) {
+    if (seg.t === 'reshuffle') {
+      await playReshuffleCeremony(seg.ev);
+      continue;
+    }
+    const draws = seg.draws;
+    const n = draws.length;
+    if (!n) continue;
+    const sched = drawBatchSchedule(n, 500);
+
+    // Arm reveal timers now that this segment's clock starts
+    draws.forEach((ev, i) => {
+      const uid = String(ev.uid);
+      const landAt = REDUCED ? 0 : sched.flightDur + i * sched.stagger;
+      drawRevealPlan.delete(uid);
+      const c = $(`.card[data-uid="${uid}"]`, ce.hand);
+      if (c && !REDUCED) scheduleHandReveal(c, landAt);
+      else if (c) {
+        c.classList.remove('draw-pending');
+      }
+    });
+
+    if (!REDUCED) {
+      const origin = V.centerOf(ce.draw);
+      const fromList = draws.map((ev, i) => {
+        const inst = cb.hand.find((c) => String(c.uid) === String(ev.uid))
+          || { uid: ev.uid, id: ev.id, up: false, bonus: 0 };
+        const dest = handSeatCenter(baseFan + arrival + i, baseFan + arrival + i + 1);
+        return { x: origin.x, y: origin.y, inst, dest };
+      });
+      // Shrink visual draw as each flyer leaves the pile
+      draws.forEach((_, i) => {
+        setTimeout(() => {
+          if (!pileVisualOverride) return;
+          pileVisualOverride.draw = Math.max(0, (pileVisualOverride.draw || 0) - 1);
+          syncPileWidgets(cb);
+        }, i * sched.stagger);
+      });
+      flyCardBacks(fromList, ce.hand, 500, {
+        fromSize: 'pile', toSize: 'hand', sizePile: ce.draw, face: 'card', schedule: sched,
+      });
+      bumpPile(ce.draw);
+      draws.forEach((_, i) => setTimeout(() => sfx.draw(), i * sched.stagger));
+      await sleep(sched.awaitMs);
+    } else {
+      layoutHand();
+      await sleep(40);
+    }
+    arrival += n;
+    if (pileVisualOverride) {
+      // snap to remaining visual after segment (post-reshuffle draw shrinks by n)
+      pileVisualOverride.draw = Math.max(0, (pileVisualOverride.draw || 0));
+    }
+    syncPileWidgets(cb);
+  }
+
+  pileVisualOverride = null;
+  syncCombat();
+}
+
 let emberFrom = null; // where the last fire spilled from (shatter/death/kindle)
 async function handleEvent(ev, targetIdx) {
   const cb = S.cb, ce = S.ce;
@@ -2016,17 +2538,12 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'endTurn': heroActing = false; banner('ENEMY TURN'); await sleep(480); break;
     case 'draw': {
-      syncHand(); syncCombat(); sfx.draw();
-      await sleep(75);
+      await handleDrawWave([ev]);
       break;
     }
     case 'reshuffle': {
-      // the ritual of the turned deck: card-backs arc from discard to draw
-      sfx.card();
-      const d0 = V.centerOf(ce.discard), d1 = V.centerOf(ce.draw);
-      flyTo(d0.x, d0.y, d1.x, d1.y, { n: 6, cls: 'flycard', dur: 520 });
-      V.floatText(d1.x, d1.y - 46, 'Reshuffle', 'notice');
-      await sleep(420);
+      await playReshuffleCeremony(ev);
+      syncCombat();
       break;
     }
     case 'play': {
@@ -2047,6 +2564,8 @@ async function handleEvent(ev, targetIdx) {
         // targeted attacks: the card itself streaks into the enemy
         const r = stageRect(c); // ghost is fixed inside the stage
         const { x: tx, y: ty } = enemyCenter(targetIdx);
+        // Discard/exhaust should resume from where the streak ends, not the hand seat
+        cardFlightAnchor.set(String(ev.uid), { x: tx, y: ty, w: r.width * 0.22, h: r.height * 0.22 });
         const ghost = c.cloneNode(true);
         Object.assign(ghost.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, margin: 0, transform: 'none', zIndex: 56, pointerEvents: 'none' });
         document.getElementById('floaties').appendChild(ghost);
@@ -2056,9 +2575,15 @@ async function handleEvent(ev, targetIdx) {
           { duration: 270, easing: 'cubic-bezier(.45,0,.9,.5)' }
         ).onfinish = () => ghost.remove();
       } else if (c) {
+        // Tap/click: play lifts the card — recapture AFTER played-up so discard starts there.
+        // Drag: keep the release-seat anchor (fromDrag); clearTargeting already reflowed the DOM.
         c.classList.add('played-up');
-        setTimeout(() => c.remove(), 320);
+        void c.offsetWidth;
+        const prev = peekCardAnchor(ev.uid);
+        if (!prev?.fromDrag) captureCardAnchor(ev.uid, c);
       }
+      // engine already pushed discard/exhaust; hold pile chrome until those flights land
+      holdPendingPileArrivals(cb, ev.uid);
       syncCombat();
       await sleep(200);
       break;
@@ -2195,7 +2720,7 @@ async function handleEvent(ev, targetIdx) {
       const host = isP
         ? ($('.hero-sprite', ce.hero) || ce.hero)
         : ($('.enemy-sprite', ce.enemies[ev.who]?.art) || ce.enemies[ev.who]?.art);
-      playWardGain(host);
+      syncWardMesh(host, true, true);
       V.floatText(x, y - 10, `${iconSvg('shield', 22)} ${ev.n}`, 'blockf');
       const chip = isP ? ce.pBlock : ce.enemies[ev.who].block;
       chip.classList.remove('pulse');
@@ -2230,11 +2755,61 @@ async function handleEvent(ev, targetIdx) {
     case 'energy': syncCombat(); ce.energy.classList.remove('pop'); void ce.energy.offsetWidth; ce.energy.classList.add('pop'); break;
     case 'exhaust': {
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
-      if (c) {
-        // the card burns away edge-inward, embers rising off it
-        const r = stageRect(c);
+      const anchor = takeCardAnchor(ev.uid);
+      const inst = pileCardByUid(cb.exhaust, ev.uid);
+      if (REDUCED) {
+        if (c) c.remove();
+        releasePileVisual('ashes', 1);
+        syncCombat();
+        break;
+      }
+      // Played exhaust → flight only (same language as toDiscard).
+      // Hand kindle / in-hand exhaust → burn-inward at the seat, then ashes flight.
+      const played = !!(anchor?.fromDrag || c?.classList.contains('played-up') || (!c && anchor));
+      if (played) {
+        let origin = null;
+        if (anchor?.fromDrag) {
+          origin = { ...anchor, inst };
+        } else if (c) {
+          const r = stageRect(c);
+          if (r.width > 2) {
+            origin = {
+              x: r.left + r.width / 2, y: r.top + r.height / 2,
+              w: r.width, h: r.height, inst,
+            };
+          }
+        }
+        if (!origin && anchor) origin = { ...anchor, inst };
+        if (!origin && inst) origin = { ...V.centerOf(ce.hand), ...handFaceSize(), inst };
+        if (c) {
+          c.classList.add('draw-pending');
+          layoutHand();
+        }
+        if (inst && origin) {
+          await flyCardBacks([{ ...origin, inst }], ce.exhaust, 200, {
+            fromSize: 'src', toSize: 'pile', sizePile: ce.exhaust, face: 'card', cardInst: inst,
+            schedule: { stagger: 0, flightDur: 200, awaitMs: 200 },
+            arc: 'smooth', easing: 'cubic-bezier(.22,.7,.28,1)',
+          });
+        }
+        if (c) c.remove();
+        releasePileVisual('ashes', 1);
+        bumpPile(ce.exhaust);
+        syncCombat();
+        break;
+      }
+      // In-hand → ashes (kindle): burn at the seat
+      const live = c ? stageRect(c) : null;
+      const start = (live && live.width > 2)
+        ? { x: live.left + live.width / 2, y: live.top + live.height / 2, w: live.width, h: live.height }
+        : anchor;
+      if (c && start) {
         const ghost = c.cloneNode(true);
-        Object.assign(ghost.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, margin: 0, transform: 'none', zIndex: 56, pointerEvents: 'none' });
+        Object.assign(ghost.style, {
+          position: 'fixed', left: `${start.x - start.w / 2}px`, top: `${start.y - start.h / 2}px`,
+          width: `${start.w}px`, height: `${start.h}px`, margin: 0, transform: 'none',
+          zIndex: 56, pointerEvents: 'none', opacity: '1',
+        });
         document.getElementById('floaties').appendChild(ghost);
         c.remove();
         ghost.animate(
@@ -2245,22 +2820,170 @@ async function handleEvent(ev, targetIdx) {
           ],
           { duration: 540, easing: 'ease-in' }
         ).onfinish = () => ghost.remove();
-        V.burst(r.left + r.width / 2, r.top + r.height / 2, { color: '#ffb066', n: 22, speed: 190, grav: -150, size: 2.4, life: 0.85 });
+        V.burst(start.x, start.y, { color: '#ffb066', n: 22, speed: 190, grav: -150, size: 2.4, life: 0.85 });
+        const a1 = V.centerOf(ce.exhaust);
+        flyTo(start.x, start.y, a1.x, a1.y, { n: 8, color: '#ffb066', size: 5, dur: 480 });
+        bumpPile(ce.exhaust);
         await sleep(260);
+      } else if (c) {
+        c.remove();
       }
+      releasePileVisual('ashes', 1);
       syncCombat();
       break;
     }
     case 'discardHand': {
-      const els = $$('.card', ce.hand);
-      if (els.length) {
-        sfx.card();
-        els.forEach((c, i) => {
-          c.animate([{ opacity: 1 }, { transform: `${c.style.transform} translateX(340px) rotate(20deg)`, opacity: 0 }],
-            { duration: 260, delay: i * 28, easing: 'ease-in' }).onfinish = () => c.remove();
+      // Same even-stagger clock as draw: each unplayed hand card flies in order
+      const uids = ev.uids || [];
+      const n = uids.length;
+      sfx.card();
+      if (!n) { syncCombat(); break; }
+      if (REDUCED) {
+        uids.forEach((uid) => {
+          takeCardAnchor(uid);
+          $(`.card[data-uid="${uid}"]`, ce.hand)?.remove();
         });
-        await sleep(280 + els.length * 28);
+        syncCombat();
+        break;
       }
+      holdPileVisual('discard', n);
+      const sched = drawBatchSchedule(n, 500);
+      // Snapshot seats FIRST (before hiding) — clone the live card so the flyer matches the hand
+      const flights = [];
+      for (const uid of uids) {
+        const elc = $(`.card[data-uid="${uid}"]`, ce.hand);
+        const inst = pileCardByUid(cb.discard, uid)
+          || { uid, id: elc?.dataset?.id, up: false, bonus: 0 };
+        const anchor = takeCardAnchor(uid);
+        let origin;
+        if (anchor) {
+          origin = { x: anchor.x, y: anchor.y, w: anchor.w, h: anchor.h };
+        } else if (elc) {
+          const r = stageRect(elc);
+          origin = { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
+        } else {
+          origin = { ...V.centerOf(ce.hand), ...handFaceSize() };
+        }
+        flights.push({ ...origin, inst, el: elc });
+      }
+      // Hide seats only after snapshots — fan reflows without ghosts
+      for (const f of flights) {
+        if (f.el) f.el.classList.add('draw-pending');
+      }
+      layoutHand();
+      if (flights.length) {
+        const layer = $('#floaties');
+        const dest = V.centerOf(ce.discard);
+        const pileSz = pileFaceSize(ce.discard);
+        flights.forEach((src, i) => {
+          const layoutW = src.w > 2 ? src.w : handFaceSize().w;
+          const layoutH = src.h > 2 ? src.h : handFaceSize().h;
+          const landScale = layoutW > 0 ? pileSz.w / layoutW : 0.65;
+          let m;
+          if (src.el) {
+            m = src.el.cloneNode(true);
+            m.classList.remove('draw-pending', 'lifted', 'armed', 'dragging', 'will-cast', 'will-burn', 'played-up', 'unplayable-now');
+            m.classList.add('flycard-face');
+            m.removeAttribute('style');
+            Object.assign(m.style, {
+              position: 'absolute', left: `${src.x}px`, top: `${src.y}px`,
+              width: `${layoutW}px`, height: `${layoutH}px`, margin: 0,
+              transform: 'translate(-50%,-50%) scale(1)', zIndex: 58 + i, pointerEvents: 'none',
+              opacity: '1',
+            });
+          } else if (src.inst?.id) {
+            m = cardEl(src.inst, { inCombat: true, size: layoutW });
+            m.classList.add('flycard-face');
+            Object.assign(m.style, {
+              position: 'absolute', left: `${src.x}px`, top: `${src.y}px`,
+              width: `${layoutW}px`, height: `${layoutH}px`, margin: 0,
+              transform: 'translate(-50%,-50%) scale(1)', zIndex: 58 + i, pointerEvents: 'none',
+            });
+          } else {
+            return;
+          }
+          layer.appendChild(m);
+          const mx = src.x + (dest.x - src.x) * 0.45 + (Math.random() - 0.5) * 24;
+          const my = Math.min(src.y, dest.y) - 28 - Math.random() * 20;
+          const dx1 = mx - src.x, dy1 = my - src.y;
+          const dx2 = dest.x - src.x, dy2 = dest.y - src.y;
+          const mid = 1 + (landScale - 1) * 0.5;
+          m.animate(
+            [
+              { transform: 'translate(-50%,-50%) scale(1)', opacity: 1, offset: 0 },
+              { transform: `translate(calc(-50% + ${dx1}px), calc(-50% + ${dy1}px)) scale(${mid})`, opacity: 1, offset: 0.5 },
+              { transform: `translate(calc(-50% + ${dx2}px), calc(-50% + ${dy2}px)) scale(${landScale})`, opacity: 0.92, offset: 1 },
+            ],
+            {
+              duration: sched.flightDur,
+              delay: i * sched.stagger,
+              easing: 'cubic-bezier(.22,.7,.28,1)',
+              fill: 'forwards',
+            }
+          ).onfinish = () => m.remove();
+          setTimeout(() => {
+            releasePileVisual('discard', 1);
+            syncPileWidgets(cb);
+            bumpPile(ce.discard);
+            sfx.card();
+          }, sched.flightDur + i * sched.stagger);
+        });
+        await sleep(sched.awaitMs);
+        const left = n - flights.length;
+        if (left > 0) releasePileVisual('discard', left);
+      } else {
+        releasePileVisual('discard', n);
+      }
+      uids.forEach((uid) => $(`.card[data-uid="${uid}"]`, ce.hand)?.remove());
+      syncCombat();
+      break;
+    }
+    case 'toDiscard': {
+      const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
+      const anchor = takeCardAnchor(ev.uid);
+      const inst = pileCardByUid(cb.discard, ev.uid);
+      if (!REDUCED && inst && (c || anchor)) {
+        // Drag release → use stored seat. Tap/click → live played-up seat (or refreshed anchor).
+        let origin = null;
+        if (anchor?.fromDrag) {
+          origin = { ...anchor, inst };
+        } else if (c) {
+          const r = stageRect(c);
+          if (r.width > 2) {
+            origin = {
+              x: r.left + r.width / 2, y: r.top + r.height / 2,
+              w: r.width, h: r.height, inst,
+            };
+          }
+        }
+        if (!origin && anchor) origin = { ...anchor, inst };
+        if (!origin) {
+          releasePileVisual('discard', 1);
+          bumpPile(ce.discard);
+          syncCombat();
+          break;
+        }
+        if (c) {
+          c.classList.add('draw-pending');
+          layoutHand();
+        }
+        await flyCardBacks([origin], ce.discard, 200, {
+          fromSize: 'src', toSize: 'pile', sizePile: ce.discard, face: 'card', cardInst: inst,
+          schedule: { stagger: 0, flightDur: 200, awaitMs: 200 },
+          arc: 'smooth', easing: 'cubic-bezier(.22,.7,.28,1)',
+        });
+        if (c) c.remove();
+      } else if (c) {
+        c.remove();
+      } else if (!REDUCED && inst) {
+        await flyCardBacks([{ ...V.centerOf(ce.hand), ...handFaceSize(), inst }], ce.discard, 200, {
+          fromSize: 'hand', toSize: 'pile', sizePile: ce.discard, face: 'card', cardInst: inst,
+          schedule: { stagger: 0, flightDur: 200, awaitMs: 200 },
+          arc: 'smooth', easing: 'cubic-bezier(.22,.7,.28,1)',
+        });
+      }
+      releasePileVisual('discard', 1);
+      bumpPile(ce.discard);
       syncCombat();
       break;
     }
@@ -2317,11 +3040,14 @@ async function handleEvent(ev, targetIdx) {
       // a power doesn't get discarded — it settles into the glass
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
       const from = c ? V.centerOf(c) : { x: stageW() / 2, y: stageH() - 180 };
+      if (c) c.remove();
       const { x: hx, y: hy } = heroCenter();
-      flyTo(from.x, from.y, hx, hy, { n: 7, color: '#c9a8ff', size: 7, dur: 560 });
+      if (!REDUCED) {
+        flyTo(from.x, from.y, hx, hy, { n: 7, color: '#c9a8ff', size: 7, dur: 560 });
+        setTimeout(() => { V.ring(hx, hy, '#c9a8ff', 12, 460, 4); V.motes(hx, hy, '#c9a8ff', 8); }, 560);
+      }
       sfx.buff();
-      setTimeout(() => { V.ring(hx, hy, '#c9a8ff', 12, 460, 4); V.motes(hx, hy, '#c9a8ff', 8); }, 560);
-      await sleep(300);
+      await sleep(REDUCED ? 40 : 300);
       break;
     }
     case 'victory': {
@@ -2993,7 +3719,7 @@ function renderGallery() {
     deeds: Object.keys(DEEDS).map((k) => [k, () => iconSvg(`deed-${k}`, 64)]),
     bequests: ['relic', 'card', 'gold'].map((k) => [k, () => iconSvg(`bequest-${k}`, 64)]),
     meta: ['fallen', 'ascended', 'monument-node'].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
-    vfx: ['ward-loop', 'ward-gain'].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
+    piles: ['draw', 'discard', 'ashes'].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
   };
   screenEl().className = 'gallery-mode';
   screenEl().innerHTML = `<div class="g-toolbar">

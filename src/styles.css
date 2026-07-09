@@ -199,7 +199,10 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 }
 .hud-relic-art { width: 100%; height: 100%; object-fit: contain; display: block; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.75)); }
 .hud-relic-fallback { font-size: 22px; line-height: 1; color: var(--tone, var(--gold)); text-shadow: 0 0 8px var(--tone, var(--gold)); }
-.hud-relic.proc { animation: relicProc 0.7s ease-out; }
+/* proc: scale the seat; glow follows PNG/glyph silhouette (not a box-shadow rect) */
+.hud-relic.proc { animation: relicProcScale 0.7s ease-out; }
+.hud-relic.proc .hud-relic-art { animation: relicProcGlow 0.7s ease-out; }
+.hud-relic.proc .hud-relic-fallback { animation: relicProcGlowGlyph 0.7s ease-out; }
 .relic-chip {
   width: 42px; height: 42px; border-radius: 50%; position: relative; cursor: help;
   display: inline-flex; align-items: center; justify-content: center; font-size: 20px;
@@ -208,11 +211,43 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone, var(--gold)) 55%, transparent), inset 0 10px 20px -12px rgba(255, 255, 255, 0.14), 0 4px 14px rgba(0, 0, 0, 0.5);
   text-shadow: 0 0 8px var(--tone, var(--gold));
 }
-.relic-chip.proc { animation: relicProc 0.7s ease-out; }
+.relic-chip.proc { animation: relicProcScale 0.7s ease-out; }
+.relic-chip.proc .relic-art { animation: relicProcGlowChip 0.7s ease-out; }
 .relic-art { object-fit: contain; display: block; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6)); }
-@keyframes relicProc {
-  0% { transform: scale(1); } 30% { transform: scale(1.35) rotate(-6deg); box-shadow: 0 0 26px var(--tone, var(--gold)); }
+@keyframes relicProcScale {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.35) rotate(-6deg); }
   100% { transform: scale(1); }
+}
+@keyframes relicProcGlow {
+  0% { filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.75)); }
+  30% {
+    filter:
+      drop-shadow(0 0 4px var(--tone, var(--gold)))
+      drop-shadow(0 0 14px var(--tone, var(--gold)))
+      drop-shadow(0 0 26px color-mix(in srgb, var(--tone, var(--gold)) 70%, transparent));
+  }
+  100% { filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.75)); }
+}
+@keyframes relicProcGlowChip {
+  0% { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6)); }
+  30% {
+    filter:
+      drop-shadow(0 0 4px var(--tone, var(--gold)))
+      drop-shadow(0 0 14px var(--tone, var(--gold)))
+      drop-shadow(0 0 26px color-mix(in srgb, var(--tone, var(--gold)) 70%, transparent));
+  }
+  100% { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6)); }
+}
+@keyframes relicProcGlowGlyph {
+  0% { text-shadow: 0 0 8px var(--tone, var(--gold)); }
+  30% {
+    text-shadow:
+      0 0 8px var(--tone, var(--gold)),
+      0 0 16px var(--tone, var(--gold)),
+      0 0 28px color-mix(in srgb, var(--tone, var(--gold)) 70%, transparent);
+  }
+  100% { text-shadow: 0 0 8px var(--tone, var(--gold)); }
 }
 .pop-menu { position: fixed; z-index: 65; background: var(--panel); border: 1px solid var(--panel-line); border-radius: 10px; padding: 6px; display: flex; flex-direction: column; gap: 2px; box-shadow: 0 14px 40px rgba(0,0,0,.6); }
 .pop-menu button { padding: 8px 18px; border-radius: 7px; font-family: 'Cinzel', serif; font-size: 14px; text-align: left; }
@@ -423,7 +458,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 
 /* hand */
 .hand-zone { position: absolute; left: 0; right: 0; bottom: calc(-12px + var(--sab)); height: 260px; z-index: 22; pointer-events: none; }
-.hand-zone .card { position: absolute; left: 50%; bottom: 8px; pointer-events: auto; transition: transform 0.28s cubic-bezier(0.25, 0.9, 0.3, 1.2), filter 0.2s; transform-origin: 50% 100%; touch-action: none; }
+.hand-zone .card { position: absolute; left: 50%; bottom: 8px; pointer-events: auto; transition: transform 0.28s cubic-bezier(0.25, 0.9, 0.3, 1.2), filter 0.2s, opacity 0.12s; transform-origin: 50% 100%; touch-action: none; }
 /* lift animates .card-lift (cost + pane together); hit-testing stays on the fixed .card slot */
 .hand-zone .card .card-lift, .hand-zone .card .card-lift * { pointer-events: none; }
 .hand-zone .card .card-text .kw { pointer-events: auto; }
@@ -439,8 +474,15 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .hand-zone .card:hover .card-inner, .hand-zone .card.armed .card-inner, .hand-zone .card.lifted .card-inner {
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.7), 0 0 24px color-mix(in srgb, var(--tint) 40%, transparent);
 }
-.hand-zone .card.draw-in { animation: drawIn 0.34s cubic-bezier(0.2, 0.8, 0.3, 1.1); }
-@keyframes drawIn { from { transform: translate(-320px, 130px) rotate(-24deg) scale(0.5); opacity: 0; } }
+.hand-zone .card.draw-pending { opacity: 0; pointer-events: none; }
+/* Face reveals only after the card-back flyer lands. */
+.hand-zone .card.draw-in .card-lift {
+  animation: drawReveal 0.24s cubic-bezier(.2,.8,.3,1.05) both;
+}
+@keyframes drawReveal {
+  from { transform: scale(0.9); opacity: 0; filter: brightness(1.18); }
+  to { transform: none; opacity: 1; filter: none; }
+}
 .card.played-up { transition: transform 0.3s ease-in, opacity 0.3s ease-in !important; transform: translate(-50%, -240px) scale(0.72) !important; opacity: 0; }
 .card.exhausting { transition: transform 0.5s, opacity 0.5s, filter 0.5s !important; transform: translate(-50%, -140px) scale(0.6) rotate(8deg) !important; opacity: 0; filter: brightness(2.4) saturate(0.2) blur(2px); }
 
@@ -524,8 +566,9 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .hero-wrap { position: relative; width: 100%; height: 100%; }
 .hero-sprite, .enemy-sprite { position: relative; width: 100%; height: 100%; z-index: 1; }
 /* subtitle-style burn so names stay legible on busy stage plates */
-.hero-wrap .hero-name {
-  position: absolute; top: -11px; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: none;
+/* hero name lives in .cplate under the art (same band as enemy names) */
+.cplate .hero-name {
+  position: static; transform: none; left: auto; top: auto;
   font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: 0.12em; color: #c8d0ea; white-space: nowrap;
   text-shadow:
     -1px -1px 0 rgba(0, 0, 0, 0.95), 1px -1px 0 rgba(0, 0, 0, 0.95),
@@ -534,10 +577,16 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 }
 .hero-wrap svg { width: 100%; height: 100%; }
 .enemy { transition: filter 0.2s, transform 0.25s; }
-/* the chrome plate: name/HP/facets/statuses hang below the art box, out of
-   flow, so the combatant's box bottom IS its feet (ground-line contract) */
+/* the chrome plate: name/HP/facets hang below the art box, out of flow,
+   so the combatant's box bottom IS its feet (ground-line contract).
+   Statuses sit ABOVE the art; intent sits one row above statuses. */
 .cplate { position: absolute; top: 100%; left: 50%; translate: -50% 0; display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 3; padding-top: 6px; width: max-content; max-width: 260px; }
-.enemy .intent { position: absolute; bottom: calc(100% + 8px); left: 50%; translate: -50% 0; z-index: 3; }
+.top-chrome {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; translate: -50% 0; z-index: 3;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none;
+}
+.top-chrome .intent { position: static; translate: none; pointer-events: auto; }
+.top-chrome .status-row { pointer-events: auto; }
 .enemy-art { position: relative; }
 .enemy-sprite { position: relative; width: 100%; height: 100%; z-index: 1; }
 .enemy-art > .enemy-sprite > svg.cracks-overlay,
@@ -603,24 +652,35 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .block-chip.pulse { animation: blockPulse 0.4s ease-out; }
 @keyframes blockPulse { 40% { transform: scale(1.3); box-shadow: 0 0 22px rgba(127, 212, 255, 0.9); } }
 .status-row {
-  display: flex; gap: 6px; min-height: 36px; flex-wrap: wrap; justify-content: center;
+  display: flex; gap: 6px; min-height: 32px; flex-wrap: wrap; justify-content: center;
   max-width: 240px; align-items: center;
 }
+.status-row:empty { display: none; }
+/* no chip box — raster/SVG is the whole read; stack badge only */
 .schip {
-  display: inline-flex; align-items: center; justify-content: center; gap: 2px;
-  position: relative; width: 36px; height: 36px; padding: 0;
-  border-radius: 10px; font-size: 12px; font-weight: 800;
-  background: rgba(10, 13, 26, 0.82); border: 1px solid rgba(255, 255, 255, 0.16); cursor: help;
+  display: inline-flex; align-items: center; justify-content: center;
+  position: relative; width: 32px; height: 32px; padding: 0;
+  background: none; border: none; cursor: help; font-weight: 800;
 }
-.schip-art { width: 28px; height: 28px; object-fit: contain; pointer-events: none; }
-.schip svg { width: 28px; height: 28px; }
+.schip-art {
+  width: 32px; height: 32px; object-fit: contain; pointer-events: none;
+  /* sharp silhouette via feMorphology dilate 0.9 (same language as character aim rings) */
+  filter: url(#status-outline);
+}
+.schip svg {
+  width: 28px; height: 28px; pointer-events: none;
+  filter: url(#status-outline);
+}
 .schip .n {
-  position: absolute; right: -2px; bottom: -2px; min-width: 14px; height: 14px; padding: 0 3px;
-  border-radius: 7px; font-size: 10px; font-variant-numeric: tabular-nums; line-height: 14px; text-align: center;
-  background: #0a0d1a; border: 1px solid rgba(255,255,255,.25); color: #fff;
+  position: absolute; right: -2px; bottom: -4px; padding: 0;
+  font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1;
+  color: #fff;
+  text-shadow:
+    -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
+    0 0 3px #000, 0 1px 4px rgba(0, 0, 0, 0.9);
 }
-.schip.buff { color: #9fd8ff; border-color: rgba(127, 212, 255, 0.45); }
-.schip.debuff { color: #ffb08d; border-color: rgba(255, 122, 71, 0.5); }
+.schip.buff { color: #9fd8ff; }
+.schip.debuff { color: #ffb08d; }
 .schip.pop { animation: chipPop 0.35s ease-out; }
 @keyframes chipPop { 40% { transform: scale(1.35); } }
 
@@ -893,49 +953,83 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .candle.lit:nth-child(4) { animation-delay: 0.2s; }
 .candle.lit:nth-child(5) { animation-delay: 0.7s; }
 @keyframes candleFlick { 50% { box-shadow: 0 0 4px rgba(255, 190, 90, 0.55); transform: scaleY(0.92); } }
-/* the ward: block made visible — 4-frame glass shell (src/assets/vfx/ward-loop.png) */
-.ward-fx {
-  position: absolute; inset: -8%; z-index: 4; pointer-events: none;
-  background-repeat: no-repeat; background-position: 0 0;
-  background-size: 400% 100%;
-  mix-blend-mode: screen; opacity: 0;
+/* Ward: meshWard gemstone shell when warp is live; soft oval fallback when mesh is off */
+.hero-wrap.warded::before, .enemy-art.warded::before {
+  content: ''; position: absolute; inset: -6%; border-radius: 50%; pointer-events: none; z-index: 3;
+  border: 1.5px solid rgba(150, 200, 255, 0.45);
+  box-shadow: 0 0 18px rgba(130, 185, 255, 0.35), inset 0 0 28px rgba(130, 185, 255, 0.18);
 }
-.hero-wrap.warded .ward-fx,
-.enemy-art.warded .ward-fx {
-  opacity: 0.9;
-  animation: wardLoop 2.4s steps(4) infinite;
-}
-@keyframes wardLoop {
-  to { background-position: 100% 0; }
-}
-.ward-gain-fx {
-  position: absolute; inset: -14%; z-index: 6; pointer-events: none;
-  background-repeat: no-repeat; background-position: 0 0;
-  background-size: 400% 100%;
-  mix-blend-mode: screen;
-  animation: wardGain 0.42s steps(4) forwards;
-}
-@keyframes wardGain {
-  to { background-position: 100% 0; opacity: 0; }
-}
+html.mesh-on .hero-wrap.warded::before,
+html.mesh-on .enemy-art.warded::before { display: none; }
 .end-turn {
   position: absolute; right: calc(34px + var(--sar)); bottom: calc(168px + var(--sab)); z-index: 24; padding: 13px 30px;
   box-shadow: inset 0 0 0 1px var(--gold), inset 0 10px 20px -12px rgba(255, 255, 255, 0.14), 0 4px 14px rgba(0, 0, 0, 0.5);
 }
 .end-turn.enemy-phase { opacity: 0.45; pointer-events: none; }
+/* Unboxed pile chrome: flat fan (no vertical stack); label + count stay readable. */
 .pile-btn {
-  position: absolute; bottom: calc(24px + var(--sab)); z-index: 24; width: 62px; height: 62px; border-radius: 12px;
-  background: var(--glass-fill); border: 1.5px solid var(--lead);
-  box-shadow: inset 0 0 0 1px var(--gold-line), inset 0 10px 20px -12px rgba(255, 255, 255, 0.14), 0 4px 14px rgba(0, 0, 0, 0.5);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-  font-family: 'Cinzel', serif; transition: border-color 0.15s, transform 0.15s;
+  position: absolute; bottom: calc(14px + var(--sab)); z-index: 24;
+  width: 96px; height: 148px; padding: 0; border: 0; border-radius: 0;
+  background: transparent; box-shadow: none;
+  display: block; font-family: 'Cinzel', serif;
+  transition: transform 0.15s, filter 0.15s;
 }
-.pile-btn:hover { border-color: var(--gold); transform: translateY(-2px); }
-.pile-btn .cnt { font-size: 19px; font-weight: 800; color: var(--parchment); }
-.pile-btn .lbl { font-size: 9.5px; letter-spacing: 0.12em; color: var(--text-dim); }
-.pile-draw { left: calc(30px + var(--sal)); }
-.pile-discard { right: calc(34px + var(--sar)); }
-.pile-exhaust { right: calc(110px + var(--sar)); opacity: 0.85; }
+.pile-btn:hover { transform: translateY(-3px); filter: brightness(1.08); }
+.pile-stack {
+  position: absolute; left: 0; right: 0; top: 0; bottom: 18px;
+  pointer-events: none;
+  overflow: visible;
+}
+.pile-stack.is-empty {
+  outline: 1.5px dashed rgba(242, 193, 78, 0.28);
+  border-radius: 8px;
+  opacity: 0.5;
+}
+.pile-stack-fallback {
+  border-radius: 8px;
+  background: linear-gradient(160deg, rgba(36, 48, 86, 0.55), rgba(12, 16, 31, 0.35));
+  outline: 1px solid rgba(242, 193, 78, 0.28);
+}
+.pile-stack-fallback.is-empty {
+  background: transparent;
+  outline: 1.5px dashed rgba(242, 193, 78, 0.28);
+}
+.pile-layer {
+  position: absolute; left: 50%; bottom: 0;
+  width: 100%; height: auto;
+  transform-origin: 50% 92%;
+  transform: translate(-50%, 0) rotate(var(--rot, 0deg));
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.65));
+}
+.pile-btn .cnt {
+  position: absolute; right: 2px; bottom: 16px; z-index: 2;
+  font-size: 16px; font-weight: 800; line-height: 1; color: var(--parchment);
+  text-align: right;
+  background: none; border: 0; border-radius: 0; box-shadow: none; padding: 0;
+  /* dark outline so the count stays readable on card art */
+  text-shadow:
+    -1.5px -1.5px 0 #05070e,
+     1.5px -1.5px 0 #05070e,
+    -1.5px  1.5px 0 #05070e,
+     1.5px  1.5px 0 #05070e,
+     0 0 4px rgba(0, 0, 0, 0.9);
+}
+.pile-btn .lbl {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.12em;
+  color: var(--text-dim); text-align: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+.pile-btn.pile-bump { animation: pileBump 0.28s ease-out; }
+@keyframes pileBump {
+  0% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(-4px) scale(1.05); }
+  100% { transform: translateY(0) scale(1); }
+}
+.pile-draw { left: calc(16px + var(--sal)); }
+.pile-discard { right: calc(22px + var(--sar)); }
+.pile-exhaust { right: calc(132px + var(--sar)); opacity: 0.9; }
 .turn-banner {
   position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%); z-index: 42; pointer-events: none;
   font-family: 'Cinzel', serif; font-size: 42px; font-weight: 800; letter-spacing: 0.3em; color: var(--parchment);
@@ -1010,10 +1104,31 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 /* arc-flights: coins to the purse, a relic to its seat, card-backs to the deck */
 .flymote { position: absolute; border-radius: 50%; pointer-events: none; z-index: 58; font-size: 22px; line-height: 1; text-shadow: 0 0 10px currentColor; }
 .flycard {
-  position: absolute; width: 26px; height: 36px; border-radius: 4px; pointer-events: none; z-index: 58;
+  position: absolute; width: 26px; height: 36px; border-radius: 8px; pointer-events: none; z-index: 58;
   background: linear-gradient(160deg, #1d2440, #0c101f 70%);
   border: 1px solid rgba(242, 193, 78, 0.5); box-shadow: 0 3px 9px rgba(0, 0, 0, 0.6), inset 0 0 8px rgba(90, 110, 180, 0.3);
 }
+.flycard-back {
+  background:
+    radial-gradient(ellipse at 50% 38%, rgba(242, 193, 78, 0.28), transparent 52%),
+    repeating-linear-gradient(135deg, rgba(255,255,255,0.03) 0 2px, transparent 2px 7px),
+    linear-gradient(160deg, #2a3558, #0c101f 72%);
+  border: 1.5px solid rgba(242, 193, 78, 0.7);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7), inset 0 0 14px rgba(120, 140, 210, 0.35);
+}
+/* pile-ceremony flights: sized to match pile / hand faces; art via inline background */
+.flycard-pile {
+  border: 0; border-radius: 6px; background-color: transparent;
+  background-position: center; background-size: contain; background-repeat: no-repeat;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
+}
+/* draw flight: real card face (not hand-zone fan layout) */
+.flycard-face {
+  position: absolute; left: 0; bottom: auto; pointer-events: none; z-index: 58;
+  transform-origin: 50% 50%;
+}
+.flycard-face .card-lift { transform: none !important; }
+.flycard-face .card-inner { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.75); }
 /* the boss is announced through a rose window: rings and spokes of leaded light */
 .rose-window {
   position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%);
@@ -1365,9 +1480,12 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   #grain { display: none; }
   #wipe, #transit, .rose-window { display: none; }
   .logo, .card.r-rare .card-inner::after, .energy-orb::before { animation: none; }
-  #lantern.gutter, .candle.lit, .hero-wrap.warded .ward-fx, .enemy-art.warded .ward-fx { animation: none; }
+  #lantern.gutter, .candle.lit, .hero-wrap.warded::before, .enemy-art.warded::before { animation: none; }
   .ember, .mon-flame, .enemy.doomed .enemy-art { animation: none; }
   .enemy-sprite[class*="idle-"], .idle-motes::before, .idle-motes::after { animation: none; }
+  .pile-btn.pile-bump { animation: none; }
+  .hand-zone .card.draw-pending { opacity: 1; pointer-events: auto; }
+  .hand-zone .card.draw-in .card-lift { animation: none; }
   #tooltip { animation: fadein 0.1s both; }
   .mnode.avail .nwrap, .mnode.avail .icg { animation: none; }
   .reward-list .reward-row, .shop-row .shop-item, .deed-list .deed-row { animation: none; }
@@ -1436,7 +1554,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   .stage-ledge { --glow-h: 90px; }
   .hpbar-wrap { width: 118px; }
   .status-row { max-width: 34cqw; }
-  .enemy .name, .hero-wrap .hero-name { font-size: 10.5px; letter-spacing: 0.06em; }
+  .enemy .name, .cplate .hero-name { font-size: 10.5px; letter-spacing: 0.06em; }
   .enemy.boss-e .name { font-size: 12px; }
   .intent { height: 26px; font-size: 14px; padding: 0 8px; gap: 4px; }
   /* the fan */
@@ -1462,12 +1580,14 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
     width: 60px; height: 60px; border-radius: 50%; padding: 0;
     font-size: 11.5px; letter-spacing: 0.04em; line-height: 1.15;
   }
-  .pile-btn { width: 46px; height: 46px; bottom: calc(6px + var(--sab)); border-radius: 10px; }
-  .pile-btn .cnt { font-size: 15px; }
-  .pile-btn .lbl { font-size: 7.5px; }
-  .pile-draw { left: calc(8px + var(--sal)); }
-  .pile-discard { right: calc(8px + var(--sar)); }
-  .pile-exhaust { right: calc(8px + var(--sar)); bottom: calc(58px + var(--sab)); }
+  .pile-btn { width: 68px; height: 108px; bottom: calc(4px + var(--sab)); }
+  .pile-stack { left: 0; right: 0; top: 0; bottom: 14px; }
+  .pile-layer { width: 100%; }
+  .pile-btn .cnt { font-size: 14px; right: 1px; bottom: 13px; }
+  .pile-btn .lbl { font-size: 7.5px; letter-spacing: 0.08em; }
+  .pile-draw { left: calc(4px + var(--sal)); }
+  .pile-discard { right: calc(4px + var(--sar)); }
+  .pile-exhaust { right: calc(4px + var(--sar)); bottom: calc(120px + var(--sab)); }
   .turn-banner { font-size: 27px; letter-spacing: 0.2em; }
   .turn-banner.boss-banner { font-size: clamp(24px, 7cqw, 38px); }
   .combat-msg { top: calc(78px + var(--sat)); font-size: 12px; }
@@ -1531,12 +1651,14 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   .facet-row .pip { width: 5px; height: 5px; }
   .candle { width: 6px; height: 8px; }
   .end-turn { right: calc(10px + var(--sar)); bottom: calc(74px + var(--sab)); padding: 8px 14px; font-size: 13.5px; }
-  .pile-btn { width: 42px; height: 42px; bottom: calc(8px + var(--sab)); }
-  .pile-btn .cnt { font-size: 14px; }
-  .pile-btn .lbl { font-size: 7px; }
-  .pile-draw { left: calc(10px + var(--sal)); }
-  .pile-discard { right: calc(10px + var(--sar)); }
-  .pile-exhaust { right: calc(58px + var(--sar)); }
+  .pile-btn { width: 64px; height: 102px; bottom: calc(4px + var(--sab)); }
+  .pile-stack { left: 0; right: 0; top: 0; bottom: 14px; }
+  .pile-layer { width: 100%; }
+  .pile-btn .cnt { font-size: 14px; right: 1px; bottom: 13px; }
+  .pile-btn .lbl { font-size: 7px; letter-spacing: 0.08em; }
+  .pile-draw { left: calc(6px + var(--sal)); }
+  .pile-discard { right: calc(6px + var(--sar)); }
+  .pile-exhaust { right: calc(78px + var(--sar)); }
   .turn-banner { font-size: 26px; }
   .floaty { font-size: 22px; }
   .floaty.crit { font-size: 32px; }

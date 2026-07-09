@@ -121,8 +121,12 @@ Council-approved live assets:
 - `events/cursedIdol.png`
 - `events/ruinedCamp.png`
 - `title/title.png`
-- `vfx/ward-loop.png`
-- `vfx/ward-gain.png`
+- `piles/draw.png`
+- `piles/discard.png`
+- `piles/ashes.png`
+
+`piles/` holds Draw / Discard / Ashes combat pile chrome (512² RGBA). Scratch
+ledger: `scratch/pile-chrome-20260709/`.
 
 Asset source decisions:
 
@@ -447,10 +451,10 @@ http://localhost:5174/?gallery=1&set=legacy
 http://localhost:5174/?vfxedit=1
 ```
 
-Dev `?vfxedit=1` scrubs VFX sprite strips frame-by-frame (onion skin + crosshair)
-to validate registration drift before combat.
+Dev `?vfxedit=1` previews the mesh Ward gemstone shell (Grow / Hold / Clear) on a
+bound hero or enemy sprite — same Three.js crack/refraction glass path as combat.
 The approved prop set should appear in that gallery as `props - 4/4 generated`.
 The approved event set should appear as `events - 11/11 generated`.
 The approved card set should appear as `cards - 60/60 generated`.
-The approved ward VFX set should appear as `vfx - 2/2 generated`.
+The approved pile chrome set should appear as `piles - 3/3 generated`.
 The final prop registration proof is recorded in `docs/prop-gallery-proof.md`.

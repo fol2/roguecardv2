@@ -44,6 +44,16 @@
           <feFlood flood-color="#fff6ec" flood-opacity="1" result="fill"/>
           <feComposite in="fill" in2="ring" operator="in"/>
         </filter>
+        <!-- sharp status-icon silhouette (same dilate language as aim rings; 0.9px) -->
+        <filter id="status-outline" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+          <feMorphology in="SourceAlpha" operator="dilate" radius="0.9" result="dilated"/>
+          <feFlood flood-color="#000000" flood-opacity="1" result="black"/>
+          <feComposite in="black" in2="dilated" operator="in" result="outline"/>
+          <feMerge>
+            <feMergeNode in="outline"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
       </defs>
     </svg>
     <canvas id="vfx"></canvas>

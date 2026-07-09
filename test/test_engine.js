@@ -2,17 +2,18 @@
 import assert from 'node:assert';
 import { readdirSync } from 'node:fs';
 import {
-  newRun, startCombat, playCard, endTurn, makeCard, cardData, availableNodes, genMap,
+  newRun, startCombat, playCard, endTurn, drawCards, makeCard, cardData, availableNodes, genMap,
   rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, finalizeNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, nodeEventInFlight, saveRun, loadRun, genCombatRewards, genShop, gainRelic, randomRelic,
   rollBossRelics, addCardToDeck, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
   MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, cardPool, relicPool,
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
   previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
 } from '../src/engine.js';
-import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, REVEALS, PROGRESSION, POOL_GATE } from '../src/data.js';
+import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE } from '../src/data.js';
 import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
+import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, drawBatchSchedule, PILE_IDS, PILE_FAN_DEG, PILE_FAN_MAX_DEG, PILE_FAN_MAX_LAYERS } from '../src/pile-chrome.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -1046,6 +1047,36 @@ function forceHand(run, cb, ids) {
   clearBequest();
   _setStore(null);
 }
+{
+  // pile ceremony queue payloads: discardHand uids, reshuffle n, toDiscard uid
+  const { run, cb } = freshCombat();
+  forceHand(run, cb, ['defend', 'strike', 'defend']);
+  const H = cb.hand.length;
+  const handUids = cb.hand.map((c) => c.uid);
+  cb.queue.length = 0;
+  endTurn(run, cb);
+  const dh = cb.queue.filter((e) => e.t === 'discardHand');
+  assert.equal(dh.length, 1, 'one discardHand event');
+  assert.equal(dh[0].uids.length, H, 'discardHand carries hand size');
+  assert.deepEqual(dh[0].uids, handUids, 'discardHand uids match pre-clear hand');
+
+  const { run: r2, cb: c2 } = freshCombat();
+  c2.draw = [];
+  c2.discard = [makeCard(r2, 'strike'), makeCard(r2, 'defend'), makeCard(r2, 'strike')];
+  const nDiscard = c2.discard.length;
+  c2.queue.length = 0;
+  drawCards(r2, c2, 1);
+  const rs = c2.queue.find((e) => e.t === 'reshuffle');
+  assert.ok(rs && Number.isInteger(rs.n) && rs.n > 0, 'reshuffle carries n');
+  assert.equal(rs.n, nDiscard, 'reshuffle n is pre-move discard size');
+
+  const { run: r3, cb: c3 } = freshCombat();
+  forceHand(r3, c3, ['defend']);
+  const playUid = c3.hand[0].uid;
+  c3.queue.length = 0;
+  assert.ok(playCard(r3, c3, playUid), 'defend plays');
+  assert.ok(c3.queue.some((e) => e.t === 'toDiscard' && e.uid === playUid), 'non-exhaust skill emits toDiscard');
+}
 
 // ---- monte-carlo: random agent plays full runs -----------------------------
 function randomAgentRun(seed) {
@@ -1176,6 +1207,57 @@ function randomAgentRun(seed) {
   checkManifest('heroes', ASPECTS.map((a) => a.id));
   checkManifest('stage', [1, 2, 3].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => `act${a}-${l}`)));
   checkManifest('props', ['campfire', 'chest', 'chest-open', 'merchant']);
+  checkManifest('statuses', Object.keys(STATUS_INFO));
+  checkManifest('deeds', Object.keys(DEEDS));
+  checkManifest('bequests', ['relic', 'card', 'gold']);
+  checkManifest('meta', ['fallen', 'ascended', 'monument-node']);
+}
+
+// ---- pile chrome helpers (pure) ----
+{
+  assert.equal(pileTier(0), 0);
+  assert.equal(pileTier(1), 1);
+  assert.equal(pileTier(4), 4);
+  assert.equal(pileTier(5), 5);
+  assert.equal(pileTier(99), 5);
+  assert.equal(pileTier(-1), 0);
+
+  assert.equal(pileFanLayers(0), 0);
+  assert.equal(pileFanLayers(1), 1);
+  assert.equal(pileFanLayers(8), 8);
+  assert.equal(pileFanLayers(99), PILE_FAN_MAX_LAYERS);
+  // 3 cards @ 5° → ±5°
+  assert.equal(pileFanAngleDeg(0, 3), -5);
+  assert.equal(pileFanAngleDeg(1, 3), 0);
+  assert.equal(pileFanAngleDeg(2, 3), 5);
+  // 7 cards still at preferred 5° (span 30)
+  assert.equal(pileFanAngleDeg(0, 7), -15);
+  assert.equal(pileFanAngleDeg(6, 7), 15);
+  // 16 cards: average step = 30/15 = 2°
+  assert.equal(pileFanAngleDeg(0, 16), -15);
+  assert.equal(pileFanAngleDeg(8, 16), 1);
+  assert.equal(pileFanAngleDeg(15, 16), 15);
+  const layersCap = pileFanLayers(99);
+  assert.ok(
+    pileFanAngleDeg(layersCap - 1, layersCap) - pileFanAngleDeg(0, layersCap) <= PILE_FAN_MAX_DEG + 1e-9
+  );
+
+  const s1 = flightSchedule(1, 400);
+  assert.ok(s1.awaitMs <= 400 && s1.awaitMs >= 200);
+  const s10 = flightSchedule(10, 400);
+  assert.ok(s10.stagger <= s1.stagger || s10.stagger <= 48);
+  assert.ok(s10.awaitMs <= 480, 'large n stays near budget');
+  assert.ok(s10.stagger >= 8);
+
+  const d5 = drawBatchSchedule(5, 500);
+  assert.equal(d5.stagger, 100);
+  assert.ok(d5.flightDur >= 160 && d5.flightDur <= 280);
+  assert.equal(d5.awaitMs, d5.flightDur + 400);
+  const d1 = drawBatchSchedule(1, 500);
+  assert.equal(d1.stagger, 0);
+  assert.ok(d1.flightDur <= 280);
+
+  assert.deepEqual(PILE_IDS, ['draw', 'discard', 'ashes']);
 }
 
 // ---- battlefield layout schema (spec 2026-07-06-battlefield-editor-design) ----
