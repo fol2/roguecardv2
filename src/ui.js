@@ -537,7 +537,7 @@ function renderEmbark() {
   setTheme(0);
   const vigil = syncVigil();
   const saved = E.loadRun();
-  const sel = (S.title ||= { aspect: 0, vow: 0 });
+  const sel = (S.embark ||= { aspect: 0, vow: 0 });
   const hasAspects = vigil.unlocks.includes('aspect2');
   if (!hasAspects) sel.aspect = 0;
   sel.vow = Math.max(0, Math.min(sel.vow | 0, vigil.vowUnlocked));
@@ -2763,7 +2763,8 @@ function renderEvent(eventId) {
     showEventContinue();
     return;
   }
-  for (const [i, ch] of ev.choices.entries()) {
+  const offered = ev.choices.filter((ch) => E.runRevealed(run, 'phials') || !ch.ops.some((op) => op.potion));
+  for (const [i, ch] of offered.entries()) {
     const b = el('button', `event-choice${i === 0 ? ' btn-primary' : ''}`, `<b>${ch.label}</b>${ch.sub ? `<div class="sub">${ch.sub}</div>` : ''}`);
     if (ch.needGold && run.player.gold < ch.needGold) b.disabled = true;
     b.onclick = () => resolveChoice(ch);

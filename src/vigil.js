@@ -91,7 +91,7 @@ export function evaluateDeeds(vigil) {
 export function syncVigil() {
   const v = loadVigil();
   const owed = evaluateDeeds(v);
-  if (owed.length) { v.unlocks.push(...owed); saveVigil(v); }
+  if (owed.length) { v.unlocks.push(...owed); v.news = true; saveVigil(v); }
   return v;
 }
 
@@ -112,6 +112,8 @@ export function revealSnapshot(vigil) {
 // every run end — win, fall, or abandon — advances the ledger that paces the
 // reveals. Separate from commitRunToVigil so deed semantics (win/fall only)
 // stay untouched. Idempotent per run.
+// Wins-gated reveals pulse via commitRunToVigil's unlock path (deeds.wins
+// moves there), so this before/after diff only needs to watch runsPlayed.
 export function commitRunEnd(run) {
   if (run.runEndCommitted) return loadVigil();
   run.runEndCommitted = true;

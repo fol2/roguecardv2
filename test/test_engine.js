@@ -915,6 +915,14 @@ function forceHand(run, cb, ids) {
   assert.ok(relicPool(dl, 'rare').includes('prismCharm'));
 }
 {
+  // every event with a phial-granting choice keeps a non-potion alternative,
+  // so hiding phial choices pre-reveal never leaves an event unanswerable
+  for (const [id, ev] of Object.entries(EVENTS)) {
+    const nonPotion = ev.choices.filter((ch) => !ch.ops.some((op) => op.potion));
+    assert.ok(nonPotion.length >= 1, `event ${id} needs a non-potion choice`);
+  }
+}
+{
   // monuments: a bequest is claimed exactly once
   const run = newRun(45, { monument: { act: 0, row: 5, bequest: { kind: 'gold', amount: 60 } } });
   const g0 = run.player.gold;
