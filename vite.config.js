@@ -3,7 +3,11 @@ import { writeFileSync, renameSync } from "node:fs";
 import { resolve } from "node:path";
 
 const BF_SAVE_PORT = 5174;
-const BF_SAVE_HOSTS = ["localhost", "127.0.0.1", "macm4.tail55e87e.ts.net"];
+// Vite Host header gate for loading the page over Tailscale / LAN.
+// localhost + 127.0.0.1 are always allowed by Vite. `.ts.net` is a suffix
+// match (any MagicDNS name on the tailnet). Prefer MagicDNS over raw 100.x
+// IPs — IPs are not covered. Save itself uses same-origin checks below.
+const DEV_ALLOWED_HOSTS = [".ts.net"];
 const BF_LAYOUT_PATH = resolve("src/battlefield-layout.js");
 const BF_LAYOUT_TMP = `${BF_LAYOUT_PATH}.tmp`;
 const UIC_LAYOUT_PATH = resolve("src/ui-chrome-layout.js");
@@ -13,15 +17,21 @@ const CHAR_META_TMP = `${CHAR_META_PATH}.tmp`;
 const WARD_PARAMS_PATH = resolve("src/ward-params.js");
 const WARD_PARAMS_TMP = `${WARD_PARAMS_PATH}.tmp`;
 
-/** Reject cross-origin POSTs — only the dev server (or allowedHosts) may write. */
+/**
+ * DEV save endpoints: allow any host that can already reach this server, but
+ * reject cross-origin browser POSTs (Origin must match Host). curl/node with
+ * no Origin still work — this middleware is serve-only.
+ */
 function bfSaveOriginOk(req) {
-  const host = String(req.headers.host ?? "");
-  if (!BF_SAVE_HOSTS.some((h) => host === `${h}:${BF_SAVE_PORT}`)) return false;
+  const host = String(req.headers.host ?? "").trim();
+  if (!host) return false;
   const origin = req.headers.origin;
-  if (!origin) return true; // local tools (curl/node) with a trusted Host
-  return BF_SAVE_HOSTS.some(
-    (h) => origin === `http://${h}:${BF_SAVE_PORT}` || origin === `https://${h}:${BF_SAVE_PORT}`,
-  );
+  if (!origin) return true;
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
 }
 
 function readJsonBody(req, res, limit = 1_048_576) {
@@ -206,6 +216,6 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: BF_SAVE_PORT,
-    allowedHosts: [BF_SAVE_HOSTS[2]],
+    allowedHosts: DEV_ALLOWED_HOSTS,
   },
 });

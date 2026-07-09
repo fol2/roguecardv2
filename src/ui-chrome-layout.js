@@ -3,9 +3,12 @@
 // All values are STAGE px for their shape (see src/stage.js). Safe-area is
 // baked into these numbers (no + var(--sa*) at apply-time).
 // Conventions:
-//   left / right — CSS edge anchors (exactly one of left|right per widget)
-//   bottom       — distance from stage bottom
+//   left / right — CSS edge anchors (exactly one of left|right per widget);
+//                  for hand, left/right is offset from the centred fan box
+//   bottom       — distance from stage bottom (combat chrome + hand)
+//   top          — distance from stage top (omen + relics)
 //   w / h        — optional box size (lantern, end-turn, piles)
+//   scale        — uniform scale (1 = authored size); omen / relics / hand
 //   hud.height   — .hud-bar content height unit
 //   hud.scale    — uniform scale on .hud-bar (1 = authored size)
 // Imports nothing; imported by src/uic.js only.
@@ -19,6 +22,9 @@ export const UIC = {
     discard: { right: 22, bottom: 14, w: 96, h: 148 },
     ashes: { right: 132, bottom: 14, w: 96, h: 148 },
     hud: { height: 56, scale: 1 },
+    omen: { left: 16, top: 62, scale: 1 },
+    relics: { left: 66, top: 62, scale: 1 },
+    hand: { left: 0, bottom: -12, scale: 1 },
   },
   shapes: {
     'phone-portrait': {
@@ -29,6 +35,9 @@ export const UIC = {
       discard: { right: 4, bottom: 4, w: 68, h: 108 },
       ashes: { right: 4, bottom: 120, w: 68, h: 108 },
       hud: { height: 47, scale: 1 },
+      omen: { left: 10, top: 52, scale: 1 },
+      relics: { left: 52, top: 52, scale: 1 },
+      hand: { left: 0, bottom: -6, scale: 1 },
     },
     'phone-landscape': {
       energy: { left: 8, bottom: 56 },
@@ -38,6 +47,9 @@ export const UIC = {
       discard: { right: 6, bottom: 4, w: 64, h: 102 },
       ashes: { right: 78, bottom: 4, w: 64, h: 102 },
       hud: { height: 42, scale: 1 },
+      omen: { left: 12, top: 46, scale: 1 },
+      relics: { left: 56, top: 46, scale: 1 },
+      hand: { left: 0, bottom: -34, scale: 1 },
     },
     'pad-portrait': {
       energy: { left: 16, bottom: 128 },

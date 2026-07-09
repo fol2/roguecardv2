@@ -2,13 +2,17 @@
 // Drag overlays edit a working copy of UIC via _setUIC(); Save → POST /__bfui-save.
 import { serializeUIC, validateUIC } from './bfui-serialize.js';
 import { uicRaw, _setUIC, onUICChange, uicResolve } from '../uic.js';
-import { stageEl, stageInfo, toStage } from '../stage.js';
+import { stageEl, stageInfo, toStage, stageRect } from '../stage.js';
+import { OMENS, RELICS } from '../data.js';
 
 const SHAPES = ['phone-portrait', 'phone-landscape', 'pad-portrait', 'pad-landscape', 'desktop-landscape'];
 const POS = ['energy', 'lantern', 'endTurn', 'draw', 'discard', 'ashes'];
+const TOP_SCALE = ['omen', 'relics'];
+const SELECTABLE = [...POS, 'hud', ...TOP_SCALE, 'hand'];
 const LABELS = {
   energy: 'energy', lantern: 'lantern', endTurn: 'end turn',
   draw: 'draw', discard: 'discard', ashes: 'ashes', hud: 'HUD',
+  omen: 'omen', relics: 'relics', hand: 'hand',
 };
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const state = { working: null, dirty: false, sel: null };
@@ -31,6 +35,7 @@ function markDirty() {
 function applyWorking({ drag } = {}) {
   _setUIC(state.working, { silent: true });
   window.spirebound.refitCombat();
+  for (const id of TOP_SCALE) applyTopLive(id);
   markDirty();
   syncOverlays();
   if (!drag) renderPanel();
@@ -66,9 +71,58 @@ function clearWidget(id) {
 function startSandbox() {
   const sp = window.spirebound;
   sp.S.run = sp.E.newRun(20260709, { aspect: 0 });
+  // seed omen + a few relics so their widgets are visible while editing
+  sp.S.run.omens = ['ashfall'];
+  sp.S.run.player.relics = ['emberHeart', 'basaltIdol', 'warFetish'];
   sp.startCombatUI(['duskfang', 'sporeling'], 'normal');
   document.querySelector('.combat-screen')?.classList.add('bfui-editing');
-  requestAnimationFrame(() => { syncOverlays(); renderPanel(); });
+  requestAnimationFrame(() => {
+    _setUIC(state.working, { silent: true });
+    sp.refitCombat();
+    ensureHudWidgets();
+    for (const id of TOP_SCALE) applyTopLive(id);
+    syncOverlays();
+    renderPanel();
+  });
+}
+
+function ensureHudWidgets() {
+  const hud = document.querySelector('#hud');
+  if (!hud) return;
+  hud.classList.add('show');
+  let omenSlot = hud.querySelector('#omen-slot');
+  if (!omenSlot) {
+    omenSlot = document.createElement('div');
+    omenSlot.id = 'omen-slot';
+    hud.appendChild(omenSlot);
+  }
+  let bar = hud.querySelector('#relicbar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'relicbar';
+    hud.appendChild(bar);
+  }
+  if (!omenSlot.querySelector('.omen-chip')) {
+    const oid = 'ashfall';
+    const omen = OMENS[oid];
+    const oc = document.createElement('div');
+    oc.className = 'relic-chip omen-chip';
+    oc.style.setProperty('--tone', omen.tone);
+    oc.textContent = omen.glyph;
+    oc.title = omen.name;
+    omenSlot.appendChild(oc);
+  }
+  if (!bar.querySelector('.hud-relic')) {
+    for (const rid of ['emberHeart', 'basaltIdol', 'warFetish']) {
+      const r = RELICS[rid];
+      const chip = document.createElement('div');
+      chip.className = 'hud-relic';
+      chip.style.setProperty('--tone', r.tone);
+      chip.dataset.relic = rid;
+      chip.textContent = r.glyph;
+      bar.appendChild(chip);
+    }
+  }
 }
 
 function overlayHost() { return document.querySelector('.combat-screen') ?? stageEl(); }
@@ -82,6 +136,72 @@ function boxFor(id, L) {
   const left = w.left !== undefined ? w.left : stg.w - (w.right ?? 0) - width;
   const top = stg.h - (w.bottom ?? 0) - height;
   return { left, top, width, height, anchor: w.left !== undefined ? 'left' : 'right' };
+}
+
+function boxForTop(id, L) {
+  const w = L[id];
+  if (!w) return null;
+  const stg = stageInfo();
+  const el = document.querySelector(id === 'omen' ? '#omen-slot' : '#relicbar');
+  const scale = w.scale ?? 1;
+  let width = id === 'omen' ? 42 : 160;
+  let height = 42;
+  if (el) {
+    // unscaled layout size
+    width = Math.max(24, el.offsetWidth || width);
+    height = Math.max(24, el.offsetHeight || height);
+  }
+  const left = w.left !== undefined ? w.left : stg.w - (w.right ?? 0) - width * scale;
+  const top = w.top ?? 0;
+  return { left, top, width: width * scale, height: height * scale, layoutW: width, layoutH: height, scale, anchor: w.left !== undefined ? 'left' : 'right' };
+}
+
+function boxForHand(L) {
+  const w = L.hand;
+  if (!w) return null;
+  const stg = stageInfo();
+  const zone = document.querySelector('.hand-zone');
+  const cards = zone
+    ? [...zone.querySelectorAll('.card:not(.draw-pending):not(.played-up)')]
+    : [];
+  let left;
+  let top;
+  let width;
+  let height;
+  if (cards.length && zone) {
+    const zr = stageRect(zone);
+    let minL = Infinity;
+    let minT = Infinity;
+    let maxR = -Infinity;
+    let maxB = -Infinity;
+    for (const c of cards) {
+      const r = stageRect(c);
+      minL = Math.min(minL, r.left);
+      minT = Math.min(minT, r.top);
+      maxR = Math.max(maxR, r.right);
+      maxB = Math.max(maxB, r.bottom);
+    }
+    // Prefer zone box when cards are measured (tight fan); pad a little for handles.
+    const pad = 6;
+    left = Math.max(zr.left, minL - pad);
+    top = Math.min(zr.top, minT - pad);
+    const right = Math.min(zr.right, maxR + pad);
+    const bottom = Math.max(zr.bottom, maxB + pad);
+    width = Math.max(48, right - left);
+    height = Math.max(48, bottom - top);
+  } else if (zone) {
+    const zr = stageRect(zone);
+    left = zr.left;
+    top = zr.top;
+    width = Math.max(48, zr.width);
+    height = Math.max(48, zr.height || 260);
+  } else {
+    height = 260;
+    width = Math.min(stg.w - 24, 680);
+    left = (stg.w - width) / 2 + (w.left ?? 0);
+    top = stg.h - (w.bottom ?? 0) - height;
+  }
+  return { left, top, width, height, scale: w.scale ?? 1, anchor: w.left !== undefined ? 'left' : 'right' };
 }
 
 function syncOverlays() {
@@ -151,6 +271,35 @@ function syncOverlays() {
       addEventListener('pointerup', up);
     });
   }
+  // omen + relics (independent top widgets)
+  for (const id of TOP_SCALE) {
+    const b = boxForTop(id, L);
+    if (!b) continue;
+    const el = document.createElement('div');
+    el.className = `bfui-box bfui-top${state.sel === id ? ' bfui-sel' : ''}`;
+    el.dataset.id = id;
+    el.style.left = `${b.left}px`;
+    el.style.top = `${b.top}px`;
+    el.style.width = `${b.width}px`;
+    el.style.height = `${b.height}px`;
+    el.innerHTML = `<span class="bfui-tag">${LABELS[id]} ×${b.scale}</span><span class="bfui-handle bfui-scale-handle"></span>`;
+    ov.appendChild(el);
+    bindTopDrag(el, id, b);
+  }
+  // hand unit
+  const hb = boxForHand(L);
+  if (hb) {
+    const el = document.createElement('div');
+    el.className = `bfui-box bfui-hand${state.sel === 'hand' ? ' bfui-sel' : ''}`;
+    el.dataset.id = 'hand';
+    el.style.left = `${hb.left}px`;
+    el.style.top = `${hb.top}px`;
+    el.style.width = `${hb.width}px`;
+    el.style.height = `${hb.height}px`;
+    el.innerHTML = `<span class="bfui-tag">hand ×${hb.scale}</span><span class="bfui-handle bfui-scale-handle"></span>`;
+    ov.appendChild(el);
+    bindHandDrag(el);
+  }
 }
 
 function bindDrag(el, id, box) {
@@ -198,6 +347,130 @@ function bindDrag(el, id, box) {
         w: Math.max(24, Math.round(startW + (p.x - start.x))),
         h: Math.max(24, Math.round(startH + (p.y - start.y))),
       }, { drag: true });
+    };
+    const up = () => {
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      renderPanel();
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+  });
+}
+
+function bindTopDrag(el, id, box) {
+  el.addEventListener('pointerdown', (e) => {
+    if (e.target.classList.contains('bfui-handle')) return;
+    e.preventDefault();
+    state.sel = id;
+    const start = toStage(e.clientX, e.clientY);
+    const L0 = resolved()[id];
+    const startLeft = L0.left;
+    const startRight = L0.right;
+    const startTop = L0.top;
+    const move = (ev) => {
+      const p = toStage(ev.clientX, ev.clientY);
+      const dx = Math.round(p.x - start.x);
+      const dy = Math.round(p.y - start.y);
+      const patch = { top: Math.max(0, startTop + dy) };
+      if (startLeft !== undefined) patch.left = Math.max(0, startLeft + dx);
+      else patch.right = Math.max(0, startRight - dx);
+      writeWidget(id, patch, { drag: true });
+      applyTopLive(id);
+    };
+    const up = () => {
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      renderPanel();
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+    syncOverlays();
+    renderPanel();
+  });
+  const handle = el.querySelector('.bfui-scale-handle');
+  if (!handle) return;
+  handle.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    state.sel = id;
+    const start = toStage(e.clientX, e.clientY);
+    const startScale = resolved()[id].scale ?? 1;
+    const move = (ev) => {
+      const p = toStage(ev.clientX, ev.clientY);
+      const dx = p.x - start.x;
+      const dy = p.y - start.y;
+      const next = Math.max(0.4, Math.min(2.5, Math.round((startScale + (dx + dy) / 120) * 100) / 100));
+      writeWidget(id, { scale: next }, { drag: true });
+      applyTopLive(id);
+    };
+    const up = () => {
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      renderPanel();
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+  });
+}
+
+function applyTopLive(id) {
+  const w = resolved()[id];
+  const el = document.querySelector(id === 'omen' ? '#omen-slot' : '#relicbar');
+  if (!el || !w) return;
+  if (w.left !== undefined) { el.style.left = `${w.left}px`; el.style.right = ''; }
+  else if (w.right !== undefined) { el.style.right = `${w.right}px`; el.style.left = ''; }
+  if (w.top !== undefined) el.style.top = `${w.top}px`;
+  const s = w.scale ?? 1;
+  el.style.transformOrigin = w.left !== undefined ? 'top left' : 'top right';
+  el.style.transform = s === 1 ? '' : `scale(${s})`;
+}
+
+/** Whole-hand unit only — one overlay for .hand-zone; no per-card handles. */
+function bindHandDrag(el) {
+  el.addEventListener('pointerdown', (e) => {
+    if (e.target.classList.contains('bfui-handle')) return;
+    e.preventDefault();
+    state.sel = 'hand';
+    const start = toStage(e.clientX, e.clientY);
+    const L0 = resolved().hand;
+    const startLeft = L0.left;
+    const startRight = L0.right;
+    const startBottom = L0.bottom;
+    const move = (ev) => {
+      const p = toStage(ev.clientX, ev.clientY);
+      const dx = Math.round(p.x - start.x);
+      const dy = Math.round(p.y - start.y);
+      // hand bottom may be negative (tucked under sill)
+      const patch = { bottom: startBottom - dy };
+      if (startLeft !== undefined) patch.left = startLeft + dx;
+      else patch.right = startRight - dx;
+      writeWidget('hand', patch, { drag: true });
+    };
+    const up = () => {
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      renderPanel();
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+    syncOverlays();
+    renderPanel();
+  });
+  const handle = el.querySelector('.bfui-scale-handle');
+  if (!handle) return;
+  handle.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    state.sel = 'hand';
+    const start = toStage(e.clientX, e.clientY);
+    const startScale = resolved().hand.scale ?? 1;
+    const move = (ev) => {
+      const p = toStage(ev.clientX, ev.clientY);
+      const dx = p.x - start.x;
+      const dy = p.y - start.y;
+      const next = Math.max(0.4, Math.min(2.5, Math.round((startScale + (dx + dy) / 160) * 100) / 100));
+      writeWidget('hand', { scale: next }, { drag: true });
     };
     const up = () => {
       removeEventListener('pointermove', move);
@@ -272,7 +545,7 @@ function renderPanel() {
   const shape = stageInfo().shape;
   const overridden = (id) => !!state.working.shapes?.[shape]?.[id];
   const rows = [];
-  rows.push(`<div id="bfui-select">${[...POS, 'hud'].map((id) =>
+  rows.push(`<div id="bfui-select">${SELECTABLE.map((id) =>
     `<button type="button" data-sel="${id}" class="${state.sel === id ? 'on' : ''}">${LABELS[id]}</button>`).join('')}</div>`);
   const id = state.sel || 'energy';
   const w = L[id];
@@ -281,6 +554,18 @@ function renderPanel() {
     for (const k of ['height', 'scale']) {
       rows.push(`<label>${k}<span><input type="number" step="${k === 'scale' ? 0.05 : 1}" data-k="${k}" value="${w[k]}"></span></label>`);
     }
+  } else if (TOP_SCALE.includes(id)) {
+    const edge = w.left !== undefined ? 'left' : 'right';
+    rows.push(`<label>anchor<span><select data-anchor><option value="left"${edge === 'left' ? ' selected' : ''}>left</option><option value="right"${edge === 'right' ? ' selected' : ''}>right</option></select></span></label>`);
+    rows.push(`<label>${edge}<span><input type="number" data-k="${edge}" value="${w[edge]}"></span></label>`);
+    rows.push(`<label>top<span><input type="number" data-k="top" value="${w.top}"></span></label>`);
+    rows.push(`<label>scale<span><input type="number" step="0.05" data-k="scale" value="${w.scale}"></span></label>`);
+  } else if (id === 'hand') {
+    const edge = w.left !== undefined ? 'left' : 'right';
+    rows.push(`<label>anchor<span><select data-anchor><option value="left"${edge === 'left' ? ' selected' : ''}>left</option><option value="right"${edge === 'right' ? ' selected' : ''}>right</option></select></span></label>`);
+    rows.push(`<label>${edge}<span><input type="number" data-k="${edge}" value="${w[edge]}"></span></label>`);
+    rows.push(`<label>bottom<span><input type="number" data-k="bottom" value="${w.bottom}"></span></label>`);
+    rows.push(`<label>scale<span><input type="number" step="0.05" data-k="scale" value="${w.scale}"></span></label>`);
   } else {
     const edge = w.left !== undefined ? 'left' : 'right';
     rows.push(`<label>anchor<span><select data-anchor><option value="left"${edge === 'left' ? ' selected' : ''}>left</option><option value="right"${edge === 'right' ? ' selected' : ''}>right</option></select></span></label>`);
@@ -300,7 +585,7 @@ function renderPanel() {
   panel.querySelector('[data-anchor]')?.addEventListener('change', (e) => {
     const cur = resolved()[id];
     const stg = stageInfo();
-    const width = cur.w ?? 80;
+    const width = cur.w ?? (id === 'hand' ? 680 : id === 'relics' ? 160 : 42);
     if (e.target.value === 'left') {
       writeWidget(id, { left: cur.left ?? Math.round(stg.w - (cur.right ?? 0) - width) });
     } else {
@@ -313,6 +598,7 @@ function renderPanel() {
       const v = Number(inp.value);
       if (!Number.isFinite(v)) return;
       writeWidget(id, { [k]: v });
+      if (TOP_SCALE.includes(id)) applyTopLive(id);
     };
   });
   panel.querySelector('[data-clear]')?.addEventListener('click', () => clearWidget(id));
@@ -337,9 +623,12 @@ const CSS = `
 #bfui-overlay .bfui-box { position: absolute; pointer-events: auto; border: 1px dashed #6fe3ff88; cursor: move; box-sizing: border-box; }
 #bfui-overlay .bfui-box.bfui-sel { border-color: #ffd76f; box-shadow: 0 0 0 1px #ffd76f44; }
 #bfui-overlay .bfui-hud { border-color: #b98bff88; cursor: default; background: #b98bff18; }
+#bfui-overlay .bfui-top { border-color: #ff9ebd88; background: #ff9ebd14; }
+#bfui-overlay .bfui-hand { border-color: #6fe3ff88; background: #6fe3ff10; }
 #bfui-overlay .bfui-tag { position: absolute; left: 4px; top: -16px; color: #9fd4ff; font: 11px monospace; white-space: nowrap; }
 #bfui-overlay .bfui-handle { position: absolute; right: -6px; bottom: -6px; width: 12px; height: 12px; background: #ffd76f; border-radius: 2px; cursor: nwse-resize; }
 #bfui-overlay .bfui-hud-handle { left: 50%; right: auto; bottom: -6px; transform: translateX(-50%); cursor: ns-resize; }
+#bfui-overlay .bfui-scale-handle { cursor: nwse-resize; }
 `;
 
 export function initBfuiEditor() {
@@ -361,6 +650,8 @@ export function initBfuiEditor() {
     state.working = clone(uicRaw());
     _setUIC(state.working, { silent: true });
     window.spirebound?.refitCombat?.();
+    ensureHudWidgets();
+    for (const id of TOP_SCALE) applyTopLive(id);
     syncOverlays();
     renderPanel();
   });
@@ -372,6 +663,21 @@ export function initBfuiEditor() {
     if (!dx && !dy) { if (e.key === 'Escape') { state.sel = null; syncOverlays(); renderPanel(); } return; }
     e.preventDefault();
     const w = resolved()[state.sel];
+    if (TOP_SCALE.includes(state.sel)) {
+      const patch = { top: Math.max(0, w.top + (dy ? dy : 0)) };
+      if (w.left !== undefined) patch.left = Math.max(0, w.left + dx);
+      else patch.right = Math.max(0, w.right - dx);
+      writeWidget(state.sel, patch);
+      applyTopLive(state.sel);
+      return;
+    }
+    if (state.sel === 'hand') {
+      const patch = { bottom: w.bottom + (dy ? -dy : 0) };
+      if (w.left !== undefined) patch.left = w.left + dx;
+      else patch.right = w.right - dx;
+      writeWidget('hand', patch);
+      return;
+    }
     const patch = { bottom: Math.max(0, w.bottom + (dy ? -dy : 0)) };
     if (w.left !== undefined) patch.left = Math.max(0, w.left + dx);
     else patch.right = Math.max(0, w.right - dx);

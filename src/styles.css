@@ -226,7 +226,17 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .potion-slot svg { width: 30px; height: 38px; }
 .potion-slot.full { border-style: solid; border-color: rgba(255, 255, 255, 0.25); cursor: pointer; }
 .potion-slot.full:hover { transform: translateY(-2px) scale(1.06); border-color: var(--gold); }
-#relicbar { display: flex; align-items: center; gap: 8px; padding: 6px 16px 6px calc(16px + var(--sal)); pointer-events: auto; flex-wrap: wrap; max-width: 60%; }
+/* omen + relics: position/scale from ui-chrome-layout.js (?bfuiedit=1) */
+#omen-slot {
+  position: absolute; z-index: 1; pointer-events: auto;
+  display: flex; align-items: center; justify-content: center;
+  width: 42px; height: 42px;
+}
+#relicbar {
+  position: absolute; z-index: 1; pointer-events: auto;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  max-width: 60%;
+}
 .hud-relic {
   width: 44px; height: 44px; flex-shrink: 0; cursor: help;
   display: inline-flex; align-items: center; justify-content: center;
@@ -501,9 +511,18 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .card.nope, .lantern-btn.nope { animation: nope 0.32s ease; }
 @keyframes nope { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-7px) rotate(-1.5deg); } 65% { transform: translateX(7px) rotate(1.5deg); } }
 
-/* hand */
-.hand-zone { position: absolute; left: 0; right: 0; bottom: calc(-12px + var(--sab)); height: 260px; z-index: 22; pointer-events: none; }
-.hand-zone .card { position: absolute; left: 50%; bottom: 8px; pointer-events: auto; transition: transform 0.28s cubic-bezier(0.25, 0.9, 0.3, 1.2), filter 0.2s, opacity 0.12s; transform-origin: 50% 100%; touch-action: none; }
+/* hand — bottom/offset from ui-chrome-layout.js (?bfuiedit=1); width hugs the fan (JS) */
+.hand-zone {
+  position: absolute; left: 50%; bottom: -12px; height: 260px; width: 680px;
+  margin-left: -340px; z-index: 22;
+  pointer-events: none; --hand-scale: 1;
+}
+.hand-zone .card {
+  position: absolute; left: 50%; bottom: 8px; pointer-events: auto;
+  width: calc(var(--cw) * var(--hand-scale)); height: calc(var(--cw) * var(--hand-scale) * 1.42);
+  transition: transform 0.28s cubic-bezier(0.25, 0.9, 0.3, 1.2), filter 0.2s, opacity 0.12s;
+  transform-origin: 50% 100%; touch-action: none;
+}
 /* lift animates .card-lift (cost + pane together); hit-testing stays on the fixed .card slot */
 .hand-zone .card .card-lift, .hand-zone .card .card-lift * { pointer-events: none; }
 .hand-zone .card .card-text .kw { pointer-events: auto; }
@@ -1805,7 +1824,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .potion-slot svg { width: 25px; height: 32px; }
   .relic-chip { width: 34px; height: 34px; font-size: 16px; }
   .hud-relic { width: 38px; height: 38px; }
-  #relicbar { max-width: 100%; padding-top: 2px; gap: 6px; }
+  #relicbar { max-width: 100%; gap: 6px; }
   .map-title { top: calc(58px + var(--sat)); font-size: 12px; letter-spacing: 0.16em; padding: 0 58px; line-height: 1.7; }
   /* stage */
   .stage-ledge { --glow-h: 90px; }
@@ -1819,7 +1838,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .card-text { font-size: 11.5px; padding: 3px 7px 8px; }
   .card-name { font-size: 12px; }
   .card-cost { width: 29px; height: 29px; font-size: 15px; top: -6px; left: -6px; }
-  .hand-zone { height: 214px; bottom: calc(-6px + var(--sab)); }
+  .hand-zone { height: 214px; }
   .hand-zone .card { bottom: 46px; }
   /* chrome positions: ui-chrome-layout.js (?bfuiedit=1) */
   .energy-orb .num { font-size: 36px; }
@@ -1881,7 +1900,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .potion-slot { width: 30px; height: 36px; }
   .relic-chip { width: 30px; height: 30px; font-size: 14px; }
   .hud-relic { width: 34px; height: 34px; }
-  #relicbar { padding-top: 0; gap: 6px; }
+  #relicbar { gap: 6px; }
   .map-title { top: calc(42px + var(--sat)); font-size: 11.5px; }
   .stage-ledge { --glow-h: 70px; }
   .player-zone .hpbar-wrap, .hpbar-wrap { width: 118px; }
@@ -1891,7 +1910,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .card-text { font-size: 10.5px; }
   .card-name { font-size: 11px; }
   .card-cost { width: 27px; height: 27px; font-size: 14px; }
-  .hand-zone { height: 128px; bottom: calc(-34px + var(--sab)); }
+  .hand-zone { height: 128px; }
   .hand-zone .card { bottom: 0; }
   /* chrome positions: ui-chrome-layout.js (?bfuiedit=1) */
   .energy-orb .num { font-size: 33px; }

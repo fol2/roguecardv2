@@ -1399,7 +1399,7 @@ function randomAgentRun(seed) {
 // ---- UI chrome layout (?bfuiedit=1) ------------------------------------------
 {
   const shapes = ['phone-portrait', 'phone-landscape', 'pad-portrait', 'pad-landscape', 'desktop-landscape'];
-  const widgets = ['energy', 'lantern', 'endTurn', 'draw', 'discard', 'ashes', 'hud'];
+  const widgets = ['energy', 'lantern', 'endTurn', 'draw', 'discard', 'ashes', 'hud', 'omen', 'relics', 'hand'];
   for (const sh of shapes) {
     const L = uicResolve(sh);
     for (const id of widgets) {
@@ -1414,6 +1414,11 @@ function randomAgentRun(seed) {
     }
     assert.ok(Number.isFinite(L.energy.left) && Number.isFinite(L.energy.bottom), `uic: ${sh} energy edges`);
     assert.ok(Number.isFinite(L.hud.height) && Number.isFinite(L.hud.scale), `uic: ${sh} hud unit`);
+    assert.ok(Number.isFinite(L.omen.top) && Number.isFinite(L.omen.scale), `uic: ${sh} omen unit`);
+    assert.ok(Number.isFinite(L.relics.top) && Number.isFinite(L.relics.scale), `uic: ${sh} relics unit`);
+    assert.ok(Number.isFinite(L.hand.bottom) && Number.isFinite(L.hand.scale), `uic: ${sh} hand unit`);
+    assert.notEqual(L.omen.scale, undefined, `uic: ${sh} omen scale independent of hud`);
+    assert.notEqual(L.relics.scale, undefined, `uic: ${sh} relics scale independent of hud`);
   }
   const baseE = uicResolve('desktop-landscape').energy.bottom;
   _setUIC({

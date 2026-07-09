@@ -283,16 +283,18 @@ function renderHud() {
         <button class="icon-btn" data-act="menu" aria-label="Menu">${uiIcon('menu', 19)}</button>
       </div>
     </div>
+    <div id="omen-slot"></div>
     <div id="relicbar"></div>`;
+  // omen + relics are independent UIC widgets (not scaled with .hud-bar)
+  const omenSlot = $('#omen-slot', hud);
   const bar = $('#relicbar', hud);
-  // the act's omen leads the bar: the rule the night imposed
   const omenId = S.run.omens?.[S.run.act];
   const omen = OMENS[omenId];
   if (omen) {
     const oc = el('div', 'relic-chip omen-chip', omenMark(omenId, 'hud-omen-art', 'hud-omen-fallback', 24));
     oc.style.setProperty('--tone', omen.tone);
     oc._tip = { title: `Omen — ${omen.name}`, body: omen.text, sub: `hangs over Act ${S.run.act + 1}` };
-    bar.appendChild(oc);
+    omenSlot.appendChild(oc);
   }
   for (const rid of p.relics) {
     const r = RELICS[rid];
@@ -1182,6 +1184,17 @@ function applyUiChromeLayout() {
     hud.style.transformOrigin = 'top center';
     hud.style.transform = L.hud.scale === 1 ? '' : `scale(${L.hud.scale})`;
   }
+  const placeTop = (el, w) => {
+    if (!el || !w) return;
+    if (w.left !== undefined) { el.style.left = `${w.left}px`; el.style.right = ''; }
+    else if (w.right !== undefined) { el.style.right = `${w.right}px`; el.style.left = ''; }
+    if (w.top !== undefined) el.style.top = `${w.top}px`;
+    const s = w.scale ?? 1;
+    el.style.transformOrigin = w.left !== undefined ? 'top left' : 'top right';
+    el.style.transform = s === 1 ? '' : `scale(${s})`;
+  };
+  placeTop($('#omen-slot'), L.omen);
+  placeTop($('#relicbar'), L.relics);
   if (!S.ce || S.screen !== 'combat') return;
   const place = (el, w) => {
     if (!el || !w) return;
@@ -1197,6 +1210,43 @@ function applyUiChromeLayout() {
   place(S.ce.draw, L.draw);
   place(S.ce.discard, L.discard);
   place(S.ce.exhaust, L.ashes);
+  if (S.ce.hand && L.hand) applyHandZoneLayout(L.hand);
+}
+
+/** Hand left/right = offset from stage-centred fan box (0 = centred). Width hugs cards. */
+function handZoneWidth(n, stageW, cardW) {
+  const count = Math.max(1, n | 0);
+  const gap = Math.min(112, 640 / count, (stageW - 246) / Math.max(count - 1, 1));
+  const span = count <= 1 ? cardW : (count - 1) * gap + cardW;
+  return Math.min(stageW - 24, Math.max(cardW + 16, Math.ceil(span + 20)));
+}
+
+function handZoneLeftEdge(h, width, stageW) {
+  const center = (stageW - width) / 2;
+  if (h.left !== undefined) return Math.round(center + h.left);
+  return Math.round(center - (h.right ?? 0));
+}
+
+function applyHandZoneLayout(h) {
+  const zone = S.ce?.hand;
+  if (!zone || !h) return;
+  const stg = stageInfo();
+  zone.style.setProperty('--hand-scale', String(h.scale ?? 1));
+  const visible = S.cb?.hand
+    ? S.cb.hand.filter((c) => {
+      const el = zone.querySelector(`.card[data-uid="${c.uid}"]`);
+      return el && !el.classList.contains('draw-pending');
+    }).length
+    : 0;
+  const n = visible || 5;
+  const cardW = handFaceSize().w;
+  const width = handZoneWidth(n, stg.w, cardW);
+  const left = handZoneLeftEdge(h, width, stg.w);
+  zone.style.width = `${width}px`;
+  zone.style.left = `${left}px`;
+  zone.style.right = 'auto';
+  zone.style.marginLeft = '0';
+  if (h.bottom !== undefined) zone.style.bottom = `${h.bottom}px`;
 }
 
 /** Top edge of resting hand cards — bottom chrome must stay above this. */
@@ -1628,6 +1678,8 @@ function layoutHand() {
     c.style.transform = `translateX(calc(-50% + ${armed ? x * 0.4 : x}px)) translateY(${y + 26}px) rotate(${armed ? rot * 0.5 : rot}deg)`;
     c.style.zIndex = hovered || armed ? 40 : 20 + i;
   });
+  const Lh = uicResolve(stageInfo().shape).hand;
+  if (Lh) applyHandZoneLayout(Lh);
   updatePreviews();
   scheduleChromeClamp();
 }
@@ -1649,7 +1701,9 @@ function bindCardDrag(c, uid) {
     }
     if (st.free) {
       const p = toStage(e.clientX, e.clientY);
-      c.style.transform = `translate(calc(-50% + ${p.x - stageW() / 2}px), ${p.y - stageH() + 130}px) scale(1.12)`;
+      const zr = S.ce?.hand ? stageRect(S.ce.hand) : null;
+      const cx = zr && zr.width > 2 ? zr.left + zr.width / 2 : stageW() / 2;
+      c.style.transform = `translate(calc(-50% + ${p.x - cx}px), ${p.y - stageH() + 130}px) scale(1.12)`;
       const overL = !!underPointer(e.clientX, e.clientY)?.closest('.lantern-btn');
       c.classList.toggle('will-burn', overL);
       c.classList.toggle('will-cast', !st.kindleOnly && !overL && p.y < castLine());
@@ -1999,20 +2053,31 @@ function pileFaceSize(pileBtn) {
   return { w: 96, h: 130 };
 }
 
+function handScale() {
+  const raw = S.ce?.hand ? getComputedStyle(S.ce.hand).getPropertyValue('--hand-scale') : '';
+  const s = parseFloat(raw);
+  return Number.isFinite(s) && s > 0 ? s : 1;
+}
+
 function handFaceSize() {
   // Resting hand size only — never sample lifted/armed/dragging (hover scales the box)
   const sample = S.ce?.hand?.querySelector(
     '.card:not(.played-up):not(.draw-pending):not(.lifted):not(.armed):not(.dragging)'
   ) || S.ce?.hand?.querySelector('.card:not(.played-up):not(.draw-pending)');
+  const scale = handScale();
   if (sample) {
     const cw = parseFloat(getComputedStyle(sample).getPropertyValue('--cw'));
-    if (cw > 2) return { w: cw, h: Math.round(cw * 1.42) };
+    if (cw > 2) {
+      const w = cw * scale;
+      return { w, h: Math.round(w * 1.42) };
+    }
     // offsetWidth is the layout box (ignores .card-lift hover translate/scale)
     if (sample.offsetWidth > 2) {
       return { w: sample.offsetWidth, h: sample.offsetHeight || Math.round(sample.offsetWidth * 1.42) };
     }
   }
-  return { w: 152, h: Math.round(152 * 1.42) };
+  const w = 152 * scale;
+  return { w, h: Math.round(w * 1.42) };
 }
 
 /** CSS `bottom` inset of a hand card (shape breakpoints change it). */
@@ -2041,8 +2106,13 @@ function handSeatCenter(fanIndex, fanCount) {
     const zr = stageRect(zone);
     if (zr.height > 2) baseBottom = zr.bottom - handCardBottomInset();
   }
+  let cx = stageW() / 2;
+  if (zone) {
+    const zr = stageRect(zone);
+    if (zr.width > 2) cx = zr.left + zr.width / 2;
+  }
   return {
-    x: stageW() / 2 + x,
+    x: cx + x,
     y: baseBottom - sz.h / 2 + sagY,
   };
 }
