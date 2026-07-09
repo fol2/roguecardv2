@@ -1,7 +1,7 @@
 // Ward shell defaults — owned by ?vfxedit=1 Save (POST /__ward-save).
 // Imported by mesh.js; Reset restores from these values.
 export const WARD_DEFAULTS = {
-  pad: 1.12,
+  pad: 1.46,
   opacity: 0.4,
   transparency: 0,
   growMs: 560,
