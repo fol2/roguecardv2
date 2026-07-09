@@ -986,10 +986,17 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 html.mesh-on .hero-wrap.warded::before,
 html.mesh-on .enemy-art.warded::before { display: none; }
 .end-turn {
-  position: absolute; right: calc(34px + var(--sar)); bottom: calc(168px + var(--sab)); z-index: 24; padding: 13px 30px;
+  position: absolute; right: calc(34px + var(--sar)); bottom: calc(168px + var(--sab)); z-index: 24;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; padding: 10px 16px; min-width: 64px;
   box-shadow: inset 0 0 0 1px var(--gold), inset 0 10px 20px -12px rgba(255, 255, 255, 0.14), 0 4px 14px rgba(0, 0, 0, 0.5);
 }
+.end-turn .et-lbl {
+  font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: 0.14em; font-weight: 700;
+}
+.end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 22px; height: 22px; }
 .end-turn.enemy-phase { opacity: 0.45; pointer-events: none; }
+.lantern-btn .lb-art-img { width: 16px; height: 16px; object-fit: contain; }
 /* Unboxed pile chrome: flat fan (no vertical stack); label + count stay readable. */
 .pile-btn {
   position: absolute; bottom: calc(14px + var(--sab)); z-index: 24;
