@@ -3,7 +3,7 @@ import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
 import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, uiIcon, uiIconUrl, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
 import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule, drawBatchSchedule } from './pile-chrome.js';
-import { UI_CHROME_IDS, uiFallbackName, energySlotStates } from './ui-chrome.js';
+import { UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds } from './ui-chrome.js';
 // drawBatchSchedule also paces discardHand (same even-stagger clock)
 import * as V from './vfx.js';
 import { syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from './vigil.js';
@@ -1232,14 +1232,11 @@ function intentFor(e) {
   const cb = S.cb;
   const mv = E.enemyMove(e);
   const p = E.previewEnemyDmg(S.run, cb, e);
-  let icon = { attack: iconSvg('sword', 19), block: iconSvg('shield', 19), buff: iconSvg('up', 19), debuff: iconSvg('cloud', 19), heal: iconSvg('plus', 19) }[mv.intent] || iconSvg('sword', 19);
+  const ids = intentUiIds(mv.intent);
+  let icon = ids.map((id, i) => uiIcon(id, i === 0 ? 19 : 14)).join('');
   let txt = '';
   if (mv.intent.startsWith('attack')) {
-    icon = iconSvg('sword', 19);
     txt = p.times > 1 ? `${p.dmg}×${p.times}` : `${p.dmg}`;
-    if (mv.intent === 'attack_debuff') icon += iconSvg('cloud', 14);
-    if (mv.intent === 'attack_block') icon += iconSvg('shield', 14);
-    if (mv.intent === 'attack_buff') icon += iconSvg('up', 14);
   }
   const tipBits = [];
   if (p) tipBits.push(`attack for <b>${p.dmg}${p.times > 1 ? `×${p.times}` : ''}</b>`);
