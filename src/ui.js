@@ -2,6 +2,7 @@
 import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
 import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
+import { pileTier, pileMasterId } from './pile-chrome.js';
 import * as V from './vfx.js';
 import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
@@ -901,9 +902,21 @@ function renderCombat() {
     <div class="energy-orb"><div class="num">0</div><div class="lbl">ENERGY</div><div class="candles"></div></div>
     <button class="lantern-btn"><span class="lb-ic">${iconSvg('lantern', 26)}</span><span class="lb-count">0</span><div class="lb-pips"></div><span class="lb-art"></span></button>
     <button class="btn end-turn">End Turn</button>
-    <button class="pile-btn pile-draw"><span class="cnt">0</span><span class="lbl">DRAW</span></button>
-    <button class="pile-btn pile-discard"><span class="cnt">0</span><span class="lbl">DISCARD</span></button>
-    <button class="pile-btn pile-exhaust"><span class="cnt">0</span><span class="lbl">ASHES</span></button>
+    <button class="pile-btn pile-draw" type="button" aria-label="Draw pile">
+      <span class="pile-stack" data-pile="draw" data-tier="-1"></span>
+      <span class="cnt">0</span>
+      <span class="lbl">DRAW</span>
+    </button>
+    <button class="pile-btn pile-discard" type="button" aria-label="Discard pile">
+      <span class="pile-stack" data-pile="discard" data-tier="-1"></span>
+      <span class="cnt">0</span>
+      <span class="lbl">DISCARD</span>
+    </button>
+    <button class="pile-btn pile-exhaust" type="button" aria-label="Ashes pile">
+      <span class="pile-stack" data-pile="ashes" data-tier="-1"></span>
+      <span class="cnt">0</span>
+      <span class="lbl">ASHES</span>
+    </button>
     <div class="hand-zone"></div>
   </div>`;
   const zone = $('.enemy-zone', sc);
@@ -1157,9 +1170,43 @@ function syncCombat() {
   const maxE = Math.max(P.energyMax, P.energy);
   if (cd.children.length !== maxE) cd.innerHTML = Array.from({ length: maxE }, () => '<span class="candle"></span>').join('');
   [...cd.children].forEach((c, i) => c.classList.toggle('lit', i < P.energy));
-  $('.cnt', ce.draw).textContent = cb.draw.length;
-  $('.cnt', ce.discard).textContent = cb.discard.length;
-  $('.cnt', ce.exhaust).textContent = cb.exhaust.length;
+  syncPileWidgets(cb);
+}
+function syncPileWidgets(cb) {
+  const ce = S.ce;
+  if (!ce) return;
+  const map = [
+    [ce.draw, 'draw', cb.draw.length],
+    [ce.discard, 'discard', cb.discard.length],
+    [ce.exhaust, 'ashes', cb.exhaust.length],
+  ];
+  for (const [btn, pile, n] of map) {
+    if (!btn) continue;
+    const tier = pileTier(n);
+    const stack = btn.querySelector('.pile-stack');
+    $('.cnt', btn).textContent = n;
+    if (!stack) continue;
+    if (Number(stack.dataset.tier) === tier) continue;
+    stack.dataset.tier = String(tier);
+    const url = assetUrl('piles', pileMasterId(pile));
+    stack.replaceChildren();
+    if (!url) {
+      stack.classList.add('pile-stack-fallback');
+      continue;
+    }
+    stack.classList.remove('pile-stack-fallback');
+    const layers = tier === 0 ? 0 : tier === 5 ? 5 : tier;
+    for (let i = 0; i < layers; i++) {
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = '';
+      img.className = 'pile-layer';
+      img.style.setProperty('--i', String(i));
+      stack.appendChild(img);
+    }
+    if (tier === 0) stack.classList.add('is-empty');
+    else stack.classList.remove('is-empty');
+  }
 }
 function syncHand() {
   const cb = S.cb, ce = S.ce;
@@ -2936,6 +2983,7 @@ function renderGallery() {
     deeds: Object.keys(DEEDS).map((k) => [k, () => iconSvg(`deed-${k}`, 64)]),
     bequests: ['relic', 'card', 'gold'].map((k) => [k, () => iconSvg(`bequest-${k}`, 64)]),
     meta: ['fallen', 'ascended', 'monument-node'].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
+    piles: ['draw', 'discard', 'ashes'].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
   };
   screenEl().className = 'gallery-mode';
   screenEl().innerHTML = `<div class="g-toolbar">

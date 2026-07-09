@@ -914,8 +914,32 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   font-family: 'Cinzel', serif; transition: border-color 0.15s, transform 0.15s;
 }
 .pile-btn:hover { border-color: var(--gold); transform: translateY(-2px); }
-.pile-btn .cnt { font-size: 19px; font-weight: 800; color: var(--parchment); }
-.pile-btn .lbl { font-size: 9.5px; letter-spacing: 0.12em; color: var(--text-dim); }
+.pile-stack {
+  position: absolute; inset: 6px 6px 18px;
+  pointer-events: none;
+}
+.pile-stack.is-empty {
+  outline: 1px dashed rgba(242, 193, 78, 0.25);
+  border-radius: 4px;
+  opacity: 0.45;
+}
+.pile-layer {
+  position: absolute; left: 50%; bottom: 0;
+  width: 70%; height: auto;
+  transform: translate(-50%, calc(var(--i) * -2px)) rotate(calc(var(--i) * 1.2deg));
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.55));
+}
+.pile-btn .cnt {
+  position: relative; z-index: 1;
+  font-size: 19px; font-weight: 800; color: var(--parchment);
+}
+.pile-btn .lbl { position: relative; z-index: 1; font-size: 9.5px; letter-spacing: 0.12em; color: var(--text-dim); }
+.pile-btn.pile-bump { animation: pileBump 0.28s ease-out; }
+@keyframes pileBump {
+  0% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(-3px) scale(1.06); }
+  100% { transform: translateY(0) scale(1); }
+}
 .pile-draw { left: calc(30px + var(--sal)); }
 .pile-discard { right: calc(34px + var(--sar)); }
 .pile-exhaust { right: calc(110px + var(--sar)); opacity: 0.85; }
@@ -1446,6 +1470,8 @@ html.mesh-on .enemy-art.warded::before { display: none; }
     font-size: 11.5px; letter-spacing: 0.04em; line-height: 1.15;
   }
   .pile-btn { width: 46px; height: 46px; bottom: calc(6px + var(--sab)); border-radius: 10px; }
+  .pile-stack { inset: 4px 4px 14px; }
+  .pile-layer { width: 72%; }
   .pile-btn .cnt { font-size: 15px; }
   .pile-btn .lbl { font-size: 7.5px; }
   .pile-draw { left: calc(8px + var(--sal)); }
@@ -1515,6 +1541,8 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .candle { width: 6px; height: 8px; }
   .end-turn { right: calc(10px + var(--sar)); bottom: calc(74px + var(--sab)); padding: 8px 14px; font-size: 13.5px; }
   .pile-btn { width: 42px; height: 42px; bottom: calc(8px + var(--sab)); }
+  .pile-stack { inset: 3px 3px 12px; }
+  .pile-layer { width: 74%; }
   .pile-btn .cnt { font-size: 14px; }
   .pile-btn .lbl { font-size: 7px; }
   .pile-draw { left: calc(10px + var(--sal)); }
