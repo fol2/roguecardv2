@@ -4,7 +4,7 @@ Guidance for AI coding agents (Claude Code, Cursor, Codex, …) working in this 
 
 ## What this is
 
-**Spirebound** — a complete browser roguelite deckbuilder (Vite + vanilla JS + three.js, no UI framework). Combat art, cards, relics, enemies, events, and stage plates are raster assets in `src/assets/` (resolved through `assetUrl()` with SVG fallbacks); structural UI icons and status chips are hand-drawn SVG in `src/art.js`; audio is WebAudio-synthesized (`src/audio.js`). Deeper design/lore context lives in `README.md`.
+**Spirebound** — a complete browser roguelite deckbuilder (Vite + vanilla JS + three.js, no UI framework). Combat art, cards, relics, enemies, events, and stage plates are raster assets in `src/assets/` (resolved through `assetUrl()` with SVG fallbacks); structural UI icons and status chips are hand-drawn SVG in `src/art.js`; SFX are sample-backed with synth fallback (`src/audio.js`); BGM is a Music Cue layer (`src/music.js`, assets in `src/assets/musics/`). Deeper design/lore context lives in `README.md`.
 
 ## Agent skills
 
@@ -61,7 +61,8 @@ Consequence: **every damage/block calculation has a pure preview mirror** (`prev
 data.js   ← pure content tables + constants, imports nothing
 art.js    ← pure procedural SVG + assetUrl(); imports nothing
 stage.js  ← fixed virtual viewport; imports nothing
-audio.js  ← WebAudio; has UNGUARDED top-level localStorage (browser-only)
+audio.js  ← WebAudio SFX + shared AudioContext; UNGUARDED top-level localStorage (browser-only)
+music.js  ← Music Cue registry + BGM playback; imports audio.js only (browser-only)
 engine.js ← imports data.js only         (game logic; localStorage save/load is try/catch-guarded → no-ops in Node)
 vigil.js  ← imports data.js only         (meta-progression; Node-safe storage adapter + _setStore() test hook)
 scene3d.js← imports three + data.js + stage.js  (the 3D tower / camera)
@@ -71,7 +72,7 @@ ui.js     ← imports ALL of the above     (the only orchestrator; owns the DOM)
 main.js   ← initStage → initScene → initVfx → initMesh → initUI
 ```
 
-**Never import `audio.js` from `engine.js` or `vigil.js`** — its top-level `localStorage` access throws in Node and would break the tests. Engine and vigil are the two modules that must stay Node-runnable. **`stage.js` is browser-only** (DOM) — same import ban for engine/vigil.
+**Never import `audio.js` or `music.js` from `engine.js` or `vigil.js`** — top-level `localStorage` access throws in Node and would break the tests. Engine and vigil are the two modules that must stay Node-runnable. **`stage.js` is browser-only** (DOM) — same import ban for engine/vigil.
 
 ### Fixed virtual stage (`src/stage.js`, spec §1b)
 
@@ -83,7 +84,7 @@ All screens (title, embark, map, combat, rewards, lamplighter, end/bequest, vigi
 
 ### Persistence & save-shape validation
 
-localStorage keys: `spirebound_save_v2` (current run), `spirebound_stats_v1` (lifetime stats), `spirebound_vigil_v2` (meta-progression; one-way migrate from `spirebound_vigil_v1` on first load, v1 left as read-only backup), `spirebound_mute`. `loadRun` validates every content id on load — this doubles as the shield against stale content after an HMR edit or a card/relic rename. `run.pendingCombat` guards against reload-to-skip-fight.
+localStorage keys: `spirebound_save_v2` (current run), `spirebound_stats_v1` (lifetime stats), `spirebound_vigil_v2` (meta-progression; one-way migrate from `spirebound_vigil_v1` on first load, v1 left as read-only backup), `spirebound_vol_music` / `spirebound_mute_music` / `spirebound_vol_sfx` / `spirebound_mute_sfx` (independent audio buses; legacy `spirebound_mute` migrates into both mutes). `loadRun` validates every content id on load — this doubles as the shield against stale content after an HMR edit or a card/relic rename. `run.pendingCombat` guards against reload-to-skip-fight.
 
 ### The four game systems (all in engine + data, surfaced by ui)
 

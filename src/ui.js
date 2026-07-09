@@ -7,7 +7,8 @@ import { UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyph
 // drawBatchSchedule also paces discardHand (same even-stagger clock)
 import * as V from './vfx.js';
 import { syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from './vigil.js';
-import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
+import { sfx, unlock, getSfxVolume, setSfxVolume, isSfxMuted, setSfxMuted } from './audio.js';
+import * as music from './music.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
 import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift, meshAim, meshAimClear, meshWard } from './mesh.js';
 import { charShadowLive, charCssFloat, charAim, onCharMetaChange } from './char-meta.js';
@@ -319,7 +320,7 @@ function openMenu(cx, cy) {
   closeMenus();
   const { x, y } = toStage(cx, cy);
   const m = el('div', 'pop-menu');
-  m.innerHTML = `<button data-m="help">How to Play</button><button data-m="mute">${isMuted() ? 'Unmute' : 'Mute'} Sound</button><button data-m="abandon" style="color:#ff8d8d">Abandon Run</button>`;
+  m.innerHTML = `<button data-m="help">How to Play</button><button data-m="audio">Audio</button><button data-m="abandon" style="color:#ff8d8d">Abandon Run</button>`;
   stageEl().appendChild(m); // inside the stage so it scales with the game
   m.style.left = `${Math.min(x, stageW() - 200)}px`;
   m.style.top = `${y + 8}px`;
@@ -327,13 +328,56 @@ function openMenu(cx, cy) {
     const a = e.target.dataset.m;
     closeMenus();
     if (a === 'help') showHelp();
-    if (a === 'mute') toggleMute();
+    if (a === 'audio') openAudioPanel();
     if (a === 'abandon') confirmAbandon();
   };
   setTimeout(() => document.addEventListener('pointerdown', closeMenusOnce, { once: true }), 0);
 }
-const closeMenus = () => $$('.pop-menu').forEach((m) => m.remove());
-const closeMenusOnce = (e) => { if (!e.target.closest('.pop-menu')) closeMenus(); };
+const closeMenus = () => $$('.pop-menu, .audio-panel').forEach((m) => m.remove());
+const closeMenusOnce = (e) => { if (!e.target.closest('.pop-menu, .audio-panel')) closeMenus(); };
+
+function openAudioPanel() {
+  closeMenus();
+  const panel = el('div', 'audio-panel');
+  const row = (label, vol, muted, bus) => `
+    <div class="audio-row" data-bus="${bus}">
+      <div class="audio-row-head">
+        <span class="audio-label">${label}</span>
+        <button type="button" class="audio-mute" data-a="mute">${muted ? 'Unmute' : 'Mute'}</button>
+      </div>
+      <input type="range" class="audio-vol" min="0" max="100" step="1" value="${Math.round(vol * 100)}" ${muted ? 'disabled' : ''}>
+    </div>`;
+  panel.innerHTML = `
+    <div class="audio-panel-title">Audio</div>
+    ${row('Music', music.getMusicVolume(), music.isMusicMuted(), 'music')}
+    ${row('SFX', getSfxVolume(), isSfxMuted(), 'sfx')}
+    <button type="button" class="audio-close" data-a="close">Close</button>`;
+  stageEl().appendChild(panel);
+  const bindRow = (bus) => {
+    const root = $(`.audio-row[data-bus="${bus}"]`, panel);
+    const slider = $('.audio-vol', root);
+    const muteBtn = $('.audio-mute', root);
+    const getVol = bus === 'music' ? music.getMusicVolume : getSfxVolume;
+    const setVol = bus === 'music' ? music.setMusicVolume : setSfxVolume;
+    const getMute = bus === 'music' ? music.isMusicMuted : isSfxMuted;
+    const setMute = bus === 'music' ? music.setMusicMuted : setSfxMuted;
+    slider.oninput = () => {
+      setVol(+slider.value / 100);
+      if (bus === 'sfx') sfx.click();
+    };
+    muteBtn.onclick = () => {
+      const on = setMute(!getMute());
+      muteBtn.textContent = on ? 'Unmute' : 'Mute';
+      slider.disabled = on;
+      slider.value = String(Math.round(getVol() * 100));
+      sfx.click();
+    };
+  };
+  bindRow('music');
+  bindRow('sfx');
+  $('[data-a="close"]', panel).onclick = () => closeMenus();
+  setTimeout(() => document.addEventListener('pointerdown', closeMenusOnce, { once: true }), 0);
+}
 function potionMenu(slot, e) {
   if (S.busy) return;
   closeMenus();
@@ -383,7 +427,7 @@ function confirmAbandon() {
   </div>`, (root) => {
     root.onclick = (e) => {
       const a = e.target.dataset.a;
-      if (a === 'yes') { commitRunEnd(S.run); E.recordRunEnd(S.run, false); S.run = null; S.cb = null; closeOverlay(); stopAmbience(); show('title'); }
+      if (a === 'yes') { commitRunEnd(S.run); E.recordRunEnd(S.run, false); S.run = null; S.cb = null; closeOverlay(); show('title'); }
       if (a === 'no') closeOverlay();
     };
   });
@@ -502,12 +546,18 @@ export function show(name, data) {
   })[name](data);
   if (name === 'map') warmAssets();
   if (name !== 'combat' && name !== 'title') meshClear();
+  // Only switch BGM if the renderer stayed on this screen (map may redirect into combat).
+  // reward / bossRelic intentionally omit SCREEN_CUES so combat music holds until node-pick map.
+  if (S.screen === name && name !== 'combat' && name !== 'end') music.playForScreen(name);
+  if (S.screen === 'map' && S.run) {
+    const a = (S.run.act | 0) + 1;
+    music.warm(`act${a}Combat`, `act${a}Boss`, 'elite', 'safeNodes');
+  }
   renderHud();
 }
 
 const ROMAN = ['0', 'I', 'II', 'III', 'IV', 'V'];
 function renderTitle() {
-  stopAmbience();
   setTheme(0);
   const vigil = syncVigil(); // reconcile any owed unlocks (e.g. seeded from old stats)
   const saved = E.loadRun();
@@ -524,7 +574,7 @@ function renderTitle() {
       <button class="btn" data-a="embark">Begin the Climb</button>
       <button class="btn ghost${vigil.news && !REDUCED ? ' news' : ''}" data-a="vigil">The Vigil</button>
       <button class="btn ghost" data-a="help">How to Play</button>
-      <button class="btn ghost" data-a="mute">${isMuted() ? 'Unmute' : 'Mute'}</button>
+      <button class="btn ghost" data-a="audio">Audio</button>
     </div>
     <div class="title-stats">${d.runs} climbs · ${d.wins} dawns · ${d.slain} slain${vigil.unlocks.length ? ` · ${vigil.unlocks.length} secrets unearthed` : ''}</div>
   </div>`;
@@ -537,7 +587,7 @@ function renderTitle() {
     else if (a === 'continue' && saved) startRun(saved, true);
     else if (a === 'vigil') show('vigil');
     else if (a === 'help') showHelp();
-    else if (a === 'mute') { toggleMute(); renderTitle(); }
+    else if (a === 'audio') openAudioPanel();
   };
   meshBindTitle();
 }
@@ -545,7 +595,6 @@ function renderTitle() {
 // fresh profile sees a single Begin button; the aspect choice arrives with
 // 'aspect2', the vow ladder with the first dawn.
 function renderEmbark() {
-  stopAmbience();
   setTheme(0);
   const vigil = syncVigil();
   const saved = E.loadRun();
@@ -633,7 +682,6 @@ function renderEmbark() {
 // THE VIGIL — the hall between climbs. Phase 1 ships the Deeds tab; the
 // Emberglass rose window joins it when the chain arms (Phase 2).
 function renderVigil() {
-  stopAmbience();
   setTheme(0);
   const v = clearNews(); // opening the hall reads the news
   const deedRows = Object.entries(DEEDS).map(([id, deed]) => {
@@ -679,7 +727,6 @@ function startRun(run, resumed = false) {
   setTheme(run.act);
   const curNode = run.nodeId ? run.map.nodes.find((n) => n.id === run.nodeId) : null;
   setAltitude(run.act, curNode ? curNode.row : 0);
-  setAmbience(run.act);
   if (!resumed) E.saveRun(run);
   if (resumed && run.pendingCombat) {
     // died-to-reload protection: an unfinished fight restarts fresh
@@ -698,6 +745,7 @@ function renderLamplighter() {
   const run = S.run;
   if (S.screen !== 'lamplighter') wipe();
   S.screen = 'lamplighter';
+  music.playForScreen('lamplighter');
   closeMenus();
   clearOverlay();
   setTheme(0);
@@ -799,28 +847,31 @@ function renderMap() {
     ].join(' ');
     const tf = COARSE ? 1.3 : 1; // lanterns grow to meet a fingertip
     const r = (n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 19 : 16) * tf;
-    const isz = Math.round((n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 20 : 17) * tf);
+    const fs = Math.round(r * 2);
+    // glyph oversized vs frame so it spills over the ring (intent 38/30, ward 34/26)
+    const gs = Math.round(fs * 1.28);
     const glyphId = nodeGlyphId(n.type, dark);
     const frameU = uiIconUrl('node-frame');
     const glyphU = uiIconUrl(glyphId);
     // Prefer kit; monument meta raster remains fallback for monument when glyph missing
     const monUrl = (n.type === 'monument' && !glyphU) ? assetUrl('meta', 'monument-node') : null;
+    // transparent hit disc — nframe/nglyph are PE:none decorative; without this
+    // .mnode { pointer-events: visiblePainted } has nothing to hit on the raster path
+    const hit = `<circle class="nhit" r="${Math.round(gs / 2)}" fill="transparent"/>`;
     let iconHtml;
     if (frameU || glyphU || monUrl) {
-      const gs = isz;
-      const fs = Math.round(r * 2);
       const frame = frameU
         ? `<image class="nframe" href="${frameU}" x="${-fs / 2}" y="${-fs / 2}" width="${fs}" height="${fs}" />`
         : `<circle class="bg" r="${dark ? 16 * tf : r}"/>`;
       const glyph = (glyphU || monUrl)
         ? `<image class="nglyph" href="${glyphU || monUrl}" x="${-gs / 2}" y="${-gs / 2}" width="${gs}" height="${gs}" />`
-        : `<g class="icg">${iconInline(dark ? 'unlitLantern' : NODE_ICONS[n.type], dark ? Math.round(17 * tf) : isz)}</g>`;
+        : `<g class="icg">${iconInline(dark ? 'unlitLantern' : NODE_ICONS[n.type], gs)}</g>`;
       iconHtml = `${frame}${glyph}`;
     } else {
-      iconHtml = `<circle class="bg" r="${dark ? 16 * tf : r}"/><g class="icg">${iconInline(dark ? 'unlitLantern' : NODE_ICONS[n.type], dark ? Math.round(17 * tf) : isz)}</g>`;
+      iconHtml = `<circle class="bg" r="${dark ? 16 * tf : r}"/><g class="icg">${iconInline(dark ? 'unlitLantern' : NODE_ICONS[n.type], gs)}</g>`;
     }
     dots += `<g class="${cls}" data-node="${n.id}" style="--d:${n.row * 34}ms">
-      <g class="nwrap">${iconHtml}</g>
+      ${hit}<g class="nwrap">${iconHtml}</g>
     </g>`;
   }
   const act = ACTS[run.act];
@@ -961,6 +1012,7 @@ function startCombatUI(enemyIds, kind) {
   if (S.screen !== 'combat') wipe();
   S.cb = E.startCombat(S.run, enemyIds, kind);
   S.screen = 'combat';
+  music.playForCombat(kind, S.run.act);
   V.setWeather(S.run.act, { boss: kind === 'boss' });
   renderCombat();
   renderHud();
@@ -3518,7 +3570,6 @@ function advanceAct() {
   E.healPlayer(run, Math.round(run.player.maxHp * 0.35));
   setTheme(run.act);
   setAltitude(run.act, 0);
-  setAmbience(run.act);
   E.saveRun(run);
   transition('act-change');
   show('map');
@@ -3857,7 +3908,7 @@ function showUnlockToasts(list = []) {
 }
 function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1 }) {
   const run = S.run;
-  stopAmbience();
+  music.playForRunEnd(!!won);
   const st = run.stats;
   const mins = Math.max(1, Math.round((Date.now() - st.start) / 60000));
   const totalFloor = run.act * E.MAP_ROWS + run.floorsClimbed;

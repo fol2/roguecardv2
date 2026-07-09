@@ -296,6 +296,27 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .pop-menu { position: fixed; z-index: 65; background: var(--panel); border: 1px solid var(--panel-line); border-radius: 10px; padding: 6px; display: flex; flex-direction: column; gap: 2px; box-shadow: 0 14px 40px rgba(0,0,0,.6); }
 .pop-menu button { padding: 8px 18px; border-radius: 7px; font-family: 'Cinzel', serif; font-size: 14px; text-align: left; }
 .pop-menu button:hover { background: rgba(242, 193, 78, 0.14); color: var(--gold); }
+.audio-panel {
+  position: fixed; z-index: 66; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(320px, 86cqw); background: var(--panel); border: 1px solid var(--panel-line);
+  border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;
+  box-shadow: 0 18px 50px rgba(0,0,0,.65);
+}
+.audio-panel-title { font-family: 'Cinzel', serif; font-size: 16px; letter-spacing: 0.08em; color: var(--gold); text-align: center; }
+.audio-row { display: flex; flex-direction: column; gap: 6px; }
+.audio-row-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.audio-label { font-family: 'Cinzel', serif; font-size: 13px; letter-spacing: 0.06em; }
+.audio-mute {
+  font-family: 'Cinzel', serif; font-size: 12px; padding: 4px 10px; border-radius: 6px;
+  background: rgba(242, 193, 78, 0.1); border: 1px solid rgba(242, 193, 78, 0.28); color: var(--gold);
+}
+.audio-vol { width: 100%; accent-color: var(--gold); }
+.audio-vol:disabled { opacity: 0.35; }
+.audio-close {
+  margin-top: 2px; font-family: 'Cinzel', serif; font-size: 13px; padding: 8px 12px; border-radius: 8px;
+  background: rgba(14, 18, 34, 0.6); border: 1px solid var(--panel-line);
+}
+.audio-close:hover { background: rgba(242, 193, 78, 0.14); color: var(--gold); }
 
 /* ============ Title */
 /* `safe center`: if content ever outgrows the stage it scrolls from the top
@@ -364,6 +385,10 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .medge.walked { opacity: 0.25; stroke: rgba(242, 193, 78, 0.55); stroke-dasharray: none; filter: drop-shadow(0 0 4px rgba(242, 193, 78, 0.5)); }
 .mnode { cursor: default; }
 .mnode circle.bg { fill: #141a30; stroke: var(--gold-dim); stroke-width: 1.2; transition: all 0.2s; }
+/* glyph sized in ui.js (~1.28× frame) so the type asset overlaps the ring */
+.mnode .nwrap { overflow: visible; }
+/* nhit = invisible disc sized to the oversized glyph; art stays PE:none */
+.mnode .nhit { pointer-events: fill; }
 .mnode .nframe, .mnode .nglyph { pointer-events: none; transition: filter 0.2s, opacity 0.2s; }
 .mnode .icg { color: #98a2c4; pointer-events: none; }
 .mnode.type-elite circle.bg { stroke: #ff7847; }

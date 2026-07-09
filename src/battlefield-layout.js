@@ -138,6 +138,9 @@ export const BF = {
     },
     'pad-landscape': {
       hero: { x: 200 },
+      slots: {
+        3: [{ x: 698, y: 42, s: 1 }, { x: 850, y: -18, s: 1 }, { x: 996, y: 26, s: 1 }],
+      },
       layers: {
         backdrop: { y: 0, drift: 30 },
       },

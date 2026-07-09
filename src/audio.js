@@ -1,4 +1,5 @@
-// Ashglass Vigil SFX (ElevenLabs samples) + WebAudio synth fallback + ambient drone.
+// Ashglass Vigil SFX (ElevenLabs samples) + WebAudio synth fallback.
+// Music lives in music.js; both share this AudioContext.
 import clickUrl from './assets/sfx/click.mp3';
 import hoverUrl from './assets/sfx/hover.mp3';
 import cardUrl from './assets/sfx/card.mp3';
@@ -30,8 +31,23 @@ import staggerUrl from './assets/sfx/stagger.mp3';
 import artUrl from './assets/sfx/art.mp3';
 import omenUrl from './assets/sfx/omen.mp3';
 
-let ctx = null, master = null, ambGain = null, ambNodes = [];
-let muted = localStorage.getItem('spirebound_mute') === '1';
+const DEFAULT_VOL = 0.55;
+const VOL_KEY = 'spirebound_vol_sfx';
+const MUTE_KEY = 'spirebound_mute_sfx';
+
+function readVol() {
+  const v = parseFloat(localStorage.getItem(VOL_KEY));
+  return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : DEFAULT_VOL;
+}
+function readMute() {
+  const legacy = localStorage.getItem('spirebound_mute');
+  if (localStorage.getItem(MUTE_KEY) == null && legacy === '1') return true;
+  return localStorage.getItem(MUTE_KEY) === '1';
+}
+
+let ctx = null, sfxBus = null;
+let volume = readVol();
+let muted = readMute();
 const buffers = Object.create(null);
 const loading = Object.create(null);
 
@@ -46,28 +62,50 @@ const SAMPLE_URLS = {
   art: artUrl, omen: omenUrl,
 };
 
-function ensure() {
+export function ensureAudio() {
   if (ctx) return true;
   try {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
-    master = ctx.createGain();
-    master.gain.value = muted ? 0 : 0.5;
-    master.connect(ctx.destination);
+    sfxBus = ctx.createGain();
+    sfxBus.gain.value = muted ? 0 : volume;
+    sfxBus.connect(ctx.destination);
   } catch { return false; }
   return true;
 }
+export function getAudioContext() { return ctx; }
+
+function applyBusGain(ramp = 0.08) {
+  if (!sfxBus || !ctx) return;
+  const target = muted ? 0 : volume;
+  sfxBus.gain.cancelScheduledValues(ctx.currentTime);
+  sfxBus.gain.linearRampToValueAtTime(target, ctx.currentTime + ramp);
+}
+
 export function unlock() {
-  if (!ensure()) return;
+  if (!ensureAudio()) return;
   if (ctx.state === 'suspended') ctx.resume();
   preloadSfx();
 }
-export function isMuted() { return muted; }
-export function toggleMute() {
-  muted = !muted;
-  localStorage.setItem('spirebound_mute', muted ? '1' : '0');
-  if (master) master.gain.linearRampToValueAtTime(muted ? 0 : 0.5, ctx.currentTime + 0.1);
+
+export function getSfxVolume() { return volume; }
+export function isSfxMuted() { return muted; }
+export function setSfxVolume(v) {
+  volume = Math.min(1, Math.max(0, +v || 0));
+  localStorage.setItem(VOL_KEY, String(volume));
+  applyBusGain();
+  return volume;
+}
+export function setSfxMuted(on) {
+  muted = !!on;
+  localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
+  applyBusGain();
   return muted;
 }
+export function toggleSfxMute() { return setSfxMuted(!muted); }
+
+// Back-compat aliases (old single mute → SFX bus only). Prefer the SFX-named API.
+export function isMuted() { return muted; }
+export function toggleMute() { return toggleSfxMute(); }
 
 function env(node, t0, a, peak, d) {
   node.gain.setValueAtTime(0.0001, t0);
@@ -75,18 +113,18 @@ function env(node, t0, a, peak, d) {
   node.gain.exponentialRampToValueAtTime(0.0001, t0 + a + d);
 }
 function tone(freq, { type = 'sine', a = 0.005, d = 0.2, peak = 0.3, slide = 0, delay = 0 } = {}) {
-  if (!ensure()) return;
+  if (!ensureAudio()) return;
   const t0 = ctx.currentTime + delay;
   const o = ctx.createOscillator(), g = ctx.createGain();
   o.type = type;
   o.frequency.setValueAtTime(freq, t0);
   if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, freq + slide), t0 + a + d);
   env(g, t0, a, peak, d);
-  o.connect(g).connect(master);
+  o.connect(g).connect(sfxBus);
   o.start(t0); o.stop(t0 + a + d + 0.05);
 }
 function noise({ a = 0.002, d = 0.15, peak = 0.25, f0 = 800, f1 = 300, q = 1, type = 'bandpass', delay = 0 } = {}) {
-  if (!ensure()) return;
+  if (!ensureAudio()) return;
   const t0 = ctx.currentTime + delay;
   const len = Math.ceil(ctx.sampleRate * (a + d + 0.05));
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -98,7 +136,7 @@ function noise({ a = 0.002, d = 0.15, peak = 0.25, f0 = 800, f1 = 300, q = 1, ty
   flt.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t0 + a + d);
   const g = ctx.createGain();
   env(g, t0, a, peak, d);
-  src.connect(flt).connect(g).connect(master);
+  src.connect(flt).connect(g).connect(sfxBus);
   src.start(t0); src.stop(t0 + a + d + 0.05);
 }
 
@@ -106,7 +144,7 @@ async function loadSample(name) {
   if (buffers[name] || !SAMPLE_URLS[name]) return buffers[name] || null;
   if (loading[name]) return loading[name];
   loading[name] = (async () => {
-    if (!ensure()) return null;
+    if (!ensureAudio()) return null;
     try {
       const res = await fetch(SAMPLE_URLS[name]);
       const arr = await res.arrayBuffer();
@@ -123,7 +161,7 @@ async function loadSample(name) {
 }
 
 function playSample(name, { gain = 0.85 } = {}) {
-  if (!ensure()) return false;
+  if (!ensureAudio()) return false;
   const buf = buffers[name];
   if (!buf) {
     loadSample(name);
@@ -133,7 +171,7 @@ function playSample(name, { gain = 0.85 } = {}) {
   src.buffer = buf;
   const g = ctx.createGain();
   g.gain.value = gain;
-  src.connect(g).connect(master);
+  src.connect(g).connect(sfxBus);
   src.start();
   return true;
 }
@@ -144,9 +182,8 @@ function play(name, fallback, opts) {
   loadSample(name);
 }
 
-// Warm the common UI hits after first unlock gesture.
 export function preloadSfx() {
-  if (!ensure()) return;
+  if (!ensureAudio()) return;
   Object.keys(SAMPLE_URLS).forEach((k) => { loadSample(k); });
 }
 
@@ -187,36 +224,6 @@ export const sfx = Object.fromEntries(
   Object.keys(synth).map((name) => [name, () => play(name, synth[name])])
 );
 
-const ACT_ROOTS = [55, 49, 41.2]; // A1, G1, E1
-export function setAmbience(actIdx) {
-  if (!ensure()) return;
-  stopAmbience();
-  ambGain = ctx.createGain();
-  ambGain.gain.value = 0;
-  ambGain.connect(master);
-  const root = ACT_ROOTS[actIdx] || 55;
-  const flt = ctx.createBiquadFilter();
-  flt.type = 'lowpass'; flt.frequency.value = 320; flt.Q.value = 0.6;
-  flt.connect(ambGain);
-  for (const [mult, det, vol] of [[1, 0, 0.5], [1.5, 3, 0.22], [2, -4, 0.3], [3, 2, 0.1]]) {
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.type = 'sawtooth'; o.frequency.value = root * mult; o.detune.value = det;
-    g.gain.value = vol;
-    o.connect(g).connect(flt);
-    o.start();
-    ambNodes.push(o, g);
-  }
-  const lfo = ctx.createOscillator(), lfoG = ctx.createGain();
-  lfo.frequency.value = 0.07; lfoG.gain.value = 90;
-  lfo.connect(lfoG).connect(flt.frequency);
-  lfo.start();
-  ambNodes.push(lfo, lfoG, flt);
-  ambGain.gain.linearRampToValueAtTime(0.11, ctx.currentTime + 3);
-}
-export function stopAmbience() {
-  if (!ambGain) return;
-  const g = ambGain, nodes = ambNodes;
-  g.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.2);
-  setTimeout(() => { nodes.forEach((n) => { try { n.stop?.(); } catch { /* gain nodes */ } try { n.disconnect(); } catch { /* ok */ } }); try { g.disconnect(); } catch { /* ok */ } }, 1500);
-  ambGain = null; ambNodes = [];
-}
+// Retired Ambience Drone — kept as no-ops so stray imports don't throw during HMR.
+export function setAmbience() {}
+export function stopAmbience() {}
