@@ -1,6 +1,50 @@
-// WebAudio-synthesized SFX + ambient drone. No assets.
+// Ashglass Vigil SFX (ElevenLabs samples) + WebAudio synth fallback + ambient drone.
+import clickUrl from './assets/sfx/click.mp3';
+import hoverUrl from './assets/sfx/hover.mp3';
+import cardUrl from './assets/sfx/card.mp3';
+import drawUrl from './assets/sfx/draw.mp3';
+import slashUrl from './assets/sfx/slash.mp3';
+import hitUrl from './assets/sfx/hit.mp3';
+import blockedUrl from './assets/sfx/blocked.mp3';
+import blockUrl from './assets/sfx/block.mp3';
+import poisonUrl from './assets/sfx/poison.mp3';
+import debuffUrl from './assets/sfx/debuff.mp3';
+import buffUrl from './assets/sfx/buff.mp3';
+import healUrl from './assets/sfx/heal.mp3';
+import energyUrl from './assets/sfx/energy.mp3';
+import coinUrl from './assets/sfx/coin.mp3';
+import potionUrl from './assets/sfx/potion.mp3';
+import deathUrl from './assets/sfx/death.mp3';
+import bigDeathUrl from './assets/sfx/bigDeath.mp3';
+import turnUrl from './assets/sfx/turn.mp3';
+import victoryUrl from './assets/sfx/victory.mp3';
+import defeatUrl from './assets/sfx/defeat.mp3';
+import relicUrl from './assets/sfx/relic.mp3';
+import upgradeUrl from './assets/sfx/upgrade.mp3';
+import mapUrl from './assets/sfx/map.mp3';
+import chipUrl from './assets/sfx/chip.mp3';
+import shatterUrl from './assets/sfx/shatter.mp3';
+import emberUrl from './assets/sfx/ember.mp3';
+import kindleUrl from './assets/sfx/kindle.mp3';
+import staggerUrl from './assets/sfx/stagger.mp3';
+import artUrl from './assets/sfx/art.mp3';
+import omenUrl from './assets/sfx/omen.mp3';
+
 let ctx = null, master = null, ambGain = null, ambNodes = [];
 let muted = localStorage.getItem('spirebound_mute') === '1';
+const buffers = Object.create(null);
+const loading = Object.create(null);
+
+const SAMPLE_URLS = {
+  click: clickUrl, hover: hoverUrl, card: cardUrl, draw: drawUrl,
+  slash: slashUrl, hit: hitUrl, blocked: blockedUrl, block: blockUrl,
+  poison: poisonUrl, debuff: debuffUrl, buff: buffUrl, heal: healUrl,
+  energy: energyUrl, coin: coinUrl, potion: potionUrl, death: deathUrl,
+  bigDeath: bigDeathUrl, turn: turnUrl, victory: victoryUrl, defeat: defeatUrl,
+  relic: relicUrl, upgrade: upgradeUrl, map: mapUrl, chip: chipUrl,
+  shatter: shatterUrl, ember: emberUrl, kindle: kindleUrl, stagger: staggerUrl,
+  art: artUrl, omen: omenUrl,
+};
 
 function ensure() {
   if (ctx) return true;
@@ -12,7 +56,11 @@ function ensure() {
   } catch { return false; }
   return true;
 }
-export function unlock() { if (ensure() && ctx.state === 'suspended') ctx.resume(); }
+export function unlock() {
+  if (!ensure()) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  preloadSfx();
+}
 export function isMuted() { return muted; }
 export function toggleMute() {
   muted = !muted;
@@ -54,7 +102,55 @@ function noise({ a = 0.002, d = 0.15, peak = 0.25, f0 = 800, f1 = 300, q = 1, ty
   src.start(t0); src.stop(t0 + a + d + 0.05);
 }
 
-export const sfx = {
+async function loadSample(name) {
+  if (buffers[name] || !SAMPLE_URLS[name]) return buffers[name] || null;
+  if (loading[name]) return loading[name];
+  loading[name] = (async () => {
+    if (!ensure()) return null;
+    try {
+      const res = await fetch(SAMPLE_URLS[name]);
+      const arr = await res.arrayBuffer();
+      buffers[name] = await ctx.decodeAudioData(arr.slice(0));
+      return buffers[name];
+    } catch {
+      buffers[name] = null;
+      return null;
+    } finally {
+      delete loading[name];
+    }
+  })();
+  return loading[name];
+}
+
+function playSample(name, { gain = 0.85 } = {}) {
+  if (!ensure()) return false;
+  const buf = buffers[name];
+  if (!buf) {
+    loadSample(name);
+    return false;
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const g = ctx.createGain();
+  g.gain.value = gain;
+  src.connect(g).connect(master);
+  src.start();
+  return true;
+}
+
+function play(name, fallback, opts) {
+  if (playSample(name, opts)) return;
+  fallback();
+  loadSample(name);
+}
+
+// Warm the common UI hits after first unlock gesture.
+export function preloadSfx() {
+  if (!ensure()) return;
+  Object.keys(SAMPLE_URLS).forEach((k) => { loadSample(k); });
+}
+
+const synth = {
   click: () => { tone(660, { type: 'triangle', d: 0.05, peak: 0.12 }); },
   hover: () => { tone(880, { type: 'sine', d: 0.03, peak: 0.05 }); },
   card: () => { noise({ d: 0.12, f0: 1800, f1: 500, peak: 0.14 }); },
@@ -78,7 +174,6 @@ export const sfx = {
   relic: () => { [659, 831, 988].forEach((f, i) => tone(f, { type: 'sine', d: 0.3, peak: 0.12, delay: i * 0.09 })); },
   upgrade: () => { tone(440, { type: 'triangle', d: 0.15, peak: 0.14 }); tone(880, { type: 'triangle', d: 0.3, peak: 0.12, delay: 0.1 }); },
   map: () => { noise({ d: 0.25, f0: 500, f1: 1500, peak: 0.06 }); tone(330, { type: 'sine', d: 0.2, peak: 0.08 }); },
-  // the glass economy: chips tick, shatters break, embers sing, kindling breathes
   chip: () => { tone(1420, { type: 'triangle', d: 0.05, peak: 0.14 }); noise({ d: 0.06, f0: 5200, f1: 3200, peak: 0.1, q: 5 }); },
   shatter: () => { noise({ d: 0.42, f0: 4200, f1: 260, peak: 0.3, q: 3.5 }); tone(220, { type: 'sine', d: 0.3, peak: 0.24, slide: -140 }); tone(1760, { type: 'triangle', d: 0.18, peak: 0.1, delay: 0.03 }); },
   ember: () => { tone(520, { type: 'sine', d: 0.12, peak: 0.12, slide: 220 }); },
@@ -87,6 +182,10 @@ export const sfx = {
   art: () => { [392, 494, 587].forEach((f, i) => tone(f, { type: 'triangle', d: 0.28, peak: 0.13, delay: i * 0.07 })); noise({ d: 0.35, f0: 1400, f1: 3200, peak: 0.07 }); },
   omen: () => { tone(98, { type: 'sine', d: 1.1, peak: 0.2 }); tone(196, { type: 'sine', d: 0.9, peak: 0.1, delay: 0.12 }); tone(147, { type: 'triangle', d: 0.8, peak: 0.06, delay: 0.3 }); },
 };
+
+export const sfx = Object.fromEntries(
+  Object.keys(synth).map((name) => [name, () => play(name, synth[name])])
+);
 
 const ACT_ROOTS = [55, 49, 41.2]; // A1, G1, E1
 export function setAmbience(actIdx) {

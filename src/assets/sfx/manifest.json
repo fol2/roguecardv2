@@ -1,0 +1,185 @@
+{
+  "theme": "Ashglass Vigil",
+  "items": {
+    "click": {
+      "file": "click.mp3",
+      "bytes": 8821,
+      "duration_seconds": 0.5,
+      "prompt": "Tiny soft glass tap, like a fingertip on a lantern pane. Extremely short UI click."
+    },
+    "hover": {
+      "file": "hover.mp3",
+      "bytes": 8821,
+      "duration_seconds": 0.5,
+      "prompt": "Barely-there high glass shimmer tick, delicate hover cue, almost whispered."
+    },
+    "card": {
+      "file": "card.mp3",
+      "bytes": 12164,
+      "duration_seconds": 0.7,
+      "prompt": "Thick parchment card sliding across stone, faint dry paper scrape with a soft glass edge."
+    },
+    "draw": {
+      "file": "draw.mp3",
+      "bytes": 9239,
+      "duration_seconds": 0.55,
+      "prompt": "Quick light card flick from a deck, airy paper whoosh, short and clean."
+    },
+    "slash": {
+      "file": "slash.mp3",
+      "bytes": 14672,
+      "duration_seconds": 0.85,
+      "prompt": "Sharp blade whoosh cutting air, thin metallic edge with a brief glass-shard trail."
+    },
+    "hit": {
+      "file": "hit.mp3",
+      "bytes": 13836,
+      "duration_seconds": 0.8,
+      "prompt": "Heavy dull body impact thud with a short low punch, fleshy and solid, no scream."
+    },
+    "blocked": {
+      "file": "blocked.mp3",
+      "bytes": 12164,
+      "duration_seconds": 0.7,
+      "prompt": "Hard clang of steel glancing off a glass-and-metal ward, bright short ricochet."
+    },
+    "block": {
+      "file": "block.mp3",
+      "bytes": 14672,
+      "duration_seconds": 0.85,
+      "prompt": "Protective ward forming: soft crystalline shield bloom with a muted glass chime."
+    },
+    "poison": {
+      "file": "poison.mp3",
+      "bytes": 15090,
+      "duration_seconds": 0.9,
+      "prompt": "Smoldering toxic hiss, wet ember spit and low corrosive fizz, sinister and short."
+    },
+    "debuff": {
+      "file": "debuff.mp3",
+      "bytes": 15090,
+      "duration_seconds": 0.9,
+      "prompt": "Downward dark glass scrape, uneasy falling tone, curse settling into bone."
+    },
+    "buff": {
+      "file": "buff.mp3",
+      "bytes": 15090,
+      "duration_seconds": 0.9,
+      "prompt": "Warm rising lantern chime pair, hopeful soft metal-glass sparkle."
+    },
+    "heal": {
+      "file": "heal.mp3",
+      "bytes": 20106,
+      "duration_seconds": 1.2,
+      "prompt": "Gentle healing glow: soft ascending glass bells with warm ember breath."
+    },
+    "energy": {
+      "file": "energy.mp3",
+      "bytes": 11328,
+      "duration_seconds": 0.65,
+      "prompt": "Quick lantern spark surge, bright rising energy tick with tiny flame pop."
+    },
+    "coin": {
+      "file": "coin.mp3",
+      "bytes": 11328,
+      "duration_seconds": 0.65,
+      "prompt": "Two small antique gold coins clinking, bright short metallic sparkle."
+    },
+    "potion": {
+      "file": "potion.mp3",
+      "bytes": 14672,
+      "duration_seconds": 0.85,
+      "prompt": "Glass phial uncork and liquid swirl, soft glug with a tiny crystal ping."
+    },
+    "death": {
+      "file": "death.mp3",
+      "bytes": 18434,
+      "duration_seconds": 1.1,
+      "prompt": "Creature collapsing into ash: dry crumbling body fall and soft dust settle."
+    },
+    "bigDeath": {
+      "file": "bigDeath.mp3",
+      "bytes": 29301,
+      "duration_seconds": 1.8,
+      "prompt": "Massive elite death: heavy stone-and-ash collapse, deep rumble, glass cracking finale."
+    },
+    "turn": {
+      "file": "turn.mp3",
+      "bytes": 12582,
+      "duration_seconds": 0.75,
+      "prompt": "Subtle turn-start cue: soft twin glass chimes, calm and clear."
+    },
+    "victory": {
+      "file": "victory.mp3",
+      "bytes": 29301,
+      "duration_seconds": 1.8,
+      "prompt": "Triumphant short fanfare of warm lantern bells and bright glass tones, uplifting but restrained."
+    },
+    "defeat": {
+      "file": "defeat.mp3",
+      "bytes": 29301,
+      "duration_seconds": 1.8,
+      "prompt": "Somber descending ritual bells, cold and hollow, lantern snuffing out."
+    },
+    "relic": {
+      "file": "relic.mp3",
+      "bytes": 20106,
+      "duration_seconds": 1.2,
+      "prompt": "Ancient relic reveal: luminous glass-and-metal chime cascade, sacred and small."
+    },
+    "upgrade": {
+      "file": "upgrade.mp3",
+      "bytes": 17180,
+      "duration_seconds": 1.0,
+      "prompt": "Card upgrade forge spark: bright rising tone with tiny hammer-on-glass ring."
+    },
+    "map": {
+      "file": "map.mp3",
+      "bytes": 15090,
+      "duration_seconds": 0.9,
+      "prompt": "Map node select: soft stone scrape and distant wind through a tower stair."
+    },
+    "chip": {
+      "file": "chip.mp3",
+      "bytes": 8821,
+      "duration_seconds": 0.5,
+      "prompt": "Tiny glass facet chip tick, sharp crystalline micro-crack, very short."
+    },
+    "shatter": {
+      "file": "shatter.mp3",
+      "bytes": 20106,
+      "duration_seconds": 1.2,
+      "prompt": "Dramatic glass shatter burst, many shards exploding outward with a low body thump."
+    },
+    "ember": {
+      "file": "ember.mp3",
+      "bytes": 12164,
+      "duration_seconds": 0.7,
+      "prompt": "Single warm ember spark singing upward, soft flame ping."
+    },
+    "kindle": {
+      "file": "kindle.mp3",
+      "bytes": 17180,
+      "duration_seconds": 1.0,
+      "prompt": "Lantern kindling breath: soft whoosh of flame catching with ember crackle."
+    },
+    "stagger": {
+      "file": "stagger.mp3",
+      "bytes": 17180,
+      "duration_seconds": 1.0,
+      "prompt": "Dissonant cracked-glass stagger hit, uneasy warble and short stun thud."
+    },
+    "art": {
+      "file": "art.mp3",
+      "bytes": 21359,
+      "duration_seconds": 1.3,
+      "prompt": "Lantern Art cast: radiant glass chord bloom with swirling ember air."
+    },
+    "omen": {
+      "file": "omen.mp3",
+      "bytes": 33062,
+      "duration_seconds": 2.0,
+      "prompt": "Deep ominous omen drone swell with distant hollow bells, dark and foreboding."
+    }
+  }
+}
