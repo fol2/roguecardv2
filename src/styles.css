@@ -199,7 +199,10 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 }
 .hud-relic-art { width: 100%; height: 100%; object-fit: contain; display: block; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.75)); }
 .hud-relic-fallback { font-size: 22px; line-height: 1; color: var(--tone, var(--gold)); text-shadow: 0 0 8px var(--tone, var(--gold)); }
-.hud-relic.proc { animation: relicProc 0.7s ease-out; }
+/* proc: scale the seat; glow follows PNG/glyph silhouette (not a box-shadow rect) */
+.hud-relic.proc { animation: relicProcScale 0.7s ease-out; }
+.hud-relic.proc .hud-relic-art { animation: relicProcGlow 0.7s ease-out; }
+.hud-relic.proc .hud-relic-fallback { animation: relicProcGlowGlyph 0.7s ease-out; }
 .relic-chip {
   width: 42px; height: 42px; border-radius: 50%; position: relative; cursor: help;
   display: inline-flex; align-items: center; justify-content: center; font-size: 20px;
@@ -208,11 +211,43 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone, var(--gold)) 55%, transparent), inset 0 10px 20px -12px rgba(255, 255, 255, 0.14), 0 4px 14px rgba(0, 0, 0, 0.5);
   text-shadow: 0 0 8px var(--tone, var(--gold));
 }
-.relic-chip.proc { animation: relicProc 0.7s ease-out; }
+.relic-chip.proc { animation: relicProcScale 0.7s ease-out; }
+.relic-chip.proc .relic-art { animation: relicProcGlowChip 0.7s ease-out; }
 .relic-art { object-fit: contain; display: block; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6)); }
-@keyframes relicProc {
-  0% { transform: scale(1); } 30% { transform: scale(1.35) rotate(-6deg); box-shadow: 0 0 26px var(--tone, var(--gold)); }
+@keyframes relicProcScale {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.35) rotate(-6deg); }
   100% { transform: scale(1); }
+}
+@keyframes relicProcGlow {
+  0% { filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.75)); }
+  30% {
+    filter:
+      drop-shadow(0 0 4px var(--tone, var(--gold)))
+      drop-shadow(0 0 14px var(--tone, var(--gold)))
+      drop-shadow(0 0 26px color-mix(in srgb, var(--tone, var(--gold)) 70%, transparent));
+  }
+  100% { filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.75)); }
+}
+@keyframes relicProcGlowChip {
+  0% { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6)); }
+  30% {
+    filter:
+      drop-shadow(0 0 4px var(--tone, var(--gold)))
+      drop-shadow(0 0 14px var(--tone, var(--gold)))
+      drop-shadow(0 0 26px color-mix(in srgb, var(--tone, var(--gold)) 70%, transparent));
+  }
+  100% { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6)); }
+}
+@keyframes relicProcGlowGlyph {
+  0% { text-shadow: 0 0 8px var(--tone, var(--gold)); }
+  30% {
+    text-shadow:
+      0 0 8px var(--tone, var(--gold)),
+      0 0 16px var(--tone, var(--gold)),
+      0 0 28px color-mix(in srgb, var(--tone, var(--gold)) 70%, transparent);
+  }
+  100% { text-shadow: 0 0 8px var(--tone, var(--gold)); }
 }
 .pop-menu { position: fixed; z-index: 65; background: var(--panel); border: 1px solid var(--panel-line); border-radius: 10px; padding: 6px; display: flex; flex-direction: column; gap: 2px; box-shadow: 0 14px 40px rgba(0,0,0,.6); }
 .pop-menu button { padding: 8px 18px; border-radius: 7px; font-family: 'Cinzel', serif; font-size: 14px; text-align: left; }

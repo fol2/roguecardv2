@@ -1749,26 +1749,50 @@ function pileFaceSize(pileBtn) {
 }
 
 function handFaceSize() {
-  const sample = S.ce?.hand?.querySelector('.card:not(.played-up):not(.draw-pending)') || S.ce?.hand?.querySelector('.card');
+  // Resting hand size only — never sample lifted/armed/dragging (hover scales the box)
+  const sample = S.ce?.hand?.querySelector(
+    '.card:not(.played-up):not(.draw-pending):not(.lifted):not(.armed):not(.dragging)'
+  ) || S.ce?.hand?.querySelector('.card:not(.played-up):not(.draw-pending)');
   if (sample) {
-    const r = stageRect(sample);
-    if (r.width > 2) return { w: r.width, h: r.height };
+    const cw = parseFloat(getComputedStyle(sample).getPropertyValue('--cw'));
+    if (cw > 2) return { w: cw, h: Math.round(cw * 1.42) };
+    // offsetWidth is the layout box (ignores .card-lift hover translate/scale)
+    if (sample.offsetWidth > 2) {
+      return { w: sample.offsetWidth, h: sample.offsetHeight || Math.round(sample.offsetWidth * 1.42) };
+    }
   }
   return { w: 152, h: Math.round(152 * 1.42) };
 }
 
-/** Stage centre of a hand-fan seat (fanIndex within fanCount revealed cards). */
+/** CSS `bottom` inset of a hand card (shape breakpoints change it). */
+function handCardBottomInset() {
+  const sample = S.ce?.hand?.querySelector('.card');
+  if (sample) {
+    const b = parseFloat(getComputedStyle(sample).bottom);
+    if (Number.isFinite(b)) return b;
+  }
+  return 8;
+}
+
+/** Stage centre of a resting (non-hovered) hand-fan seat — matches layoutHand, not .lifted. */
 function handSeatCenter(fanIndex, fanCount) {
   const n = Math.max(1, fanCount | 0);
   const i = Math.max(0, Math.min(n - 1, fanIndex | 0));
   const gap = Math.min(112, 640 / n, (stageW() - 246) / Math.max(n - 1, 1));
   const rot = n > 1 ? (i - (n - 1) / 2) * Math.min(5, 42 / n) : 0;
   const x = (i - (n - 1) / 2) * gap;
-  const y = Math.abs(rot) * 3.2 + 26;
+  // layoutHand resting: translateY(abs(rot)*3.2 + 26) — positive Y is down
+  const sagY = Math.abs(rot) * 3.2 + 26;
   const sz = handFaceSize();
+  let baseBottom = stageH() - handCardBottomInset();
+  const zone = S.ce?.hand;
+  if (zone) {
+    const zr = stageRect(zone);
+    if (zr.height > 2) baseBottom = zr.bottom - handCardBottomInset();
+  }
   return {
     x: stageW() / 2 + x,
-    y: stageH() - 8 - sz.h / 2 - y,
+    y: baseBottom - sz.h / 2 + sagY,
   };
 }
 
@@ -2242,6 +2266,9 @@ async function handleDrawWave(q) {
   const cb = S.cb, ce = S.ce;
   const segments = takeDrawWaveSegments(q);
   const reshuffle = segments.find((s) => s.t === 'reshuffle');
+
+  // Resting seats only — clear hover so flyers never aim at a lifted card
+  if (S.hoveredCard != null) S.hoveredCard = null;
 
   // Engine is already post-draw — reconstruct chrome so piles still look pre-wave
   const firstSegDraws = segments[0]?.t === 'draws' ? segments[0].draws.length : 0;
