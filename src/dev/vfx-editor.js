@@ -268,7 +268,8 @@ function renderPanel() {
       <input type="range" id="vx-zoom" min="1" max="4" step="0.25" value="${state.zoom}">
       <em id="vx-zoom-em">×${state.zoom}</em>
     </label>
-    <p class="vx-hint"><b>Grow</b> = alpha + sites in (no zoom). <b>Fade</b> = reverse clear (same growMs).
+    <p class="vx-hint"><b>Grow</b> = first gain fades alpha+sites in; while already on, sites shrink→grow (no alpha restart).
+      <b>Fade</b> = reverse clear (same growMs).
       <b>Save</b> writes <code>ward-params.js</code>.</p>
     <p class="vx-hint">Open: <code>?vfxedit=1&amp;char=${state.id}</code>
       · console: <code>__vfxEditor.getParams()</code></p>`;

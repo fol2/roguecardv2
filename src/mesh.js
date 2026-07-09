@@ -102,12 +102,13 @@ function applyWardMaterial(mat, { grow = 1 } = {}) {
   const g = Math.max(0, Math.min(1, Number(grow) || 0));
   const r = wardRefract();
   mat.color.set(wardParams.tint || WARD_DEFAULTS.tint);
-  mat.transmission = r.transmission;
+  // gate glass terms by grow so the shell does not pop in before the fade
+  mat.transmission = r.transmission * g;
   mat.ior = Math.max(1, Number(wardParams.ior) || 1.4);
-  mat.thickness = r.thickness;
+  mat.thickness = r.thickness * g;
   mat.roughness = Math.min(1, Math.max(0, Number(wardParams.roughness) || 0));
-  mat.envMapIntensity = Math.max(0, Number(wardParams.envMapIntensity) || 0);
-  mat.normalScale.set(r.normalScale, r.normalScale);
+  mat.envMapIntensity = Math.max(0, Number(wardParams.envMapIntensity) || 0) * g;
+  mat.normalScale.set(r.normalScale * g, r.normalScale * g);
   mat.opacity = Math.max(0, Math.min(1, Number(wardParams.opacity) || 0)) * g;
   mat.needsUpdate = true;
 }
@@ -266,6 +267,8 @@ function makePlane(url, profile, seed, img) {
     sites: [], death: 0, glass: null, fire: null, beams: null, bodyPx: null, outline: null, aimOn: false,
     ward: null, wardOn: false, wardGrow: 0, wardGrowFrom: 0, wardT0: 0,
     wardSites: null, wardSitesUsed: -1,
+    // re-gain pulse: site factor only (alpha stays full while ward is already on)
+    wardSiteF: 1, wardSiteFrom: 1, wardSiteTo: 1, wardSiteT0: 0, wardSitePhase: null,
   };
   const tex = loadTex(url, (t) => { p.aspect = artAspect(img, t); });
   p.tex = tex;
@@ -464,11 +467,11 @@ function wardSitesFor(p) {
   return sites;
 }
 
-/** Grow/fade reveals a prefix of the full site list (0 → all). */
+/** Grow/fade / site-pulse reveals a prefix of the full site list (0 → all). */
 function wardSiteCountForGrow(p, grow) {
   const all = wardSitesFor(p);
-  const g = Math.max(0, Math.min(1, Number(grow) || 0));
-  return Math.max(0, Math.round(all.length * g));
+  const siteF = p.wardSitePhase ? (p.wardSiteF ?? 1) : Math.max(0, Math.min(1, Number(grow) || 0));
+  return Math.max(0, Math.round(all.length * siteF));
 }
 
 /** Full oval glass piece — solid shell for transmission.
@@ -585,26 +588,24 @@ function setBodyOpaqueForGlass(p, on) {
 function buildWard(p) {
   ensureEnv();
   disposeLayer(p, 'ward');
-  // body must be opaque or the shell has nothing to refract (reads as a flat tint)
-  setBodyOpaqueForGlass(p, true);
-  const r = wardRefract();
+  // defer body opaque cut until grow has started — otherwise the body pops before the shell fades in
   const grow = p.wardGrow || 0;
   const siteN = wardSiteCountForGrow(p, grow);
   p.wardSitesUsed = siteN;
   // Crack-glass transmission + Voronoi; knobs from wardParams.
-  // Grow/fade ramps opacity + site count (rebake on step); normalScale stays full.
+  // Grow/fade ramps opacity + site count (rebake on step); re-gain pulses sites only.
   const mat = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color(wardParams.tint || WARD_DEFAULTS.tint),
-    transmission: r.transmission,
+    transmission: 0,
     ior: Math.max(1, Number(wardParams.ior) || 1.4),
-    thickness: r.thickness,
+    thickness: 0,
     roughness: Math.min(1, Math.max(0, Number(wardParams.roughness) || 0)),
     metalness: 0,
     normalMap: canvasTex(bakeWardNormal(p, siteN)),
-    normalScale: new THREE.Vector2(r.normalScale, r.normalScale),
+    normalScale: new THREE.Vector2(0, 0),
     alphaMap: canvasTex(bakeWardMask(p)), transparent: true, alphaTest: 0.01, opacity: 0,
     clearcoat: 0, clearcoatRoughness: 1,
-    envMapIntensity: Math.max(0, Number(wardParams.envMapIntensity) || 0),
+    envMapIntensity: 0,
     depthTest: false, depthWrite: false,
   });
   // own geo — shell shape/scale independent of body warp
@@ -765,6 +766,8 @@ function layoutPlane(p, t = 0, off = { left: 0, top: 0 }) {
       } else {
         m.rotation.z = 0;
       }
+      // body opaque only once the shell has started fading in (avoids pre-pop)
+      if (grow > 0.02) setBodyOpaqueForGlass(p, true);
       syncWardNormalMap(p, grow);
       applyWardMaterial(m.material, { grow });
       m.visible = (!!p.wardOn || grow > 0) && grow > 0.02;
@@ -789,20 +792,47 @@ function tick(t) {
   const off = canvasOffset();
   for (const p of planes) {
     const growMs = Math.max(80, Number(wardParams.growMs) || WARD_DEFAULTS.growMs);
-    if (p.wardOn && p.wardGrow < 1) {
+    // re-gain while already warded: sites shrink then grow (alpha stays full)
+    if (p.wardSitePhase === 'shrink') {
+      const half = growMs * 0.45;
+      const u = Math.min(1, (t - p.wardSiteT0) / half);
+      const s = u * u * (3 - 2 * u);
+      p.wardSiteF = p.wardSiteFrom + (p.wardSiteTo - p.wardSiteFrom) * s;
+      if (u >= 1) {
+        p.wardSitePhase = 'grow';
+        p.wardSiteFrom = p.wardSiteF;
+        p.wardSiteTo = 1;
+        p.wardSiteT0 = t;
+      }
+    } else if (p.wardSitePhase === 'grow') {
+      const half = growMs * 0.55;
+      const u = Math.min(1, (t - p.wardSiteT0) / half);
+      const s = u * u * (3 - 2 * u);
+      p.wardSiteF = p.wardSiteFrom + (p.wardSiteTo - p.wardSiteFrom) * s;
+      if (u >= 1) {
+        p.wardSiteF = 1;
+        p.wardSitePhase = null;
+      }
+    } else if (p.wardOn && p.wardGrow < 1) {
       const u = Math.min(1, (t - p.wardT0) / growMs);
       const s = u * u * (3 - 2 * u);
       p.wardGrow = p.wardGrowFrom + (1 - p.wardGrowFrom) * s;
+      p.wardSiteF = p.wardGrow;
     } else if (!p.wardOn && p.wardGrow > 0) {
       // fade = reverse grow (same duration)
       const u = Math.min(1, (t - p.wardT0) / growMs);
       const s = u * u * (3 - 2 * u);
       p.wardGrow = p.wardGrowFrom * (1 - s);
+      p.wardSiteF = p.wardGrow;
       if (p.wardGrow < 0.02) {
         p.wardGrow = 0;
+        p.wardSiteF = 0;
+        p.wardSitePhase = null;
         disposeLayer(p, 'ward');
         setBodyOpaqueForGlass(p, false);
       }
+    } else if (p.wardOn) {
+      p.wardSiteF = 1;
     }
     deformPlane(p, sec);
     layoutPlane(p, sec, off);
@@ -1033,7 +1063,8 @@ export function meshAim(el, on, cfg = null) {
 }
 
 /** Gemstone glass Ward shell outside the body (transmission + Voronoi).
- *  grow:true → alpha + site count 0→full (no zoom); grow:false → snap to full if newly on.
+ *  First gain: alpha + site count 0→full (no zoom).
+ *  Re-gain while already on: sites shrink→grow pulse (alpha stays full).
  *  Idempotent: syncCombat must not restart an in-flight grow/fade. */
 export function meshWard(el, on, { grow = true } = {}) {
   if (LITE || !meshEnabled()) return false;
@@ -1044,29 +1075,37 @@ export function meshWard(el, on, { grow = true } = {}) {
     // already off or fading — don't reset wardT0 (syncCombat spam)
     if (!p.wardOn) return true;
     p.wardOn = false;
+    p.wardSitePhase = null;
     p.wardGrowFrom = p.wardGrow || 0;
     p.wardT0 = performance.now();
     return true;
   }
-  // already on: grow:false = hold (combat sync); grow:true = restart demo/gain pulse
+  // already on: grow:false = hold (combat sync); grow:true = sites shrink/grow pulse
   if (p.wardOn && p.ward) {
     if (!grow) return true;
-    p.wardGrow = 0;
-    p.wardGrowFrom = 0;
-    p.wardT0 = performance.now();
+    // don't restart full alpha grow — pulse facets only
+    p.wardGrow = 1;
+    p.wardGrowFrom = 1;
+    p.wardSitePhase = 'shrink';
+    p.wardSiteFrom = p.wardSiteF ?? 1;
+    p.wardSiteTo = 0.12;
+    p.wardSiteT0 = performance.now();
     p.wardSitesUsed = -1;
     return true;
   }
   if (!p.ward) buildWard(p);
   p.wardOn = true;
+  p.wardSitePhase = null;
   p.wardT0 = performance.now();
   if (grow) {
     p.wardGrow = 0;
     p.wardGrowFrom = 0;
+    p.wardSiteF = 0;
     p.wardSitesUsed = -1;
   } else {
     p.wardGrow = 1;
     p.wardGrowFrom = 1;
+    p.wardSiteF = 1;
   }
   return true;
 }
