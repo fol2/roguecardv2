@@ -39,6 +39,7 @@ import { MUSIC_CATALOG } from '../src/audio-catalog.js';
 import {
   resolveCombatCue, resolveScreenCue, dawnEventCue, SCREEN_CUES,
 } from '../src/music-resolve.js';
+import { t, getLocale, setLocale, getContent } from '../src/i18n/index.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -3855,6 +3856,38 @@ function forceHand(run, cb, ids) {
   c3.queue.length = 0;
   assert.ok(playCard(r3, c3, playUid), 'defend plays');
   assert.ok(c3.queue.some((e) => e.t === 'toDiscard' && e.uid === playUid), 'non-exhaust skill emits toDiscard');
+}
+
+// ---- i18n: locale catalogue + hydrate parity --------------------------------
+{
+  assert.equal(getLocale(), 'en');
+  assert.equal(t('cards.strike.name'), 'Edge');
+  assert.equal(t('status.poison.name'), 'Smolder');
+  assert.equal(t('missing.key.zzz'), 'missing.key.zzz');
+  assert.equal(t('ui.smoke.hello', { name: 'Spire' }), 'Hello, Spire');
+  assert.equal(setLocale('nope'), false, 'unknown locale ignored');
+  assert.equal(getLocale(), 'en');
+
+  const content = getContent();
+  for (const id of Object.keys(CARDS)) {
+    assert.ok(content.cards[id], `locale has cards.${id}`);
+    assert.ok(CARDS[id].name, `hydrated card ${id}.name`);
+    assert.equal(typeof CARDS[id].text, 'string', `hydrated card ${id}.text`);
+    assert.equal(CARDS[id].name, content.cards[id].name, `card ${id} name matches locale`);
+    assert.equal(CARDS[id].text, content.cards[id].text, `card ${id} text matches locale`);
+    if (content.cards[id].textUp != null) {
+      assert.ok(CARDS[id].up, `card ${id} has up for textUp`);
+      assert.equal(CARDS[id].up.text, content.cards[id].textUp, `card ${id} textUp hydrated`);
+    }
+  }
+  for (const id of Object.keys(STATUS_INFO)) {
+    assert.ok(content.status[id], `locale has status.${id}`);
+    assert.ok(STATUS_INFO[id].name, `hydrated status ${id}.name`);
+    assert.ok(STATUS_INFO[id].desc, `hydrated status ${id}.desc`);
+    assert.equal(STATUS_INFO[id].name, content.status[id].name);
+    assert.equal(STATUS_INFO[id].desc, content.status[id].desc);
+  }
+  assert.equal(cardData(makeCard(newRun(2), 'strike', true)).name, 'Edge+');
 }
 
 // ---- monte-carlo: random agent plays full runs -----------------------------
