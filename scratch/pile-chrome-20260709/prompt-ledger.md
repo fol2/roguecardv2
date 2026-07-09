@@ -53,3 +53,12 @@ as **exactly one face-down card** with draw.png as silhouette reference.
 | draw | (unchanged) | piles/draw.png | kept as single-card reference |
 
 Labels restored in combat chrome (DRAW / DISCARD / ASHES under stack).
+
+## Discard redraw (2026-07-09)
+
+Owner disliked mossy/tilted discard. Regenerated as upright single card matching
+teal arch-gem family: warmer spent parchment, worn border, **no moss**, **no ember**.
+
+| id | notes |
+|---|---|
+| discard | v4 promoted; rejects archived under `source/v3-discard-wrong/` |
