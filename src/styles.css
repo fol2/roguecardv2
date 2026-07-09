@@ -189,6 +189,25 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   transition: border-color 0.15s, transform 0.15s; font-family: 'Cinzel', serif; font-weight: 700; color: var(--text);
 }
 .icon-btn:hover { border-color: var(--gold); transform: translateY(-1px); }
+/* deck: no chrome plate — large centered asset with count overlaid */
+.icon-btn.deck-btn {
+  position: relative; width: 44px; height: 44px; padding: 0;
+  border: none; background: transparent; box-shadow: none; border-radius: 0;
+}
+.icon-btn.deck-btn:hover { border: none; background: transparent; transform: translateY(-1px); }
+.icon-btn.deck-btn .ui-icon { width: 36px; height: 36px; display: block; }
+.icon-btn.deck-btn .deck-count {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; line-height: 1; color: #fff;
+  -webkit-text-stroke: 0.6px rgba(0, 0, 0, 0.85);
+  text-shadow:
+    0 0 2px rgba(0, 0, 0, 0.9),
+    0 1px 0 rgba(0, 0, 0, 0.75),
+    0 -1px 0 rgba(0, 0, 0, 0.75),
+    1px 0 0 rgba(0, 0, 0, 0.75),
+    -1px 0 0 rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+}
 .potion-slot {
   width: 38px; height: 44px; border-radius: 9px;
   border: 1.5px solid var(--lead);
@@ -1706,6 +1725,9 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .hud-mid { display: none; } /* act & floor live on the map title instead */
   .hud-right { gap: 6px; }
   .icon-btn { width: 36px; height: 36px; font-size: 15px; }
+  .icon-btn.deck-btn { width: 40px; height: 40px; }
+  .icon-btn.deck-btn .ui-icon { width: 32px; height: 32px; }
+  .icon-btn.deck-btn .deck-count { font-size: 13px; }
   .potion-slot { width: 32px; height: 38px; }
   .potion-slot svg { width: 25px; height: 32px; }
   .relic-chip { width: 34px; height: 34px; font-size: 16px; }
@@ -1790,6 +1812,9 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .hud-hp-wrap { min-width: 110px; }
   .hud-mid { font-size: 11px; letter-spacing: 0.08em; }
   .icon-btn { width: 34px; height: 34px; font-size: 14px; }
+  .icon-btn.deck-btn { width: 38px; height: 38px; }
+  .icon-btn.deck-btn .ui-icon { width: 30px; height: 30px; }
+  .icon-btn.deck-btn .deck-count { font-size: 12px; }
   .potion-slot { width: 30px; height: 36px; }
   .relic-chip { width: 30px; height: 30px; font-size: 14px; }
   .hud-relic { width: 34px; height: 34px; }
