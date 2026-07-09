@@ -10,7 +10,7 @@ import {
   previewBlock, previewEnemyDmg, rollCardReward, vowMods,
 } from '../src/engine.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, REVEALS, PROGRESSION, POOL_GATE } from '../src/data.js';
-import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from '../src/vigil.js';
+import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
 
@@ -841,6 +841,42 @@ function forceHand(run, cb, ids) {
   assert.ok(mem.has('spirebound_vigil_v2'), 'v2 persisted');
   assert.ok(mem.has('spirebound_vigil_v1'), 'v1 backup untouched');
   assert.equal(loadVigil().runsPlayed, 40, 'migration idempotent (reads v2 now)');
+  _setStore(null);
+}
+{
+  // the reveal ladder: counters only ever open doors
+  _setStore(null);
+  let v = loadVigil();
+  assert.deepEqual(revealSnapshot(v), [], 'a fresh profile sees only the core game');
+  assert.ok(!isRevealed(v, 'lamplighter') && !isRevealed(v, 'emberglass'));
+  assert.ok(!isRevealed(v, 'nonsense'), 'unknown reveal ids are never revealed');
+
+  // run ends advance the ladder — win, fall, or abandon alike — exactly once
+  const r1 = newRun(301);
+  v = commitRunEnd(r1);
+  assert.equal(v.runsPlayed, 1);
+  assert.equal(commitRunEnd(r1).runsPlayed, 1, 'commitRunEnd idempotent per run');
+  assert.ok(isRevealed(v, 'lamplighter'), 'run 2 gets the Lamplighter');
+  assert.equal(v.news, true, 'crossing a reveal pulses the Vigil');
+  assert.equal(clearNews().news, false, 'opening the Vigil clears the pulse');
+
+  v = commitRunEnd(newRun(302));
+  assert.ok(isRevealed(v, 'phials') && isRevealed(v, 'poolWave2'), 'runsPlayed 2 tier');
+  v = commitRunEnd(newRun(303));
+  assert.ok(isRevealed(v, 'omens'), 'runsPlayed 3 tier');
+  commitRunEnd(newRun(304));
+  v = commitRunEnd(newRun(305));
+  assert.ok(isRevealed(v, 'poolWave3'), 'runsPlayed 4 tier (already crossed)');
+  v = commitRunEnd(newRun(306));
+  assert.ok(isRevealed(v, 'poolFull'), 'runsPlayed 6 tier');
+  assert.ok(!isRevealed(v, 'emberglass'), 'wins-gated reveal still dark');
+
+  // a win reveals the emberglass chain and marks news
+  const wr = newRun(307);
+  commitRunToVigil(wr, true);
+  v = loadVigil();
+  assert.ok(isRevealed(v, 'emberglass'), 'first dawn arms the chain');
+  assert.equal(v.news, true, 'unlocks pulse the Vigil too');
   _setStore(null);
 }
 {

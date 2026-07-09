@@ -1,7 +1,7 @@
 // THE VIGIL — what persists between climbs: deeds, unlocks, vows, and the
 // monument of the last fall. Storage is Node-safe: without localStorage
 // (tests) it keeps the ledger in memory so callers can still assert on it.
-import { DEEDS, CARDS, RELICS } from './data.js';
+import { DEEDS, CARDS, RELICS, REVEALS } from './data.js';
 
 const KEY = 'spirebound_vigil_v2';
 const KEY_V1 = 'spirebound_vigil_v1'; // read-only: migration source, never written
@@ -95,6 +95,40 @@ export function syncVigil() {
   return v;
 }
 
+// ---------------------------------------------------------------- reveals
+// The structural ladder (REVEALS in data.js) evaluated against the ledger.
+export function isRevealed(vigil, id) {
+  const r = REVEALS.find((x) => x.id === id);
+  if (!r) return false;
+  const t = r.trigger;
+  if (t.runsPlayed != null && (vigil.runsPlayed || 0) < t.runsPlayed) return false;
+  if (t.wins != null && (vigil.deeds.wins || 0) < t.wins) return false;
+  return true;
+}
+export function revealSnapshot(vigil) {
+  return REVEALS.filter((r) => isRevealed(vigil, r.id)).map((r) => r.id);
+}
+
+// every run end — win, fall, or abandon — advances the ledger that paces the
+// reveals. Separate from commitRunToVigil so deed semantics (win/fall only)
+// stay untouched. Idempotent per run.
+export function commitRunEnd(run) {
+  if (run.runEndCommitted) return loadVigil();
+  run.runEndCommitted = true;
+  const v = loadVigil();
+  const before = revealSnapshot(v).length;
+  v.runsPlayed++;
+  if (revealSnapshot(v).length > before) v.news = true;
+  saveVigil(v);
+  return v;
+}
+
+export function clearNews() {
+  const v = loadVigil();
+  if (v.news) { v.news = false; saveVigil(v); }
+  return v;
+}
+
 // fold a finished (or fallen) run into the vigil; idempotent per run
 export function commitRunToVigil(run, won) {
   if (run.vigilCommitted) return { vigil: loadVigil(), newUnlocks: [] };
@@ -113,6 +147,7 @@ export function commitRunToVigil(run, won) {
   }
   const newUnlocks = evaluateDeeds(v);
   v.unlocks.push(...newUnlocks);
+  if (newUnlocks.length) v.news = true;
   saveVigil(v);
   return { vigil: v, newUnlocks };
 }
