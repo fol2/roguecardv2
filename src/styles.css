@@ -608,7 +608,8 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 }
 /* bottom-align like ?charedit=1 — shadow origin % is meaningless if the body is centered */
 .hero-sprite > .raster-art, .enemy-sprite > .raster-art {
-  filter: none; object-position: center bottom;
+  /* Soft-eat matte fringe when mesh is off (mesh-live hides this img). */
+  filter: url(#alpha-erode); object-position: center bottom;
 }
 .enemy.hurt .enemy-art { animation: hurtFlash 0.3s; }
 @keyframes hurtFlash { 30% { filter: brightness(2.6) saturate(0.4) drop-shadow(0 0 18px #fff); transform: translateX(7px); } 60% { transform: translateX(-5px); } }
@@ -1042,11 +1043,18 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   100% { opacity: 0; transform: translate(-50%, -60%) scale(1.02); }
 }
 .turn-banner.boss-banner {
+  display: flex; align-items: center; justify-content: center; gap: 0.7em;
   font-size: clamp(38px, 5.4cqw, 62px); letter-spacing: 0.22em; color: #ffb3ef; top: 38%;
   text-shadow: 0 0 44px rgba(255, 79, 216, 0.7), 0 6px 16px #000;
   animation: bossBanner 2.05s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
 }
-.turn-banner.boss-banner::before, .turn-banner.boss-banner::after { content: '✦'; font-size: 0.45em; vertical-align: middle; margin: 0 0.7em; opacity: 0.75; }
+/* Dots sit on the vertical middle of the whole name block (not per wrapped line). */
+.turn-banner.boss-banner::before, .turn-banner.boss-banner::after {
+  content: '✦'; font-size: 0.45em; flex-shrink: 0; opacity: 0.75; line-height: 1;
+}
+.turn-banner.boss-banner .bb-name {
+  text-align: center; line-height: 1.12;
+}
 @keyframes bossBanner {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(1.4); letter-spacing: 0.5em; }
   14% { opacity: 1; transform: translate(-50%, -50%) scale(1); }

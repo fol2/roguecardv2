@@ -859,13 +859,13 @@ function startCombatUI(enemyIds, kind) {
   renderCombat();
   renderHud();
   if (kind === 'boss') {
-    // the boss is announced through a rose window: spokes of leaded light
-    // bloom behind the name, hold one breath, and dissolve
-    const bossName = ENEMIES[enemyIds[0]]?.name ?? S.cb.enemies[0].name;
-    const rw = el('div', 'rose-window', `<div class="rw-rings"></div><div class="rw-spokes"></div><div class="boss-plate">${bossName.toUpperCase()}</div>`);
-    screenEl().appendChild(rw);
-    setTimeout(() => rw.remove(), 2300);
-    const b = el('div', 'turn-banner boss-banner', S.cb.enemies[0].name.toUpperCase());
+    // Name plate only — rose-window behind it read as a second overlapping intro.
+    const bossLabel = S.cb.enemies[0].name.toUpperCase();
+    const sp = bossLabel.indexOf(' ');
+    const bossHtml = sp < 0
+      ? escHtml(bossLabel)
+      : `${escHtml(bossLabel.slice(0, sp))}<br>${escHtml(bossLabel.slice(sp + 1))}`;
+    const b = el('div', 'turn-banner boss-banner', `<span class="bb-name">${bossHtml}</span>`);
     screenEl().appendChild(b);
     setTimeout(() => b.remove(), 2100);
     V.flash('#1a0a20', 0.5, 0.9);

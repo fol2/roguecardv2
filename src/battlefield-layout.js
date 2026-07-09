@@ -137,6 +137,7 @@ export const BF = {
       },
     },
     'pad-landscape': {
+      hero: { x: 200 },
       layers: {
         backdrop: { y: 0, drift: 30 },
       },

@@ -203,10 +203,25 @@ const BODY_FRAG = /* glsl */`
   uniform sampler2D map;
   uniform float uFlash;  // white hit beat
   uniform float uCut;    // 0 = soft transparent edges; >0 = opaque with alpha discard
+  uniform float uErode;  // UV radius — soft-eat alpha fringe (matte halo)
   void main() {
     vec4 base = texture2D(map, vUv);
-    if (uCut > 0.0 && base.a < uCut) discard;
-    gl_FragColor = vec4(base.rgb + uFlash * base.a, uCut > 0.0 ? 1.0 : base.a);
+    float a = base.a;
+    // Tiny corrosive: neighborhood-min alpha, then soft tighten — kills light fringe
+    // without a hard cutout. uErode ~0.002 ≈ 1px on a 512 atlas.
+    if (uErode > 0.0 && a > 0.001) {
+      float aMin = a;
+      for (int i = 0; i < 8; i++) {
+        float ang = float(i) * 0.785398163;
+        vec2 d = vec2(cos(ang), sin(ang)) * uErode;
+        aMin = min(aMin, texture2D(map, vUv + d).a);
+        aMin = min(aMin, texture2D(map, vUv + d * 0.55).a);
+      }
+      a = mix(a, aMin, 0.88);
+      a *= smoothstep(0.02, 0.18, a);
+    }
+    if (uCut > 0.0 && a < uCut) discard;
+    gl_FragColor = vec4(base.rgb + uFlash * a, uCut > 0.0 ? 1.0 : a);
     // sRGB texture decodes to linear on sample — convert back on output or the
     // body renders darker than the raster it replaces (no tone mapping either:
     // ACES is for the PBR glass, the body must stay UI-accurate)
@@ -275,7 +290,7 @@ function makePlane(url, profile, seed, img) {
   };
   const tex = loadTex(url, (t) => { p.aspect = artAspect(img, t); });
   p.tex = tex;
-  const uniforms = { map: { value: tex }, uFlash: { value: 0 }, uCut: { value: 0 } };
+  const uniforms = { map: { value: tex }, uFlash: { value: 0 }, uCut: { value: 0 }, uErode: { value: 0.0024 } };
   const mat = new THREE.ShaderMaterial({ uniforms, vertexShader: BODY_VERT, fragmentShader: BODY_FRAG, transparent: true, depthTest: false, depthWrite: false });
   p.mat = mat;
   const mesh = new THREE.Mesh(geo, mat);
