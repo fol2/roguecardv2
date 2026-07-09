@@ -7,7 +7,7 @@ import {
   rollBossRelics, addCardToDeck, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
   MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, cardPool, relicPool,
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
-  previewBlock, previewEnemyDmg, rollCardReward, vowMods,
+  previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
 } from '../src/engine.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, REVEALS, PROGRESSION, POOL_GATE } from '../src/data.js';
 import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from '../src/vigil.js';
@@ -878,6 +878,41 @@ function forceHand(run, cb, ids) {
   assert.ok(isRevealed(v, 'emberglass'), 'first dawn arms the chain');
   assert.equal(v.news, true, 'unlocks pulse the Vigil too');
   _setStore(null);
+}
+{
+  // run.reveals gating: null (default) = today's game; a snapshot narrows it
+  const full = newRun(310);
+  assert.equal(full.reveals, null, 'no opt = fully revealed');
+  assert.ok(runRevealed(full, 'phials') && runRevealed(full, 'poolFull'));
+  assert.deepEqual(cardPool(full, 'rare'), CARD_POOLS.rare, 'default pools unchanged');
+  assert.deepEqual(relicPool(full, 'rare'), RELIC_POOLS.rare);
+  assert.ok(OMENS[full.omens[0]], 'default runs climb under a sky');
+
+  const core = newRun(311, { reveals: [] });
+  assert.ok(!runRevealed(core, 'phials'));
+  assert.ok(!cardPool(core, 'rare').includes('frenzy'), 'build-around rare held back');
+  assert.ok(!cardPool(core, 'uncommon').includes('toxicMist'), 'wave-2 uncommon held back');
+  assert.ok(cardPool(core, 'common').includes('twinFangs'), 'core commons present');
+  assert.ok(!relicPool(core, 'rare').includes('duskmirror'), 'late relic held back');
+  assert.deepEqual(relicPool(core, 'boss'), RELIC_POOLS.boss, 'boss crowns never gated');
+  assert.equal(core.omens[0], null, 'run 1 climbs under a clear sky');
+  assert.equal(gainPotion(core, 'healing'), false, 'phials hidden');
+  for (let s = 0; s < 12; s++) {
+    assert.equal(genCombatRewards(newRun(320 + s, { reveals: [] }), 'normal').potion, null, 'no potion drops pre-reveal');
+  }
+  const shopC = genShop(newRun(312, { reveals: [] }));
+  assert.equal(shopC.potions.length, 0, 'merchant stocks no phials pre-reveal');
+
+  const mid = newRun(313, { reveals: ['omens', 'phials', 'poolWave2'] });
+  assert.ok(OMENS[mid.omens[0]], 'omen rolls once revealed');
+  assert.equal(gainPotion(mid, 'healing'), true);
+  assert.ok(cardPool(mid, 'rare').includes('devour'), 'wave 2 open');
+  assert.ok(!cardPool(mid, 'rare').includes('frenzy'), 'later waves still closed');
+
+  // deed unlocks pierce the waves
+  const dl = newRun(314, { reveals: [], unlocks: ['card:quakeblow', 'relic:prismCharm'] });
+  assert.ok(cardPool(dl, 'uncommon').includes('quakeblow'));
+  assert.ok(relicPool(dl, 'rare').includes('prismCharm'));
 }
 {
   // monuments: a bequest is claimed exactly once

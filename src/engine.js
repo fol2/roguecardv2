@@ -1,5 +1,5 @@
 // SPIREBOUND engine — pure game logic, no DOM. UI consumes cb.queue for animation.
-import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES } from './data.js';
+import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE } from './data.js';
 
 // ---------------------------------------------------------------- RNG (mulberry32)
 export function makeRng(state) {
@@ -17,7 +17,7 @@ const irange = (rng, [a, b]) => a + Math.floor(rng() * (b - a + 1));
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 // ---------------------------------------------------------------- run lifecycle
-// opts: { aspect, vow, unlocks (vigil snapshot), monument (last fall), lamplighter }
+// opts: { aspect, vow, unlocks (vigil snapshot), reveals (vigil snapshot; null/absent = fully revealed), monument (last fall), lamplighter }
 export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
   const aspect = clamp(opts.aspect || 0, 0, ASPECTS.length - 1);
   const A = ASPECTS[aspect];
@@ -26,6 +26,7 @@ export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
     v: 2, seed, rngState: seed, uid: 1, act: 0, nodeId: null, floorsClimbed: 0, bossRelicAct: -1, orphanRewardClaimed: false, orphanRewardResolving: false,
     aspect, vow, art: opts.art || A.art || 'flare', omens: [], boon: opts.boon || null,
     unlocks: [...(opts.unlocks || [])],
+    reveals: opts.reveals ? [...opts.reveals] : null,
     monument: opts.monument ? { ...opts.monument, claimed: false } : null,
     player: {
       hp: A.maxHp, maxHp: A.maxHp, gold: A.startGold, energyMax: A.energy,
@@ -40,7 +41,7 @@ export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
   if (opts.lamplighter) run.pendingLamplighter = true;
   for (const id of A.startDeck) run.player.deck.push(makeCard(run, id));
   if (vowMods(run).startHex) run.player.deck.push(makeCard(run, 'hex'));
-  run.omens.push(rollOmen(run));
+  run.omens.push(runRevealed(run, 'omens') ? rollOmen(run) : null);
   run.map = genMap(run);
   return run;
 }
@@ -190,19 +191,26 @@ export function claimMonument(run) {
 
 // ---------------------------------------------------------------- helpers
 export const hasRelic = (run, id) => run.player.relics.includes(id);
+// structural reveals: run.reveals is a snapshot of vigil reveal ids taken at
+// newRun time; null (tests, dev hooks, pre-reveal saves) means fully revealed.
+export const runRevealed = (run, id) => run.reveals == null || run.reveals.includes(id);
 // content pools honor the run's vigil unlocks ('card:id' / 'relic:id' tokens);
 // unknown ids are ignored so deeds can promise content before it ships
 export function cardPool(run, tier) {
   const extra = (run.unlocks || [])
     .filter((u) => u.startsWith('card:')).map((u) => u.slice(5))
     .filter((id) => CARDS[id] && CARDS[id].rarity === tier);
-  return extra.length ? [...CARD_POOLS[tier], ...extra] : CARD_POOLS[tier];
+  let base = CARD_POOLS[tier];
+  if (run.reveals != null) base = base.filter((id) => !POOL_GATE.cards[id] || run.reveals.includes(POOL_GATE.cards[id]));
+  return extra.length ? [...base, ...extra] : base;
 }
 export function relicPool(run, tier) {
   const extra = (run.unlocks || [])
     .filter((u) => u.startsWith('relic:')).map((u) => u.slice(6))
     .filter((id) => RELICS[id] && RELICS[id].rarity === tier);
-  return extra.length ? [...RELIC_POOLS[tier], ...extra] : RELIC_POOLS[tier];
+  let base = RELIC_POOLS[tier];
+  if (run.reveals != null) base = base.filter((id) => !POOL_GATE.relics[id] || run.reveals.includes(POOL_GATE.relics[id]));
+  return extra.length ? [...base, ...extra] : base;
 }
 export function healPlayer(run, n, cb = null) {
   if (hasRelic(run, 'sunBlossom')) n = Math.round(n * 1.5);
@@ -307,6 +315,7 @@ export function claimBossRelic(run, id) {
   return { already: false, id: id || null };
 }
 export function gainPotion(run, id) {
+  if (!runRevealed(run, 'phials')) return false;
   if (id === 'random') id = pick(runRng(run), Object.keys(POTIONS));
   const i = run.player.potions.indexOf(null);
   if (i < 0) return false;
@@ -353,7 +362,7 @@ export function genCombatRewards(run, kind, affix = null) {
   let gold = irange(rng, REWARD_GOLD[run.act][kind === 'boss' ? 'boss' : kind === 'elite' ? 'elite' : 'normal']);
   gold = Math.round(gold * (omenMods(run).goldMult || 1) * (AFFIXES[affix]?.mods.goldMult || 1));
   const rw = { gold, cards: rollCardReward(run, kind), potion: null, relic: null };
-  if (kind !== 'boss' && rng() < 0.4) rw.potion = pick(rng, Object.keys(POTIONS));
+  if (kind !== 'boss' && rng() < 0.4 && runRevealed(run, 'phials')) rw.potion = pick(rng, Object.keys(POTIONS));
   if (kind === 'elite') rw.relic = randomRelic(run);
   return rw;
 }
@@ -386,7 +395,9 @@ export function genShop(run) {
     if (avail.length) relics.push({ id: pick(rng, avail), price: price(SHOP.relicPrice[t], disc), sold: false });
   }
   const potions = [];
-  for (let i = 0; i < 2; i++) potions.push({ id: pick(rng, Object.keys(POTIONS)), price: price(SHOP.potionPrice, disc), sold: false });
+  if (runRevealed(run, 'phials')) {
+    for (let i = 0; i < 2; i++) potions.push({ id: pick(rng, Object.keys(POTIONS)), price: price(SHOP.potionPrice, disc), sold: false });
+  }
   return { cards: cardIds, relics, potions, removeCost: Math.round(SHOP.removeCost * disc), removed: false };
 }
 export function rollEvent(run) {
@@ -1175,12 +1186,14 @@ export function loadRun() {
     if (!run.player.relics.every((id) => RELICS[id])) return null;
     if (!run.player.potions.every((id) => id == null || POTIONS[id])) return null;
     if (run.art != null && !ARTS[run.art]) return null;
-    if (!(run.omens || []).every((id) => OMENS[id])) return null;
+    if (!(run.omens || []).every((id) => id == null || OMENS[id])) return null;
     // additive fields self-heal: a save from an older v2 build stays playable
     run.art ??= 'flare';
     run.aspect = clamp(run.aspect ?? 0, 0, ASPECTS.length - 1); run.vow = clamp(run.vow ?? 0, 0, VOWS.length);
     run.unlocks ??= []; run.omens ??= []; run.boon ??= null; run.bossRelicAct ??= -1; run.orphanRewardClaimed ??= false; run.orphanRewardResolving ??= false;
-    while (run.omens.length <= run.act) run.omens.push(rollOmen(run));
+    run.reveals ??= null;
+    if (run.reveals != null && !(Array.isArray(run.reveals) && run.reveals.every((id) => REVEALS.some((r) => r.id === id)))) return null;
+    while (run.omens.length <= run.act) run.omens.push(runRevealed(run, 'omens') ? rollOmen(run) : null);
     for (const k of ['shatters', 'kindles', 'perfects', 'smolderKills', 'unlitVisited', 'embersSpent']) run.stats[k] ??= 0;
     return run;
   } catch { return null; }
