@@ -10,7 +10,7 @@ import {
   previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
 } from '../src/engine.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE } from '../src/data.js';
-import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from '../src/vigil.js';
+import { _setStore, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
 import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, drawBatchSchedule, PILE_IDS, PILE_FAN_DEG, PILE_FAN_MAX_DEG, PILE_FAN_MAX_LAYERS } from '../src/pile-chrome.js';
@@ -770,6 +770,7 @@ function forceHand(run, cb, ids) {
   assert.equal(vigil.deeds.runs, 1, 'run counted');
   assert.equal(vigil.deeds.shatters, 15, 'deed stat folded in');
   assert.ok(newUnlocks.includes('card:quakeblow'), 'shatter deed pays out');
+  assert.equal(vigil.news, true, 'deed progress pulses the Vigil');
   assert.equal(commitRunToVigil(run, false).newUnlocks.length, 0, 'commit is idempotent');
   assert.equal(loadVigil().deeds.runs, 1, 'no double count');
   // a win unlocks the second aspect and the first vow
@@ -786,6 +787,24 @@ function forceHand(run, cb, ids) {
   _setStore(null);
 }
 {
+  // deed-bar progress (no new unlock) still pulses the Vigil — design §3
+  _setStore(null);
+  // seed past the shatter deed threshold so +1 shatter unlocks nothing new
+  const seed = loadVigil();
+  seed.deeds.shatters = 15;
+  seed.unlocks = evaluateDeeds(seed);
+  saveVigil(seed);
+  clearNews();
+  const run = newRun(420);
+  run.stats.shatters = 1;
+  run.floorsClimbed = 0;
+  const { vigil, newUnlocks } = commitRunToVigil(run, false);
+  assert.equal(newUnlocks.length, 0, 'no new unlock this run');
+  assert.equal(vigil.deeds.shatters, 16, 'deed bar moved');
+  assert.equal(vigil.news, true, 'deed progress alone pulses the Vigil');
+  _setStore(null);
+}
+{
   // pools: base content without unlocks, unknown unlock tokens ignored
   const run = newRun(44);
   assert.deepEqual(cardPool(run, 'common'), CARD_POOLS.common);
@@ -795,9 +814,15 @@ function forceHand(run, cb, ids) {
   assert.deepEqual(relicPool(run2, 'common'), RELIC_POOLS.common, 'unknown relic unlock ignored');
 }
 {
-  // progressive delivery tables are well-formed
+  // progressive delivery tables are well-formed; thresholds live in PROGRESSION
+  assert.ok(PROGRESSION.revealThresholds && typeof PROGRESSION.revealThresholds === 'object', 'reveal thresholds in PROGRESSION');
   assert.ok(Array.isArray(REVEALS) && REVEALS.length >= 6, 'reveal table present');
   assert.equal(new Set(REVEALS.map((r) => r.id)).size, REVEALS.length, 'reveal ids unique');
+  assert.deepEqual(
+    Object.fromEntries(REVEALS.map((r) => [r.id, r.trigger])),
+    PROGRESSION.revealThresholds,
+    'REVEALS derived from PROGRESSION.revealThresholds',
+  );
   for (const r of REVEALS) {
     assert.ok(r.trigger && (r.trigger.runsPlayed != null || r.trigger.wins != null), `reveal ${r.id} has a counter trigger`);
   }

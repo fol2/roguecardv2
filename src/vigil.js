@@ -136,6 +136,7 @@ export function commitRunToVigil(run, won) {
   if (run.vigilCommitted) return { vigil: loadVigil(), newUnlocks: [] };
   run.vigilCommitted = true;
   const v = loadVigil();
+  const beforeDeeds = { ...v.deeds };
   v.deeds.runs++;
   if (won) {
     v.deeds.wins++;
@@ -149,7 +150,9 @@ export function commitRunToVigil(run, won) {
   }
   const newUnlocks = evaluateDeeds(v);
   v.unlocks.push(...newUnlocks);
-  if (newUnlocks.length) v.news = true;
+  // pulse on any deed-bar movement (not only threshold unlocks) — design §3
+  const deedProgressed = Object.keys(DEFAULT_DEEDS).some((k) => v.deeds[k] !== beforeDeeds[k]);
+  if (deedProgressed || newUnlocks.length) v.news = true;
   saveVigil(v);
   return { vigil: v, newUnlocks };
 }

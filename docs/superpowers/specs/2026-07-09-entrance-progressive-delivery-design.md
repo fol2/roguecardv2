@@ -214,11 +214,15 @@ Notes:
 
 ### Reveal & progression tables (`data.js`)
 
-- `REVEALS`: `[{ id, trigger: { runsPlayed? , wins? , vowWin? , quest? }, grants }]`
+- `REVEALS`: derived from `PROGRESSION.revealThresholds` as
+  `[{ id, trigger: { runsPlayed? , wins? , vowWin? , quest? } }]` —
   evaluated by pure `isRevealed()`. UI never hardcodes thresholds.
-- `PROGRESSION`: every tunable in this spec (wave run-counts, mote targets,
-  page counts, meeting counts, usurper price multiplier, omen guarantee
-  window, arming cadence) in one table.
+- `PROGRESSION`: every tunable in this spec (reveal thresholds, wave
+  contents, mote targets, page counts, meeting counts, usurper price
+  multiplier, omen guarantee window, arming cadence) in one table.
+  `revealThresholds` is the source of truth for ladder counts;
+  `REVEALS` is the derived id+trigger list for evaluators and save
+  validation.
 
 ### Enemy variant engine
 

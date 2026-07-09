@@ -1119,26 +1119,26 @@ export const DEEDS = {
 };
 
 // ---------------------------------------------------------------- THE VIGIL: PROGRESSIVE DELIVERY
-// Structural reveals: what the game shows a profile, paced by counters that
-// only grow (runsPlayed counts every run end — win, fall, or abandon; wins
-// come from deeds). The engine never reads storage for these: newRun()
+// Every pacing tunable lives in PROGRESSION. REVEALS is derived from
+// revealThresholds so the ladder ids stay declarative while counts stay
+// tunable in one place. The engine never reads storage for these: newRun()
 // receives a snapshot. Aspects and vows keep their own unlock mechanisms.
-export const REVEALS = [
-  { id: 'lamplighter', trigger: { runsPlayed: 1 } }, // boons + Lantern Art choice
-  { id: 'phials', trigger: { runsPlayed: 2 } },      // potion drops, shop stock, HUD slots
-  { id: 'omens', trigger: { runsPlayed: 3 } },       // per-act omen rolls + banner
-  { id: 'poolWave2', trigger: { runsPlayed: 2 } },   // pool widens (see PROGRESSION)
-  { id: 'poolWave3', trigger: { runsPlayed: 4 } },
-  { id: 'poolFull', trigger: { runsPlayed: 6 } },    // today's full base pool
-  { id: 'emberglass', trigger: { wins: 1 } },        // the chain arms (Phase 2)
-];
-
-// Every pacing tunable lives here. Cards/relics not listed in any wave are
-// core (available from run 1). Deed-locked content stays deed-gated on top.
-// Criterion: core + wave 2 favor low-complexity picks; combo pieces and
-// build-arounds arrive late. Boss crowns are never wave-gated (rollBossRelics
-// needs its full pool).
+// Cards/relics not listed in any wave are core (available from run 1).
+// Deed-locked content stays deed-gated on top. Criterion: core + wave 2
+// favor low-complexity picks; combo pieces and build-arounds arrive late.
+// Boss crowns are never wave-gated (rollBossRelics needs its full pool).
 export const PROGRESSION = {
+  // structural reveal ladder — runsPlayed counts every run end (win/fall/
+  // abandon); wins come from deeds. Comments name what each id unlocks.
+  revealThresholds: {
+    lamplighter: { runsPlayed: 1 }, // boons + Lantern Art choice
+    phials: { runsPlayed: 2 },      // potion drops, shop stock, HUD slots
+    omens: { runsPlayed: 3 },       // per-act omen rolls + banner
+    poolWave2: { runsPlayed: 2 },   // pool widens (see poolWaves)
+    poolWave3: { runsPlayed: 4 },
+    poolFull: { runsPlayed: 6 },    // today's full base pool
+    emberglass: { wins: 1 },        // the chain arms (Phase 2)
+  },
   poolWaves: {
     poolWave2: {
       cards: ['executioner', 'momentum', 'toxicMist', 'regrowth', 'bloodRite', 'devour', 'annihilate', 'limitBreak'],
@@ -1154,6 +1154,9 @@ export const PROGRESSION = {
     },
   },
 };
+
+// derived: id + trigger pairs for isRevealed / revealSnapshot / save validation
+export const REVEALS = Object.entries(PROGRESSION.revealThresholds).map(([id, trigger]) => ({ id, trigger }));
 
 // derived: content id -> the reveal id that admits it into the pools
 export const POOL_GATE = (() => {
