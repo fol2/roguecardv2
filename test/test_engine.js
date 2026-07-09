@@ -10,7 +10,7 @@ import {
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
   previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
 } from '../src/engine.js';
-import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE } from '../src/data.js';
+import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS } from '../src/data.js';
 import { _setStore, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
@@ -1064,6 +1064,39 @@ function forceHand(run, cb, ids) {
     for (const id of w.relics) assert.ok(RELICS[id] && !RELICS[id].locked && RELICS[id].rarity !== 'boss', `wave relic ${id} exists, not deed-locked, not a crown`);
   }
   assert.ok(Object.keys(POOL_GATE.cards).length && Object.keys(POOL_GATE.relics).length, 'pool gate derived');
+}
+{
+  const ids = ['paleOnes', 'ownShade', 'usurper', 'eighthOmen', 'unreadablePage', 'hollowLamplighter'];
+  assert.deepEqual(QUEST_IDS, ids);
+  assert.deepEqual(Object.keys(QUESTS), ids);
+  assert.equal(QUESTS.paleOnes.mode, 'Trail');
+  assert.equal(QUESTS.ownShade.mode, 'Trail');
+  assert.equal(QUESTS.usurper.mode, 'Gate');
+  assert.equal(QUESTS.eighthOmen.mode, 'Gate');
+  assert.equal(QUESTS.unreadablePage.mode, 'Trail');
+  assert.equal(QUESTS.hollowLamplighter.mode, 'Trail');
+  assert.equal(WHISPERS.length, 24);
+  assert.equal(WHISPERS.at(-1), 'The climb continues.');
+  assert.deepEqual(Object.keys(SHADE_KITS).sort(), ['ashwarden', 'duskblade']);
+  for (const [id, v] of Object.entries(VARIANTS)) {
+    assert.equal(v.id, id);
+    assert.ok(v.base === 'hero' || ENEMIES[v.base], 'variant base exists: ' + id);
+    assert.ok(v.tint && Number.isFinite(v.scale) && v.scale > 0);
+    assert.ok(Number.isFinite(v.statMods.hpMult) && Number.isFinite(v.statMods.dmgMult));
+    assert.ok(Array.isArray(v.dialogue));
+  }
+  const P = PROGRESSION.emberglass;
+  assert.deepEqual(P.armWins, [2, 4, 6, 8, 10]);
+  assert.equal(P.paleOnes.lensAt, 3);
+  assert.equal(P.paleOnes.completeAt, 9);
+  assert.equal(P.ownShade.completeAt, 3);
+  assert.equal(P.usurper.price, 650);
+  assert.equal(P.usurper.completeAt, 1);
+  assert.equal(P.eighthOmen.guaranteeRuns, 2);
+  assert.equal(P.eighthOmen.recurrenceChance, 1 / 3);
+  assert.equal(P.eighthOmen.completeAt, 1);
+  assert.equal(P.unreadablePage.completeAt, 5);
+  assert.equal(P.hollowLamplighter.completeAt, 5);
 }
 {
   // vigil v2: fresh shape, and one-way migration from v1 that leaves v1 intact

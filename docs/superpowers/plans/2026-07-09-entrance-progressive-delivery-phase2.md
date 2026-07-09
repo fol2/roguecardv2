@@ -22,7 +22,7 @@
 - Zero new Rose PNGs must still yield a complete labelled six-slot Rose Window. The title medallion is absent unless all eight Rose assets exist.
 - npm test is green at every task boundary. Rebuild tracked dist only in the final task.
 - Use UK English in code comments and player copy.
-- The current main checkout contains unrelated changes in ui.js, styles.css, audio, SFX, and dist. At execution time first use superpowers:using-git-worktrees, create an isolated codex/ branch, stage exact paths, and never use git add -A.
+- Main is being updated by concurrent work even when its worktree is clean. At execution time first use superpowers:using-git-worktrees, create an isolated codex/ branch, stage exact paths, and never use git add -A.
 - Commit commands below are execution checkpoints. Run them only after the owner authorises plan execution; never amend and never bypass hooks.
 
 ---
@@ -37,7 +37,7 @@ Keep one Phase 2 plan. The variant resolver, shared quest ledger, six engine hoo
 
 ## Execution preflight
 
-After owner approval, use superpowers:using-git-worktrees to create the isolated codex/ execution branch. Materialise this approved plan at the same repository-relative path in that worktree with apply_patch before product edits, then include it in Task 1's exact-path commit. This authoring turn deliberately leaves the plan uncommitted and does not touch the user's unrelated dirty files.
+After owner approval, use superpowers:using-git-worktrees to create the isolated codex/ execution branch. The repository already tracks an earlier draft of this plan; apply_patch the approved refinements into the worktree before product edits, then include the final plan in Task 1's exact-path commit. This authoring turn does not commit the refinements or modify product code.
 
 ## Decision lock
 
@@ -79,12 +79,27 @@ After owner approval, use superpowers:using-git-worktrees to create the isolated
 | docs/README.md | Phase 2 plan/status index |
 | dist/ | One final Vite rebuild only |
 
+### Final named-import contract
+
+Update imports in the first task that needs each name; by Task 12 these lists must include:
+
+- src/engine.js from data.js: existing names plus `PROGRESSION, QUEST_IDS, QUESTS, SHADE_KITS, VARIANTS, BOONS`.
+- src/vigil.js from data.js: existing names plus `PROGRESSION, QUEST_IDS, QUESTS, WHISPERS`.
+- src/ui.js from data.js: existing names plus `PROGRESSION, QUEST_IDS, QUESTS, WHISPERS`; use the existing `E.runRevealed(...)` namespace call rather than a bare runRevealed import.
+- test/test_engine.js from engine.js: `questRecord, revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter, makeVariant, resolveCombatant, paleVariantForAct, markShadeFall, grantBequest, buyQuestItem, _setQuestRng, omenEnabled, removableCards, applyBoon, reverseBoon, payHollowPrice` in addition to its current imports.
+- test/test_engine.js from data.js: `QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS` in addition to its current imports.
+- test/test_engine.js from vigil.js: `_setRng, questSnapshot, whisperAt` in addition to its current imports.
+- test/test_engine.js from Node: `spawnSync` from node:child_process and `fileURLToPath` from node:url.
+- test/e2e/stage.spec.js and test/e2e/visual.spec.js import their named ledger helpers from `./emberglass-fixtures.js`; battle.spec.js already has all helpers used by Task 4.
+
+Every intermediate build gate is also an import-completeness gate; do not defer a named import to a later task.
+
 ---
 
 ### Task 1: Freeze the Phase 2 data contract and authored copy
 
 **Files:**
-- Create/track: docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md (this approved plan)
+- Modify/track: docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md (this approved plan)
 - Modify: docs/superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md:77-85
 - Modify: src/data.js:1121-1156
 - Test: test/test_engine.js (append after the Phase 1 progression-table block)
@@ -362,6 +377,7 @@ git commit -m "Define Emberglass quests variants and authored copy"
 
 **Interfaces:**
 - Produces: _setRng(fn|null), questSnapshot(vigil), whisperAt(count), and commitRunEnd(run, outcome).
+- Changes saveVigil(vigil), setBequest(...), and clearBequest() to return true on a persisted write and false when storage rejects it; current fire-and-forget callers remain valid.
 - commitRunEnd outcome is exactly win, death, or abandon.
 - commitRunEnd returns { vigil, whisper, armed, completed, newShards }.
 - Later tasks put run-local quest records in run.quests and earned-order IDs in run.questCompletions.
@@ -507,6 +523,8 @@ export function whisperAt(count) {
 }
 ~~~
 
+Change saveVigil's guarded write to return true/false exactly as Task 3 does for saveRun, and return that boolean from setBequest and clearBequest. Add a `_setStore({getItem:()=>null,setItem:()=>{throw new Error('quota')},removeItem:()=>{}})` assertion that saveVigil returns false, then reset with `_setStore(null)`.
+
 Call hydrateV2(out) in loadVigil after the base shape is assembled. If it returns true, persist with getStore().setItem(KEY, JSON.stringify(out)); do not call migrateToV2 and never touch KEY_V1.
 
 Extend isRevealed:
@@ -611,6 +629,7 @@ git commit -m "Hydrate Emberglass ledgers and arm quests on run end"
 
 **Interfaces:**
 - Produces: questRecord(run,id), revealQuest(run,id,queue), advanceQuest(run,id,n,queue), setPendingEncounter(run,kind,enemyIds,questId), and clearPendingEncounter(run).
+- Changes saveRun(run) to return true after localStorage accepts the snapshot and false when storage throws; existing callers may ignore the return.
 - newRun opts add quests and shards.
 - run.pendingEnemyIds stores exact base or VARIANTS IDs. run.pendingQuestId is null or a QUEST_IDS value.
 
@@ -653,6 +672,11 @@ Inside the existing temporary-localStorage try block, add this exact save matrix
   setPendingEncounter(pending, 'monster', ['paleDuskfang'], 'paleOnes');
   saveRun(pending);
   assert.deepEqual(loadRun().pendingEnemyIds, ['paleDuskfang']);
+  assert.equal(saveRun(pending), true, 'saveRun acknowledges durable storage');
+  const workingSetItem = globalThis.localStorage.setItem;
+  globalThis.localStorage.setItem = () => { throw new Error('quota'); };
+  assert.equal(saveRun(pending), false, 'saveRun reports a rejected write');
+  globalThis.localStorage.setItem = workingSetItem;
 
   const rejectSaved = (label, mutate) => {
     const bad = newRun(412, { quests: saveQuests });
@@ -834,6 +858,19 @@ if (!run.map.nodes.every((n) =>
 ~~~
 
 In renderEmbark pass quests: questSnapshot(v) and shards: v.shards. Import questSnapshot from vigil.js.
+
+Replace saveRun with the same guarded write plus an acknowledgement:
+
+~~~js
+export function saveRun(run) {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(run));
+    return true;
+  } catch {
+    return false;
+  }
+}
+~~~
 
 Replace every combat start with exact pending IDs:
 
@@ -1336,6 +1373,17 @@ git commit -m "Implement the Pale Ones Trail and Witchlight Lens"
   assert.deepEqual(out.vigil.lastFall.bequest, unpaid, 'a lost duel preserves the unpaid gift');
   setBequest(1, 7, { kind: 'gold', amount: 99 });
   assert.deepEqual(loadVigil().lastFall.bequest, unpaid, 'later defeat selection cannot overwrite the unpaid gift');
+
+  const claimedNormal = newRun(443, {
+    aspect: 0, quests: questSnapshot(loadVigil()),
+    monument: { act: 1, row: 6, bequest: { kind: 'gold', amount: 40 }, standing: false },
+  });
+  const beforeGold = claimedNormal.player.gold;
+  assert.equal(claimMonument(claimedNormal).kind, 'gold');
+  assert.equal(claimedNormal.player.gold, beforeGold + 40);
+  markShadeFall(claimedNormal, 1, 8);
+  out = commitRunEnd(claimedNormal, 'death');
+  assert.equal(out.vigil.lastFall.bequest, null, 'an already-paid normal monument is not duplicated');
   _setStore(null);
 }
 ~~~
@@ -1353,7 +1401,7 @@ export function markShadeFall(run, act, row) {
   if (!q || q.state === 'dormant' || q.state === 'complete') return false;
   if (act < PROGRESSION.emberglass.ownShade.minDeathAct) return false;
   run.questScratch.ownShade ||= {};
-  const bequest = run.questScratch.ownShade.pendingBequest ?? run.monument?.bequest ?? null;
+  const bequest = run.questScratch.ownShade.pendingBequest ?? null;
   run.questScratch.ownShade.fall = { act, row, shadeAspect: run.aspect, bequest };
   return true;
 }
@@ -1380,7 +1428,7 @@ When monument.standing is true, claimMonument:
 
 Add grantBequest using the old card/relic/gold code and queue {t:'monumentGift',bequest}. In the same pre-winCombat drop block established by Task 5, a Shade drop calls advanceQuest, grants the pending bequest, and clears it. If the third advance completes the quest, append `{t:'shadeResolved',text:QUESTS.ownShade.final}` to run.endQueue exactly once.
 
-In claimMonumentNode, call setPendingEncounter with kind monster, `[variantId]`, and questId ownShade; then call saveRun(run); only after that save succeeds call clearBequest and start combat instead of returning to the map. On resume, a pending ownShade encounter also clears the matching persisted bequest after load, making the sequence idempotent across a crash between save and clear.
+In claimMonumentNode, call setPendingEncounter with kind monster, `[variantId]`, and questId ownShade; then require `E.saveRun(run) === true`. After that require `clearBequest() === true` before starting combat. If the run save fails, keep lastFall untouched, call clearPendingEncounter, reset `run.monument.claimed=false`, delete `run.questScratch.ownShade.pendingBequest`, and show “The stone could not hold this duel. Free storage and try again.” If clearBequest fails after the run save, perform the same in-memory rollback and attempt one acknowledged E.saveRun rollback; if that rollback also fails, leave the saved pending duel intact so resume retries clearBequest rather than duplicating the gift. On resume, a valid pending ownShade encounter requires clearBequest to succeed before combat begins, making the sequence idempotent across a crash or quota failure between the two stores.
 
 In victoryFlow, capture pendingQuestId before clearPendingEncounter. If it is ownShade, save and show map without genCombatRewards. On loss, the normal defeat flow records a new standing fall when Act 2+, so the next run re-offers the current tier.
 If that Shade loss carried pendingBequest, renderEnd suppresses the ordinary new-bequest picker and shows “The unpaid gift remains in the standing stone”; this prevents the later UI call from replacing the preserved gift.
@@ -1511,18 +1559,22 @@ git commit -m "Add the flameless lantern and Usurper Gate"
   saveVigil(v);
 
   _setQuestRng(() => 0.9); // first post-arm run misses its 1/3 chance
-  const first = newRun(460, { quests: questSnapshot(v) });
-  assert.notEqual(first.omens[0], 'eighthOmen');
+  const first = newRun(460, { quests: questSnapshot(v), reveals: [] });
+  assert.equal(first.omens[0], null, 'a missed special roll does not leak generic omens early');
   assert.equal(first.quests.eighthOmen.memory.dueIn, 1);
   let out = commitRunEnd(first, 'abandon');
   assert.equal(out.vigil.quests.eighthOmen.memory.dueIn, 1, 'miss persists the guarantee countdown');
 
   _setQuestRng(() => 0.9); // chance no longer matters: second run is forced
-  const forced = newRun(461, { quests: questSnapshot(out.vigil) });
+  const forced = newRun(461, { quests: questSnapshot(out.vigil), reveals: [] });
   assert.equal(forced.omens[0], 'eighthOmen');
   assert.equal('dueIn' in forced.quests.eighthOmen.memory, false);
+  for (const act of [1, 2]) {
+    forced.act = act;
+    forced.omens.push(omenEnabled(forced) ? rollOmen(forced) : null);
+    assert.equal(forced.omens[act], 'eighthOmen', 'live act transition keeps Eighth in act ' + (act + 1));
+  }
   forced.act = 1;
-  assert.equal(rollOmen(forced), 'eighthOmen', 'whole run stays under Eighth');
   const cb = startCombat(forced, ['duskfang'], 'normal');
   assert.ok(cb.affix, 'non-boss combat receives one affix');
 
@@ -1541,16 +1593,16 @@ git commit -m "Add the flameless lantern and Usurper Gate"
   const firstHitQ = questSnapshot(out.vigil);
   firstHitQ.eighthOmen = { state: 'armed', progress: 0, memory: { dueIn: 2 } };
   _setQuestRng(() => 0.1);
-  const firstHit = newRun(462, { quests: firstHitQ });
+  const firstHit = newRun(462, { quests: firstHitQ, reveals: [] });
   assert.equal(firstHit.omens[0], 'eighthOmen', 'first post-arm run may hit the 1/3 roll');
   assert.equal('dueIn' in firstHit.quests.eighthOmen.memory, false);
 
   const recurrenceQ = questSnapshot(out.vigil);
   recurrenceQ.eighthOmen = { state: 'revealed', progress: 0, memory: { seen: true } };
   _setQuestRng(() => 0.2);
-  assert.equal(newRun(463, { quests: recurrenceQ }).omens[0], 'eighthOmen');
+  assert.equal(newRun(463, { quests: recurrenceQ, reveals: [] }).omens[0], 'eighthOmen');
   _setQuestRng(() => 0.9);
-  assert.notEqual(newRun(464, { quests: recurrenceQ }).omens[0], 'eighthOmen');
+  assert.equal(newRun(464, { quests: recurrenceQ, reveals: [] }).omens[0], null);
 
   _setQuestRng(null);
   _setStore(null);
@@ -1603,7 +1655,7 @@ function prepareEighthOmen(run) {
 }
 ~~~
 
-Call prepareEighthOmen after the run object and questScratch exist but before the first omen roll. `rollOmen` returns eighthOmen when run.questScratch.eighthOmen.active is true; otherwise it samples `Object.keys(OMENS).filter(id => id !== 'eighthOmen')`, so the special omen can never leak into an unarmed run. Active forces it for every act.
+Call prepareEighthOmen after the run object and questScratch exist but before the first omen roll. Export `omenEnabled(run)` as `runRevealed(run,'omens') || !!run.questScratch.eighthOmen?.active`. Both newRun's first omen and ui.js advanceAct must use `omenEnabled(run) ? rollOmen(run) : null`; the UI calls the exported helper as `E.omenEnabled(run)`. An active Eighth therefore bypasses the generic runsPlayed omen gate in all three acts, while an inactive early run still gets null. `rollOmen` returns eighthOmen when active; otherwise it samples `Object.keys(OMENS).filter(id => id !== 'eighthOmen')`, so the special omen can never leak into an unarmed run. Its banner, affixes, and floor echoes render even when the generic omen reveal is absent. The three-act unit loop above exercises the exact helper used by advanceAct, and the pacing simulator uses newRun plus the same run scratch.
 
 startCombat chooses one affix for kind elite or when omenMods(run).allCombatsAffixed && kind !== boss. Boss remains un-affixed. Full Act 3 boss victory under active Eighth advances the quest once and pushes {t:'eighthResolved',text:QUESTS.eighthOmen.resolved} to run.endQueue.
 
@@ -1807,6 +1859,7 @@ git commit -m "Add the Unreadable Page Trail"
   let pay = payHollowPrice(run);
   assert.deepEqual(pay, { ok: true, deferred: true, message: QUESTS.hollowLamplighter.meetings[0].accepted });
   assert.equal(run.quests.hollowLamplighter.memory.emberDebt, 3);
+  assert.deepEqual(payHollowPrice(run), pay, 'the same meeting is idempotent');
 
   const cb = startCombat(run, ['sporeling']);
   gainEmbers(run, cb, 2);
@@ -1814,27 +1867,49 @@ git commit -m "Add the Unreadable Page Trail"
   gainEmbers(run, cb, 1);
   assert.equal(run.quests.hollowLamplighter.progress, 1);
 
-  run.quests.hollowLamplighter.progress = 1;
-  run.player.gold = 160;
-  assert.equal(payHollowPrice(run).ok, true);
-  assert.equal(run.player.gold, 0);
+  const openMeeting = (seed, previous) => {
+    const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'hollowLamplighter' ? previous.state : 'dormant',
+      progress: id === 'hollowLamplighter' ? previous.progress : 0,
+      memory: id === 'hollowLamplighter'
+        ? { ...previous.memory, eligibleMisses: 1 } : {},
+    }]));
+    const next = newRun(seed, { quests });
+    const node = next.map.nodes.find((n) => n.unlit);
+    assert.ok(node);
+    assert.equal(visitNode(next, node).hollow, true);
+    return next;
+  };
 
-  run.quests.hollowLamplighter.progress = 2;
-  run.player.maxHp = 42;
-  run.player.hp = 42;
-  assert.equal(payHollowPrice(run).ok, true);
-  assert.equal(run.player.maxHp, 30);
+  const goldRun = openMeeting(481, run.quests.hollowLamplighter);
+  goldRun.player.gold = 160;
+  pay = payHollowPrice(goldRun);
+  assert.equal(pay.ok, true);
+  assert.equal(goldRun.player.gold, 0);
+  assert.deepEqual(payHollowPrice(goldRun), pay);
 
-  run.quests.hollowLamplighter.progress = 3;
-  applyBoon(run, 'temperedGlass');
-  assert.equal(payHollowPrice(run).ok, true);
-  assert.equal(run.boon, null);
+  const hpRun = openMeeting(482, goldRun.quests.hollowLamplighter);
+  hpRun.player.maxHp = 42;
+  hpRun.player.hp = 42;
+  pay = payHollowPrice(hpRun);
+  assert.equal(pay.ok, true);
+  assert.equal(hpRun.player.maxHp, 30);
+  assert.deepEqual(payHollowPrice(hpRun), pay);
 
-  run.quests.hollowLamplighter.progress = 4;
-  run.player.hp = 40;
-  assert.equal(payHollowPrice(run).ok, true);
-  assert.equal(run.player.hp, 1);
-  assert.equal(run.quests.hollowLamplighter.state, 'complete');
+  const boonRun = openMeeting(483, hpRun.quests.hollowLamplighter);
+  applyBoon(boonRun, 'temperedGlass');
+  pay = payHollowPrice(boonRun);
+  assert.equal(pay.ok, true);
+  assert.equal(boonRun.boon, null);
+  assert.deepEqual(payHollowPrice(boonRun), pay);
+
+  const finalRun = openMeeting(484, boonRun.quests.hollowLamplighter);
+  finalRun.player.hp = 40;
+  pay = payHollowPrice(finalRun);
+  assert.equal(pay.ok, true);
+  assert.equal(finalRun.player.hp, 1);
+  assert.equal(finalRun.quests.hollowLamplighter.state, 'complete');
+  assert.deepEqual(payHollowPrice(finalRun), pay);
 
   for (const [i, id] of Object.keys(BOONS).entries()) {
     const bq = Object.fromEntries(QUEST_IDS.map((qid) => [qid, {
@@ -1842,7 +1917,10 @@ git commit -m "Add the Unreadable Page Trail"
       progress: qid === 'hollowLamplighter' ? 3 : 0, memory: {},
     }]));
     const br = newRun(490 + i, { quests: bq });
-    br.pendingHollow = { nodeId: br.map.nodes[0].id, type: br.map.nodes[0].type };
+    br.pendingHollow = {
+      nodeId: br.map.nodes[0].id, type: br.map.nodes[0].type,
+      paid: false, deferred: false, answer: null,
+    };
     const before = structuredClone({
       hp: br.player.hp, maxHp: br.player.maxHp, energyMax: br.player.energyMax,
       gold: br.player.gold, relics: br.player.relics, potions: br.player.potions,
@@ -1933,7 +2011,7 @@ if (hq && ['armed', 'revealed'].includes(hq.state)) {
 In visitNode capture wasUnlit before deleting node.unlit. If due, not met, and wasUnlit:
 - mark met;
 - reveal quest;
-- set run.pendingHollow={nodeId:node.id,type:node.type};
+- set `run.pendingHollow={nodeId:node.id,type:node.type,paid:false,deferred:false,answer:null}`;
 - return hollow:true with the existing type/bounty.
 
 In vigil.js, after mergeRunQuests and before save, update pity only when the run contains Hollow scratch:
@@ -1953,14 +2031,19 @@ At most one meeting occurs because met is saved in the run.
 
 startRun checks pendingHollow before map and reopens the Hollow screen, preventing reload skips. Leaving the Hollow screen clears pendingHollow and routes the already-visited node exactly once without calling visitNode again.
 
-loadRun self-heals pendingHollow and boonReceipt to null. It accepts pendingHollow only as null or a plain object whose nodeId identifies an existing run.map node and whose type exactly matches that node's monster, elite, boss, rest, shop, treasure, event, or monument type. It accepts boonReceipt only when its id exists in BOONS and equals run.boon; playerDelta has exactly finite signed gold/hp/maxHp/energyMax values; statsGoldEarned is finite and non-negative; relicsAdded is an array of RELICS ids; and potionSlotsAdded is an array of `{index,id}` records with a valid slot and POTIONS id. Unknown receipt fields or invalid pending data reject the save. Add one negative save fixture per rejected component.
+loadRun self-heals pendingHollow and boonReceipt to null. It accepts pendingHollow only as null or a plain object with exactly nodeId, type, paid, deferred, and answer: nodeId identifies an existing run.map node; type exactly matches that node; paid/deferred are booleans; answer is null before payment and a string after payment. It accepts boonReceipt only when its id exists in BOONS and equals run.boon; playerDelta has exactly finite signed gold/hp/maxHp/energyMax values; statsGoldEarned is finite and non-negative; relicsAdded is an array of RELICS ids; and potionSlotsAdded is an array of `{index,id}` records with a valid slot and POTIONS id. Unknown fields or invalid pending data reject the save.
 
 Extend Task 3's rejectSaved matrix inside the same temporary-localStorage block:
 
 ~~~js
-  rejectSaved('missing Hollow node', (r) => { r.pendingHollow = { nodeId: 'missing', type: 'event' }; });
+  rejectSaved('missing Hollow node', (r) => {
+    r.pendingHollow = { nodeId: 'missing', type: 'event', paid: false, deferred: false, answer: null };
+  });
   rejectSaved('mismatched Hollow type', (r) => {
-    r.pendingHollow = { nodeId: r.map.nodes[0].id, type: r.map.nodes[0].type === 'event' ? 'shop' : 'event' };
+    r.pendingHollow = {
+      nodeId: r.map.nodes[0].id, type: r.map.nodes[0].type === 'event' ? 'shop' : 'event',
+      paid: false, deferred: false, answer: null,
+    };
   });
   const receipt = {
     id: 'fullPurse',
@@ -1971,6 +2054,23 @@ Extend Task 3's rejectSaved matrix inside the same temporary-localStorage block:
   applyBoon(validReceiptRun, 'fullPurse');
   saveRun(validReceiptRun);
   assert.deepEqual(loadRun().boonReceipt, validReceiptRun.boonReceipt, 'valid boon receipt round-trips');
+
+  const paymentQuests = structuredClone(saveQuests);
+  paymentQuests.hollowLamplighter = { state: 'revealed', progress: 1, memory: {} };
+  const paymentRun = newRun(499, { quests: paymentQuests });
+  const paymentNode = paymentRun.map.nodes[0];
+  paymentRun.pendingHollow = {
+    nodeId: paymentNode.id, type: paymentNode.type,
+    paid: false, deferred: false, answer: null,
+  };
+  paymentRun.player.gold = 160;
+  const paidOnce = payHollowPrice(paymentRun);
+  assert.equal(saveRun(paymentRun), true);
+  const paidReload = loadRun();
+  const paidSnapshot = { gold: paidReload.player.gold, progress: paidReload.quests.hollowLamplighter.progress };
+  assert.deepEqual(payHollowPrice(paidReload), paidOnce, 'reloaded paid meeting is idempotent');
+  assert.deepEqual({ gold: paidReload.player.gold, progress: paidReload.quests.hollowLamplighter.progress }, paidSnapshot);
+
   rejectSaved('unknown receipt boon', (r) => { r.boon = 'unknown'; r.boonReceipt = { ...receipt, id: 'unknown' }; });
   rejectSaved('incomplete player delta', (r) => {
     r.boon = 'fullPurse';
@@ -2060,15 +2160,26 @@ Implement the price transaction exactly:
 
 ~~~js
 export function payHollowPrice(run) {
+  const pending = run.pendingHollow;
+  if (!pending) return { ok: false, deferred: false, message: '' };
+  if (pending.paid) {
+    return { ok: true, deferred: pending.deferred, message: pending.answer };
+  }
   const q = questRecord(run, 'hollowLamplighter');
-  if (!run.pendingHollow || !q || !['armed', 'revealed'].includes(q.state)) {
+  if (!q || !['armed', 'revealed'].includes(q.state)) {
     return { ok: false, deferred: false, message: '' };
   }
   const meeting = QUESTS.hollowLamplighter.meetings[q.progress];
   const fail = () => ({ ok: false, deferred: false, message: meeting.cannot });
+  const accept = (deferred, message) => {
+    pending.paid = true;
+    pending.deferred = deferred;
+    pending.answer = message;
+    return { ok: true, deferred, message };
+  };
   if (q.progress === 0) {
     q.memory.emberDebt = PROGRESSION.emberglass.hollowLamplighter.emberDebt;
-    return { ok: true, deferred: true, message: meeting.accepted };
+    return accept(true, meeting.accepted);
   }
   if (q.progress === 1) {
     const price = PROGRESSION.emberglass.hollowLamplighter.gold;
@@ -2085,13 +2196,17 @@ export function payHollowPrice(run) {
     run.player.hp = PROGRESSION.emberglass.hollowLamplighter.finalHp;
   } else return fail();
   advanceQuest(run, 'hollowLamplighter', 1, run.endQueue);
-  return { ok: true, deferred: false, message: meeting.paid };
+  return accept(false, meeting.paid);
 }
 ~~~
 
 At the top of positive gainEmbers, divert `tithe = Math.min(n,q.memory.emberDebt)` before applying the ember-cap calculation, decrement the debt, and push `{t:'hollowTithe',n:tithe,remaining}`. When remaining reaches zero, delete emberDebt, call `advanceQuest(run,'hollowLamplighter',1,cb.queue)`, and include `paid:QUESTS.hollowLamplighter.meetings[0].paid` on that final hollowTithe event. Continue the original function with `n -= tithe`; negative spending is unchanged. After a run-end merge, assert a cleared debt is absent from loadVigil to prove authoritative memory replacement.
 
-Extract the existing post-visit type switch from enterNode into `routeVisitedNode(node,type)`. After visitNode, if result.hollow is true, save and call show('hollow',{nodeId:node.id}); otherwise call routeVisitedNode. Add show('hollow') to the router. The `.hollow-lamplighter` screen uses the gaunt CSS/SVG silhouette, exact meeting ask, `[data-a=hollow-pay]`, `.hollow-answer`, and a disabled `[data-a=hollow-continue]`. Pay calls payHollowPrice, writes its message, and enables Continue only on ok. Continue copies pendingHollow, clears it, saves, finds the already-visited node by nodeId, and calls routeVisitedNode(node,pending.type) without visitNode. On resume, startRun routes pendingHollow to this screen before map. REDUCED removes entrance motion.
+Extract the existing post-visit type switch from enterNode into `routeVisitedNode(node,type)`. After visitNode, if result.hollow is true, require a successful save and call show('hollow',{nodeId:node.id}); on save failure restore `S.run=E.loadRun()`, return to its map, and show the storage error without opening Hollow. Otherwise call routeVisitedNode. Add show('hollow') to the router. The `.hollow-lamplighter` screen uses the gaunt CSS/SVG silhouette, exact meeting ask, `[data-a=hollow-pay]`, `.hollow-answer`, and `[data-a=hollow-continue]`.
+
+On render, a pending record with paid:true restores its answer and enables Continue; an unpaid record disables Continue. A Pay click disables Pay synchronously, calls payHollowPrice once, then immediately calls E.saveRun before showing success. On a successful save it leaves Pay disabled, writes the answer, and enables Continue. On a failed save it keeps Continue disabled, labels the button “Retry Save”, and a repeat click receives the idempotent stored result and retries only the save. A failed price re-enables Pay and shows cannot copy.
+
+Continue is accepted only when pending.paid is true. It copies pendingHollow, clears it, and requires E.saveRun to return true; on failure it restores pendingHollow and remains on the screen. On success it finds the already-visited node by nodeId and calls routeVisitedNode(node,pending.type) without visitNode. On resume, startRun routes pendingHollow to this screen before map. REDUCED removes entrance motion.
 
 Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyOutDir
 Expected: PASS.
@@ -2359,7 +2474,7 @@ On title, show a medallion only when v.shards.length>=1 and roseAssets() is non-
 
 Add art.js icons: paleMote, emberglassShard, roseWindow, emptyLantern, eighthOmen, unreadablePage, hollowLantern, and sealedDoor. They are paths in the structural ICONS table, never font glyphs.
 
-When `run.act===2`, `runRevealed(run,'act4')`, and `run.shards.length >= PROGRESSION.revealThresholds.act4.shards`, render a separate summit button above the boss projection. The explicit shard guard keeps `newRun()`'s fully-revealed compatibility default from showing the door with an empty shard snapshot. It is not in run.map.nodes. Clicking opens:
+When `run.act===2`, `E.runRevealed(run,'act4')`, and `run.shards.length >= PROGRESSION.revealThresholds.act4.shards`, render a separate summit button above the boss projection. The explicit shard guard keeps `newRun()`'s fully-revealed compatibility default from showing the door with an empty shard snapshot. It is not in run.map.nodes. Clicking opens:
 
 ~~~html
 <div class="panel sealed-door-panel">
@@ -2416,6 +2531,7 @@ git commit -m "Add Emberglass ceremonies Rose Window and sealed door"
 - Create: src/assets/meta/emberglass-mask-eighthOmen.png
 - Create: src/assets/meta/emberglass-mask-unreadablePage.png
 - Create: src/assets/meta/emberglass-mask-hollowLamplighter.png
+- Create: scratch/style-tests/emberglass-rose-window-20260709/ (source image, generated ID record, cleaned candidate, prompt-ledger.md, and rejection notes)
 - Modify: src/ui.js (gallery registration)
 - Test: test/test_engine.js (atomic dimensions and alpha)
 
@@ -2586,7 +2702,9 @@ Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyO
 Expected: PASS, gallery loads every file, and no orphan manifest failure.
 
 ~~~bash
-git add docs/meta-art-bible.md src/assets/README.md tools/gen-emberglass-frame.py src/assets/meta/emberglass-*.png src/ui.js test/test_engine.js
+git add docs/meta-art-bible.md src/assets/README.md tools/gen-emberglass-frame.py \
+  src/assets/meta/emberglass-*.png src/ui.js test/test_engine.js \
+  scratch/style-tests/emberglass-rose-window-20260709
 git commit -m "Add the Emberglass Rose Window art set"
 ~~~
 
@@ -2946,10 +3064,24 @@ async function expectNoOverflow(page, label) {
     if (de.scrollHeight > de.clientHeight || de.scrollWidth > de.clientWidth) {
       out.push(`document ${de.scrollWidth}x${de.scrollHeight} in ${de.clientWidth}x${de.clientHeight}`);
     }
+    const stage = document.getElementById('stage').getBoundingClientRect();
     for (const el of document.querySelectorAll('#stage *')) {
       const cs = getComputedStyle(el);
       if (!/(auto|scroll)/.test(cs.overflowY + cs.overflowX)) continue;
       if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) {
+        if (el.matches('.deed-list,.whisper-log')) {
+          const old = el.scrollTop;
+          el.scrollTop = el.scrollHeight;
+          const box = el.getBoundingClientRect();
+          const last = el.lastElementChild?.getBoundingClientRect();
+          if (box.left < stage.left - 1 || box.right > stage.right + 1 ||
+              box.top < stage.top - 1 || box.bottom > stage.bottom + 1 ||
+              !last || last.top < box.top - 1 || last.bottom > box.bottom + 1) {
+            out.push(`unreachable approved scroller ${el.className}`);
+          }
+          el.scrollTop = old;
+          continue;
+        }
         out.push(`${el.tagName.toLowerCase()}.${String(el.className).split(' ').join('.')} ${el.scrollWidth}x${el.scrollHeight} in ${el.clientWidth}x${el.clientHeight}`);
       }
     }

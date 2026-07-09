@@ -81,7 +81,7 @@ door, and buys construction time for Act 4 itself.
 | Persistence | `spirebound_vigil_v2` schema + v1 migration + grandfathering |
 | Bug fix | `vigil.unlocks` (and reveal state) actually feed `newRun()` on the live path |
 | Variant engine | Data-driven enemy variants (base asset + tint/scale/stat/dialogue overrides) powering pale foes, the Usurper, shades |
-| Emberglass chain | Six quests (3 Gates, 3 Trails), arming cadence, hint states, whispers, rose window UI, sealed summit door |
+| Emberglass chain | Six quests (**2 Gates, 4 Trails**), arming cadence, hint states, whispers, rose window UI, sealed summit door |
 | Testing | `test_engine.js` coverage for all of the above; Playwright title/stage/visual updates; manual GUI smoke |
 
 **Out of scope:** playable Act 4 content (enemies, map, boss, ending); new
