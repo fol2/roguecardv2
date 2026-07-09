@@ -1004,7 +1004,7 @@ function renderCombat() {
       </div>
       <div class="enemy-zone"></div>
     </div>
-    <div class="energy-orb" aria-label="Energy"><div class="candles"></div><div class="num">0</div></div>
+    <div class="energy-orb" aria-label="Energy"><div class="num">0</div><div class="candles"></div></div>
     <button class="lantern-btn"><span class="lb-ic"></span><span class="lb-count">0</span><div class="lb-pips"></div></button>
     <button class="end-turn" type="button"><span class="et-ic">${uiIcon('end-turn', 120)}</span><span class="et-lbl">End</span></button>
     <button class="pile-btn pile-draw" type="button" aria-label="Draw pile">

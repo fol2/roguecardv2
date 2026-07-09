@@ -1063,7 +1063,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .energy-orb {
   position: absolute; left: calc(24px + var(--sal)); bottom: calc(148px + var(--sab));
   width: auto; height: auto; min-height: 0; padding: 0; border-radius: 0; z-index: 26;
-  display: flex; align-items: flex-end; justify-content: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px;
   /* candle stack is the meter — transparent shell, no glass orb */
   background: transparent;
   border: none;
@@ -1071,9 +1071,9 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   font-family: 'Cinzel', serif; color: var(--parchment);
   pointer-events: none;
 }
-/* count on the wax bodies (not over flames) — thin outline like deck/End */
+/* count above the candle row — no overlap; thin outline like deck/End */
 .energy-orb .num {
-  position: absolute; left: 50%; top: 70%; transform: translate(-50%, -50%);
+  position: relative; left: auto; top: auto; transform: none;
   z-index: 2; font-size: 34px; font-weight: 800; line-height: 1;
   color: #fff8e8; pointer-events: none;
   -webkit-text-stroke: 1.25px rgba(0, 0, 0, 0.9);
