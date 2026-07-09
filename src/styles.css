@@ -711,11 +711,25 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .hpbar > .fill { height: 100%; background: linear-gradient(90deg, #b52a3e, #ff6a5e); transition: width 0.35s cubic-bezier(0.3, 1, 0.4, 1); border-radius: 5px; }
 .hpbar > .ghost { position: absolute; inset: 0; height: 100%; background: rgba(255, 230, 160, 0.55); transition: width 0.9s ease 0.25s; border-radius: 5px; z-index: -0; mix-blend-mode: screen; }
 .hp-label { font-size: 12px; font-weight: 700; color: #ffb9b9; min-width: 52px; text-align: left; font-variant-numeric: tabular-nums; }
+/* Ward: original plate size; enlarged asset overlaps the left edge (mirrors intent) */
 .block-chip {
-  display: inline-flex; align-items: center; gap: 3px; min-width: 34px; height: 26px; padding: 0 7px; border-radius: 13px;
+  display: inline-flex; align-items: center; gap: 3px; min-width: 34px; height: 26px;
+  padding: 0 7px; border-radius: 13px; overflow: visible;
   background: linear-gradient(180deg, #1c3b55, #0e2033); border: 1.5px solid var(--blk); color: #cdeeff;
   font-weight: 700; font-size: 13.5px; justify-content: center;
   box-shadow: 0 0 10px rgba(127, 212, 255, 0.35); text-shadow: 0 0 6px rgba(127, 212, 255, 0.8);
+}
+.block-chip .ic {
+  display: inline-flex; align-items: center; flex-shrink: 0; position: relative; z-index: 1;
+  margin: -6px 2px -6px -14px; color: var(--blk);
+}
+.block-chip .ic .ui-icon, .block-chip .ic .gicon {
+  width: 34px; height: 34px;
+  /* plate-tinted rim — same language as intent */
+  filter:
+    drop-shadow(0 0 0.75px currentColor)
+    drop-shadow(0 0 1.25px currentColor)
+    drop-shadow(0 0 2px color-mix(in srgb, currentColor 80%, transparent));
 }
 .block-chip.zero { display: none; }
 .block-chip.pulse { animation: blockPulse 0.4s ease-out; }
@@ -774,12 +788,23 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   display: inline-flex; align-items: center; gap: 2px;
   margin: -6px 2px -6px -16px; flex-shrink: 0; position: relative; z-index: 1;
 }
+/* icon-only intents (buff/debuff/…): centre the asset on the plate */
+.intent:not(:has(.num)) {
+  justify-content: center;
+  padding: 0 8px;
+}
+.intent:not(:has(.num)) .ic {
+  margin: -6px 0;
+}
 .gicon { display: inline-block; vertical-align: -0.16em; flex-shrink: 0; }
 .floaty .gicon { vertical-align: -0.1em; }
-.block-chip .gicon { vertical-align: -0.12em; }
-.block-chip .ui-icon { width: 13px; height: 13px; }
 .intent .ui-icon, .intent .gicon {
   width: 38px; height: 38px;
+  /* silhouette rim tinted to the intent plate (currentColor per i-*) — not black/white */
+  filter:
+    drop-shadow(0 0 0.75px currentColor)
+    drop-shadow(0 0 1.25px currentColor)
+    drop-shadow(0 0 2px color-mix(in srgb, currentColor 85%, transparent));
 }
 .intent .ic .ui-icon:nth-child(n+2), .intent .ic .gicon:nth-child(n+2) { width: 28px; height: 28px; }
 .intent.i-attack, .intent.i-attack_debuff, .intent.i-attack_block, .intent.i-attack_buff { color: #ff8d8d; }

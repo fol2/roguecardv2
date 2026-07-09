@@ -1001,7 +1001,7 @@ function renderCombat() {
           ${heroArt(S.run.aspect)}
         </div>
         <div class="cplate">
-          <div class="hpbar-wrap"><span class="block-chip zero p-block">${uiIcon('ward', 13)} 0</span><div class="hp-vial"><div class="hpbar"><div class="ghost"></div><div class="fill"></div></div></div><span class="hp-label p-hp"></span></div>
+          <div class="hpbar-wrap"><span class="block-chip zero p-block"><span class="ic">${uiIcon('ward', 28)}</span> 0</span><div class="hp-vial"><div class="hpbar"><div class="ghost"></div><div class="fill"></div></div></div><span class="hp-label p-hp"></span></div>
         </div>
       </div>
       <div class="enemy-zone"></div>
@@ -1045,7 +1045,7 @@ function renderCombat() {
       <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${aimRing(assetUrl('enemies', en.key), 'atk')}${rasterOr('enemies', en.key, enemySvg(d.art))}<div class="vessel-fire"></div>${assetUrl('enemies', en.key) ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
       <div class="cplate">
         <div class="name">${afx ? `<span class="affix-name" style="color:${afx.tone}">${afx.name.toUpperCase()}</span> ` : ''}${en.name.toUpperCase()}</div>
-        <div class="hpbar-wrap"><span class="block-chip zero">${uiIcon('ward', 13)} 0</span><div class="hp-vial"><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div></div><span class="hp-label"></span></div>
+        <div class="hpbar-wrap"><span class="block-chip zero"><span class="ic">${uiIcon('ward', 28)}</span> 0</span><div class="hp-vial"><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div></div><span class="hp-label"></span></div>
         <div class="facet-row"></div>
       </div>`;
     zone.appendChild(box);
@@ -1339,7 +1339,7 @@ function syncCombat() {
     x.ghost.style.width = pct;
     x.hp.textContent = `${Math.max(0, en.hp)}/${en.maxHp}`;
     x.block.classList.toggle('zero', en.block <= 0);
-    x.block.innerHTML = `${uiIcon('ward', 13)} ${en.block}`;
+    x.block.innerHTML = `<span class="ic">${uiIcon('ward', 28)}</span> ${en.block}`;
     x.art.classList.toggle('warded', en.block > 0);
     // Ward ON is owned by blockGain (animated grow). syncCombat only fades when block hits 0 —
     // otherwise an earlier sync in the same drain wave snaps the shell on before blockGain runs.
@@ -1354,12 +1354,14 @@ function syncCombat() {
     if (en.hp <= 0 && x.reaped) x.root.classList.add('gone');
     if (en.hp > 0 && en.flags.staggered) {
       x.intent.className = 'intent i-staggered';
-      x.intent.innerHTML = `<span class="ic">${iconSvg('stagger', 38)}</span>STAGGERED`;
+      x.intent.innerHTML = `<span class="ic">${iconSvg('stagger', 38)}</span><span class="num">STAGGERED</span>`;
       x.intent._tip = { title: 'Staggered', body: 'The glass has shattered — this creature loses its next action while it reseams.' };
     } else if (en.hp > 0 && en.moveKey) {
       const it = intentFor(en);
       x.intent.className = `intent i-${E.enemyMove(en).intent}`;
-      x.intent.innerHTML = `<span class="ic">${it.icon}</span>${it.txt}`;
+      x.intent.innerHTML = it.txt
+        ? `<span class="ic">${it.icon}</span><span class="num">${it.txt}</span>`
+        : `<span class="ic">${it.icon}</span>`;
       x.intent._tip = it.tip;
     } else x.intent.innerHTML = '';
   });
@@ -1379,7 +1381,7 @@ function syncCombat() {
   ce.pGhost.style.width = pct;
   ce.pHp.textContent = `${Math.max(0, P.hp)}/${P.maxHp}`;
   ce.pBlock.classList.toggle('zero', P.block <= 0);
-  ce.pBlock.innerHTML = `${uiIcon('ward', 13)} ${P.block}`;
+  ce.pBlock.innerHTML = `<span class="ic">${uiIcon('ward', 28)}</span> ${P.block}`;
   ce.hero.classList.toggle('warded', P.block > 0);
   // Ward ON is owned by blockGain (animated grow). syncCombat only fades when block hits 0.
   if (P.block <= 0) syncWardMesh(ce.hero, false);
