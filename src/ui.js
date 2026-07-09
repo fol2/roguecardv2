@@ -6,7 +6,7 @@ import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule,
 import { UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyphId } from './ui-chrome.js';
 // drawBatchSchedule also paces discardHand (same even-stagger clock)
 import * as V from './vfx.js';
-import { syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews, clearVigil } from './vigil.js';
+import { syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews, clearVigil, questSnapshot } from './vigil.js';
 import { sfx, unlock, getSfxVolume, setSfxVolume, isSfxMuted, setSfxMuted } from './audio.js';
 import * as music from './music.js';
 import { SFX_CATALOG, MUSIC_CATALOG } from './audio-catalog.js';
@@ -458,7 +458,7 @@ function confirmAbandon() {
   </div>`, (root) => {
     root.onclick = (e) => {
       const a = e.target.dataset.a;
-      if (a === 'yes') { commitRunEnd(S.run); E.recordRunEnd(S.run, false); S.run = null; S.cb = null; closeOverlay(); show('title'); }
+      if (a === 'yes') { commitRunEnd(S.run, 'abandon'); E.recordRunEnd(S.run, false); S.run = null; S.cb = null; closeOverlay(); show('title'); }
       if (a === 'no') closeOverlay();
     };
   });
@@ -673,6 +673,8 @@ function renderEmbark() {
       monument: v.lastFall,
       unlocks: v.unlocks, // the fix: deed unlocks finally reach live pools
       reveals: revealSnapshot(v),
+      quests: questSnapshot(v),
+      shards: v.shards,
     }));
   };
   sc.onclick = (e) => {
@@ -698,7 +700,7 @@ function renderEmbark() {
           if (ans === 'yes') {
             const abandoned = E.loadRun();
             if (abandoned) {
-              commitRunEnd(abandoned);
+              commitRunEnd(abandoned, 'abandon');
               E.recordRunEnd(abandoned, false);
             }
             S.run = null; S.cb = null;
@@ -764,7 +766,9 @@ function startRun(run, resumed = false) {
     // died-to-reload protection: an unfinished fight restarts fresh
     const node = run.map.nodes.find((n) => n.id === run.nodeId);
     S.screen = 'combat';
-    startCombatUI(E.rollEncounter(run, run.pendingCombat, node ? node.row : 5), run.pendingCombat);
+    const ids = run.pendingEnemyIds || E.rollEncounter(run, run.pendingCombat, node ? node.row : 5, node);
+    if (!run.pendingEnemyIds) E.setPendingEncounter(run, run.pendingCombat, ids, run.pendingQuestId);
+    startCombatUI(ids, run.pendingCombat);
     renderHud();
     return;
   }
@@ -851,7 +855,9 @@ function renderMap() {
   if (run.pendingCombat) { // invariant: an unresolved fight always resumes
     const node = run.map.nodes.find((n) => n.id === run.nodeId);
     S.screen = 'combat';
-    startCombatUI(E.rollEncounter(run, run.pendingCombat, node ? node.row : 5), run.pendingCombat);
+    const ids = run.pendingEnemyIds || E.rollEncounter(run, run.pendingCombat, node ? node.row : 5, node);
+    if (!run.pendingEnemyIds) E.setPendingEncounter(run, run.pendingCombat, ids, run.pendingQuestId);
+    startCombatUI(ids, run.pendingCombat);
     return;
   }
   E.saveRun(run);
@@ -1018,11 +1024,12 @@ function enterNode(node) {
     flyTo(from.x, from.y, 120, 30, { n: 5, color: '#ffe9ac', size: 7, dur: 620 });
   }
   if (type === 'monster' || type === 'elite' || type === 'boss') {
-    run.pendingCombat = type;
+    const ids = E.rollEncounter(run, type, node.row, node);
+    E.setPendingEncounter(run, type, ids);
     E.saveRun(run);
     const g = $(`.mnode[data-node="${node.id}"]`);
     transition('combat-in', g ? V.centerOf(g) : {});
-    startCombatUI(E.rollEncounter(run, type, node.row), type);
+    startCombatUI(ids, type);
   } else if (type === 'rest') show('rest');
   else if (type === 'shop') show('shop');
   else if (type === 'treasure') show('treasure');
@@ -3460,10 +3467,10 @@ function victoryFlow() {
   transition('victory-out');
   const run = S.run, kind = S.cb.kind, affix = S.cb.affix;
   S.cb = null;
-  run.pendingCombat = null;
+  E.clearPendingEncounter(run);
   if (kind === 'boss' && run.act >= 2) {
     const { newUnlocks } = commitRunToVigil(run, true); // the dawn is remembered
-    commitRunEnd(run); // the ledger that paces reveals counts every ending
+    commitRunEnd(run, 'win'); // the ledger that paces reveals counts every ending
     E.recordRunEnd(run, true);
     show('end', { won: true, newUnlocks });
     return;
@@ -3479,7 +3486,7 @@ function defeatFlow() {
   const node = run.map.nodes.find((n) => n.id === run.nodeId);
   const fallRow = node ? node.row : Math.max(1, run.floorsClimbed - 1);
   const { newUnlocks } = commitRunToVigil(run, false);
-  commitRunEnd(run);
+  commitRunEnd(run, 'death');
   E.recordRunEnd(run, false);
   show('end', { won: false, newUnlocks, offers, fallAct: run.act, fallRow });
 }

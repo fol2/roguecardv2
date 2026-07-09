@@ -9,6 +9,7 @@ import {
   MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, cardPool, relicPool,
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
   previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
+  revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter,
 } from '../src/engine.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS } from '../src/data.js';
 import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
@@ -791,6 +792,36 @@ function forceHand(run, cb, ids) {
     reloadedEv.nodeId = evNode.id;
     assert.equal(savedEvNode.rewardResolving, true, 'rewardResolving survives loadRun round-trip');
     assert.equal(applyNodeEventChoice(reloadedEv, [{ gold: 99 }]).already, true);
+
+    const saveQuests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'paleOnes' ? 'armed' : 'dormant', progress: 0, memory: {},
+    }]));
+    const pending = newRun(411, { quests: saveQuests });
+    setPendingEncounter(pending, 'monster', ['paleDuskfang'], 'paleOnes');
+    saveRun(pending);
+    assert.deepEqual(loadRun().pendingEnemyIds, ['paleDuskfang']);
+    assert.equal(saveRun(pending), true, 'saveRun acknowledges durable storage');
+    const workingSetItem = globalThis.localStorage.setItem;
+    globalThis.localStorage.setItem = () => { throw new Error('quota'); };
+    assert.equal(saveRun(pending), false, 'saveRun reports a rejected write');
+    globalThis.localStorage.setItem = workingSetItem;
+
+    const rejectSaved = (label, mutate) => {
+      const bad = newRun(412, { quests: saveQuests });
+      mutate(bad);
+      saveRun(bad);
+      assert.equal(loadRun(), null, label);
+    };
+    rejectSaved('unknown variant', (r) => setPendingEncounter(r, 'monster', ['paleUnknown'], 'paleOnes'));
+    rejectSaved('unknown quest record', (r) => { r.quests.unknown = { state: 'armed', progress: 0, memory: {} }; });
+    rejectSaved('invalid quest state', (r) => { r.quests.paleOnes.state = 'waiting'; });
+    rejectSaved('negative quest progress', (r) => { r.quests.paleOnes.progress = -1; });
+    rejectSaved('unknown shard', (r) => { r.shards = ['unknown']; });
+    rejectSaved('unknown scratch key', (r) => { r.questScratch.unknown = {}; });
+    rejectSaved('malformed scratch', (r) => { r.questScratch.paleOnes = { hiddenDue: 'yes' }; });
+    rejectSaved('unknown completion', (r) => { r.questCompletions = ['unknown']; });
+    rejectSaved('unknown end event', (r) => { r.endQueue = [{ t: 'mystery' }]; });
+    rejectSaved('unknown marked-node variant', (r) => { r.map.nodes[0].questVariantId = 'paleUnknown'; });
   } finally {
     if (prevLs) globalThis.localStorage = prevLs;
     else delete globalThis.localStorage;
@@ -1098,6 +1129,30 @@ function forceHand(run, cb, ids) {
   assert.equal(P.eighthOmen.completeAt, 1);
   assert.equal(P.unreadablePage.completeAt, 5);
   assert.equal(P.hollowLamplighter.completeAt, 5);
+}
+{
+  const q = Object.fromEntries(QUEST_IDS.map((id) => [id, { state: id === 'paleOnes' ? 'armed' : 'dormant', progress: 0, memory: {} }]));
+  const run = newRun(410, { quests: q, shards: ['paleOnes'] });
+  q.paleOnes.state = 'complete';
+  assert.equal(run.quests.paleOnes.state, 'armed', 'run owns a deep snapshot');
+  assert.deepEqual(run.shards, ['paleOnes']);
+
+  const events = [];
+  assert.equal(revealQuest(run, 'paleOnes', events).state, 'revealed');
+  assert.equal(events[0].t, 'questReveal');
+  advanceQuest(run, 'paleOnes', 9, events);
+  assert.equal(run.quests.paleOnes.state, 'complete');
+  assert.deepEqual(run.questCompletions, ['paleOnes']);
+  advanceQuest(run, 'paleOnes', 1, events);
+  assert.deepEqual(run.questCompletions, ['paleOnes'], 'completion emitted once');
+
+  setPendingEncounter(run, 'monster', ['paleDuskfang'], 'paleOnes');
+  assert.deepEqual(run.pendingEnemyIds, ['paleDuskfang']);
+  assert.equal(run.pendingQuestId, 'paleOnes');
+  clearPendingEncounter(run);
+  assert.equal(run.pendingCombat, null);
+  assert.equal(run.pendingEnemyIds, null);
+  assert.equal(run.pendingQuestId, null);
 }
 {
   // vigil v2: fresh shape, and one-way migration from v1 that leaves v1 intact
