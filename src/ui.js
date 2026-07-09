@@ -2725,54 +2725,103 @@ async function handleEvent(ev, targetIdx) {
       const n = uids.length;
       sfx.card();
       if (!n) { syncCombat(); break; }
-      if (!REDUCED) holdPileVisual('discard', n);
-      const sched = drawBatchSchedule(n, 400);
-      if (!REDUCED) {
-        const flights = uids.map((uid) => {
-          const elc = $(`.card[data-uid="${uid}"]`, ce.hand);
-          const inst = pileCardByUid(cb.discard, uid);
-          if (!inst) return null;
-          const anchor = takeCardAnchor(uid);
-          if (anchor) return { ...anchor, inst };
-          if (elc) {
-            const r = stageRect(elc);
-            return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, inst };
-          }
-          return { ...V.centerOf(ce.hand), ...handFaceSize(), inst };
-        }).filter(Boolean);
-        // Hide seats immediately so fan doesn't leave ghosts while staggered flights run
-        uids.forEach((uid) => {
-          const elc = $(`.card[data-uid="${uid}"]`, ce.hand);
-          if (elc) elc.classList.add('draw-pending');
-        });
-        layoutHand();
-        if (flights.length) {
-          flyCardBacks(flights, ce.discard, 400, {
-            fromSize: 'src', toSize: 'pile', sizePile: ce.discard, face: 'card', schedule: sched,
-          });
-          // Grow discard chrome as each card lands (mirror draw pile shrink)
-          flights.forEach((_, i) => {
-            setTimeout(() => {
-              releasePileVisual('discard', 1);
-              syncPileWidgets(cb);
-              bumpPile(ce.discard);
-            }, sched.flightDur + i * sched.stagger);
-          });
-          await sleep(sched.awaitMs);
-          // any hold left if some uids lacked instances
-          const left = n - flights.length;
-          if (left > 0) releasePileVisual('discard', left);
-        } else {
-          releasePileVisual('discard', n);
-        }
-        uids.forEach((uid) => $(`.card[data-uid="${uid}"]`, ce.hand)?.remove());
-      } else {
+      if (REDUCED) {
         uids.forEach((uid) => {
           takeCardAnchor(uid);
           $(`.card[data-uid="${uid}"]`, ce.hand)?.remove();
         });
+        syncCombat();
+        break;
+      }
+      holdPileVisual('discard', n);
+      const sched = drawBatchSchedule(n, 500);
+      // Snapshot seats FIRST (before hiding) — clone the live card so the flyer matches the hand
+      const flights = [];
+      for (const uid of uids) {
+        const elc = $(`.card[data-uid="${uid}"]`, ce.hand);
+        const inst = pileCardByUid(cb.discard, uid)
+          || { uid, id: elc?.dataset?.id, up: false, bonus: 0 };
+        const anchor = takeCardAnchor(uid);
+        let origin;
+        if (anchor) {
+          origin = { x: anchor.x, y: anchor.y, w: anchor.w, h: anchor.h };
+        } else if (elc) {
+          const r = stageRect(elc);
+          origin = { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
+        } else {
+          origin = { ...V.centerOf(ce.hand), ...handFaceSize() };
+        }
+        flights.push({ ...origin, inst, el: elc });
+      }
+      // Hide seats only after snapshots — fan reflows without ghosts
+      for (const f of flights) {
+        if (f.el) f.el.classList.add('draw-pending');
+      }
+      layoutHand();
+      if (flights.length) {
+        const layer = $('#floaties');
+        const dest = V.centerOf(ce.discard);
+        const pileSz = pileFaceSize(ce.discard);
+        flights.forEach((src, i) => {
+          const layoutW = src.w > 2 ? src.w : handFaceSize().w;
+          const layoutH = src.h > 2 ? src.h : handFaceSize().h;
+          const landScale = layoutW > 0 ? pileSz.w / layoutW : 0.65;
+          let m;
+          if (src.el) {
+            m = src.el.cloneNode(true);
+            m.classList.remove('draw-pending', 'lifted', 'armed', 'dragging', 'will-cast', 'will-burn', 'played-up', 'unplayable-now');
+            m.classList.add('flycard-face');
+            m.removeAttribute('style');
+            Object.assign(m.style, {
+              position: 'absolute', left: `${src.x}px`, top: `${src.y}px`,
+              width: `${layoutW}px`, height: `${layoutH}px`, margin: 0,
+              transform: 'translate(-50%,-50%) scale(1)', zIndex: 58 + i, pointerEvents: 'none',
+              opacity: '1',
+            });
+          } else if (src.inst?.id) {
+            m = cardEl(src.inst, { inCombat: true, size: layoutW });
+            m.classList.add('flycard-face');
+            Object.assign(m.style, {
+              position: 'absolute', left: `${src.x}px`, top: `${src.y}px`,
+              width: `${layoutW}px`, height: `${layoutH}px`, margin: 0,
+              transform: 'translate(-50%,-50%) scale(1)', zIndex: 58 + i, pointerEvents: 'none',
+            });
+          } else {
+            return;
+          }
+          layer.appendChild(m);
+          const mx = src.x + (dest.x - src.x) * 0.45 + (Math.random() - 0.5) * 24;
+          const my = Math.min(src.y, dest.y) - 28 - Math.random() * 20;
+          const dx1 = mx - src.x, dy1 = my - src.y;
+          const dx2 = dest.x - src.x, dy2 = dest.y - src.y;
+          const mid = 1 + (landScale - 1) * 0.5;
+          m.animate(
+            [
+              { transform: 'translate(-50%,-50%) scale(1)', opacity: 1, offset: 0 },
+              { transform: `translate(calc(-50% + ${dx1}px), calc(-50% + ${dy1}px)) scale(${mid})`, opacity: 1, offset: 0.5 },
+              { transform: `translate(calc(-50% + ${dx2}px), calc(-50% + ${dy2}px)) scale(${landScale})`, opacity: 0.92, offset: 1 },
+            ],
+            {
+              duration: sched.flightDur,
+              delay: i * sched.stagger,
+              easing: 'cubic-bezier(.22,.7,.28,1)',
+              fill: 'forwards',
+            }
+          ).onfinish = () => m.remove();
+          setTimeout(() => {
+            releasePileVisual('discard', 1);
+            syncPileWidgets(cb);
+            bumpPile(ce.discard);
+            sfx.card();
+          }, sched.flightDur + i * sched.stagger);
+        });
+        await sleep(sched.awaitMs);
+        const left = n - flights.length;
+        if (left > 0) releasePileVisual('discard', left);
+      } else {
         releasePileVisual('discard', n);
       }
+      uids.forEach((uid) => $(`.card[data-uid="${uid}"]`, ce.hand)?.remove());
       syncCombat();
       break;
     }
