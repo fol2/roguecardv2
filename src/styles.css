@@ -751,18 +751,17 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .schip.pop { animation: chipPop 0.35s ease-out; }
 @keyframes chipPop { 40% { transform: scale(1.35); } }
 
-/* intent: a chip of lit glass in the enemy's own light, leaded in ink */
+/* intent: bare icons + dmg text — no glass plate; outline separates from battlefield */
 .intent {
-  display: flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px; border-radius: 9px;
-  font-weight: 800; font-size: 16.5px; cursor: help; border: 1.5px solid #05070e;
-  background: linear-gradient(180deg, color-mix(in srgb, currentColor 20%, rgba(12, 15, 28, 0.85)), rgba(7, 9, 18, 0.88));
-  box-shadow: 0 0 13px color-mix(in srgb, currentColor 30%, transparent),
-    inset 0 0 9px color-mix(in srgb, currentColor 18%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  text-shadow: 0 0 8px currentColor;
+  display: flex; align-items: center; gap: 6px; min-height: 40px; height: auto; padding: 0;
+  font-weight: 800; font-size: 16.5px; cursor: help; border: none; border-radius: 0;
+  background: none; box-shadow: none;
+  text-shadow:
+    -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
+    0 0 6px rgba(0, 0, 0, 0.9), 0 0 8px currentColor;
 }
 .intent:empty { visibility: hidden; }
-/* the beat before the strike: the chip blazes */
+/* the beat before the strike: the icons blaze */
 .intent.telegraph { animation: teleFlash 0.5s ease-in-out 2; }
 @keyframes teleFlash { 50% { transform: scale(1.22); filter: brightness(1.8) drop-shadow(0 0 10px currentColor); } }
 .intent .ic { display: inline-flex; align-items: center; gap: 2px; }
@@ -770,8 +769,11 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .floaty .gicon { vertical-align: -0.1em; }
 .block-chip .gicon { vertical-align: -0.12em; }
 .block-chip .ui-icon { width: 13px; height: 13px; }
-.intent .ui-icon { width: 19px; height: 19px; }
-.intent .ic .ui-icon:nth-child(n+2) { width: 14px; height: 14px; }
+.intent .ui-icon, .intent .gicon {
+  width: 38px; height: 38px;
+  filter: url(#status-outline);
+}
+.intent .ic .ui-icon:nth-child(n+2), .intent .ic .gicon:nth-child(n+2) { width: 28px; height: 28px; }
 .intent.i-attack, .intent.i-attack_debuff, .intent.i-attack_block, .intent.i-attack_buff { color: #ff8d8d; }
 .intent.i-block { color: var(--blk); }
 .intent.i-buff { color: #a8ff9e; }
@@ -900,7 +902,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .facet-row.pop { animation: chipPop 0.4s ease-out; }
 .facet-row .pipnum { font-family: 'Cinzel', serif; font-size: 12.5px; font-weight: 800; color: #bfe0ff; display: inline-flex; align-items: center; gap: 3px; }
 .facet-row .pipnum i { color: #ffe9ac; font-style: normal; }
-.intent.i-staggered { color: #ffd8a0; border-style: dashed; font-size: 13.5px; letter-spacing: 0.06em; }
+.intent.i-staggered { color: #ffd8a0; font-size: 13.5px; letter-spacing: 0.06em; }
 .enemy.reseaming .enemy-art { animation: reseam 0.7s ease-out; }
 @keyframes reseam { 30% { filter: brightness(1.55) saturate(0.55); } }
 .dmg-preview .pv-shatter { color: #ffd8a0; display: inline-flex; filter: drop-shadow(0 0 6px rgba(255, 200, 120, 0.9)); }
@@ -1777,7 +1779,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .status-row { max-width: 34cqw; }
   .enemy .name { font-size: 10.5px; letter-spacing: 0.06em; }
   .enemy.boss-e .name { font-size: 12px; }
-  .intent { height: 26px; font-size: 14px; padding: 0 8px; gap: 4px; }
+  .intent { font-size: 14px; gap: 4px; }
   /* the fan */
   .card { --cw: 118px; }
   .card-text { font-size: 11.5px; padding: 3px 7px 8px; }
@@ -1859,7 +1861,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .stage-ledge { --glow-h: 70px; }
   .player-zone .hpbar-wrap, .hpbar-wrap { width: 118px; }
   .enemy .name { font-size: 10.5px; }
-  .intent { height: 24px; font-size: 13px; }
+  .intent { font-size: 13px; }
   .card { --cw: 104px; }
   .card-text { font-size: 10.5px; }
   .card-name { font-size: 11px; }
