@@ -16,8 +16,8 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/icon-180.png" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>🃏</text></svg>" />
-  <script type="module" crossorigin src="/assets/index-ndudGgyC.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CRKXNd1J.css">
+  <script type="module" crossorigin src="/assets/index-Dc2ReQHB.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-Fr7Y6-T0.css">
 </head>
 <body>
   <div id="stage">
@@ -55,6 +55,11 @@
             <feMergeNode in="outline"/>
             <feMergeNode in="SourceGraphic"/>
           </feMerge>
+        </filter>
+        <!-- soft-eat light alpha fringe on DOM sprites (mesh path does this in BODY_FRAG) -->
+        <filter id="alpha-erode" x="-2%" y="-2%" width="104%" height="104%" color-interpolation-filters="sRGB">
+          <feMorphology in="SourceAlpha" operator="erode" radius="0.65" result="eroded"/>
+          <feComposite in="SourceGraphic" in2="eroded" operator="in"/>
         </filter>
       </defs>
     </svg>

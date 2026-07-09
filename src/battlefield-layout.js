@@ -23,7 +23,6 @@
 export const BF = {
   shared: {
     sizes: { normal: 185, elite: 230, boss: 280 },
-    // per-actor scale/foot* moved to src/char-meta.js (?charedit=1 / ?bfedit=1)
     heroes: {},
     enemies: {},
   },
@@ -138,6 +137,7 @@ export const BF = {
       },
     },
     'pad-landscape': {
+      hero: { x: 200 },
       layers: {
         backdrop: { y: 0, drift: 30 },
       },

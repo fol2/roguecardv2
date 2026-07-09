@@ -933,13 +933,13 @@ function startCombatUI(enemyIds, kind) {
   renderCombat();
   renderHud();
   if (kind === 'boss') {
-    // the boss is announced through a rose window: spokes of leaded light
-    // bloom behind the name, hold one breath, and dissolve
-    const bossName = ENEMIES[enemyIds[0]]?.name ?? S.cb.enemies[0].name;
-    const rw = el('div', 'rose-window', `<div class="rw-rings"></div><div class="rw-spokes"></div><div class="boss-plate">${bossName.toUpperCase()}</div>`);
-    screenEl().appendChild(rw);
-    setTimeout(() => rw.remove(), 2300);
-    const b = el('div', 'turn-banner boss-banner', S.cb.enemies[0].name.toUpperCase());
+    // Name plate only — rose-window behind it read as a second overlapping intro.
+    const bossLabel = S.cb.enemies[0].name.toUpperCase();
+    const sp = bossLabel.indexOf(' ');
+    const bossHtml = sp < 0
+      ? escHtml(bossLabel)
+      : `${escHtml(bossLabel.slice(0, sp))}<br>${escHtml(bossLabel.slice(sp + 1))}`;
+    const b = el('div', 'turn-banner boss-banner', `<span class="bb-name">${bossHtml}</span>`);
     screenEl().appendChild(b);
     setTimeout(() => b.remove(), 2100);
     V.flash('#1a0a20', 0.5, 0.9);
@@ -970,7 +970,6 @@ function renderCombat() {
           ${heroArt(S.run.aspect)}
         </div>
         <div class="cplate">
-          <div class="hero-name">${ASPECTS[S.run.aspect].name.toUpperCase()}</div>
           <div class="hpbar-wrap"><span class="block-chip zero p-block">${iconSvg('shield', 13)} 0</span><div class="hpbar"><div class="ghost"></div><div class="fill"></div></div><span class="hp-label p-hp"></span></div>
         </div>
       </div>
@@ -1021,6 +1020,7 @@ function renderCombat() {
     zone.appendChild(box);
     ce.enemies.push({
       root: box, art: $('.enemy-art', box), intent: $('.intent', box),
+      topChrome: $('.top-chrome', box), cplate: $('.cplate', box),
       fill: $('.fill', box), ghost: $('.ghost', box), hp: $('.hp-label', box),
       block: $('.block-chip', box), statuses: $('.status-row', box),
       pv: $('.pv', box), prev: $('.dmg-preview', box), facets: $('.facet-row', box),
@@ -1036,6 +1036,9 @@ function renderCombat() {
   });
   ce.pHp = $('.p-hp', sc); ce.pFill = $('.player-zone .fill', sc); ce.pGhost = $('.player-zone .ghost', sc);
   ce.pBlock = $('.p-block', sc); ce.pStatus = $('.p-status', sc); ce.hero = $('.hero-wrap', sc);
+  ce.playerZone = $('.player-zone', sc);
+  ce.pTopChrome = $('.player-zone .top-chrome', sc);
+  ce.pCplate = $('.player-zone .cplate', sc);
   ce.energy = $('.energy-orb', sc); ce.endTurn = $('.end-turn', sc); ce.hand = $('.hand-zone', sc);
   ce.draw = $('.pile-draw', sc); ce.discard = $('.pile-discard', sc); ce.exhaust = $('.pile-exhaust', sc);
   ce.lantern = $('.lantern-btn', sc);
@@ -1129,10 +1132,72 @@ function applyBattlefieldLayout(resolved) {
     box.style.zIndex = String(zOrder[i]);
     ce.enemies[i].art.style.width = ce.enemies[i].art.style.height = `${size}px`;
   });
+  clampCombatChrome();
 }
+
+/** Top edge of resting hand cards — bottom chrome must stay above this. */
+function handChromeCeiling() {
+  const hand = S.ce?.hand;
+  if (!hand) return stageH() - 8;
+  let top = Infinity;
+  for (const c of hand.querySelectorAll('.card:not(.draw-pending)')) {
+    const r = stageRect(c);
+    if (r.height > 2) top = Math.min(top, r.top);
+  }
+  if (top < Infinity) return top;
+  // no seats yet — estimate from zone + resting card bottom inset
+  const zr = stageRect(hand);
+  const sz = handFaceSize();
+  const inset = handCardBottomInset();
+  if (zr.height > 2) return zr.bottom - inset - sz.h;
+  return stageH() - inset - sz.h;
+}
+
+/**
+ * Keep combat chrome on-stage: tall sprites push top chrome down into the art;
+ * bottom plate (name/HP/facets) cannot sit under the hand.
+ * Top clearance sits under the HUD menu bar (not the stage edge).
+ */
+function clampCombatChrome() {
+  const ce = S.ce;
+  if (!ce || S.screen !== 'combat') return;
+  const hudBar = $('#hud.show .hud-bar') || $('#hud .hud-bar');
+  const hudBottom = hudBar ? stageRect(hudBar).bottom : 0;
+  const marginTop = Math.max(6, Math.round(hudBottom) + 4);
+  const maxBottom = handChromeCeiling() - 4;
+  const clampOne = (topEl, plateEl) => {
+    if (topEl) {
+      topEl.style.setProperty('--chrome-dy', '0px');
+      const r = stageRect(topEl);
+      if (r.height > 1 && r.top < marginTop) {
+        topEl.style.setProperty('--chrome-dy', `${Math.round(marginTop - r.top)}px`);
+      }
+    }
+    if (plateEl) {
+      plateEl.style.setProperty('--chrome-dy', '0px');
+      const r = stageRect(plateEl);
+      if (r.height > 1 && r.bottom > maxBottom) {
+        plateEl.style.setProperty('--chrome-dy', `${Math.round(maxBottom - r.bottom)}px`);
+      }
+    }
+  };
+  for (const x of ce.enemies) clampOne(x.topChrome, x.cplate);
+  clampOne(ce.pTopChrome, ce.pCplate);
+}
+
+let chromeClampRaf = 0;
+function scheduleChromeClamp() {
+  if (chromeClampRaf) return;
+  chromeClampRaf = requestAnimationFrame(() => {
+    chromeClampRaf = 0;
+    clampCombatChrome();
+  });
+}
+
 function refitCombat() {
   applyBattlefieldLayout();
   layoutHand();
+  scheduleChromeClamp();
   scheduleMeshBind();
 }
 // rotate the phone mid-fight and the stage re-fits itself
@@ -1255,6 +1320,7 @@ function syncCombat() {
   if (cd.children.length !== maxE) cd.innerHTML = Array.from({ length: maxE }, () => '<span class="candle"></span>').join('');
   [...cd.children].forEach((c, i) => c.classList.toggle('lit', i < P.energy));
   syncPileWidgets(cb);
+  scheduleChromeClamp();
 }
 function syncPileWidgets(cb) {
   const ce = S.ce;
@@ -1270,6 +1336,7 @@ function syncPileWidgets(cb) {
     const tier = pileTier(n);
     const layers = pileFanLayers(n);
     const stack = btn.querySelector('.pile-stack');
+    btn.classList.toggle('is-empty', n === 0);
     $('.cnt', btn).textContent = n;
     if (!stack) continue;
     if (Number(stack.dataset.count) === n) continue;
@@ -1463,6 +1530,7 @@ function layoutHand() {
     c.style.zIndex = hovered || armed ? 40 : 20 + i;
   });
   updatePreviews();
+  scheduleChromeClamp();
 }
 // ---- drag-to-play: press a pane, drag it up, the arc springs from your hand;
 // release on a foe to strike, release low to think better of it. One motion.
