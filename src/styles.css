@@ -1094,7 +1094,6 @@ html.mesh-on .enemy-art.warded::before { display: none; }
 }
 .flycard-face .card-lift { transform: none !important; }
 .flycard-face .card-inner { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.75); }
-.flycard-face .card-cost { display: none; } /* cost gem glitches while scaling in flight */
 /* the boss is announced through a rose window: rings and spokes of leaded light */
 .rose-window {
   position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%);

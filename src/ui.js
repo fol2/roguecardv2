@@ -1814,13 +1814,21 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
     const endScale = fromSize.w > 0 ? toSize.w / fromSize.w : 1;
     const inst = src.inst || opts.cardInst;
     let m;
+    let startScale = 1;
+    let landScale = endScale;
     if (opts.face === 'card' && inst) {
-      m = cardEl(inst, { inCombat: true, size: fromSize.w });
+      // Always layout at hand --cw so fonts/cost match a real card; size via transform only
+      const hand = handFaceSize();
+      const layoutW = hand.w;
+      const layoutH = hand.h;
+      startScale = layoutW > 0 ? fromSize.w / layoutW : 1;
+      landScale = layoutW > 0 ? toSize.w / layoutW : endScale;
+      m = cardEl(inst, { inCombat: true, size: layoutW });
       m.classList.add('flycard-face');
       Object.assign(m.style, {
         position: 'absolute', left: `${origin.x}px`, top: `${origin.y}px`,
-        width: `${fromSize.w}px`, height: `${fromSize.h}px`, margin: 0,
-        transform: 'translate(-50%,-50%)', zIndex: 58 + i, pointerEvents: 'none',
+        width: `${layoutW}px`, height: `${layoutH}px`, margin: 0,
+        transform: `translate(-50%,-50%) scale(${startScale})`, zIndex: 58 + i, pointerEvents: 'none',
       });
     } else {
       m = el('div', artUrl ? 'flycard flycard-pile' : 'flycard flycard-back');
@@ -1843,18 +1851,18 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
       : Math.min(origin.y, land.y) - 40 - Math.random() * 50;
     const dx1 = mx - origin.x, dy1 = my - origin.y;
     const dx2 = land.x - origin.x, dy2 = land.y - origin.y;
-    const midScale = 1 + (endScale - 1) * (smooth ? 0.55 : 0.45);
+    const midScale = startScale + (landScale - startScale) * (smooth ? 0.55 : 0.45);
     const keyframes = smooth
       ? [
-        { transform: 'translate(-50%,-50%) scale(1)', opacity: 1, offset: 0 },
-        { transform: `translate(calc(-50% + ${dx1 * 0.55}px), calc(-50% + ${dy1 * 0.55}px)) scale(${1 + (midScale - 1) * 0.5})`, opacity: 1, offset: 0.35 },
+        { transform: `translate(-50%,-50%) scale(${startScale})`, opacity: 1, offset: 0 },
+        { transform: `translate(calc(-50% + ${dx1 * 0.55}px), calc(-50% + ${dy1 * 0.55}px)) scale(${startScale + (midScale - startScale) * 0.5})`, opacity: 1, offset: 0.35 },
         { transform: `translate(calc(-50% + ${dx1}px), calc(-50% + ${dy1}px)) scale(${midScale})`, opacity: 0.98, offset: 0.62 },
-        { transform: `translate(calc(-50% + ${dx2}px), calc(-50% + ${dy2}px)) scale(${endScale})`, opacity: 0.92, offset: 1 },
+        { transform: `translate(calc(-50% + ${dx2}px), calc(-50% + ${dy2}px)) scale(${landScale})`, opacity: 0.92, offset: 1 },
       ]
       : [
-        { transform: 'translate(-50%,-50%) scale(1)', opacity: 0.95 },
+        { transform: `translate(-50%,-50%) scale(${startScale})`, opacity: 0.95 },
         { transform: `translate(calc(-50% + ${dx1}px), calc(-50% + ${dy1}px)) scale(${midScale})`, opacity: 1, offset: 0.45 },
-        { transform: `translate(calc(-50% + ${dx2}px), calc(-50% + ${dy2}px)) scale(${endScale})`, opacity: 0.9 },
+        { transform: `translate(calc(-50% + ${dx2}px), calc(-50% + ${dy2}px)) scale(${landScale})`, opacity: 0.9 },
       ];
     m.animate(keyframes, {
       duration: flightDur, delay: i * stagger, easing, fill: 'forwards',
