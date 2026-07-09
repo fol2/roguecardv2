@@ -751,26 +751,33 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .schip.pop { animation: chipPop 0.35s ease-out; }
 @keyframes chipPop { 40% { transform: scale(1.35); } }
 
-/* intent: bare icons + dmg text — no glass plate; outline separates from battlefield */
+/* intent: glass plate holds dmg/text; 38px asset overlaps the plate edge */
 .intent {
-  display: flex; align-items: center; gap: 6px; min-height: 60px; height: auto; padding: 0;
-  font-weight: 800; font-size: 16.5px; cursor: help; border: none; border-radius: 0;
-  background: none; box-shadow: none;
-  text-shadow:
-    -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
-    0 0 6px rgba(0, 0, 0, 0.9), 0 0 8px currentColor;
+  display: flex; align-items: center; gap: 4px;
+  height: 30px; min-height: 30px; padding: 0 10px 0 6px; border-radius: 9px;
+  font-weight: 800; font-size: 16.5px; cursor: help; overflow: visible;
+  border: 1.5px solid #05070e;
+  background: linear-gradient(180deg, color-mix(in srgb, currentColor 20%, rgba(12, 15, 28, 0.85)), rgba(7, 9, 18, 0.88));
+  box-shadow: 0 0 13px color-mix(in srgb, currentColor 30%, transparent),
+    inset 0 0 9px color-mix(in srgb, currentColor 18%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  text-shadow: 0 0 8px currentColor;
 }
 .intent:empty { visibility: hidden; }
-/* the beat before the strike: the icons blaze */
+/* the beat before the strike: the chip blazes */
 .intent.telegraph { animation: teleFlash 0.5s ease-in-out 2; }
 @keyframes teleFlash { 50% { transform: scale(1.22); filter: brightness(1.8) drop-shadow(0 0 10px currentColor); } }
-.intent .ic { display: inline-flex; align-items: center; gap: 2px; }
+/* icon hangs left/vertically past the plate; numbers stay in plate padding */
+.intent .ic {
+  display: inline-flex; align-items: center; gap: 2px;
+  margin: -6px 2px -6px -16px; flex-shrink: 0; position: relative; z-index: 1;
+}
 .gicon { display: inline-block; vertical-align: -0.16em; flex-shrink: 0; }
 .floaty .gicon { vertical-align: -0.1em; }
 .block-chip .gicon { vertical-align: -0.12em; }
 .block-chip .ui-icon { width: 13px; height: 13px; }
 .intent .ui-icon, .intent .gicon {
-  width: 57px; height: 57px;
+  width: 38px; height: 38px;
   /* thick SVG silhouette + soft outer shadows for dark battlefield contrast */
   filter:
     url(#intent-outline)
@@ -778,7 +785,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
     drop-shadow(0 1px 2px rgba(0, 0, 0, 0.95))
     drop-shadow(0 0 3px rgba(0, 0, 0, 0.85));
 }
-.intent .ic .ui-icon:nth-child(n+2), .intent .ic .gicon:nth-child(n+2) { width: 42px; height: 42px; }
+.intent .ic .ui-icon:nth-child(n+2), .intent .ic .gicon:nth-child(n+2) { width: 28px; height: 28px; }
 .intent.i-attack, .intent.i-attack_debuff, .intent.i-attack_block, .intent.i-attack_buff { color: #ff8d8d; }
 .intent.i-block { color: var(--blk); }
 .intent.i-buff { color: #a8ff9e; }

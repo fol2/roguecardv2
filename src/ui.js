@@ -1263,7 +1263,7 @@ function intentFor(e) {
   const mv = E.enemyMove(e);
   const p = E.previewEnemyDmg(S.run, cb, e);
   const ids = intentUiIds(mv.intent);
-  let icon = ids.map((id, i) => uiIcon(id, i === 0 ? 57 : 42)).join('');
+  let icon = ids.map((id, i) => uiIcon(id, i === 0 ? 38 : 28)).join('');
   let txt = '';
   if (mv.intent.startsWith('attack')) {
     txt = p.times > 1 ? `${p.dmg}×${p.times}` : `${p.dmg}`;
@@ -1325,7 +1325,7 @@ function syncCombat() {
     if (en.hp <= 0 && x.reaped) x.root.classList.add('gone');
     if (en.hp > 0 && en.flags.staggered) {
       x.intent.className = 'intent i-staggered';
-      x.intent.innerHTML = `<span class="ic">${iconSvg('stagger', 57)}</span>STAGGERED`;
+      x.intent.innerHTML = `<span class="ic">${iconSvg('stagger', 38)}</span>STAGGERED`;
       x.intent._tip = { title: 'Staggered', body: 'The glass has shattered — this creature loses its next action while it reseams.' };
     } else if (en.hp > 0 && en.moveKey) {
       const it = intentFor(en);
