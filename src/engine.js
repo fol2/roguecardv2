@@ -1296,13 +1296,14 @@ export function loadRun() {
     if (!s) return null;
     const run = JSON.parse(s);
     if (!run || run.v !== 2 || !run.player || !run.map) return null;
+    const hasOwn = (registry, id) => Object.hasOwn(registry, id);
     // stale-content shield: a save referencing ids this build no longer ships
     // (dev churn, old versions) is unresumable — drop it rather than crash mid-run
-    if (!run.player.deck.every((c) => CARDS[c.id])) return null;
-    if (!run.player.relics.every((id) => RELICS[id])) return null;
-    if (!run.player.potions.every((id) => id == null || POTIONS[id])) return null;
-    if (run.art != null && !ARTS[run.art]) return null;
-    if (!(run.omens || []).every((id) => id == null || OMENS[id])) return null;
+    if (!run.player.deck.every((c) => hasOwn(CARDS, c.id))) return null;
+    if (!run.player.relics.every((id) => hasOwn(RELICS, id))) return null;
+    if (!run.player.potions.every((id) => id == null || hasOwn(POTIONS, id))) return null;
+    if (run.art != null && !hasOwn(ARTS, run.art)) return null;
+    if (!(run.omens || []).every((id) => id == null || hasOwn(OMENS, id))) return null;
     // additive fields self-heal: a save from an older v2 build stays playable
     run.art ??= 'flare';
     run.aspect = clamp(run.aspect ?? 0, 0, ASPECTS.length - 1); run.vow = clamp(run.vow ?? 0, 0, VOWS.length);
@@ -1321,7 +1322,6 @@ export function loadRun() {
     if (run.reveals != null && !(Array.isArray(run.reveals) && run.reveals.every((id) => REVEALS.some((r) => r.id === id)))) return null;
     const plainObject = (x) => x && typeof x === 'object' && !Array.isArray(x);
     const onlyKeys = (x, keys) => Object.keys(x).every((k) => keys.includes(k));
-    const hasOwn = (x, k) => Object.hasOwn(x, k);
     const exactKeys = (x, keys) => plainObject(x) && onlyKeys(x, keys) && keys.every((k) => hasOwn(x, k));
     const optionalBool = (x, k) => x[k] == null || typeof x[k] === 'boolean';
     const validBequest = (b) => b == null || (plainObject(b) && (
@@ -1418,8 +1418,15 @@ export function loadRun() {
     return run;
   } catch { return null; }
 }
-export function clearSave() {
+export function clearSave(runId = null) {
   try {
+    if (runId != null) {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return true;
+      let current = null;
+      try { current = JSON.parse(raw); } catch { /* an unreadable save is not this run */ }
+      if (current?.runId !== runId) return true;
+    }
     localStorage.removeItem('spirebound_save_v1'); // pre-vigil saves are unresumable
     localStorage.removeItem(SAVE_KEY); // current run last: a failed cleanup remains resumable
     return true;
@@ -1443,7 +1450,7 @@ export function recordRunEnd(run, won) {
     try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); }
     catch { return false; }
   }
-  return clearSave();
+  return clearSave(run.runId);
 }
 
 // event op executor (interactive picks handled by UI; returns list of pending picks)

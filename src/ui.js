@@ -20,6 +20,7 @@ import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, onBFChange } from './battlefield.js';
 import { uicResolve, onUICChange } from './uic.js';
 import { createChoiceLatch } from './choice-latch.js';
+import { finaliseTerminalOutbox, journalTerminalOutcome, savedRunRequiresFinalisation } from './terminal-outbox.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
@@ -658,6 +659,7 @@ function renderTitle() {
   setTheme(0);
   const vigil = syncVigil(); // reconcile any owed unlocks (e.g. seeded from old stats)
   const saved = E.loadRun();
+  if (savedRunRequiresFinalisation(saved)) { startRun(saved, true); return; }
   const d = vigil.deeds;
   const banner = assetUrl('title-background', 'background');
   const titleText = assetUrl('title', 'title');
@@ -695,6 +697,7 @@ function renderEmbark() {
   setTheme(0);
   const vigil = syncVigil();
   const saved = E.loadRun();
+  if (savedRunRequiresFinalisation(saved)) { startRun(saved, true); return; }
   const sel = (S.embark ||= { aspect: 0, vow: 0 });
   const hasAspects = vigil.unlocks.includes('aspect2');
   if (!hasAspects) sel.aspect = 0;
@@ -3569,9 +3572,7 @@ function victoryFlow() {
   continueVictory();
 }
 function journalRunEnd(run, outcome, onFinalised = null) {
-  E.clearPendingReward(run);
-  E.clearPendingEncounter(run);
-  run.pendingRunEnd = { outcome };
+  journalTerminalOutcome(run, outcome);
   const continueRunEnd = () => {
     S.cb = null;
     finalisePendingRunEnd(run, onFinalised);
@@ -3583,36 +3584,32 @@ function journalRunEnd(run, outcome, onFinalised = null) {
 function finalisePendingRunEnd(run, onFinalised = null) {
   const outcome = run.pendingRunEnd?.outcome;
   if (!['win', 'death', 'abandon'].includes(outcome)) return false;
-  try {
-    const { accepted, newUnlocks, ledger } = commitPendingRunEnd(run, E.recordRunEnd);
-    if (!accepted) {
-      showRunEndPersistenceFailure(run, onFinalised);
-      return false;
-    }
-    S.cb = null;
-    if (onFinalised) {
-      onFinalised({ outcome, newUnlocks, ledger });
-    } else if (outcome === 'win') {
-      show('end', { won: true, newUnlocks, ledger });
-    } else if (outcome === 'death') {
-      const node = run.map.nodes.find((candidate) => candidate.id === run.nodeId);
-      show('end', {
-        won: false,
-        newUnlocks,
-        offers: bequestOptions(run),
-        fallAct: run.act,
-        fallRow: node ? node.row : Math.max(1, run.floorsClimbed - 1),
-      });
-    } else {
-      S.run = null;
-      S.lamp = null;
-      show('title');
-    }
-    return true;
-  } catch {
-    showRunEndPersistenceFailure(run, onFinalised);
-    return false;
-  }
+  return finaliseTerminalOutbox(
+    run,
+    () => commitPendingRunEnd(run, E.recordRunEnd),
+    () => showRunEndPersistenceFailure(run, onFinalised),
+    ({ newUnlocks, ledger }) => {
+      S.cb = null;
+      if (onFinalised) {
+        onFinalised({ outcome, newUnlocks, ledger });
+      } else if (outcome === 'win') {
+        show('end', { won: true, newUnlocks, ledger });
+      } else if (outcome === 'death') {
+        const node = run.map.nodes.find((candidate) => candidate.id === run.nodeId);
+        show('end', {
+          won: false,
+          newUnlocks,
+          offers: bequestOptions(run),
+          fallAct: run.act,
+          fallRow: node ? node.row : Math.max(1, run.floorsClimbed - 1),
+        });
+      } else {
+        S.run = null;
+        S.lamp = null;
+        show('title');
+      }
+    },
+  );
 }
 function defeatFlow() {
   transition('defeat');

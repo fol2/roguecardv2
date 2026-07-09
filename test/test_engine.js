@@ -26,6 +26,7 @@ import { BASE_AUDIO_VERSIONS, DEFAULT_AUDIO_SELECTION, audioRefFromPath, canonic
 import { serializeAudioSelection } from '../src/dev/audio-selection-serialize.js';
 import { fetchAudioSelectionJson } from '../src/audio-selection-fetch.js';
 import { createChoiceLatch } from '../src/choice-latch.js';
+import { finaliseTerminalOutbox, journalTerminalOutcome, savedRunRequiresFinalisation } from '../src/terminal-outbox.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -262,6 +263,56 @@ function forceHand(run, cb, ids) {
   assert.equal(latch.claim(), true, 'the first choice claims the interaction');
   assert.equal(latch.claim(), false, 'a second rapid choice is rejected');
   assert.equal(latch.locked, true, 'the latch exposes its settled state');
+}
+{
+  // Title and Embark must preserve a terminal outbox instead of abandoning it.
+  for (const outcome of ['win', 'death']) {
+    const run = newRun(422 + outcome.length);
+    run.pendingRunEnd = { outcome };
+    assert.equal(savedRunRequiresFinalisation(run), true, `${outcome} resumes finalisation from entry screens`);
+    assert.strictEqual(journalTerminalOutcome(run, outcome), run.pendingRunEnd, `${outcome} may resume idempotently`);
+    assert.throws(
+      () => journalTerminalOutcome(run, 'abandon'),
+      /terminal outcome cannot change from .* to abandon/,
+      `${outcome} cannot be overwritten by Begin Anew`,
+    );
+    assert.equal(run.pendingRunEnd.outcome, outcome, `${outcome} survives the destructive action`);
+  }
+}
+{
+  // Persistence failures are retryable; a screen continuation is outside that catch and runs once.
+  const run = newRun(424);
+  let persistenceAttempts = 0;
+  let failures = 0;
+  let continuations = 0;
+  const fail = () => { failures++; };
+  assert.equal(finaliseTerminalOutbox(run, () => {
+    persistenceAttempts++;
+    throw new Error('quota');
+  }, fail, () => { continuations++; }), false);
+  assert.equal(finaliseTerminalOutbox(run, () => {
+    persistenceAttempts++;
+    return { accepted: false };
+  }, fail, () => { continuations++; }), false);
+  assert.equal(failures, 2, 'only persistence rejection opens retry handling');
+  assert.equal(continuations, 0);
+
+  assert.throws(() => finaliseTerminalOutbox(run, () => {
+    persistenceAttempts++;
+    return { accepted: true, outcome: 'win' };
+  }, fail, () => {
+    continuations++;
+    throw new Error('screen failed');
+  }), /screen failed/, 'continuation errors escape the persistence catch');
+  assert.equal(failures, 2, 'a screen error is never reported as a storage failure');
+  assert.equal(continuations, 1);
+
+  assert.equal(finaliseTerminalOutbox(run, () => {
+    persistenceAttempts++;
+    return { accepted: true };
+  }, fail, () => { continuations++; }), true, 'a started continuation is already finalised');
+  assert.equal(persistenceAttempts, 3, 'a continuation exception cannot replay persistence');
+  assert.equal(continuations, 1, 'a continuation exception cannot replay the screen action');
 }
 {
   const run = newRun(1);
@@ -965,6 +1016,11 @@ function forceHand(run, cb, ids) {
       r.pendingReward.rewards.extra = true;
     });
     for (const inheritedId of ['toString', 'constructor']) {
+      rejectSaved(`inherited deck card ${inheritedId}`, (r) => { r.player.deck[0].id = inheritedId; });
+      rejectSaved(`inherited player relic ${inheritedId}`, (r) => { r.player.relics = [inheritedId]; });
+      rejectSaved(`inherited player potion ${inheritedId}`, (r) => { r.player.potions[0] = inheritedId; });
+      rejectSaved(`inherited lantern art ${inheritedId}`, (r) => { r.art = inheritedId; });
+      rejectSaved(`inherited omen ${inheritedId}`, (r) => { r.omens = [inheritedId]; });
       rejectSaved(`inherited pending enemy ${inheritedId}`, (r) => setPendingEncounter(r, 'monster', [inheritedId]));
       rejectSaved(`inherited marked variant ${inheritedId}`, (r) => { r.map.nodes[0].questVariantId = inheritedId; });
       rejectSaved(`inherited card bequest ${inheritedId}`, (r) => {
@@ -1007,6 +1063,14 @@ function forceHand(run, cb, ids) {
     assert.equal(loadStats().runs, 1, 'cleanup retry cannot double-count runs');
     assert.equal(loadStats().wins, 1, 'cleanup retry cannot double-count wins');
     assert.equal(loadRun(), null, 'accepted cleanup removes the current run last');
+
+    const newerRun = newRun(423);
+    const newerSnapshot = JSON.stringify(newerRun);
+    saveRun(newerRun);
+    assert.equal(recordRunEnd(run, true), true, 'stale cleanup is an accepted no-op');
+    assert.equal(loadRun().runId, newerRun.runId, 'stale run A cleanup leaves newer run B intact');
+    assert.equal(store.get('spirebound_save_v2'), newerSnapshot, 'stale cleanup leaves run B byte-for-byte intact');
+    assert.equal(loadStats().runs, 1, 'stale cleanup cannot recount run A');
   } finally {
     if (prevLs) globalThis.localStorage = prevLs;
     else delete globalThis.localStorage;
@@ -1565,12 +1629,16 @@ function forceHand(run, cb, ids) {
   _setStore(null);
   _setRng(() => 0);
   const initial = loadVigil();
+  initial.deeds.wins = 1;
+  initial.quests.paleOnes.state = 'armed';
   const persisted = new Map([['spirebound_vigil_v2', JSON.stringify(initial)]]);
   let rejectWrites = false;
+  let acceptedWrites = 0;
   _setStore({
     getItem: (k) => (persisted.has(k) ? persisted.get(k) : null),
     setItem: (k, v) => {
       if (rejectWrites) throw new Error('quota');
+      acceptedWrites++;
       persisted.set(k, v);
     },
     removeItem: (k) => persisted.delete(k),
@@ -1578,6 +1646,9 @@ function forceHand(run, cb, ids) {
 
   const run = newRun(406);
   run.quests = questSnapshot(loadVigil());
+  run.quests.paleOnes.state = 'complete';
+  run.quests.paleOnes.progress = QUESTS.paleOnes.target;
+  run.questCompletions = ['paleOnes'];
   run.pendingRunEnd = { outcome: 'win' };
   const savedRun = JSON.stringify(run);
 
@@ -1588,18 +1659,21 @@ function forceHand(run, cb, ids) {
   );
   assert.ok(!Object.hasOwn(run, 'vigilCommitted'), 'rejected deed write leaves no marker');
   assert.ok(!Object.hasOwn(run, 'vigilResult'), 'rejected deed write leaves no cache');
-  assert.equal(loadVigil().deeds.wins, 0);
+  assert.equal(loadVigil().deeds.wins, 1);
+  assert.equal(acceptedWrites, 0);
 
   rejectWrites = false;
   const deeds = commitRunToVigil(run, true);
-  assert.equal(deeds.vigil.deeds.wins, 1);
+  assert.equal(deeds.vigil.deeds.wins, 2);
   assert.equal(loadVigil().receipts.deeds.runId, run.runId);
+  assert.equal(acceptedWrites, 1);
   assert.throws(() => commitRunToVigil(run, false), /does not match durable deed receipt/, 'same-object deed retries preserve their semantic input');
 
   const afterDeedReload = JSON.parse(savedRun);
   const receiptDeeds = commitRunToVigil(afterDeedReload, true);
   assert.deepEqual(receiptDeeds.newUnlocks, deeds.newUnlocks);
-  assert.equal(loadVigil().deeds.wins, 1, 'deed receipt prevents reload duplication');
+  assert.equal(loadVigil().deeds.wins, 2, 'deed receipt prevents reload duplication');
+  assert.equal(acceptedWrites, 1, 'fresh deed receipt lookup performs no write');
 
   rejectWrites = true;
   assert.throws(
@@ -1610,25 +1684,34 @@ function forceHand(run, cb, ids) {
   assert.ok(!Object.hasOwn(afterDeedReload, 'runEndResult'));
   assert.equal(loadVigil().runsPlayed, 0);
   assert.equal(loadVigil().whispers, 0);
+  assert.equal(acceptedWrites, 1);
 
   rejectWrites = false;
   const finalReload = JSON.parse(savedRun);
   commitRunToVigil(finalReload, true);
   const ended = commitRunEnd(finalReload, 'win');
-  assert.equal(ended.vigil.deeds.wins, 1);
+  assert.equal(ended.vigil.deeds.wins, 2);
   assert.equal(ended.vigil.runsPlayed, 1);
   assert.equal(ended.vigil.whispers, 1);
+  assert.deepEqual(ended.completed, ['paleOnes'], 'the durable receipt records quest completion');
+  assert.deepEqual(ended.newShards, ['paleOnes'], 'the durable receipt records the granted shard');
+  assert.deepEqual(ended.armed, ['ownShade'], 'the win arms the next dormant quest');
+  assert.equal(ended.vigil.quests.ownShade.state, 'armed');
   assert.equal(loadVigil().receipts.runEnd.runId, run.runId);
+  assert.equal(acceptedWrites, 2, 'deeds and run end each require exactly one accepted write');
   assert.throws(() => commitRunEnd(finalReload, 'death'), /does not match durable receipt/, 'same-object end retries preserve their semantic input');
 
   const duplicateReload = JSON.parse(savedRun);
   assert.deepEqual(commitRunToVigil(duplicateReload, true).newUnlocks, deeds.newUnlocks);
   const duplicateEnd = commitRunEnd(duplicateReload, 'win');
-  assert.equal(duplicateEnd.vigil.deeds.wins, 1);
+  assert.equal(duplicateEnd.vigil.deeds.wins, 2);
   assert.equal(duplicateEnd.vigil.runsPlayed, 1);
   assert.equal(duplicateEnd.vigil.whispers, 1);
-  assert.equal(loadVigil().deeds.wins, 1, 'fresh reload cannot duplicate deeds');
+  assert.deepEqual(duplicateEnd.newShards, ['paleOnes']);
+  assert.deepEqual(duplicateEnd.armed, ['ownShade']);
+  assert.equal(loadVigil().deeds.wins, 2, 'fresh reload cannot duplicate deeds');
   assert.equal(loadVigil().runsPlayed, 1, 'fresh reload cannot duplicate run end');
+  assert.equal(acceptedWrites, 2, 'third fresh retry performs zero additional writes');
   assert.throws(() => commitRunToVigil(JSON.parse(savedRun), false), /does not match durable deed receipt/);
   assert.throws(() => commitRunEnd(JSON.parse(savedRun), 'death'), /does not match durable receipt/);
 

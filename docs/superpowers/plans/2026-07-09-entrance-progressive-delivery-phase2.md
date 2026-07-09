@@ -629,15 +629,17 @@ git commit -m "Hydrate Emberglass ledgers and arm quests on run end"
 - Modify: src/vigil.js:20-245
 - Modify: src/ui.js:9, 636-645, 725-741, 978-984, 3409-3432
 - Create: src/choice-latch.js
+- Create: src/terminal-outbox.js
 - Test: test/test_engine.js
 
 **Interfaces:**
-- Produces: questRecord(run,id), revealQuest(run,id,queue), advanceQuest(run,id,n,queue), setPendingEncounter(run,kind,enemyIds,questId), clearPendingEncounter(run), setPendingReward(run,kind,rewards,perfect), takePendingReward(run,key,cardId), clearPendingReward(run), hasPendingBossRelic(run), createChoiceLatch(), and commitPendingRunEnd(run,recordRunEnd).
+- Produces: questRecord(run,id), revealQuest(run,id,queue), advanceQuest(run,id,n,queue), setPendingEncounter(run,kind,enemyIds,questId), clearPendingEncounter(run), setPendingReward(run,kind,rewards,perfect), takePendingReward(run,key,cardId), clearPendingReward(run), hasPendingBossRelic(run), createChoiceLatch(), journalTerminalOutcome(run,outcome), savedRunRequiresFinalisation(run), finaliseTerminalOutbox(run,persist,onFailure,onFinalised), and commitPendingRunEnd(run,recordRunEnd).
 - Changes saveRun(run) to return true after localStorage accepts the snapshot and false when storage throws. Existing fire-and-forget callers may ignore the return, but Task 3 combat-entry, resume-backfill, and post-victory checkpoints must require true before continuing.
 - newRun opts add quests and shards.
 - Every run owns a stable validated runId. Legacy saves self-heal a deterministic `legacy-*` id before their next acknowledged checkpoint.
 - run.pendingEnemyIds stores exact base or VARIANTS IDs. run.pendingQuestId is null or a QUEST_IDS value.
 - run.pendingReward stores one exact non-final reward payload plus durable gold/potion/relic/card taken flags. run.pendingRunEnd is null or `{outcome}` where outcome is win, death, or abandon while that conclusion awaits cross-store completion and run-save cleanup.
+- A non-null pendingRunEnd is an immutable terminal outbox. Title and Embark immediately resume it; Begin Anew cannot replace win/death with abandon. The screen continuation runs outside the persistence catch and is latched before invocation so its own exception cannot become or replay a storage retry.
 - Vigil v2 owns compact last-run `receipts.deeds` and `receipts.runEnd` records keyed by runId. Each ledger mutation and its receipt share one acknowledged `saveVigil` write, making fresh-object retries idempotent across reload.
 - A rejected Task 3 checkpoint opens one retry/reload-safe persistence overlay; no combat, reward, map, or end continuation may run until the same snapshot is accepted.
 
@@ -1020,6 +1022,10 @@ Hydrate Vigil v2 with `receipts:{deeds:null,runEnd:null}`. The deeds receipt is 
 
 `commitPendingRunEnd` preserves the existing outcome semantics: win and death run the deed receipt, while abandon does not; all outcomes then run the run-end receipt and legacy stats/cleanup receipt. `finalisePendingRunEnd` treats its accepted flag as a gate. Any rejected stage leaves the acknowledged pendingRunEnd save intact and opens “Retry Finalisation” / “Reload Saved Finalisation”; both routes rerun the resolver safely through receipts. `recordRunEnd` stores lastRunId atomically with its counters and removes the current run save last. A failed cleanup returns false; retry with the same runId skips the counter increment and retries only removal. Once all required stages succeed, win/death show their normal end screen and abandon returns to the requested title/new-climb continuation.
 
+Run-save cleanup is scoped to the completing runId. If a newer run occupies `spirebound_save_v2`, stale cleanup is a successful no-op and must leave that newer save byte-for-byte intact. The reset-save UI remains the only unscoped `clearSave()` caller.
+
+Every registry lookup in loadRun uses `Object.hasOwn`: deck cards, relics, potions, Lantern Art, omens, pending reward IDs, encounter/variant IDs, and bequests all reject inherited names such as `toString` and `constructor`.
+
 Both live-result caches store their semantic input (`vigilWon` / `runEndOutcome`) and reject a conflicting same-object retry before returning the cached result, matching the durable receipt contract.
 
 - [x] **Step 5: Run gates and commit**
@@ -1030,6 +1036,18 @@ Expected: both PASS; no undefined import or Vite error.
 ~~~bash
 git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/choice-latch.js src/engine.js src/vigil.js src/ui.js test/test_engine.js
 git commit -m "Harden pending encounters and quest validation"
+~~~
+
+- [x] **Step 6: Harden terminal outbox finalisation after re-review**
+
+Add regressions for immutable pending win/death entry routing, run-A cleanup preserving newer run B, persistence-catch isolation and exactly-once continuation, every pre-existing loadRun content registry, and the full receipt proof (shard completion, next-quest arming, and a third fresh retry with no additional Vigil write).
+
+Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyOutDir
+Expected: both PASS; terminal-caller source audit reports only journalTerminalOutcome writes and runId-scoped recordRunEnd cleanup.
+
+~~~bash
+git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/engine.js src/terminal-outbox.js src/ui.js test/test_engine.js
+git commit -m "Harden terminal outbox finalisation"
 ~~~
 
 ---
@@ -2518,9 +2536,12 @@ Expected: FAIL because tab-rose and sealed-door do not exist.
 In finalisePendingRunEnd preserve the receipt-backed ordering established by Task 3:
 
 ~~~js
-const { accepted, newUnlocks, ledger } = commitPendingRunEnd(run, E.recordRunEnd);
-if (!accepted) return showRunEndPersistenceFailure(run);
-show('end', { won: true, newUnlocks, ledger });
+return finaliseTerminalOutbox(
+  run,
+  () => commitPendingRunEnd(run, E.recordRunEnd),
+  () => showRunEndPersistenceFailure(run),
+  ({ newUnlocks, ledger }) => show('end', { won: true, newUnlocks, ledger }),
+);
 ~~~
 
 Defeat passes the death ledger but renders no new ceremony, preserving the spec. In renderEnd, for a win, create a .dawn-ceremony queue in this order:
