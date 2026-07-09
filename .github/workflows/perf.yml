@@ -5,14 +5,23 @@ on:
     - cron: "0 3 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   perf:
     name: perf
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 24
           cache: npm
@@ -22,10 +31,23 @@ jobs:
       # The measured numbers are recorded in this step's log, never enforced.
       - run: npm run test:e2e:perf
         continue-on-error: true
-      - uses: actions/upload-artifact@v4
+      - name: Require a valid performance measurement
+        if: always()
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const m = JSON.parse(fs.readFileSync("test-results/perf-metrics.json", "utf8"));
+            const values = [m.avgFps, m.p95FrameMs, m.worstFrameMs, m.frames];
+            if (!values.every((v) => Number.isFinite(v) && v > 0)
+                || !Number.isInteger(m.frames) || m.project !== "portrait")
+              throw new Error(`invalid perf metrics: ${JSON.stringify(m)}`);
+          '
+          git status --short
+          test -z "$(git status --porcelain --untracked-files=all)"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: perf-results
           path: test-results/
           retention-days: 30
-          if-no-files-found: ignore
+          if-no-files-found: error

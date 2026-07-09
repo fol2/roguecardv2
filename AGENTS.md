@@ -36,7 +36,7 @@ npm run test:e2e:perf     # fps gate only (single worker)
 - **Tests are a single self-check script**, not a framework. `npm test` runs the whole of `test/test_engine.js` (plain `node`, `node:assert`). There is no test runner or `-t` filter — to run a subset, comment out blocks in that file. Any assertion failure exits non-zero.
 - **Playwright** (`test/e2e/`) is separate from `npm test` and requires Chromium (`npx playwright install chromium` once if launch fails). It reuses the dev server on port 5174. Spec: `docs/superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md` §3.
 - **`dist/` is committed** and rebuilt into the repo, so `npm run build` produces large diffs — that is expected here, not a mistake.
-- **CI:** `.github/workflows/ci.yml` runs `npm test` + `npm run build` (`unit`) and the full Playwright kit (`e2e`, linux baselines) on every PR/push to main; `perf.yml` measures fps nightly without gating; `update-baselines.yml` (manual dispatch) regenerates linux visual baselines as an artifact.
+- **CI:** `.github/workflows/ci.yml` runs `npm test` + `npm run build` + committed-`dist/` verification (`unit`) and the full Playwright kit (`e2e`, linux baselines) on every PR/push to main; `perf.yml` records nightly/manual fps without gating the budget but fails if no measurement is produced; `update-baselines.yml` (manual dispatch) regenerates only linux visual baselines as an artifact.
 
 ## Cursor Cloud specific instructions
 

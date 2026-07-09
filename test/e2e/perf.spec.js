@@ -3,6 +3,7 @@
 // Portrait project = the LITE tier (coarse pointer), CPU throttled 4× via
 // CDP — a mid-range phone stand-in. The load is the heaviest single beat:
 // an AoE bespoke effect (Requiem) hitting three enemies at once.
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 import { boot, startFight, collectErrors, expectNoErrors } from './helpers.js';
 
@@ -52,13 +53,33 @@ test('AoE effect burst holds the frame budget at 4x CPU throttle', async ({ page
   const deltas = await sampler;
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 
+  if (!deltas.length) throw new Error('performance measurement produced no frames');
   const avgFps = 1000 / (deltas.reduce((a, b) => a + b, 0) / deltas.length);
   const sorted = [...deltas].sort((a, b) => a - b);
   const p95 = sorted[Math.floor(sorted.length * 0.95)];
   const worst = sorted[sorted.length - 1];
+  if (![avgFps, p95, worst].every((value) => Number.isFinite(value) && value > 0)) {
+    throw new Error('performance measurement produced non-finite frame metrics');
+  }
+  expectNoErrors(errors, 'perf burst');
+
+  const metrics = {
+    avgFps: Number(avgFps.toFixed(2)),
+    p95FrameMs: Number(p95.toFixed(2)),
+    worstFrameMs: Number(worst.toFixed(2)),
+    frames: deltas.length,
+    project: test.info().project.name,
+  };
+  const values = [metrics.avgFps, metrics.p95FrameMs, metrics.worstFrameMs, metrics.frames];
+  if (!values.every((value) => Number.isFinite(value) && value > 0)
+      || !Number.isInteger(metrics.frames)) {
+    throw new Error(`performance measurement produced invalid metrics: ${JSON.stringify(metrics)}`);
+  }
+  mkdirSync('test-results', { recursive: true });
+  writeFileSync('test-results/perf-metrics.json', `${JSON.stringify(metrics, null, 2)}\n`);
+  console.log(`PERF_RESULT ${JSON.stringify(metrics)}`);
   test.info().annotations.push({ type: 'perf', description: `avg ${avgFps.toFixed(1)}fps, p95 frame ${p95.toFixed(1)}ms, worst ${worst.toFixed(1)}ms over ${deltas.length} frames` });
 
   expect(avgFps, `average fps during the burst (got ${avgFps.toFixed(1)})`).toBeGreaterThanOrEqual(55);
   expect(p95, `p95 frame time in ms (got ${p95.toFixed(1)})`).toBeLessThanOrEqual(22);
-  expectNoErrors(errors, 'perf burst');
 });

@@ -3,14 +3,23 @@ name: update-baselines
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: update-baselines-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   update:
     name: update
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 24
           cache: npm
@@ -18,9 +27,23 @@ jobs:
       - run: npx playwright install --with-deps chromium
       # Regenerate ONLY the visual suite's snapshots on a real ubuntu runner;
       # the darwin reference machine cannot produce linux pixels.
-      - run: npx playwright test visual --update-snapshots
-      - uses: actions/upload-artifact@v4
+      - run: npm run test:e2e:update
+      - name: Verify capture touched only linux baselines
+        if: always()
+        run: |
+          git status --short
+          test -z "$(git status --porcelain --untracked-files=all -- . \
+            ':(exclude,glob)test/e2e/visual.spec.js-snapshots/*-linux.png')"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: visual-baselines-linux
           path: test/e2e/visual.spec.js-snapshots/*-linux.png
           retention-days: 7
+          if-no-files-found: error
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: baseline-capture-failures
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore

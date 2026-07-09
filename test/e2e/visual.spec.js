@@ -20,16 +20,62 @@ test.beforeEach(({}, testInfo) => {
     'no committed baselines yet — run `npm run test:e2e:update` after the geometry/mesh fixes land');
 });
 
-/** Map overlay projections keep moving until the tower camera dolly settles. */
-async function waitMapSettled(page) {
-  await page.waitForFunction(async () => {
-    const sample = () => [...document.querySelectorAll('.mnode')].map((g) => g.getAttribute('transform'));
-    const a = sample();
-    if (!a.length) return false;
-    await new Promise((r) => setTimeout(r, 220));
-    const b = sample();
-    return a.every((t, i) => t === b[i]);
-  }, null, { timeout: 12_000 });
+const MAP_SETTLE_QUIET_MS = 800;
+const MAP_SETTLE_QUIET_FRAMES = 20;
+const MAP_SETTLE_TIMEOUT_MS = 12_000;
+
+/** Wait for the map dolly's roll-invariant distance/focus signal to settle. */
+async function showMapAndWaitSettled(page) {
+  await page.evaluate(() => {
+    window.__visualMapSettle = {
+      initial: null,
+      last: null,
+      moved: false,
+      quietSince: 0,
+      quietFrames: 0,
+    };
+    window.spirebound.show('map');
+  });
+  try {
+    await page.waitForFunction(({ quietMs, quietFrames }) => {
+      const nodes = [...document.querySelectorAll('.mnode')];
+      const edges = [...document.querySelectorAll('.medge')];
+      const values = nodes.map((node) => {
+        const transform = node.getAttribute('transform') || '';
+        const scale = transform.match(/scale\(([^)]+)\)/)?.[1];
+        return scale && node.style.opacity ? `${scale}|${node.style.opacity}` : null;
+      });
+      const edgeOpacities = edges.map((edge) => edge.style.opacity || null);
+      if (!values.length || values.some((value) => !value) || edgeOpacities.some((value) => !value)) {
+        return false;
+      }
+      const current = [...values, ...edgeOpacities].join(';');
+      const state = window.__visualMapSettle;
+      const now = performance.now();
+      if (state.initial == null) {
+        state.initial = current;
+        state.last = current;
+        state.quietSince = now;
+        return false;
+      }
+      if (current !== state.last) {
+        state.moved ||= current !== state.initial;
+        state.last = current;
+        state.quietSince = now;
+        state.quietFrames = 0;
+        return false;
+      }
+      state.quietFrames += 1;
+      return state.moved
+        && state.quietFrames >= quietFrames
+        && now - state.quietSince >= quietMs;
+    }, {
+      quietMs: MAP_SETTLE_QUIET_MS,
+      quietFrames: MAP_SETTLE_QUIET_FRAMES,
+    }, { polling: 'raf', timeout: MAP_SETTLE_TIMEOUT_MS });
+  } finally {
+    await page.evaluate(() => { delete window.__visualMapSettle; }).catch(() => {});
+  }
 }
 
 async function shoot(page, name) {
@@ -45,8 +91,7 @@ test('title screen', async ({ page }) => {
 
 test('map screen', async ({ page }) => {
   await boot(page, { query: 'mesh=0' });
-  await page.evaluate(() => window.spirebound.show('map'));
-  await waitMapSettled(page);
+  await showMapAndWaitSettled(page);
   await shoot(page, 'map');
 });
 
