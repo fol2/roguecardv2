@@ -43,7 +43,7 @@ const BAKE_N = 192;        // bake resolution: crack maps are soft — 192² kee
 // Ward shell — gemstone glass envelope outside the body (reuses transmission + Voronoi).
 // Tunables live in wardParams; WARD_DEFAULTS (src/ward-params.js) is the reset / Save baseline.
 const wardParams = { ...WARD_DEFAULTS };
-const WARD_BAKE_KEYS = new Set(['edgeSoftness', 'centerDip', 'sites', 'transparency']);
+const WARD_BAKE_KEYS = new Set(['edgeSoftness', 'centerDip', 'sites', 'transparency', 'shapeVerts', 'shapeJitter']);
 
 export function meshWardParams() { return { ...wardParams }; }
 export function meshWardSetParams(partial = {}) {
@@ -75,6 +75,8 @@ export function meshWardApplyDefaults() {
     p.wardSitesN = undefined;
     p.wardSitesUsed = -1;
     p.wardAlphaUsed = -1;
+    p.wardOutline = null;
+    p.wardOutlineKey = null;
   }
   refreshWardLayers(true);
   return meshWardParams();
@@ -267,6 +269,7 @@ function makePlane(url, profile, seed, img) {
     sites: [], death: 0, glass: null, fire: null, beams: null, bodyPx: null, outline: null, aimOn: false,
     ward: null, wardOn: false, wardGrow: 0, wardGrowFrom: 0, wardT0: 0,
     wardSites: null, wardSitesUsed: -1, wardAlphaUsed: -1,
+    wardOutline: null, wardOutlineKey: null,
     // re-gain pulse: site factor only (alpha stays full while ward is already on)
     wardSiteF: 1, wardSiteFrom: 1, wardSiteTo: 1, wardSiteT0: 0, wardSitePhase: null,
   };
@@ -474,10 +477,65 @@ function wardSiteCountForGrow(p, grow) {
   return Math.max(0, Math.round(all.length * siteF));
 }
 
-/** Full oval glass piece — solid shell for transmission.
+/** Seeded 0..1 hash for stable irregular gem outlines. */
+function wardHash(seed, i) {
+  const x = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/** Irregular raw-gemstone outline in unit oval space (cached per plane + shape knobs). */
+function wardOutline(p) {
+  const n = Math.max(5, Math.min(16, Math.round(Number(wardParams.shapeVerts) || 8)));
+  const jitter = Math.max(0, Math.min(1, Number(wardParams.shapeJitter) || 0));
+  const key = `${n}|${jitter.toFixed(3)}|${(p.seed || 0).toFixed(4)}`;
+  if (p.wardOutlineKey === key && p.wardOutline?.length) return p.wardOutline;
+  const verts = [];
+  const base = p.seed || 0;
+  for (let i = 0; i < n; i++) {
+    const u = i / n;
+    // uneven angular spacing + radius spikes → raw crystal silhouette (not a smooth oval)
+    const angJ = (wardHash(base, i) - 0.5) * jitter * 0.55;
+    const ang = u * Math.PI * 2 + base * 0.31 + angJ;
+    const rad = 0.78
+      + (wardHash(base, i + 17) - 0.5) * jitter * 0.42
+      + 0.1 * Math.sin(i * 2.15 + base)
+      + 0.06 * Math.cos(i * 3.7 - base * 0.7);
+    verts.push({
+      x: Math.cos(ang) * Math.max(0.55, Math.min(1.18, rad)),
+      y: Math.sin(ang) * Math.max(0.55, Math.min(1.18, rad)) * 1.06,
+    });
+  }
+  p.wardOutline = verts;
+  p.wardOutlineKey = key;
+  return verts;
+}
+
+/** Signed distance to closed polygon (negative = inside). */
+function signedDistPoly(px, py, verts) {
+  let inside = false;
+  let minD = 1e12;
+  const n = verts.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const a = verts[i], b = verts[j];
+    if (((a.y > py) !== (b.y > py))
+      && (px < (b.x - a.x) * (py - a.y) / ((b.y - a.y) || 1e-9) + a.x)) {
+      inside = !inside;
+    }
+    // distance to segment
+    const abx = b.x - a.x, aby = b.y - a.y;
+    const apx = px - a.x, apy = py - a.y;
+    const ab2 = abx * abx + aby * aby || 1e-9;
+    const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / ab2));
+    const dx = apx - abx * t, dy = apy - aby * t;
+    minD = Math.min(minD, Math.hypot(dx, dy));
+  }
+  return inside ? -minD : minD;
+}
+
+/** Full irregular gemstone shell — not an oval.
  *  edgeSoftness 0 = hard cut; higher = soft shaded falloff.
  *  alphaScale (0..1) fades the mask with grow — MeshPhysical transmission ignores opacity. */
-function bakeWardMask(_p, alphaScale = 1) {
+function bakeWardMask(p, alphaScale = 1) {
   const N = BAKE_N;
   const c = Object.assign(document.createElement('canvas'), { width: N, height: N });
   const ctx = c.getContext('2d');
@@ -485,23 +543,23 @@ function bakeWardMask(_p, alphaScale = 1) {
   const cx = N * 0.5, cy = N * 0.52, rx = N * 0.46, ry = N * 0.48;
   const soft = Math.max(0, Math.min(0.5, Number(wardParams.edgeSoftness) || 0));
   const dip = Math.max(0, Math.min(1, Number(wardParams.centerDip) || 0));
-  // transparency: 0 dense, 1 clear — scales fill strength inside the oval
+  // transparency: 0 dense, 1 clear — scales fill strength inside the shell
   const fill = Math.max(0.05, 1 - Math.max(0, Math.min(1, Number(wardParams.transparency) || 0)));
   const a = Math.max(0, Math.min(1, Number(alphaScale) || 0));
-  const core = 1 - soft;
+  const verts = wardOutline(p);
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     const i = (y * N + x) * 4;
     const nx = (x - cx) / rx, ny = (y - cy) / ry;
-    const d = Math.hypot(nx, ny);
+    const sd = signedDistPoly(nx, ny, verts);
     let t;
     if (soft <= 0.001) {
-      t = d <= 1 ? 1 : 0;
-    } else if (d <= core) {
+      t = sd <= 0 ? 1 : 0;
+    } else if (sd <= -soft) {
       t = 1;
-    } else if (d >= 1) {
+    } else if (sd >= 0) {
       t = 0;
     } else {
-      t = 1 - (d - core) / soft;
+      t = 1 - (sd + soft) / soft;
       t = t * t * (3 - 2 * t);
     }
     // center dip — body must stay under glass for refraction

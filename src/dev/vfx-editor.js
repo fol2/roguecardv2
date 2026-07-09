@@ -28,6 +28,8 @@ const PARAM_SLIDERS = [
   { key: 'opacity', label: 'opacity', min: 0, max: 1, step: 0.05 },
   { key: 'edgeSoftness', label: 'edge soft', min: 0, max: 0.5, step: 0.01 },
   { key: 'centerDip', label: 'center dip', min: 0, max: 1, step: 0.05 },
+  { key: 'shapeVerts', label: 'shape verts', min: 5, max: 16, step: 1 },
+  { key: 'shapeJitter', label: 'shape jitter', min: 0, max: 1, step: 0.05 },
   { key: 'envMapIntensity', label: 'env reflect', min: 0, max: 1, step: 0.02 },
   { key: 'roughness', label: 'roughness', min: 0, max: 0.5, step: 0.01 },
   { key: 'pad', label: 'pad size', min: 1, max: 1.8, step: 0.02 },
@@ -252,7 +254,7 @@ function renderPanel() {
       <button type="button" id="vx-fade" title="Fade = reverse clear (alpha + sites → 0)">Fade</button>
     </div>
     <h4>look</h4>
-    <p class="vx-sub">first grow = opacity + sites · re-grow = sites pulse · pad fixed</p>
+    <p class="vx-sub">first grow = opacity + sites · re-grow = sites pulse · shape = raw gem (verts/jitter)</p>
     ${PARAM_SLIDERS.map((d) => sliderRow(d, params)).join('')}
     <label class="vx-row vx-tint-row"><span>tint</span>
       <input type="color" id="vx-tint" value="${params.tint}">
@@ -303,7 +305,7 @@ function renderPanel() {
     const range = panel.querySelector(`#vx-p-${key}`);
     const num = panel.querySelector(`#vx-n-${key}`);
     const apply = (raw) => {
-      const v = key === 'sites' || key === 'growMs' ? Math.round(Number(raw)) : Number(raw);
+      const v = key === 'sites' || key === 'growMs' || key === 'shapeVerts' ? Math.round(Number(raw)) : Number(raw);
       if (!Number.isFinite(v)) return;
       setParams({ [key]: v });
     };

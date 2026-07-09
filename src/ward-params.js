@@ -8,6 +8,8 @@ export const WARD_DEFAULTS = {
   sites: 32,
   edgeSoftness: 0.01,
   centerDip: 0,
+  shapeVerts: 8,
+  shapeJitter: 0.55,
   refraction: 2,
   transmission: 1,
   ior: 1.5,

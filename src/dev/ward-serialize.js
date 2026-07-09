@@ -3,7 +3,8 @@
 
 export const WARD_KEYS = [
   'pad', 'opacity', 'transparency', 'growMs', 'sites',
-  'edgeSoftness', 'centerDip', 'refraction', 'transmission', 'ior',
+  'edgeSoftness', 'centerDip', 'shapeVerts', 'shapeJitter',
+  'refraction', 'transmission', 'ior',
   'thickness', 'normalScale', 'roughness', 'envMapIntensity', 'tint', 'idleWobble',
 ];
 
@@ -15,6 +16,8 @@ export const WARD_RANGES = {
   sites: [4, 32],
   edgeSoftness: [0, 0.5],
   centerDip: [0, 1],
+  shapeVerts: [5, 16],
+  shapeJitter: [0, 1],
   refraction: [0, 2],
   transmission: [0, 1],
   ior: [1, 2.4],
@@ -63,7 +66,7 @@ export function validateWardParams(params) {
       problems.push(`${k}: not finite`);
       continue;
     }
-    if (k === 'sites' || k === 'growMs') {
+    if (k === 'sites' || k === 'growMs' || k === 'shapeVerts') {
       if (!Number.isInteger(v)) problems.push(`${k}: need integer`);
     }
     const range = WARD_RANGES[k];
