@@ -1235,8 +1235,18 @@ function syncHand() {
   for (const inst of cb.hand) {
     if (!have.has(String(inst.uid))) {
       const c = cardEl(inst, { inCombat: true });
-      c.classList.add('draw-in');
-      setTimeout(() => c.classList.remove('draw-in'), 400);
+      // Hold invisible until the draw flight is near landing, then echo on .card-lift
+      if (!REDUCED) {
+        c.classList.add('draw-pending');
+        const { flightDur } = flightSchedule(1, 220);
+        const landAt = Math.round(flightDur * 0.55);
+        setTimeout(() => {
+          if (!c.isConnected) return;
+          c.classList.remove('draw-pending');
+          c.classList.add('draw-in');
+          setTimeout(() => c.classList.remove('draw-in'), 340);
+        }, landAt);
+      }
       c.onclick = (e) => { e.stopPropagation(); onCardClick(inst.uid); };
       if (FINE) {
         c.onmouseenter = () => { S.hoveredCard = inst.uid; sfx.hover(); layoutHand(); };
@@ -1248,8 +1258,10 @@ function syncHand() {
       // refresh cost/text (str/dex/duskmirror can change display)
       const fresh = cardEl(inst, { inCombat: true });
       const old = have.get(String(inst.uid));
+      const keep = ['armed', 'draw-pending', 'draw-in', 'lifted', 'dragging', 'will-cast', 'will-burn', 'played-up']
+        .filter((k) => old.classList.contains(k));
       old.replaceChildren(...fresh.childNodes);
-      old.className = fresh.className + (old.classList.contains('armed') ? ' armed' : '');
+      old.className = [fresh.className, ...keep].filter(Boolean).join(' ');
       old.onclick = (e) => { e.stopPropagation(); onCardClick(inst.uid); };
       if (FINE) {
         old.onmouseenter = () => { S.hoveredCard = inst.uid; layoutHand(); };

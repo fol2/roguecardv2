@@ -439,8 +439,23 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .hand-zone .card:hover .card-inner, .hand-zone .card.armed .card-inner, .hand-zone .card.lifted .card-inner {
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.7), 0 0 24px color-mix(in srgb, var(--tint) 40%, transparent);
 }
-.hand-zone .card.draw-in { animation: drawIn 0.34s cubic-bezier(0.2, 0.8, 0.3, 1.1); }
-@keyframes drawIn { from { transform: translate(-320px, 130px) rotate(-24deg) scale(0.5); opacity: 0; } }
+.hand-zone .card.draw-pending { opacity: 0; pointer-events: none; }
+/* Echo the pile→hand flight on the seat itself (lift only — fan transform stays on .card). */
+.hand-zone .card.draw-in .card-lift {
+  animation: drawLiftIn 0.3s cubic-bezier(.32,.05,.35,1) both;
+}
+@keyframes drawLiftIn {
+  from {
+    transform: translate(-42%, 36%) scale(0.62) rotate(-10deg);
+    opacity: 0.35;
+    filter: brightness(1.15);
+  }
+  to {
+    transform: none;
+    opacity: 1;
+    filter: none;
+  }
+}
 .card.played-up { transition: transform 0.3s ease-in, opacity 0.3s ease-in !important; transform: translate(-50%, -240px) scale(0.72) !important; opacity: 0; }
 .card.exhausting { transition: transform 0.5s, opacity 0.5s, filter 0.5s !important; transform: translate(-50%, -140px) scale(0.6) rotate(8deg) !important; opacity: 0; filter: brightness(2.4) saturate(0.2) blur(2px); }
 
@@ -1434,6 +1449,8 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .ember, .mon-flame, .enemy.doomed .enemy-art { animation: none; }
   .enemy-sprite[class*="idle-"], .idle-motes::before, .idle-motes::after { animation: none; }
   .pile-btn.pile-bump { animation: none; }
+  .hand-zone .card.draw-pending { opacity: 1; pointer-events: auto; }
+  .hand-zone .card.draw-in .card-lift { animation: none; }
   #tooltip { animation: fadein 0.1s both; }
   .mnode.avail .nwrap, .mnode.avail .icg { animation: none; }
   .reward-list .reward-row, .shop-row .shop-item, .deed-list .deed-row { animation: none; }
