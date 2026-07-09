@@ -40,8 +40,9 @@ const BEAM_PAD = 1.6;      // beams plane is padded past the body so rays leave 
 const BAKE_N = 192;        // bake resolution: crack maps are soft — 192² keeps rebakes quick
 // Ward shell — gemstone glass envelope outside the body (reuses transmission + Voronoi).
 const WARD_PAD = 1.24;
-const WARD_ALPHA = 1;      // rim opacity; interior is hollow via alphaMap
+const WARD_ALPHA = 1;      // shell opacity (glass reads via transmission, not fill tint)
 const WARD_GROW_MS = 560;  // long enough that Grow vs Hold is obvious in ?vfxedit=1
+const WARD_SITES = 16;
 
 const bell = (v, c, s) => Math.exp(-((v - c) ** 2) / (2 * s * s));
 // deform weights by body archetype (data.js art.kind); float = whole-body hover scale
@@ -175,7 +176,7 @@ function makePlane(url, profile, seed, img) {
   const p = {
     geo, base, profile, seed, el: null, aspect: artAspect(img, null) || 2 / 3,
     sites: [], death: 0, glass: null, fire: null, beams: null, bodyPx: null, outline: null, aimOn: false,
-    ward: null, wardOn: false, wardGrow: 0, wardGrowFrom: 0, wardT0: 0,
+    ward: null, wardOn: false, wardGrow: 0, wardGrowFrom: 0, wardT0: 0, wardSites: null,
   };
   const tex = loadTex(url, (t) => { p.aspect = artAspect(img, t); });
   p.tex = tex;
@@ -347,28 +348,86 @@ function bakeCrackBeams(p) {
   return c;
 }
 
-/** Oval shell mask — hollow interior (alpha ~0), solid rim/frame at the edge. */
+/** Stable gemstone facet sites for the ward envelope (not body cracks). */
+function wardSitesFor(p) {
+  if (p.wardSites?.length) return p.wardSites;
+  const sites = [];
+  const n = WARD_SITES;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + p.seed * 0.17;
+    const r = 0.28 + ((i * 37) % 7) * 0.018;
+    sites.push({
+      u: clampUv(0.5 + Math.cos(a) * r),
+      v: clampUv(0.52 + Math.sin(a) * r * 0.92),
+    });
+  }
+  // a few interior facets so the shell reads as cut glass, not a hollow ring only
+  for (let i = 0; i < 5; i++) {
+    const a = p.seed + i * 1.7;
+    sites.push({
+      u: clampUv(0.5 + Math.cos(a) * 0.12),
+      v: clampUv(0.5 + Math.sin(a) * 0.14),
+    });
+  }
+  p.wardSites = sites;
+  return sites;
+}
+
+/** Full soft oval glass piece — solid shell for transmission, soft edge falloff.
+ *  Mild center dip keeps a cut-gem read without going rim-only / hollow. */
 function bakeWardMask(_p) {
   const N = BAKE_N;
   const c = Object.assign(document.createElement('canvas'), { width: N, height: N });
   const ctx = c.getContext('2d');
   const out = ctx.createImageData(N, N);
   const cx = N * 0.5, cy = N * 0.52, rx = N * 0.46, ry = N * 0.48;
-  // solid band near the oval edge; everything inside stays transparent
-  const rimIn = 0.78, rimFull = 0.88, rimOut = 1;
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     const i = (y * N + x) * 4;
     const nx = (x - cx) / rx, ny = (y - cy) / ry;
     const d = Math.hypot(nx, ny);
-    let t = 0;
-    if (d >= rimIn && d < rimFull) t = (d - rimIn) / (rimFull - rimIn);
-    else if (d >= rimFull && d < rimOut) t = 1 - (d - rimFull) / (rimOut - rimFull);
+    // slightly softer outer falloff than a hard gem cut
+    let t = d <= 0.78 ? 1 : d >= 1 ? 0 : 1 - (d - 0.78) / 0.22;
     t = t * t * (3 - 2 * t);
+    // mild center dip (floor ~0.62) — body must stay under glass for refraction
+    const hole = Math.hypot(nx / 0.62, ny / 0.66);
+    if (hole < 0.55) t *= 0.62 + 0.38 * (hole / 0.55);
     const on = Math.round(255 * Math.max(0, Math.min(1, t)));
     out.data[i] = out.data[i + 1] = out.data[i + 2] = on;
     out.data[i + 3] = 255;
   }
   ctx.putImageData(out, 0, 0);
+  return c;
+}
+
+/** Same Voronoi seam normals as crack glass, driven by ward facet sites. */
+function bakeWardNormal(p) {
+  const N = BAKE_N;
+  const c = Object.assign(document.createElement('canvas'), { width: N, height: N });
+  const ctx = c.getContext('2d'), img = ctx.createImageData(N, N);
+  const S = siteXY(p, wardSitesFor(p));
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    let d1 = 1e12, d2 = 1e12, s1 = null, s2 = null;
+    for (const s of S) {
+      const dx = x - s.x, dy = y - s.y, d = dx * dx + dy * dy;
+      if (d < d1) { d2 = d1; s2 = s1; d1 = d; s1 = s; }
+      else if (d < d2) { d2 = d; s2 = s; }
+    }
+    let nx = 0, ny = 0;
+    const edge = Math.sqrt(d2) - Math.sqrt(d1);
+    const SEAM = N * 0.016;
+    if (s2 && edge < SEAM) {
+      const vx = s1.x - s2.x, vy = s1.y - s2.y, vl = Math.hypot(vx, vy) || 1;
+      const k = (1 - edge / SEAM) * 1.05;
+      nx = (vx / vl) * k; ny = -(vy / vl) * k;
+    }
+    const nz = Math.sqrt(Math.max(0.05, 1 - nx * nx - ny * ny));
+    const i = (y * N + x) * 4;
+    img.data[i] = (nx * 0.5 + 0.5) * 255;
+    img.data[i + 1] = (ny * 0.5 + 0.5) * 255;
+    img.data[i + 2] = (nz * 0.5 + 0.5) * 255;
+    img.data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
   return c;
 }
 
@@ -393,13 +452,15 @@ function setBodyOpaqueForGlass(p, on) {
 function buildWard(p) {
   ensureEnv();
   disposeLayer(p, 'ward');
-  // rim-only frame: no milky fill, almost no env/clearcoat shine
+  // body must be opaque or the shell has nothing to refract (reads as a flat tint)
   setBodyOpaqueForGlass(p, true);
+  // Crack-glass transmission + Voronoi; reflection dialed down (clear glass, not shiny).
   const mat = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color('#b8daf0'),
-    transmission: 0.08, ior: 1.3, thickness: 0.03, roughness: 0.42, metalness: 0,
-    alphaMap: canvasTex(bakeWardMask(p)), transparent: true, alphaTest: 0.02, opacity: 0,
-    clearcoat: 0, clearcoatRoughness: 1, envMapIntensity: 0.04,
+    color: new THREE.Color('#c5e8ff'),
+    transmission: 1, ior: 1.4, thickness: 0.14, roughness: 0.03, metalness: 0,
+    normalMap: canvasTex(bakeWardNormal(p)), normalScale: new THREE.Vector2(1.35, 1.35),
+    alphaMap: canvasTex(bakeWardMask(p)), transparent: true, alphaTest: 0.01, opacity: 0,
+    clearcoat: 0, clearcoatRoughness: 1, envMapIntensity: 0.08,
     depthTest: false, depthWrite: false,
   });
   // own geo — shell shape/scale independent of body warp
@@ -819,7 +880,7 @@ export function meshAim(el, on, cfg = null) {
   return true;
 }
 
-/** Rim-frame Ward shell outside the body.
+/** Gemstone glass Ward shell outside the body (transmission + Voronoi).
  *  grow:true → animate scale from small→full; grow:false → snap to full (no anim). */
 export function meshWard(el, on, { grow = true } = {}) {
   if (LITE || !meshEnabled()) return false;
