@@ -59,16 +59,33 @@ export function meshWardSetParams(partial = {}) {
   return meshWardParams();
 }
 export function meshWardResetParams() {
-  Object.assign(wardParams, WARD_DEFAULTS);
-  refreshWardLayers(true);
-  return meshWardParams();
+  return meshWardApplyDefaults();
 }
 /** After Save: write current live params into WARD_DEFAULTS so Reset matches. */
 export function meshWardCommitDefaults(params = wardParams) {
   _setWardDefaults({ ...params });
+  return meshWardApplyDefaults();
+}
+
+/** Pull WARD_DEFAULTS → live wardParams and refresh any on-screen shells (Save / HMR). */
+export function meshWardApplyDefaults() {
   Object.assign(wardParams, WARD_DEFAULTS);
+  for (const p of planes) {
+    p.wardSites = null;
+    p.wardSitesN = undefined;
+    p.wardSitesUsed = -1;
+  }
   refreshWardLayers(true);
   return meshWardParams();
+}
+
+// Vite HMR: ward-params.js Save must refresh combat shells, not only the defaults object.
+if (import.meta.hot) {
+  import.meta.hot.accept('./ward-params.js', (mod) => {
+    if (!mod?.WARD_DEFAULTS) return;
+    _setWardDefaults(mod.WARD_DEFAULTS);
+    meshWardApplyDefaults();
+  });
 }
 
 function wardRefract() {
