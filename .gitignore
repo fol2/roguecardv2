@@ -7,3 +7,6 @@ playwright-report/
 .env
 .env.*
 !.env.example
+
+# ElevenLabs SFX raw pre-trim intermediates
+src/assets/sfx/_raw/

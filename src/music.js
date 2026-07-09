@@ -191,9 +191,9 @@ export function stop() {
 
 export function currentCue() { return activeId; }
 
-/** Screen → cue. Combat / run-end resolve elsewhere.
- *  reward / bossRelic omit on purpose: keep the combat cue until the player
- *  actually lands on the node-pick map. */
+/** Screen → cue. Combat / run-end / Act 1–2 boss victory resolve elsewhere.
+ *  reward / bossRelic omit on purpose: normal/elite keep the combat cue;
+ *  Act 1/2 boss wins already switched to `victory` in victoryFlow(). */
 export const SCREEN_CUES = {
   title: 'title',
   embark: 'embark',
