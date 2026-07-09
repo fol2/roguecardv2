@@ -1250,6 +1250,7 @@ function randomAgentRun(seed) {
   checkManifest('deeds', Object.keys(DEEDS));
   checkManifest('bequests', ['relic', 'card', 'gold']);
   checkManifest('meta', ['fallen', 'ascended', 'monument-node']);
+  checkManifest('ui', UI_CHROME_IDS);
 }
 
 // ---- pile chrome helpers (pure) ----

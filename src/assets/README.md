@@ -457,4 +457,14 @@ The approved prop set should appear in that gallery as `props - 4/4 generated`.
 The approved event set should appear as `events - 11/11 generated`.
 The approved card set should appear as `cards - 60/60 generated`.
 The approved pile chrome set should appear as `piles - 3/3 generated`.
+The approved UI chrome set should appear as `ui - 27/27 generated`.
 The final prop registration proof is recorded in `docs/prop-gallery-proof.md`.
+
+## `ui/` — HUD / intent / map chrome
+
+Optional raster chrome for energy candles, facet pips, HP vial frame, HUD
+glyphs, enemy intents, and map node medallions. Call sites prefer these PNGs
+when present and fall back to procedural SVG via `uiFallbackName` → `iconSvg`.
+
+Subject list and style block: `docs/ui-chrome-art-bible.md`. Manifest gate:
+`checkManifest('ui', UI_CHROME_IDS)` in `test/test_engine.js`.
