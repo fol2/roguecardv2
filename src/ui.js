@@ -708,7 +708,7 @@ function renderMap() {
     const tf = COARSE ? 1.3 : 1; // lanterns grow to meet a fingertip
     const r = (n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 19 : 16) * tf;
     const isz = Math.round((n.type === 'boss' ? 26 : n.type === 'elite' || n.type === 'treasure' ? 20 : 17) * tf);
-    const monUrl = n.type === 'monument' ? assetUrl('meta', 'monument-node') : null;
+    const monUrl = (n.type === 'monument' && isz >= 32) ? assetUrl('meta', 'monument-node') : null;
     const iconHtml = monUrl
       ? `<image href="${monUrl}" x="${-isz / 2}" y="${-isz / 2}" width="${isz}" height="${isz}" />`
       : iconInline(dark ? 'unlitLantern' : NODE_ICONS[n.type], dark ? Math.round(17 * tf) : isz);
