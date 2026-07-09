@@ -3,7 +3,7 @@ import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
 import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
 import * as V from './vfx.js';
-import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from './vigil.js';
+import { syncVigil, loadVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from './vigil.js';
 import { sfx, unlock, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
 import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift, meshAim, meshAimClear } from './mesh.js';
@@ -255,7 +255,7 @@ function updateLantern() {
 function renderHud() {
   updateLantern();
   const hud = $('#hud');
-  if (!S.run || S.screen === 'title' || S.screen === 'end' || S.screen === 'lamplighter') { hud.classList.remove('show'); document.body.classList.remove('low-hp'); return; }
+  if (!S.run || S.screen === 'title' || S.screen === 'embark' || S.screen === 'vigil' || S.screen === 'end' || S.screen === 'lamplighter') { hud.classList.remove('show'); document.body.classList.remove('low-hp'); return; }
   hud.classList.add('show');
   const p = S.run.player;
   const hp = S.cb && !S.cb.over ? S.cb.player.hp : p.hp;
@@ -269,7 +269,7 @@ function renderHud() {
       <div class="hud-stat">${iconSvg('coin', 14)} <span class="gold-num">${p.gold}</span></div>
       <div class="hud-mid"><b>${act.name.toUpperCase()}</b> &nbsp;·&nbsp; Act ${S.run.act + 1} &nbsp;·&nbsp; Floor ${S.run.floorsClimbed} &nbsp;·&nbsp; ${act.bossName}</div>
       <div class="hud-right">
-        ${p.potions.map((id, i) => `<button class="potion-slot ${id ? 'full' : ''}" data-slot="${i}">${id ? rasterOr('potions', id, potionSvg(POTIONS[id].tone)) : ''}</button>`).join('')}
+        ${E.runRevealed(S.run, 'phials') ? p.potions.map((id, i) => `<button class="potion-slot ${id ? 'full' : ''}" data-slot="${i}">${id ? rasterOr('potions', id, potionSvg(POTIONS[id].tone)) : ''}</button>`).join('') : ''}
         <button class="icon-btn" data-act="deck">${iconSvg('cards', 19)}<span style="font-size:11px">${p.deck.length}</span></button>
         <button class="icon-btn" data-act="menu">≡</button>
       </div>
@@ -296,6 +296,7 @@ function renderHud() {
   p.potions.forEach((id, i) => {
     if (!id) return;
     const slot = $(`.potion-slot[data-slot="${i}"]`, hud);
+    if (!slot) return;
     slot._tip = { title: POTIONS[id].name, body: POTIONS[id].text, sub: 'Click to use or toss' };
   });
   $('[data-act="deck"]', hud).onclick = () => { sfx.click(); showCardGrid('Your Deck', S.run.player.deck, { sub: `${S.run.player.deck.length} cards` }); };
@@ -370,7 +371,7 @@ function confirmAbandon() {
   </div>`, (root) => {
     root.onclick = (e) => {
       const a = e.target.dataset.a;
-      if (a === 'yes') { E.recordRunEnd(S.run, false); S.run = null; S.cb = null; closeOverlay(); stopAmbience(); show('title'); }
+      if (a === 'yes') { commitRunEnd(S.run); E.recordRunEnd(S.run, false); S.run = null; S.cb = null; closeOverlay(); stopAmbience(); show('title'); }
       if (a === 'no') closeOverlay();
     };
   });
@@ -618,7 +619,7 @@ function renderLamplighter() {
   screenEl().className = '';
   if (!S.lamp) {
     const rng = E.runRng(run);
-    const pool = Object.keys(BOONS);
+    const pool = Object.keys(BOONS).filter((id) => E.runRevealed(run, 'phials') || !BOONS[id].ops.some((op) => op.potion));
     const boons = [];
     while (boons.length < 3 && pool.length) boons.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
     S.lamp = { boons, boon: null, art: run.art };
@@ -2315,6 +2316,7 @@ function victoryFlow() {
   run.pendingCombat = null;
   if (kind === 'boss' && run.act >= 2) {
     const { newUnlocks } = commitRunToVigil(run, true); // the dawn is remembered
+    commitRunEnd(run); // the ledger that paces reveals counts every ending
     E.recordRunEnd(run, true);
     show('end', { won: true, newUnlocks });
     return;
@@ -2328,6 +2330,7 @@ function defeatFlow() {
   const node = run.map.nodes.find((n) => n.id === run.nodeId);
   const fallRow = node ? node.row : Math.max(1, run.floorsClimbed - 1);
   const { newUnlocks } = commitRunToVigil(run, false);
+  commitRunEnd(run);
   E.recordRunEnd(run, false);
   show('end', { won: false, newUnlocks, offers, fallAct: run.act, fallRow });
 }
@@ -2464,7 +2467,7 @@ function renderBossRelic() {
 function advanceAct() {
   const run = S.run;
   run.act++;
-  run.omens.push(E.rollOmen(run)); // each act climbs under its own sky
+  run.omens.push(E.runRevealed(run, 'omens') ? E.rollOmen(run) : null); // each act climbs under its own sky
   run.nodeId = null;
   run.map = E.genMap(run);
   E.healPlayer(run, Math.round(run.player.maxHp * 0.35));
