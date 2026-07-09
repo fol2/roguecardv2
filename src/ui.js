@@ -548,7 +548,8 @@ export function show(name, data) {
   if (name === 'map') warmAssets();
   if (name !== 'combat' && name !== 'title') meshClear();
   // Only switch BGM if the renderer stayed on this screen (map may redirect into combat).
-  // reward / bossRelic intentionally omit SCREEN_CUES so combat music holds until node-pick map.
+  // reward / bossRelic omit SCREEN_CUES: normal/elite keep combat music; Act 1/2 boss wins
+  // switch to victory in victoryFlow() and hold through reward/bossRelic until map.
   if (S.screen === name && name !== 'combat' && name !== 'end') music.playForScreen(name);
   if (S.screen === 'map' && S.run) {
     const a = (S.run.act | 0) + 1;
@@ -3073,7 +3074,13 @@ async function handleEvent(ev, targetIdx) {
       await sleep(200);
       break;
     }
-    case 'energy': syncCombat(); ce.energy.classList.remove('pop'); void ce.energy.offsetWidth; ce.energy.classList.add('pop'); break;
+    case 'energy':
+      sfx.energy();
+      syncCombat();
+      ce.energy.classList.remove('pop');
+      void ce.energy.offsetWidth;
+      ce.energy.classList.add('pop');
+      break;
     case 'exhaust': {
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
       const anchor = takeCardAnchor(ev.uid);
@@ -3418,6 +3425,8 @@ function victoryFlow() {
     show('end', { won: true, newUnlocks });
     return;
   }
+  // Act 1/2 boss kill ceremony — same victory cue as final dawn; holds until map.
+  if (kind === 'boss') music.play('victory');
   show('reward', { kind, rewards: E.genCombatRewards(run, kind, affix) });
 }
 function defeatFlow() {
