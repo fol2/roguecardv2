@@ -923,10 +923,19 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   border-radius: 4px;
   opacity: 0.45;
 }
+.pile-stack-fallback {
+  border-radius: 4px;
+  background: linear-gradient(160deg, rgba(36, 48, 86, 0.4), rgba(12, 16, 31, 0.22));
+  outline: 1px solid rgba(242, 193, 78, 0.22);
+}
+.pile-stack-fallback.is-empty {
+  background: transparent;
+  outline: 1px dashed rgba(242, 193, 78, 0.25);
+}
 .pile-layer {
   position: absolute; left: 50%; bottom: 0;
   width: 70%; height: auto;
-  transform: translate(-50%, calc(var(--i) * -2px)) rotate(calc(var(--i) * 1.2deg));
+  transform: translate(-50%, calc(var(--i) * -2.5px)) rotate(calc(var(--i) * 1.4deg));
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.55));
 }
 .pile-btn .cnt {
@@ -1382,6 +1391,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   #lantern.gutter, .candle.lit, .hero-wrap.warded::before, .enemy-art.warded::before { animation: none; }
   .ember, .mon-flame, .enemy.doomed .enemy-art { animation: none; }
   .enemy-sprite[class*="idle-"], .idle-motes::before, .idle-motes::after { animation: none; }
+  .pile-btn.pile-bump { animation: none; }
   #tooltip { animation: fadein 0.1s both; }
   .mnode.avail .nwrap, .mnode.avail .icg { animation: none; }
   .reward-list .reward-row, .shop-row .shop-item, .deed-list .deed-row { animation: none; }
@@ -1549,7 +1559,10 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .end-turn { right: calc(10px + var(--sar)); bottom: calc(74px + var(--sab)); padding: 8px 14px; font-size: 13.5px; }
   .pile-btn { width: 42px; height: 42px; bottom: calc(8px + var(--sab)); }
   .pile-stack { inset: 3px 3px 12px; }
-  .pile-layer { width: 74%; }
+  .pile-layer {
+    width: 74%;
+    transform: translate(-50%, calc(var(--i) * -3px)) rotate(calc(var(--i) * 2deg));
+  }
   .pile-btn .cnt { font-size: 14px; }
   .pile-btn .lbl { font-size: 7px; }
   .pile-draw { left: calc(10px + var(--sal)); }

@@ -1190,12 +1190,15 @@ function syncPileWidgets(cb) {
     stack.dataset.tier = String(tier);
     const url = assetUrl('piles', pileMasterId(pile));
     stack.replaceChildren();
+    stack.classList.toggle('is-empty', tier === 0);
     if (!url) {
+      // glass label+count stay usable when a master PNG is missing
       stack.classList.add('pile-stack-fallback');
       continue;
     }
     stack.classList.remove('pile-stack-fallback');
-    const layers = tier === 0 ? 0 : tier === 5 ? 5 : tier;
+    // Prefer 3 masters; cap visible layers at 3 so ~42px phone chrome stays readable (count still shows true size).
+    const layers = tier === 0 ? 0 : Math.min(tier, 3);
     for (let i = 0; i < layers; i++) {
       const img = document.createElement('img');
       img.src = url;
@@ -1204,9 +1207,16 @@ function syncPileWidgets(cb) {
       img.style.setProperty('--i', String(i));
       stack.appendChild(img);
     }
-    if (tier === 0) stack.classList.add('is-empty');
-    else stack.classList.remove('is-empty');
   }
+}
+function pendingPileCeremonyUids(cb) {
+  const keep = new Set();
+  for (const ev of cb.queue) {
+    if ((ev.t === 'toDiscard' || ev.t === 'exhaust' || ev.t === 'powerConsumed') && ev.uid != null) {
+      keep.add(String(ev.uid));
+    }
+  }
+  return keep;
 }
 function syncHand() {
   const cb = S.cb, ce = S.ce;
@@ -1214,7 +1224,9 @@ function syncHand() {
   const wrap = ce.hand;
   const have = new Map($$('.card', wrap).map((c) => [c.dataset.uid, c]));
   const want = new Set(cb.hand.map((c) => String(c.uid)));
-  for (const [uid, elc] of have) if (!want.has(uid)) elc.remove();
+  // draw mid-play can syncHand before toDiscard/exhaust flies — keep those DOM nodes
+  const pending = pendingPileCeremonyUids(cb);
+  for (const [uid, elc] of have) if (!want.has(uid) && !pending.has(uid)) elc.remove();
   for (const inst of cb.hand) {
     if (!have.has(String(inst.uid))) {
       const c = cardEl(inst, { inCombat: true });
@@ -2262,7 +2274,9 @@ async function handleEvent(ev, targetIdx) {
     case 'energy': syncCombat(); ce.energy.classList.remove('pop'); void ce.energy.offsetWidth; ce.energy.classList.add('pop'); break;
     case 'exhaust': {
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
-      if (c) {
+      if (c && REDUCED) {
+        c.remove();
+      } else if (c) {
         // the card burns away edge-inward, embers rising off it
         const r = stageRect(c);
         const ghost = c.cloneNode(true);
@@ -2308,6 +2322,9 @@ async function handleEvent(ev, targetIdx) {
         c.remove();
       } else if (c) {
         c.remove();
+      } else if (!REDUCED) {
+        // hand-centre fallback if syncHand already cleared the played card
+        await flyCardBacks([V.centerOf(ce.hand)], ce.discard, 320);
       }
       bumpPile(ce.discard);
       syncCombat();
@@ -2366,11 +2383,14 @@ async function handleEvent(ev, targetIdx) {
       // a power doesn't get discarded — it settles into the glass
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
       const from = c ? V.centerOf(c) : { x: stageW() / 2, y: stageH() - 180 };
+      if (c) c.remove();
       const { x: hx, y: hy } = heroCenter();
-      flyTo(from.x, from.y, hx, hy, { n: 7, color: '#c9a8ff', size: 7, dur: 560 });
+      if (!REDUCED) {
+        flyTo(from.x, from.y, hx, hy, { n: 7, color: '#c9a8ff', size: 7, dur: 560 });
+        setTimeout(() => { V.ring(hx, hy, '#c9a8ff', 12, 460, 4); V.motes(hx, hy, '#c9a8ff', 8); }, 560);
+      }
       sfx.buff();
-      setTimeout(() => { V.ring(hx, hy, '#c9a8ff', 12, 460, 4); V.motes(hx, hy, '#c9a8ff', 8); }, 560);
-      await sleep(300);
+      await sleep(REDUCED ? 40 : 300);
       break;
     }
     case 'victory': {
