@@ -62,3 +62,13 @@ teal arch-gem family: warmer spent parchment, worn border, **no moss**, **no emb
 | id | notes |
 |---|---|
 | discard | v4 promoted; rejects archived under `source/v3-discard-wrong/` |
+
+## Draw single-card fix (2026-07-09)
+
+Owner: live `piles/draw.png` was still a pre-piled stack while discard/ashes were
+single-card masters (runtime fans the stack). Regenerated draw from
+`src/assets/piles/discard.png` as reference.
+
+| id | subject | source | notes |
+|---|---|---|---|
+| draw | EXACTLY ONE neat sealed unread face-down card; cooler sapphire/teal twin of discard; no stack edges | source/draw.png | gen1 still piled → `source/v4-draw-piled-wrong/draw-gen1-still-piled.png`; gen2 single but purple/lime → `…/draw-gen2-single-wrong-palette.png`; gen3 blue/teal single promoted; NB → alpha → `piles/draw.png`; old live archived `…/draw-live.png` |

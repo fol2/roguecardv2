@@ -2,8 +2,8 @@
 
 **Date:** 2026-07-09  
 **Status:** done  
-**Commit:** `d210fb1` — `Enlarge End Turn control and shift it down.`  
-**Scope:** `src/styles.css`, `src/ui.js` (End Turn only). Engine untouched. No lantern hunks.
+**Commit:** `c9791f1` — `Enlarge End Turn control and shift it down.`  
+**Scope:** `src/styles.css`, `src/ui.js` (End Turn only; uiIcon already 120 on parent). Engine untouched. No lantern hunks.
 
 ## Changes
 
