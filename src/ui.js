@@ -2670,52 +2670,78 @@ async function handleEvent(ev, targetIdx) {
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
       const anchor = takeCardAnchor(ev.uid);
       const inst = pileCardByUid(cb.exhaust, ev.uid);
-      if (c && REDUCED) {
-        c.remove();
+      if (REDUCED) {
+        if (c) c.remove();
         releasePileVisual('ashes', 1);
-      } else if (!REDUCED) {
-        // Prefer live seat (played-up / drag); stored anchor only if the node is already gone
-        const live = c ? stageRect(c) : null;
-        const start = (live && live.width > 2)
-          ? { x: live.left + live.width / 2, y: live.top + live.height / 2, w: live.width, h: live.height }
-          : anchor;
-        if (c && start) {
-          const ghost = c.cloneNode(true);
-          Object.assign(ghost.style, {
-            position: 'fixed', left: `${start.x - start.w / 2}px`, top: `${start.y - start.h / 2}px`,
-            width: `${start.w}px`, height: `${start.h}px`, margin: 0, transform: 'none',
-            zIndex: 56, pointerEvents: 'none', opacity: '1',
-          });
-          document.getElementById('floaties').appendChild(ghost);
-          c.remove();
-          ghost.animate(
-            [
-              { clipPath: 'circle(80% at 50% 55%)', filter: 'brightness(1)' },
-              { clipPath: 'circle(44% at 50% 55%)', filter: 'brightness(1.8) saturate(1.6) sepia(0.45)', offset: 0.45 },
-              { clipPath: 'circle(0% at 50% 55%)', filter: 'brightness(2.6) saturate(2) sepia(0.85)' },
-            ],
-            { duration: 540, easing: 'ease-in' }
-          ).onfinish = () => ghost.remove();
-          V.burst(start.x, start.y, { color: '#ffb066', n: 22, speed: 190, grav: -150, size: 2.4, life: 0.85 });
+        syncCombat();
+        break;
+      }
+      // Played exhaust → flight only (same language as toDiscard).
+      // Hand kindle / in-hand exhaust → burn-inward at the seat, then ashes flight.
+      const played = !!(anchor?.fromDrag || c?.classList.contains('played-up') || (!c && anchor));
+      if (played) {
+        let origin = null;
+        if (anchor?.fromDrag) {
+          origin = { ...anchor, inst };
         } else if (c) {
-          c.remove();
+          const r = stageRect(c);
+          if (r.width > 2) {
+            origin = {
+              x: r.left + r.width / 2, y: r.top + r.height / 2,
+              w: r.width, h: r.height, inst,
+            };
+          }
         }
-        if (inst) {
-          const origin = start
-            ? { x: start.x, y: start.y, w: start.w, h: start.h, inst }
-            : { ...V.centerOf(ce.hand), ...handFaceSize(), inst };
-          await flyCardBacks([origin], ce.exhaust, 480, {
+        if (!origin && anchor) origin = { ...anchor, inst };
+        if (!origin && inst) origin = { ...V.centerOf(ce.hand), ...handFaceSize(), inst };
+        if (c) {
+          c.classList.add('draw-pending');
+          layoutHand();
+        }
+        if (inst && origin) {
+          await flyCardBacks([{ ...origin, inst }], ce.exhaust, 200, {
             fromSize: 'src', toSize: 'pile', sizePile: ce.exhaust, face: 'card', cardInst: inst,
+            schedule: { stagger: 0, flightDur: 200, awaitMs: 200 },
+            arc: 'smooth', easing: 'cubic-bezier(.22,.7,.28,1)',
           });
         }
+        if (c) c.remove();
         releasePileVisual('ashes', 1);
         bumpPile(ce.exhaust);
+        syncCombat();
+        break;
+      }
+      // In-hand → ashes (kindle): burn at the seat
+      const live = c ? stageRect(c) : null;
+      const start = (live && live.width > 2)
+        ? { x: live.left + live.width / 2, y: live.top + live.height / 2, w: live.width, h: live.height }
+        : anchor;
+      if (c && start) {
+        const ghost = c.cloneNode(true);
+        Object.assign(ghost.style, {
+          position: 'fixed', left: `${start.x - start.w / 2}px`, top: `${start.y - start.h / 2}px`,
+          width: `${start.w}px`, height: `${start.h}px`, margin: 0, transform: 'none',
+          zIndex: 56, pointerEvents: 'none', opacity: '1',
+        });
+        document.getElementById('floaties').appendChild(ghost);
+        c.remove();
+        ghost.animate(
+          [
+            { clipPath: 'circle(80% at 50% 55%)', filter: 'brightness(1)' },
+            { clipPath: 'circle(44% at 50% 55%)', filter: 'brightness(1.8) saturate(1.6) sepia(0.45)', offset: 0.45 },
+            { clipPath: 'circle(0% at 50% 55%)', filter: 'brightness(2.6) saturate(2) sepia(0.85)' },
+          ],
+          { duration: 540, easing: 'ease-in' }
+        ).onfinish = () => ghost.remove();
+        V.burst(start.x, start.y, { color: '#ffb066', n: 22, speed: 190, grav: -150, size: 2.4, life: 0.85 });
+        const a1 = V.centerOf(ce.exhaust);
+        flyTo(start.x, start.y, a1.x, a1.y, { n: 8, color: '#ffb066', size: 5, dur: 480 });
+        bumpPile(ce.exhaust);
+        await sleep(260);
       } else if (c) {
         c.remove();
-        releasePileVisual('ashes', 1);
-      } else {
-        releasePileVisual('ashes', 1);
       }
+      releasePileVisual('ashes', 1);
       syncCombat();
       break;
     }
