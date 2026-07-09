@@ -1203,13 +1203,12 @@ function syncPileWidgets(cb) {
       continue;
     }
     stack.classList.remove('pile-stack-fallback');
-    // Fan spread: ~2° per card, whole pile ≤30° so it never rounds; count is SoT.
+    // Flat fan: prefer 5°/card, average down so whole span ≤30°; count is SoT.
     for (let i = 0; i < layers; i++) {
       const img = document.createElement('img');
       img.src = url;
       img.alt = '';
       img.className = 'pile-layer';
-      img.style.setProperty('--i', String(i));
       img.style.setProperty('--rot', `${pileFanAngleDeg(i, layers)}deg`);
       stack.appendChild(img);
     }

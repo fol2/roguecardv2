@@ -1,10 +1,11 @@
 export const PILE_IDS = ['draw', 'discard', 'ashes'];
 
-/** Degrees between successive fan layers; whole pile capped so it never rounds. */
-export const PILE_FAN_DEG = 2;
+/** Preferred degrees between successive fan layers. */
+export const PILE_FAN_DEG = 5;
+/** Whole fan span cap — when (layers-1)*PILE_FAN_DEG exceeds this, step averages down. */
 export const PILE_FAN_MAX_DEG = 30;
-/** Visible card layers for a fan (count still shows the true size). */
-export const PILE_FAN_MAX_LAYERS = Math.floor(PILE_FAN_MAX_DEG / PILE_FAN_DEG) + 1; // 16
+/** DOM cap for visible faces (count text stays the true size). */
+export const PILE_FAN_MAX_LAYERS = 16;
 
 export function pileTier(count) {
   const n = Math.max(0, Math.floor(Number(count) || 0));
@@ -20,7 +21,7 @@ export function pileFanLayers(count) {
   return Math.min(n, PILE_FAN_MAX_LAYERS);
 }
 
-/** Rotation for layer i (0 = bottom). Centered fan; total span ≤ PILE_FAN_MAX_DEG. */
+/** Rotation for layer i (0 = bottom). Flat centered fan; step averages when span hits max. */
 export function pileFanAngleDeg(i, layers) {
   const n = Math.max(0, Math.floor(layers) || 0);
   const idx = Math.max(0, Math.floor(i) || 0);

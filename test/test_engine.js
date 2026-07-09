@@ -13,7 +13,7 @@ import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, 
 import { _setStore, loadVigil, syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
-import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, PILE_IDS, PILE_FAN_DEG, PILE_FAN_MAX_DEG } from '../src/pile-chrome.js';
+import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, PILE_IDS, PILE_FAN_DEG, PILE_FAN_MAX_DEG, PILE_FAN_MAX_LAYERS } from '../src/pile-chrome.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -1096,14 +1096,21 @@ function randomAgentRun(seed) {
   assert.equal(pileFanLayers(0), 0);
   assert.equal(pileFanLayers(1), 1);
   assert.equal(pileFanLayers(8), 8);
-  assert.equal(pileFanLayers(99), Math.floor(PILE_FAN_MAX_DEG / PILE_FAN_DEG) + 1);
-  assert.equal(pileFanAngleDeg(0, 5), -4);
-  assert.equal(pileFanAngleDeg(2, 5), 0);
-  assert.equal(pileFanAngleDeg(4, 5), 4);
-  const layers15 = pileFanLayers(20);
-  assert.ok(Math.abs(pileFanAngleDeg(0, layers15)) <= PILE_FAN_MAX_DEG / 2 + 1e-9);
+  assert.equal(pileFanLayers(99), PILE_FAN_MAX_LAYERS);
+  // 3 cards @ 5° → ±5°
+  assert.equal(pileFanAngleDeg(0, 3), -5);
+  assert.equal(pileFanAngleDeg(1, 3), 0);
+  assert.equal(pileFanAngleDeg(2, 3), 5);
+  // 7 cards still at preferred 5° (span 30)
+  assert.equal(pileFanAngleDeg(0, 7), -15);
+  assert.equal(pileFanAngleDeg(6, 7), 15);
+  // 16 cards: average step = 30/15 = 2°
+  assert.equal(pileFanAngleDeg(0, 16), -15);
+  assert.equal(pileFanAngleDeg(8, 16), 1);
+  assert.equal(pileFanAngleDeg(15, 16), 15);
+  const layersCap = pileFanLayers(99);
   assert.ok(
-    pileFanAngleDeg(layers15 - 1, layers15) - pileFanAngleDeg(0, layers15) <= PILE_FAN_MAX_DEG + 1e-9
+    pileFanAngleDeg(layersCap - 1, layersCap) - pileFanAngleDeg(0, layersCap) <= PILE_FAN_MAX_DEG + 1e-9
   );
 
   const s1 = flightSchedule(1, 400);
