@@ -1004,9 +1004,9 @@ function renderCombat() {
       </div>
       <div class="enemy-zone"></div>
     </div>
-    <div class="energy-orb"><div class="num">0</div><div class="lbl">ENERGY</div><div class="candles"></div></div>
-    <button class="lantern-btn"><span class="lb-ic">${uiIcon('lantern', 26)}</span><span class="lb-count">0</span><div class="lb-pips"></div><span class="lb-art"></span></button>
-    <button class="end-turn" type="button"><span class="et-ic">${uiIcon('end-turn', 72)}</span><span class="et-lbl">End</span></button>
+    <div class="energy-orb"><div class="num">0</div><div class="candles"></div><div class="lbl">ENERGY</div></div>
+    <button class="lantern-btn"><span class="lb-ic">${uiIcon('lantern', 36)}</span><span class="lb-count">0</span><div class="lb-pips"></div><span class="lb-art"></span></button>
+    <button class="end-turn" type="button"><span class="et-ic">${uiIcon('end-turn', 96)}</span><span class="et-lbl">End</span></button>
     <button class="pile-btn pile-draw" type="button" aria-label="Draw pile">
       <span class="pile-stack" data-pile="draw" data-count="-1" data-tier="-1"></span>
       <span class="cnt">0</span>
@@ -1075,7 +1075,8 @@ function renderCombat() {
   const art = ARTS[artId];
   if (art) {
     const artU = assetUrl('arts', artId);
-    $('.lb-art', ce.lantern).innerHTML = `<i>${artU ? `<img class="ui-icon lb-art-img" src="${artU}" width="16" height="16" alt="">` : iconSvg(`art-${artId}`, 16)}</i>${art.cost}`;
+    /* art chip only — cost lives in the tip; no overlapping cost badge digit */
+    $('.lb-art', ce.lantern).innerHTML = `<i>${artU ? `<img class="ui-icon lb-art-img" src="${artU}" width="18" height="18" alt="">` : iconSvg(`art-${artId}`, 18)}</i>`;
     $('.lb-art', ce.lantern).style.color = art.tone;
   }
   ce.lantern._tip = {
