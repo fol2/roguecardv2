@@ -1087,6 +1087,13 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   background-position: center; background-size: contain; background-repeat: no-repeat;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
 }
+/* draw flight: real card face (not hand-zone fan layout) */
+.flycard-face {
+  position: absolute; left: 0; bottom: auto; pointer-events: none; z-index: 58;
+  transform-origin: 50% 50%;
+}
+.flycard-face .card-lift { transform: none !important; }
+.flycard-face .card-inner { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.75); }
 /* the boss is announced through a rose window: rings and spokes of leaded light */
 .rose-window {
   position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%);

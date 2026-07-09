@@ -1690,8 +1690,9 @@ function resolveFlightSize(spec, { pileBtn, src, fallback } = {}) {
 /**
  * Pile-ceremony flights. Default face size = current pile card size.
  * opts.fromSize / toSize: {w,h} | 'pile' | 'hand' | 'src'  (omit toSize → same as from)
- * opts.face: 'back' = sealed card-back (draw); otherwise pile master art
- * opts.pileArt: draw|discard|ashes master when face !== 'back'
+ * opts.face: 'card' = real hand-card face (opts.cardInst); 'back' = sealed back; else pile art
+ * opts.cardInst: card instance when face === 'card'
+ * opts.pileArt: draw|discard|ashes master when using pile face
  * opts.sizePile: pile button used when resolving 'pile' sizes (defaults to toEl)
  */
 function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
@@ -1701,7 +1702,9 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
   const { stagger, flightDur, awaitMs } = flightSchedule(n, budgetMs);
   if (REDUCED || n === 0) return Promise.resolve(0);
   const sizePile = opts.sizePile || toEl;
-  const artUrl = opts.face === 'back' ? null : assetUrl('piles', pileMasterId(opts.pileArt || 'draw'));
+  const artUrl = (opts.face === 'back' || opts.face === 'card')
+    ? null
+    : assetUrl('piles', pileMasterId(opts.pileArt || 'draw'));
   fromList.forEach((src, i) => {
     const origin = src.el
       ? (() => { const r = stageRect(src.el); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }; })()
@@ -1711,18 +1714,30 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
       ? fromSize
       : resolveFlightSize(opts.toSize, { pileBtn: sizePile, src: origin, fallback: fromSize });
     const endScale = fromSize.w > 0 ? toSize.w / fromSize.w : 1;
-    const m = el('div', artUrl ? 'flycard flycard-pile' : 'flycard flycard-back');
-    m.style.left = `${origin.x}px`;
-    m.style.top = `${origin.y}px`;
-    m.style.width = `${fromSize.w}px`;
-    m.style.height = `${fromSize.h}px`;
-    if (artUrl) m.style.backgroundImage = `url(${artUrl})`;
+    let m;
+    if (opts.face === 'card' && opts.cardInst) {
+      m = cardEl(opts.cardInst, { inCombat: true, size: fromSize.w });
+      m.classList.add('flycard-face');
+      Object.assign(m.style, {
+        position: 'absolute', left: `${origin.x}px`, top: `${origin.y}px`,
+        width: `${fromSize.w}px`, height: `${fromSize.h}px`, margin: 0,
+        transform: 'translate(-50%,-50%)', zIndex: 58, pointerEvents: 'none',
+      });
+    } else {
+      m = el('div', artUrl ? 'flycard flycard-pile' : 'flycard flycard-back');
+      m.style.left = `${origin.x}px`;
+      m.style.top = `${origin.y}px`;
+      m.style.width = `${fromSize.w}px`;
+      m.style.height = `${fromSize.h}px`;
+      if (artUrl) m.style.backgroundImage = `url(${artUrl})`;
+    }
     layer.appendChild(m);
     const mx = (origin.x + dest.x) / 2 + (Math.random() - 0.5) * 80;
     const my = Math.min(origin.y, dest.y) - 40 - Math.random() * 50;
+    const base = opts.face === 'card' ? 'translate(-50%,-50%)' : 'translate(-50%,-50%)';
     m.animate(
       [
-        { transform: 'translate(-50%,-50%) scale(1)', opacity: 0.95 },
+        { transform: `${base} scale(1)`, opacity: 0.95 },
         { transform: `translate(calc(-50% + ${mx - origin.x}px), calc(-50% + ${my - origin.y}px)) scale(${1 + (endScale - 1) * 0.45})`, opacity: 1, offset: 0.45 },
         { transform: `translate(calc(-50% + ${dest.x - origin.x}px), calc(-50% + ${dest.y - origin.y}px)) scale(${endScale})`, opacity: 0.9 },
       ],
@@ -2163,10 +2178,12 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'endTurn': heroActing = false; banner('ENEMY TURN'); await sleep(480); break;
     case 'draw': {
-      // fire-and-forget flights so consecutive draws overlap under ~180–320ms total
+      // fire-and-forget: real card face flies pile→hand; seat reveals on landing
       if (!REDUCED) {
+        const inst = cb.hand.find((c) => String(c.uid) === String(ev.uid))
+          || { uid: ev.uid, id: ev.id, up: false, bonus: 0 };
         flyCardBacks([V.centerOf(ce.draw)], ce.hand, 220, {
-          fromSize: 'pile', toSize: 'hand', sizePile: ce.draw, face: 'back',
+          fromSize: 'pile', toSize: 'hand', sizePile: ce.draw, face: 'card', cardInst: inst,
         });
         bumpPile(ce.draw);
       }
