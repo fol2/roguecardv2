@@ -65,6 +65,17 @@ test('Hollow actions fit the canonical pad portrait without overlap', async ({ p
       expect(overlaps, `Hollow actions ${i} and ${j} overlap`).toBe(false);
     }
   }
+
+  const configuredMeetings = await page.evaluate(async () => {
+    const { QUESTS } = await import('/src/data.js');
+    QUESTS.hollowLamplighter.meetings.push({
+      ask: 'A configured sixth price.', paid: 'Paid.', cannot: 'Cannot.',
+    });
+    window.spirebound.show('hollow');
+    return QUESTS.hollowLamplighter.meetings.length;
+  });
+  await expect(page.locator('.hollow-kicker'))
+    .toHaveText(`THE UNLIT WAY · PRICE 2 OF ${configuredMeetings}`);
 });
 
 test('Hollow combat exit journals destination in one acknowledged save', async ({ page }) => {

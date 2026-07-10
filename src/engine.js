@@ -109,12 +109,11 @@ function prepareEighthOmen(run) {
   const q = questRecord(run, 'eighthOmen');
   if (!q || !['armed', 'revealed'].includes(q.state)) return;
   const due = q.memory.dueIn;
+  const guaranteeRuns = Math.max(1, Math.floor(PROGRESSION.emberglass.eighthOmen.guaranteeRuns));
   let active = false;
-  if (due === 2) {
-    active = questRoll(run) < PROGRESSION.emberglass.eighthOmen.recurrenceChance;
-    if (!active) q.memory.dueIn = 1;
-  } else if (due === 1) {
-    active = true;
+  if (Number.isInteger(due) && due >= 1 && due <= guaranteeRuns) {
+    active = due === 1 || questRoll(run) < PROGRESSION.emberglass.eighthOmen.recurrenceChance;
+    if (!active) q.memory.dueIn = due - 1;
   } else if (q.memory.seen) {
     active = questRoll(run) < PROGRESSION.emberglass.eighthOmen.recurrenceChance;
   }
@@ -1700,10 +1699,13 @@ export function loadRun() {
     const validMemory = (id, m) => {
       if (!plainObject(m)) return false;
       if (id === 'eighthOmen') return onlyKeys(m, ['dueIn', 'seen']) &&
-        (m.dueIn == null || m.dueIn === 1 || m.dueIn === 2) && optionalBool(m, 'seen');
+        (m.dueIn == null || (Number.isInteger(m.dueIn) && m.dueIn >= 1 &&
+          m.dueIn <= Math.max(1, Math.floor(PROGRESSION.emberglass.eighthOmen.guaranteeRuns)))) &&
+        optionalBool(m, 'seen');
       if (id === 'hollowLamplighter') return onlyKeys(m, ['eligibleMisses', 'emberDebt']) &&
         (m.eligibleMisses == null || (Number.isInteger(m.eligibleMisses) && m.eligibleMisses >= 0)) &&
-        (m.emberDebt == null || (Number.isInteger(m.emberDebt) && m.emberDebt >= 1 && m.emberDebt <= 3));
+        (m.emberDebt == null || (Number.isInteger(m.emberDebt) && m.emberDebt >= 1 &&
+          m.emberDebt <= Math.max(1, Math.floor(PROGRESSION.emberglass.hollowLamplighter.emberDebt))));
       return onlyKeys(m, []);
     };
     const validQuest = (id, q) =>
@@ -1788,7 +1790,8 @@ export function loadRun() {
       if (['questReveal', 'questComplete'].includes(e.t)) return QUEST_IDS.includes(e.id);
       if (e.t === 'questProgress') return QUEST_IDS.includes(e.id) && Number.isFinite(e.progress) && Number.isFinite(e.target);
       if (e.t === 'questUnlock') return e.id === 'insight:witchlightLens';
-      if (e.t === 'pageRead') return Number.isInteger(e.index) && e.index >= 1 && e.index <= 5 && typeof e.text === 'string';
+      if (e.t === 'pageRead') return Number.isInteger(e.index) && e.index >= 1 &&
+        e.index <= QUESTS.unreadablePage.target && typeof e.text === 'string';
       if (e.t === 'eighthResolved' || e.t === 'shadeResolved') return typeof e.text === 'string';
       return false;
     };

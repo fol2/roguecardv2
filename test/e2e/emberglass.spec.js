@@ -390,6 +390,104 @@ for (const outcome of ['death', 'abandon']) {
 }
 });
 
+test('Rose pane details disclose safely through click and keyboard', async ({ page }) => {
+  await seed(page, mixedLedger());
+  await page.click('[data-a="vigil"]');
+  await page.waitForTimeout(600);
+  await page.click('[data-a="tab-rose"]');
+  await expect(page.locator('.rose-window.rose-assets')).toHaveClass(/ready/);
+
+  const controls = page.locator('.rose-pane-select');
+  const detail = page.locator('#rose-pane-detail');
+  await expect(controls).toHaveCount(6);
+  await expect(detail).toHaveAttribute('role', 'region');
+  await expect(detail).toHaveAttribute('aria-live', 'polite');
+
+  const armed = page.getByRole('button', { name: 'Unknown Emberglass pane 1' });
+  const revealed = page.getByRole('button', { name: 'Your Own Shade' });
+  await expect(revealed).toHaveAttribute('aria-pressed', 'true');
+  await expect(detail.locator('.rose-detail-inscription'))
+    .toHaveText('Defeat the self that remembers falling. Three shades must fall.');
+
+  await armed.focus();
+  await page.keyboard.press('Enter');
+  await expect(armed).toHaveAttribute('aria-pressed', 'true');
+  await expect(detail).toHaveText('???');
+
+  await revealed.click();
+  await expect(detail.locator('.rose-detail-name')).toHaveText('Your Own Shade');
+  await expect(detail.locator('.rose-detail-inscription'))
+    .toHaveText('Defeat the self that remembers falling. Three shades must fall.');
+  await expect(detail.locator('.rose-detail-progress')).toHaveText('1/3');
+
+  const complete = page.getByRole('button', { name: 'The Usurper' });
+  await complete.click();
+  await expect(detail).toHaveText(/The Usurper\s*Shard recovered/);
+  await expect(detail.locator('.rose-detail-inscription')).toHaveCount(0);
+
+  const dormant = page.getByRole('button', { name: 'Dormant Emberglass pane 4' });
+  await dormant.click();
+  await expect(detail).toHaveText('This pane is dark.');
+  await expect(detail).not.toContainText('Eighth');
+  await expect(page.getByRole('button', { name: /Eighth Omen|Hollow Lamplighter/ })).toHaveCount(0);
+
+  await armed.click();
+  await expect(detail).toHaveText('???');
+});
+
+test('Rose pane detail stays legible and bounded in every canonical shape', async ({ page }) => {
+  await seed(page, mixedLedger());
+  await page.click('[data-a="vigil"]');
+  await page.waitForTimeout(600);
+  await page.click('[data-a="tab-rose"]');
+  await expect(page.locator('.rose-window.rose-assets')).toHaveClass(/ready/);
+
+  const stateFontMins = [];
+  for (const name of [
+    'Unknown Emberglass pane 1', 'Your Own Shade', 'The Usurper', 'Dormant Emberglass pane 4',
+  ]) {
+    await page.getByRole('button', { name }).click();
+    stateFontMins.push(await page.locator('#rose-pane-detail').evaluate((detail) => {
+      const visibleText = [detail, ...detail.querySelectorAll('*')].filter((node) => {
+        const style = getComputedStyle(node);
+        return node.textContent.trim() && style.display !== 'none' && style.visibility !== 'hidden';
+      });
+      return Math.min(...visibleText.map((node) => Number.parseFloat(getComputedStyle(node).fontSize)));
+    }));
+  }
+  await page.getByRole('button', { name: 'Your Own Shade' }).click();
+
+  const geometry = await page.evaluate(() => {
+    const stage = document.getElementById('stage').getBoundingClientRect();
+    const panel = document.querySelector('.vigil-panel');
+    const detail = document.getElementById('rose-pane-detail');
+    const box = detail.getBoundingClientRect();
+    const panelBox = panel.getBoundingClientRect();
+    const controls = [...document.querySelectorAll('.rose-pane-select')].map((control) => {
+      const rect = control.getBoundingClientRect();
+      return { width: rect.width, height: rect.height };
+    });
+    const inside = (inner, outer) => inner.left >= outer.left - 1 && inner.right <= outer.right + 1 &&
+      inner.top >= outer.top - 1 && inner.bottom <= outer.bottom + 1;
+    return {
+      detailVisible: box.width > 0 && box.height > 0,
+      detailInsideStage: inside(box, stage),
+      detailInsidePanel: inside(box, panelBox),
+      detailOverflow: [detail.scrollWidth - detail.clientWidth, detail.scrollHeight - detail.clientHeight],
+      panelOverflow: [panel.scrollWidth - panel.clientWidth, panel.scrollHeight - panel.clientHeight],
+      controls,
+    };
+  });
+
+  expect(geometry.detailVisible).toBe(true);
+  expect(geometry.detailInsideStage).toBe(true);
+  expect(geometry.detailInsidePanel).toBe(true);
+  expect(geometry.detailOverflow.every((amount) => amount <= 1)).toBe(true);
+  expect(geometry.panelOverflow.every((amount) => amount <= 1)).toBe(true);
+  expect(stateFontMins.every((fontPx) => fontPx >= 12)).toBe(true);
+  expect(geometry.controls.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
+});
+
 test('sealed door ignores a phone-landscape drag and opens on a later tap', async ({ page }) => {
   test.skip(test.info().project.name !== 'landscape', 'touch drag runs once in phone landscape');
   await seed(page, completeLedger());

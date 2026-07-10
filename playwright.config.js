@@ -5,27 +5,9 @@
 // rewards (double-tap guard regression for treasure/events/boss relic).
 // Runs against the dev server (reuses one already on 5174).
 import { defineConfig } from '@playwright/test';
+import { e2eServerSettings } from './playwright-server.js';
 
-const DEFAULT_E2E_PORT = 5174;
-const configuredPort = process.env.SPIREBOUND_E2E_PORT;
-const portText = configuredPort ?? String(DEFAULT_E2E_PORT);
-
-if (!/^\d{1,5}$/.test(portText)) {
-  throw new Error('SPIREBOUND_E2E_PORT must be an integer from 1 to 65535');
-}
-
-const e2ePort = Number(portText);
-if (e2ePort < 1 || e2ePort > 65535) {
-  throw new Error('SPIREBOUND_E2E_PORT must be an integer from 1 to 65535');
-}
-
-const isolatedE2E = configuredPort !== undefined;
-const e2eOrigin = isolatedE2E
-  ? `http://127.0.0.1:${e2ePort}`
-  : 'http://localhost:5174';
-const e2eCommand = isolatedE2E
-  ? `npm run dev -- --host 127.0.0.1 --port ${e2ePort} --strictPort`
-  : 'npm run dev';
+const e2eServer = e2eServerSettings(process.env.SPIREBOUND_E2E_PORT);
 
 export default defineConfig({
   testDir: 'test/e2e',
@@ -37,7 +19,7 @@ export default defineConfig({
   timeout: 90_000,
   reporter: [['list']],
   use: {
-    baseURL: e2eOrigin,
+    baseURL: e2eServer.origin,
     // tracing chokes on the WebGL-heavy page (corrupt zips + teardown hangs);
     // a failure screenshot is the useful artifact here
     trace: 'off',
@@ -75,9 +57,9 @@ export default defineConfig({
     { name: 'landscape', dependencies: ['bfeditor-disk'], use: { viewport: { width: 812, height: 375 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } },
   ],
   webServer: {
-    command: e2eCommand,
-    url: e2eOrigin,
-    reuseExistingServer: true,
+    command: e2eServer.command,
+    url: e2eServer.origin,
+    reuseExistingServer: e2eServer.reuseExistingServer,
     timeout: 30_000,
   },
 });

@@ -66,22 +66,28 @@ function hydrateReceipts(v) {
 
 function hydrateV2(v) {
   let changed = false;
+  const sourceQuests = plainObject(v.quests) ? v.quests : {};
   const quests = {};
   for (const id of QUEST_IDS) {
-    quests[id] = cloneQuest(v.quests?.[id] || blankQuest());
-    const normalisedProgress = quests[id].progress;
-    quests[id].progress = Math.min(QUESTS[id].target, quests[id].progress);
-    if (quests[id].progress !== normalisedProgress) changed = true;
-    if (!v.quests?.[id]) changed = true;
+    const source = sourceQuests[id];
+    const quest = cloneQuest(source || blankQuest());
+    quest.progress = Math.min(QUESTS[id].target, quest.progress);
+    quests[id] = quest;
+    if (!source || JSON.stringify(source) !== JSON.stringify(quest)) changed = true;
   }
+  if (!exactKeys(sourceQuests, QUEST_IDS)) changed = true;
   v.quests = quests;
   if ((v.deeds?.wins || 0) >= 1 && v.quests.paleOnes.state === 'dormant') {
     v.quests.paleOnes.state = 'armed';
     v.news = true;
     changed = true;
   }
-  v.shards = [...new Set((Array.isArray(v.shards) ? v.shards : []).filter((id) => QUEST_IDS.includes(id)))];
-  v.whispers = Math.max(0, Math.floor(Number(v.whispers) || 0));
+  const shards = [...new Set((Array.isArray(v.shards) ? v.shards : []).filter((id) => QUEST_IDS.includes(id)))];
+  if (JSON.stringify(v.shards) !== JSON.stringify(shards)) changed = true;
+  v.shards = shards;
+  const whispers = Math.max(0, Math.floor(Number(v.whispers) || 0));
+  if (v.whispers !== whispers) changed = true;
+  v.whispers = whispers;
   if (hydrateReceipts(v)) changed = true;
   return changed;
 }
@@ -112,12 +118,16 @@ export function loadVigil() {
     receipts: { deeds: null, runEnd: null },
     ...(v || {}),
   };
+  let changed = out.v !== 2;
   out.v = 2;
-  out.deeds = { ...DEFAULT_DEEDS, ...(out.deeds || {}) };
-  if (!Array.isArray(out.unlocks)) out.unlocks = [];
-  if (!Array.isArray(out.shards)) out.shards = [];
-  if (!out.quests || typeof out.quests !== 'object') out.quests = {};
-  if (hydrateV2(out)) {
+  const deeds = { ...DEFAULT_DEEDS, ...(plainObject(out.deeds) ? out.deeds : {}) };
+  if (JSON.stringify(out.deeds) !== JSON.stringify(deeds)) changed = true;
+  out.deeds = deeds;
+  if (!Array.isArray(out.unlocks)) { out.unlocks = []; changed = true; }
+  if (!Array.isArray(out.shards)) { out.shards = []; changed = true; }
+  if (!plainObject(out.quests)) { out.quests = {}; changed = true; }
+  if (hydrateV2(out)) changed = true;
+  if (changed) {
     try { getStore().setItem(KEY, JSON.stringify(out)); } catch { /* full */ }
   }
   return out;

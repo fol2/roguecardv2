@@ -780,7 +780,46 @@ function rosePaneCopy(id, record) {
   return '';
 }
 
-function rosePaneHtml(v, assets, id, index) {
+function rosePaneControl(id, state, index, selected, assets) {
+  const name = state === 'dormant'
+    ? `Dormant Emberglass pane ${index + 1}`
+    : state === 'armed'
+      ? `Unknown Emberglass pane ${index + 1}`
+      : QUESTS[id].name;
+  const [x, y] = ROSE_LABEL_POSITIONS[index];
+  const style = assets ? ` style="--rose-x:${x}%;--rose-y:${y}%"` : '';
+  return `<button type="button" class="rose-pane-select${assets ? '' : ' slot-control'}" data-a="rose-pane" data-index="${index}"
+    aria-label="${escHtml(name)}" aria-controls="rose-pane-detail" aria-pressed="${selected ? 'true' : 'false'}"${style}></button>`;
+}
+
+function roseDetailCopy(id, record) {
+  const quest = QUESTS[id];
+  if (record.state === 'armed') return '<div class="rose-detail-mystery">???</div>';
+  if (record.state === 'revealed') return `<div class="rose-detail-name">${escHtml(quest.name)}</div>
+    <div class="rose-detail-inscription">${escHtml(quest.inscription)}</div>
+    <div class="rose-detail-progress">${record.progress}/${quest.target}</div>`;
+  if (record.state === 'complete') return `<div class="rose-detail-name">${escHtml(quest.name)}</div>
+    <div class="rose-detail-progress">Shard recovered</div>`;
+  return '<div class="rose-detail-dormant">This pane is dark.</div>';
+}
+
+function rosePaneDetailHtml(v, index) {
+  const id = QUEST_IDS[index];
+  const record = v.quests[id] || { state: 'dormant', progress: 0, memory: {} };
+  const state = ['armed', 'revealed', 'complete'].includes(record.state) ? record.state : 'dormant';
+  return `<section id="rose-pane-detail" class="rose-pane-detail ${state}" role="region"
+    aria-label="Selected Emberglass pane" aria-live="polite" data-index="${index}">${roseDetailCopy(id, { ...record, state })}</section>`;
+}
+
+function initialRosePaneIndex(v) {
+  for (const state of ['revealed', 'armed', 'complete']) {
+    const index = QUEST_IDS.findIndex((id) => v.quests[id]?.state === state);
+    if (index >= 0) return index;
+  }
+  return 0;
+}
+
+function rosePaneHtml(v, assets, id, index, selected) {
   const record = v.quests[id] || { state: 'dormant', progress: 0, memory: {} };
   const state = ['armed', 'revealed', 'complete'].includes(record.state) ? record.state : 'dormant';
   const stateClasses = state === 'complete' ? 'complete lit' : state;
@@ -791,12 +830,14 @@ function rosePaneHtml(v, assets, id, index) {
     return `<div class="rose-pane rose-slot ${stateClasses}" data-index="${index}"${identity}>
       <span class="rose-slot-mark">${iconSvg(mark, 34)}</span>
       <div class="rose-pane-copy">${copy}</div>
+      ${rosePaneControl(id, state, index, selected, assets)}
     </div>`;
   }
   const [x, y] = ROSE_LABEL_POSITIONS[index];
   return `<div class="rose-pane ${stateClasses}" data-index="${index}"${identity} style="--rose-x:${x}%;--rose-y:${y}%">
     <div class="rose-pane-art" style="--rose-mural:url('${escHtml(assets.mural)}');--rose-mask:url('${escHtml(assets.masks[id])}')"></div>
     <div class="rose-pane-copy">${copy}</div>
+    ${rosePaneControl(id, state, index, selected, assets)}
   </div>`;
 }
 
@@ -813,10 +854,12 @@ function whisperLogHtml(v) {
 }
 
 function roseSurfaceHtml(v, assets) {
-  const panes = QUEST_IDS.map((id, i) => rosePaneHtml(v, assets, id, i)).join('');
+  const selected = initialRosePaneIndex(v);
+  const panes = QUEST_IDS.map((id, i) => rosePaneHtml(v, assets, id, i, i === selected)).join('');
   if (!assets) {
     return `<div class="rose-view">
       <div class="rose-window rose-fallback">${panes}</div>
+      ${rosePaneDetailHtml(v, selected)}
       ${whisperLogHtml(v)}
     </div>`;
   }
@@ -828,8 +871,24 @@ function roseSurfaceHtml(v, assets) {
       <img class="rose-frame" src="${escHtml(assets.frame)}" alt="">
       <div class="rose-preload" aria-hidden="true">${urls.map((url) => `<img src="${escHtml(url)}" alt="">`).join('')}</div>
     </div>
+    ${rosePaneDetailHtml(v, selected)}
     ${whisperLogHtml(v)}
   </div>`;
+}
+
+function selectRosePane(root, v, index) {
+  if (!Number.isInteger(index) || index < 0 || index >= QUEST_IDS.length) return;
+  const detail = $('#rose-pane-detail', root);
+  if (!detail) return;
+  const id = QUEST_IDS[index];
+  const record = v.quests[id] || { state: 'dormant', progress: 0, memory: {} };
+  const state = ['armed', 'revealed', 'complete'].includes(record.state) ? record.state : 'dormant';
+  detail.className = `rose-pane-detail ${state}`;
+  detail.dataset.index = String(index);
+  detail.innerHTML = roseDetailCopy(id, { ...record, state });
+  $$('.rose-pane-select', root).forEach((control) => {
+    control.setAttribute('aria-pressed', control.dataset.index === String(index) ? 'true' : 'false');
+  });
 }
 
 function decodeRoseAssets(root) {
@@ -1055,6 +1114,7 @@ function renderVigil({ tab = 'deeds' } = {}) {
     sfx.click();
     if (t.dataset.a === 'tab-deeds') draw('deeds');
     else if (t.dataset.a === 'tab-rose' && hasRose) draw('rose');
+    else if (t.dataset.a === 'rose-pane') selectRosePane(sc, v, Number(t.dataset.index));
     else if (t.dataset.a === 'back') show('title');
   };
 }
@@ -1072,7 +1132,11 @@ function startRun(run, resumed = false) {
   setTheme(run.act);
   const curNode = run.nodeId ? run.map.nodes.find((n) => n.id === run.nodeId) : null;
   setAltitude(run.act, curNode ? curNode.row : 0);
-  if (!resumed) E.saveRun(run);
+  const continueStart = () => routeStartedRun(run, resumed, curNode);
+  if (!resumed && !requireRunSave(run, continueStart)) return;
+  continueStart();
+}
+function routeStartedRun(run, resumed, curNode) {
   if (run.pendingDawn) { show('end', { won: true }); return; }
   if (run.pendingRunEnd) { finalisePendingRunEnd(run); return; }
   if (run.pendingHollow) { show('hollow', { nodeId: run.pendingHollow.nodeId }); return; }
@@ -1237,7 +1301,7 @@ function renderHollow() {
       </svg>
     </div>
     <div class="hollow-copy screen-enter">
-      <div class="hollow-kicker">THE UNLIT WAY · PRICE ${meetingIndex + 1} OF 5</div>
+      <div class="hollow-kicker">THE UNLIT WAY · PRICE ${meetingIndex + 1} OF ${QUESTS.hollowLamplighter.meetings.length}</div>
       <div class="hollow-title">THE HOLLOW LAMPLIGHTER</div>
       <div class="hollow-ask">“${escHtml(meeting.ask)}”</div>
       <div class="hollow-answer${pending.paid ? ' paid' : ''}" aria-live="polite">${pending.paid ? escHtml(pending.answer) : ''}</div>
@@ -1995,18 +2059,36 @@ function clampCombatChrome() {
   for (const x of ce.enemies) clampOne(x.topChrome, x.cplate);
   clampOne(ce.pTopChrome, ce.pCplate);
 
-  // Portrait formations can put independently edge-clamped plates on top of
-  // one another. Keep their authored actors in place and pack only the enemy
-  // plates, in DOM order, against the right edge. Dead members stay in this
-  // set so killing one foe cannot make the survivors jump sideways.
+  // Portrait formations can put independently edge-clamped chrome on top of
+  // one another. Keep the authored actors in place and pack enemy chrome, in
+  // DOM order, against the right edge. Top and bottom chrome are independent
+  // rows: their visible descendants have different widths and vertical spans.
+  // Dead members stay in each set so killing one foe cannot move survivors.
   const gap = 6;
-  const plates = ce.enemies.map((x) => x.cplate).filter(Boolean);
-  const visibleRect = (plate) => {
-    const nodes = [plate, ...plate.querySelectorAll(
-      '.name,.hpbar-wrap,.block-chip,.block-chip .ic,.block-chip .ui-icon,.block-chip .gicon,.hp-vial,.hp-label,.facet-row',
-    )];
+  const bottomVisible =
+    '.name,.hpbar-wrap,.block-chip,.block-chip .ic,.block-chip .ui-icon,' +
+    '.block-chip .gicon,.hp-vial,.hp-label,.facet-row';
+  const topVisible =
+    '.intent,.intent .ic,.intent .ui-icon,.intent .gicon,.intent .num,' +
+    '.status-row,.schip,.schip-art,.schip .n';
+  const visibleRect = (root, selector, remember = false) => {
+    const anchor = stageRect(root);
+    const nodes = [root, ...root.querySelectorAll(selector)];
     const rs = nodes.map((node) => stageRect(node)).filter((r) => r.width > 0 && r.height > 0);
-    return {
+    if (!rs.length) {
+      const saved = remember && root._combatChromeVisibleBox;
+      if (!saved) return anchor;
+      const centre = (anchor.left + anchor.right) / 2;
+      return {
+        left: centre + saved.left,
+        right: centre + saved.right,
+        top: anchor.bottom + saved.top,
+        bottom: anchor.bottom + saved.bottom,
+        width: saved.right - saved.left,
+        height: saved.bottom - saved.top,
+      };
+    }
+    const rect = {
       left: Math.min(...rs.map((r) => r.left)),
       right: Math.max(...rs.map((r) => r.right)),
       top: Math.min(...rs.map((r) => r.top)),
@@ -2014,27 +2096,42 @@ function clampCombatChrome() {
       width: Math.max(...rs.map((r) => r.right)) - Math.min(...rs.map((r) => r.left)),
       height: Math.max(...rs.map((r) => r.bottom)) - Math.min(...rs.map((r) => r.top)),
     };
+    if (remember) {
+      const centre = (anchor.left + anchor.right) / 2;
+      root._combatChromeVisibleBox = {
+        left: rect.left - centre,
+        right: rect.right - centre,
+        top: rect.top - anchor.bottom,
+        bottom: rect.bottom - anchor.bottom,
+      };
+    }
+    return rect;
   };
-  const rects = plates.map(visibleRect);
   const overlaps2D = (a, b) => a.left < b.right && b.left < a.right &&
     a.top < b.bottom && b.top < a.bottom;
   const overlapsVertically = (a, b) => a.top < b.bottom && b.top < a.bottom;
-  const hasCollision = rects.some((r, i) => rects.slice(i + 1).some((other) => overlaps2D(r, other)));
-  if (plates.length >= 2 && hasCollision) {
+  const pack = (elements, selector, heroEl, remember = false) => {
+    const rects = elements.map((el) => visibleRect(el, selector, remember));
+    const heroRect = heroEl ? visibleRect(heroEl, selector) : null;
+    const hasCollision = rects.some((r, i) =>
+      rects.slice(i + 1).some((other) => overlaps2D(r, other)));
+    const hitsHero = heroRect && rects.some((r) => overlaps2D(heroRect, r));
+    if (!elements.length || (!hasCollision && !hitsHero)) return;
     const packedWidth = rects.reduce((sum, r) => sum + r.width, 0) + gap * (rects.length - 1);
     const packedLeft = maxRight - packedWidth;
-    const heroRect = ce.pCplate ? stageRect(ce.pCplate) : null;
     const heroSharesRows = heroRect && rects.some((r) => overlapsVertically(heroRect, r));
     const packedMinLeft = heroSharesRows ? Math.max(minLeft, heroRect.right + gap) : minLeft;
     if (packedLeft >= packedMinLeft) {
       let targetLeft = packedLeft;
-      plates.forEach((plate, i) => {
-        const currentDx = Number.parseFloat(plate.style.getPropertyValue('--chrome-dx')) || 0;
-        plate.style.setProperty('--chrome-dx', `${currentDx + targetLeft - rects[i].left}px`);
+      elements.forEach((el, i) => {
+        const currentDx = Number.parseFloat(el.style.getPropertyValue('--chrome-dx')) || 0;
+        el.style.setProperty('--chrome-dx', `${currentDx + targetLeft - rects[i].left}px`);
         targetLeft += rects[i].width + gap;
       });
     }
-  }
+  };
+  pack(ce.enemies.map((x) => x.cplate).filter(Boolean), bottomVisible, ce.pCplate);
+  pack(ce.enemies.map((x) => x.topChrome).filter(Boolean), topVisible, ce.pTopChrome, true);
 }
 
 let chromeClampRaf = 0;
@@ -4548,7 +4645,10 @@ function renderTreasure() {
 function renderShop() {
   const run = S.run;
   const shop = (S.shopData ||= {});
+  const usurperState = E.questRecord(run, 'usurper')?.state;
   const st = shopStockForSession(shop, run, E.genShop);
+  const firstUsurperSight = usurperState === 'armed' && E.questRecord(run, 'usurper')?.state === 'revealed';
+  if (firstUsurperSight && !requireRunSave(run, renderShop)) return;
   const sc = screenEl();
   sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel ov-panel" style="width:min(980px,96vw)">
     <div style="display:flex;align-items:center;justify-content:center;gap:18px">
@@ -4610,18 +4710,27 @@ function renderShop() {
       const b = el('button', 'shop-relic shop-quest', `<span class="shop-quest-icon">${iconSvg('emptyLantern', 42)}</span><b>${escHtml(it.name)}</b>${escHtml(it.text)}`);
       b.onclick = () => {
         if (it.sold) return;
+        const leave = $('[data-a="leave"]', sc);
+        b.disabled = true;
+        if (leave) leave.disabled = true;
         const result = E.buyQuestItem(run, it.id);
         if (!result.ok) {
+          b.disabled = false;
+          if (leave) leave.disabled = false;
           sfx.debuff();
           if (result.reason === 'gold') say(QUESTS.usurper.poor);
           return;
         }
-        it.sold = true;
-        sfx.coin();
-        say(QUESTS.usurper.bought);
-        E.saveRun(run);
-        renderHud();
-        refresh();
+        const finishPurchase = () => {
+          it.sold = true;
+          sfx.coin();
+          say(QUESTS.usurper.bought);
+          renderHud();
+          refresh();
+          if (leave) leave.disabled = false;
+        };
+        if (!requireRunSave(run, finishPurchase)) return;
+        finishPurchase();
       };
       wrap.appendChild(b);
       wrap.appendChild(el('div', 'price', `${uiIcon('coin', 14)} ${it.price}`));

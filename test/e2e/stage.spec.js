@@ -208,9 +208,11 @@ test('maximum Emberglass profile and ceremonies fit every stage', async ({ page 
   await page.waitForTimeout(500);
   await expectNoOverflow(page, 'Vigil Rose', [
     '.vigil-panel', '.vigil-tabs', '.vigil-tabs .vtab', '.rose-view', '.rose-window',
-    '.rose-pane', '.rose-pane-copy', '.whisper-log', '.ov-actions', '[data-a="back"]',
+    '.rose-pane', '.rose-pane-copy', '.rose-pane-select', '.rose-pane-detail',
+    '.whisper-log', '.ov-actions', '[data-a="back"]',
   ], [
-    '.vigil-panel', '.vigil-tabs', '.rose-view', '.rose-window', '.whisper-log', '.ov-actions', '[data-a="back"]',
+    '.vigil-panel', '.vigil-tabs', '.rose-view', '.rose-window', '.rose-pane-detail',
+    '.whisper-log', '.ov-actions', '[data-a="back"]',
   ]);
 
   await page.evaluate(() => {
@@ -222,9 +224,11 @@ test('maximum Emberglass profile and ceremonies fit every stage', async ({ page 
   await expectNoOverflow(page, 'Vigil Rose fallback', [
     '.vigil-panel', '.vigil-tabs', '.vigil-tabs .vtab', '.rose-view', '.rose-fallback',
     '.rose-fallback .rose-slot', '.rose-fallback .rose-slot-mark', '.rose-fallback .rose-pane-copy',
+    '.rose-fallback .rose-pane-select', '.rose-pane-detail',
     '.whisper-log', '.ov-actions', '[data-a="back"]',
   ], [
-    '.vigil-panel', '.vigil-tabs', '.rose-view', '.rose-fallback', '.whisper-log', '.ov-actions', '[data-a="back"]',
+    '.vigil-panel', '.vigil-tabs', '.rose-view', '.rose-fallback', '.rose-pane-detail',
+    '.whisper-log', '.ov-actions', '[data-a="back"]',
   ]);
   const fallbackOverlaps = await page.evaluate(() => [...document.querySelectorAll('.rose-fallback .rose-slot')]
     .flatMap((slot, index) => {

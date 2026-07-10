@@ -113,7 +113,9 @@ async function combatChromeRects(page) {
       };
     };
     const union = (nodes) => {
-      const rs = nodes.filter(Boolean).map(rect);
+      const rs = nodes.filter(Boolean).map(rect)
+        .filter((r) => r.right > r.left && r.bottom > r.top);
+      if (!rs.length) return { left: 0, right: 0, top: 0, bottom: 0 };
       return {
         left: Math.min(...rs.map((r) => r.left)),
         right: Math.max(...rs.map((r) => r.right)),
@@ -149,12 +151,21 @@ async function combatChromeRects(page) {
         scrollWidth: wrap.scrollWidth,
       };
     });
+    const topVisible = (root) => union([
+      root,
+      ...root.querySelectorAll(
+        '.intent,.intent .ic,.intent .ui-icon,.intent .gicon,.intent .num,' +
+        '.status-row,.schip,.schip-art,.schip .n',
+      ),
+    ]);
     return {
       stage: info,
       hero: rect(document.querySelector('.player-zone .cplate')),
+      heroTopVisible: topVisible(document.querySelector('.player-zone .top-chrome')),
       enemy: [...document.querySelectorAll('.enemy .cplate')].map(rect),
       enemyVisible: hp.map((x) => x.visible),
       top: [...document.querySelectorAll('.enemy .top-chrome')].map(rect),
+      topVisible: [...document.querySelectorAll('.enemy .top-chrome')].map(topVisible),
       hp,
     };
   });
@@ -212,8 +223,27 @@ function assertEnemyHpChrome(rects, label) {
   }
 }
 
+function assertEnemyTopChrome(rects, label) {
+  rects.topVisible.forEach((r, i) => {
+    expect(r.left, `${label}: enemy top visible chrome ${i} left edge`).toBeGreaterThanOrEqual(4);
+    expect(r.right, `${label}: enemy top visible chrome ${i} right edge`)
+      .toBeLessThanOrEqual(rects.stage.w - 4);
+    expect(rectSeparation(rects.heroTopVisible, r),
+      `${label}: hero and enemy top visible chrome ${i} are 2D-separated`).toBeGreaterThanOrEqual(4);
+    if (i > 0) {
+      expect(r.left, `${label}: enemy top chrome preserves DOM order`)
+        .toBeGreaterThan(rects.topVisible[i - 1].left);
+    }
+    for (let j = i + 1; j < rects.topVisible.length; j++) {
+      expect(rectSeparation(r, rects.topVisible[j]),
+        `${label}: enemy top visible chrome ${i} and ${j} are 2D-separated`)
+        .toBeGreaterThanOrEqual(4);
+    }
+  });
+}
+
 function expectChromeRectsNear(actual, expected, label, tolerance = 1) {
-  for (const key of ['hero', 'enemy', 'enemyVisible', 'top']) {
+  for (const key of ['hero', 'heroTopVisible', 'enemy', 'enemyVisible', 'top', 'topVisible']) {
     const got = Array.isArray(actual[key]) ? actual[key] : [actual[key]];
     const want = Array.isArray(expected[key]) ? expected[key] : [expected[key]];
     expect(got.length, `${label}: ${key} rect count`).toBe(want.length);
@@ -309,6 +339,56 @@ test('reduced-motion portrait chrome is stable after the entrance class clears',
   assertCombatChrome(secondRefit, 'second explicit refit');
   assertEnemyHpChrome(secondRefit, 'second explicit refit');
   expectNoErrors(errors, 'reduced-motion entrance clamp');
+});
+
+test('portrait intent and status chrome stays separated through death and refits', async ({ page }) => {
+  test.skip(test.info().project.name !== 'portrait', 'portrait chrome regression');
+  const errors = collectErrors(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await boot(page, { query: 'mesh=0' });
+  await startFight(page, ['sporeling', 'sporeling', 'sporeling']);
+  await page.evaluate(() => {
+    const { S } = window.spirebound;
+    const statuses = [
+      { poison: 3, vulnerable: 2 },
+      { weak: 2, frail: 2 },
+      { poison: 4, weak: 2 },
+    ];
+    S.cb.enemies.forEach((enemy, i) => { enemy.statuses = statuses[i]; });
+    S.cb.player.statuses = { weak: 2 };
+    window.__probe.setEnergy(S.cb.player.energy);
+  });
+  await stable(page);
+
+  const settled = await combatChromeRects(page);
+  assertGrounded(await measure(page), 'status-heavy trio');
+  assertEnemyTopChrome(settled, 'status-heavy trio');
+
+  const killed = await page.evaluate(async () => {
+    window.__probe.setEnemyHp(0, 1);
+    window.__probe.setEnergy(3);
+    const [uid] = window.__probe.forceHand(['strike']);
+    return window.__probe.play(uid, 0);
+  });
+  expect(killed, 'status-heavy trio: real strike kills the first member').toBe(true);
+  await settle(page);
+  await page.waitForSelector('.enemy.gone', { state: 'attached' });
+  const afterDeath = await combatChromeRects(page);
+  for (let i = 1; i < settled.topVisible.length; i++) {
+    for (const edge of ['left', 'right']) {
+      expect(Math.abs(afterDeath.topVisible[i][edge] - settled.topVisible[i][edge]),
+        `status-heavy trio: survivor top chrome ${i} ${edge} does not jump after death`)
+        .toBeLessThanOrEqual(1);
+    }
+  }
+  assertEnemyTopChrome(afterDeath, 'status-heavy trio after death');
+
+  await page.evaluate(() => window.spirebound.refitCombat());
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const afterRefit = await combatChromeRects(page);
+  expectChromeRectsNear(afterRefit, afterDeath, 'status-heavy trio explicit refit');
+  assertEnemyTopChrome(afterRefit, 'status-heavy trio explicit refit');
+  expectNoErrors(errors, 'status-heavy trio top chrome');
 });
 
 test('authored ground positions survive a live resize', async ({ page }) => {

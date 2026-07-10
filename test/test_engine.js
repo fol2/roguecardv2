@@ -2104,6 +2104,52 @@ function forceHand(run, cb, ids) {
   _setStore(null);
 }
 {
+  // Emberglass scheduler/save bounds derive from authored tunables rather
+  // than retaining the launch values 2, 3, and 5 in parallel.
+  const oldGuaranteeRuns = PROGRESSION.emberglass.eighthOmen.guaranteeRuns;
+  const oldEmberDebt = PROGRESSION.emberglass.hollowLamplighter.emberDebt;
+  const oldPageTarget = QUESTS.unreadablePage.target;
+  const previousLocalStorage = globalThis.localStorage;
+  const mem = new Map();
+  try {
+    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = 4;
+    EngineApi._setQuestRng(() => 0.99);
+    const eighthQuests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'eighthOmen' ? 'armed' : 'dormant', progress: 0,
+      memory: id === 'eighthOmen' ? { dueIn: 4 } : {},
+    }]));
+    const missed = newRun(466, { quests: eighthQuests, reveals: [] });
+    assert.deepEqual(missed.questScratch.eighthOmen, { active: false });
+    assert.equal(missed.quests.eighthOmen.memory.dueIn, 3,
+      'a configured four-run guarantee decrements instead of assuming two');
+    eighthQuests.eighthOmen.memory.dueIn = 1;
+    const forced = newRun(467, { quests: eighthQuests, reveals: [] });
+    assert.deepEqual(forced.questScratch.eighthOmen, { active: true },
+      'the final configured guarantee run remains forced');
+
+    PROGRESSION.emberglass.hollowLamplighter.emberDebt = 4;
+    QUESTS.unreadablePage.target = 6;
+    globalThis.localStorage = {
+      getItem: (key) => mem.get(key) ?? null,
+      setItem: (key, value) => mem.set(key, value),
+      removeItem: (key) => mem.delete(key),
+    };
+    const dynamicSave = newRun(468);
+    dynamicSave.quests.eighthOmen = { state: 'armed', progress: 0, memory: { dueIn: 4 } };
+    dynamicSave.quests.hollowLamplighter = { state: 'revealed', progress: 0, memory: { emberDebt: 4 } };
+    dynamicSave.endQueue = [{ t: 'pageRead', index: 6, text: 'A sixth configured page.' }];
+    assert.equal(saveRun(dynamicSave), true);
+    assert.ok(loadRun(), 'configured guarantee, ember debt, and Page target pass save validation');
+  } finally {
+    EngineApi._setQuestRng(null);
+    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = oldGuaranteeRuns;
+    PROGRESSION.emberglass.hollowLamplighter.emberDebt = oldEmberDebt;
+    QUESTS.unreadablePage.target = oldPageTarget;
+    if (previousLocalStorage) globalThis.localStorage = previousLocalStorage;
+    else delete globalThis.localStorage;
+  }
+}
+{
   const q = Object.fromEntries(QUEST_IDS.map((id) => [id, {
     state: id === 'unreadablePage' ? 'armed' : 'dormant', progress: 0, memory: {},
   }]));
@@ -2379,6 +2425,48 @@ function forceHand(run, cb, ids) {
   assert.ok(mem.has('spirebound_vigil_v2'), 'v2 persisted');
   assert.ok(mem.has('spirebound_vigil_v1'), 'v1 backup untouched');
   assert.equal(loadVigil().runsPlayed, 40, 'migration idempotent (reads v2 now)');
+  _setStore(null);
+}
+{
+  // Hydration repairs are durable: a malformed-but-readable v2 ledger is
+  // canonicalised once, then the next load is a read-only no-op.
+  const malformed = {
+    v: 2,
+    deeds: { wins: 0 },
+    unlocks: [],
+    vowUnlocked: 0,
+    lastFall: null,
+    runsPlayed: 0,
+    quests: {
+      paleOnes: { state: 'waiting', progress: '3.8', memory: [] },
+      ownShade: { state: 'revealed', progress: 999, memory: {}, extra: true },
+      unknown: { state: 'complete', progress: 1, memory: {} },
+    },
+    shards: ['paleOnes', 'unknown', 'paleOnes'],
+    whispers: '4.9',
+    news: false,
+    receipts: { deeds: null, runEnd: null },
+  };
+  const mem = new Map([['spirebound_vigil_v2', JSON.stringify(malformed)]]);
+  let writes = 0;
+  _setStore({
+    getItem: (key) => mem.get(key) ?? null,
+    setItem: (key, value) => { writes++; mem.set(key, value); },
+    removeItem: (key) => mem.delete(key),
+  });
+  const repaired = loadVigil();
+  assert.equal(repaired.quests.paleOnes.state, 'dormant', 'invalid quest state is repaired');
+  assert.equal(repaired.quests.paleOnes.progress, 3, 'string/fraction progress is canonicalised');
+  assert.deepEqual(repaired.quests.paleOnes.memory, {}, 'invalid quest memory is repaired');
+  assert.equal(repaired.quests.ownShade.progress, QUESTS.ownShade.target, 'progress is capped by data');
+  assert.deepEqual(Object.keys(repaired.quests), QUEST_IDS, 'missing and unknown quest records are repaired');
+  assert.deepEqual(repaired.shards, ['paleOnes'], 'unknown and duplicate shards are removed');
+  assert.equal(repaired.whispers, 4, 'whisper count is canonicalised');
+  assert.equal(writes, 1, 'all repairs are persisted in one write');
+  const durable = mem.get('spirebound_vigil_v2');
+  assert.deepEqual(loadVigil(), repaired, 'the canonical ledger reloads identically');
+  assert.equal(mem.get('spirebound_vigil_v2'), durable, 'the second load leaves canonical bytes untouched');
+  assert.equal(writes, 1, 'the second load does not repeat a missed repair write');
   _setStore(null);
 }
 {
