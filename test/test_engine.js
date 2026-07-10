@@ -3302,7 +3302,11 @@ function randomAgentRun(seed) {
   checkManifest('statuses', Object.keys(STATUS_INFO));
   checkManifest('deeds', Object.keys(DEEDS));
   checkManifest('bequests', ['relic', 'card', 'gold']);
-  checkManifest('meta', ['fallen', 'ascended', 'monument-node']);
+  const ROSE_OPTIONAL = [
+    'emberglass-mural', 'emberglass-frame',
+    ...QUEST_IDS.map((id) => 'emberglass-mask-' + id),
+  ];
+  checkManifest('meta', ['fallen', 'ascended', 'monument-node'], ROSE_OPTIONAL);
   checkManifest('ui', UI_CHROME_IDS);
 }
 
@@ -3377,12 +3381,16 @@ function randomAgentRun(seed) {
 // iconSvg output used by the browser, not merely the structural registry source.
 {
   const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
-  let paleMote, emptyLantern, eighthOmen;
+  let paleMote, emptyLantern, eighthOmen, emberglassIcons;
   try {
     const { iconSvg } = await vite.ssrLoadModule('/src/art.js');
     paleMote = iconSvg('paleMote', 18);
     emptyLantern = iconSvg('emptyLantern', 18);
     eighthOmen = iconSvg('eighthOmen', 18);
+    emberglassIcons = Object.fromEntries(
+      ['emberglassShard', 'roseWindow', 'unreadablePage', 'hollowLantern', 'sealedDoor']
+        .map((id) => [id, iconSvg(id, 18)]),
+    );
   } finally {
     await vite.close();
   }
@@ -3396,6 +3404,12 @@ function randomAgentRun(seed) {
     'every broken omen stroke has real non-empty path output');
   assert.equal(eighthOmen.replace(/<[^>]+>/g, '').trim(), '',
     'the broken omen icon contains no font glyph');
+  for (const [id, svg] of Object.entries(emberglassIcons)) {
+    assert.match(svg, /<path\b[^>]*\bd="[^"]+"[^>]*>/,
+      `${id} iconSvg output contains a non-empty path d`);
+    assert.equal(svg.replace(/<[^>]+>/g, '').trim(), '',
+      `${id} icon contains no font glyph`);
+  }
 }
 
 // ---- battlefield layout schema (spec 2026-07-06-battlefield-editor-design) ----

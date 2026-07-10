@@ -1983,7 +1983,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   #grain { display: none; }
-  #wipe, #transit, .rose-window { display: none; }
+  #wipe, #transit { display: none; }
   .logo, .card.r-rare .card-inner::after, .energy-orb::before { animation: none; }
   #lantern.gutter, .stage-dim.gutter, .candle.lit, .hero-wrap.warded::before, .enemy-art.warded::before { animation: none; }
   .lantern-btn.ready, .end-turn.ready { animation: none; }
@@ -1997,6 +1997,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .mnode .pale-lens { animation: none; opacity: 1; }
   .reward-list .reward-row, .shop-row .shop-item, .deed-list .deed-row { animation: none; }
   .hollow-figure, .hollow-lamplighter .screen-enter { animation: none; }
+  .rose-window, .rose-pane-art, .title-rose-medallion, .sealed-door, .dawn-event { animation: none; transition: none; }
 }
 
 /* breakpoints now query the fixed stage, not the window: pad shapes (1024/768)
@@ -2335,4 +2336,129 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
 @keyframes vigil-news {
   0%, 100% { opacity: 0.25; transform: scale(1); }
   50% { opacity: 0.9; transform: scale(1.04); }
+}
+
+/* ---- Emberglass: the Vigil's six-pane Rose Window */
+.center-panel .vigil-panel.rose-tab-open { width: min(720px, 92cqw); max-width: 720px; }
+.rose-view { display: flex; flex-direction: column; align-items: center; gap: 12px; min-height: 0; }
+.rose-view .rose-window {
+  position: relative; inset: auto; top: auto; left: auto; z-index: auto;
+  width: min(430px, 76cqw, 50cqh); aspect-ratio: 1; flex: 0 0 auto;
+  transform: none; pointer-events: none; mix-blend-mode: normal; animation: none;
+  border-radius: 50%; overflow: hidden; isolation: isolate;
+  background: radial-gradient(circle, rgba(29, 31, 48, 0.96), rgba(5, 7, 14, 0.98) 72%);
+  box-shadow: inset 0 0 42px rgba(0, 0, 0, 0.9), 0 0 28px rgba(124, 98, 177, 0.18);
+}
+.rose-assets { opacity: 0.72; transition: opacity 0.35s ease; }
+.rose-assets.ready { opacity: 1; }
+.rose-assets .rose-backdrop { position: absolute; inset: 4%; border-radius: 50%; background: #080a12; }
+.rose-assets .rose-pane { position: absolute; inset: 0; }
+.rose-assets .rose-pane-art {
+  position: absolute; inset: 0;
+  -webkit-mask-image: var(--rose-mask); mask-image: var(--rose-mask);
+  -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  background: rgba(111, 105, 146, 0.08);
+}
+.rose-assets .rose-pane.armed .rose-pane-art { background: rgba(215, 224, 255, 0.18); filter: drop-shadow(0 0 12px rgba(213, 225, 255, 0.6)); }
+.rose-assets .rose-pane.revealed .rose-pane-art { background: rgba(174, 145, 220, 0.28); }
+.rose-assets .rose-pane.complete .rose-pane-art { background-image: var(--rose-mural); background-size: 100% 100%; opacity: 1; }
+.rose-assets .rose-pane-copy {
+  position: absolute; left: var(--rose-x); top: var(--rose-y); z-index: 3;
+  width: 29%; transform: translate(-50%, -50%); padding: 4px 5px;
+  border-radius: 6px; background: rgba(3, 5, 11, 0.76); text-align: center;
+  text-shadow: 0 1px 3px #000;
+}
+.rose-assets .rose-pane.dormant .rose-pane-copy { display: none; }
+.rose-frame { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; object-fit: contain; }
+.rose-preload { display: none; }
+.rose-pane-name { font: 700 9px/1.15 'Cinzel', serif; color: #fff3d6; }
+.rose-pane-inscription { margin-top: 2px; font-size: 7px; line-height: 1.22; color: #c8c6d4; }
+.rose-pane-progress, .rose-pane-mystery { margin-top: 2px; font: 700 9px/1.1 'Cinzel', serif; color: var(--gold); }
+.rose-pane-mystery { margin: 0; letter-spacing: 0.16em; }
+
+.rose-fallback {
+  width: min(620px, 84cqw) !important; aspect-ratio: auto !important; border-radius: 18px !important;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+  padding: 10px; overflow: visible !important; background: rgba(5, 7, 14, 0.88) !important;
+}
+.rose-fallback .rose-slot {
+  position: relative; min-height: 112px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 5px; padding: 9px; border: 1px solid rgba(167, 169, 202, 0.18); border-radius: 10px;
+  background: linear-gradient(155deg, rgba(34, 37, 57, 0.72), rgba(8, 10, 18, 0.84));
+}
+.rose-fallback .rose-slot.armed { border-color: rgba(215, 224, 255, 0.42); box-shadow: inset 0 0 18px rgba(215, 224, 255, 0.08); }
+.rose-fallback .rose-slot.revealed { border-color: rgba(184, 150, 225, 0.48); }
+.rose-fallback .rose-slot.complete { border-color: rgba(242, 193, 78, 0.62); background: linear-gradient(155deg, rgba(77, 58, 28, 0.78), rgba(17, 12, 9, 0.88)); }
+.rose-slot-mark { color: #777d96; line-height: 0; }
+.rose-slot.complete .rose-slot-mark { color: var(--gold); filter: drop-shadow(0 0 8px rgba(242, 193, 78, 0.5)); }
+.rose-fallback .rose-pane-copy { font-size: 10px; line-height: 1.28; text-align: center; }
+.rose-fallback .rose-pane-name { font-size: 11px; }
+.rose-fallback .rose-pane-inscription { font-size: 9px; }
+
+.whisper-log { width: min(620px, 84cqw); max-height: 21cqh; overflow-y: auto; padding: 7px 10px; border-top: 1px solid rgba(242, 193, 78, 0.18); }
+.whisper-log-title { margin-bottom: 5px; font: 700 10px/1 'Cinzel', serif; letter-spacing: 0.13em; text-transform: uppercase; color: var(--gold-dim); }
+.whisper-row { display: grid; grid-template-columns: 22px 1fr; gap: 7px; padding: 3px 0; text-align: left; font-size: 10px; line-height: 1.35; color: #b9bbca; }
+.whisper-row span { color: #666c83; text-align: right; }
+.whisper-row.final { color: var(--gold); }
+
+/* the title medallion is raster-only: no atomic art set means no surface */
+.title-screen > .title-rose-medallion {
+  position: absolute; left: calc(18px + var(--sal)); bottom: calc(18px + var(--sab));
+  width: 78px; height: 78px; padding: 0; border: 1px solid rgba(242, 193, 78, 0.45); border-radius: 50%;
+  overflow: hidden; background: #070912; color: var(--gold); cursor: pointer;
+  box-shadow: 0 0 24px rgba(242, 193, 78, 0.2); transition: transform 0.2s, box-shadow 0.2s;
+}
+.title-rose-medallion:hover { transform: scale(1.06); box-shadow: 0 0 30px rgba(242, 193, 78, 0.36); }
+.title-rose-composite, .title-rose-pane { position: absolute; inset: 0; display: block; }
+.title-rose-composite { background: #080a12; }
+.title-rose-pane {
+  background-image: var(--rose-mural); background-size: 100% 100%;
+  -webkit-mask-image: var(--rose-mask); mask-image: var(--rose-mask);
+  -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
+}
+.title-rose-composite > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+
+/* the door is a promise above the projected summit, never a map node */
+.sealed-door {
+  position: absolute; left: 0; top: 0; z-index: 5; width: 116px; min-height: 74px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  padding: 7px; border: 1px solid rgba(255, 233, 172, 0.55); border-radius: 48% 48% 12px 12px;
+  background: rgba(5, 6, 12, 0.9); color: #fff3d6; cursor: pointer;
+  box-shadow: 0 0 24px rgba(255, 233, 172, 0.2); transform: translate(50cqw, 104px) translate(-50%, -50%);
+}
+.sealed-door span { line-height: 0; }
+.sealed-door small { font: 700 8px/1.1 'Cinzel', serif; letter-spacing: 0.1em; }
+.sealed-door-panel { width: min(440px, 90cqw); text-align: center; }
+.sealed-door-mark { margin: 16px auto; color: var(--gold); filter: drop-shadow(0 0 18px rgba(242, 193, 78, 0.3)); }
+.door-inscription { margin: 18px 0 8px; font: italic 18px/1.3 'Cinzel', serif; letter-spacing: 0.08em; color: #fff3d6; }
+
+/* queue-driven dawn disclosures; every persisted event is presentation-only */
+.end-screen:has(.dawn-ceremony) { gap: 10px; padding: 18px; overflow-y: auto; justify-content: safe center; }
+.dawn-ceremony {
+  width: min(780px, 94cqw); max-height: 27cqh; overflow-y: auto;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 8px;
+}
+.dawn-event {
+  min-height: 82px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 9px 11px; border: 1px solid rgba(242, 193, 78, 0.22); border-radius: 9px;
+  background: rgba(8, 9, 16, 0.82); text-align: center;
+  opacity: 0; transform: translateY(12px); transition: opacity 550ms ease, transform 550ms ease;
+}
+.dawn-event.shown { opacity: 1; transform: translateY(0); }
+.dawn-kicker { font: 700 9px/1.2 'Cinzel', serif; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold-dim); }
+.dawn-name { margin-top: 3px; font: 700 12px/1.2 'Cinzel', serif; color: #fff3d6; }
+.dawn-copy, .dawn-whisper { margin-top: 4px; font-size: 10px; line-height: 1.35; color: #c7c5cf; }
+.dawn-count { margin-top: 5px; font: 700 17px/1 'Cinzel', serif; color: var(--gold); }
+.dawn-icon { color: var(--gold); line-height: 0; }
+
+@container stage (max-width: 740px) {
+  .rose-fallback { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rose-fallback .rose-slot { min-height: 102px; }
+  .rose-view .rose-window { width: min(86cqw, 44cqh); }
+  .rose-assets .rose-pane-copy { width: 34%; padding: 2px 3px; }
+  .rose-pane-name, .rose-pane-progress, .rose-pane-mystery { font-size: 7px; }
+  .rose-pane-inscription { font-size: 5.5px; }
+  .title-screen > .title-rose-medallion { width: 58px; height: 58px; }
+  .dawn-ceremony { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 24cqh; }
 }

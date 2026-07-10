@@ -2626,7 +2626,8 @@ test('Rose panes disclose only their current state', async ({ page }) => {
   await expect(page.locator('.rose-pane[data-quest="paleOnes"]')).toContainText('???');
   await expect(page.locator('.rose-pane[data-quest="ownShade"]')).toContainText('1/3');
   await expect(page.locator('.rose-pane[data-quest="usurper"]')).toHaveClass(/complete/);
-  await expect(page.locator('.rose-pane.dormant')).not.toContainText('Hollow');
+  await expect(page.locator('.rose-pane.dormant').filter({ hasText: 'Hollow' })).toHaveCount(0);
+  await expect(page.locator('.rose-pane.dormant[data-quest]')).toHaveCount(0);
   await expect(page.locator('.whisper-row')).toHaveCount(v.whispers);
 });
 
@@ -2656,10 +2657,17 @@ test('six shards expose a promise, never Act 4 gameplay', async ({ page }) => {
     sp.show('map');
   });
   await expect(page.locator('[data-a="sealed-door"]')).toHaveCount(1);
+  const before = await page.evaluate(() => ({
+    run: JSON.stringify(window.spirebound.S.run),
+    save: localStorage.getItem('spirebound_save_v2'),
+  }));
   await page.click('[data-a="sealed-door"]');
   await expect(page.locator('.sealed-door-panel')).toContainText('the climb continues');
+  await page.click('[data-a="close-door"]');
   expect(await page.evaluate(() => window.spirebound.S.run.act)).toBe(2);
   expect(await page.evaluate(() => window.spirebound.S.run.nodeId)).toBe(null);
+  expect(await page.evaluate(() => JSON.stringify(window.spirebound.S.run))).toBe(before.run);
+  expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBe(before.save);
 });
 ~~~
 
