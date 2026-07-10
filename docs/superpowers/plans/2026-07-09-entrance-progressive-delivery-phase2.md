@@ -3129,6 +3129,8 @@ git commit -m "Add the Emberglass Rose Window art set"
 **Files:**
 - Create: tools/emberglass-pacing.mjs
 - Modify: package.json (add test:progression)
+- Modify: src/data.js (pacing tunables only when the acceptance gate is red)
+- Modify: test/test_engine.js (keep pity fixtures derived from the accepted tunable)
 
 **Interfaces:**
 - Consumes only public data/vigil/engine exports from Tasks 1-10.
@@ -3201,14 +3203,17 @@ function killWithRealCombat(run, enemyId, kind = 'monster') {
   const cb = startCombat(run, [enemyId], kind);
   cb.enemies[0].hp = 1;
   cb.player.energy = 99;
-  let attack = cb.hand.find((c) => cardData(c).type === 'attack' && !cardData(c).unplayable);
-  for (let i = 0; !attack && i < 20; i++) {
-    drawCards(run, cb, 1);
-    attack = cb.hand.find((c) => cardData(c).type === 'attack' && !cardData(c).unplayable);
+  for (let i = 0; cb.result !== 'win' && i < 20; i++) {
+    const attack = cb.hand.find((c) => cardData(c).type === 'attack' && !cardData(c).unplayable);
+    if (!attack) {
+      drawCards(run, cb, 1);
+      continue;
+    }
+    if (!playCard(run, cb, attack.uid, 0)) {
+      throw new Error('pacing combat fixture could not play an attack against ' + enemyId);
+    }
   }
-  if (!attack || !playCard(run, cb, attack.uid, 0) || cb.result !== 'win') {
-    throw new Error('pacing combat fixture failed against ' + enemyId);
-  }
+  if (cb.result !== 'win') throw new Error('pacing combat fixture failed against ' + enemyId);
   return cb;
 }
 
@@ -3392,9 +3397,9 @@ Expected: both deterministic lines print. If both acceptance bands already pass,
 
 - [ ] **Step 3: Tune data only**
 
-If the guided median is below 18, lower Hollow appearanceChance no lower than 0.4, raise pityEligibleRuns no higher than 3, or lower markedAct2Chance no lower than 0.4. If it is above 24, reverse those changes up to 0.6, 2, and 0.6 respectively. If the unguided median is outside 40-65, adjust only those same three real data tunables, one at a time, rerunning both models after each change. Do not change quest target counts, arm wins, offer ordinal, or simulation policy to make the test pass.
+If the guided median is below 18, lower Hollow appearanceChance no lower than 0.2, raise pityEligibleRuns no higher than 3, or lower markedAct2Chance no lower than 0.4. If slowing one axis pushes unguided completion below 1,980, compensate with markedAct2Chance up to 0.6 before lowering appearanceChance another 0.1. If the guided median is above 24, reverse those changes up to 0.6, 2, and 0.6 respectively. If the unguided median is outside 40-65, adjust only those same three real data tunables, one at a time, rerunning both models after each change. Do not change quest target counts, arm wins, offer ordinal, or simulation policy to make the test pass.
 
-Record the accepted values in a short comment beside PROGRESSION.emberglass. No engine/UI refactor is allowed in this step.
+The first accepted triple for this implementation is markedAct2Chance 0.6, appearanceChance 0.2, and pityEligibleRuns 3. Record the accepted values in a short comment beside PROGRESSION.emberglass. No engine/UI refactor is allowed in this step.
 
 - [ ] **Step 4: Run regression and reproducibility gates**
 
@@ -3411,7 +3416,7 @@ Expected: identical percentile output on both simulator runs; npm test PASS.
 - [ ] **Step 5: Commit**
 
 ~~~bash
-git add tools/emberglass-pacing.mjs package.json src/data.js
+git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md package.json src/data.js test/test_engine.js tools/emberglass-pacing.mjs
 git commit -m "Tune Emberglass progression to the long-game target"
 ~~~
 

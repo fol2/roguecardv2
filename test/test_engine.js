@@ -3028,12 +3028,13 @@ function forceHand(run, cb, ids) {
   assert.equal(glass.player.maxHp, hp0 + 14, 'Tempered Glass raises Max HP');
 }
 {
+  const pityMisses = PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1;
   const q = Object.fromEntries(QUEST_IDS.map((id) => [id, {
     state: id === 'hollowLamplighter' ? 'armed' : 'dormant', progress: 0,
-    memory: id === 'hollowLamplighter' ? { eligibleMisses: 1 } : {},
+    memory: id === 'hollowLamplighter' ? { eligibleMisses: pityMisses } : {},
   }]));
   const run = newRun(480, { quests: q, lamplighter: true });
-  assert.equal(run.questScratch.hollowLamplighter.due, true, 'pity forces second eligible run');
+  assert.equal(run.questScratch.hollowLamplighter.due, true, 'configured pity forces the eligible run');
 
   const unlit = run.map.nodes.find((n) => n.unlit);
   assert.ok(unlit, 'scenario has an unlit node');
@@ -3058,7 +3059,7 @@ function forceHand(run, cb, ids) {
       state: id === 'hollowLamplighter' ? previous.state : 'dormant',
       progress: id === 'hollowLamplighter' ? previous.progress : 0,
       memory: id === 'hollowLamplighter'
-        ? { ...previous.memory, eligibleMisses: 1 } : {},
+        ? { ...previous.memory, eligibleMisses: pityMisses } : {},
     }]));
     const next = newRun(seed, { quests });
     const node = next.map.nodes.find((n) => n.unlit);
@@ -3145,7 +3146,7 @@ function forceHand(run, cb, ids) {
   _setStore(null);
   const debtVigil = loadVigil();
   debtVigil.quests.hollowLamplighter = {
-    state: 'armed', progress: 0, memory: { eligibleMisses: 1 },
+    state: 'armed', progress: 0, memory: { eligibleMisses: pityMisses },
   };
   saveVigil(debtVigil);
   const debtRun = newRun(520, { quests: questSnapshot(debtVigil) });
@@ -3283,13 +3284,16 @@ function forceHand(run, cb, ids) {
   let out = commitRunEnd(left, 'death');
   assert.equal(out.vigil.quests.hollowLamplighter.memory.eligibleMisses, 0,
     'returning later ends only this run meeting');
-  const laterEligible = newRun(535, { quests: questSnapshot(out.vigil) });
-  assert.ok(laterEligible.questScratch.hollowLamplighter,
-    'an unpaid price remains eligible in a later run');
-  laterEligible.questScratch.hollowLamplighter = { due: false, met: false, debtActive: false };
-  out = commitRunEnd(laterEligible, 'death');
-  assert.equal(out.vigil.quests.hollowLamplighter.memory.eligibleMisses, 1);
-  const pityRetry = newRun(536, { quests: questSnapshot(out.vigil) });
+  const pityRuns = PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns;
+  for (let misses = 1; misses < pityRuns; misses++) {
+    const laterEligible = newRun(534 + misses, { quests: questSnapshot(out.vigil) });
+    assert.ok(laterEligible.questScratch.hollowLamplighter,
+      'an unpaid price remains eligible in a later run');
+    laterEligible.questScratch.hollowLamplighter = { due: false, met: false, debtActive: false };
+    out = commitRunEnd(laterEligible, 'death');
+    assert.equal(out.vigil.quests.hollowLamplighter.memory.eligibleMisses, misses);
+  }
+  const pityRetry = newRun(535 + pityRuns, { quests: questSnapshot(out.vigil) });
   assert.equal(pityRetry.questScratch.hollowLamplighter.due, true,
     'an unpaid price returns under the normal pity guarantee');
   _setStore(null);

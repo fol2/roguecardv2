@@ -1166,10 +1166,11 @@ export const PROGRESSION = {
     },
   },
   emberglass: {
+    // Accepted 2,000-seed pacing: Act II mark 0.6, Hollow chance 0.2 and pity 3 (guided 18; unguided 50).
     armWins: [2, 4, 6, 8, 10],
     paleOnes: {
       lensAt: 3, completeAt: 9, hiddenPerRun: 1,
-      markedAct1: 1, markedAct2Chance: 0.5,
+      markedAct1: 1, markedAct2Chance: 0.6,
     },
     ownShade: {
       minDeathAct: 1, completeAt: 3,
@@ -1183,7 +1184,7 @@ export const PROGRESSION = {
     eighthOmen: { guaranteeRuns: 2, recurrenceChance: 1 / 3, completeAt: 1 },
     unreadablePage: { offerRewardOrdinal: 2, completeAt: 5 },
     hollowLamplighter: {
-      appearanceChance: 0.5, pityEligibleRuns: 2, maxMeetingsPerRun: 1,
+      appearanceChance: 0.2, pityEligibleRuns: 3, maxMeetingsPerRun: 1,
       completeAt: 5, emberDebt: 3, gold: 160, maxHp: 12, minMaxHpAfter: 30, finalHp: 1,
     },
     variantStats: {
