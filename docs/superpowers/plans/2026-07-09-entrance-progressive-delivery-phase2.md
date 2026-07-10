@@ -2941,6 +2941,17 @@ Composition: central door and stair remain readable through six equal radial pan
 Constraints: opaque square artwork; no text, letters, numbers, labels, logo, watermark, UI, card frame, people worshipping, modern architecture, open door, landscape beyond the door, or playable Act 4 scene.
 ~~~
 
+Before clean-up, compare the source against the deterministic mask order. A
+source is rejected if any quest symbol is absent, occupies another quest's
+sector, or makes the sealed door a seventh narrative sector. Record every
+rejected source and generated ID. After two exact-prompt generations fail this
+same alignment gate, take the stronger source through one Nano Banana
+composition-repair pass with this exact prompt, then re-run the gate:
+
+~~~text
+Recompose only the contents of this existing square stained-glass mural so it aligns with six fixed equal radial masks. Clockwise from the top, the six sectors must be exactly: three pale figures carrying one cold shard down a black stair; a standing memorial shadow facing its living self; an empty lantern beneath a false crown; seven simple abstract marks broken by one eighth dark stroke; five pages turning into one stair-map; and a gaunt lamplighter surrendering the last flame. Keep one narrow black-and-gold stair as the continuous central connective motif and keep the sealed obsidian door with one thin white-gold seam above it, but do not let the door replace or create a seventh sector. Keep every quest subject well inside its own sector and outside the central 14 percent boss. Preserve the serious cartoon-gothic stained-glass style, chunky black lead, matte texture, black obsidian, smoke violet, cold cyan, dead white, tarnished gold, and one restrained ember-orange seam. Change no other design intent. No text, letters, numbers, labels, logo, watermark, UI, open door, door landscape, church congregation, modern architecture, or playable Act 4 scene.
+~~~
+
 Save the returned source and generated ID evidence under scratch/style-tests/emberglass-rose-window-20260709/. Run the fixed Nano Banana clean-up for a full-background scene, preserving the square composition and lowering background detail. Record source, prompt, generated ID, cleaned path, selection, and review verdict in prompt-ledger.md using apply_patch. Promote the accepted cleaned mural to src/assets/meta/emberglass-mural.png. If generation is unavailable, mark this task BLOCKED and leave the fallback intact; never fabricate an asset.
 
 Use this exact Nano Banana prompt:
@@ -2948,6 +2959,28 @@ Use this exact Nano Banana prompt:
 ~~~text
 帮我将这张图片重绘和清晰化，让它细节更丰富，同时去掉原图中杂乱不必要的细节。重要：这次不做 alpha、chroma-key、cutout 或透明背景控制；请严格保留完整的 1:1 Spirebound Emberglass mural、六个径向叙事区域、中央黑金阶梯和顶部封闭的黑曜石门。加强粗黑 lead contours 和六个大色块，减少碎玻璃、微小装饰和背景噪音，让 160px 仍能读到阶梯与封闭门。背景对比度必须低于六个主体。保留黑曜石、烟紫、冷青、死白、旧金和单一 ember-orange 门缝。不要加入文字、数字、UI、logo、水印、开放的门、门后风景、第七个 pane、教堂人群或可游玩的 Act 4 场景。
 ~~~
+
+Before promotion, composite the cleaned mural through all six real masks with
+the deterministic frame and render that composite at 160 px. Source-only
+review is insufficient. If the mural carries its own rim, spokes, or boss, or
+if any critical subject is clipped, run one precise-object edit using the
+cleaned mural as the edit target and emberglass-frame.png as geometry reference:
+remove all painted structural lead, retain the exact six quest subjects, place
+the sealed door and stair inside the top Pale Ones sector, and leave the centre
+boss as quiet glass. Record the full repair prompt and generated ID in the
+ledger. Fit the accepted frameless source onto the deterministic 1024 square
+with the smallest readable centred placement; the accepted Phase 2 source uses:
+
+~~~bash
+magick frameless-source-06.png -resize 700x700! -gravity center \
+  -background '#070912' -extent 1024x1024 emberglass-mural.png
+~~~
+
+The 700 px and 760 px candidates must both be composited before selection. Use
+700 px when both are readable because it preserves safer outer and radial
+clearance. The promoted PNG is accepted only when the composite has one lead
+system, no clipped critical subject, exactly seven pale Eighth marks plus one
+black breaking stroke, and a closed-door/stair silhouette at 160 px.
 
 - [ ] **Step 3: Create the deterministic frame/mask generator**
 

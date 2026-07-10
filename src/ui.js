@@ -4965,7 +4965,10 @@ function renderGallery() {
     relics: Object.entries(RELICS).map(([k, r]) => [k, () => `<div class="title-banner-ph" style="color:${r.tone}">${r.glyph}</div>`]),
     deeds: Object.keys(DEEDS).map((k) => [k, () => iconSvg(`deed-${k}`, 64)]),
     bequests: ['relic', 'card', 'gold'].map((k) => [k, () => iconSvg(`bequest-${k}`, 64)]),
-    meta: ['fallen', 'ascended', 'monument-node'].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
+    meta: [
+      'fallen', 'ascended', 'monument-node',
+      ROSE_ASSET_IDS.mural, ROSE_ASSET_IDS.frame, ...Object.values(ROSE_ASSET_IDS.masks),
+    ].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
     piles: ['draw', 'discard', 'ashes'].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
     ui: UI_CHROME_IDS.map((k) => [k, () => {
       const fb = uiFallbackName(k);

@@ -128,6 +128,12 @@ Council-approved live assets:
 `piles/` holds Draw / Discard / Ashes combat pile chrome (512² RGBA). Scratch
 ledger: `scratch/pile-chrome-20260709/`.
 
+`meta/emberglass-*.png` is one atomic eight-file Rose Window set in a shared
+1024×1024 coordinate system: one opaque mural, one transparent lead frame, and
+six binary-alpha quest masks. Gameplay uses the labelled fallback unless all
+eight files are present. Regenerate the deterministic frame and masks with
+`python3 tools/gen-emberglass-frame.py`; never generate masks independently.
+
 Asset source decisions:
 
 - `heroes/duskblade.png` uses the Nano Banana alpha version.

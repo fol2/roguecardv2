@@ -2,6 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
 import {
   newRun, startCombat, playCard, endTurn, drawCards, makeCard, makeVariant, cardData, availableNodes, genMap,
@@ -3488,6 +3489,35 @@ function randomAgentRun(seed) {
     ...QUEST_IDS.map((id) => 'emberglass-mask-' + id),
   ];
   checkManifest('meta', ['fallen', 'ascended', 'monument-node'], ROSE_OPTIONAL);
+  {
+    const roseIds = [
+      'emberglass-mural', 'emberglass-frame',
+      ...QUEST_IDS.map((id) => 'emberglass-mask-' + id),
+    ];
+    const present = roseIds.filter((id) => assetIds('meta').has(id));
+    assert.ok(present.length === 0 || present.length === roseIds.length,
+      `Rose assets are atomic: found ${present.length}/${roseIds.length}`);
+    if (present.length) {
+      const files = roseIds.map((id) => fileURLToPath(
+        new URL(`../src/assets/meta/${id}.png`, import.meta.url)));
+      const check = String.raw`
+import sys
+from PIL import Image
+for path in sys.argv[1:]:
+    image = Image.open(path)
+    assert image.size == (1024, 1024), (path, image.size)
+    if path.endswith('emberglass-mural.png'):
+        assert image.mode in ('RGB', 'RGBA'), (path, image.mode)
+        if image.mode == 'RGBA':
+            assert image.getchannel('A').getextrema() == (255, 255), path
+    else:
+        assert image.mode == 'RGBA', (path, image.mode)
+        assert image.getchannel('A').getextrema() == (0, 255), path
+`;
+      const checked = spawnSync('python3', ['-c', check, ...files], { encoding: 'utf8' });
+      assert.equal(checked.status, 0, checked.stderr || checked.stdout);
+    }
+  }
   checkManifest('ui', UI_CHROME_IDS);
 }
 

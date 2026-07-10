@@ -32,10 +32,10 @@ test('Rose panes disclose only their current state', async ({ page }) => {
   await expect(page.locator('.rose-pane[data-quest="usurper"]')).toHaveClass(/lit/);
   await expect(page.locator('.rose-pane.dormant').filter({ hasText: 'Hollow' })).toHaveCount(0);
   await expect(page.locator('.rose-pane.dormant[data-quest]')).toHaveCount(0);
-  await expect(page.locator('.rose-fallback')).toBeVisible();
+  await expect(page.locator('.rose-window.rose-assets')).toHaveClass(/ready/);
   await expect(page.locator('.whisper-row')).toHaveCount(v.whispers);
   await page.click('[data-a="back"]');
-  await expect(page.locator('.title-rose-medallion')).toHaveCount(0);
+  await expect(page.locator('.title-rose-medallion')).toBeVisible();
 });
 
 test('opening Vigil clears only the news pulse', async ({ page }) => {

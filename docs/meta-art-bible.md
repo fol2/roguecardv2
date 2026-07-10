@@ -42,3 +42,18 @@ Normalise max edge **1024px**. UI displays them dimmed + blurred behind glass pa
 | id | subject |
 |---|---|
 | monument-node | a small standing stone marker with a single memorial flame, readable at ~32px |
+
+## Emberglass Rose Window
+
+All eight files are 1024×1024 and share one coordinate system. Pane order is clockwise from the top:
+
+1. paleOnes — three pale figures carrying a cold shard down a black stair
+2. ownShade — a standing memorial shadow facing its living self
+3. usurper — an empty lantern held beneath a false crown
+4. eighthOmen — seven readable marks broken by an eighth dark stroke
+5. unreadablePage — five pages turning into one stair-map
+6. hollowLamplighter — a gaunt keeper surrendering the last flame
+
+The complete mural is one continuous scene: the six lower symbols converge into a black-and-gold stair above the Eternal Sovereign's crown; at the top is a sealed obsidian door with a thin white-gold seam. No readable text, UI, logo, card frame, modern architecture, church congregation, or playable Act 4 scene.
+
+emberglass-frame is transparent black lead: two circular rims, a small central boss, and six broad equal radial panes. Masks are binary-alpha derivatives of the approved frame geometry, never independently generated. The title medallion is the same composite at small scale. If any file is absent, gameplay uses the labelled fallback.
