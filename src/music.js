@@ -106,9 +106,9 @@ async function loadSource(source) {
   return loading[source.ref];
 }
 
-async function loadCue(id) {
+async function loadCue(id, selection) {
   if (!REGISTRY[id]) return null;
-  const selected = getAudioSource('music', id);
+  const selected = getAudioSource('music', id, selection);
   const base = getAudioSource('music', id, DEFAULT_AUDIO_SELECTION);
   for (const source of [selected, base]) {
     if (!source || (source !== selected && source.ref === selected?.ref)) continue;
@@ -138,10 +138,10 @@ function fadeOutCurrent() {
   setTimeout(() => { try { src.disconnect(); } catch { /* ok */ } try { g.disconnect(); } catch { /* ok */ } }, (CROSSFADE + 0.1) * 1000);
 }
 
-async function playInternal(cueId, { force = false } = {}) {
+async function playInternal(cueId, { force = false, selection } = {}) {
   const entry = REGISTRY[cueId];
   if (!entry || (!entry.wired && !force)) return;
-  const requestedSource = getAudioSource('music', cueId);
+  const requestedSource = getAudioSource('music', cueId, selection);
   if (!requestedSource) return;
   if (cueId === activeId && activeRequestedRef === requestedSource.ref && activeSrc) {
     if (entry.warmWith) warm(entry.warmWith);
@@ -149,7 +149,7 @@ async function playInternal(cueId, { force = false } = {}) {
   }
   if (!ensureBus()) return;
   const gen = ++playGen;
-  const loaded = await loadCue(cueId);
+  const loaded = await loadCue(cueId, selection);
   if (gen !== playGen) return; // superseded
   if (!loaded) return;
   const ctx = getAudioContext();
@@ -173,8 +173,8 @@ async function playInternal(cueId, { force = false } = {}) {
 /** Play a Music Cue. Unwired / unknown cues no-op. Same cue re-entry is a no-op. */
 export function play(cueId) { return playInternal(cueId); }
 
-/** Dev/gallery: play even if the cue is not wired into live screens yet. */
-export function preview(cueId) { return playInternal(cueId, { force: true }); }
+/** Dev/gallery: play even if the cue is not wired into live screens yet. Optional selection previews unsaved overrides. */
+export function preview(cueId, selection) { return playInternal(cueId, { force: true, selection }); }
 
 export function stop() {
   playGen++;
@@ -187,6 +187,20 @@ export function stop() {
 export function currentCue() { return activeId; }
 export function currentAudioRef() { return activeRef; }
 export function currentRequestedAudioRef() { return activeRequestedRef; }
+
+/** Re-resolve the active cue after a hot-applied selection change. */
+export function invalidateMusicSelection() {
+  if (!activeId) {
+    activeRequestedRef = null;
+    return;
+  }
+  const next = getAudioSource('music', activeId);
+  if (next?.ref && next.ref !== activeRef) {
+    activeRequestedRef = null;
+    return playInternal(activeId, { force: true });
+  }
+  activeRequestedRef = next?.ref ?? null;
+}
 
 /** Screen → cue. Combat / run-end / Act 1–2 boss victory resolve elsewhere.
  *  reward / bossRelic omit on purpose: normal/elite keep the combat cue;

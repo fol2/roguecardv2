@@ -7,10 +7,10 @@ import { UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyph
 // drawBatchSchedule also paces discardHand (same even-stagger clock)
 import * as V from './vfx.js';
 import { syncVigil, commitPendingRunEnd, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, clearNews, clearVigil, questSnapshot } from './vigil.js';
-import { sfx, unlock, getSfxVolume, setSfxVolume, isSfxMuted, setSfxMuted } from './audio.js';
+import { sfx, unlock, getSfxVolume, setSfxVolume, isSfxMuted, setSfxMuted, previewSfx, invalidateSfxSelection, preloadSfx } from './audio.js';
 import * as music from './music.js';
 import { SFX_CATALOG, MUSIC_CATALOG } from './audio-catalog.js';
-import { getAudioRefs, getAudioSelection, getAudioSelectionProblems, getAudioSource, getAudioVersions } from './audio-assets.js';
+import { applyAudioSelection, getAudioOverrideRefs, getAudioPackDefaultRef, getAudioSelection, getAudioSelectionProblems, getAudioSource, getAudioVersions } from './audio-assets.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
 import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift, meshAim, meshAimClear, meshWard } from './mesh.js';
 import { charShadowLive, charCssFloat, charAim, onCharMetaChange } from './char-meta.js';
@@ -5290,12 +5290,24 @@ function renderAudioGallery() {
     if (!import.meta.env.DEV) {
       return `<span class="ag-source-read" title="${escHtml(state)}">${escHtml(ref)}</span>`;
     }
+    const packDefault = getAudioPackDefaultRef(kind, id, selection) ?? 'missing';
     const selected = selection[kind].overrides[id] ?? '';
-    const options = getAudioRefs(kind).map((assetRef) => `
+    const options = getAudioOverrideRefs(kind, id, { exclude: packDefault }).map((assetRef) => `
       <option value="${escHtml(assetRef)}" ${assetRef === selected ? 'selected' : ''}>${escHtml(assetRef)}</option>`).join('');
     return `<select class="ag-source" data-source-kind="${kind}" data-source-id="${escHtml(id)}" aria-label="Override ${escHtml(id)}">
-      <option value="">Pack default · ${escHtml(ref)}</option>${options}
+      <option value="" ${selected ? '' : 'selected'}>Pack default · ${escHtml(packDefault)}</option>${options}
     </select>`;
+  };
+  const draftSelection = () => {
+    if (!import.meta.env.DEV) return getAudioSelection();
+    const payload = {
+      music: { version: $('#ag-music-version', sc)?.value || selection.music.version, overrides: {} },
+      sfx: { version: $('#ag-sfx-version', sc)?.value || selection.sfx.version, overrides: {} },
+    };
+    $$('.ag-source', sc).forEach((select) => {
+      if (select.value) payload[select.dataset.sourceKind].overrides[select.dataset.sourceId] = select.value;
+    });
+    return payload;
   };
   const previewButton = '<button type="button" class="ag-preview" data-a="preview" aria-label="Preview">▶</button>';
   const sfxGroups = {};
@@ -5335,10 +5347,10 @@ function renderAudioGallery() {
         ${versionSelect('music', 'Music version')}
         ${versionSelect('sfx', 'SFX version')}
         <button type="button" data-a="clear-overrides">Clear overrides</button>
-        <button type="button" class="ag-save" data-a="save-audio">Save & reload</button>
+        <button type="button" class="ag-save" data-a="save-audio">Save</button>
         <span id="ag-save-status" role="status"></span>
       </div>
-      <p>Changing a row chooses that exact file for gameplay. Save before previewing a changed source. The current root assets remain the base versions.</p>
+      <p>Changing a row chooses that exact file for gameplay. ▶ previews the current row choice, including unsaved overrides. The current root assets remain the base versions.</p>
       ${diagnostics}
     </section>` : `
     <p class="ag-note">Active packs: Music <code>${escHtml(selection.music.version)}</code> · SFX <code>${escHtml(selection.sfx.version)}</code>. Production is read-only; the host supplies <code>audio-selection.json</code>.</p>
@@ -5387,8 +5399,15 @@ function renderAudioGallery() {
           });
           const result = await response.json();
           if (!response.ok || !result.ok) throw new Error((result.problems ?? [`HTTP ${response.status}`]).join(' · '));
-          status.textContent = 'Saved ✓ Reloading…';
-          location.reload();
+          applyAudioSelection(payload);
+          invalidateSfxSelection();
+          music.invalidateMusicSelection();
+          preloadSfx();
+          const hash = location.hash;
+          renderAudioGallery();
+          if (hash) location.hash = hash;
+          const nextStatus = $('#ag-save-status');
+          if (nextStatus) nextStatus.textContent = 'Saved ✓';
         } catch (error) {
           save.disabled = false;
           status.textContent = `Save failed: ${String(error?.message ?? error)}`;
@@ -5401,13 +5420,13 @@ function renderAudioGallery() {
     if (!row) return;
     unlock();
     const id = row.dataset.id;
+    const draft = draftSelection();
     if (row.dataset.kind === 'sfx') {
       music.stop();
-      if (row.dataset.attackWho) sfx.attack({ who: row.dataset.attackWho, amount: +row.dataset.attackAmount });
-      else if (typeof sfx[id] === 'function') sfx[id]();
+      previewSfx(id, draft);
       return;
     }
-    music.preview(id);
+    music.preview(id, draft);
   };
 }
 

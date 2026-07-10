@@ -20,11 +20,23 @@ test('audio gallery exposes the selected complete v2 versions and every gameplay
   await expect(page.locator('.ag-config-errors')).toHaveCount(0);
 });
 
+test('override options put pack default once, then other same-action versions', async ({ page }) => {
+  await openAudioGallery(page);
+  const options = page.locator('.ag-source[data-source-kind="sfx"][data-source-id="click"] option');
+  const first = await options.first().evaluate((option) => ({ value: option.value, label: option.textContent.trim() }));
+  expect(first.value).toBe('');
+  const packRef = first.label.replace(/^Pack default ·\s*/, '').trim();
+  expect(packRef).toMatch(/\/click\.mp3$/);
+  const values = await options.evaluateAll((nodes) => nodes.map((option) => option.value).filter(Boolean));
+  expect(values).not.toContain(packRef);
+  expect(values[0]).toMatch(/\/click\.mp3$/);
+});
+
 test('per-file source choice posts selection metadata without audio binaries', async ({ page }) => {
   let payload = null;
   await page.route('**/__audio-save', async (route) => {
     payload = JSON.parse(route.request().postData());
-    await route.fulfill({ json: { ok: true, reload: true } });
+    await route.fulfill({ json: { ok: true, hot: true } });
   });
   await openAudioGallery(page);
   await page.locator('.ag-source[data-source-kind="music"][data-source-id="title"]')

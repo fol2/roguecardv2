@@ -7,16 +7,23 @@ import {
   audioRefFromPath,
   audioVersions,
   normaliseAudioSelection,
+  rankAudioRefs,
   resolveAudioRef,
 } from './audio-packs.js';
 import { fetchAudioSelectionJson } from './audio-selection-fetch.js';
 
-const MUSIC_MODULES = import.meta.glob('./assets/musics/**/*.mp3', {
+const MUSIC_MODULES = import.meta.glob([
+  './assets/musics/**/*.mp3',
+  '!./assets/musics/_raw/**',
+], {
   eager: true,
   query: '?url',
   import: 'default',
 });
-const SFX_MODULES = import.meta.glob('./assets/sfx/**/*.mp3', {
+const SFX_MODULES = import.meta.glob([
+  './assets/sfx/**/*.mp3',
+  '!./assets/sfx/_raw/**',
+], {
   eager: true,
   query: '?url',
   import: 'default',
@@ -49,13 +56,20 @@ let selectionProblems = [];
 export async function loadAudioSelection(url = `${import.meta.env.BASE_URL}audio-selection.json`) {
   try {
     const candidate = await fetchAudioSelectionJson(url);
-    const result = normaliseAudioSelection(candidate, AUDIO_INVENTORY);
-    activeSelection = result.selection;
-    selectionProblems = result.problems;
+    return applyAudioSelection(candidate);
   } catch (error) {
     activeSelection = DEFAULT_AUDIO_SELECTION;
     selectionProblems = [`audio-selection.json: ${String(error?.message ?? error)}`];
+    if (selectionProblems.length) console.warn('[audio-selection]', ...selectionProblems);
+    return activeSelection;
   }
+}
+
+/** Apply a validated/normalised selection in-memory (gallery hot-save). */
+export function applyAudioSelection(candidate) {
+  const result = normaliseAudioSelection(candidate, AUDIO_INVENTORY);
+  activeSelection = result.selection;
+  selectionProblems = result.problems;
   if (selectionProblems.length) console.warn('[audio-selection]', ...selectionProblems);
   return activeSelection;
 }
@@ -64,6 +78,9 @@ export function getAudioSelection() { return activeSelection; }
 export function getAudioSelectionProblems() { return [...selectionProblems]; }
 export function getAudioVersions(kind, options) { return audioVersions(kind, AUDIO_INVENTORY, options); }
 export function getAudioRefs(kind) { return [...(AUDIO_INVENTORY[kind] ?? [])]; }
+export function getAudioOverrideRefs(kind, id, { exclude = null } = {}) {
+  return rankAudioRefs(kind, id, AUDIO_INVENTORY[kind] ?? [], { exclude });
+}
 
 export function getAudioSource(kind, id, selection = activeSelection) {
   const ref = resolveAudioRef(kind, id, AUDIO_INVENTORY, selection);
@@ -76,4 +93,14 @@ export function getAudioSource(kind, id, selection = activeSelection) {
     overridden: ref === override,
     fallback: !override && selection?.[kind]?.version !== baseVersion && ref.startsWith(`${baseVersion}/`),
   };
+}
+
+/** Pack-default ref for an id (ignores any per-id override). */
+export function getAudioPackDefaultRef(kind, id, selection = activeSelection) {
+  const packOnly = {
+    music: { version: selection.music.version, overrides: {} },
+    sfx: { version: selection.sfx.version, overrides: {} },
+  };
+  // Keep other overrides out of the way; pack default for this id only needs version.
+  return resolveAudioRef(kind, id, AUDIO_INVENTORY, packOnly);
 }
