@@ -397,7 +397,7 @@ initial test:e2e:main --shard=N/4 calibration
 aggregate: 153 passed, 150 intentional project skips
 
 final test:e2e:main --list --shard=N/10
-30 selected tests per shard; aggregate 300
+31 selected tests in shards 1–3 and 30 in shards 4–10; aggregate 303
 
 test:e2e:serial
 5 passed (9.5s)
@@ -462,4 +462,9 @@ ten-minute warning threshold. Per the owner-approved contract this is timing
 reference, not a correctness failure.
 
 PR #14 is **GO for review/merge**: the latest application head passed every
-required full-gate child and both exact-name aggregators.
+required full-gate child and both exact-name aggregators. The later
+evidence-only rerun `29124688996` exposed one more cumulative 90-second test
+budget: rest and shop recovery were two scenarios inside one Hollow test.
+They are now independent cases, preserving both assertions while allowing
+Playwright to schedule them separately; both pass locally in 7.4 seconds.
+Live latest-head required checks remain the final merge authority.

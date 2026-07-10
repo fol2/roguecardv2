@@ -172,12 +172,11 @@ test('Return Later waits for save acknowledgement and resumes the exact event', 
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2')).pendingHollowRoute)).toBeNull();
 });
 
-test('Hollow rest and shop routes survive reload until their acknowledged exit', async ({ page }) => {
-  const cases = [
-    { seed: 912, progress: 2, type: 'rest', maxHp: 41, screen: 'rest', leave: '[data-a="rest"]' },
-    { seed: 913, progress: 1, type: 'shop', gold: 0, screen: 'shop', leave: '[data-a="leave"]' },
-  ];
-  for (const scenario of cases) {
+for (const scenario of [
+  { seed: 912, progress: 2, type: 'rest', maxHp: 41, screen: 'rest', leave: '[data-a="rest"]' },
+  { seed: 913, progress: 1, type: 'shop', gold: 0, screen: 'shop', leave: '[data-a="leave"]' },
+]) {
+  test(`Hollow ${scenario.type} route survives reload until its acknowledged exit`, async ({ page }) => {
     await seedHollow(page, scenario);
     await page.click('[data-a="hollow-pay"]');
     await page.click('[data-a="hollow-leave"]');
@@ -192,8 +191,8 @@ test('Hollow rest and shop routes survive reload until their acknowledged exit',
     await page.click(scenario.leave);
     await page.waitForFunction(() => window.spirebound.S.screen === 'map');
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2')).pendingHollowRoute)).toBeNull();
-  }
-});
+  });
+}
 
 test('Hollow destination cannot return to the map until marker clear is acknowledged', async ({ page }) => {
   await seedHollow(page, { seed: 914, progress: 1, type: 'shop', gold: 0 });
