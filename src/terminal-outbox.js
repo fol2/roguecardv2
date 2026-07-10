@@ -2,11 +2,12 @@ const TERMINAL_OUTCOMES = ['win', 'death', 'abandon'];
 const continuedRuns = new WeakSet();
 
 export function savedRunRequiresFinalisation(run) {
-  return TERMINAL_OUTCOMES.includes(run?.pendingRunEnd?.outcome);
+  return TERMINAL_OUTCOMES.includes(run?.pendingRunEnd?.outcome) || run?.pendingDawn != null;
 }
 
 export function journalTerminalOutcome(run, outcome) {
   if (!TERMINAL_OUTCOMES.includes(outcome)) throw new Error(`invalid terminal outcome: ${outcome}`);
+  if (run.pendingDawn != null) throw new Error('a staged dawn cannot be replaced by another terminal outcome');
   const current = run.pendingRunEnd?.outcome;
   if (current != null) {
     if (current !== outcome) throw new Error(`terminal outcome cannot change from ${current} to ${outcome}`);

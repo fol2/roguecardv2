@@ -62,7 +62,8 @@ After owner approval, use superpowers:using-git-worktrees to create the isolated
 |---|---|
 | src/data.js | QUESTS, WHISPERS, VARIANTS, SHADE_KITS, Eighth Omen, Unreadable Page, all PROGRESSION tunables |
 | src/vigil.js | In-place v2 hydration, injectable arming RNG, outcome commit, whisper/shard ledger, standing monument |
-| src/engine.js | Quest snapshots/transitions, pending encounter validation, variant resolver, six hook implementations |
+| src/engine.js | Quest snapshots/transitions, pending encounter and dawn validation, variant resolver, six hook implementations |
+| src/terminal-outbox.js | Terminal ownership and boot-resume routing for run-end and staged-dawn outboxes |
 | src/ui.js | Variant presentation, quest event playback, special shop/Hollow surfaces, dawn ceremonies, Rose/door/title surfaces |
 | src/mesh.js | Variant hue/saturation/brightness uniforms and debug proof |
 | src/art.js | Page glyph plus structural mote, shard, Rose, broken-omen, and sealed-door SVG fallbacks |
@@ -83,7 +84,7 @@ After owner approval, use superpowers:using-git-worktrees to create the isolated
 
 Update imports in the first task that needs each name; by Task 12 these lists must include:
 
-- src/engine.js from data.js: existing names plus `PROGRESSION, QUEST_IDS, QUESTS, SHADE_KITS, VARIANTS, BOONS`.
+- src/engine.js from data.js: existing names plus `PROGRESSION, QUEST_IDS, QUESTS, SHADE_KITS, VARIANTS, BOONS, DEEDS`.
 - src/vigil.js from data.js: existing names plus `PROGRESSION, QUEST_IDS, QUESTS, WHISPERS`.
 - src/ui.js from data.js: existing names plus `PROGRESSION, QUEST_IDS, QUESTS, WHISPERS`; use the existing `E.runRevealed(...)` namespace call rather than a bare runRevealed import.
 - test/test_engine.js from engine.js: `questRecord, revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter, setPendingReward, takePendingReward, clearPendingReward, makeVariant, resolveCombatant, paleVariantForAct, markShadeFall, grantBequest, buyQuestItem, _setQuestRng, omenEnabled, removableCards, applyBoon, reverseBoon, payHollowPrice` in addition to its current imports.
@@ -791,6 +792,7 @@ pendingEnemyIds: null,
 pendingQuestId: null,
 pendingReward: null,
 pendingRunEnd: null,
+pendingDawn: null,
 ~~~
 
 Add:
@@ -869,6 +871,7 @@ run.pendingEnemyIds ??= null;
 run.pendingQuestId ??= null;
 run.pendingReward ??= null;
 run.pendingRunEnd ??= null;
+run.pendingDawn ??= null;
 ~~~
 
 Then validate:
@@ -1022,7 +1025,7 @@ if (!requireRunSave(run, continueVictory)) return;
 continueVictory();
 ~~~
 
-`startRun` routes in this exact priority: pendingRunEnd, pendingReward, pendingCombat, pending boss-relic ceremony, pendingLamplighter, map. `hasPendingBossRelic` detects a visited Act 1/2 boss after its encounter and reward are durably cleared; it remains true after a saved claim until `advanceAct`, closing reload gaps on both sides of the relic choice. `renderReward` reads only run.pendingReward. Every claim calls takePendingReward, then requires an acknowledged save before showing its success state. A taken row renders disabled after reload. Card skip calls takePendingReward with null and permanently sets taken.card. Continue clears pendingReward, requires an acknowledged save, then routes to boss relic or map. A rejected claim/continue save retries only that same mutated snapshot, so it never reapplies the reward. `createChoiceLatch` locks every card and Skip on the first choice so a second delayed callback cannot dismiss a newer save-failure overlay.
+`startRun` routes in this exact priority in the final Phase 2 shape: pendingDawn (added by Task 11), pendingRunEnd, pendingReward, pendingCombat, pending Hollow route, pending boss-relic ceremony, pendingLamplighter, map. `hasPendingBossRelic` detects a visited Act 1/2 boss after its encounter and reward are durably cleared; it remains true after a saved claim until `advanceAct`, closing reload gaps on both sides of the relic choice. `renderReward` reads only run.pendingReward. Every claim calls takePendingReward, then requires an acknowledged save before showing its success state. A taken row renders disabled after reload. Card skip calls takePendingReward with null and permanently sets taken.card. Continue clears pendingReward, requires an acknowledged save, then routes to boss relic or map. A rejected claim/continue save retries only that same mutated snapshot, so it never reapplies the reward. `createChoiceLatch` locks every card and Skip on the first choice so a second delayed callback cannot dismiss a newer save-failure overlay.
 
 For every run conclusion, clear pending reward/encounter state, set `pendingRunEnd={outcome}`, and require the run save before any Vigil transaction. Final Act 3 victory uses win, defeat uses death, and both abandon entry points use abandon:
 
@@ -1032,7 +1035,7 @@ journalRunEnd(run, outcome, onFinalised);
 
 Hydrate Vigil v2 with `receipts:{deeds:null,runEnd:null}`. The deeds receipt is exactly `{runId,won,newUnlocks}`; the run-end receipt is exactly `{runId,outcome,whisper,armed,completed,newShards}`. `commitRunToVigil` and `commitRunEnd` load the receipt first. A matching runId and semantic input returns the stored result without mutation. Otherwise the function applies its ledger changes, installs its receipt, requires one successful saveVigil, and only then sets any live-run cache. Rejected writes throw the existing retryable run-end error or `Vigil storage rejected the deed commit; retry when storage is available`, with no live marker/cache.
 
-`commitPendingRunEnd` preserves the existing outcome semantics: win and death run the deed receipt, while abandon does not; all outcomes then run the run-end receipt and legacy stats/cleanup receipt. `finalisePendingRunEnd` treats its accepted flag as a gate. Any rejected stage leaves the acknowledged pendingRunEnd save intact and opens “Retry Finalisation” / “Reload Saved Finalisation”; both routes rerun the resolver safely through receipts. `recordRunEnd` stores lastRunId atomically with its counters and removes the current run save last. A failed cleanup returns false; retry with the same runId skips the counter increment and retries only removal. Once all required stages succeed, win/death show their normal end screen and abandon returns to the requested title/new-climb continuation.
+`commitPendingRunEnd` preserves the existing outcome semantics: win and death run the deed receipt, while abandon does not; all outcomes then run the run-end receipt. Task 11 refines the final acknowledgement: death and abandon keep the legacy `recordRunEnd` stats/cleanup path, while a win commits its stats receipt and atomically replaces pendingRunEnd with pendingDawn before presentation. `finalisePendingRunEnd` treats its accepted flag as a gate. Any rejected stage leaves the acknowledged pendingRunEnd save intact and opens “Retry Finalisation” / “Reload Saved Finalisation”; both routes rerun the resolver safely through receipts. `recordRunEnd` keeps its default behaviour for non-deferred callers: store lastRunId atomically with its counters and remove the current run save last. A failed cleanup returns false; retry with the same runId skips the counter increment and retries only removal.
 
 Run-save cleanup is scoped to the completing runId. If a newer run occupies `spirebound_save_v2`, stale cleanup is a successful no-op and must leave that newer save byte-for-byte intact. The reset-save UI remains the only unscoped `clearSave()` caller.
 
@@ -2515,13 +2518,19 @@ git commit -m "Close Hollow terminal and pad gates"
 
 **Files:**
 - Modify: src/art.js (remaining structural fallbacks; paleMote is owned by Task 5)
+- Modify: src/engine.js (strict pendingDawn shape plus stage/cursor/clear transactions)
+- Modify: src/terminal-outbox.js (pendingDawn resume ownership and destructive-action guard)
 - Modify: src/ui.js:560-724, 817-927, 3409-3432, 3878-3980, 4038-4045
 - Modify: src/styles.css
-- Modify: test/test_engine.js (optional-art manifest)
+- Modify: test/test_engine.js (optional-art manifest, malformed-marker validation, and storage-failure transactions)
 - Create: test/e2e/emberglass-fixtures.js
 - Test: test/e2e/emberglass.spec.js (create)
 
 **Interfaces:**
+- run.pendingDawn is null or exactly `{events,cursor,newUnlocks}`. Events use exact per-type keys, cursor is an integer from zero through events.length, and newUnlocks is a unique array of known DEEDS unlock IDs. It is mutually exclusive with pendingRunEnd, combat, reward, Hollow meeting, and Hollow route markers; a legacy v2 save self-heals a missing field to null.
+- commitRunStats(run,won) is the idempotent legacy stats receipt. recordRunEnd(run,won) retains its existing default contract by calling commitRunStats and then runId-scoped clearSave.
+- stagePendingDawn(run,events,newUnlocks) commits stats first, atomically replaces a winning pendingRunEnd, and rolls the live marker back if saveRun rejects. advancePendingDawn(run,nextCursor) accepts only cursor+1 and rolls back on a rejected save. completePendingDawn(run) accepts only a fully acknowledged queue and clears the matching run save before releasing the live marker.
+- savedRunRequiresFinalisation(run) recognises either pendingRunEnd or pendingDawn. startRun resumes pendingDawn directly without replaying Vigil, run-end, deed, or stats receipts.
 - renderVigil({tab:'deeds'|'rose'}={}) is the only Vigil renderer.
 - roseAssets() returns null or { mural, frame, masks:Record<questId,url> }; partial sets return null.
 - Rose DOM contracts: .rose-window, .rose-pane[data-quest], .rose-fallback, .whisper-log, .whisper-row.
@@ -2681,18 +2690,34 @@ Expected: FAIL because tab-rose and sealed-door do not exist.
 
 - [ ] **Step 3: Render queue-driven dawn ceremonies**
 
-In finalisePendingRunEnd preserve the receipt-backed ordering established by Task 3:
+In finalisePendingRunEnd preserve the receipt-backed ordering established by Task 3, but defer winning cleanup into a separate presentation outbox:
 
 ~~~js
-return finaliseTerminalOutbox(
-  run,
-  () => commitPendingRunEnd(run, E.recordRunEnd),
+const acknowledgeRunEnd = outcome === 'win'
+  ? (candidate) => E.stagePendingDawn(
+      candidate,
+      dawnQueue(candidate, candidate.runEndResult),
+      candidate.vigilResult?.newUnlocks || [],
+    )
+  : E.recordRunEnd;
+return finaliseTerminalOutbox(run,
+  () => commitPendingRunEnd(run, acknowledgeRunEnd),
   () => showRunEndPersistenceFailure(run),
-  ({ newUnlocks, ledger }) => show('end', { won: true, newUnlocks, ledger }),
-);
+  () => outcome === 'win' ? show('end', { won: true }) : continueNonWinningEnd());
 ~~~
 
-Defeat passes the death ledger but renders no new ceremony, preserving the spec. In renderEnd, for a win, create a .dawn-ceremony queue in this order:
+The transaction order is load-bearing:
+1. commit the deed and run-end Vigil receipts exactly once;
+2. commit the runId-keyed stats receipt exactly once;
+3. build the final display list, atomically replace pendingRunEnd with pendingDawn, and require the run-save acknowledgement;
+4. show only events at or beyond pendingDawn.cursor;
+5. after each panel's full 40/550 ms presentation, persist cursor+1 before appending the next panel;
+6. after every event is acknowledged, clear the matching run save and require that acknowledgement;
+7. only then add `.complete`, enable navigation, and schedule unlock toasts.
+
+If staging fails, restore the live pendingRunEnd marker; the already-committed receipts make retry/reload idempotent. If a cursor or final-clear write fails, stop in place behind non-closable “Retry Save” / “Reload Saved Dawn” actions. A cursor failure leaves the current shown panel unacknowledged, so reload may show that panel again but can never replay an acknowledged prefix. A final-clear failure leaves the fully acknowledged pendingDawn save reloadable and keeps all navigation locked. Death and abandon retain immediate recordRunEnd cleanup and render no new ceremony.
+
+In renderEnd, for a win, stage a .dawn-ceremony queue in this order:
 1. ledger.whisper, if non-null;
 2. run.endQueue events in their existing order;
 3. one shardGrant event per ledger.newShards;
@@ -2736,7 +2761,7 @@ Implement one async drainEndQueue(events,host):
 - act4Reveal: iconSvg('sealedDoor'), “Six panes burn. Something waits above the crown.”
 - REDUCED uses 40 ms between panels; normal uses 550 ms opacity/translate transitions.
 
-After the last panel is appended, drainEndQueue adds `.complete` to the `.dawn-ceremony` host; tests wait on that class rather than racing the first panel.
+After the last panel is appended and its cursor plus the final run-save removal are both acknowledged, drainEndQueue adds `.complete` to the `.dawn-ceremony` host; tests wait on that class rather than racing the first panel.
 
 The engine producer tests continue to pin `eighthResolved.text` and
 `shadeResolved.text` to the current authored `QUESTS` copy. Playback must still
@@ -2746,8 +2771,10 @@ version is not silently rewritten after reload.
 While the dawn queue is draining, both end-screen navigation buttons are
 disabled. Enable them only after `.complete`; delayed unlock toasts must verify
 the same end screen/run is still current, and leaving the end screen clears any
-existing toast host. This makes every one-shot disclosure observable before the
-terminal save is removed.
+existing toast host. The global HUD is absent on the end screen; as defence in
+depth, openMenu omits Abandon and Settings disables Reset Save for any terminal
+or end state, while journalTerminalOutcome rejects replacing pendingDawn. This
+makes every one-shot disclosure observable before the terminal save is removed.
 
 No event mutates engine or Vigil state.
 
@@ -2820,10 +2847,24 @@ Permanent Playwright coverage must recover fully valid persisted
 `pendingRunEnd` saves through the real boot path (`renderTitle` → `startRun` →
 `finaliseTerminalOutbox` → `commitPendingRunEnd`). The win case asserts durable
 sentinel playback, canonical ceremony order, disabled-then-enabled navigation,
-Vigil and stats receipts exactly once, sixth-shard/whisper state, save removal,
-and no delayed UI leakage or duplication after another reload. Death and
-abandon cases assert no dawn ceremony, correct receipts/cleanup, and no
-duplication. Add a phone-landscape synthetic-touch drag/tap door regression.
+the destructive global menu action is unavailable, Vigil and stats receipts
+exactly once, sixth-shard/whisper state, final save removal, and no delayed UI
+leakage or duplication after another reload. Add a normal-motion checkpoint
+case that reloads after cursor 2, derives the expected suffix from the persisted
+pendingDawn events, proves the acknowledged prefix is absent, pins durable
+eighthResolved/shadeResolved text, proves Vigil/stats bytes do not change, and
+observes final save removal. Death and abandon cases assert no dawn ceremony,
+correct receipts/cleanup, and no duplication. Add a phone-landscape
+synthetic-touch drag/tap door regression. Inject one cursor-save rejection and
+one final-clear rejection in the browser; both must show the non-closable dawn
+recovery overlay, retain disabled navigation, and complete after Retry Save.
+
+Unit coverage must reject malformed pendingDawn marker/event keys, unknown
+quest or deed unlock IDs, duplicate unlocks, invalid/out-of-range cursors, and
+coexistence with every mutually exclusive pending marker. A Map-backed storage
+transaction test injects stats-write, stage-save, cursor-save, and final-clear
+failures; it proves rollback/reload state, cursor monotonicity, receipt
+idempotence, retry success, and unchanged default recordRunEnd behaviour.
 
 Run:
 

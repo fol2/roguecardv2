@@ -11,7 +11,8 @@ import {
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
   previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
   revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter,
-  setPendingReward, takePendingReward, clearPendingReward, hasPendingBossRelic, recordRunEnd, loadStats, paleVariantForAct,
+  setPendingReward, takePendingReward, clearPendingReward, hasPendingBossRelic, recordRunEnd, commitRunStats,
+  stagePendingDawn, advancePendingDawn, completePendingDawn, loadStats, paleVariantForAct,
   applyBoon, reverseBoon, payHollowPrice, stageHollowExit,
 } from '../src/engine.js';
 import * as EngineApi from '../src/engine.js';
@@ -340,6 +341,14 @@ function forceHand(run, cb, ids) {
     );
     assert.equal(run.pendingRunEnd.outcome, outcome, `${outcome} survives the destructive action`);
   }
+  assert.equal(savedRunRequiresFinalisation({ pendingDawn: { events: [], cursor: 0, newUnlocks: [] } }), true,
+    'a staged dawn resumes its presentation instead of exposing a destructive title action');
+  const dawn = newRun(425);
+  dawn.pendingDawn = { events: [], cursor: 0, newUnlocks: [] };
+  assert.throws(() => journalTerminalOutcome(dawn, 'abandon'), /staged dawn cannot be replaced/,
+    'a destructive global action cannot overwrite a staged dawn');
+  assert.deepEqual(dawn.pendingDawn, { events: [], cursor: 0, newUnlocks: [] });
+  assert.equal(dawn.pendingRunEnd, null);
 }
 {
   // Persistence failures are retryable; a screen continuation is outside that catch and runs once.
@@ -965,6 +974,7 @@ function forceHand(run, cb, ids) {
     delete runLoad.orphanRewardResolving;
     delete runLoad.pendingHollow;
     delete runLoad.pendingHollowRoute;
+    delete runLoad.pendingDawn;
     delete runLoad.boonReceipt;
     saveRun(runLoad);
     const reloaded = loadRun();
@@ -975,6 +985,7 @@ function forceHand(run, cb, ids) {
     assert.equal(reloaded.orphanRewardResolving, false, 'loadRun self-heals orphanRewardResolving');
     assert.equal(reloaded.pendingHollow, null, 'loadRun self-heals pendingHollow');
     assert.equal(reloaded.pendingHollowRoute, null, 'loadRun self-heals pendingHollowRoute');
+    assert.equal(reloaded.pendingDawn, null, 'loadRun self-heals pendingDawn');
     assert.equal(reloaded.boonReceipt, null, 'loadRun self-heals boonReceipt');
     assert.equal(claimTreasure(reloaded).already, true, 'reward flags survive loadRun round-trip');
 
@@ -1152,6 +1163,28 @@ function forceHand(run, cb, ids) {
       saveRun(bad);
       assert.equal(loadRun(), null, label);
     };
+    const validDawnEvents = () => [
+      { t: 'whisper', text: 'The climb continues.' },
+      { t: 'questReveal', id: 'paleOnes' },
+      { t: 'questProgress', id: 'paleOnes', progress: 3, target: QUESTS.paleOnes.target },
+      { t: 'questUnlock', id: 'insight:witchlightLens' },
+      { t: 'pageRead', index: 2, text: 'A durable page.' },
+      { t: 'eighthResolved', text: 'Eight becomes one.' },
+      { t: 'shadeResolved', text: 'The shade remembers.' },
+      { t: 'questComplete', id: 'paleOnes' },
+      { t: 'shardGrant', id: 'paleOnes' },
+      { t: 'act4Reveal' },
+    ];
+    const setPendingDawn = (r, overrides = {}) => {
+      r.pendingDawn = {
+        events: validDawnEvents(), cursor: 0, newUnlocks: ['aspect2'], ...overrides,
+      };
+    };
+    const validDawn = newRun(428, { quests: saveQuests });
+    setPendingDawn(validDawn);
+    assert.equal(saveRun(validDawn), true);
+    assert.deepEqual(loadRun().pendingDawn, validDawn.pendingDawn,
+      'an exact dawn presentation outbox round-trips');
     rejectSaved('unknown variant', (r) => setPendingEncounter(r, 'monster', ['paleUnknown'], 'paleOnes'));
     rejectSaved('unknown quest record', (r) => { r.quests.unknown = { state: 'armed', progress: 0, memory: {} }; });
     rejectSaved('invalid quest state', (r) => { r.quests.paleOnes.state = 'waiting'; });
@@ -1165,6 +1198,45 @@ function forceHand(run, cb, ids) {
     rejectSaved('malformed run id', (r) => { r.runId = '__proto__'; });
     rejectSaved('invalid pending run end', (r) => { r.pendingRunEnd = { outcome: 'retreat' }; });
     rejectSaved('extra pending run-end key', (r) => { r.pendingRunEnd = { outcome: 'win', extra: true }; });
+    rejectSaved('unknown pending dawn event', (r) => setPendingDawn(r, { events: [{ t: 'mystery' }] }));
+    rejectSaved('extra pending dawn marker key', (r) => {
+      setPendingDawn(r);
+      r.pendingDawn.extra = true;
+    });
+    rejectSaved('missing pending dawn cursor', (r) => {
+      setPendingDawn(r);
+      delete r.pendingDawn.cursor;
+    });
+    rejectSaved('fractional pending dawn cursor', (r) => setPendingDawn(r, { cursor: 0.5 }));
+    rejectSaved('pending dawn cursor past the queue', (r) => setPendingDawn(r, { cursor: 99 }));
+    rejectSaved('extra pending dawn event key', (r) => {
+      const events = validDawnEvents();
+      events[0].extra = true;
+      setPendingDawn(r, { events });
+    });
+    rejectSaved('unknown pending dawn quest', (r) => {
+      setPendingDawn(r, { events: [{ t: 'questReveal', id: 'toString' }] });
+    });
+    rejectSaved('invalid pending dawn quest target', (r) => {
+      setPendingDawn(r, { events: [{ t: 'questProgress', id: 'paleOnes', progress: 3, target: 99 }] });
+    });
+    rejectSaved('invalid pending dawn persisted copy', (r) => {
+      setPendingDawn(r, { events: [{ t: 'eighthResolved', text: 8 }] });
+    });
+    rejectSaved('unknown pending dawn unlock', (r) => setPendingDawn(r, { newUnlocks: ['card:toString'] }));
+    rejectSaved('duplicate pending dawn unlock', (r) => setPendingDawn(r, { newUnlocks: ['aspect2', 'aspect2'] }));
+    rejectSaved('pending dawn excludes pending run end', (r) => {
+      setPendingDawn(r);
+      r.pendingRunEnd = { outcome: 'win' };
+    });
+    rejectSaved('pending dawn excludes pending combat', (r) => {
+      setPendingDawn(r);
+      setPendingEncounter(r, 'monster', ['sporeling']);
+    });
+    rejectSaved('pending dawn excludes pending reward', (r) => {
+      setPendingDawn(r);
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+    });
     rejectSaved('negative pending reward gold', (r) => {
       setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
       r.pendingReward.rewards.gold = -1;
@@ -1257,6 +1329,10 @@ function forceHand(run, cb, ids) {
       setPendingHollow(r);
       r.pendingRunEnd = { outcome: 'death' };
     });
+    rejectSaved('pending dawn excludes a Hollow meeting', (r) => {
+      setPendingHollow(r);
+      setPendingDawn(r);
+    });
     const firstEventId = Object.keys(EVENTS)[0];
     const setHollowRoute = (r, type = 'rest', eventId = null) => {
       const node = r.map.nodes[0];
@@ -1312,6 +1388,10 @@ function forceHand(run, cb, ids) {
     rejectSaved('Hollow route excludes pending run end', (r) => {
       setHollowRoute(r);
       r.pendingRunEnd = { outcome: 'death' };
+    });
+    rejectSaved('pending dawn excludes a Hollow destination', (r) => {
+      setHollowRoute(r);
+      setPendingDawn(r);
     });
     const receipt = {
       id: 'fullPurse',
@@ -1454,6 +1534,105 @@ function forceHand(run, cb, ids) {
     assert.equal(loadRun().runId, newerRun.runId, 'stale run A cleanup leaves newer run B intact');
     assert.equal(store.get('spirebound_save_v2'), newerSnapshot, 'stale cleanup leaves run B byte-for-byte intact');
     assert.equal(loadStats().runs, 1, 'stale cleanup cannot recount run A');
+  } finally {
+    if (prevLs) globalThis.localStorage = prevLs;
+    else delete globalThis.localStorage;
+  }
+}
+{
+  // A winning terminal journal becomes a durable, cursor-acknowledged dawn
+  // presentation before its run save may be removed.
+  const store = new Map();
+  const writes = [];
+  const prevLs = globalThis.localStorage;
+  let rejectStatsWrite = false;
+  let rejectRunWrite = false;
+  let rejectRunClear = false;
+  try {
+    globalThis.localStorage = {
+      getItem: (k) => store.get(k) ?? null,
+      setItem: (k, v) => {
+        writes.push(k);
+        if (k === 'spirebound_stats_v1' && rejectStatsWrite) throw new Error('stats busy');
+        if (k === 'spirebound_save_v2' && rejectRunWrite) throw new Error('run busy');
+        store.set(k, v);
+      },
+      removeItem: (k) => {
+        if (k === 'spirebound_save_v2' && rejectRunClear) throw new Error('clear busy');
+        store.delete(k);
+      },
+    };
+    const events = [
+      { t: 'whisper', text: 'The climb continues.' },
+      { t: 'eighthResolved', text: 'PERSIST THIS EXACT EIGHTH COPY' },
+      { t: 'shardGrant', id: 'paleOnes' },
+    ];
+    const run = newRun(429);
+    run.pendingRunEnd = { outcome: 'win' };
+    assert.equal(saveRun(run), true);
+
+    rejectStatsWrite = true;
+    assert.equal(stagePendingDawn(run, events, ['aspect2']), false,
+      'a rejected stats receipt cannot expose a dawn presentation');
+    assert.deepEqual(run.pendingRunEnd, { outcome: 'win' });
+    assert.equal(run.pendingDawn, null);
+    assert.equal(loadStats().runs, 0);
+    assert.deepEqual(loadRun().pendingRunEnd, { outcome: 'win' });
+
+    rejectStatsWrite = false;
+    rejectRunWrite = true;
+    writes.length = 0;
+    assert.equal(stagePendingDawn(run, events, ['aspect2']), false,
+      'a rejected dawn staging write restores the reloadable terminal journal');
+    assert.deepEqual(writes, ['spirebound_stats_v1', 'spirebound_save_v2'],
+      'the stats receipt is committed before the dawn outbox is attempted');
+    assert.deepEqual(run.pendingRunEnd, { outcome: 'win' });
+    assert.equal(run.pendingDawn, null);
+    assert.deepEqual(loadRun().pendingRunEnd, { outcome: 'win' });
+    assert.equal(loadStats().runs, 1);
+    assert.equal(loadStats().wins, 1);
+    const statsReceipt = store.get('spirebound_stats_v1');
+
+    rejectRunWrite = false;
+    assert.equal(stagePendingDawn(run, events, ['aspect2']), true, 'dawn staging is retryable');
+    assert.equal(run.pendingRunEnd, null);
+    assert.deepEqual(run.pendingDawn, { events, cursor: 0, newUnlocks: ['aspect2'] });
+    assert.deepEqual(loadRun().pendingDawn, run.pendingDawn, 'the presentation survives reload exactly');
+    assert.equal(store.get('spirebound_stats_v1'), statsReceipt, 'staging retry cannot recount the run');
+    assert.equal(savedRunRequiresFinalisation(loadRun()), true);
+
+    assert.equal(advancePendingDawn(run, 2), false, 'a cursor may acknowledge only the next panel');
+    assert.equal(advancePendingDawn(run, 1), true);
+    assert.equal(loadRun().pendingDawn.cursor, 1);
+    rejectRunWrite = true;
+    assert.equal(advancePendingDawn(run, 2), false, 'a rejected cursor acknowledgement remains retryable');
+    assert.equal(run.pendingDawn.cursor, 1, 'a rejected acknowledgement rolls back in memory');
+    assert.equal(loadRun().pendingDawn.cursor, 1, 'a rejected acknowledgement leaves the durable cursor untouched');
+    rejectRunWrite = false;
+    assert.equal(advancePendingDawn(run, 2), true);
+    assert.equal(advancePendingDawn(run, 3), true);
+    assert.equal(completePendingDawn(run), true, 'an acknowledged queue can clear its durable run');
+    assert.equal(run.pendingDawn, null);
+    assert.equal(loadRun(), null);
+    assert.equal(store.get('spirebound_stats_v1'), statsReceipt);
+
+    const clearRetry = newRun(430);
+    clearRetry.pendingRunEnd = { outcome: 'win' };
+    assert.equal(saveRun(clearRetry), true);
+    assert.equal(stagePendingDawn(clearRetry, [{ t: 'shadeResolved', text: 'Still here.' }], []), true);
+    assert.equal(completePendingDawn(clearRetry), false, 'an unfinished queue cannot clear its save');
+    assert.equal(advancePendingDawn(clearRetry, 1), true);
+    rejectRunClear = true;
+    assert.equal(completePendingDawn(clearRetry), false, 'a rejected final clear stays locked and retryable');
+    assert.equal(clearRetry.pendingDawn.cursor, 1);
+    assert.deepEqual(loadRun().pendingDawn, clearRetry.pendingDawn,
+      'a clear failure leaves the fully acknowledged outbox reloadable');
+    rejectRunClear = false;
+    assert.equal(completePendingDawn(clearRetry), true);
+    assert.equal(loadRun(), null);
+    assert.equal(commitRunStats(clearRetry, true), true, 'the committed stats receipt remains idempotent');
+    assert.equal(loadStats().runs, 2);
+    assert.equal(loadStats().wins, 2);
   } finally {
     if (prevLs) globalThis.localStorage = prevLs;
     else delete globalThis.localStorage;

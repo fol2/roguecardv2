@@ -1,5 +1,5 @@
 // SPIREBOUND engine — pure game logic, no DOM. UI consumes cb.queue for animation.
-import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE, PROGRESSION, QUEST_IDS, QUESTS, VARIANTS, SHADE_KITS, BOONS } from './data.js';
+import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE, PROGRESSION, QUEST_IDS, QUESTS, VARIANTS, SHADE_KITS, BOONS, DEEDS } from './data.js';
 
 // ---------------------------------------------------------------- RNG (mulberry32)
 export function makeRng(state) {
@@ -54,6 +54,7 @@ export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
     pendingQuestId: null,
     pendingReward: null,
     pendingRunEnd: null,
+    pendingDawn: null,
     pendingHollow: null,
     pendingHollowRoute: null,
     player: {
@@ -1597,6 +1598,44 @@ export function duplicateCardInDeck(run, uid) {
 // save / load ---------------------------------------------------------------
 const SAVE_KEY = 'spirebound_save_v2';
 const STATS_KEY = 'spirebound_stats_v1';
+const DAWN_UNLOCKS = new Set(Object.values(DEEDS).flatMap((deed) => deed.unlocks));
+const isPlainRecord = (value) => value && typeof value === 'object' && !Array.isArray(value);
+const hasExactRecordKeys = (value, keys) => isPlainRecord(value) &&
+  Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
+const validDawnEvent = (event) => {
+  if (!isPlainRecord(event) || typeof event.t !== 'string') return false;
+  if (event.t === 'whisper') {
+    return hasExactRecordKeys(event, ['t', 'text']) && typeof event.text === 'string';
+  }
+  if (['questReveal', 'questComplete', 'shardGrant'].includes(event.t)) {
+    return hasExactRecordKeys(event, ['t', 'id']) && QUEST_IDS.includes(event.id);
+  }
+  if (event.t === 'questProgress') {
+    return hasExactRecordKeys(event, ['t', 'id', 'progress', 'target']) &&
+      QUEST_IDS.includes(event.id) && Number.isInteger(event.progress) &&
+      event.progress >= 0 && event.target === QUESTS[event.id].target && event.progress <= event.target;
+  }
+  if (event.t === 'questUnlock') {
+    return hasExactRecordKeys(event, ['t', 'id']) && event.id === 'insight:witchlightLens';
+  }
+  if (event.t === 'pageRead') {
+    return hasExactRecordKeys(event, ['t', 'index', 'text']) &&
+      Number.isInteger(event.index) && event.index >= 1 &&
+      event.index <= QUESTS.unreadablePage.target && typeof event.text === 'string';
+  }
+  if (event.t === 'eighthResolved' || event.t === 'shadeResolved') {
+    return hasExactRecordKeys(event, ['t', 'text']) && typeof event.text === 'string';
+  }
+  return event.t === 'act4Reveal' && hasExactRecordKeys(event, ['t']);
+};
+const validPendingDawn = (pending) => pending == null || (
+  hasExactRecordKeys(pending, ['events', 'cursor', 'newUnlocks']) &&
+  Array.isArray(pending.events) && pending.events.every(validDawnEvent) &&
+  Number.isInteger(pending.cursor) && pending.cursor >= 0 && pending.cursor <= pending.events.length &&
+  Array.isArray(pending.newUnlocks) &&
+  pending.newUnlocks.every((id) => typeof id === 'string' && DAWN_UNLOCKS.has(id)) &&
+  new Set(pending.newUnlocks).size === pending.newUnlocks.length
+);
 export function saveRun(run) {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(run));
@@ -1634,6 +1673,7 @@ export function loadRun() {
     run.pendingQuestId ??= null;
     run.pendingReward ??= null;
     run.pendingRunEnd ??= null;
+    run.pendingDawn ??= null;
     run.pendingHollow ??= null;
     run.pendingHollowRoute ??= null;
     run.boonReceipt ??= null;
@@ -1770,15 +1810,21 @@ export function loadRun() {
     if (run.pendingQuestId != null && run.pendingCombat == null) return null;
     if (!validPendingReward(run.pendingReward)) return null;
     if (!validPendingRunEnd(run.pendingRunEnd)) return null;
+    if (!validPendingDawn(run.pendingDawn)) return null;
     if (!validPendingHollow(run.pendingHollow)) return null;
     if (!validPendingHollowRoute(run.pendingHollowRoute)) return null;
     if (!validBoonReceipt(run.boonReceipt)) return null;
     if (run.pendingHollow != null &&
-      (run.pendingHollowRoute != null || run.pendingCombat != null || run.pendingReward != null || run.pendingRunEnd != null)) return null;
+      (run.pendingHollowRoute != null || run.pendingCombat != null || run.pendingReward != null ||
+        run.pendingRunEnd != null || run.pendingDawn != null)) return null;
     if (run.pendingHollowRoute != null &&
-      (run.pendingHollow != null || run.pendingCombat != null || run.pendingReward != null || run.pendingRunEnd != null)) return null;
+      (run.pendingHollow != null || run.pendingCombat != null || run.pendingReward != null ||
+        run.pendingRunEnd != null || run.pendingDawn != null)) return null;
     if (run.pendingReward != null && run.pendingCombat != null) return null;
-    if (run.pendingRunEnd != null && (run.pendingCombat != null || run.pendingReward != null)) return null;
+    if (run.pendingRunEnd != null && (run.pendingCombat != null || run.pendingReward != null || run.pendingDawn != null)) return null;
+    if (run.pendingDawn != null &&
+      (run.pendingCombat != null || run.pendingReward != null || run.pendingRunEnd != null ||
+        run.pendingHollow != null || run.pendingHollowRoute != null)) return null;
     if (!run.map.nodes.every((n) =>
       (n.questVariantId == null || hasOwn(VARIANTS, n.questVariantId)) &&
       (n.questMarked == null || typeof n.questMarked === 'boolean'))) return null;
@@ -1809,7 +1855,7 @@ export function loadStats() {
     return { runs: 0, wins: 0, best: 0, lastRunId: null, ...raw };
   } catch { return { runs: 0, wins: 0, best: 0, lastRunId: null }; }
 }
-export function recordRunEnd(run, won) {
+export function commitRunStats(run, won) {
   const s = loadStats();
   if (s.lastRunId !== run.runId) {
     s.runs++;
@@ -1819,7 +1865,59 @@ export function recordRunEnd(run, won) {
     try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); }
     catch { return false; }
   }
+  return true;
+}
+export function recordRunEnd(run, won) {
+  if (!commitRunStats(run, won)) return false;
   return clearSave(run.runId);
+}
+
+export function stagePendingDawn(run, events, newUnlocks = []) {
+  if (run?.pendingRunEnd?.outcome !== 'win' || run.pendingDawn != null ||
+      run.pendingCombat != null || run.pendingReward != null ||
+      run.pendingHollow != null || run.pendingHollowRoute != null) return false;
+  const pending = {
+    events: Array.isArray(events) ? events.map((event) => ({ ...event })) : events,
+    cursor: 0,
+    newUnlocks: Array.isArray(newUnlocks) ? [...newUnlocks] : newUnlocks,
+  };
+  if (!validPendingDawn(pending) || !commitRunStats(run, true)) return false;
+  const journal = run.pendingRunEnd;
+  const receiptCacheKeys = [
+    'vigilCommitted', 'vigilWon', 'vigilResult',
+    'runEndCommitted', 'runEndOutcome', 'runEndResult',
+  ];
+  const receiptCache = new Map(receiptCacheKeys
+    .filter((key) => Object.hasOwn(run, key))
+    .map((key) => [key, run[key]]));
+  run.pendingRunEnd = null;
+  run.pendingDawn = pending;
+  receiptCacheKeys.forEach((key) => { delete run[key]; });
+  if (saveRun(run)) return true;
+  run.pendingDawn = null;
+  run.pendingRunEnd = journal;
+  for (const [key, value] of receiptCache) run[key] = value;
+  return false;
+}
+
+export function advancePendingDawn(run, nextCursor) {
+  const pending = run?.pendingDawn;
+  if (!validPendingDawn(pending) || pending == null ||
+      !Number.isInteger(nextCursor) || nextCursor !== pending.cursor + 1 ||
+      nextCursor > pending.events.length) return false;
+  const previous = pending.cursor;
+  pending.cursor = nextCursor;
+  if (saveRun(run)) return true;
+  pending.cursor = previous;
+  return false;
+}
+
+export function completePendingDawn(run) {
+  const pending = run?.pendingDawn;
+  if (!validPendingDawn(pending) || pending == null || pending.cursor !== pending.events.length) return false;
+  if (!clearSave(run.runId)) return false;
+  run.pendingDawn = null;
+  return true;
 }
 
 // event op executor (interactive picks handled by UI; returns list of pending picks)

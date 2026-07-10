@@ -36,6 +36,8 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const screenEl = () => $('#screen');
+const terminalNavigationLocked = () => S.screen === 'end' ||
+  S.run?.pendingRunEnd != null || S.run?.pendingDawn != null;
 
 function el(tag, cls = '', html = '') {
   const e = document.createElement(tag);
@@ -341,7 +343,8 @@ function openMenu(cx, cy) {
   closeMenus();
   const { x, y } = toStage(cx, cy);
   const m = el('div', 'pop-menu');
-  m.innerHTML = `<button data-m="help">How to Play</button><button data-m="settings">Settings</button><button data-m="abandon" style="color:#ff8d8d">Abandon Run</button>`;
+  const terminalLocked = terminalNavigationLocked();
+  m.innerHTML = `<button data-m="help">How to Play</button><button data-m="settings">Settings</button>${terminalLocked ? '' : '<button data-m="abandon" style="color:#ff8d8d">Abandon Run</button>'}`;
   stageEl().appendChild(m); // inside the stage so it scales with the game
   m.style.left = `${Math.min(x, stageW() - 200)}px`;
   m.style.top = `${y + 8}px`;
@@ -350,7 +353,7 @@ function openMenu(cx, cy) {
     closeMenus();
     if (a === 'help') showHelp();
     if (a === 'settings') openSettingsPanel();
-    if (a === 'abandon') confirmAbandon();
+    if (a === 'abandon' && !terminalNavigationLocked()) confirmAbandon();
   };
   setTimeout(() => document.addEventListener('pointerdown', closeMenusOnce, { once: true }), 0);
 }
@@ -374,7 +377,7 @@ function openSettingsPanel() {
     ${row('SFX', getSfxVolume(), isSfxMuted(), 'sfx')}
     <div class="settings-debug">
       <div class="settings-debug-label">Debug</div>
-      <button type="button" class="btn danger settings-reset" data-a="reset">Reset Save</button>
+      <button type="button" class="btn danger settings-reset" data-a="reset"${terminalNavigationLocked() ? ' disabled' : ''}>Reset Save</button>
       <div class="settings-debug-warn">Wipes the current climb and all Vigil progress. Cannot be undone.</div>
     </div>
     <button type="button" class="audio-close" data-a="close">Close</button>`;
@@ -402,11 +405,16 @@ function openSettingsPanel() {
   bindRow('music');
   bindRow('sfx');
   $('[data-a="close"]', panel).onclick = () => closeMenus();
-  $('[data-a="reset"]', panel).onclick = () => { closeMenus(); confirmResetSave(); };
+  $('[data-a="reset"]', panel).onclick = () => {
+    if (terminalNavigationLocked()) return;
+    closeMenus();
+    confirmResetSave();
+  };
   setTimeout(() => document.addEventListener('pointerdown', closeMenusOnce, { once: true }), 0);
 }
 
 function confirmResetSave() {
+  if (terminalNavigationLocked()) return;
   openOverlay(`<div class="panel ov-panel" style="text-align:center">
     <div class="ov-title">Reset Save?</div>
     <div class="ov-sub">This erases your <b>current climb</b> and the entire <b>Vigil</b> — deeds, unlocks, vows, monuments, and whispers.<br><br><span style="color:#ff8d8d">This cannot be undone.</span></div>
@@ -470,6 +478,7 @@ async function usePotionOn(slot, targetIdx) {
   }
 }
 function confirmAbandon() {
+  if (terminalNavigationLocked()) return;
   openOverlay(`<div class="panel ov-panel" style="text-align:center">
     <div class="ov-title">Abandon Run?</div>
     <div class="ov-sub">Your climb will be lost to the void.</div>
@@ -600,7 +609,7 @@ function resumeSavedCombat(run, onReady) {
 function showRunEndPersistenceFailure(run, onFinalised = null) {
   openOverlay(`<div class="panel ov-panel" style="text-align:center">
     <div class="ov-title">The Vigil Could Not Hold</div>
-    <div class="ov-sub">This run end is safely journalled, but its ledgers could not be completed. Free storage and retry, or reload this saved finalisation.</div>
+    <div class="ov-sub">This run end is safely journalled, but its ledgers or final dawn could not be secured. Free storage and retry, or reload this saved finalisation.</div>
     <div class="ov-actions"><button class="btn btn-primary" data-a="retry-end">Retry Finalisation</button><button class="btn ghost" data-a="reload-end">Reload Saved Finalisation</button></div>
   </div>`, (root) => {
     root.onclick = (e) => {
@@ -1038,6 +1047,7 @@ function startRun(run, resumed = false) {
   const curNode = run.nodeId ? run.map.nodes.find((n) => n.id === run.nodeId) : null;
   setAltitude(run.act, curNode ? curNode.row : 0);
   if (!resumed) E.saveRun(run);
+  if (run.pendingDawn) { show('end', { won: true }); return; }
   if (run.pendingRunEnd) { finalisePendingRunEnd(run); return; }
   if (run.pendingHollow) { show('hollow', { nodeId: run.pendingHollow.nodeId }); return; }
   if (run.pendingReward) { show('reward'); return; }
@@ -4126,16 +4136,23 @@ function journalRunEnd(run, outcome, onFinalised = null) {
 function finalisePendingRunEnd(run, onFinalised = null) {
   const outcome = run.pendingRunEnd?.outcome;
   if (!['win', 'death', 'abandon'].includes(outcome)) return false;
+  const acknowledgeRunEnd = outcome === 'win'
+    ? (candidate) => E.stagePendingDawn(
+        candidate,
+        dawnQueue(candidate, candidate.runEndResult),
+        candidate.vigilResult?.newUnlocks || [],
+      )
+    : E.recordRunEnd;
   return finaliseTerminalOutbox(
     run,
-    () => commitPendingRunEnd(run, E.recordRunEnd),
+    () => commitPendingRunEnd(run, acknowledgeRunEnd),
     () => showRunEndPersistenceFailure(run, onFinalised),
     ({ newUnlocks, ledger }) => {
       S.cb = null;
       if (onFinalised) {
         onFinalised({ outcome, newUnlocks, ledger });
       } else if (outcome === 'win') {
-        show('end', { won: true, newUnlocks, ledger });
+        show('end', { won: true });
       } else if (outcome === 'death') {
         const node = run.map.nodes.find((candidate) => candidate.id === run.nodeId);
         const { unpaidBequest, offerNewBequest } = shadeLossBequestState(run);
@@ -4712,7 +4729,8 @@ function dawnQueue(run, ledger) {
   if (newShards.length && before.size < threshold && after.size >= threshold) {
     events.push({ t: 'act4Reveal' });
   }
-  return events;
+  return events.filter((event, index, queue) => !(event.t === 'questComplete' &&
+    queue.slice(index + 1).some((later) => later.t === 'shardGrant' && later.id === event.id)));
 }
 
 function dawnEventHtml(event) {
@@ -4746,14 +4764,46 @@ function dawnEventHtml(event) {
   return '';
 }
 
-async function drainEndQueue(source, host) {
-  const events = (source || []).map((event) => ({ ...event }));
-  for (let i = 0; i < events.length; i++) {
+function showDawnPersistenceFailure(onRetry, phase) {
+  const finishing = phase === 'clear';
+  openOverlay(`<div class="panel ov-panel" style="text-align:center">
+    <div class="ov-title">The Dawn Could Not Hold</div>
+    <div class="ov-sub">${finishing
+      ? 'Every panel has been seen, but the saved dawn could not be released. Retry before leaving this screen.'
+      : 'This panel was shown, but its place in the dawn could not be secured. Retry before the ceremony continues.'}</div>
+    <div class="ov-actions"><button class="btn btn-primary" data-a="retry-dawn">Retry Save</button><button class="btn ghost" data-a="reload-dawn">Reload Saved Dawn</button></div>
+  </div>`, (root) => {
+    root.onclick = (event) => {
+      const action = event.target.closest('[data-a]')?.dataset.a;
+      if (action === 'reload-dawn') { location.reload(); return; }
+      if (action !== 'retry-dawn') return;
+      sfx.click();
+      root.onclick = null;
+      closeOverlay();
+      onRetry();
+    };
+  });
+}
+
+function persistDawnOrRetry(action, phase) {
+  return new Promise((resolve) => {
+    const attempt = () => {
+      if (action()) { resolve(); return; }
+      showDawnPersistenceFailure(attempt, phase);
+    };
+    attempt();
+  });
+}
+
+async function drainEndQueue(run, host) {
+  const pending = run.pendingDawn;
+  if (!pending) throw new Error('winning end screen requires a staged dawn presentation');
+  const events = pending.events.map((event) => ({ ...event }));
+  const newUnlocks = [...pending.newUnlocks];
+  for (let i = pending.cursor; i < events.length; i++) {
     const event = events[i];
-    if (event.t === 'questComplete' &&
-        events.slice(i + 1).some((later) => later.t === 'shardGrant' && later.id === event.id)) continue;
     const html = dawnEventHtml(event);
-    if (!html) continue;
+    if (!html) throw new Error(`unrenderable dawn event: ${event.t}`);
     const panel = el('div', 'dawn-event', html);
     panel.dataset.event = event.t;
     host.appendChild(panel);
@@ -4764,11 +4814,14 @@ async function drainEndQueue(source, host) {
       requestAnimationFrame(() => panel.classList.add('shown'));
       await sleep(550);
     }
+    await persistDawnOrRetry(() => E.advancePendingDawn(run, i + 1), 'cursor');
   }
+  await persistDawnOrRetry(() => E.completePendingDawn(run), 'clear');
   host.classList.add('complete');
+  return newUnlocks;
 }
 
-function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1, unpaidBequest = false, ledger = null }) {
+function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1, unpaidBequest = false }) {
   const run = S.run;
   music.playForRunEnd(!!won);
   const st = run.stats;
@@ -4798,8 +4851,7 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
       ${stats}${btns}
     </div>`;
     const host = $('.dawn-ceremony', screenEl());
-    ceremony = drainEndQueue(dawnQueue(run, ledger), host)
-      .catch(() => host.classList.add('complete'));
+    ceremony = drainEndQueue(run, host);
     sunrise(); // the only warm daylight in the game
     sfx.victory();
     V.flash('#ffe9ac', 0.25, 1);
@@ -4845,10 +4897,10 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
     if (a === 'deck') showCardGrid('Final Deck', run.player.deck, {});
     if (a === 'title') { S.run = null; S.lamp = null; show('title'); }
   };
-  ceremony.then(() => {
+  ceremony.then((owedUnlocks = newUnlocks) => {
     if (S.screen !== 'end' || S.run?.runId !== run.runId) return;
     $$('.end-btns button', screenEl()).forEach((button) => { button.disabled = false; });
-    showUnlockToasts(newUnlocks, run.runId);
+    showUnlockToasts(owedUnlocks, run.runId);
   });
 }
 

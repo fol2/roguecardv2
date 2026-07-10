@@ -5,7 +5,10 @@ import {
 } from './emberglass-fixtures.js';
 
 test.describe('desktop Emberglass behaviour', () => {
-  test.beforeEach(() => {
+  test.beforeEach(async ({ page }) => {
+    if (test.info().project.use.reducedMotion === 'reduce') {
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+    }
     test.skip(test.info().project.name !== 'desktop', 'Emberglass behaviour runs once on desktop');
   });
 
@@ -76,7 +79,7 @@ test('six shards expose a promise, never Act 4 gameplay', async ({ page }) => {
 
 test('dawn ceremony drains in canonical order and signals completion', async ({ page }) => {
   await seed(page, completeLedger());
-  const before = await page.evaluate(({ questIds, vigil }) => {
+  await page.evaluate(({ questIds }) => {
     const sp = window.spirebound;
     const previous = questIds.slice(0, 5);
     const run = sp.E.newRun(9002, {
@@ -88,25 +91,26 @@ test('dawn ceremony drains in canonical order and signals completion', async ({ 
       { t: 'questProgress', id: 'hollowLamplighter', progress: 5, target: 5 },
       { t: 'questComplete', id: 'hollowLamplighter' },
     ];
+    run.pendingRunEnd = { outcome: 'win' };
+    const events = [
+      { t: 'whisper', text: 'The climb continues.' },
+      { t: 'questReveal', id: 'hollowLamplighter' },
+      { t: 'questProgress', id: 'hollowLamplighter', progress: 5, target: 5 },
+      { t: 'shardGrant', id: 'hollowLamplighter' },
+      { t: 'act4Reveal' },
+    ];
+    if (!sp.E.saveRun(run) || !sp.E.stagePendingDawn(run, events, [])) {
+      throw new Error('dawn presentation did not stage');
+    }
     sp.S.run = run;
-    const snapshot = JSON.stringify(run);
-    sp.show('end', {
-      won: true,
-      newUnlocks: [],
-      ledger: {
-        vigil,
-        whisper: 'The climb continues.',
-        newShards: ['hollowLamplighter'],
-      },
-    });
-    return snapshot;
-  }, { questIds: QIDS, vigil: completeLedger() });
+    sp.show('end', { won: true });
+  }, { questIds: QIDS });
 
   await expect(page.locator('.dawn-ceremony')).toHaveClass(/complete/);
   await expect(page.locator('.dawn-event')).toHaveCount(5);
   await expect(page.locator('.dawn-event').evaluateAll((nodes) => nodes.map((node) => node.dataset.event)))
     .resolves.toEqual(['whisper', 'questReveal', 'questProgress', 'shardGrant', 'act4Reveal']);
-  expect(await page.evaluate(() => JSON.stringify(window.spirebound.S.run))).toBe(before);
+  expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBeNull();
 });
 
 test('pending win recovers once through the production terminal outbox', async ({ page }) => {
@@ -120,6 +124,10 @@ test('pending win recovers once through the production terminal outbox', async (
   if (!reduced) {
     expect(await endButtons.evaluateAll((buttons) => buttons.map((button) => button.disabled)))
       .toEqual([true, true]);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2'))?.pendingDawn != null))
+      .toBe(true);
+    await expect(page.locator('[data-act="menu"]')).toHaveCount(0);
+    await expect(page.locator('[data-m="abandon"]')).toHaveCount(0);
     await page.evaluate(() => document.querySelector('[data-a="title"]').click());
     expect(await page.evaluate(() => window.__probe.state().screen)).toBe('end');
   }
@@ -173,6 +181,123 @@ test('pending win recovers once through the production terminal outbox', async (
     save: localStorage.getItem('spirebound_save_v2'),
   }));
   expect(twice).toEqual(once);
+});
+
+test('normal-motion reload resumes only unacknowledged dawn panels', async ({ page }) => {
+  test.skip(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches),
+    'the checkpoint timing contract is specifically normal motion');
+  const staged = await stagePendingRunEnd(page, 'win');
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe?.state().screen === 'end');
+  await page.waitForFunction(() => {
+    const run = JSON.parse(localStorage.getItem('spirebound_save_v2'));
+    return run?.pendingDawn?.cursor === 2 && run.pendingDawn.cursor < run.pendingDawn.events.length;
+  });
+  const checkpoint = await page.evaluate(() => {
+    const run = JSON.parse(localStorage.getItem('spirebound_save_v2'));
+    return {
+      cursor: run.pendingDawn.cursor,
+      acknowledged: run.pendingDawn.events.slice(0, run.pendingDawn.cursor),
+      remaining: run.pendingDawn.events.slice(run.pendingDawn.cursor),
+      vigilRaw: localStorage.getItem('spirebound_vigil_v2'),
+      statsRaw: localStorage.getItem('spirebound_stats_v1'),
+    };
+  });
+  expect(checkpoint.cursor).toBe(2);
+
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe?.state().screen === 'end');
+  await expect(page.locator('.dawn-ceremony')).toHaveClass(/complete/);
+  const shownTypes = await page.locator('.dawn-event').evaluateAll((nodes) =>
+    nodes.map((node) => node.dataset.event));
+  expect(shownTypes).toEqual(checkpoint.remaining.map((event) => event.t));
+  for (const event of checkpoint.acknowledged) {
+    expect(shownTypes).not.toContain(event.t);
+  }
+  if (checkpoint.remaining.some((event) => event.t === 'eighthResolved')) {
+    await expect(page.locator('[data-event="eighthResolved"]')).toContainText(PERSISTED_EIGHTH_TEXT);
+  }
+  if (checkpoint.remaining.some((event) => event.t === 'shadeResolved')) {
+    await expect(page.locator('[data-event="shadeResolved"]')).toContainText(PERSISTED_SHADE_TEXT);
+  }
+
+  const completed = await page.evaluate(() => ({
+    vigilRaw: localStorage.getItem('spirebound_vigil_v2'),
+    statsRaw: localStorage.getItem('spirebound_stats_v1'),
+    save: localStorage.getItem('spirebound_save_v2'),
+  }));
+  expect(completed.vigilRaw).toBe(checkpoint.vigilRaw);
+  expect(completed.statsRaw).toBe(checkpoint.statsRaw);
+  expect(completed.save).toBeNull();
+  expect(JSON.parse(completed.statsRaw)).toMatchObject({ lastRunId: staged.runId });
+
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe?.state().screen === 'title');
+  await expect(page.locator('.dawn-event')).toHaveCount(0);
+});
+
+test('a rejected dawn cursor save stays locked and retries the same panel', async ({ page }) => {
+  await seed(page, freshLedger());
+  await page.evaluate(() => {
+    const sp = window.spirebound;
+    const run = sp.E.newRun(9401);
+    run.pendingRunEnd = { outcome: 'win' };
+    if (!sp.E.saveRun(run) || !sp.E.stagePendingDawn(run, [
+      { t: 'eighthResolved', text: 'CURSOR FAILURE COPY' },
+    ], [])) throw new Error('cursor-failure dawn did not stage');
+    window.__dawnSetItem = Storage.prototype.setItem;
+    window.__rejectDawnSet = true;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'spirebound_save_v2' && window.__rejectDawnSet) throw new Error('injected dawn cursor failure');
+      return window.__dawnSetItem.call(this, key, value);
+    };
+    sp.S.run = run;
+    sp.show('end', { won: true });
+  });
+
+  await expect(page.locator('.ov-title')).toHaveText('The Dawn Could Not Hold');
+  await expect(page.locator('#overlay .ov-sub')).toContainText('This panel was shown');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2')).pendingDawn.cursor)).toBe(0);
+  expect(await page.locator('.end-btns button').evaluateAll((buttons) => buttons.map((button) => button.disabled)))
+    .toEqual([true, true]);
+  await page.evaluate(() => { window.__rejectDawnSet = false; });
+  await page.click('[data-a="retry-dawn"]');
+  await expect(page.locator('.dawn-ceremony')).toHaveClass(/complete/);
+  await expect(page.locator('[data-event="eighthResolved"]')).toContainText('CURSOR FAILURE COPY');
+  expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBeNull();
+  await page.evaluate(() => { Storage.prototype.setItem = window.__dawnSetItem; });
+});
+
+test('a rejected final dawn clear stays locked and retryable', async ({ page }) => {
+  await seed(page, freshLedger());
+  await page.evaluate(() => {
+    const sp = window.spirebound;
+    const run = sp.E.newRun(9402);
+    run.pendingRunEnd = { outcome: 'win' };
+    if (!sp.E.saveRun(run) || !sp.E.stagePendingDawn(run, [], [])) {
+      throw new Error('clear-failure dawn did not stage');
+    }
+    window.__dawnRemoveItem = Storage.prototype.removeItem;
+    window.__rejectDawnClear = true;
+    Storage.prototype.removeItem = function (key) {
+      if (key === 'spirebound_save_v2' && window.__rejectDawnClear) throw new Error('injected dawn clear failure');
+      return window.__dawnRemoveItem.call(this, key);
+    };
+    sp.S.run = run;
+    sp.show('end', { won: true });
+  });
+
+  await expect(page.locator('.ov-title')).toHaveText('The Dawn Could Not Hold');
+  await expect(page.locator('#overlay .ov-sub')).toContainText('Every panel has been seen');
+  const pending = await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2')).pendingDawn);
+  expect(pending).toEqual({ events: [], cursor: 0, newUnlocks: [] });
+  expect(await page.locator('.end-btns button').evaluateAll((buttons) => buttons.map((button) => button.disabled)))
+    .toEqual([true, true]);
+  await page.evaluate(() => { window.__rejectDawnClear = false; });
+  await page.click('[data-a="retry-dawn"]');
+  await expect(page.locator('.dawn-ceremony')).toHaveClass(/complete/);
+  expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBeNull();
+  await page.evaluate(() => { Storage.prototype.removeItem = window.__dawnRemoveItem; });
 });
 
 for (const outcome of ['death', 'abandon']) {
