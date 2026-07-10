@@ -371,8 +371,10 @@ export function visitNode(run, node) {
     ? hollow.meetings
     : hollow?.met ? maxMeetings : 0;
   const meetings = Math.min(storedMeetings, maxMeetings);
-  const hollowDebt = questRecord(run, 'hollowLamplighter')?.memory?.emberDebt || 0;
-  if (wasUnlit && hollow?.due && !hollowDebt && meetings < maxMeetings) {
+  const hollowQuest = questRecord(run, 'hollowLamplighter');
+  const hollowActive = ['armed', 'revealed'].includes(hollowQuest?.state);
+  const hollowDebt = hollowQuest?.memory?.emberDebt || 0;
+  if (wasUnlit && hollow?.due && hollowActive && !hollowDebt && meetings < maxMeetings) {
     hollow.meetings = storedMeetings + 1;
     hollow.met = true;
     revealQuest(run, 'hollowLamplighter', run.endQueue);
@@ -1736,7 +1738,12 @@ export function loadRun() {
       if (id === 'eighthOmen') {
         if (q.state === 'dormant') return onlyKeys(m, []);
         if (q.state === 'complete') return onlyKeys(m, ['seen']) && (m.seen == null || m.seen === true);
-        const dueValid = Number.isInteger(m.dueIn) && m.dueIn >= 1;
+        const dueMax = Math.max(
+          1,
+          Math.floor(PROGRESSION.emberglass.eighthOmen.guaranteeRuns),
+          Math.floor(PROGRESSION.emberglass.eighthOmen.saveDueInMax),
+        );
+        const dueValid = Number.isInteger(m.dueIn) && m.dueIn >= 1 && m.dueIn <= dueMax;
         return onlyKeys(m, ['dueIn', 'seen']) && optionalBool(m, 'seen') &&
           (m.seen === true ? m.dueIn == null : dueValid);
       }
@@ -1744,10 +1751,15 @@ export function loadRun() {
         if (q.state === 'dormant') return onlyKeys(m, []);
         if (q.state === 'complete') return onlyKeys(m, ['eligibleMisses']) &&
           (m.eligibleMisses == null || (Number.isInteger(m.eligibleMisses) && m.eligibleMisses >= 0));
+        const debtMax = Math.max(
+          1,
+          Math.floor(PROGRESSION.emberglass.hollowLamplighter.emberDebt),
+          Math.floor(PROGRESSION.emberglass.hollowLamplighter.saveEmberDebtMax),
+        );
         return onlyKeys(m, ['eligibleMisses', 'emberDebt']) &&
           (m.eligibleMisses == null || (Number.isInteger(m.eligibleMisses) && m.eligibleMisses >= 0)) &&
           (m.emberDebt == null || (q.state === 'revealed' && q.progress === 0 &&
-            Number.isInteger(m.emberDebt) && m.emberDebt >= 1));
+            Number.isInteger(m.emberDebt) && m.emberDebt >= 1 && m.emberDebt <= debtMax));
       }
       return onlyKeys(m, []);
     };

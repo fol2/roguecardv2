@@ -1210,12 +1210,15 @@ export const PROGRESSION = {
       ],
     },
     usurper: { minShopAct: 1, referencePurse: 260, priceMultiplier: 2.5, price: 650, completeAt: 1 },
-    eighthOmen: { guaranteeRuns: 2, recurrenceChance: 1 / 3, completeAt: 1 },
+    eighthOmen: {
+      guaranteeRuns: 2, saveDueInMax: 2, recurrenceChance: 1 / 3, completeAt: 1,
+    },
     unreadablePage: { offerRewardOrdinal: 2, completeAt: 5 },
     hollowLamplighter: {
       appearanceChance: 0.2, pityEligibleRuns: 3, maxMeetingsPerRun: 1,
       completeAt: 5,
-      emberDebt: 3, gold: 160, maxHp: 12, minMaxHpAfter: 30, finalHp: 1,
+      emberDebt: 3, saveEmberDebtMax: 3,
+      gold: 160, maxHp: 12, minMaxHpAfter: 30, finalHp: 1,
     },
     variantStats: {
       pale: { hpMult: 1.18, dmgMult: 1.1, addStatuses: { str: 1 } },

@@ -2144,6 +2144,10 @@ function forceHand(run, cb, ids) {
   const previousLocalStorage = globalThis.localStorage;
   const mem = new Map();
   try {
+    assert.ok(PROGRESSION.emberglass.eighthOmen.saveDueInMax >= oldGuaranteeRuns,
+      'the Eighth save ceiling covers the shipped guarantee');
+    assert.ok(PROGRESSION.emberglass.hollowLamplighter.saveEmberDebtMax >= oldEmberDebt,
+      'the Hollow save ceiling covers the shipped deferred price');
     PROGRESSION.emberglass.eighthOmen.guaranteeRuns = 4;
     EngineApi._setQuestRng(() => 0.99);
     const eighthQuests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
@@ -2216,6 +2220,26 @@ function forceHand(run, cb, ids) {
       'a later unlit node cannot reset an outstanding ember debt');
     assert.equal(debtHollow.questScratch.hollowLamplighter.meetings, 1);
 
+    const completeHollow = newRun(474, {
+      quests: Object.fromEntries(QUEST_IDS.map((id) => [id, {
+        state: id === 'hollowLamplighter' ? 'revealed' : 'dormant',
+        progress: id === 'hollowLamplighter' ? QUESTS.hollowLamplighter.target - 1 : 0,
+        memory: id === 'hollowLamplighter'
+          ? { eligibleMisses: PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1 }
+          : {},
+      }])),
+      reveals: [],
+    });
+    const completeNodes = completeHollow.map.nodes.slice(0, 2);
+    completeNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
+    assert.equal(visitNode(completeHollow, completeNodes[0]).hollow, true);
+    assert.equal(payHollowPrice(completeHollow).ok, true);
+    assert.equal(completeHollow.quests.hollowLamplighter.state, 'complete');
+    completeHollow.pendingHollow = null;
+    assert.equal(visitNode(completeHollow, completeNodes[1]).hollow, undefined,
+      'a completed Hollow Trail cannot open another meeting');
+    assert.equal(completeHollow.questScratch.hollowLamplighter.meetings, 1);
+
     const shadeTierIds = Object.keys(VARIANTS)
       .filter((id) => /^ownShade[1-9]\d*$/.test(id))
       .sort((a, b) => Number(a.slice('ownShade'.length)) - Number(b.slice('ownShade'.length)));
@@ -2270,12 +2294,34 @@ function forceHand(run, cb, ids) {
     dynamicSave.endQueue = [{ t: 'pageRead', index: 6, text: 'A sixth configured page.' }];
     assert.equal(saveRun(dynamicSave), true);
     assert.ok(loadRun(), 'configured guarantee, ember debt, and Page target pass save validation');
+
+    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = oldGuaranteeRuns;
+    PROGRESSION.emberglass.hollowLamplighter.emberDebt = oldEmberDebt;
+    const compatibilitySave = newRun(475);
+    compatibilitySave.quests.eighthOmen = {
+      state: 'armed', progress: 0, memory: { dueIn: oldGuaranteeRuns },
+    };
+    compatibilitySave.quests.hollowLamplighter = {
+      state: 'revealed', progress: 0, memory: { emberDebt: oldEmberDebt },
+    };
+    assert.equal(saveRun(compatibilitySave), true);
     PROGRESSION.emberglass.eighthOmen.guaranteeRuns = 1;
     PROGRESSION.emberglass.hollowLamplighter.emberDebt = 2;
     const lowerTuningReload = loadRun();
     assert.ok(lowerTuningReload, 'lower memory tunables do not invalidate an existing run contract');
-    assert.equal(lowerTuningReload.quests.eighthOmen.memory.dueIn, 4);
-    assert.equal(lowerTuningReload.quests.hollowLamplighter.memory.emberDebt, 4);
+    assert.equal(lowerTuningReload.quests.eighthOmen.memory.dueIn, oldGuaranteeRuns);
+    assert.equal(lowerTuningReload.quests.hollowLamplighter.memory.emberDebt, oldEmberDebt);
+
+    const excessiveDue = structuredClone(JSON.parse(mem.get('spirebound_save_v2')));
+    excessiveDue.quests.eighthOmen.memory.dueIn =
+      PROGRESSION.emberglass.eighthOmen.saveDueInMax + 1;
+    mem.set('spirebound_save_v2', JSON.stringify(excessiveDue));
+    assert.equal(loadRun(), null, 'Eighth historical compatibility remains schema-bounded');
+    const excessiveDebt = structuredClone(compatibilitySave);
+    excessiveDebt.quests.hollowLamplighter.memory.emberDebt =
+      PROGRESSION.emberglass.hollowLamplighter.saveEmberDebtMax + 1;
+    mem.set('spirebound_save_v2', JSON.stringify(excessiveDebt));
+    assert.equal(loadRun(), null, 'Hollow historical compatibility remains schema-bounded');
   } finally {
     EngineApi._setQuestRng(null);
     PROGRESSION.emberglass.eighthOmen.guaranteeRuns = oldGuaranteeRuns;
