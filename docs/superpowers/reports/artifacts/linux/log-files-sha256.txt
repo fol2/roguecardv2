@@ -1,0 +1,3 @@
+dbe019d5414c20f8b4bd89758caba415c320d67cfae723fc79a608b2eb85a3d5  docs/superpowers/reports/artifacts/logs/emberglass-phase2-linux-npm-ci.log
+e46308ef4a79578b4eaad5e0ea9de0e5f67e4934a3687c10a48cd814cebfee21  docs/superpowers/reports/artifacts/logs/emberglass-phase2-linux-visual-update.log
+a80c4d0b24b610406d52524c38b19a18acee72b8188c36f0feffbc70162fcd24  docs/superpowers/reports/artifacts/logs/emberglass-phase2-linux-visual-verify.log

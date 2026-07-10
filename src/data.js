@@ -484,6 +484,12 @@ export const CARDS = {
   },
 
   // ---- statuses / curses
+  unreadablePage: {
+    name: 'The Unreadable Page', type: 'curse', rarity: 'special', cost: 0,
+    target: 'self', vfx: 'void', unplayable: true, unremovable: true,
+    text: 'It cannot be played or removed. Carry it to dawn and it may read itself.',
+    effects: [],
+  },
   wound: {
     name: 'Shard', type: 'status', rarity: 'special', cost: null, target: 'none',
     vfx: 'pierce',
@@ -1019,6 +1025,11 @@ export const SHOP = {
 // One rolled per act: a rule the night imposes on everyone. Every omen gives
 // with one hand and takes with the other. The engine reads only `mods`.
 export const OMENS = {
+  eighthOmen: {
+    name: 'The Eighth Omen', glyph: null, tone: '#e8e0ff',
+    text: 'Every lesser battle bears a title. The broken words follow every floor.',
+    mods: { allCombatsAffixed: true },
+  },
   ashfall: {
     name: 'Ashfall', glyph: '☁', tone: '#d3f2a1',
     text: 'Ash chokes every fire: enemies begin combat with 2 Smolder, but their blows leave 1 Smolder on you.',
@@ -1118,6 +1129,35 @@ export const DEEDS = {
   firstDawn: { name: 'The First Dawn', desc: 'Reach the sunrise once', stat: 'wins', n: 1, unlocks: ['aspect2'] },
 };
 
+const HOLLOW_LAMPLIGHTER_MEETINGS = [
+  {
+    ask: 'Your lantern is noisy. Give me the next three embers it catches.',
+    accepted: 'The next three embers belong to the hollow lantern.',
+    paid: 'Six panes were carried away from a window no wall could hold.',
+    cannot: 'Promise the embers now. The lantern will pay before you do.',
+  },
+  {
+    ask: 'Gold remembers every hand. Let one hundred and sixty pieces forget yours.',
+    paid: 'The Pale Ones watch the paths that point above the crown.',
+    cannot: 'Your purse is warm, but not warm enough.',
+  },
+  {
+    ask: 'The Spire counts the vessel. Give me twelve measures of yours.',
+    paid: 'Your standing dead have seen the stair above the Sovereign.',
+    cannot: 'I will not hollow you below thirty. Return with a larger vessel.',
+  },
+  {
+    ask: 'The first keeper gave you a boon. Give me the gift, not the gratitude.',
+    paid: 'The empty lantern is the token that purchases an audience with the mask.',
+    cannot: 'You have spent the gift already. Bring me one that is still yours.',
+  },
+  {
+    ask: 'Last price: leave this lantern with one heartbeat. The rest belongs to the dark.',
+    paid: 'Light the panes. The door will know you.',
+    cannot: 'One heartbeat is enough. Refusal is the only poverty left.',
+  },
+];
+
 // ---------------------------------------------------------------- THE VIGIL: PROGRESSIVE DELIVERY
 // Every pacing tunable lives in PROGRESSION. REVEALS is derived from
 // revealThresholds so the ladder ids stay declarative while counts stay
@@ -1138,6 +1178,7 @@ export const PROGRESSION = {
     poolWave3: { runsPlayed: 4 },
     poolFull: { runsPlayed: 6 },    // today's full base pool
     emberglass: { wins: 1 },        // the chain arms (Phase 2)
+    act4: { shards: 6 }, // derived sealed-door surface, no playable act
   },
   poolWaves: {
     poolWave2: {
@@ -1151,6 +1192,37 @@ export const PROGRESSION = {
     poolFull: {
       cards: ['ascension', 'frenzy', 'virulence'],
       relics: ['verdantBranch', 'duskmirror'],
+    },
+  },
+  emberglass: {
+    // Accepted 2,000-seed pacing: Act II mark 0.6, Hollow chance 0.2 and pity 3 (guided 18; unguided 50).
+    armWins: [2, 4, 6, 8, 10],
+    paleOnes: {
+      lensAt: 3, completeAt: 9, hiddenPerRun: 1,
+      markedAct1: 1, markedAct2Chance: 0.6,
+    },
+    ownShade: {
+      minDeathAct: 1, completeAt: 3,
+      tiers: [
+        { hpMult: 1, dmgMult: 1, addStatuses: {}, scale: 1.05 },
+        { hpMult: 1.25, dmgMult: 1.15, addStatuses: { str: 1 }, scale: 1.12 },
+        { hpMult: 1.55, dmgMult: 1.3, addStatuses: { str: 2 }, scale: 1.2 },
+      ],
+    },
+    usurper: { minShopAct: 1, referencePurse: 260, priceMultiplier: 2.5, price: 650, completeAt: 1 },
+    eighthOmen: {
+      guaranteeRuns: 2, saveDueInMax: 2, recurrenceChance: 1 / 3, completeAt: 1,
+    },
+    unreadablePage: { offerRewardOrdinal: 2, completeAt: 5 },
+    hollowLamplighter: {
+      appearanceChance: 0.2, pityEligibleRuns: 3, maxMeetingsPerRun: 1,
+      completeAt: 5,
+      emberDebt: 3, saveEmberDebtMax: 3,
+      gold: 160, maxHp: 12, minMaxHpAfter: 30, finalHp: 1,
+    },
+    variantStats: {
+      pale: { hpMult: 1.18, dmgMult: 1.1, addStatuses: { str: 1 } },
+      usurper: { hpMult: 1.25, dmgMult: 1.15, addStatuses: { str: 2 } },
     },
   },
 };
@@ -1167,6 +1239,139 @@ export const POOL_GATE = (() => {
   }
   return gate;
 })();
+
+export const QUEST_IDS = [
+  'paleOnes', 'ownShade', 'usurper',
+  'eighthOmen', 'unreadablePage', 'hollowLamplighter',
+];
+
+export const QUEST_STATES = Object.freeze(['dormant', 'armed', 'revealed', 'complete']);
+export const QUEST_ACTIVE_STATES = Object.freeze(['armed', 'revealed']);
+export const TERMINAL_OUTCOMES = Object.freeze(['win', 'death', 'abandon']);
+export const RUN_ID_RE = /^(?:run|legacy)-[a-z0-9]+(?:-[a-z0-9]+){1,3}$/;
+
+export const WHISPERS = [
+  'There is a colour the Spire refuses to name.',
+  'A pale hand has touched the dark side of the glass.',
+  'Six spaces wait where no window stands.',
+  'The dead climb twice: once in flesh, once in memory.',
+  'A lantern without flame is still a key.',
+  'Count the panes that do not catch the dawn.',
+  'A page can be read only after it survives the summit.',
+  'The eighth sign is not written among the seven.',
+  'The gaunt keeper remembers the road you did not take.',
+  'Pale motes gather like frost around a hidden seam.',
+  'Your monument does not always lie down.',
+  'The merchant keeps one cold thing beneath the counter.',
+  'Broken glyphs are the shadow of a complete sentence.',
+  'Five pages make a chapter; five prices make a confession.',
+  'Three deaths will teach your shade to speak plainly.',
+  'The Vigil has a window, though no wall holds it.',
+  'Each shard lights one pane of Emberglass.',
+  'The Pale Ones are not hunting you. They are pointing upward.',
+  'The Sovereign is a mask worn below the final stair.',
+  'When six panes burn, look beyond the summit.',
+  'There is a sealed door above the crown.',
+  'Its inscription has waited longer than the Vigil.',
+  'Bring six shards to the Rose Window.',
+  'The climb continues.',
+];
+
+export const QUESTS = {
+  paleOnes: {
+    name: 'The Pale Ones', mode: 'Trail', target: PROGRESSION.emberglass.paleOnes.completeAt,
+    huntName: 'Hunt the Pale Ones',
+    huntInscription: 'Defeat three pale foes and follow the cold motes they leave behind.',
+    inscription: 'Hunt the Pale Ones. Gather nine motes from glass that has forgotten colour.',
+    progress: ['No mote answers the Lens.', 'The first pale mote chills the lantern.'],
+  },
+  ownShade: {
+    name: 'Your Own Shade', mode: 'Trail', target: PROGRESSION.emberglass.ownShade.completeAt,
+    inscription: 'Defeat the self that remembers falling. Three shades must fall.',
+    fragments: [
+      'I remember the stone. You walked away before I stopped calling.',
+      'Each climber leaves a shape behind. The Spire has learned to wear ours.',
+      'Above the Sovereign there is no dawn — only a door pretending to be the sky.',
+    ],
+    final: 'We were never climbing out. We were carrying light to the lock.',
+  },
+  usurper: {
+    name: 'The Usurper', mode: 'Gate', target: PROGRESSION.emberglass.usurper.completeAt,
+    inscription: 'Carry the lantern with no flame to the summit and unmask the Usurper.',
+    itemName: 'A Lantern with No Flame',
+    itemText: 'Cold glass. No wick. The merchant will not say who left it.',
+    poor: 'Cold goods, warm price. Come back carrying a dawn\'s worth of gold.',
+    bought: 'Now the summit knows what you carry.',
+    death: 'The mask is broken. Look above.',
+  },
+  eighthOmen: {
+    name: 'The Eighth Omen', mode: 'Gate', target: PROGRESSION.emberglass.eighthOmen.completeAt,
+    inscription: 'Reach dawn beneath the Eighth Omen.',
+    resolved: 'THE EIGHTH OMEN WAS NEVER AN OMEN. IT WAS THE SHADOW OF A DOOR.',
+    floorEchoes: [
+      '// THE PANE WATCHES //', '// EIGHT IS NOT A NUMBER //',
+      '// CARRY THE WRONG LIGHT UPWARD //', '// THE CROWN IS A MASK //',
+    ],
+  },
+  unreadablePage: {
+    name: 'The Unreadable Page', mode: 'Trail', target: PROGRESSION.emberglass.unreadablePage.completeAt,
+    inscription: 'Win five dawns carrying the Unreadable Page.',
+    pages: [
+      'FIRST PAGE — Six panes were cut from one fire, then scattered before the first Vigil.',
+      'SECOND PAGE — Pale figures carried the shards down so the thing above could not follow.',
+      'THIRD PAGE — A climber died standing and saw a stair where the summit should have ended.',
+      'FOURTH PAGE — The Sovereign took an empty lantern and wore a king\'s shape over the lock.',
+      'FIFTH PAGE — The Rose Window is a map, not a memorial. Light it, then look above the crown.',
+    ],
+  },
+  hollowLamplighter: {
+    name: 'The Hollow Lamplighter', mode: 'Trail',
+    get target() { return PROGRESSION.emberglass.hollowLamplighter.completeAt; },
+    inscription: 'Pay the Hollow Lamplighter five prices along the Unlit Way.',
+    meetings: HOLLOW_LAMPLIGHTER_MEETINGS,
+  },
+};
+
+export const SHADE_KITS = {
+  duskblade: {
+    moves: {
+      eclipse: { name: 'Remembered Eclipse', intent: 'attack_debuff', dmg: 12, fx: [{ who: 'player', id: 'vulnerable', n: 1 }] },
+      chisel: { name: 'Remembered Chisel', intent: 'attack_debuff', dmg: 8, fx: [{ who: 'player', id: 'frail', n: 1 }] },
+      spark: { name: 'First Spark, Last Light', intent: 'buff', block: 10, fx: [{ who: 'self', id: 'str', n: 2 }] },
+    },
+    ai: ({ turn }) => ['eclipse', 'chisel', 'spark'][(turn - 1) % 3],
+  },
+  ashwarden: {
+    moves: {
+      ashbite: { name: 'Remembered Ashbite', intent: 'attack_debuff', dmg: 10, fx: [{ who: 'player', id: 'poison', n: 2 }] },
+      smother: { name: 'Remembered Smother', intent: 'attack_block', dmg: 6, block: 12 },
+      ashfall: { name: 'First Ash, Last Breath', intent: 'debuff', fx: [{ who: 'player', id: 'poison', n: 5 }, { who: 'player', id: 'weak', n: 1 }] },
+    },
+    ai: ({ turn }) => ['ashbite', 'smother', 'ashfall'][(turn - 1) % 3],
+  },
+};
+
+const pale = PROGRESSION.emberglass.variantStats.pale;
+const shadeTier = PROGRESSION.emberglass.ownShade.tiers;
+export const VARIANTS = {
+  paleDuskfang: { id: 'paleDuskfang', base: 'duskfang', name: 'Pale Duskfang', tint: { hue: 165, saturation: 0.45, brightness: 1.18 }, scale: 1.08, statMods: pale, dialogue: [], drop: { quest: 'paleOnes', kind: 'paleMote', n: 1 } },
+  paleDrownedOne: { id: 'paleDrownedOne', base: 'drownedOne', name: 'Pale Drowned One', tint: { hue: 120, saturation: 0.38, brightness: 1.2 }, scale: 1.1, statMods: pale, dialogue: [], drop: { quest: 'paleOnes', kind: 'paleMote', n: 1 } },
+  paleVoidWisp: { id: 'paleVoidWisp', base: 'voidWisp', name: 'Pale Void Wisp', tint: { hue: -90, saturation: 0.32, brightness: 1.25 }, scale: 1.12, statMods: pale, dialogue: [], drop: { quest: 'paleOnes', kind: 'paleMote', n: 1 } },
+  ownShade1: { id: 'ownShade1', base: 'hero', name: 'The Shade That Fell', tint: { hue: 35, saturation: 0.25, brightness: 0.62 }, scale: shadeTier[0].scale, statMods: shadeTier[0], dialogue: [], deathDialogue: QUESTS.ownShade.fragments[0], drop: { quest: 'ownShade', kind: 'shadeMemory', n: 1 } },
+  ownShade2: { id: 'ownShade2', base: 'hero', name: 'The Shade That Returned', tint: { hue: 20, saturation: 0.2, brightness: 0.55 }, scale: shadeTier[1].scale, statMods: shadeTier[1], dialogue: [], deathDialogue: QUESTS.ownShade.fragments[1], drop: { quest: 'ownShade', kind: 'shadeMemory', n: 1 } },
+  ownShade3: { id: 'ownShade3', base: 'hero', name: 'The Shade That Remembers', tint: { hue: 0, saturation: 0.16, brightness: 0.48 }, scale: shadeTier[2].scale, statMods: shadeTier[2], dialogue: [], deathDialogue: QUESTS.ownShade.fragments[2], drop: { quest: 'ownShade', kind: 'shadeMemory', n: 1 } },
+  usurpedSovereign: {
+    id: 'usurpedSovereign', base: 'sovereign', name: 'The Usurper',
+    tint: { hue: 105, saturation: 0.65, brightness: 1.08 }, scale: 1.15,
+    statMods: PROGRESSION.emberglass.variantStats.usurper,
+    dialogue: [
+      '{aspect}. At last, the lantern brings me a name.',
+      'The Sovereign was a mask. You have paid to meet the face beneath it.',
+      'Break me, and the empty lantern will remember fire.',
+    ],
+    drop: { quest: 'usurper', kind: 'shard', n: 1 },
+  },
+};
 
 // ---------------------------------------------------------------- THE VIGIL: ASPECTS
 // Who carries the lantern. Each aspect is a whole kit — HP, starting deck, relic,

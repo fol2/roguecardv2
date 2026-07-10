@@ -33,6 +33,7 @@ mechanics — that is its point.
 | Title indicators | Vigil button **pulses** when it has news; a **view-only miniature rose window** appears on the title after the first shard is earned |
 | Compatibility | Existing profiles are migrated and grandfathered: nothing a player has already seen or used is ever taken away |
 | Known bug folded in | The live title flow never passes `vigil.unlocks` into `newRun()`, so deed-unlocked cards/relics never reach real pools. Fixed by this spec |
+| Performance evidence | Performance is a **reference/warning, not a release or merge hard gate**. The runner must emit valid FPS/frame-time metrics; 55 fps average and 22 ms p95 remain comparison targets, and misses are reported without blocking |
 
 ## Context (why this pass)
 
@@ -81,7 +82,7 @@ door, and buys construction time for Act 4 itself.
 | Persistence | `spirebound_vigil_v2` schema + v1 migration + grandfathering |
 | Bug fix | `vigil.unlocks` (and reveal state) actually feed `newRun()` on the live path |
 | Variant engine | Data-driven enemy variants (base asset + tint/scale/stat/dialogue overrides) powering pale foes, the Usurper, shades |
-| Emberglass chain | Six quests (3 Gates, 3 Trails), arming cadence, hint states, whispers, rose window UI, sealed summit door |
+| Emberglass chain | Six quests (**2 Gates, 4 Trails**), arming cadence, hint states, whispers, rose window UI, sealed summit door |
 | Testing | `test_engine.js` coverage for all of the above; Playwright title/stage/visual updates; manual GUI smoke |
 
 **Out of scope:** playable Act 4 content (enemies, map, boss, ending); new
@@ -91,8 +92,10 @@ changes to combat math or preview mirrors.
 
 **Success criteria:** a wiped profile experiences the staged journey exactly
 as §2; an existing profile loses nothing; `npm test` green including new
-suites; Playwright green with updated baselines; manual smoke of run-1 flow,
-Embark growth, Vigil pulse, Pale One ambush, and rose window states.
+suites; behavioural and visual Playwright green with updated baselines;
+performance produces valid reference metrics and warns on target misses;
+manual smoke covers run-1 flow, Embark growth, Vigil pulse, Pale One ambush,
+and rose window states.
 
 ## 2. Player journey & reveal ladder
 
@@ -226,7 +229,7 @@ Notes:
 
 ### Enemy variant engine
 
-- `VARIANTS` in `data.js`: `{ id, base: <enemyId>|'hero', name, tint: <hue-rotate deg / tint spec>, scale: mult, statMods: { hpMult, dmgMult, addStatuses }, dialogue: [lines], drop }`.
+- `VARIANTS` in `data.js`: `{ id, base: <enemyId>|'hero', name, tint: <hue-rotate deg / tint spec>, scale: mult, statMods: { hpMult, dmgMult, addStatuses }, dialogue: [opening lines], deathDialogue?: line, drop }`.
 - Pure `makeVariant(baseDef, variantDef)` in `engine.js` produces a combat-
   ready enemy; UI applies tint (CSS filter) + scale (transform) to the
   existing base asset and shows dialogue lines via a banner/speech treatment
@@ -363,6 +366,12 @@ Embark; `visual.spec` title baseline re-shot; new light assertions: fresh
 profile title has no aspect row; Embark shows zero sections fresh / two
 sections on a seeded veteran profile.
 
+**Performance reference:** the portrait/LITE run must write finite positive
+FPS and frame-time metrics. Average 55 fps and p95 22 ms are warning targets,
+not pass/fail thresholds, because compositor load and display refresh rate make
+absolute local rAF timings host-sensitive. Missing or invalid metrics still
+fail the measurement job.
+
 **Manual GUI smoke (with demo video):** wiped profile → title → Embark
 (one-click) → run 1 has no Lamplighter/phials/omens → die → run 2 gets
 Lamplighter → seeded win-1 profile → Pale One ambush occurs → Vigil pulses →
@@ -379,6 +388,7 @@ Rose Window tab shows "???" pane.
 | Pacing mistuned (too fast/slow) | Every number in `PROGRESSION`; §5 targets recorded; tuning is a data edit, not a refactor |
 | Mural asset unavailable in executor env | Rose window degrades to labelled progress panel; generation tasks may report BLOCKED, never fake assets |
 | Save-scumming quests (reload before shade/usurper) | Quest scratch state lives on the run save like `pendingCombat`; `loadRun` validation extended |
+| Performance numbers vary by host | Preserve raw metrics plus display/runtime context; treat target misses as warnings and compare only like-for-like captures |
 
 ## 8. Phasing
 

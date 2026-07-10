@@ -1,12 +1,12 @@
 // SPIREBOUND UI — screens, combat playback, interactions.
 import * as E from './engine.js';
-import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS } from './data.js';
+import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS, QUESTS, QUEST_IDS, TERMINAL_OUTCOMES, WHISPERS, PROGRESSION } from './data.js';
 import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, uiIcon, uiIconUrl, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
 import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule, drawBatchSchedule } from './pile-chrome.js';
 import { UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyphId } from './ui-chrome.js';
 // drawBatchSchedule also paces discardHand (same even-stagger clock)
 import * as V from './vfx.js';
-import { syncVigil, commitRunToVigil, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews, clearVigil } from './vigil.js';
+import { syncVigil, commitPendingRunEnd, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, clearNews, clearVigil, questSnapshot } from './vigil.js';
 import { sfx, unlock, getSfxVolume, setSfxVolume, isSfxMuted, setSfxMuted, previewSfx, invalidateSfxSelection, preloadSfx } from './audio.js';
 import * as music from './music.js';
 import { SFX_CATALOG, MUSIC_CATALOG } from './audio-catalog.js';
@@ -17,8 +17,9 @@ import { charShadowLive, charCssFloat, charAim, onCharMetaChange } from './char-
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
-import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, onBFChange } from './battlefield.js';
+import { bfResolve, bfActor, bfSlots, bfEnemyFrame, bfEnemyFootY, bfEnemyZOrder, bfHeroY, onBFChange } from './battlefield.js';
 import { uicResolve, onUICChange } from './uic.js';
+import { createChoiceLatch } from './choice-latch.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
@@ -30,6 +31,8 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const screenEl = () => $('#screen');
+const terminalNavigationLocked = () => S.screen === 'end' ||
+  S.run?.pendingRunEnd != null || S.run?.pendingDawn != null;
 
 function el(tag, cls = '', html = '') {
   const e = document.createElement(tag);
@@ -63,9 +66,10 @@ const hudRelic = (rid) => {
   const u = assetUrl('relics', rid);
   return u ? `<img class="relic-art hud-relic-art" src="${u}" alt="">` : `<span class="hud-relic-fallback">${RELICS[rid]?.glyph || '◈'}</span>`;
 };
+const omenIconName = (oid) => oid === 'eighthOmen' ? 'eighthOmen' : `omen-${oid}`;
 const omenMark = (oid, imgClass, fallbackClass, size = 22) => {
   const u = assetUrl('omens', oid);
-  return u ? `<img class="${imgClass}" src="${u}" alt="">` : `<span class="${fallbackClass}">${iconSvg(`omen-${oid}`, size)}</span>`;
+  return u ? `<img class="${imgClass}" src="${u}" alt="">` : `<span class="${fallbackClass}">${iconSvg(omenIconName(oid), size)}</span>`;
 };
 // silhouette outline ring — SVG feMorphology fallback when mesh is off.
 // Mesh-off: SVG ring is always solid. Fancy spin/chase need WebGL (meshAim).
@@ -84,6 +88,18 @@ const heroArt = (i) => {
   const u = assetUrl('heroes', ASPECTS[i].id);
   if (!u) return `<div class="hero-sprite">${heroSvg(i)}</div>`;
   return `<div class="hero-sprite">${aimRing(u, 'self')}${rasterOr('heroes', ASPECTS[i].id, heroSvg(i))}<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg></div>`;
+};
+const combatantView = (en) => {
+  const p = en.presentation || {};
+  return {
+    artCategory: p.artCategory || 'enemies',
+    artId: p.artId || en.key,
+    layoutKey: p.layoutKey || en.key,
+    kind: p.kind || ENEMIES[en.key].art.kind,
+    hue: p.hue ?? ENEMIES[en.key].art.hue,
+    tint: p.tint || null,
+    scale: p.scale || 1,
+  };
 };
 
 let assetsWarmed = false;
@@ -322,7 +338,8 @@ function openMenu(cx, cy) {
   closeMenus();
   const { x, y } = toStage(cx, cy);
   const m = el('div', 'pop-menu');
-  m.innerHTML = `<button data-m="help">How to Play</button><button data-m="settings">Settings</button><button data-m="abandon" style="color:#ff8d8d">Abandon Run</button>`;
+  const terminalLocked = terminalNavigationLocked();
+  m.innerHTML = `<button data-m="help">How to Play</button><button data-m="settings">Settings</button>${terminalLocked ? '' : '<button data-m="abandon" style="color:#ff8d8d">Abandon Run</button>'}`;
   stageEl().appendChild(m); // inside the stage so it scales with the game
   m.style.left = `${Math.min(x, stageW() - 200)}px`;
   m.style.top = `${y + 8}px`;
@@ -331,7 +348,7 @@ function openMenu(cx, cy) {
     closeMenus();
     if (a === 'help') showHelp();
     if (a === 'settings') openSettingsPanel();
-    if (a === 'abandon') confirmAbandon();
+    if (a === 'abandon' && !terminalNavigationLocked()) confirmAbandon();
   };
   setTimeout(() => document.addEventListener('pointerdown', closeMenusOnce, { once: true }), 0);
 }
@@ -355,7 +372,7 @@ function openSettingsPanel() {
     ${row('SFX', getSfxVolume(), isSfxMuted(), 'sfx')}
     <div class="settings-debug">
       <div class="settings-debug-label">Debug</div>
-      <button type="button" class="btn danger settings-reset" data-a="reset">Reset Save</button>
+      <button type="button" class="btn danger settings-reset" data-a="reset"${terminalNavigationLocked() ? ' disabled' : ''}>Reset Save</button>
       <div class="settings-debug-warn">Wipes the current climb and all Vigil progress. Cannot be undone.</div>
     </div>
     <button type="button" class="audio-close" data-a="close">Close</button>`;
@@ -383,11 +400,16 @@ function openSettingsPanel() {
   bindRow('music');
   bindRow('sfx');
   $('[data-a="close"]', panel).onclick = () => closeMenus();
-  $('[data-a="reset"]', panel).onclick = () => { closeMenus(); confirmResetSave(); };
+  $('[data-a="reset"]', panel).onclick = () => {
+    if (terminalNavigationLocked()) return;
+    closeMenus();
+    confirmResetSave();
+  };
   setTimeout(() => document.addEventListener('pointerdown', closeMenusOnce, { once: true }), 0);
 }
 
 function confirmResetSave() {
+  if (terminalNavigationLocked()) return;
   openOverlay(`<div class="panel ov-panel" style="text-align:center">
     <div class="ov-title">Reset Save?</div>
     <div class="ov-sub">This erases your <b>current climb</b> and the entire <b>Vigil</b> — deeds, unlocks, vows, monuments, and whispers.<br><br><span style="color:#ff8d8d">This cannot be undone.</span></div>
@@ -451,6 +473,7 @@ async function usePotionOn(slot, targetIdx) {
   }
 }
 function confirmAbandon() {
+  if (terminalNavigationLocked()) return;
   openOverlay(`<div class="panel ov-panel" style="text-align:center">
     <div class="ov-title">Abandon Run?</div>
     <div class="ov-sub">Your climb will be lost to the void.</div>
@@ -458,40 +481,261 @@ function confirmAbandon() {
   </div>`, (root) => {
     root.onclick = (e) => {
       const a = e.target.dataset.a;
-      if (a === 'yes') { commitRunEnd(S.run); E.recordRunEnd(S.run, false); S.run = null; S.cb = null; closeOverlay(); show('title'); }
+      if (a === 'yes') {
+        const run = S.run;
+        root.onclick = null;
+        closeOverlay();
+        journalRunEnd(run, 'abandon', () => {
+          S.run = null;
+          S.cb = null;
+          show('title');
+        });
+      }
       if (a === 'no') closeOverlay();
     };
   });
 }
 
 // ------------------------------------------------------------ overlay helpers
+let persistenceDialogTransaction = null;
 function openOverlay(html, wire = null, closable = false) {
+  if (persistenceDialogTransaction) return false;
   const ov = $('#overlay');
   ov.innerHTML = html;
   ov.classList.add('open');
   ov._closable = closable;
   if (wire) wire(ov.firstElementChild);
+  return true;
 }
 function closeOverlay() {
+  if (persistenceDialogTransaction) return false;
   const ov = $('#overlay');
-  ov.classList.remove('open');
+  ov.classList.remove('open', 'run-save-lock');
   ov.innerHTML = '';
+  return true;
+}
+function persistenceFailureHtml({ id, title, description, retry, reload }) {
+  return `<div class="panel ov-panel" role="alertdialog" aria-modal="true" aria-labelledby="${id}-title" aria-describedby="${id}-description" style="text-align:center">
+    <div class="ov-title" id="${id}-title">${title}</div>
+    <div class="ov-sub" id="${id}-description" role="status" aria-live="assertive" aria-atomic="true">${description}</div>
+    <div class="ov-actions"><button class="btn btn-primary" data-a="${retry.action}">${retry.label}</button><button class="btn ghost" data-a="${reload.action}">${reload.label}</button></div>
+  </div>`;
+}
+function openPersistenceDialog(html, focusSelector, wire) {
+  if (persistenceDialogTransaction) return null;
+  closeMenus();
+  const background = $('#shake');
+  const blockBackground = (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+  const transaction = { background, wasInert: !!background?.inert, blockBackground, settled: false, root: null };
+  transaction.active = () => persistenceDialogTransaction === transaction && !transaction.settled;
+  transaction.settle = (continuation = null) => {
+    if (!transaction.active()) return false;
+    transaction.settled = true;
+    if (transaction.root) {
+      transaction.root.onclick = null;
+      transaction.root.onkeydown = null;
+    }
+    if (background) {
+      background.inert = transaction.wasInert;
+      for (const type of ['click', 'pointerdown', 'pointerup', 'keydown']) {
+        background.removeEventListener(type, blockBackground, true);
+      }
+    }
+    persistenceDialogTransaction = null;
+    closeOverlay();
+    continuation?.();
+    return true;
+  };
+  const opened = openOverlay(html, (root) => {
+    transaction.root = root;
+    root.onkeydown = (event) => {
+      // Keep global combat shortcuts from reaching the document while this
+      // transaction owns input. Background controls are inert, but the
+      // dialog itself still bubbles key events unless it stops them here.
+      event.stopPropagation();
+      if (event.key !== 'Tab') return;
+      const buttons = $$('button:not(:disabled)', root);
+      if (!buttons.length) return;
+      const first = buttons[0], last = buttons.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    wire(root, transaction);
+  });
+  if (!opened) return null;
+  $('#overlay').classList.add('run-save-lock');
+  persistenceDialogTransaction = transaction;
+  if (background) {
+    background.inert = true;
+    for (const type of ['click', 'pointerdown', 'pointerup', 'keydown']) {
+      background.addEventListener(type, blockBackground, true);
+    }
+  }
+  requestAnimationFrame(() => $(focusSelector, $('#overlay'))?.focus());
+  return transaction;
+}
+function showRunSaveFailure(run, onSaved) {
+  const html = persistenceFailureHtml({
+    id: 'run-save-failure',
+    title: 'Save Failed',
+    description: 'The climb could not be secured. Free storage and retry, or reload the last durable climb state.',
+    retry: { action: 'retry-save', label: 'Retry Save' },
+    reload: { action: 'reload-save', label: 'Reload Saved Climb' },
+  });
+  openPersistenceDialog(html, '[data-a="retry-save"]', (root, transaction) => {
+    root.onclick = (e) => {
+      if (!transaction.active()) return;
+      const a = e.target.closest('[data-a]')?.dataset.a;
+      if (a === 'reload-save') { location.reload(); return; }
+      if (a !== 'retry-save') return;
+      sfx.click();
+      const retry = $('[data-a="retry-save"]', root);
+      const reload = $('[data-a="reload-save"]', root);
+      retry.disabled = true;
+      reload.disabled = true;
+      if (!E.saveRun(run)) {
+        $('.ov-sub', root).textContent = 'The save is still unavailable. Free storage, then retry or reload the last durable climb state.';
+        retry.disabled = false;
+        reload.disabled = false;
+        retry.focus();
+        return;
+      }
+      transaction.settle(onSaved);
+    };
+  });
+}
+function requireRunSave(run, onSaved) {
+  if (persistenceDialogTransaction) return false;
+  if (E.saveRun(run)) return true;
+  showRunSaveFailure(run, onSaved);
+  return false;
+}
+function requireHollowRouteClear(run, onCleared) {
+  if (!run.pendingHollowRoute) return true;
+  if (E.completePendingHollowRoute(run)) return true;
+  const html = persistenceFailureHtml({
+    id: 'hollow-route-save-failure',
+    title: 'Save Failed',
+    description: 'This destination is still pending. Free storage and retry, or reload the exact saved destination.',
+    retry: { action: 'retry-hollow-route', label: 'Retry Save' },
+    reload: { action: 'reload-hollow-route', label: 'Reload Saved Destination' },
+  });
+  openPersistenceDialog(html, '[data-a="retry-hollow-route"]', (root, transaction) => {
+    root.onclick = (e) => {
+      if (!transaction.active()) return;
+      const action = e.target.closest('[data-a]')?.dataset.a;
+      if (action === 'reload-hollow-route') { location.reload(); return; }
+      if (action !== 'retry-hollow-route') return;
+      sfx.click();
+      transaction.settle(() => {
+        if (requireHollowRouteClear(run, onCleared)) onCleared();
+      });
+    };
+  });
+  return false;
+}
+function leaveHollowDestination(run, onCleared) {
+  if (!run.pendingHollowRoute) { onCleared(); return; }
+  if (!requireHollowRouteClear(run, onCleared)) return;
+  onCleared();
+}
+function showStonePersistenceFailure(onRetry, retryLabel = 'Retry') {
+  const html = persistenceFailureHtml({
+    id: 'stone-save-failure',
+    title: 'The Stone Could Not Hold',
+    description: 'The stone could not hold this duel. Free storage and try again.',
+    retry: { action: 'retry-stone', label: retryLabel },
+    reload: { action: 'reload-stone', label: 'Reload Saved Climb' },
+  });
+  openPersistenceDialog(html, '[data-a="retry-stone"]', (root, transaction) => {
+    root.onclick = (e) => {
+      if (!transaction.active()) return;
+      const a = e.target.closest('[data-a]')?.dataset.a;
+      if (a === 'reload-stone') { location.reload(); return; }
+      if (a !== 'retry-stone') return;
+      sfx.click();
+      transaction.settle(onRetry);
+    };
+  });
+}
+function requireBequestClear(onCleared) {
+  if (clearBequest()) return true;
+  showStonePersistenceFailure(() => {
+    if (clearBequest()) onCleared();
+    else requireBequestClear(onCleared);
+  });
+  return false;
+}
+function requirePendingShadeDuelClear(onCleared) {
+  const result = E.resumeShadeDuel(S.run, clearBequest);
+  if (result.status === E.SHADE_DUEL_TX.READY) return true;
+  showStonePersistenceFailure(() => {
+    if (requirePendingShadeDuelClear(onCleared)) onCleared();
+  });
+  return false;
+}
+function resumeSavedCombat(run, onReady) {
+  if (run.pendingQuestId === 'ownShade' && !requirePendingShadeDuelClear(onReady)) return false;
+  onReady();
+  return true;
+}
+function showRunEndPersistenceFailure(run, onFinalised = null) {
+  const html = persistenceFailureHtml({
+    id: 'run-end-save-failure',
+    title: 'The Vigil Could Not Hold',
+    description: 'This run end is safely journalled, but its ledgers or final dawn could not be secured. Free storage and retry, or reload this saved finalisation.',
+    retry: { action: 'retry-end', label: 'Retry Finalisation' },
+    reload: { action: 'reload-end', label: 'Reload Saved Finalisation' },
+  });
+  openPersistenceDialog(html, '[data-a="retry-end"]', (root, transaction) => {
+    root.onclick = (e) => {
+      if (!transaction.active()) return;
+      const a = e.target.closest('[data-a]')?.dataset.a;
+      if (a === 'reload-end') { location.reload(); return; }
+      if (a !== 'retry-end') return;
+      sfx.click();
+      transaction.settle(() => finalisePendingRunEnd(run, onFinalised));
+    };
+  });
 }
 function showCardGrid(title, instances, { sub = '', pick = null, canSkip = false, skipLabel = 'Skip', inCombat = false } = {}) {
   const panel = el('div', 'panel ov-panel');
   panel.innerHTML = `<div class="ov-title">${title}</div>${sub ? `<div class="ov-sub">${sub}</div>` : ''}`;
   const grid = el('div', `card-grid ${pick ? 'choice-cards' : ''}`);
   const sorted = pick ? instances : [...instances].sort((a, b) => E.cardData(a).name.localeCompare(E.cardData(b).name));
+  const latch = createChoiceLatch();
+  let skip = null;
+  const choose = (inst, card = null, delay = 0) => {
+    if (!latch.claim()) return;
+    if (card) card.classList.add('picked');
+    [...grid.children].forEach((choice) => {
+      choice.onclick = null;
+      choice.style.pointerEvents = 'none';
+      choice.setAttribute('aria-disabled', 'true');
+    });
+    if (skip) { skip.disabled = true; skip.onclick = null; }
+    const finish = () => { closeOverlay(); pick(inst); };
+    if (delay) setTimeout(finish, delay);
+    else finish();
+  };
   for (const inst of sorted) {
     const c = cardEl(inst, { inCombat });
-    if (pick) c.onclick = () => { sfx.click(); c.classList.add('picked'); setTimeout(() => { closeOverlay(); pick(inst); }, 240); };
+    if (pick) c.onclick = () => { sfx.click(); choose(inst, c, 240); };
     grid.appendChild(c);
   }
   panel.appendChild(grid);
   const actions = el('div', 'ov-actions');
   if (canSkip && pick) {
-    const skip = el('button', 'btn ghost', skipLabel);
-    skip.onclick = () => { sfx.click(); closeOverlay(); pick(null); };
+    skip = el('button', 'btn ghost', skipLabel);
+    skip.onclick = () => { sfx.click(); choose(null); };
     actions.appendChild(skip);
   }
   if (!pick) {
@@ -500,8 +744,9 @@ function showCardGrid(title, instances, { sub = '', pick = null, canSkip = false
     actions.appendChild(close);
   }
   panel.appendChild(actions);
-  openOverlay('', null, !pick);
+  if (!openOverlay('', null, !pick)) return false;
   $('#overlay').appendChild(panel);
+  return true;
 }
 function showHelp() {
   openOverlay(`<div class="panel ov-panel howto">
@@ -557,13 +802,14 @@ async function transition(kind, opts = {}) {
   if (kind === 'act-change') {
     const omen = OMENS[S.run.omens?.[S.run.act]];
     return run(`<div class="tr-plate"><div class="tp-act">ACT ${S.run.act + 1} - ${ACTS[S.run.act].name.toUpperCase()}</div>
-      ${omen ? `<div class="tp-omen" style="color:${omen.tone}">${iconSvg(`omen-${S.run.omens[S.run.act]}`, 16)} OMEN - ${omen.name.toUpperCase()}</div>` : ''}</div>`,
+      ${omen ? `<div class="tp-omen" style="color:${omen.tone}">${iconSvg(omenIconName(S.run.omens[S.run.act]), 16)} OMEN - ${omen.name.toUpperCase()}</div>` : ''}</div>`,
       [{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }], 2200);
   }
 }
 export function show(name, data) {
   if (S.screen !== name && S.run) wipe(); // travel is lit; in-place rerenders aren't
   S.screen = name;
+  if (name !== 'end') $('#toasts')?.remove();
   closeMenus();
   $('#tooltip').style.display = 'none'; // a parked cursor shouldn't strand a tip across screens
   if (name !== 'map') { exitMapMode(); clearOverlay(); }
@@ -573,7 +819,7 @@ export function show(name, data) {
   sc.onclick = null; // screens share #screen — never let a stale delegate survive
   ({
     title: renderTitle, embark: renderEmbark, vigil: renderVigil, map: renderMap, combat: () => {}, reward: renderReward, rest: renderRest,
-    shop: renderShop, event: renderEvent, treasure: renderTreasure, bossRelic: renderBossRelic, end: renderEnd,
+    shop: renderShop, event: renderEvent, treasure: renderTreasure, hollow: renderHollow, bossRelic: renderBossRelic, end: renderEnd,
   })[name](data);
   if (name === 'map') warmAssets();
   if (name !== 'combat' && name !== 'title') meshClear();
@@ -589,18 +835,208 @@ export function show(name, data) {
 }
 
 const ROMAN = ['0', 'I', 'II', 'III', 'IV', 'V'];
+const ROSE_ASSET_IDS = {
+  mural: 'emberglass-mural',
+  frame: 'emberglass-frame',
+  masks: Object.fromEntries(QUEST_IDS.map((id) => [id, 'emberglass-mask-' + id])),
+};
+const ROSE_LABEL_POSITIONS = [
+  [50, 15], [78, 34], [78, 69], [50, 84], [22, 69], [22, 34],
+];
+let forceRoseFallback = false;
+
+function roseAssets() {
+  if (forceRoseFallback) return null;
+  const mural = assetUrl('meta', ROSE_ASSET_IDS.mural);
+  const frame = assetUrl('meta', ROSE_ASSET_IDS.frame);
+  const masks = Object.fromEntries(QUEST_IDS.map((id) => [id, assetUrl('meta', ROSE_ASSET_IDS.masks[id])]));
+  return mural && frame && Object.values(masks).every(Boolean) ? { mural, frame, masks } : null;
+}
+
+function rosePaneCopy(vigil, id, record) {
+  const quest = QUESTS[id];
+  const disclosure = E.questDisclosure(vigil, id);
+  if (record.state === 'armed') return '<div class="rose-pane-mystery">???</div>';
+  if (record.state === 'revealed') return `<div class="rose-pane-name">${escHtml(disclosure.name)}</div>
+    <div class="rose-pane-inscription">${escHtml(disclosure.inscription)}</div>
+    <div class="rose-pane-progress">${disclosure.progress}/${disclosure.target}</div>`;
+  if (record.state === 'complete') return `<div class="rose-pane-name">${escHtml(quest.name)}</div>
+    <div class="rose-pane-progress">Shard recovered</div>`;
+  return '';
+}
+
+function rosePaneControl(vigil, id, record, index, selected, assets) {
+  const state = record.state;
+  const disclosure = E.questDisclosure(vigil, id);
+  const name = state === 'dormant'
+    ? `Dormant Emberglass pane ${index + 1}`
+    : state === 'armed'
+      ? `Unknown Emberglass pane ${index + 1}`
+      : state === 'revealed'
+        ? `${disclosure.name}, ${disclosure.progress} of ${disclosure.target}`
+        : `${QUESTS[id].name}, Shard recovered`;
+  const [x, y] = ROSE_LABEL_POSITIONS[index];
+  const style = assets ? ` style="--rose-x:${x}%;--rose-y:${y}%"` : '';
+  return `<button type="button" class="rose-pane-select${assets ? '' : ' slot-control'}" data-a="rose-pane" data-index="${index}"
+    aria-label="${escHtml(name)}" aria-controls="rose-pane-detail" aria-pressed="${selected ? 'true' : 'false'}"${style}></button>`;
+}
+
+function roseDetailCopy(vigil, id, record) {
+  const quest = QUESTS[id];
+  const disclosure = E.questDisclosure(vigil, id);
+  if (record.state === 'armed') return '<div class="rose-detail-mystery">???</div>';
+  if (record.state === 'revealed') return `<div class="rose-detail-name">${escHtml(disclosure.name)}</div>
+    <div class="rose-detail-inscription">${escHtml(disclosure.inscription)}</div>
+    <div class="rose-detail-progress">${disclosure.progress}/${disclosure.target}</div>`;
+  if (record.state === 'complete') return `<div class="rose-detail-name">${escHtml(quest.name)}</div>
+    <div class="rose-detail-progress">Shard recovered</div>`;
+  return '<div class="rose-detail-dormant">This pane is dark.</div>';
+}
+
+function rosePaneDetailHtml(v, index) {
+  const id = QUEST_IDS[index];
+  const record = v.quests[id] || { state: 'dormant', progress: 0, memory: {} };
+  const state = ['armed', 'revealed', 'complete'].includes(record.state) ? record.state : 'dormant';
+  return `<section id="rose-pane-detail" class="rose-pane-detail ${state}" role="region"
+    aria-label="Selected Emberglass pane" aria-live="polite" data-index="${index}">${roseDetailCopy(v, id, { ...record, state })}</section>`;
+}
+
+function initialRosePaneIndex(v) {
+  for (const state of ['revealed', 'armed', 'complete']) {
+    const index = QUEST_IDS.findIndex((id) => v.quests[id]?.state === state);
+    if (index >= 0) return index;
+  }
+  return 0;
+}
+
+function rosePaneHtml(v, assets, id, index, selected) {
+  const record = v.quests[id] || { state: 'dormant', progress: 0, memory: {} };
+  const state = ['armed', 'revealed', 'complete'].includes(record.state) ? record.state : 'dormant';
+  const stateClasses = state === 'complete' ? 'complete lit' : state;
+  const identity = state === 'dormant' ? '' : ` data-quest="${id}"`;
+  const copy = rosePaneCopy(v, id, { ...record, state });
+  if (!assets) {
+    const mark = state === 'complete' ? 'emberglassShard' : 'roseWindow';
+    return `<div class="rose-pane rose-slot ${stateClasses}" data-index="${index}"${identity}>
+      <span class="rose-slot-mark">${iconSvg(mark, 34)}</span>
+      <div class="rose-pane-copy" aria-hidden="true">${copy}</div>
+      ${rosePaneControl(v, id, record, index, selected, assets)}
+    </div>`;
+  }
+  const [x, y] = ROSE_LABEL_POSITIONS[index];
+  return `<div class="rose-pane ${stateClasses}" data-index="${index}"${identity} style="--rose-x:${x}%;--rose-y:${y}%">
+    <div class="rose-pane-art" style="--rose-mural:url('${escHtml(assets.mural)}');--rose-mask:url('${escHtml(assets.masks[id])}')"></div>
+    <div class="rose-pane-copy" aria-hidden="true">${copy}</div>
+    ${rosePaneControl(v, id, record, index, selected, assets)}
+  </div>`;
+}
+
+function whisperLogHtml(v) {
+  const heard = WHISPERS.slice(0, Math.min(v.whispers, WHISPERS.length));
+  const rows = heard.map((line, i) => `<div class="whisper-row"><span>${i + 1}</span><i>${escHtml(line)}</i></div>`);
+  if (v.whispers > WHISPERS.length) {
+    rows.push('<div class="whisper-row final"><span>∞</span><i>The final whisper returns at every dawn.</i></div>');
+  }
+  return `<div class="whisper-log">
+    <div class="whisper-log-title">Whispers heard at dawn</div>
+    ${rows.join('')}
+  </div>`;
+}
+
+function roseSurfaceHtml(v, assets) {
+  const selected = initialRosePaneIndex(v);
+  const panes = QUEST_IDS.map((id, i) => rosePaneHtml(v, assets, id, i, i === selected)).join('');
+  if (!assets) {
+    return `<div class="rose-view">
+      <div class="rose-window rose-fallback">${panes}</div>
+      ${rosePaneDetailHtml(v, selected)}
+      ${whisperLogHtml(v)}
+    </div>`;
+  }
+  const urls = [assets.mural, assets.frame, ...QUEST_IDS.map((id) => assets.masks[id])];
+  return `<div class="rose-view">
+    <div class="rose-window rose-assets">
+      <div class="rose-backdrop"></div>
+      ${panes}
+      <img class="rose-frame" src="${escHtml(assets.frame)}" alt="">
+      <div class="rose-preload" aria-hidden="true">${urls.map((url) => `<img src="${escHtml(url)}" alt="">`).join('')}</div>
+    </div>
+    ${rosePaneDetailHtml(v, selected)}
+    ${whisperLogHtml(v)}
+  </div>`;
+}
+
+function selectRosePane(root, v, index) {
+  if (!Number.isInteger(index) || index < 0 || index >= QUEST_IDS.length) return;
+  const detail = $('#rose-pane-detail', root);
+  if (!detail) return;
+  const id = QUEST_IDS[index];
+  const record = v.quests[id] || { state: 'dormant', progress: 0, memory: {} };
+  const state = ['armed', 'revealed', 'complete'].includes(record.state) ? record.state : 'dormant';
+  detail.className = `rose-pane-detail ${state}`;
+  detail.dataset.index = String(index);
+  detail.innerHTML = roseDetailCopy(v, id, { ...record, state });
+  $$('.rose-pane-select', root).forEach((control) => {
+    control.setAttribute('aria-pressed', control.dataset.index === String(index) ? 'true' : 'false');
+  });
+}
+
+function decodeRoseAssets(root) {
+  const rose = $('.rose-window.rose-assets', root);
+  if (!rose) return;
+  const images = $$('.rose-preload img', rose);
+  Promise.all(images.map((image) => image.decode ? image.decode() : Promise.resolve()))
+    .then(() => { if (rose.isConnected) rose.classList.add('ready'); })
+    .catch(() => {});
+}
+
+function titleRoseMedallion(v, assets) {
+  if (!assets || v.shards.length < 1) return '';
+  const panes = QUEST_IDS.filter((id) => v.shards.includes(id)).map((id) =>
+    `<span class="title-rose-pane" style="--rose-mural:url('${escHtml(assets.mural)}');--rose-mask:url('${escHtml(assets.masks[id])}')"></span>`).join('');
+  const urls = [assets.mural, assets.frame, ...QUEST_IDS.map((id) => assets.masks[id])];
+  return `<button class="title-rose-medallion" data-a="rose" aria-label="Open the Rose Window" disabled>
+    <span class="title-rose-composite">${panes}<img src="${escHtml(assets.frame)}" alt=""></span>
+    <span class="title-rose-preload" aria-hidden="true">${urls.map((url) => `<img src="${escHtml(url)}" alt="">`).join('')}</span>
+  </button>`;
+}
+
+function decodeTitleRoseAssets(root) {
+  const medallion = $('.title-rose-medallion', root);
+  if (!medallion) return;
+  const images = $$('.title-rose-preload img', medallion);
+  const decode = (image) => {
+    if (image.decode) return image.decode();
+    if (image.complete) return image.naturalWidth ? Promise.resolve() : Promise.reject(new Error('Rose asset failed to load'));
+    return new Promise((resolve, reject) => {
+      image.addEventListener('load', resolve, { once: true });
+      image.addEventListener('error', reject, { once: true });
+    });
+  };
+  Promise.all(images.map(decode))
+    .then(() => {
+      if (!medallion.isConnected) return;
+      medallion.disabled = false;
+      medallion.classList.add('ready');
+    })
+    .catch(() => {});
+}
+
 function renderTitle() {
   setTheme(0);
   const vigil = syncVigil(); // reconcile any owed unlocks (e.g. seeded from old stats)
   const saved = E.loadRun();
+  if (E.savedRunRequiresFinalisation(saved)) { startRun(saved, true); return; }
   const d = vigil.deeds;
   const banner = assetUrl('title-background', 'background');
   const titleText = assetUrl('title', 'title');
+  const rose = roseAssets();
   const sc = screenEl();
   sc.innerHTML = `<div class="title-screen screen-enter">
     ${banner ? `<div class="title-banner"><div class="title-banner-frame"><img class="raster-art" src="${banner}" alt=""></div></div>` : ''}
     <div class="logo${titleText ? ' logo-raster' : ''}">${titleText ? `<img class="title-wordmark" src="${titleText}" alt="SPIREBOUND">` : 'SPIREBOUND'}</div>
     <div class="tagline">A Roguelite Deckbuilder · The Vigil Remembers</div>
+    ${titleRoseMedallion(vigil, rose)}
     <div class="title-btns">
       ${saved ? '<button class="btn" data-a="continue">Continue Climb</button>' : ''}
       <button class="btn" data-a="embark">Begin the Climb</button>
@@ -610,6 +1046,7 @@ function renderTitle() {
     </div>
     <div class="title-stats">${d.runs} climbs · ${d.wins} dawns · ${d.slain} slain${vigil.unlocks.length ? ` · ${vigil.unlocks.length} secrets unearthed` : ''}</div>
   </div>`;
+  decodeTitleRoseAssets(sc);
   sc.onclick = (e) => {
     const t = e.target.closest('[data-a]');
     if (!t || t.disabled) return;
@@ -618,6 +1055,7 @@ function renderTitle() {
     if (a === 'embark') show('embark');
     else if (a === 'continue' && saved) startRun(saved, true);
     else if (a === 'vigil') show('vigil');
+    else if (a === 'rose') show('vigil', { tab: 'rose' });
     else if (a === 'help') showHelp();
     else if (a === 'settings') openSettingsPanel();
   };
@@ -630,6 +1068,7 @@ function renderEmbark() {
   setTheme(0);
   const vigil = syncVigil();
   const saved = E.loadRun();
+  if (E.savedRunRequiresFinalisation(saved)) { startRun(saved, true); return; }
   const sel = (S.embark ||= { aspect: 0, vow: 0 });
   const hasAspects = vigil.unlocks.includes('aspect2');
   if (!hasAspects) sel.aspect = 0;
@@ -673,6 +1112,8 @@ function renderEmbark() {
       monument: v.lastFall,
       unlocks: v.unlocks, // the fix: deed unlocks finally reach live pools
       reveals: revealSnapshot(v),
+      quests: questSnapshot(v),
+      shards: v.shards,
     }));
   };
   sc.onclick = (e) => {
@@ -697,13 +1138,14 @@ function renderEmbark() {
           const ans = ev.target.dataset.a;
           if (ans === 'yes') {
             const abandoned = E.loadRun();
-            if (abandoned) {
-              commitRunEnd(abandoned);
-              E.recordRunEnd(abandoned, false);
-            }
-            S.run = null; S.cb = null;
+            root.onclick = null;
             closeOverlay();
-            beginClimb();
+            if (!abandoned) { beginClimb(); return; }
+            journalRunEnd(abandoned, 'abandon', () => {
+              S.run = null;
+              S.cb = null;
+              beginClimb();
+            });
           }
           if (ans === 'no') closeOverlay();
         };
@@ -713,9 +1155,11 @@ function renderEmbark() {
 }
 // THE VIGIL — the hall between climbs. Phase 1 ships the Deeds tab; the
 // Emberglass rose window joins it when the chain arms (Phase 2).
-function renderVigil() {
+function renderVigil({ tab = 'deeds' } = {}) {
   setTheme(0);
   const v = clearNews(); // opening the hall reads the news
+  const hasRose = isRevealed(v, 'emberglass');
+  const assets = roseAssets();
   const deedRows = Object.entries(DEEDS).map(([id, deed]) => {
     const cur = v.deeds[deed.stat] || 0;
     const done = cur >= deed.n;
@@ -739,35 +1183,81 @@ function renderVigil() {
     </div>`;
   }).join('');
   const sc = screenEl();
-  sc.innerHTML = `<div class="center-panel screen-enter"><div class="panel vigil-panel">
-    <div class="ov-title">The Vigil</div>
-    <div class="ov-sub">${v.deeds.runs} climbs · ${v.deeds.wins} dawns · deepest Vow: ${ROMAN[v.deeds.bestVow] || '—'}</div>
-    <div class="vigil-tabs"><button class="vtab on" data-a="tab-deeds">Deeds</button></div>
-    <div class="deed-list">${deedRows}</div>
-    <div class="ov-actions"><button class="btn" data-a="back">Return</button></div>
-  </div></div>`;
+  const draw = (requested) => {
+    const active = requested === 'rose' && hasRose ? 'rose' : 'deeds';
+    sc.innerHTML = `<div class="center-panel screen-enter"><div class="panel vigil-panel${active === 'rose' ? ' rose-tab-open' : ''}">
+      <div class="ov-title">The Vigil</div>
+      <div class="ov-sub">${v.deeds.runs} climbs · ${v.deeds.wins} dawns · deepest Vow: ${ROMAN[v.deeds.bestVow] || '—'}</div>
+      <div class="vigil-tabs">
+        <button class="vtab${active === 'deeds' ? ' on' : ''}" data-a="tab-deeds">Deeds</button>
+        ${hasRose ? `<button class="vtab${active === 'rose' ? ' on' : ''}" data-a="tab-rose">Rose Window</button>` : ''}
+      </div>
+      ${active === 'rose' ? roseSurfaceHtml(v, assets) : `<div class="deed-list">${deedRows}</div>`}
+      <div class="ov-actions"><button class="btn" data-a="back">Return</button></div>
+    </div></div>`;
+    if (active === 'rose') decodeRoseAssets(sc);
+  };
+  draw(tab);
   sc.onclick = (e) => {
     const t = e.target.closest('[data-a]');
     if (!t) return;
     sfx.click();
-    if (t.dataset.a === 'back') show('title');
+    if (t.dataset.a === 'tab-deeds') draw('deeds');
+    else if (t.dataset.a === 'tab-rose' && hasRose) draw('rose');
+    else if (t.dataset.a === 'rose-pane') selectRosePane(sc, v, Number(t.dataset.index));
+    else if (t.dataset.a === 'back') show('title');
   };
 }
+function resumePendingHollowRoute(run) {
+  const route = run.pendingHollowRoute;
+  if (!route) return false;
+  const node = run.map.nodes.find((candidate) => candidate.id === route.nodeId);
+  if (!node) return false;
+  routeVisitedNode(node, route.type, { eventId: route.eventId });
+  return true;
+}
 function startRun(run, resumed = false) {
+  if (!resumed && persistenceDialogTransaction) return;
   S.run = run;
   S.cb = null;
   setTheme(run.act);
   const curNode = run.nodeId ? run.map.nodes.find((n) => n.id === run.nodeId) : null;
   setAltitude(run.act, curNode ? curNode.row : 0);
-  if (!resumed) E.saveRun(run);
+  const continueStart = () => routeStartedRun(run, resumed, curNode);
+  if (!resumed && !requireRunSave(run, continueStart)) return;
+  continueStart();
+}
+function routeStartedRun(run, resumed, curNode) {
+  if (run.pendingDawn) { show('end', { won: true }); return; }
+  if (run.pendingRunEnd) { finalisePendingRunEnd(run); return; }
+  if (run.pendingHollow) { show('hollow', { nodeId: run.pendingHollow.nodeId }); return; }
+  if (run.pendingReward) { show('reward'); return; }
   if (resumed && run.pendingCombat) {
     // died-to-reload protection: an unfinished fight restarts fresh
     const node = run.map.nodes.find((n) => n.id === run.nodeId);
-    S.screen = 'combat';
-    startCombatUI(E.rollEncounter(run, run.pendingCombat, node ? node.row : 5), run.pendingCombat);
-    renderHud();
+    const ids = run.pendingEnemyIds || E.rollEncounter(run, run.pendingCombat, node ? node.row : 5, node);
+    const resumeCombat = () => {
+      S.screen = 'combat';
+      startCombatUI(ids, run.pendingCombat);
+      renderHud();
+    };
+    const resumePersistedCombat = () => resumeSavedCombat(run, resumeCombat);
+    if (!run.pendingEnemyIds) {
+      E.setPendingEncounter(run, run.pendingCombat, ids, run.pendingQuestId);
+      if (!requireRunSave(run, resumePersistedCombat)) return;
+    }
+    resumePersistedCombat();
     return;
   }
+  if (run.pendingHollowRoute) { resumePendingHollowRoute(run); return; }
+  if (resumed && curNode?.type === 'monument' && run.monument) {
+    if (!run.monument.claimed) { claimMonumentNode(curNode); return; }
+    const continueMap = () => show('map');
+    if (!requireBequestClear(continueMap)) return;
+    continueMap();
+    return;
+  }
+  if (E.hasPendingBossRelic(run)) { show('bossRelic'); return; }
   if (run.pendingLamplighter) { renderLamplighter(); return; } // the gift comes before the first step
   show('map');
   if (!resumed) setTimeout(() => omenBanner(run), 900);
@@ -835,14 +1325,131 @@ function renderLamplighter() {
 function beginFromLamplighter() {
   const run = S.run, L = S.lamp;
   run.art = L.art;
-  run.boon = L.boon;
-  E.applyEventOps(run, BOONS[L.boon].ops);
+  E.applyBoon(run, L.boon);
   delete run.pendingLamplighter;
-  S.lamp = null;
-  sfx.relic();
-  E.saveRun(run);
-  show('map');
-  setTimeout(() => omenBanner(run), 900);
+  const finish = () => {
+    S.lamp = null;
+    sfx.relic();
+    show('map');
+    setTimeout(() => omenBanner(run), 900);
+  };
+  if (!requireRunSave(run, finish)) return;
+  finish();
+}
+
+function restoreDurableHollow(message) {
+  S.run = E.loadRun();
+  if (!S.run?.pendingHollow) { show('title'); return; }
+  show('hollow', { nodeId: S.run.pendingHollow.nodeId });
+  const error = $('.hollow-error', screenEl());
+  if (error) error.textContent = message;
+}
+
+function exitHollow(run) {
+  const route = E.stageHollowExit(run);
+  if (!route) {
+    const error = $('.hollow-error', screenEl());
+    if (error) error.textContent = 'The way onward could not be prepared.';
+    $$('[data-a^="hollow-"]', screenEl()).forEach((button) => {
+      if (button.dataset.a === 'hollow-continue') button.disabled = !run.pendingHollow?.paid;
+      else if (button.dataset.a === 'hollow-leave') button.disabled = !!run.pendingHollow?.paid;
+    });
+    return;
+  }
+  if (!E.saveRun(run)) {
+    restoreDurableHollow('The way onward is not secured. Retry when storage is available.');
+    return;
+  }
+  const node = run.map.nodes.find((candidate) => candidate.id === route.nodeId);
+  if (!node) { show('map'); return; }
+  routeVisitedNode(node, route.type, {
+    enemyIds: route.kind === 'combat' ? route.enemyIds : null,
+    eventId: route.kind === 'destination' ? route.eventId : null,
+  });
+}
+
+// THE HOLLOW LAMPLIGHTER — a persisted interruption on the Unlit Way. The
+// visited node is routed only after the price and Continue checkpoints hold.
+function renderHollow() {
+  const run = S.run;
+  const pending = run?.pendingHollow;
+  if (!pending) { show('map'); return; }
+  const q = E.questRecord(run, 'hollowLamplighter');
+  const paidAdvance = pending.paid && !pending.deferred ? 1 : 0;
+  const meetingIndex = Math.max(0, Math.min(QUESTS.hollowLamplighter.meetings.length - 1,
+    (q?.progress || 0) - paidAdvance));
+  const meeting = QUESTS.hollowLamplighter.meetings[meetingIndex];
+  const sc = screenEl();
+  sc.innerHTML = `<div class="hollow-lamplighter${REDUCED ? ' reduced' : ''}">
+    <div class="hollow-vignette"></div>
+    <div class="hollow-figure" aria-hidden="true">
+      <svg viewBox="0 0 180 300" role="presentation">
+        <path class="hollow-cloak" d="M91 35c-24 3-38 28-35 59-14 22-24 58-27 101l-12 72c19 13 47 20 77 20 31 0 58-7 76-21l-14-72c-4-42-13-77-29-101 2-31-12-56-36-58Z"/>
+        <path class="hollow-face" d="M69 67c7-17 37-18 45 0l-6 39c-9 8-24 8-33 0Z"/>
+        <path class="hollow-staff" d="M139 56l5 217M127 68l19-30 17 31"/>
+        <path class="hollow-lantern" d="M118 143h48l-5 63h-38Zm5 13h38m-31-13 5-15h14l6 15"/>
+        <path class="hollow-void" d="M78 76c6-7 21-7 28 0l-4 21c-7 5-15 5-21 0Z"/>
+      </svg>
+    </div>
+    <div class="hollow-copy screen-enter">
+      <div class="hollow-kicker">THE UNLIT WAY · PRICE ${meetingIndex + 1} OF ${QUESTS.hollowLamplighter.target}</div>
+      <div class="hollow-title">THE HOLLOW LAMPLIGHTER</div>
+      <div class="hollow-ask">“${escHtml(meeting.ask)}”</div>
+      <div class="hollow-answer${pending.paid ? ' paid' : ''}" aria-live="polite">${pending.paid ? escHtml(pending.answer) : ''}</div>
+      <div class="hollow-error" aria-live="assertive"></div>
+      <div class="hollow-actions">
+        <button class="btn btn-primary" data-a="hollow-pay"${pending.paid ? ' disabled' : ''}>${pending.paid ? 'Price Paid' : 'Pay the Price'}</button>
+        <button class="btn ghost" data-a="hollow-continue"${pending.paid ? '' : ' disabled'}>Continue</button>
+        <button class="btn ghost" data-a="hollow-leave"${pending.paid ? ' disabled' : ''}>Return Later</button>
+      </div>
+    </div>
+  </div>`;
+  sc.onclick = (e) => {
+    const target = e.target.closest('[data-a]');
+    if (!target || target.disabled) return;
+    const action = target.dataset.a;
+    if (action === 'hollow-pay') {
+      target.disabled = true;
+      unlock(); sfx.click();
+      const result = E.payHollowPrice(run);
+      const answer = $('.hollow-answer', sc);
+      const error = $('.hollow-error', sc);
+      const continueButton = $('[data-a="hollow-continue"]', sc);
+      const leaveButton = $('[data-a="hollow-leave"]', sc);
+      if (!result.ok) {
+        answer.textContent = result.message;
+        answer.classList.add('error');
+        error.textContent = '';
+        target.disabled = false;
+        return;
+      }
+      if (!E.saveRun(run)) {
+        answer.textContent = '';
+        answer.classList.remove('paid', 'error');
+        error.textContent = 'The price is not yet secured. Retry the save.';
+        target.textContent = 'Retry Save';
+        target.disabled = false;
+        continueButton.disabled = true;
+        leaveButton.disabled = true;
+        return;
+      }
+      answer.textContent = result.message;
+      answer.classList.remove('error');
+      answer.classList.add('paid');
+      error.textContent = '';
+      target.textContent = 'Price Paid';
+      continueButton.disabled = false;
+      leaveButton.disabled = true;
+      renderHud();
+      return;
+    }
+    if (action === 'hollow-continue' && !run.pendingHollow?.paid) return;
+    if (action === 'hollow-leave' && run.pendingHollow?.paid) return;
+    if (!['hollow-continue', 'hollow-leave'].includes(action)) return;
+    $$('[data-a^="hollow-"]', sc).forEach((button) => { button.disabled = true; });
+    unlock(); sfx.click();
+    exitHollow(run);
+  };
 }
 
 const NODE_ICONS = { monster: 'sword', elite: 'skull', event: 'question', rest: 'flame', shop: 'coin', treasure: 'chest', boss: 'crown', monument: 'monument' };
@@ -850,10 +1457,20 @@ function renderMap() {
   const run = S.run;
   if (run.pendingCombat) { // invariant: an unresolved fight always resumes
     const node = run.map.nodes.find((n) => n.id === run.nodeId);
-    S.screen = 'combat';
-    startCombatUI(E.rollEncounter(run, run.pendingCombat, node ? node.row : 5), run.pendingCombat);
+    const ids = run.pendingEnemyIds || E.rollEncounter(run, run.pendingCombat, node ? node.row : 5, node);
+    const resumeCombat = () => {
+      S.screen = 'combat';
+      startCombatUI(ids, run.pendingCombat);
+    };
+    const resumePersistedCombat = () => resumeSavedCombat(run, resumeCombat);
+    if (!run.pendingEnemyIds) {
+      E.setPendingEncounter(run, run.pendingCombat, ids, run.pendingQuestId);
+      if (!requireRunSave(run, resumePersistedCombat)) return;
+    }
+    resumePersistedCombat();
     return;
   }
+  if (run.pendingHollowRoute) { resumePendingHollowRoute(run); return; }
   E.saveRun(run);
   S.cb = null;
   const { nodes } = run.map;
@@ -873,6 +1490,7 @@ function renderMap() {
     const dark = n.unlit && !visited.has(n.id); // an unlit lantern keeps its secret
     const cls = [
       'mnode', `type-${n.type}`, dark ? 'unlit' : '',
+      n.questMarked ? 'pale-marked' : '',
       visited.has(n.id) ? 'visited' : '',
       n.id === run.nodeId ? 'current' : '',
       avail.has(n.id) ? 'avail' : '',
@@ -904,13 +1522,22 @@ function renderMap() {
     }
     // selectable: duplicate art under feMorphology ring (same language as aim outlines)
     const sil = avail.has(n.id) ? `<g class="nsil">${artHtml}</g>` : '';
+    const paleMark = n.questMarked
+      ? `<g class="pale-lens" transform="translate(${Math.round(r * 0.8)} ${Math.round(-r * 0.8)})">
+          <circle class="pale-lens-halo" r="11"/>
+          <circle class="pale-lens-glass" r="7.5"/>
+          <g transform="translate(-9 -9)">${iconSvg('paleMote', 18)}</g>
+        </g>`
+      : '';
     dots += `<g class="${cls}" data-node="${n.id}" style="--d:${n.row * 34}ms">
-      ${hit}<g class="nwrap">${sil}${artHtml}</g>
+      ${hit}<g class="nwrap">${sil}${artHtml}</g>${paleMark}
     </g>`;
   }
   const act = ACTS[run.act];
   const omenId = run.omens?.[run.act];
   const omen = OMENS[omenId];
+  const sealedDoorVisible = run.act === 2 && E.runRevealed(run, 'act4') &&
+    run.shards.length >= PROGRESSION.revealThresholds.act4.shards;
   // map-node-outline: dilate alpha → ring only (mirrors #aim-outline-*)
   const mapDefs = `<defs><filter id="map-node-outline" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
     <feMorphology in="SourceAlpha" operator="dilate" radius="2.4" result="dilated"/>
@@ -923,9 +1550,32 @@ function renderMap() {
     <div class="map-screen screen-enter">
       <div class="map-haze" style="--haze:${['#2a3a2e', '#1f2e40', '#3a2030'][run.act] ?? '#2a3a2e'}"></div>
       <svg class="map-svg" width="100%" height="100%">${mapDefs}${edges}${dots}</svg>
+      ${sealedDoorVisible ? `<button class="sealed-door" data-a="sealed-door" aria-label="The sealed door">
+        <span>${iconSvg('sealedDoor', 42)}</span><small>THE SEALED DOOR</small>
+      </button>` : ''}
       <div class="map-hint">${COARSE ? 'drag' : 'scroll'} to survey the Spire</div>
     </div>`;
   const svg = $('.map-svg');
+  const sealedDoor = $('.sealed-door');
+  if (sealedDoor) {
+    sealedDoor.onclick = (event) => {
+      if (panEaten) return;
+      event.stopPropagation();
+      unlock();
+      sfx.click();
+      openOverlay(`<div class="panel sealed-door-panel">
+        <div class="ov-title">THE SEALED DOOR</div>
+        <div class="sealed-door-mark">${iconSvg('sealedDoor', 96)}</div>
+        <div class="ov-sub">Six panes burn behind you. The lock answers, but does not open.</div>
+        <div class="door-inscription">the climb continues</div>
+        <div class="ov-actions"><button class="btn" data-a="close-door">Return to the summit</button></div>
+      </div>`, (root) => {
+        root.onclick = (closeEvent) => {
+          if (closeEvent.target.closest('[data-a="close-door"]')) closeOverlay();
+        };
+      });
+    };
+  }
   let panEaten = false;
   svg.onclick = (e) => {
     if (panEaten) return; // that tap was a drag
@@ -939,9 +1589,11 @@ function renderMap() {
     const n = nodes.find((x) => x.id === g.dataset.node);
     const names = { monster: 'Monster', elite: 'Elite — beware', event: 'Unknown event', rest: 'Rest site', shop: 'Merchant', treasure: 'Treasure', boss: ACTS[run.act].bossName };
     const hints = { monster: 'A fight. Embers and gold for the swift.', elite: 'A titled foe - greater risk, a relic-grade purse.', event: 'Fate unwritten. Could be anything.', rest: 'Heal, or forge a card into its + form.', shop: 'Gold for cards, relics, phials.', treasure: 'A chest with no fight attached.', boss: 'The act ends here. Ready your deck.' };
-    g._tip = n.unlit && !visited.has(n.id)
-      ? { title: 'An unlit lantern', body: `What waits here is unknown — but first light pays a bounty of gold.${avail.has(n.id) ? ` ${COARSE ? 'Tap' : 'Click'} to travel here.` : ''}` }
-      : { title: names[n.type], body: avail.has(n.id) ? `${COARSE ? 'Tap' : 'Click'} to travel here.` : '', sub: hints[n.type] };
+    g._tip = n.questMarked
+      ? { title: 'Witchlight trembles', body: 'Pale glass waits here.' }
+      : n.unlit && !visited.has(n.id)
+        ? { title: 'An unlit lantern', body: `What waits here is unknown — but first light pays a bounty of gold.${avail.has(n.id) ? ` ${COARSE ? 'Tap' : 'Click'} to travel here.` : ''}` }
+        : { title: names[n.type], body: avail.has(n.id) ? `${COARSE ? 'Tap' : 'Click'} to travel here.` : '', sub: hints[n.type] };
   });
   // 3D wiring: anchors on the tower, camera dollies to the current row
   const anchors = nodes.map((n) => ({ id: n.id, pos: mapNodePos(run.act, n) }));
@@ -964,6 +1616,16 @@ function renderMap() {
       p.setAttribute('d', `M${A.x.toFixed(1)} ${A.y.toFixed(1)} Q${((A.x + B.x) / 2).toFixed(1)} ${((A.y + B.y) / 2 + sag).toFixed(1)} ${B.x.toFixed(1)} ${B.y.toFixed(1)}`);
       // walked edges stay bright (CSS paints them B&W); only fade with camera depth
       p.style.opacity = Math.min(A.fade, B.fade).toFixed(3);
+    }
+    if (sealedDoor) {
+      const boss = nodes.find((node) => node.type === 'boss');
+      const point = boss ? P.get(boss.id) : null;
+      if (point) {
+        const x = Math.max(74, Math.min(stageW() - 74, point.x));
+        const y = Math.max(104, Math.min(stageH() - 92, point.y - 82));
+        sealedDoor.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-50%) scale(${Math.max(0.78, point.s).toFixed(3)})`;
+        sealedDoor.style.opacity = Math.max(0.72, point.fade).toFixed(3);
+      }
     }
   });
   V.setWeather(run.act, { mult: 0.3 });
@@ -1003,12 +1665,7 @@ function renderMap() {
   ms.addEventListener('pointerup', panEnd);
   ms.addEventListener('pointercancel', panEnd);
 }
-function enterNode(node) {
-  const run = S.run;
-  sfx.map();
-  setAltitude(run.act, node.row);
-  const { type, bounty } = E.visitNode(run, node);
-  E.saveRun(run);
+function showNodeBounty(node, bounty) {
   if (bounty) {
     // first light: the dark lantern pays for the walking
     sfx.coin();
@@ -1017,25 +1674,92 @@ function enterNode(node) {
     V.floatText(from.x, from.y - 34, `${iconSvg('coin', 12)} +${bounty}`, 'goldf');
     flyTo(from.x, from.y, 120, 30, { n: 5, color: '#ffe9ac', size: 7, dur: 620 });
   }
-  if (type === 'monster' || type === 'elite' || type === 'boss') {
-    run.pendingCombat = type;
-    E.saveRun(run);
-    const g = $(`.mnode[data-node="${node.id}"]`);
-    transition('combat-in', g ? V.centerOf(g) : {});
-    startCombatUI(E.rollEncounter(run, type, node.row), type);
+}
+function enterNode(node) {
+  const run = S.run;
+  sfx.map();
+  setAltitude(run.act, node.row);
+  const { type, bounty, hollow } = E.visitNode(run, node);
+  if (hollow) {
+    if (!E.saveRun(run)) {
+      S.run = E.loadRun();
+      if (!S.run) { show('title'); return; }
+      show('map');
+      showRunSaveFailure(S.run, () => {});
+      return;
+    }
+    showEighthFloorEcho(run);
+    showNodeBounty(node, bounty);
+    show('hollow', { nodeId: node.id });
+    return;
+  }
+  showEighthFloorEcho(run);
+  const isCombat = type === 'monster' || type === 'elite' || type === 'boss';
+  if (!isCombat && type !== 'monument') E.saveRun(run);
+  showNodeBounty(node, bounty);
+  routeVisitedNode(node, type);
+}
+function routeVisitedNode(node, type, { enemyIds = null, eventId = null } = {}) {
+  const run = S.run;
+  const isCombat = type === 'monster' || type === 'elite' || type === 'boss';
+  if (isCombat) {
+    const ids = enemyIds ? [...enemyIds] : E.rollEncounter(run, type, node.row, node);
+    if (!enemyIds) E.setPendingEncounter(run, type, ids);
+    const beginCombat = () => {
+      const g = $(`.mnode[data-node="${node.id}"]`);
+      transition('combat-in', g ? V.centerOf(g) : {});
+      startCombatUI(ids, type);
+    };
+    if (enemyIds) { beginCombat(); return; }
+    if (!requireRunSave(run, beginCombat)) return;
+    beginCombat();
   } else if (type === 'rest') show('rest');
   else if (type === 'shop') show('shop');
   else if (type === 'treasure') show('treasure');
-  else if (type === 'event') show('event', E.rollEvent(run));
+  else if (type === 'event') show('event', eventId || E.rollEvent(run));
   else if (type === 'monument') claimMonumentNode(node);
+}
+function showEighthFloorEcho(run) {
+  if (run.omens?.[run.act] !== 'eighthOmen') return;
+  const echoes = QUESTS.eighthOmen.floorEchoes;
+  const text = echoes[run.floorsClimbed % echoes.length];
+  setTimeout(() => {
+    if (S.run?.runId !== run.runId || !text) return;
+    const b = el('div', 'turn-banner eighth-floor-echo broken-omen',
+      `<span class="efe-icon">${iconSvg('eighthOmen', 24)}</span><span class="efe-text">${escHtml(text)}</span>`);
+    screenEl().appendChild(b);
+    setTimeout(() => b.remove(), 2200);
+  }, REDUCED ? 0 : 180);
 }
 // stepping onto the stone a past self left behind
 function claimMonumentNode(node) {
   const run = S.run;
+  const continueMap = () => show('map');
+  if (run.monument?.standing && !run.monument.claimed) {
+    const transaction = E.beginShadeDuel(run, clearBequest);
+    const beginDuel = () => {
+      const g = $(`.mnode[data-node="${node.id}"]`);
+      transition('combat-in', g ? V.centerOf(g) : {});
+      startCombatUI([transaction.duel.variantId], 'monster');
+    };
+    if (transaction.status === E.SHADE_DUEL_TX.READY) {
+      beginDuel();
+      return;
+    }
+    const reloadPending = transaction.status === E.SHADE_DUEL_TX.RELOAD_PENDING;
+    showStonePersistenceFailure(
+      reloadPending ? () => location.reload() : () => claimMonumentNode(node),
+      reloadPending ? 'Reload Saved Duel' : 'Retry',
+    );
+    return;
+  }
   const b = E.claimMonument(run);
-  if (b) clearBequest(); // recovered once — the stone is spent
-  E.saveRun(run);
-  if (b) {
+  if (!b) {
+    if (!requireRunSave(run, continueMap)) return;
+    continueMap();
+    return;
+  }
+  const finishGift = () => {
     sfx.relic();
     const label = b.kind === 'relic' ? RELICS[b.id]?.name : b.kind === 'card' ? CARDS[b.id]?.name : `${b.amount} gold`;
     const g = $(`.mnode[data-node="${node.id}"]`);
@@ -1043,8 +1767,14 @@ function claimMonumentNode(node) {
     V.floatText(from.x, from.y - 34, `✦ ${label}`, 'goldf');
     flyTo(from.x, from.y, stageW() / 2, stageH() * 0.5, { n: 8, color: '#ffe9ac', size: 8, dur: 720 });
     banner('THE STONE REMEMBERS');
-  }
-  show('map');
+    show('map');
+  };
+  const clearThenFinish = () => {
+    if (!requireBequestClear(finishGift)) return;
+    finishGift();
+  };
+  if (!requireRunSave(run, clearThenFinish)) return;
+  clearThenFinish();
 }
 
 // ------------------------------------------------------------ combat
@@ -1059,20 +1789,6 @@ function startCombatUI(enemyIds, kind) {
   V.setWeather(S.run.act, { boss: kind === 'boss' });
   renderCombat();
   renderHud();
-  if (kind === 'boss') {
-    // Name plate only — rose-window behind it read as a second overlapping intro.
-    const bossLabel = S.cb.enemies[0].name.toUpperCase();
-    const sp = bossLabel.indexOf(' ');
-    const bossHtml = sp < 0
-      ? escHtml(bossLabel)
-      : `${escHtml(bossLabel.slice(0, sp))}<br>${escHtml(bossLabel.slice(sp + 1))}`;
-    const b = el('div', 'turn-banner boss-banner', `<span class="bb-name">${bossHtml}</span>`);
-    screenEl().appendChild(b);
-    setTimeout(() => b.remove(), 2100);
-    V.flash('#1a0a20', 0.5, 0.9);
-    kick(1.6);
-    sfx.bigDeath();
-  }
   drain().then(afterAction);
 }
 function renderCombat() {
@@ -1129,17 +1845,28 @@ function renderCombat() {
   const L = bfResolve(stageInfo().shape, S.run.act);
   const slots = bfSlots(L, cb.enemies.length);
   cb.enemies.forEach((en, i) => {
-    const d = ENEMIES[en.key];
-    const size = bfEnemySize(L, en.key, d.boss ? 'boss' : d.elite ? 'elite' : 'normal', slots[i], stageW(), stageH());
+    const d = en.def || ENEMIES[en.key];
+    const view = combatantView(en);
+    const { size } = bfEnemyFrame(L, view.layoutKey,
+      d.boss ? 'boss' : d.elite ? 'elite' : 'normal', slots[i], stageW(), stageH(), view.scale);
+    const artUrl = assetUrl(view.artCategory, view.artId);
     const box = el('div', `enemy${d.elite ? ' elite-e' : ''}${d.boss ? ' boss-e' : ''}${afx ? ' affixed' : ''}`);
     if (afx) box.style.setProperty('--affix-tone', afx.tone);
     box.dataset.idx = i;
+    box.dataset.baseId = en.key;
+    if (en.variantId) box.dataset.variantId = en.variantId;
+    box.dataset.artId = view.artId;
+    if (view.tint) {
+      box.style.setProperty('--variant-hue', view.tint.hue + 'deg');
+      box.style.setProperty('--variant-sat', String(view.tint.saturation));
+      box.style.setProperty('--variant-bright', String(view.tint.brightness));
+    }
     box.style.animationDelay = `${160 + i * 130}ms`;
     box.innerHTML = `<div class="top-chrome">
         <div class="intent"></div>
         <div class="status-row"></div>
       </div>
-      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${aimRing(assetUrl('enemies', en.key), 'atk')}${rasterOr('enemies', en.key, enemySvg(d.art))}<div class="vessel-fire"></div>${assetUrl('enemies', en.key) ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
+      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${aimRing(artUrl, 'atk')}${rasterOr(view.artCategory, view.artId, enemySvg({ ...d.art, kind: view.kind, hue: view.hue }))}<div class="vessel-fire"></div>${artUrl ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
       <div class="cplate">
         <div class="name">${afx ? `<span class="affix-name" style="color:${afx.tone}">${afx.name.toUpperCase()}</span> ` : ''}${en.name.toUpperCase()}</div>
         <div class="hpbar-wrap"><span class="block-chip zero"><span class="ic">${uiIcon('ward', 28)}</span> 0</span><div class="hp-vial"><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div></div><span class="hp-label"></span></div>
@@ -1205,7 +1932,12 @@ function renderCombat() {
   rigCombatants();
   scheduleMeshBind();
   // drop the intro class once entrances finish so intro animations don't retrigger
-  setTimeout(() => ce.root.classList.remove('intro'), 1300);
+  const introRoot = ce.root;
+  setTimeout(() => {
+    if (S.screen !== 'combat' || S.ce !== ce || ce.root !== introRoot || !introRoot.isConnected) return;
+    introRoot.classList.remove('intro');
+    scheduleChromeClamp();
+  }, 1300);
   ce.endTurn.onclick = onEndTurn;
   ce.draw.onclick = () => { sfx.click(); showCardGrid('Draw Pile', cb.draw, { sub: 'Order hidden — shown alphabetically', inCombat: true }); };
   ce.discard.onclick = () => { sfx.click(); showCardGrid('Discard Pile', cb.discard, { inCombat: true }); };
@@ -1253,15 +1985,17 @@ function applyBattlefieldLayout(resolved) {
   pz.style.left = `${Math.round(L.hero.x - hw / 2)}px`;
   pz.style.bottom = `${bfHeroY(L) + hero.footY}px`; // layout y + art feet offset
   const slots = bfSlots(L, cb.enemies.length);
-  const keys = cb.enemies.map((en) => en.key);
+  const keys = cb.enemies.map((en) => combatantView(en).layoutKey);
   const zOrder = bfEnemyZOrder(slots, keys);
   cb.enemies.forEach((en, i) => {
-    const d = ENEMIES[en.key];
+    const d = en.def || ENEMIES[en.key];
+    const view = combatantView(en);
     const tier = d.boss ? 'boss' : d.elite ? 'elite' : 'normal';
-    const size = bfEnemySize(L, en.key, tier, slots[i], stageW(), stageH());
+    const frame = bfEnemyFrame(L, view.layoutKey, tier, slots[i], stageW(), stageH(), view.scale);
+    const { size } = frame;
     const box = ce.enemies[i].root;
-    box.style.left = `${Math.round(slots[i].x - size / 2 + bfEnemyFootX(slots[i], en.key))}px`;
-    box.style.bottom = `${(slots[i].y ?? 0) + bfEnemyFootY(slots[i], en.key)}px`;
+    box.style.left = `${frame.left}px`;
+    box.style.bottom = `${frame.bottom}px`;
     box.style.width = box.style.height = `${size}px`;
     box.style.zIndex = String(zOrder[i]);
     ce.enemies[i].art.style.width = ce.enemies[i].art.style.height = `${size}px`;
@@ -1374,6 +2108,16 @@ function clampCombatChrome() {
   const hudBottom = hudBar ? stageRect(hudBar).bottom : 0;
   const marginTop = Math.max(6, Math.round(hudBottom) + 4);
   const maxBottom = handChromeCeiling() - 4;
+  const minLeft = 6;
+  const maxRight = stageW() - 6;
+  const clampHorizontal = (el) => {
+    if (!el) return;
+    el.style.setProperty('--chrome-dx', '0px');
+    const r = stageRect(el);
+    if (r.width <= 1) return;
+    const dx = r.left < minLeft ? minLeft - r.left : r.right > maxRight ? maxRight - r.right : 0;
+    if (dx) el.style.setProperty('--chrome-dx', `${Math.round(dx)}px`);
+  };
   const clampOne = (topEl, plateEl) => {
     if (topEl) {
       topEl.style.setProperty('--chrome-dy', '0px');
@@ -1381,6 +2125,7 @@ function clampCombatChrome() {
       if (r.height > 1 && r.top < marginTop) {
         topEl.style.setProperty('--chrome-dy', `${Math.round(marginTop - r.top)}px`);
       }
+      clampHorizontal(topEl);
     }
     if (plateEl) {
       plateEl.style.setProperty('--chrome-dy', '0px');
@@ -1388,10 +2133,85 @@ function clampCombatChrome() {
       if (r.height > 1 && r.bottom > maxBottom) {
         plateEl.style.setProperty('--chrome-dy', `${Math.round(maxBottom - r.bottom)}px`);
       }
+      clampHorizontal(plateEl);
     }
   };
   for (const x of ce.enemies) clampOne(x.topChrome, x.cplate);
   clampOne(ce.pTopChrome, ce.pCplate);
+
+  // Portrait formations can put independently edge-clamped chrome on top of
+  // one another. Keep the authored actors in place and pack enemy chrome, in
+  // DOM order, against the right edge. Top and bottom chrome are independent
+  // rows: their visible descendants have different widths and vertical spans.
+  // Dead members stay in each set so killing one foe cannot move survivors.
+  const gap = 6;
+  const bottomVisible =
+    '.name,.hpbar-wrap,.block-chip,.block-chip .ic,.block-chip .ui-icon,' +
+    '.block-chip .gicon,.hp-vial,.hp-label,.facet-row';
+  const topVisible =
+    '.intent,.intent .ic,.intent .ui-icon,.intent .gicon,.intent .num,' +
+    '.status-row,.schip,.schip-art,.schip .n';
+  const visibleRect = (root, selector, remember = false) => {
+    const anchor = stageRect(root);
+    const nodes = [root, ...root.querySelectorAll(selector)];
+    const rs = nodes.map((node) => stageRect(node)).filter((r) => r.width > 0 && r.height > 0);
+    if (!rs.length) {
+      const saved = remember && root._combatChromeVisibleBox;
+      if (!saved) return anchor;
+      const centre = (anchor.left + anchor.right) / 2;
+      return {
+        left: centre + saved.left,
+        right: centre + saved.right,
+        top: anchor.bottom + saved.top,
+        bottom: anchor.bottom + saved.bottom,
+        width: saved.right - saved.left,
+        height: saved.bottom - saved.top,
+      };
+    }
+    const rect = {
+      left: Math.min(...rs.map((r) => r.left)),
+      right: Math.max(...rs.map((r) => r.right)),
+      top: Math.min(...rs.map((r) => r.top)),
+      bottom: Math.max(...rs.map((r) => r.bottom)),
+      width: Math.max(...rs.map((r) => r.right)) - Math.min(...rs.map((r) => r.left)),
+      height: Math.max(...rs.map((r) => r.bottom)) - Math.min(...rs.map((r) => r.top)),
+    };
+    if (remember) {
+      const centre = (anchor.left + anchor.right) / 2;
+      root._combatChromeVisibleBox = {
+        left: rect.left - centre,
+        right: rect.right - centre,
+        top: rect.top - anchor.bottom,
+        bottom: rect.bottom - anchor.bottom,
+      };
+    }
+    return rect;
+  };
+  const overlaps2D = (a, b) => a.left < b.right && b.left < a.right &&
+    a.top < b.bottom && b.top < a.bottom;
+  const overlapsVertically = (a, b) => a.top < b.bottom && b.top < a.bottom;
+  const pack = (elements, selector, heroEl, remember = false) => {
+    const rects = elements.map((el) => visibleRect(el, selector, remember));
+    const heroRect = heroEl ? visibleRect(heroEl, selector) : null;
+    const hasCollision = rects.some((r, i) =>
+      rects.slice(i + 1).some((other) => overlaps2D(r, other)));
+    const hitsHero = heroRect && rects.some((r) => overlaps2D(heroRect, r));
+    if (!elements.length || (!hasCollision && !hitsHero)) return;
+    const packedWidth = rects.reduce((sum, r) => sum + r.width, 0) + gap * (rects.length - 1);
+    const packedLeft = maxRight - packedWidth;
+    const heroSharesRows = heroRect && rects.some((r) => overlapsVertically(heroRect, r));
+    const packedMinLeft = heroSharesRows ? Math.max(minLeft, heroRect.right + gap) : minLeft;
+    if (packedLeft >= packedMinLeft) {
+      let targetLeft = packedLeft;
+      elements.forEach((el, i) => {
+        const currentDx = Number.parseFloat(el.style.getPropertyValue('--chrome-dx')) || 0;
+        el.style.setProperty('--chrome-dx', `${currentDx + targetLeft - rects[i].left}px`);
+        targetLeft += rects[i].width + gap;
+      });
+    }
+  };
+  pack(ce.enemies.map((x) => x.cplate).filter(Boolean), bottomVisible, ce.pCplate);
+  pack(ce.enemies.map((x) => x.topChrome).filter(Boolean), topVisible, ce.pTopChrome, true);
 }
 
 let chromeClampRaf = 0;
@@ -1935,7 +2755,7 @@ function updatePreviews() {
     x.root.classList.toggle('aim-target', aim);
     if (aim) {
       const sprite = $('.enemy-sprite', x.art) || x.art;
-      if (meshAim(sprite, true, charAim(en.key))) x.root.classList.add('aim-mesh');
+      if (meshAim(sprite, true, charAim(combatantView(en).layoutKey))) x.root.classList.add('aim-mesh');
       else x.root.classList.remove('aim-mesh');
     } else x.root.classList.remove('aim-mesh');
     if (pv && (pv.total > 0 || pv.chips > 0)) {
@@ -2439,8 +3259,9 @@ function rigCombatants() {
   const L = bfResolve(stageInfo().shape, S.run.act);
   const slots = bfSlots(L, cb.enemies.length);
   cb.enemies.forEach((en, i) => {
-    const a = ENEMIES[en.key].art;
-    add(ce.enemies[i].root, ce.enemies[i].art, `hsla(${a.hue},90%,66%,.72)`, false, i, a.kind, a.hue, assetUrl('enemies', en.key), en.key, bfEnemyFootY(slots[i], en.key));
+    const view = combatantView(en);
+    add(ce.enemies[i].root, ce.enemies[i].art, `hsla(${view.hue},90%,66%,.72)`, false, i, view.kind, view.hue,
+      assetUrl(view.artCategory, view.artId), view.layoutKey, bfEnemyFootY(slots[i], view.layoutKey));
   });
   const heroId = ASPECTS[S.run.aspect].id;
   add(ce.hero, ce.hero, 'rgba(127,212,255,.62)', true, 0, 'humanoid', 0, assetUrl('heroes', heroId), heroId, bfActor('heroes', heroId).footY);
@@ -2457,10 +3278,14 @@ function meshBindCombatants() {
   const heroSprite = ce.hero && ($('.hero-sprite', ce.hero) || ce.hero);
   if (heroUrl && heroSprite) entries.push({ el: heroSprite, url: heroUrl, kind: 'humanoid', id: ASPECTS[S.run.aspect].id });
   cb.enemies.forEach((en, i) => {
-    const url = assetUrl('enemies', en.key);
+    const view = combatantView(en);
+    const url = assetUrl(view.artCategory, view.artId);
     const art = ce.enemies[i]?.art;
     const sprite = art && ($('.enemy-sprite', art) || art);
-    if (url && sprite) entries.push({ el: sprite, url, kind: ENEMIES[en.key].art.kind, id: en.key });
+    if (url && sprite) entries.push({
+      el: sprite, url, kind: view.kind, id: view.layoutKey,
+      variantId: en.variantId, tint: view.tint,
+    });
   });
   meshBind(entries);
   // combat-start relics (e.g. basaltIdol) add block without blockGain — restore shell after bind
@@ -2786,6 +3611,35 @@ let emberFrom = null; // where the last fire spilled from (shatter/death/kindle)
 async function handleEvent(ev, targetIdx) {
   const cb = S.cb, ce = S.ce;
   switch (ev.t) {
+    case 'bossIntro': {
+      // Name plate only — rose-window behind it read as a second overlapping intro.
+      const bossLabel = String(ev.name || cb.enemies[0]?.name || '').toUpperCase();
+      const sp = bossLabel.indexOf(' ');
+      const bossHtml = sp < 0
+        ? escHtml(bossLabel)
+        : `${escHtml(bossLabel.slice(0, sp))}<br>${escHtml(bossLabel.slice(sp + 1))}`;
+      const b = el('div', 'turn-banner boss-banner', `<span class="bb-name">${bossHtml}</span>`);
+      const duration = REDUCED ? 80 : 2100;
+      if (REDUCED) b.style.animation = 'none';
+      screenEl().appendChild(b);
+      setTimeout(() => b.remove(), duration);
+      if (!REDUCED) {
+        V.flash('#1a0a20', 0.5, 0.9);
+        kick(1.6);
+      }
+      sfx.bigDeath();
+      await sleep(duration);
+      break;
+    }
+    case 'variantDialogue': {
+      const b = el('div', 'turn-banner variant-dialogue', escHtml(ev.text));
+      const duration = REDUCED ? 80 : 1800;
+      if (REDUCED) b.style.animation = 'none';
+      screenEl().appendChild(b);
+      setTimeout(() => b.remove(), duration);
+      await sleep(duration);
+      break;
+    }
     case 'chip': {
       const x = ce.enemies[ev.idx];
       const { x: ex, y: ey } = enemyCenter(ev.idx);
@@ -2823,6 +3677,53 @@ async function handleEvent(ev, targetIdx) {
       V.ring(ex, ey, '#d8c27a', 8, 480, 4);
       syncCombat();
       await sleep(260);
+      break;
+    }
+    case 'questReveal': {
+      const quest = QUESTS[ev.id];
+      const disclosure = E.questDisclosure(S.run, ev.id);
+      const progress = quest.huntName
+        ? ` (${disclosure.progress}/${disclosure.target})`
+        : '';
+      banner(escHtml(`${quest.mode.toUpperCase()} REVEALED — ${disclosure.name}${progress}`));
+      await sleep(REDUCED ? 40 : 1150);
+      break;
+    }
+    case 'questProgress': {
+      banner(escHtml(`${E.questProgressName(ev.id, ev.target)} — ${ev.progress}/${ev.target}`));
+      await sleep(REDUCED ? 40 : 1150);
+      break;
+    }
+    case 'questComplete': {
+      banner(escHtml(`${QUESTS[ev.id].name.toUpperCase()} — COMPLETE`));
+      await sleep(REDUCED ? 40 : 1150);
+      break;
+    }
+    case 'questUnlock': {
+      const text = ev.id === 'insight:witchlightLens'
+        ? 'WITCHLIGHT LENS — PALE PATHS REVEALED'
+        : ev.id;
+      banner(escHtml(text));
+      await sleep(REDUCED ? 40 : 1150);
+      break;
+    }
+    case 'monumentGift': {
+      banner('THE STONE RETURNS ITS GIFT');
+      await sleep(REDUCED ? 40 : 1150);
+      break;
+    }
+    case 'hollowTithe': {
+      const from = emberFrom || heroCenter();
+      const to = ce.lantern ? V.centerOf(ce.lantern) : heroCenter();
+      flyTo(from.x, from.y, to.x, to.y, {
+        n: Math.min(ev.n * 2, 6), color: '#91a0af', size: 5, dur: 520,
+      });
+      sfx.ember();
+      V.floatText(to.x, to.y - 48, `−${ev.n} TO THE HOLLOW`, 'debufff');
+      banner(escHtml(ev.remaining > 0 ? `${ev.remaining} EMBERS STILL OWED` : ev.paid));
+      syncCombat();
+      emberFrom = null;
+      await sleep(REDUCED ? 40 : 1150);
       break;
     }
     case 'ember': {
@@ -3360,10 +4261,12 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'enemyAct': {
       const x = ce.enemies[ev.idx];
+      const enemy = cb.enemies[ev.idx];
+      const view = combatantView(enemy);
       const { x: ex, y: ey } = enemyCenter(ev.idx);
       hitSeq = 0;
-      const mvDef = ENEMIES[cb.enemies[ev.idx].key]?.moves?.[ev.move];
-      const kindArch = ENEMY_KIND_VFX[ENEMIES[cb.enemies[ev.idx].key]?.art?.kind] || 'slash';
+      const mvDef = enemy.def?.moves?.[ev.move];
+      const kindArch = ENEMY_KIND_VFX[view.kind] || 'slash';
       vfxSource = {
         archetype: mvDef?.intent?.startsWith('attack') ? kindArch
           : mvDef?.intent === 'debuff' ? 'void'
@@ -3379,7 +4282,7 @@ async function handleEvent(ev, targetIdx) {
       V.floatText(ex, ey - 90, ev.name, 'movef');
       await sleep(300);
       if (mvDef?.intent?.startsWith('attack')) {
-        await choreoAttack(x.root, -1, ENEMIES[cb.enemies[ev.idx].key]?.art?.kind);
+        await choreoAttack(x.root, -1, view.kind);
         choreoDone = true;
       } else await sleep(320);
       x.intent.classList.remove('telegraph');
@@ -3459,37 +4362,102 @@ function afterAction() {
 function victoryFlow() {
   transition('victory-out');
   const run = S.run, kind = S.cb.kind, affix = S.cb.affix;
-  S.cb = null;
-  run.pendingCombat = null;
+  const skipOrdinaryRewards = E.shadeVictorySkipsRewards(run);
   if (kind === 'boss' && run.act >= 2) {
-    const { newUnlocks } = commitRunToVigil(run, true); // the dawn is remembered
-    commitRunEnd(run); // the ledger that paces reveals counts every ending
-    E.recordRunEnd(run, true);
-    show('end', { won: true, newUnlocks });
+    journalRunEnd(run, 'win');
     return;
   }
-  // Act 1/2 boss kill ceremony — same victory cue as final dawn; holds until map.
-  if (kind === 'boss') music.play('victory');
-  show('reward', { kind, rewards: E.genCombatRewards(run, kind, affix) });
+  if (skipOrdinaryRewards) {
+    E.clearPendingEncounter(run);
+    const continueShadeVictory = () => {
+      S.cb = null;
+      show('map');
+    };
+    if (!requireRunSave(run, continueShadeVictory)) return;
+    continueShadeVictory();
+    return;
+  }
+
+  const rewards = E.genCombatRewards(run, kind, affix);
+  E.setPendingReward(run, kind, rewards, S.lastPerfect);
+  E.clearPendingEncounter(run);
+  const continueVictory = () => {
+    S.cb = null;
+    // Act 1/2 boss kill ceremony — same victory cue as final dawn; holds until map.
+    if (kind === 'boss') music.play('victory');
+    show('reward');
+  };
+  if (!requireRunSave(run, continueVictory)) return;
+  continueVictory();
+}
+function journalRunEnd(run, outcome, onFinalised = null) {
+  E.journalTerminalOutcome(run, outcome);
+  const continueRunEnd = () => {
+    S.cb = null;
+    finalisePendingRunEnd(run, onFinalised);
+  };
+  if (!requireRunSave(run, continueRunEnd)) return false;
+  continueRunEnd();
+  return true;
+}
+function finalisePendingRunEnd(run, onFinalised = null) {
+  const outcome = run.pendingRunEnd?.outcome;
+  if (!TERMINAL_OUTCOMES.includes(outcome)) return false;
+  const acknowledgeRunEnd = outcome === 'win'
+    ? (candidate) => E.stagePendingDawn(
+        candidate,
+        dawnQueue(candidate, candidate.runEndResult),
+        candidate.vigilResult?.newUnlocks || [],
+      )
+    : E.recordRunEnd;
+  return E.finaliseTerminalOutbox(
+    run,
+    () => commitPendingRunEnd(run, acknowledgeRunEnd),
+    () => showRunEndPersistenceFailure(run, onFinalised),
+    ({ newUnlocks, ledger }) => {
+      S.cb = null;
+      if (onFinalised) {
+        onFinalised({ outcome, newUnlocks, ledger });
+      } else if (outcome === 'win') {
+        show('end', { won: true });
+      } else if (outcome === 'death') {
+        const node = run.map.nodes.find((candidate) => candidate.id === run.nodeId);
+        const { unpaidBequest, offerNewBequest } = E.shadeLossBequestState(run);
+        show('end', {
+          won: false,
+          newUnlocks,
+          offers: offerNewBequest ? bequestOptions(run) : [],
+          fallAct: run.act,
+          fallRow: node ? node.row : Math.max(1, run.floorsClimbed - 1),
+          unpaidBequest,
+          ledger,
+        });
+      } else {
+        S.run = null;
+        S.lamp = null;
+        show('title');
+      }
+    },
+  );
 }
 function defeatFlow() {
   transition('defeat');
   const run = S.run;
-  const offers = bequestOptions(run); // what the stone could keep — read before the deck is gone
-  const node = run.map.nodes.find((n) => n.id === run.nodeId);
+  const node = run.map.nodes.find((candidate) => candidate.id === run.nodeId);
   const fallRow = node ? node.row : Math.max(1, run.floorsClimbed - 1);
-  const { newUnlocks } = commitRunToVigil(run, false);
-  commitRunEnd(run);
-  E.recordRunEnd(run, false);
-  show('end', { won: false, newUnlocks, offers, fallAct: run.act, fallRow });
+  E.markShadeFall(run, run.act, fallRow);
+  journalRunEnd(run, 'death');
 }
 
 // ------------------------------------------------------------ rewards
-function renderReward({ kind, rewards }) {
+function renderReward() {
   const run = S.run;
+  const pending = run.pendingReward;
+  if (!pending) { show('map'); return; }
+  const { kind, rewards, taken, perfect } = pending;
   const sc = screenEl();
   const title = kind === 'boss' ? 'BOSS VANQUISHED' : kind === 'elite' ? 'ELITE SLAIN' : 'VICTORY';
-  const seal = S.lastPerfect ? '<div class="perfect-seal">✦ PERFECT — the glass untouched ✦</div>' : '<div class="ornament">✦ ✦ ✦</div>';
+  const seal = perfect ? '<div class="perfect-seal">✦ PERFECT — the glass untouched ✦</div>' : '<div class="ornament">✦ ✦ ✦</div>';
   S.lastPerfect = false;
   sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
     <div class="ov-title">${title}</div>
@@ -3498,75 +4466,88 @@ function renderReward({ kind, rewards }) {
     <div class="ov-actions"><button class="btn btn-primary" data-a="continue">Continue</button></div>
   </div></div>`;
   const list = $('.reward-list', sc);
-  const addRow = (icon, label, fn, tip = null) => {
+  const settleRow = (row, onSaved) => {
+    row.classList.add('taken');
+    row.disabled = true;
+    row.onclick = null;
+    renderHud();
+    onSaved?.();
+  };
+  const addRow = (key, icon, label, take = null, onSaved = null, tip = null) => {
     const row = el('button', 'reward-row', `<span class="ric">${icon}</span><span>${label}</span>`);
     if (tip) row._tip = tip;
-    row.onclick = () => { if (fn() !== false) { row.classList.add('taken'); E.saveRun(run); renderHud(); } };
+    if (taken[key]) settleRow(row);
+    else if (take) row.onclick = () => {
+      if (!take()) return;
+      const finish = () => settleRow(row, onSaved);
+      if (!requireRunSave(run, finish)) return;
+      finish();
+    };
     list.appendChild(row);
     return row;
   };
-  addRow(iconSvg('coin', 18), `<b class="gold-num">${rewards.gold}</b> gold`, () => {
-    run.player.gold += rewards.gold;
-    run.stats.goldEarned += rewards.gold;
-    sfx.coin();
-    // the coins travel to the purse
-    requestAnimationFrame(() => {
-      const purse = $('#hud .gold-num');
-      const from = { x: stageW() / 2, y: stageH() / 2 - 40 };
-      const to = purse ? V.centerOf(purse) : { x: 120, y: 24 };
-      const before = run.player.gold - rewards.gold;
-      if (purse) purse.textContent = before; // hold the old total; the coins bring the rest
-      flyTo(from.x, from.y, to.x, to.y, { n: Math.min(9, 4 + Math.floor(rewards.gold / 12)), color: '#ffd76e', dur: 600, done: () => sfx.coin() });
-      if (purse) tweenNum(purse, before, run.player.gold, 640);
+  addRow('gold', iconSvg('coin', 18), `<b class="gold-num">${rewards.gold}</b> gold`,
+    () => E.takePendingReward(run, 'gold'), () => {
+      sfx.coin();
+      // the coins travel to the purse only after their taken flag is durable
+      requestAnimationFrame(() => {
+        const purse = $('#hud .gold-num');
+        const from = { x: stageW() / 2, y: stageH() / 2 - 40 };
+        const to = purse ? V.centerOf(purse) : { x: 120, y: 24 };
+        const before = run.player.gold - rewards.gold;
+        if (purse) purse.textContent = before;
+        flyTo(from.x, from.y, to.x, to.y, { n: Math.min(9, 4 + Math.floor(rewards.gold / 12)), color: '#ffd76e', dur: 600, done: () => sfx.coin() });
+        if (purse) tweenNum(purse, before, run.player.gold, 640);
+      });
     });
-  });
   if (rewards.potion) {
     const p = POTIONS[rewards.potion];
-    addRow(rasterOr('potions', rewards.potion, potionSvg(p.tone)), `${p.name}`, () => {
-      if (!E.gainPotion(run, rewards.potion)) {
-        V.floatText(stageW() / 2, stageH() / 2, 'Potion slots full!', 'notice');
-        return false;
-      }
-      sfx.potion();
-    }, { title: p.name, body: p.text });
+    addRow('potion', rasterOr('potions', rewards.potion, potionSvg(p.tone)), `${p.name}`, () => {
+      if (E.takePendingReward(run, 'potion')) return true;
+      V.floatText(stageW() / 2, stageH() / 2, 'Potion slots full!', 'notice');
+      return false;
+    }, () => sfx.potion(), { title: p.name, body: p.text });
   }
   if (rewards.relic) {
     const r = RELICS[rewards.relic];
-    addRow(`<span style="color:${r.tone};text-shadow:0 0 8px ${r.tone}">${relicArt(rewards.relic, 24)}</span>`, `<b>${r.name}</b>`, () => {
-      E.gainRelic(run, rewards.relic);
-      sfx.relic();
-      // the relic takes its seat on the bar
-      requestAnimationFrame(() => {
-        const chip = $(`.hud-relic[data-relic="${rewards.relic}"]`);
-        if (!chip) return;
-        const to = V.centerOf(chip);
-        flyTo(stageW() / 2, stageH() / 2 - 40, to.x, to.y, {
-          n: 1, glyph: r.glyph, color: r.tone, dur: 680,
-          done: () => { chip.classList.remove('proc'); void chip.offsetWidth; chip.classList.add('proc'); },
+    addRow('relic', `<span style="color:${r.tone};text-shadow:0 0 8px ${r.tone}">${relicArt(rewards.relic, 24)}</span>`, `<b>${r.name}</b>`,
+      () => E.takePendingReward(run, 'relic'), () => {
+        sfx.relic();
+        requestAnimationFrame(() => {
+          const chip = $(`.hud-relic[data-relic="${rewards.relic}"]`);
+          if (!chip) return;
+          const to = V.centerOf(chip);
+          flyTo(stageW() / 2, stageH() / 2 - 40, to.x, to.y, {
+            n: 1, glyph: r.glyph, color: r.tone, dur: 680,
+            done: () => { chip.classList.remove('proc'); void chip.offsetWidth; chip.classList.add('proc'); },
+          });
         });
-      });
-    }, { title: r.name, body: r.text });
+      }, { title: r.name, body: r.text });
   }
-  addRow(iconSvg('cards', 26), 'Add a card to your deck', () => {
-    pickCardReward(rewards.cards, () => {});
-    return false; // taken handled by picker
-  });
-  const cardRow = list.lastElementChild;
+  const cardRow = addRow('card', iconSvg('cards', 26), 'Add a card to your deck');
   cardRow.dataset.cardrow = '1';
-  $('[data-a="continue"]', sc).onclick = () => { sfx.click(); E.saveRun(run); if (kind === 'boss') show('bossRelic'); else show('map'); };
+  if (!taken.card) cardRow.onclick = () => pickCardReward(rewards.cards);
 
-  function pickCardReward(ids, done) {
+  $('[data-a="continue"]', sc).onclick = () => {
+    sfx.click();
+    E.clearPendingReward(run);
+    const continueReward = () => { if (kind === 'boss') show('bossRelic'); else show('map'); };
+    if (!requireRunSave(run, continueReward)) return;
+    continueReward();
+  };
+
+  function pickCardReward(ids) {
     showCardGrid('Choose a Card', ids.map((id) => ({ id, up: false, uid: null })), {
       sub: 'Add one card to your deck — or skip to keep it lean.',
       pick: (inst) => {
-        if (inst) {
-          E.addCardToDeck(run, inst.id);
+        if (!E.takePendingReward(run, 'card', inst?.id ?? null)) return;
+        const finish = () => settleRow(cardRow, () => {
+          if (!inst) return;
           sfx.upgrade();
           V.floatText(stageW() / 2, stageH() / 2, `${E.cardData(inst).name} added`, 'notice');
-        }
-        cardRow.classList.add('taken');
-        E.saveRun(run);
-        done();
+        });
+        if (!requireRunSave(run, finish)) return;
+        finish();
       },
       canSkip: true,
     });
@@ -3598,7 +4579,7 @@ function renderBossRelic() {
     if (result.already) { advanceAct(); return; }
     if (id) sfx.relic();
     else sfx.click();
-    E.saveRun(run);
+    if (!requireRunSave(run, advanceAct)) return;
     advanceAct();
   };
   for (const id of picks) {
@@ -3616,7 +4597,7 @@ function renderBossRelic() {
 function advanceAct() {
   const run = S.run;
   run.act++;
-  run.omens.push(E.runRevealed(run, 'omens') ? E.rollOmen(run) : null); // each act climbs under its own sky
+  run.omens.push(E.omenEnabled(run) ? E.rollOmen(run) : null); // each act climbs under its own sky
   run.nodeId = null;
   run.map = E.genMap(run);
   E.healPlayer(run, Math.round(run.player.maxHp * 0.35));
@@ -3632,9 +4613,10 @@ function omenBanner(run) {
   const omen = OMENS[run.omens?.[run.act]];
   if (!omen || S.screen !== 'map') return;
   const oid = run.omens[run.act];
-  const ou = assetUrl('omens', oid);
-  const glyph = ou ? `<img class="ob-art" src="${ou}" alt="">` : `<span class="ob-glyph" style="color:${omen.tone}">${iconSvg(`omen-${oid}`, 22)}</span>`;
-  const b = el('div', 'turn-banner omen-banner', `${glyph} OMEN — ${omen.name.toUpperCase()}<div class="ob-sub">${omen.text}</div>`);
+  const broken = oid === 'eighthOmen';
+  const ou = broken ? null : assetUrl('omens', oid);
+  const glyph = ou ? `<img class="ob-art" src="${ou}" alt="">` : `<span class="ob-glyph" style="color:${omen.tone}">${iconSvg(omenIconName(oid), 22)}</span>`;
+  const b = el('div', `turn-banner omen-banner${broken ? ' broken-omen' : ''}`, `${glyph} OMEN — ${omen.name.toUpperCase()}<div class="ob-sub">${omen.text}</div>`);
   screenEl().appendChild(b);
   sfx.omen();
   setTimeout(() => b.remove(), 4200);
@@ -3656,15 +4638,20 @@ function renderRest() {
   $('[data-a="rest"]').onclick = (e) => {
     e.currentTarget.disabled = true;
     $('[data-a="smith"]').disabled = true;
-    sfx.heal();
     const healed = E.healPlayer(run, Math.round(run.player.maxHp * E.restHealFrac(run)));
-    // the fire answers: a swell of warmth, embers rising off the hearth
-    V.flash('#ff9a4d', 0.12, 0.8);
-    V.floatText(stageW() / 2, stageH() / 2 - 40, `+${healed} HP`, 'healf');
-    V.motes(stageW() / 2, stageH() / 2, '#8fe8a0', 22);
-    V.motes(stageW() / 2, stageH() / 2 + 60, '#ffb066', 16);
-    E.saveRun(run);
-    setTimeout(() => { if (S.screen === 'rest') show('map'); }, 900);
+    const finish = () => {
+      sfx.heal();
+      // the fire answers: a swell of warmth, embers rising off the hearth
+      V.flash('#ff9a4d', 0.12, 0.8);
+      V.floatText(stageW() / 2, stageH() / 2 - 40, `+${healed} HP`, 'healf');
+      V.motes(stageW() / 2, stageH() / 2, '#8fe8a0', 22);
+      V.motes(stageW() / 2, stageH() / 2 + 60, '#ffb066', 16);
+      setTimeout(() => { if (S.screen === 'rest') show('map'); }, 900);
+    };
+    if (run.pendingHollowRoute) {
+      if (!requireHollowRouteClear(run, finish)) return;
+    } else E.saveRun(run);
+    finish();
   };
   $('[data-a="smith"]').onclick = () => {
     sfx.click();
@@ -3674,11 +4661,16 @@ function renderRest() {
       pick: (inst) => {
         if (!inst) return;
         E.upgradeCardInDeck(run, inst.uid);
-        sfx.upgrade();
-        V.flash('#ffe9ac', 0.12, 0.4);
-        showCardGrid('Upgraded!', [run.player.deck.find((c) => c.uid === inst.uid)], { sub: 'It gleams with new power.' });
-        E.saveRun(run);
-        setTimeout(() => { if (S.screen === 'rest') { closeOverlay(); show('map'); } }, 1300);
+        const finish = () => {
+          sfx.upgrade();
+          V.flash('#ffe9ac', 0.12, 0.4);
+          showCardGrid('Upgraded!', [run.player.deck.find((c) => c.uid === inst.uid)], { sub: 'It gleams with new power.' });
+          setTimeout(() => { if (S.screen === 'rest') { closeOverlay(); show('map'); } }, 1300);
+        };
+        if (run.pendingHollowRoute) {
+          if (!requireHollowRouteClear(run, finish)) return;
+        } else E.saveRun(run);
+        finish();
       },
     });
   };
@@ -3737,17 +4729,16 @@ function renderTreasure() {
 function renderShop() {
   const run = S.run;
   const shop = (S.shopData ||= {});
-  if (S.screen !== 'shop' || !shop.stock || shop.forNode !== run.nodeId) {
-    shop.stock = E.genShop(run);
-    shop.forNode = run.nodeId;
-  }
-  const st = shop.stock;
+  const usurperState = E.questRecord(run, 'usurper')?.state;
+  const st = E.shopStockForSession(shop, run);
+  const firstUsurperSight = usurperState === 'armed' && E.questRecord(run, 'usurper')?.state === 'revealed';
+  if (firstUsurperSight && !requireRunSave(run, renderShop)) return;
   const sc = screenEl();
   sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel ov-panel" style="width:min(980px,96vw)">
     <div style="display:flex;align-items:center;justify-content:center;gap:18px">
       <div style="width:130px">${rasterOr('props', 'merchant', merchantSvg())}</div>
       <div><div class="ov-title" style="text-align:left">THE MERCHANT</div>
-      <div class="ov-sub" style="text-align:left;margin:0">"Gold for glory, stranger. Everything's fair-priced — for the doomed."</div></div>
+      <div class="ov-sub shop-dialogue" style="text-align:left;margin:0">"Gold for glory, stranger. Everything's fair-priced — for the doomed."</div></div>
     </div>
     <div class="shop-grid">
       <div class="shop-row cards-row"></div>
@@ -3760,6 +4751,12 @@ function renderShop() {
   let shopSeeded = false;
   const gold = () => run.player.gold;
   const buy = (price) => { run.player.gold -= price; sfx.coin(); E.saveRun(run); renderHud(); refresh(); };
+  const say = (text) => {
+    const dialogue = $('.shop-dialogue', sc);
+    if (!dialogue) return;
+    dialogue.textContent = `"${text}"`;
+    dialogue.classList.add('quest-dialogue');
+  };
   function refresh() {
     if (shopGrid) shopGrid.classList.toggle('list-seq-done', shopSeeded);
     cardsRow.innerHTML = '';
@@ -3792,6 +4789,37 @@ function renderShop() {
       wrap.appendChild(el('div', 'price', `${uiIcon('coin', 14)} ${it.price}`));
       miscRow.appendChild(wrap);
     }
+    for (const it of st.questItems) {
+      const wrap = el('div', `shop-item quest-shop-item ${it.sold ? 'sold' : ''} ${gold() < it.price ? 'cant' : ''}`);
+      const b = el('button', 'shop-relic shop-quest', `<span class="shop-quest-icon">${iconSvg('emptyLantern', 42)}</span><b>${escHtml(it.name)}</b>${escHtml(it.text)}`);
+      b.onclick = () => {
+        if (it.sold) return;
+        const leave = $('[data-a="leave"]', sc);
+        b.disabled = true;
+        if (leave) leave.disabled = true;
+        const result = E.buyQuestItem(run, it.id);
+        if (!result.ok) {
+          b.disabled = false;
+          if (leave) leave.disabled = false;
+          sfx.debuff();
+          if (result.reason === 'gold') say(QUESTS.usurper.poor);
+          return;
+        }
+        const finishPurchase = () => {
+          it.sold = true;
+          sfx.coin();
+          say(QUESTS.usurper.bought);
+          renderHud();
+          refresh();
+          if (leave) leave.disabled = false;
+        };
+        if (!requireRunSave(run, finishPurchase)) return;
+        finishPurchase();
+      };
+      wrap.appendChild(b);
+      wrap.appendChild(el('div', 'price', `${uiIcon('coin', 14)} ${it.price}`));
+      miscRow.appendChild(wrap);
+    }
     for (const it of st.potions) {
       const p = POTIONS[it.id];
       const wrap = el('div', `shop-item ${it.sold ? 'sold' : ''} ${gold() < it.price ? 'cant' : ''}`);
@@ -3808,15 +4836,15 @@ function renderShop() {
       miscRow.appendChild(wrap);
     }
     // card removal service
-    const wrap = el('div', `shop-item ${st.removed ? 'sold' : ''} ${gold() < st.removeCost ? 'cant' : ''}`);
+    const removable = E.removableCards(run);
+    const wrap = el('div', `shop-item ${st.removed ? 'sold' : ''} ${gold() < st.removeCost || !removable.length ? 'cant' : ''}`);
     const b = el('button', 'shop-relic', `<span style="width:34px;display:inline-flex;justify-content:center">${iconSvg('scissors', 26)}</span><b>Card Removal</b>Remove a card from your deck forever.`);
     b.onclick = () => {
-      if (st.removed || gold() < st.removeCost) return sfx.debuff();
-      showCardGrid('Remove a Card', run.player.deck, {
+      if (st.removed || gold() < st.removeCost || !removable.length) return sfx.debuff();
+      showCardGrid('Remove a Card', removable, {
         sub: 'Cut the dead weight.',
         pick: (inst) => {
-          if (!inst) return;
-          E.removeCardFromDeck(run, inst.uid);
+          if (!inst || !E.removeCardFromDeck(run, inst.uid)) return;
           st.removed = true;
           run.player.gold -= st.removeCost;
           sfx.card();
@@ -3833,7 +4861,10 @@ function renderShop() {
     shopSeeded = true;
   }
   refresh();
-  $('[data-a="leave"]', sc).onclick = () => { sfx.click(); show('map'); };
+  $('[data-a="leave"]', sc).onclick = () => {
+    sfx.click();
+    leaveHollowDestination(run, () => show('map'));
+  };
 }
 function renderEvent(eventId) {
   const run = S.run;
@@ -3847,10 +4878,11 @@ function renderEvent(eventId) {
     <div class="event-choices"></div>
   </div></div>`;
   const choices = $('.event-choices', sc);
+  const leaveEvent = () => leaveHollowDestination(run, () => show('map'));
   const showEventContinue = () => {
     choices.innerHTML = '';
     const done = el('button', 'btn btn-primary', 'Continue');
-    done.onclick = () => { sfx.click(); show('map'); };
+    done.onclick = () => { sfx.click(); leaveEvent(); };
     choices.appendChild(done);
   };
   if (E.nodeRewardClaimed(run)) {
@@ -3894,7 +4926,7 @@ function renderEvent(eventId) {
       E.saveRun(run);
       renderHud();
       showEventContinue();
-      if (!bits.length && !pending.length && !ch.ops.length) show('map');
+      if (!bits.length && !pending.length && !ch.ops.length) leaveEvent();
     } catch (err) {
       if (E.nodeEventInFlight(run) || E.nodeRewardClaimed(run)) {
         if (E.nodeEventInFlight(run)) E.finalizeNodeEventChoice(run);
@@ -3910,7 +4942,9 @@ function renderEvent(eventId) {
   function handlePending(p) {
     return new Promise((resolve) => {
       if (p === 'remove') {
-        showCardGrid('Remove a Card', run.player.deck, { sub: 'Let it go.', pick: (inst) => { if (inst) { E.removeCardFromDeck(run, inst.uid); sfx.card(); } resolve(); }, canSkip: false });
+        const removable = E.removableCards(run);
+        if (!removable.length) return resolve();
+        showCardGrid('Remove a Card', removable, { sub: 'Let it go.', pick: (inst) => { if (inst && E.removeCardFromDeck(run, inst.uid)) sfx.card(); resolve(); }, canSkip: false });
       } else if (p === 'upgrade') {
         const ups = run.player.deck.filter((c) => !c.up && CARDS[c.id].up);
         if (!ups.length) return resolve();
@@ -3943,13 +4977,16 @@ function unlockToastInfo(u) {
   if (k === 'card') return { kind: 'Card Unlocked', name: CARDS[id]?.name || id };
   return { kind: 'Relic Unlocked', name: RELICS[id]?.name || id };
 }
-function showUnlockToasts(list = []) {
+function showUnlockToasts(list = [], runId = S.run?.runId) {
   if (!list.length) return;
+  const stillOnEnd = () => S.screen === 'end' && S.run?.runId === runId;
+  if (!stillOnEnd()) return;
   let host = $('#toasts');
   if (!host) { host = el('div'); host.id = 'toasts'; stageEl().appendChild(host); }
   list.forEach((u, i) => {
     const info = unlockToastInfo(u);
     setTimeout(() => {
+      if (!stillOnEnd()) return;
       const t = el('div', 'unlock-toast', `<div class="ut-kind">✦ ${info.kind}</div><div class="ut-name">${info.name}</div>`);
       host.appendChild(t);
       requestAnimationFrame(() => t.classList.add('in'));
@@ -3958,7 +4995,115 @@ function showUnlockToasts(list = []) {
     }, 700 + i * 800);
   });
 }
-function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1 }) {
+
+function dawnQueue(run, ledger) {
+  const events = [];
+  if (ledger?.whisper != null) events.push({ t: 'whisper', text: ledger.whisper });
+  events.push(...(run.endQueue || []).map((event) => ({ ...event })));
+  const newShards = Array.isArray(ledger?.newShards) ? [...ledger.newShards] : [];
+  for (const id of newShards) events.push({ t: 'shardGrant', id });
+  const threshold = PROGRESSION.revealThresholds.act4.shards;
+  const before = new Set(run.shards || []);
+  const after = new Set(ledger?.vigil?.shards || [...before, ...newShards]);
+  if (newShards.length && before.size < threshold && after.size >= threshold) {
+    events.push({ t: 'act4Reveal' });
+  }
+  return events.filter((event, index, queue) => !(event.t === 'questComplete' &&
+    queue.slice(index + 1).some((later) => later.t === 'shardGrant' && later.id === event.id)));
+}
+
+function dawnEventHtml(event) {
+  if (event.t === 'whisper') return `<div class="dawn-kicker">A whisper reaches the dawn</div>
+    <div class="dawn-whisper"><i>${escHtml(event.text)}</i></div>`;
+  if (event.t === 'questReveal') {
+    const quest = QUESTS[event.id];
+    return `<div class="dawn-kicker">${escHtml(quest.mode)} revealed</div>
+      <div class="dawn-name">${escHtml(quest.name)}</div>
+      <div class="dawn-copy">${escHtml(quest.inscription)}</div>`;
+  }
+  if (event.t === 'questProgress') return `<div class="dawn-kicker">The trail continues</div>
+    <div class="dawn-name">${escHtml(E.questProgressName(event.id, event.target))}</div>
+    <div class="dawn-count">${event.progress}/${event.target}</div>`;
+  if (event.t === 'questUnlock') return `<div class="dawn-kicker">Insight awakened</div>
+    <div class="dawn-name">Witchlight Lens</div>
+    <div class="dawn-copy">Pale paths will now be marked.</div>`;
+  if (event.t === 'pageRead') return `<div class="dawn-kicker">Page ${event.index}</div>
+    <div class="dawn-copy">${escHtml(event.text)}</div>`;
+  if (event.t === 'eighthResolved') return `<div class="dawn-kicker broken-omen">The broken glyphs resolve</div>
+    <div class="dawn-copy">${escHtml(event.text)}</div>`;
+  if (event.t === 'shadeResolved') return `<div class="dawn-kicker">The shade speaks plainly</div>
+    <div class="dawn-copy">${escHtml(event.text)}</div>`;
+  if (event.t === 'questComplete') return `<div class="dawn-kicker">${escHtml(QUESTS[event.id].mode)} complete</div>
+    <div class="dawn-name">${escHtml(QUESTS[event.id].name)}</div>`;
+  if (event.t === 'shardGrant') return `<div class="dawn-icon">${iconSvg('emberglassShard', 42)}</div>
+    <div class="dawn-name">${escHtml(QUESTS[event.id].name)}</div>
+    <div class="dawn-copy">One pane answers.</div>`;
+  if (event.t === 'act4Reveal') return `<div class="dawn-icon">${iconSvg('sealedDoor', 48)}</div>
+    <div class="dawn-copy">Six panes burn. Something waits above the crown.</div>`;
+  return '';
+}
+
+function showDawnPersistenceFailure(onRetry, phase) {
+  const finishing = phase === 'clear';
+  const description = finishing
+    ? 'Every panel has been seen, but the saved dawn could not be released. Retry before leaving this screen.'
+    : 'This panel was shown, but its place in the dawn could not be secured. Retry before the ceremony continues.';
+  const html = persistenceFailureHtml({
+    id: 'dawn-save-failure',
+    title: 'The Dawn Could Not Hold',
+    description,
+    retry: { action: 'retry-dawn', label: 'Retry Save' },
+    reload: { action: 'reload-dawn', label: 'Reload Saved Dawn' },
+  });
+  openPersistenceDialog(html, '[data-a="retry-dawn"]', (root, transaction) => {
+    root.onclick = (event) => {
+      if (!transaction.active()) return;
+      const action = event.target.closest('[data-a]')?.dataset.a;
+      if (action === 'reload-dawn') { location.reload(); return; }
+      if (action !== 'retry-dawn') return;
+      sfx.click();
+      transaction.settle(onRetry);
+    };
+  });
+}
+
+function persistDawnOrRetry(action, phase) {
+  return new Promise((resolve) => {
+    const attempt = () => {
+      if (action()) { resolve(); return; }
+      showDawnPersistenceFailure(attempt, phase);
+    };
+    attempt();
+  });
+}
+
+async function drainEndQueue(run, host) {
+  const pending = run.pendingDawn;
+  if (!pending) throw new Error('winning end screen requires a staged dawn presentation');
+  const events = pending.events.map((event) => ({ ...event }));
+  const newUnlocks = [...pending.newUnlocks];
+  for (let i = pending.cursor; i < events.length; i++) {
+    const event = events[i];
+    const html = dawnEventHtml(event);
+    if (!html) throw new Error(`unrenderable dawn event: ${event.t}`);
+    const panel = el('div', 'dawn-event', html);
+    panel.dataset.event = event.t;
+    host.appendChild(panel);
+    if (REDUCED) {
+      panel.classList.add('shown');
+      await sleep(40);
+    } else {
+      requestAnimationFrame(() => panel.classList.add('shown'));
+      await sleep(550);
+    }
+    await persistDawnOrRetry(() => E.advancePendingDawn(run, i + 1), 'cursor');
+  }
+  await persistDawnOrRetry(() => E.completePendingDawn(run), 'clear');
+  host.classList.add('complete');
+  return newUnlocks;
+}
+
+function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1, unpaidBequest = false }) {
   const run = S.run;
   music.playForRunEnd(!!won);
   const st = run.stats;
@@ -3975,16 +5120,20 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
       <div class="stat-cell"><div class="v">${mins}m</div><div class="k">Run Time</div></div>
     </div>`;
   const btns = `<div class="end-btns">
-      <button class="btn" data-a="deck">View Final Deck</button>
-      <button class="btn" data-a="title">Return to the Vigil</button>
+      <button class="btn" data-a="deck"${won ? ' disabled' : ''}>View Final Deck</button>
+      <button class="btn" data-a="title"${won ? ' disabled' : ''}>Return to the Vigil</button>
     </div>`;
+  let ceremony = Promise.resolve();
   if (won) {
     screenEl().innerHTML = `<div class="end-screen screen-enter">
       ${metaBg('ascended')}
       <div class="end-title win">ASCENDED</div>
       <div class="ov-sub" style="font-size:17px">The Eternal Sovereign is dust. Dawn breaks over the Spire — the first in an age.</div>
+      <div class="dawn-ceremony" aria-live="polite"></div>
       ${stats}${btns}
     </div>`;
+    const host = $('.dawn-ceremony', screenEl());
+    ceremony = drainEndQueue(run, host);
     sunrise(); // the only warm daylight in the game
     sfx.victory();
     V.flash('#ffe9ac', 0.25, 1);
@@ -3992,7 +5141,9 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
     setTimeout(() => clearInterval(conf), 4200);
   } else {
     // the fallen may carve one thing into the stone for the next climber to find
-    const bequestHtml = offers.length ? `<div class="bequest" id="bequest">
+    const bequestHtml = unpaidBequest
+      ? '<div class="bequest"><div class="bequest-done">The unpaid gift remains in the standing stone</div></div>'
+      : offers.length ? `<div class="bequest" id="bequest">
         <div class="bequest-title">Carve one thing into the stone — the next climb may recover it in <b>${ACTS[fallAct].name}</b>.</div>
         <div class="bequest-opts">${offers.map((o, i) => {
       const L = bequestLabel(o);
@@ -4014,7 +5165,7 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
   }
   screenEl().onclick = (e) => {
     const t = e.target.closest('[data-a]');
-    if (!t) return;
+    if (!t || t.disabled) return;
     const a = t.dataset.a;
     if (a === 'bequest') {
       sfx.relic();
@@ -4028,7 +5179,11 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
     if (a === 'deck') showCardGrid('Final Deck', run.player.deck, {});
     if (a === 'title') { S.run = null; S.lamp = null; show('title'); }
   };
-  showUnlockToasts(newUnlocks);
+  ceremony.then((owedUnlocks = newUnlocks) => {
+    if (S.screen !== 'end' || S.run?.runId !== run.runId) return;
+    $$('.end-btns button', screenEl()).forEach((button) => { button.disabled = false; });
+    showUnlockToasts(owedUnlocks, run.runId);
+  });
 }
 
 // ------------------------------------------------------------ dev asset gallery (?gallery=1)
@@ -4076,7 +5231,7 @@ function renderGallery() {
     return `<a class="${set === gallerySet ? 'active' : ''}" href="?${q.toString()}">${assetSetLabel(set)}</a>`;
   }).join('');
   const cats = {
-    omens: Object.keys(OMENS).map((k) => [k, () => iconSvg(`omen-${k}`, 64)]),
+    omens: Object.keys(OMENS).map((k) => [k, () => iconSvg(omenIconName(k), 64)]),
     boons: Object.keys(BOONS).map((k) => [k, () => iconSvg(`boon-${k}`, 64)]),
     arts: Object.keys(ARTS).map((k) => [k, () => iconSvg(`art-${k}`, 64)]),
     statuses: Object.keys(STATUS_INFO).map((k) => [k, () => iconSvg(`st-${k}`, 64)]),
@@ -4092,7 +5247,10 @@ function renderGallery() {
     relics: Object.entries(RELICS).map(([k, r]) => [k, () => `<div class="title-banner-ph" style="color:${r.tone}">${r.glyph}</div>`]),
     deeds: Object.keys(DEEDS).map((k) => [k, () => iconSvg(`deed-${k}`, 64)]),
     bequests: ['relic', 'card', 'gold'].map((k) => [k, () => iconSvg(`bequest-${k}`, 64)]),
-    meta: ['fallen', 'ascended', 'monument-node'].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
+    meta: [
+      'fallen', 'ascended', 'monument-node',
+      ROSE_ASSET_IDS.mural, ROSE_ASSET_IDS.frame, ...Object.values(ROSE_ASSET_IDS.masks),
+    ].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
     piles: ['draw', 'discard', 'ashes'].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
     ui: UI_CHROME_IDS.map((k) => [k, () => {
       const fb = uiFallbackName(k);
@@ -4345,7 +5503,10 @@ function installProbe() {
         over: cb?.over ?? null, result: cb?.result ?? null, turn: cb?.turn ?? null,
         player: cb ? { hp: cb.player.hp, maxHp: cb.player.maxHp, block: cb.player.block, energy: cb.player.energy } : null,
         embers: cb?.embers ?? null,
-        enemies: cb ? cb.enemies.map((e) => ({ key: e.key, hp: e.hp, maxHp: e.maxHp, block: e.block })) : null,
+        enemies: cb ? cb.enemies.map((e) => ({
+          key: e.key, variantId: e.variantId, artId: combatantView(e).artId,
+          hp: e.hp, maxHp: e.maxHp, block: e.block,
+        })) : null,
         hand: cb ? cb.hand.map((c) => ({ uid: c.uid, id: c.id })) : null,
       };
     },
@@ -4384,6 +5545,12 @@ function installProbe() {
     setEnergy(n) { S.cb.player.energy = n; syncCombat(); },
     setEmbers(n) { S.cb.embers = n; syncCombat(); },
     setEnemyHp(i, hp) { S.cb.enemies[i].hp = hp; syncCombat(); },
+    forceRoseFallback(on) {
+      forceRoseFallback = !!on;
+      if (S.screen === 'vigil') renderVigil({ tab: 'rose' });
+      if (S.screen === 'title') renderTitle();
+      return forceRoseFallback;
+    },
     // -- determinism switch -----------------------------------------------
     freeze() {
       document.documentElement.classList.add('freeze');

@@ -1,15 +1,15 @@
 // Battlefield editor smoke (desktop only — it is a desktop dev tool).
 import { test, expect } from '@playwright/test';
 
-async function waitForDevServerReady(timeoutMs = 10_000) {
+async function waitForDevServerReady(baseURL, timeoutMs = 10_000) {
   const deadline = Date.now() + timeoutMs;
   let lastError = null;
   while (Date.now() < deadline) {
     try {
-      const response = await fetch('http://localhost:5174/');
+      const response = await fetch(baseURL);
       if (response.ok) {
         await new Promise((resolve) => setTimeout(resolve, 1_000));
-        const settled = await fetch('http://localhost:5174/');
+        const settled = await fetch(baseURL);
         if (settled.ok) return;
       }
     } catch (error) {
@@ -255,7 +255,7 @@ test('a partial shape layer override passes validation and saves', async ({ page
   expect(payload.shapes['desktop-landscape'].layers.ledge.y).toBe(5);
 });
 
-test('Save writes layout to disk and reload picks it up', async ({ page }) => {
+test('Save writes layout to disk and reload picks it up', async ({ page, baseURL }) => {
   test.skip(test.info().project.name !== 'bfeditor-disk', 'writes watched source; runs in the dedicated dependency project');
   const { readFileSync, writeFileSync } = await import('node:fs');
   const layoutPath = 'src/battlefield-layout.js';
@@ -279,14 +279,14 @@ test('Save writes layout to disk and reload picks it up', async ({ page }) => {
     expect(charResponse.ok()).toBe(true);
     expect(bfResponse.ok()).toBe(true);
     await expect.poll(() => readFileSync(layoutPath, 'utf8')).toContain(`groundY: ${target}`);
-    await waitForDevServerReady();
+    await waitForDevServerReady(baseURL);
     await openBfEditor(page, { shape: 'pad-landscape' });
     const after = await page.evaluate(() => window.__bfEditor.resolved().groundY);
     expect(after).toBe(target);
   } finally {
     writeFileSync(layoutPath, originalLayout);
     writeFileSync(charPath, originalChar);
-    await waitForDevServerReady();
+    await waitForDevServerReady(baseURL);
     expect(readFileSync(layoutPath, 'utf8')).toBe(originalLayout);
     expect(readFileSync(charPath, 'utf8')).toBe(originalChar);
   }

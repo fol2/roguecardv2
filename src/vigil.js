@@ -1,7 +1,7 @@
 // THE VIGIL — what persists between climbs: deeds, unlocks, vows, and the
 // monument of the last fall. Storage is Node-safe: without localStorage
 // (tests) it keeps the ledger in memory so callers can still assert on it.
-import { DEEDS, CARDS, RELICS, REVEALS } from './data.js';
+import { DEEDS, CARDS, RELICS, REVEALS, QUEST_IDS, QUESTS, QUEST_STATES, QUEST_ACTIVE_STATES, TERMINAL_OUTCOMES, RUN_ID_RE, WHISPERS, PROGRESSION } from './data.js';
 
 const KEY = 'spirebound_vigil_v2';
 const KEY_V1 = 'spirebound_vigil_v1'; // read-only: migration source, never written
@@ -23,6 +23,115 @@ function getStore() {
 // test hook: pass null to start over on a fresh in-memory store
 export function _setStore(s) { store = s; memory = new Map(); }
 
+let armRng = Math.random;
+export function _setRng(fn) { armRng = typeof fn === 'function' ? fn : Math.random; }
+
+const plainObject = (x) => x && typeof x === 'object' && !Array.isArray(x);
+const blankQuest = () => ({ state: 'dormant', progress: 0, memory: {} });
+const cleanQuestMemory = (id, memory, state, progress) => {
+  const source = plainObject(memory) ? memory : {};
+  if (id === 'eighthOmen') {
+    if (state === 'dormant') return {};
+    if (state === 'complete') return source.seen === true ? { seen: true } : {};
+    if (source.seen === true) return { seen: true };
+    const guarantee = Math.max(1, Math.floor(PROGRESSION.emberglass.eighthOmen.guaranteeRuns));
+    const dueIn = Math.floor(Number(source.dueIn));
+    return {
+      dueIn: Number.isFinite(dueIn) && dueIn >= 1 ? Math.min(guarantee, dueIn) : guarantee,
+    };
+  }
+  if (id === 'hollowLamplighter') {
+    if (!QUEST_ACTIVE_STATES.includes(state)) return {};
+    const out = {};
+    const eligibleMisses = Math.floor(Number(source.eligibleMisses));
+    if (Number.isFinite(eligibleMisses) && eligibleMisses >= 0) out.eligibleMisses = eligibleMisses;
+    if (state === 'revealed' && progress === 0) {
+      const maxDebt = Math.max(1, Math.floor(PROGRESSION.emberglass.hollowLamplighter.emberDebt));
+      const emberDebt = Math.floor(Number(source.emberDebt));
+      if (Number.isFinite(emberDebt) && emberDebt >= 1) out.emberDebt = Math.min(maxDebt, emberDebt);
+    }
+    return out;
+  }
+  return {};
+};
+const cloneQuest = (id, q) => {
+  const target = QUESTS[id].target;
+  let state = QUEST_STATES.includes(q?.state) ? q.state : 'dormant';
+  let progress = Math.min(target, Math.max(0, Math.floor(Number(q?.progress) || 0)));
+  if (state === 'dormant') progress = 0;
+  else if (state === 'complete') progress = target;
+  else progress = Math.min(progress, Math.max(0, target - 1));
+  return {
+    state,
+    progress,
+    memory: cleanQuestMemory(id, q?.memory, state, progress),
+  };
+};
+const exactKeys = (x, keys) => plainObject(x) && Object.keys(x).length === keys.length && keys.every((k) => Object.hasOwn(x, k));
+const validRunId = (id) => typeof id === 'string' && RUN_ID_RE.test(id);
+const validQuestIds = (ids) => Array.isArray(ids) && ids.every((id) => QUEST_IDS.includes(id));
+const cleanDeedReceipt = (receipt) => exactKeys(receipt, ['runId', 'won', 'newUnlocks']) &&
+  validRunId(receipt.runId) && typeof receipt.won === 'boolean' &&
+  Array.isArray(receipt.newUnlocks) && receipt.newUnlocks.every((id) => typeof id === 'string')
+  ? { runId: receipt.runId, won: receipt.won, newUnlocks: [...receipt.newUnlocks] }
+  : null;
+const cleanRunEndReceipt = (receipt) => exactKeys(receipt, ['runId', 'outcome', 'whisper', 'armed', 'completed', 'newShards']) &&
+  validRunId(receipt.runId) && TERMINAL_OUTCOMES.includes(receipt.outcome) &&
+  (receipt.whisper == null || typeof receipt.whisper === 'string') &&
+  validQuestIds(receipt.armed) && validQuestIds(receipt.completed) && validQuestIds(receipt.newShards)
+  ? {
+      runId: receipt.runId, outcome: receipt.outcome, whisper: receipt.whisper ?? null,
+      armed: [...receipt.armed], completed: [...receipt.completed], newShards: [...receipt.newShards],
+    }
+  : null;
+
+function hydrateReceipts(v) {
+  const source = plainObject(v.receipts) ? v.receipts : {};
+  const receipts = {
+    deeds: cleanDeedReceipt(source.deeds),
+    runEnd: cleanRunEndReceipt(source.runEnd),
+  };
+  const changed = !exactKeys(source, ['deeds', 'runEnd']) || JSON.stringify(source) !== JSON.stringify(receipts);
+  v.receipts = receipts;
+  return changed;
+}
+
+function hydrateV2(v) {
+  let changed = false;
+  const sourceQuests = plainObject(v.quests) ? v.quests : {};
+  const quests = {};
+  for (const id of QUEST_IDS) {
+    const source = sourceQuests[id];
+    const quest = cloneQuest(id, source || blankQuest());
+    quests[id] = quest;
+    if (!source || JSON.stringify(source) !== JSON.stringify(quest)) changed = true;
+  }
+  if (!exactKeys(sourceQuests, QUEST_IDS)) changed = true;
+  v.quests = quests;
+  if ((v.deeds?.wins || 0) >= 1 && v.quests.paleOnes.state === 'dormant') {
+    v.quests.paleOnes.state = 'armed';
+    v.news = true;
+    changed = true;
+  }
+  const shards = [...new Set((Array.isArray(v.shards) ? v.shards : []).filter((id) => QUEST_IDS.includes(id)))];
+  if (JSON.stringify(v.shards) !== JSON.stringify(shards)) changed = true;
+  v.shards = shards;
+  const whispers = Math.max(0, Math.floor(Number(v.whispers) || 0));
+  if (v.whispers !== whispers) changed = true;
+  v.whispers = whispers;
+  if (hydrateReceipts(v)) changed = true;
+  return changed;
+}
+
+export function questSnapshot(vigil) {
+  return Object.fromEntries(QUEST_IDS.map((id) => [id, cloneQuest(id, vigil.quests[id])]));
+}
+
+export function whisperAt(count) {
+  if (count <= 0) return null;
+  return WHISPERS[Math.min(count, WHISPERS.length) - 1];
+}
+
 const DEFAULT_DEEDS = {
   runs: 0, wins: 0, slain: 0, shatters: 0, kindles: 0, perfects: 0,
   smolderKills: 0, unlitVisited: 0, embersSpent: 0, bestVow: 0, bestFloor: 0,
@@ -37,13 +146,21 @@ export function loadVigil() {
   const out = {
     v: 2, deeds: {}, unlocks: [], vowUnlocked: 0, lastFall: null,
     runsPlayed: 0, quests: {}, shards: [], whispers: 0, news: false,
+    receipts: { deeds: null, runEnd: null },
     ...(v || {}),
   };
+  let changed = out.v !== 2;
   out.v = 2;
-  out.deeds = { ...DEFAULT_DEEDS, ...(out.deeds || {}) };
-  if (!Array.isArray(out.unlocks)) out.unlocks = [];
-  if (!Array.isArray(out.shards)) out.shards = [];
-  if (!out.quests || typeof out.quests !== 'object') out.quests = {};
+  const deeds = { ...DEFAULT_DEEDS, ...(plainObject(out.deeds) ? out.deeds : {}) };
+  if (JSON.stringify(out.deeds) !== JSON.stringify(deeds)) changed = true;
+  out.deeds = deeds;
+  if (!Array.isArray(out.unlocks)) { out.unlocks = []; changed = true; }
+  if (!Array.isArray(out.shards)) { out.shards = []; changed = true; }
+  if (!plainObject(out.quests)) { out.quests = {}; changed = true; }
+  if (hydrateV2(out)) changed = true;
+  if (changed) {
+    try { getStore().setItem(KEY, JSON.stringify(out)); } catch { /* full */ }
+  }
   return out;
 }
 
@@ -56,6 +173,7 @@ function migrateToV2() {
   const out = {
     v: 2, deeds: { ...DEFAULT_DEEDS }, unlocks: [], vowUnlocked: 0, lastFall: null,
     runsPlayed: 0, quests: {}, shards: [], whispers: 0, news: false,
+    receipts: { deeds: null, runEnd: null },
   };
   if (v1) {
     out.deeds = { ...DEFAULT_DEEDS, ...(v1.deeds || {}) };
@@ -73,7 +191,12 @@ function migrateToV2() {
   return out;
 }
 export function saveVigil(v) {
-  try { getStore().setItem(KEY, JSON.stringify(v)); } catch { /* full */ }
+  try {
+    getStore().setItem(KEY, JSON.stringify(v));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Debug / settings: wipe Vigil meta + legacy stats. Does not touch audio prefs. */
@@ -113,26 +236,112 @@ export function isRevealed(vigil, id) {
   const t = r.trigger;
   if (t.runsPlayed != null && (vigil.runsPlayed || 0) < t.runsPlayed) return false;
   if (t.wins != null && (vigil.deeds.wins || 0) < t.wins) return false;
+  if (t.shards != null && (vigil.shards || []).length < t.shards) return false;
   return true;
 }
 export function revealSnapshot(vigil) {
   return REVEALS.filter((r) => isRevealed(vigil, r.id)).map((r) => r.id);
 }
 
-// every run end — win, fall, or abandon — advances the ledger that paces the
-// reveals. Separate from commitRunToVigil so deed semantics (win/fall only)
-// stay untouched. Idempotent per run.
-// Wins-gated reveals pulse via commitRunToVigil's unlock path (deeds.wins
-// moves there), so this before/after diff only needs to watch runsPlayed.
-export function commitRunEnd(run) {
-  if (run.runEndCommitted) return loadVigil();
-  run.runEndCommitted = true;
+const STATE_RANK = { dormant: 0, armed: 1, revealed: 2, complete: 3 };
+
+function mergeRunQuests(v, run) {
+  const completed = [];
+  for (const id of QUEST_IDS) {
+    if (!run.quests?.[id]) continue;
+    const from = cloneQuest(id, run.quests[id]);
+    const to = v.quests[id];
+    if (STATE_RANK[from.state] > STATE_RANK[to.state]) to.state = from.state;
+    to.progress = Math.max(to.progress, from.progress);
+    // A run receives the whole memory snapshot. Treat it as authoritative so
+    // deleting dueIn or emberDebt survives the cross-run merge.
+    to.memory = { ...from.memory };
+    if (to.state === 'complete' && !v.shards.includes(id)) completed.push(id);
+  }
+  const ordered = [
+    ...(run.questCompletions || []).filter((id) => completed.includes(id)),
+    ...QUEST_IDS.filter((id) => completed.includes(id) && !(run.questCompletions || []).includes(id)),
+  ];
+  return ordered;
+}
+
+export function commitRunEnd(run, outcome = 'abandon') {
+  if (!TERMINAL_OUTCOMES.includes(outcome)) throw new Error('invalid run outcome: ' + outcome);
+  if (run.runEndResult) {
+    if (run.runEndOutcome !== outcome) throw new Error('run end outcome does not match durable receipt');
+    return run.runEndResult;
+  }
+
   const v = loadVigil();
-  const before = revealSnapshot(v).length;
+  const prior = v.receipts.runEnd;
+  if (prior?.runId === run.runId) {
+    if (prior.outcome !== outcome) throw new Error('run end outcome does not match durable receipt');
+    run.runEndCommitted = true;
+    run.runEndOutcome = outcome;
+    run.runEndResult = {
+      vigil: v, whisper: prior.whisper, armed: [...prior.armed], completed: [...prior.completed], newShards: [...prior.newShards],
+    };
+    return run.runEndResult;
+  }
+  const beforeRevealCount = revealSnapshot(v).length;
+  const before = JSON.stringify({
+    quests: v.quests, shards: v.shards, unlocks: v.unlocks, whispers: v.whispers,
+  });
+  const completed = mergeRunQuests(v, run);
+  const hs = run.questScratch?.hollowLamplighter;
+  const persistedHollow = v.quests.hollowLamplighter;
+  if (hs && !hs.debtActive && QUEST_ACTIVE_STATES.includes(persistedHollow.state)) {
+    persistedHollow.memory.eligibleMisses = hs.met
+      ? 0
+      : (persistedHollow.memory.eligibleMisses || 0) + 1;
+  }
+  if (persistedHollow.state === 'complete') delete persistedHollow.memory.eligibleMisses;
+  for (const id of completed) v.shards.push(id);
+  for (const id of run.unlocks || []) if (!v.unlocks.includes(id)) v.unlocks.push(id);
+  const fall = run.questScratch?.ownShade?.fall;
+  if (outcome === 'death' && fall) {
+    v.lastFall = {
+      act: fall.act,
+      row: fall.row,
+      bequest: fall.bequest ?? null,
+      standing: true,
+      shadeAspect: fall.shadeAspect,
+    };
+  }
+
   v.runsPlayed++;
-  if (revealSnapshot(v).length > before) v.news = true;
-  saveVigil(v);
-  return v;
+  const armed = [];
+  let whisper = null;
+  if (outcome === 'win') {
+    v.whispers++;
+    whisper = whisperAt(v.whispers);
+    const wins = v.deeds.wins || 0;
+    const dormant = QUEST_IDS.slice(1).filter((id) => v.quests[id].state === 'dormant');
+    const armWins = PROGRESSION.emberglass.armWins;
+    const catchUp = wins > armWins.at(-1) && dormant.length > 0;
+    if (armWins.includes(wins) || catchUp) {
+      if (dormant.length) {
+        const id = dormant[Math.min(dormant.length - 1, Math.floor(armRng() * dormant.length))];
+        v.quests[id].state = 'armed';
+        if (id === 'eighthOmen') v.quests[id].memory.dueIn = PROGRESSION.emberglass.eighthOmen.guaranteeRuns;
+        armed.push(id);
+      }
+    }
+  }
+
+  const after = JSON.stringify({
+    quests: v.quests, shards: v.shards, unlocks: v.unlocks, whispers: v.whispers,
+  });
+  const revealLanded = revealSnapshot(v).length > beforeRevealCount;
+  if (before !== after || revealLanded) v.news = true;
+  v.receipts.runEnd = {
+    runId: run.runId, outcome, whisper, armed: [...armed], completed: [...completed], newShards: [...completed],
+  };
+  if (!saveVigil(v)) throw new Error('Vigil storage rejected the run end; retry when storage is available');
+  run.runEndCommitted = true;
+  run.runEndOutcome = outcome;
+  run.runEndResult = { vigil: v, whisper, armed, completed, newShards: completed };
+  return run.runEndResult;
 }
 
 export function clearNews() {
@@ -143,9 +352,19 @@ export function clearNews() {
 
 // fold a finished (or fallen) run into the vigil; idempotent per run
 export function commitRunToVigil(run, won) {
-  if (run.vigilCommitted) return { vigil: loadVigil(), newUnlocks: [] };
-  run.vigilCommitted = true;
+  if (run.vigilResult) {
+    if (run.vigilWon !== !!won) throw new Error('run win state does not match durable deed receipt');
+    return run.vigilResult;
+  }
   const v = loadVigil();
+  const prior = v.receipts.deeds;
+  if (prior?.runId === run.runId) {
+    if (prior.won !== !!won) throw new Error('run win state does not match durable deed receipt');
+    run.vigilCommitted = true;
+    run.vigilWon = !!won;
+    run.vigilResult = { vigil: v, newUnlocks: [...prior.newUnlocks] };
+    return run.vigilResult;
+  }
   const beforeDeeds = { ...v.deeds };
   v.deeds.runs++;
   if (won) {
@@ -163,20 +382,46 @@ export function commitRunToVigil(run, won) {
   // pulse on any deed-bar movement (not only threshold unlocks) — design §3
   const deedProgressed = Object.keys(DEFAULT_DEEDS).some((k) => v.deeds[k] !== beforeDeeds[k]);
   if (deedProgressed || newUnlocks.length) v.news = true;
-  saveVigil(v);
-  return { vigil: v, newUnlocks };
+  v.receipts.deeds = { runId: run.runId, won: !!won, newUnlocks: [...newUnlocks] };
+  if (!saveVigil(v)) throw new Error('Vigil storage rejected the deed commit; retry when storage is available');
+  run.vigilCommitted = true;
+  run.vigilWon = !!won;
+  run.vigilResult = { vigil: v, newUnlocks };
+  return run.vigilResult;
+}
+
+export function commitPendingRunEnd(run, recordRunEnd) {
+  const outcome = run.pendingRunEnd?.outcome;
+  if (!TERMINAL_OUTCOMES.includes(outcome)) throw new Error('run has no valid pending outcome');
+  if (typeof recordRunEnd !== 'function') throw new Error('run cleanup acknowledgement is required');
+  const won = outcome === 'win';
+  const deedResult = outcome === 'abandon' ? { newUnlocks: [] } : commitRunToVigil(run, won);
+  const ledger = commitRunEnd(run, outcome);
+  return {
+    accepted: recordRunEnd(run, won) === true,
+    newUnlocks: [...deedResult.newUnlocks],
+    ledger,
+    outcome,
+  };
 }
 
 // the monument of the last fall
 export function setBequest(act, row, bequest) {
   const v = loadVigil();
-  v.lastFall = { act, row, bequest };
-  saveVigil(v);
+  if (v.lastFall?.standing === true && v.lastFall.act === act && v.lastFall.row === row) {
+    v.lastFall = {
+      ...v.lastFall,
+      bequest: v.lastFall.bequest ?? bequest,
+    };
+  } else {
+    v.lastFall = { act, row, bequest, standing: false };
+  }
+  return saveVigil(v);
 }
 export function clearBequest() {
   const v = loadVigil();
   v.lastFall = null;
-  saveVigil(v);
+  return saveVigil(v);
 }
 
 // what the dark keeps: up to three things worth carving into the stone

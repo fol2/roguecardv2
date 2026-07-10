@@ -1,0 +1,40 @@
+
+> spirebound@1.0.0 test:e2e:perf
+> PERF=1 playwright test perf --project=portrait --workers=1 --no-deps
+
+[WebServer] (node:87238) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:87255) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PERF_RESULT {"avgFps":88.65,"p95FrameMs":28.4,"worstFrameMs":41.7,"frames":266,"project":"portrait"}
+  ✘  1 [portrait] › test/e2e/perf.spec.js:18:1 › AoE effect burst holds the frame budget at 4x CPU throttle (14.3s)
+
+
+  1) [portrait] › test/e2e/perf.spec.js:18:1 › AoE effect burst holds the frame budget at 4x CPU throttle
+
+    Error: p95 frame time in ms (got 28.4)
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 22
+    Received:    28.399999999999636
+
+      82 |
+      83 |   expect(avgFps, `average fps during the burst (got ${avgFps.toFixed(1)})`).toBeGreaterThanOrEqual(55);
+    > 84 |   expect(p95, `p95 frame time in ms (got ${p95.toFixed(1)})`).toBeLessThanOrEqual(22);
+         |                                                               ^
+      85 | });
+      86 |
+        at /Users/jamesto/Coding/roguecardv2/.worktrees/emberglass-phase2/test/e2e/perf.spec.js:84:63
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/perf-AoE-effect-burst-hold-f4bb5-e-budget-at-4x-CPU-throttle-portrait/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/perf-AoE-effect-burst-hold-f4bb5-e-budget-at-4x-CPU-throttle-portrait/error-context.md
+
+  1 failed
+    [portrait] › test/e2e/perf.spec.js:18:1 › AoE effect burst holds the frame budget at 4x CPU throttle

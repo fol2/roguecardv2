@@ -204,8 +204,29 @@ const BODY_FRAG = /* glsl */`
   uniform float uFlash;  // white hit beat
   uniform float uCut;    // 0 = soft transparent edges; >0 = opaque with alpha discard
   uniform float uErode;  // UV radius — soft-eat alpha fringe (matte halo)
+  uniform float uHue;
+  uniform float uSaturation;
+  uniform float uBrightness;
+  vec3 hueRotate(vec3 c, float a) {
+    // GLSL matrix constructors are column-major: each group is one column.
+    const mat3 toYiq = mat3(
+      0.299, 0.596, 0.212,
+      0.587, -0.275, -0.523,
+      0.114, -0.321, 0.311
+    );
+    const mat3 toRgb = mat3(
+      1.0, 1.0, 1.0,
+      0.956, -0.272, -1.106,
+      0.621, -0.647, 1.703
+    );
+    vec3 yiq = toYiq * c;
+    float h = atan(yiq.z, yiq.y) + a;
+    float chroma = length(yiq.yz) * uSaturation;
+    return toRgb * vec3(yiq.x, chroma * cos(h), chroma * sin(h));
+  }
   void main() {
     vec4 base = texture2D(map, vUv);
+    base.rgb = clamp(hueRotate(base.rgb, uHue) * uBrightness, 0.0, 1.0);
     float a = base.a;
     // Tiny corrosive: neighborhood-min alpha, then soft tighten — kills light fringe
     // without a hard cutout. uErode ~0.002 ≈ 1px on a 512 atlas.
@@ -290,7 +311,10 @@ function makePlane(url, profile, seed, img) {
   };
   const tex = loadTex(url, (t) => { p.aspect = artAspect(img, t); });
   p.tex = tex;
-  const uniforms = { map: { value: tex }, uFlash: { value: 0 }, uCut: { value: 0 }, uErode: { value: 0.0024 } };
+  const uniforms = {
+    map: { value: tex }, uFlash: { value: 0 }, uCut: { value: 0 }, uErode: { value: 0.0024 },
+    uHue: { value: 0 }, uSaturation: { value: 1 }, uBrightness: { value: 1 },
+  };
   const mat = new THREE.ShaderMaterial({ uniforms, vertexShader: BODY_VERT, fragmentShader: BODY_FRAG, transparent: true, depthTest: false, depthWrite: false });
   p.mat = mat;
   const mesh = new THREE.Mesh(geo, mat);
@@ -1114,13 +1138,13 @@ export function meshProfileFor(kind, id) {
   return Object.keys(over).length ? { ...base, ...over } : base;
 }
 
-/** @param {{ el: Element, url: string, kind?: string, id?: string }[]} entries */
+/** @param {{ el: Element, url: string, kind?: string, id?: string, variantId?: string, tint?: object }[]} entries */
 export function meshBind(entries) {
   meshClear();
   if (!meshEnabled()) return;
   if (!renderer) initMesh();
   if (!renderer) return;
-  for (const { el, url, kind, id, flip } of entries) {
+  for (const { el, url, kind, id, flip, variantId, tint } of entries) {
     if (!url || !el) continue;
     const img = el.querySelector('.raster-art');
     if (!img) continue;
@@ -1128,6 +1152,10 @@ export function meshBind(entries) {
     const profile = meshProfileFor(kind, id);
     const seed = Math.random() * 10;
     const p = makePlane(url, profile, seed, img);
+    p.variantId = variantId ?? null;
+    p.mat.uniforms.uHue.value = THREE.MathUtils.degToRad(tint?.hue || 0);
+    p.mat.uniforms.uSaturation.value = tint?.saturation ?? 1;
+    p.mat.uniforms.uBrightness.value = tint?.brightness ?? 1;
     p.el = el;
     p.flip = !!flip;
     p.profile = profile;
@@ -1238,6 +1266,52 @@ export function meshAimClear() {
   }
 }
 
+// Debug-only rendered-colour probe: exercise the shipped body fragment shader
+// through the live WebGL renderer without coupling tests to a painted asset.
+function debugProbeBodyColour({ rgb = [0.5, 0.5, 0.5], hue = 0, saturation = 1, brightness = 1 } = {}) {
+  if (!renderer) return null;
+  const bytes = new Uint8Array([
+    ...rgb.map((channel) => Math.round(Math.max(0, Math.min(1, channel)) * 255)),
+    255,
+  ]);
+  const tex = new THREE.DataTexture(bytes, 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.NearestFilter;
+  tex.magFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  const uniforms = {
+    map: { value: tex }, uFlash: { value: 0 }, uCut: { value: 0 }, uErode: { value: 0 },
+    uHue: { value: THREE.MathUtils.degToRad(hue) },
+    uSaturation: { value: saturation }, uBrightness: { value: brightness },
+  };
+  const material = new THREE.ShaderMaterial({
+    uniforms, vertexShader: BODY_VERT, fragmentShader: BODY_FRAG,
+    depthTest: false, depthWrite: false,
+  });
+  const geometry = new THREE.PlaneGeometry(2, 2);
+  const probeScene = new THREE.Scene();
+  probeScene.add(new THREE.Mesh(geometry, material));
+  const probeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 2);
+  probeCamera.position.z = 1;
+  const target = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: false, stencilBuffer: false });
+  const previousTarget = renderer.getRenderTarget();
+  const pixel = new Uint8Array(4);
+  try {
+    renderer.setRenderTarget(target);
+    renderer.clear();
+    renderer.render(probeScene, probeCamera);
+    renderer.readRenderTargetPixels(target, 0, 0, 1, 1, pixel);
+  } finally {
+    renderer.setRenderTarget(previousTarget);
+    target.dispose();
+    geometry.dispose();
+    material.dispose();
+    tex.dispose();
+  }
+  return { r: pixel[0], g: pixel[1], b: pixel[2], a: pixel[3] };
+}
+
 export const meshDebug = () => ({
   enabled: meshEnabled(),
   planes: planes.length,
@@ -1247,6 +1321,13 @@ export const meshDebug = () => ({
   sites: planes.reduce((m, p) => Math.max(m, p.sites.length), 0),
   death: planes.reduce((m, p) => Math.max(m, p.death), 0),
   glass: planes.filter((p) => p.glass).length,
+  variants: planes.map((p) => ({
+    id: p.variantId,
+    hue: p.mat.uniforms.uHue.value,
+    saturation: p.mat.uniforms.uSaturation.value,
+    brightness: p.mat.uniforms.uBrightness.value,
+  })),
+  probeBodyColour: debugProbeBodyColour,
 });
 
 export function meshProfile(kind) { return PROFILE[kind] || PROFILE.humanoid; }

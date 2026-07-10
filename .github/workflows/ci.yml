@@ -4,18 +4,64 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  # Supersede stale PR runs, but never erase the required proof for a main push.
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # Supersede stale PR runs, but never erase the required proof for main.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  unit:
-    name: unit
+  changes:
+    name: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+      mode: ${{ steps.mode.outputs.mode }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: filter
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        with:
+          filters: |
+            code:
+              - 'src/**'
+              - 'test/**'
+              - 'tools/**'
+              - 'index.html'
+              - 'public/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'playwright*.js'
+              - 'vite.config.js'
+              - '.github/workflows/ci.yml'
+            e2e:
+              - 'src/**'
+              - 'test/e2e/**'
+              - 'index.html'
+              - 'public/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'playwright*.js'
+              - 'vite.config.js'
+              - '.github/workflows/ci.yml'
+      - id: mode
+        run: node tools/ci-contract.mjs mode
+        env:
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+
+  unit_tests:
+    name: unit tests
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -27,9 +73,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      # apt's ffmpeg (6.1.1 on ubuntu-24.04) measures MP3 durations and renders
-      # crossfades differently from the dev machine's ffmpeg 8.1.2 -- install
-      # the same major.minor branch from BtbN's static-build releases instead.
+      # npm test inspects audio assets with ffmpeg/ffprobe, so pin the same
+      # branch used by the development evidence instead of Ubuntu's 6.1.1.
       - name: Install ffmpeg 8.1 (matches the dev machine)
         run: |
           cd /tmp
@@ -41,71 +86,242 @@ jobs:
           sudo install -m 755 ffmpeg-n8.1-latest-linux64-gpl-8.1/bin/ffmpeg /usr/local/bin/ffmpeg
           sudo install -m 755 ffmpeg-n8.1-latest-linux64-gpl-8.1/bin/ffprobe /usr/local/bin/ffprobe
           rm -rf ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz ffmpeg.sha256 ffmpeg-n8.1-latest-linux64-gpl-8.1
-      - name: Verify audio inspection tools
-        run: ffmpeg -version && ffprobe -version
-      # engine unit checks + asset manifest + 300-run monte-carlo
+      - run: npm run test:ci
       - run: npm test
-      # production bundle must build clean
+
+  build_dist:
+    name: build dist
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
       - run: npm run build
-      # dist is shipped from git: changed/deleted/untracked output is a failure
       - name: Verify committed dist is current
         run: |
           git status --short -- dist/
           test -z "$(git status --porcelain --untracked-files=all -- dist/)"
 
-  e2e:
-    name: e2e
+  unit:
+    name: unit
+    if: always()
+    needs: [changes, unit_tests, build_dist]
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-          fetch-depth: 0
-      # The Playwright suite (20-45min) only needs to run when it could plausibly
-      # catch something: app/UI source, the e2e specs/baselines, or build config.
-      # Docs, tools/, and CI-config-only pushes skip straight to a fast no-op so
-      # the job still reports its required "e2e" status check (never "skipped").
-      - name: Detect e2e-relevant changes
-        id: changes
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+      - run: node tools/ci-contract.mjs gate
+        env:
+          CI_GATE: unit
+          CI_RELEVANT: ${{ needs.changes.outputs.code }}
+          CI_MODE: ${{ needs.changes.outputs.mode }}
+          CI_RESULTS: >-
+            {"changes":"${{ needs.changes.result }}","unit-tests":"${{ needs.unit_tests.result }}","build-dist":"${{ needs.build_dist.result }}"}
+
+  smoke_e2e:
+    name: e2e smoke
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'smoke'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          filters: |
-            e2e:
-              - 'src/**'
-              - 'test/e2e/**'
-              - 'index.html'
-              - 'public/**'
-              - 'package.json'
-              - 'package-lock.json'
-              - 'playwright.config.js'
-              - 'vite.config.js'
-              - '.github/workflows/ci.yml'
+          persist-credentials: false
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        if: steps.changes.outputs.e2e == 'true'
         with:
           node-version: 24
           cache: npm
       - run: npm ci
-        if: steps.changes.outputs.e2e == 'true'
       - run: npx playwright install --with-deps chromium
-        if: steps.changes.outputs.e2e == 'true'
-      # full kit: stage/geometry/battle/visual/rewards/bfeditor.
-      # perf.spec self-skips (PERF env unset). Baselines compare *-linux.png.
-      - run: npm run test:e2e
-        if: steps.changes.outputs.e2e == 'true'
-      - name: Verify e2e restored the checkout
-        if: always() && steps.changes.outputs.e2e == 'true'
-        run: |
-          git status --short
-          test -z "$(git status --porcelain --untracked-files=all)"
+      - run: npm run test:e2e:smoke
+      - name: Verify clean checkout
+        if: always()
+        run: test -z "$(git status --porcelain --untracked-files=all)"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: failure() && steps.changes.outputs.e2e == 'true'
+        if: failure()
         with:
-          name: playwright-failures
+          name: playwright-smoke-${{ github.run_id }}
           path: test-results/
           retention-days: 14
           if-no-files-found: ignore
-      - name: No e2e-relevant changes
-        if: steps.changes.outputs.e2e != 'true'
-        run: echo "No src/, test/e2e/, or build-config changes in this push -- skipping the Playwright suite."
+
+  e2e_disk:
+    name: e2e disk
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:disk
+      - name: Verify e2e restored the checkout
+        if: always()
+        run: test -z "$(git status --porcelain --untracked-files=all)"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-disk-${{ github.run_id }}
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  e2e_random:
+    name: e2e random ${{ matrix.shard }}/3
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:random-agent -- --shard=${{ matrix.shard }}/3
+      - name: Verify clean checkout
+        if: always()
+        run: test -z "$(git status --porcelain --untracked-files=all)"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-random-${{ matrix.shard }}-${{ github.run_id }}
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  e2e_main:
+    name: e2e main ${{ matrix.shard }}/10
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:main -- --shard=${{ matrix.shard }}/10
+      - name: Verify clean checkout
+        if: always()
+        run: test -z "$(git status --porcelain --untracked-files=all)"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-main-${{ matrix.shard }}-${{ github.run_id }}
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  e2e_serial:
+    name: e2e serial
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:serial
+      - name: Verify clean checkout
+        if: always()
+        run: test -z "$(git status --porcelain --untracked-files=all)"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-serial-${{ github.run_id }}
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  e2e_visual:
+    name: e2e visual ${{ matrix.project }}
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop, portrait, landscape]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:visual:project -- --project=${{ matrix.project }}
+      - name: Verify clean checkout
+        if: always()
+        run: test -z "$(git status --porcelain --untracked-files=all)"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-visual-${{ matrix.project }}-${{ github.run_id }}
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  e2e:
+    name: e2e
+    if: always()
+    needs: [changes, smoke_e2e, e2e_disk, e2e_random, e2e_main, e2e_serial, e2e_visual]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - run: node tools/ci-contract.mjs gate
+        env:
+          CI_GATE: e2e
+          CI_RELEVANT: ${{ needs.changes.outputs.e2e }}
+          CI_MODE: ${{ needs.changes.outputs.mode }}
+          CI_RESULTS: >-
+            {"changes":"${{ needs.changes.result }}","smoke-e2e":"${{ needs.smoke_e2e.result }}","e2e-disk":"${{ needs.e2e_disk.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-main":"${{ needs.e2e_main.result }}","e2e-serial":"${{ needs.e2e_serial.result }}","e2e-visual":"${{ needs.e2e_visual.result }}"}

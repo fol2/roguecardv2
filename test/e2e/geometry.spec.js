@@ -10,8 +10,8 @@
 // lip sits mid-air). Green means §1 is actually implemented.
 import { test, expect } from '@playwright/test';
 import { ASPECTS } from '../../src/data.js';
-import { bfResolve, bfActor, bfSlots, bfEnemyFootY, bfHeroY } from '../../src/battlefield.js';
-import { boot, startFight, stable, collectErrors, expectNoErrors } from './helpers.js';
+import { bfResolve, bfActor, bfSlots, bfEnemyFootX, bfEnemyFootY, bfHeroY } from '../../src/battlefield.js';
+import { boot, startFight, stable, settle, collectErrors, expectNoErrors } from './helpers.js';
 
 const FEET_TOL = 2; // ±stage px around the fully resolved authored art-box bottom
 const LEDGE_LIP_MIN = 4, LEDGE_LIP_MAX = 64; // authored logical lip, not the alpha PNG box edge
@@ -85,6 +85,177 @@ function assertGrounded(g, label) {
   }
 }
 
+async function outsideStage(page, selector) {
+  return page.evaluate((query) => {
+    const stage = document.getElementById('stage').getBoundingClientRect();
+    return [...document.querySelectorAll(query)]
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width < 1 || r.height < 1) return false;
+        return r.left < stage.left - 2 || r.right > stage.right + 2 ||
+          r.top < stage.top - 2 || r.bottom > stage.bottom + 2;
+      })
+      .map((el) => `${el.tagName.toLowerCase()}.${String(el.className).trim().split(/\s+/).join('.')}`);
+  }, selector);
+}
+
+async function combatChromeRects(page) {
+  return page.evaluate(() => {
+    const info = window.__probe.stage();
+    const stage = document.getElementById('stage').getBoundingClientRect();
+    const rect = (el) => {
+      const r = el.getBoundingClientRect();
+      return {
+        left: (r.left - stage.left) / info.scale,
+        right: (r.right - stage.left) / info.scale,
+        top: (r.top - stage.top) / info.scale,
+        bottom: (r.bottom - stage.top) / info.scale,
+      };
+    };
+    const union = (nodes) => {
+      const rs = nodes.filter(Boolean).map(rect)
+        .filter((r) => r.right > r.left && r.bottom > r.top);
+      if (!rs.length) return { left: 0, right: 0, top: 0, bottom: 0 };
+      return {
+        left: Math.min(...rs.map((r) => r.left)),
+        right: Math.max(...rs.map((r) => r.right)),
+        top: Math.min(...rs.map((r) => r.top)),
+        bottom: Math.max(...rs.map((r) => r.bottom)),
+      };
+    };
+    const hp = [...document.querySelectorAll('.enemy')].map((enemy) => {
+      const plate = enemy.querySelector('.cplate');
+      const wrap = enemy.querySelector('.hpbar-wrap');
+      const block = enemy.querySelector('.block-chip');
+      const icon = block?.querySelector('.ui-icon,.gicon');
+      const vial = enemy.querySelector('.hp-vial');
+      const label = enemy.querySelector('.hp-label');
+      const nodes = [
+        plate,
+        enemy.querySelector('.name'),
+        wrap,
+        block,
+        icon,
+        vial,
+        label,
+        enemy.querySelector('.facet-row'),
+      ];
+      return {
+        visible: union(nodes),
+        wrap: rect(wrap),
+        block: rect(block),
+        icon: rect(icon),
+        vial: rect(vial),
+        label: rect(label),
+        clientWidth: wrap.clientWidth,
+        scrollWidth: wrap.scrollWidth,
+      };
+    });
+    const topVisible = (root) => union([
+      root,
+      ...root.querySelectorAll(
+        '.intent,.intent .ic,.intent .ui-icon,.intent .gicon,.intent .num,' +
+        '.status-row,.schip,.schip-art,.schip .n',
+      ),
+    ]);
+    return {
+      stage: info,
+      hero: rect(document.querySelector('.player-zone .cplate')),
+      heroTopVisible: topVisible(document.querySelector('.player-zone .top-chrome')),
+      enemy: [...document.querySelectorAll('.enemy .cplate')].map(rect),
+      enemyVisible: hp.map((x) => x.visible),
+      top: [...document.querySelectorAll('.enemy .top-chrome')].map(rect),
+      topVisible: [...document.querySelectorAll('.enemy .top-chrome')].map(topVisible),
+      hp,
+    };
+  });
+}
+
+function rectSeparation(a, b) {
+  return Math.max(
+    b.left - a.right,
+    a.left - b.right,
+    b.top - a.bottom,
+    a.top - b.bottom,
+  );
+}
+
+function assertCombatChrome(rects, label) {
+  for (const [kind, plates] of [['enemy cplate', rects.enemy], ['enemy top chrome', rects.top]]) {
+    plates.forEach((r, i) => {
+      expect(r.left, `${label}: ${kind} ${i} left edge`).toBeGreaterThanOrEqual(4);
+      expect(r.right, `${label}: ${kind} ${i} right edge`).toBeLessThanOrEqual(rects.stage.w - 4);
+      expect(r.top, `${label}: ${kind} ${i} top edge`).toBeGreaterThanOrEqual(4);
+      expect(r.bottom, `${label}: ${kind} ${i} bottom edge`).toBeLessThanOrEqual(rects.stage.h - 4);
+    });
+  }
+  for (let i = 0; i < rects.enemy.length; i++) {
+    expect(rectSeparation(rects.hero, rects.enemy[i]),
+      `${label}: hero and enemy cplate ${i} are 2D-separated`).toBeGreaterThanOrEqual(4);
+    if (i > 0) {
+      expect(rects.enemy[i].left, `${label}: enemy cplates preserve DOM order`)
+        .toBeGreaterThan(rects.enemy[i - 1].left);
+    }
+    for (let j = i + 1; j < rects.enemy.length; j++) {
+      expect(rectSeparation(rects.enemy[i], rects.enemy[j]),
+        `${label}: enemy cplates ${i} and ${j} are 2D-separated`).toBeGreaterThanOrEqual(4);
+    }
+  }
+}
+
+function assertEnemyHpChrome(rects, label) {
+  rects.hp.forEach((hp, i) => {
+    expect(hp.scrollWidth, `${label}: enemy ${i} HP row has no hidden horizontal overflow`)
+      .toBeLessThanOrEqual(hp.clientWidth + 1);
+    for (const key of ['wrap', 'block', 'icon', 'vial', 'label']) {
+      const r = hp[key];
+      expect(r.left, `${label}: enemy ${i} ${key} left edge`).toBeGreaterThanOrEqual(4);
+      expect(r.right, `${label}: enemy ${i} ${key} right edge`).toBeLessThanOrEqual(rects.stage.w - 4);
+    }
+  });
+  for (let i = 0; i < rects.enemyVisible.length; i++) {
+    expect(rectSeparation(rects.hero, rects.enemyVisible[i]),
+      `${label}: hero and enemy visible chrome ${i} are 2D-separated`).toBeGreaterThanOrEqual(4);
+    for (let j = i + 1; j < rects.enemyVisible.length; j++) {
+      expect(rectSeparation(rects.enemyVisible[i], rects.enemyVisible[j]),
+        `${label}: enemy visible chrome ${i} and ${j} are 2D-separated`).toBeGreaterThanOrEqual(4);
+    }
+  }
+}
+
+function assertEnemyTopChrome(rects, label) {
+  rects.topVisible.forEach((r, i) => {
+    expect(r.left, `${label}: enemy top visible chrome ${i} left edge`).toBeGreaterThanOrEqual(4);
+    expect(r.right, `${label}: enemy top visible chrome ${i} right edge`)
+      .toBeLessThanOrEqual(rects.stage.w - 4);
+    expect(rectSeparation(rects.heroTopVisible, r),
+      `${label}: hero and enemy top visible chrome ${i} are 2D-separated`).toBeGreaterThanOrEqual(4);
+    if (i > 0) {
+      expect(r.left, `${label}: enemy top chrome preserves DOM order`)
+        .toBeGreaterThan(rects.topVisible[i - 1].left);
+    }
+    for (let j = i + 1; j < rects.topVisible.length; j++) {
+      expect(rectSeparation(r, rects.topVisible[j]),
+        `${label}: enemy top visible chrome ${i} and ${j} are 2D-separated`)
+        .toBeGreaterThanOrEqual(4);
+    }
+  });
+}
+
+function expectChromeRectsNear(actual, expected, label, tolerance = 1) {
+  for (const key of ['hero', 'heroTopVisible', 'enemy', 'enemyVisible', 'top', 'topVisible']) {
+    const got = Array.isArray(actual[key]) ? actual[key] : [actual[key]];
+    const want = Array.isArray(expected[key]) ? expected[key] : [expected[key]];
+    expect(got.length, `${label}: ${key} rect count`).toBe(want.length);
+    got.forEach((rect, i) => {
+      for (const edge of ['left', 'right', 'top', 'bottom']) {
+        expect(Math.abs(rect[edge] - want[i][edge]), `${label}: ${key} ${i} ${edge}`)
+          .toBeLessThanOrEqual(tolerance);
+      }
+    });
+  }
+}
+
 for (const fight of FIGHTS) {
   test(`combatant art boxes honour authored ground positions — ${fight.name}`, async ({ page }) => {
     const errors = collectErrors(page);
@@ -97,6 +268,129 @@ for (const fight of FIGHTS) {
   });
 }
 
+for (const formation of [
+  { act: 1, name: 'canonical act 2 pair', ids: ['drownedOne', 'voltEel'] },
+  { act: 0, name: 'canonical act 1 trio', ids: ['sporeling', 'sporeling', 'sporeling'] },
+]) {
+  test(`portrait combat chrome is bounded and separated — ${formation.name}`, async ({ page }) => {
+    test.skip(test.info().project.name !== 'portrait', 'portrait chrome regression');
+    const errors = collectErrors(page);
+    await boot(page, { query: 'mesh=0' });
+    await page.evaluate((act) => { window.spirebound.S.run.act = act; }, formation.act);
+    await startFight(page, formation.ids);
+    await stable(page);
+    assertGrounded(await measure(page), formation.name);
+    const beforeDeath = await combatChromeRects(page);
+    assertCombatChrome(beforeDeath, formation.name);
+    if (formation.ids.length === 3) {
+      const killed = await page.evaluate(async () => {
+        window.__probe.setEnemyHp(0, 1);
+        window.__probe.setEnergy(3);
+        const [uid] = window.__probe.forceHand(['strike']);
+        return window.__probe.play(uid, 0);
+      });
+      expect(killed, `${formation.name}: real strike kills the first member`).toBe(true);
+      await settle(page);
+      await page.waitForSelector('.enemy.gone', { state: 'attached' });
+      const afterDeath = await combatChromeRects(page);
+      for (let i = 1; i < beforeDeath.enemy.length; i++) {
+        for (const edge of ['left', 'right']) {
+          expect(Math.abs(afterDeath.enemy[i][edge] - beforeDeath.enemy[i][edge]),
+            `${formation.name}: survivor ${i} ${edge} does not jump after the first death`)
+            .toBeLessThanOrEqual(1);
+        }
+      }
+      assertCombatChrome(afterDeath, `${formation.name} after first death`);
+    }
+    expectNoErrors(errors, formation.name);
+  });
+}
+
+test('reduced-motion portrait chrome is stable after the entrance class clears', async ({ page }) => {
+  test.skip(test.info().project.name !== 'portrait', 'portrait chrome regression');
+  const errors = collectErrors(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await boot(page, { query: 'mesh=0' });
+  await page.evaluate(() => { window.spirebound.S.run.act = 1; });
+  await startFight(page, ['drownedOne', 'voltEel']);
+  await page.evaluate(() => {
+    const { S } = window.spirebound;
+    S.cb.enemies.forEach((enemy) => { enemy.block = 5; });
+    window.__probe.setEnemyHp(0, S.cb.enemies[0].hp);
+  });
+  await stable(page);
+
+  const settled = await combatChromeRects(page);
+  assertGrounded(await measure(page), 'reduced-motion entrance settled');
+  assertCombatChrome(settled, 'reduced-motion entrance settled');
+  assertEnemyHpChrome(settled, 'reduced-motion entrance settled');
+  expect(Math.abs(settled.enemyVisible.at(-1).right - (settled.stage.w - 6)),
+    'right-packed group ends at the authored stage margin').toBeLessThanOrEqual(1);
+
+  await page.evaluate(() => window.spirebound.refitCombat());
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const firstRefit = await combatChromeRects(page);
+  expectChromeRectsNear(firstRefit, settled, 'first explicit refit');
+
+  await page.evaluate(() => window.spirebound.refitCombat());
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const secondRefit = await combatChromeRects(page);
+  expectChromeRectsNear(secondRefit, settled, 'second explicit refit');
+  assertCombatChrome(secondRefit, 'second explicit refit');
+  assertEnemyHpChrome(secondRefit, 'second explicit refit');
+  expectNoErrors(errors, 'reduced-motion entrance clamp');
+});
+
+test('portrait intent and status chrome stays separated through death and refits', async ({ page }) => {
+  test.skip(test.info().project.name !== 'portrait', 'portrait chrome regression');
+  const errors = collectErrors(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await boot(page, { query: 'mesh=0' });
+  await startFight(page, ['sporeling', 'sporeling', 'sporeling']);
+  await page.evaluate(() => {
+    const { S } = window.spirebound;
+    const statuses = [
+      { poison: 3, vulnerable: 2 },
+      { weak: 2, frail: 2 },
+      { poison: 4, weak: 2 },
+    ];
+    S.cb.enemies.forEach((enemy, i) => { enemy.statuses = statuses[i]; });
+    S.cb.player.statuses = { weak: 2 };
+    window.__probe.setEnergy(S.cb.player.energy);
+  });
+  await stable(page);
+
+  const settled = await combatChromeRects(page);
+  assertGrounded(await measure(page), 'status-heavy trio');
+  assertEnemyTopChrome(settled, 'status-heavy trio');
+
+  const killed = await page.evaluate(async () => {
+    window.__probe.setEnemyHp(0, 1);
+    window.__probe.setEnergy(3);
+    const [uid] = window.__probe.forceHand(['strike']);
+    return window.__probe.play(uid, 0);
+  });
+  expect(killed, 'status-heavy trio: real strike kills the first member').toBe(true);
+  await settle(page);
+  await page.waitForSelector('.enemy.gone', { state: 'attached' });
+  const afterDeath = await combatChromeRects(page);
+  for (let i = 1; i < settled.topVisible.length; i++) {
+    for (const edge of ['left', 'right']) {
+      expect(Math.abs(afterDeath.topVisible[i][edge] - settled.topVisible[i][edge]),
+        `status-heavy trio: survivor top chrome ${i} ${edge} does not jump after death`)
+        .toBeLessThanOrEqual(1);
+    }
+  }
+  assertEnemyTopChrome(afterDeath, 'status-heavy trio after death');
+
+  await page.evaluate(() => window.spirebound.refitCombat());
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const afterRefit = await combatChromeRects(page);
+  expectChromeRectsNear(afterRefit, afterDeath, 'status-heavy trio explicit refit');
+  assertEnemyTopChrome(afterRefit, 'status-heavy trio explicit refit');
+  expectNoErrors(errors, 'status-heavy trio top chrome');
+});
+
 test('authored ground positions survive a live resize', async ({ page }) => {
   test.skip(test.info().project.name !== 'desktop', 'window resizing is a desktop behaviour');
   await boot(page, { query: 'mesh=0' });
@@ -107,3 +401,61 @@ test('authored ground positions survive a live resize', async ({ page }) => {
   await page.waitForTimeout(400);
   assertGrounded(await measure(page), 'after resize to 1440x900');
 });
+
+for (const variant of [
+  { id: 'paleDuskfang', act: 0 },
+  { id: 'usurpedSovereign', act: 2 },
+]) {
+  test(`scaled variant keeps its feet and chrome inside the stage — ${variant.id}`, async ({ page }) => {
+    const errors = collectErrors(page);
+    await boot(page, { query: 'mesh=0' });
+    await page.evaluate((act) => { window.spirebound.S.run.act = act; }, variant.act);
+    if (variant.id === 'usurpedSovereign') {
+      await page.evaluate(([id, kind]) => window.spirebound.startCombatUI([id], kind),
+        [variant.id, 'boss']);
+      await page.waitForSelector('.variant-dialogue', { state: 'visible' });
+      expect(await outsideStage(page, '.variant-dialogue'),
+        'variant dialogue stays visible and bounded during its real playback window').toEqual([]);
+      await settle(page);
+    } else {
+      await startFight(page, [variant.id], 'monster');
+    }
+    await stable(page);
+    const geometry = await measure(page);
+    assertGrounded(geometry, variant.id);
+    if (variant.id === 'usurpedSovereign' && test.info().project.name === 'portrait') {
+      const layout = bfResolve(geometry.stage.shape, geometry.act);
+      const [slot] = bfSlots(layout, 1);
+      expect(bfEnemyFootX(slot, geometry.enemyLayoutKeys[0]),
+        'portrait Usurper retains sovereign CHAR_META footX instead of a slot-wide zero override')
+        .toBe(-100);
+    }
+    const outside = await outsideStage(page,
+      '.hero-wrap,.enemy,.cplate,.top-chrome,.energy-orb,.lantern-btn,.end-turn,.pile-btn');
+    expect(outside).toEqual([]);
+    expectNoErrors(errors, variant.id);
+  });
+}
+
+for (const actor of [
+  { id: 'alphaFang', act: 0, kind: 'elite' },
+  { id: 'gravewarden', act: 0, kind: 'elite' },
+  { id: 'rootheart', act: 0, kind: 'boss' },
+  { id: 'siren', act: 1, kind: 'elite' },
+  { id: 'leviathan', act: 1, kind: 'boss' },
+  { id: 'heraldOfEnd', act: 2, kind: 'elite' },
+  { id: 'voidColossus', act: 2, kind: 'elite' },
+  { id: 'sovereign', act: 2, kind: 'boss' },
+]) {
+  test(`canonical single-enemy chrome stays grounded and stage-bounded — ${actor.id}`, async ({ page }) => {
+    const errors = collectErrors(page);
+    await boot(page, { query: 'mesh=0' });
+    await page.evaluate((act) => { window.spirebound.S.run.act = act; }, actor.act);
+    await startFight(page, [actor.id], actor.kind);
+    await stable(page);
+    const geometry = await measure(page);
+    assertGrounded(geometry, actor.id);
+    expect(await outsideStage(page, '.enemy .cplate,.enemy .top-chrome')).toEqual([]);
+    expectNoErrors(errors, actor.id);
+  });
+}

@@ -5,6 +5,9 @@
 // rewards (double-tap guard regression for treasure/events/boss relic).
 // Runs against the dev server (reuses one already on 5174).
 import { defineConfig } from '@playwright/test';
+import { e2eServerSettings } from './playwright-server.js';
+
+const e2eServer = e2eServerSettings(process.env.SPIREBOUND_E2E_PORT);
 
 export default defineConfig({
   testDir: 'test/e2e',
@@ -16,7 +19,7 @@ export default defineConfig({
   timeout: 90_000,
   reporter: [['list']],
   use: {
-    baseURL: 'http://localhost:5174',
+    baseURL: e2eServer.origin,
     // tracing chokes on the WebGL-heavy page (corrupt zips + teardown hangs);
     // a failure screenshot is the useful artifact here
     trace: 'off',
@@ -54,9 +57,9 @@ export default defineConfig({
     { name: 'landscape', dependencies: ['bfeditor-disk'], use: { viewport: { width: 812, height: 375 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } },
   ],
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5174',
-    reuseExistingServer: true,
+    command: e2eServer.command,
+    url: e2eServer.origin,
+    reuseExistingServer: e2eServer.reuseExistingServer,
     timeout: 30_000,
   },
 });

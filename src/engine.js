@@ -1,5 +1,5 @@
 // SPIREBOUND engine — pure game logic, no DOM. UI consumes cb.queue for animation.
-import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE } from './data.js';
+import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE, PROGRESSION, QUEST_IDS, QUESTS, QUEST_STATES, QUEST_ACTIVE_STATES, TERMINAL_OUTCOMES, RUN_ID_RE, VARIANTS, SHADE_KITS, BOONS, DEEDS } from './data.js';
 
 // ---------------------------------------------------------------- RNG (mulberry32)
 export function makeRng(state) {
@@ -15,35 +15,246 @@ export function makeRng(state) {
 const pick = (rng, arr) => arr[Math.floor(rng() * arr.length)];
 const irange = (rng, [a, b]) => a + Math.floor(rng() * (b - a + 1));
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+let runSequence = 0;
+let questRngOverride = null;
+export function _setQuestRng(fn) { questRngOverride = typeof fn === 'function' ? fn : null; }
+const freshRunId = (seed, startedAt) =>
+  `run-${startedAt.toString(36)}-${(seed >>> 0).toString(36)}-${(++runSequence).toString(36)}`;
+const legacyRunId = (run) =>
+  `legacy-${(Number(run.seed) >>> 0).toString(36)}-${Math.max(0, Math.floor(Number(run.stats?.start) || 0)).toString(36)}`;
+const validRunId = (id) => typeof id === 'string' && RUN_ID_RE.test(id);
+const continuedTerminalRuns = new WeakSet();
+
+export function savedRunRequiresFinalisation(run) {
+  return TERMINAL_OUTCOMES.includes(run?.pendingRunEnd?.outcome) || run?.pendingDawn != null;
+}
+
+export function journalTerminalOutcome(run, outcome) {
+  if (!TERMINAL_OUTCOMES.includes(outcome)) throw new Error(`invalid terminal outcome: ${outcome}`);
+  if (run.pendingDawn != null) throw new Error('a staged dawn cannot be replaced by another terminal outcome');
+  const current = run.pendingRunEnd?.outcome;
+  if (current != null) {
+    if (current !== outcome) throw new Error(`terminal outcome cannot change from ${current} to ${outcome}`);
+    return run.pendingRunEnd;
+  }
+  run.pendingReward = null;
+  run.pendingCombat = null;
+  run.pendingEnemyIds = null;
+  run.pendingQuestId = null;
+  run.pendingHollow = null;
+  run.pendingHollowRoute = null;
+  run.pendingRunEnd = { outcome };
+  return run.pendingRunEnd;
+}
+
+export function finaliseTerminalOutbox(run, persist, onFailure, onFinalised) {
+  if (continuedTerminalRuns.has(run)) return true;
+  let result = null;
+  let failure = null;
+  try {
+    result = persist();
+  } catch (error) {
+    failure = error;
+  }
+  if (failure || result?.accepted !== true) {
+    onFailure(failure);
+    return false;
+  }
+  continuedTerminalRuns.add(run);
+  onFinalised(result);
+  return true;
+}
 
 // ---------------------------------------------------------------- run lifecycle
-// opts: { aspect, vow, unlocks (vigil snapshot), reveals (vigil snapshot; null/absent = fully revealed), monument (last fall), lamplighter }
+// opts: { aspect, vow, unlocks (vigil snapshot), reveals (vigil snapshot; null/absent = fully revealed), monument (last fall), lamplighter, quests, shards }
 export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
+  const startedAt = Date.now();
   const aspect = clamp(opts.aspect || 0, 0, ASPECTS.length - 1);
   const A = ASPECTS[aspect];
   const vow = clamp(opts.vow || 0, 0, VOWS.length);
   const run = {
-    v: 2, seed, rngState: seed, uid: 1, act: 0, nodeId: null, floorsClimbed: 0, bossRelicAct: -1, orphanRewardClaimed: false, orphanRewardResolving: false,
-    aspect, vow, art: opts.art || A.art || 'flare', omens: [], boon: opts.boon || null,
+    v: 2, runId: opts.runId || freshRunId(seed, startedAt), seed, rngState: seed, uid: 1, act: 0, nodeId: null, floorsClimbed: 0, bossRelicAct: -1, orphanRewardClaimed: false, orphanRewardResolving: false,
+    aspect, vow, art: opts.art || A.art || 'flare', omens: [], boon: opts.boon || null, boonReceipt: null,
     unlocks: [...(opts.unlocks || [])],
     reveals: opts.reveals ? [...opts.reveals] : null,
     monument: opts.monument ? { ...opts.monument, claimed: false } : null,
+    quests: opts.quests
+      ? Object.fromEntries(QUEST_IDS.map((id) => [id, {
+          state: opts.quests[id]?.state || 'dormant',
+          progress: Math.min(QUESTS[id].target,
+            Math.max(0, Math.floor(Number(opts.quests[id]?.progress) || 0))),
+          memory: { ...(opts.quests[id]?.memory || {}) },
+        }]))
+      : {},
+    shards: [...(opts.shards || [])],
+    questScratch: {},
+    questCompletions: [],
+    endQueue: [],
+    pendingCombat: null,
+    pendingEnemyIds: null,
+    pendingQuestId: null,
+    pendingReward: null,
+    pendingRunEnd: null,
+    pendingDawn: null,
+    pendingHollow: null,
+    pendingHollowRoute: null,
     player: {
       hp: A.maxHp, maxHp: A.maxHp, gold: A.startGold, energyMax: A.energy,
       relics: [A.startRelic], potions: Array(A.potionSlots || 3).fill(null), deck: [],
     },
     stats: {
       slain: 0, elites: 0, bosses: 0, dmgDealt: 0, dmgTaken: 0, cardsPlayed: 0, goldEarned: 0,
-      shatters: 0, kindles: 0, perfects: 0, smolderKills: 0, unlitVisited: 0, embersSpent: 0, start: Date.now(),
+      shatters: 0, kindles: 0, perfects: 0, smolderKills: 0, unlitVisited: 0, embersSpent: 0, start: startedAt,
     },
     map: null,
   };
   if (opts.lamplighter) run.pendingLamplighter = true;
   for (const id of A.startDeck) run.player.deck.push(makeCard(run, id));
   if (vowMods(run).startHex) run.player.deck.push(makeCard(run, 'hex'));
-  run.omens.push(runRevealed(run, 'omens') ? rollOmen(run) : null);
+  prepareEighthOmen(run);
+  run.omens.push(omenEnabled(run) ? rollOmen(run) : null);
+  preparePaleRun(run);
+  prepareHollowLamplighter(run);
   run.map = genMap(run);
   return run;
+}
+export function questRecord(run, id) {
+  return run.quests && QUEST_IDS.includes(id) ? run.quests[id] || null : null;
+}
+
+export function revealQuest(run, id, queue = run.endQueue) {
+  const q = questRecord(run, id);
+  if (!q || q.state === 'dormant') return q;
+  if (q.state === 'armed') {
+    q.state = 'revealed';
+    queue?.push({ t: 'questReveal', id });
+  }
+  return q;
+}
+
+export function questProgressTarget(state, id, progress = questRecord(state, id)?.progress ?? 0) {
+  if (id === 'paleOnes' && !state?.unlocks?.includes('insight:witchlightLens') &&
+      progress <= PROGRESSION.emberglass.paleOnes.lensAt) {
+    return PROGRESSION.emberglass.paleOnes.lensAt;
+  }
+  return QUESTS[id]?.target ?? 0;
+}
+
+export function questProgressName(id, target) {
+  if (id === 'paleOnes' && target === PROGRESSION.emberglass.paleOnes.lensAt) {
+    return QUESTS.paleOnes.huntName;
+  }
+  return QUESTS[id]?.name ?? id;
+}
+
+export function questDisclosure(state, id) {
+  const quest = QUESTS[id];
+  const progress = questRecord(state, id)?.progress ?? 0;
+  const huntingPaleOnes = id === 'paleOnes' &&
+    !state?.unlocks?.includes('insight:witchlightLens') &&
+    progress <= PROGRESSION.emberglass.paleOnes.lensAt;
+  return {
+    name: huntingPaleOnes ? quest.huntName : quest.name,
+    inscription: huntingPaleOnes ? quest.huntInscription : quest.inscription,
+    progress,
+    target: questProgressTarget(state, id, progress),
+  };
+}
+
+export function advanceQuest(run, id, n = 1, queue = run.endQueue) {
+  const q = revealQuest(run, id, queue);
+  if (!q || q.state === 'dormant' || q.state === 'complete' || n <= 0) return q;
+  q.progress = Math.min(QUESTS[id].target, q.progress + n);
+  queue?.push({ t: 'questProgress', id, progress: q.progress, target: questProgressTarget(run, id, q.progress) });
+  if (q.progress >= QUESTS[id].target) {
+    q.state = 'complete';
+    if (id === 'hollowLamplighter') q.memory = {};
+    if (!run.questCompletions.includes(id)) run.questCompletions.push(id);
+    queue?.push({ t: 'questComplete', id });
+  }
+  return q;
+}
+
+const questRoll = (run) => questRngOverride ? questRngOverride() : runRng(run)();
+function prepareEighthOmen(run) {
+  const q = questRecord(run, 'eighthOmen');
+  if (!q || !QUEST_ACTIVE_STATES.includes(q.state)) return;
+  const due = q.memory.dueIn;
+  const guaranteeRuns = Math.max(1, Math.floor(PROGRESSION.emberglass.eighthOmen.guaranteeRuns));
+  let active = false;
+  if (Number.isInteger(due) && due >= 1 && due <= guaranteeRuns) {
+    active = due === 1 || questRoll(run) < PROGRESSION.emberglass.eighthOmen.recurrenceChance;
+    if (!active) q.memory.dueIn = due - 1;
+  } else if (q.memory.seen) {
+    active = questRoll(run) < PROGRESSION.emberglass.eighthOmen.recurrenceChance;
+  }
+  run.questScratch.eighthOmen = { active };
+  if (active) {
+    q.memory.seen = true;
+    delete q.memory.dueIn;
+    revealQuest(run, 'eighthOmen', run.endQueue);
+  }
+}
+
+export function markShadeFall(run, act, row) {
+  const q = questRecord(run, 'ownShade');
+  if (!q || q.state === 'dormant' || q.state === 'complete') return false;
+  if (act < PROGRESSION.emberglass.ownShade.minDeathAct) return false;
+  run.questScratch.ownShade ||= {};
+  const bequest = run.questScratch.ownShade.pendingBequest ?? null;
+  run.questScratch.ownShade.fall = { act, row, shadeAspect: run.aspect, bequest };
+  return true;
+}
+
+export function setPendingEncounter(run, kind, enemyIds, questId = null) {
+  run.pendingCombat = kind;
+  run.pendingEnemyIds = [...enemyIds];
+  run.pendingQuestId = questId ??
+    enemyIds.map((id) => VARIANTS[id]?.drop?.quest).find((id) => QUEST_IDS.includes(id)) ?? null;
+}
+
+export function clearPendingEncounter(run) {
+  run.pendingCombat = null;
+  run.pendingEnemyIds = null;
+  run.pendingQuestId = null;
+}
+
+export function setPendingReward(run, kind, rewards, perfect = false) {
+  run.pendingReward = {
+    kind,
+    rewards: {
+      gold: rewards.gold,
+      cards: [...rewards.cards],
+      potion: rewards.potion ?? null,
+      relic: rewards.relic ?? null,
+    },
+    taken: { gold: false, potion: false, relic: false, card: false },
+    perfect: !!perfect,
+  };
+  return run.pendingReward;
+}
+
+export function takePendingReward(run, key, cardId = null) {
+  const pending = run.pendingReward;
+  if (!pending || !Object.hasOwn(pending.taken, key) || pending.taken[key]) return false;
+  if (key === 'gold') {
+    run.player.gold += pending.rewards.gold;
+    run.stats.goldEarned += pending.rewards.gold;
+  } else if (key === 'potion') {
+    if (!pending.rewards.potion || !gainPotion(run, pending.rewards.potion)) return false;
+  } else if (key === 'relic') {
+    if (!pending.rewards.relic) return false;
+    gainRelic(run, pending.rewards.relic);
+  } else if (key === 'card') {
+    if (cardId != null && !pending.rewards.cards.includes(cardId)) return false;
+    if (cardId != null) addCardToDeck(run, cardId);
+  } else return false;
+  pending.taken[key] = true;
+  return true;
+}
+
+export function clearPendingReward(run) {
+  run.pendingReward = null;
 }
 // vows stack: at Vow N, vows 1..N are all in force. Reads VOWS[i].mods.
 export function vowMods(run) {
@@ -60,7 +271,11 @@ export function vowMods(run) {
   return m;
 }
 // omens: one rule per act, imposed on everyone
-export function rollOmen(run) { return pick(runRng(run), Object.keys(OMENS)); }
+export const omenEnabled = (run) => runRevealed(run, 'omens') || !!run.questScratch.eighthOmen?.active;
+export function rollOmen(run) {
+  if (run.questScratch.eighthOmen?.active) return 'eighthOmen';
+  return pick(runRng(run), Object.keys(OMENS).filter((id) => id !== 'eighthOmen'));
+}
 export function omenMods(run) { return OMENS[run.omens?.[run.act]]?.mods || {}; }
 export function restHealFrac(run) { return Math.min(0.3, omenMods(run).restHealFrac ?? 0.3, vowMods(run).restHealFrac ?? 0.3); }
 export function makeCard(run, id, up = false) {
@@ -73,6 +288,36 @@ export function cardData(inst) {
 export function runRng(run) {
   const rng = makeRng(run.rngState);
   return () => { const v = rng(); run.rngState = rng.getState(); return v; };
+}
+
+const PALE_BY_ACT = ['paleDuskfang', 'paleDrownedOne', 'paleVoidWisp'];
+export const paleVariantForAct = (act) => PALE_BY_ACT[clamp(act | 0, 0, 2)];
+
+function preparePaleRun(run) {
+  const q = questRecord(run, 'paleOnes');
+  if (!q || !QUEST_ACTIVE_STATES.includes(q.state)) return;
+  const lens = run.unlocks.includes('insight:witchlightLens');
+  const hiddenRemaining = !lens && q.progress < PROGRESSION.emberglass.paleOnes.lensAt
+    ? Math.max(0, Math.floor(PROGRESSION.emberglass.paleOnes.hiddenPerRun))
+    : 0;
+  run.questScratch.paleOnes = {
+    hiddenDue: hiddenRemaining > 0,
+    hiddenRemaining,
+    markedAct2: lens && runRng(run)() < PROGRESSION.emberglass.paleOnes.markedAct2Chance,
+  };
+}
+
+function prepareHollowLamplighter(run) {
+  const hq = questRecord(run, 'hollowLamplighter');
+  if (!hq || !QUEST_ACTIVE_STATES.includes(hq.state)) return;
+  if (hq.memory.emberDebt > 0) {
+    run.questScratch.hollowLamplighter = { due: false, met: false, meetings: 0, debtActive: true };
+    return;
+  }
+  const misses = hq.memory.eligibleMisses || 0;
+  const due = misses >= PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1 ||
+    runRng(run)() < PROGRESSION.emberglass.hollowLamplighter.appearanceChance;
+  run.questScratch.hollowLamplighter = { due, met: false, meetings: 0, debtActive: false };
 }
 
 // ---------------------------------------------------------------- map generation
@@ -145,6 +390,20 @@ export function genMap(run) {
       delete best.unlit; delete best.bounty;
     }
   }
+  const pale = run.questScratch?.paleOnes;
+  const markCount = run.unlocks.includes('insight:witchlightLens') && pale
+    ? run.act === 0
+      ? Math.max(0, Math.floor(PROGRESSION.emberglass.paleOnes.markedAct1))
+      : run.act === 1 && pale.markedAct2 ? 1 : 0
+    : 0;
+  if (markCount > 0) {
+    const candidates = nodes.filter((n) => n.row === 0 && n.type === 'monster');
+    for (let i = 0; i < markCount && candidates.length; i++) {
+      const [marked] = candidates.splice(Math.floor(rng() * candidates.length), 1);
+      marked.questVariantId = paleVariantForAct(run.act);
+      marked.questMarked = true;
+    }
+  }
   return { nodes, visited: [] };
 }
 export function availableNodes(run) {
@@ -155,6 +414,7 @@ export function availableNodes(run) {
 }
 // stepping onto a node: bookkeeping + unlit bounty. Returns the node's true face.
 export function visitNode(run, node) {
+  const wasUnlit = !!node.unlit;
   run.nodeId = node.id;
   if (run.orphanRewardClaimed) {
     node.rewardClaimed = true;
@@ -175,18 +435,162 @@ export function visitNode(run, node) {
     run.stats.goldEarned += bounty;
     run.stats.unlitVisited++;
   }
+  const hollow = run.questScratch?.hollowLamplighter;
+  const maxMeetings = Math.max(0, Math.floor(PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun));
+  const storedMeetings = Number.isInteger(hollow?.meetings)
+    ? hollow.meetings
+    : hollow?.met ? maxMeetings : 0;
+  const meetings = Math.min(storedMeetings, maxMeetings);
+  const hollowQuest = questRecord(run, 'hollowLamplighter');
+  const hollowActive = QUEST_ACTIVE_STATES.includes(hollowQuest?.state);
+  const hollowDebt = hollowQuest?.memory?.emberDebt || 0;
+  if (wasUnlit && hollow?.due && hollowActive && !hollowDebt && meetings < maxMeetings) {
+    hollow.meetings = storedMeetings + 1;
+    hollow.met = true;
+    revealQuest(run, 'hollowLamplighter', run.endQueue);
+    run.pendingHollow = {
+      nodeId: node.id, type: node.type, paid: false, deferred: false, answer: null,
+    };
+    return { type: node.type, bounty, hollow: true };
+  }
   return { type: node.type, bounty };
 }
+const HOLLOW_DESTINATION_TYPES = ['rest', 'shop', 'event'];
+export function stageHollowExit(run) {
+  const pending = run.pendingHollow;
+  if (!pending || run.pendingHollowRoute || run.pendingCombat || run.pendingReward || run.pendingRunEnd) return null;
+  const node = run.map?.nodes?.find((candidate) => candidate.id === pending.nodeId);
+  if (!node || node.type !== pending.type || run.nodeId !== node.id || !run.map.visited.includes(node.id)) return null;
+  const { nodeId, type } = pending;
+  if (['monster', 'elite', 'boss'].includes(type)) {
+    const enemyIds = rollEncounter(run, type, node.row, node);
+    setPendingEncounter(run, type, enemyIds);
+    run.pendingHollow = null;
+    return { kind: 'combat', nodeId, type, enemyIds: [...enemyIds] };
+  }
+  if (!HOLLOW_DESTINATION_TYPES.includes(type)) return null;
+  const eventId = type === 'event' ? rollEvent(run) : null;
+  run.pendingHollowRoute = { nodeId, type, eventId };
+  run.pendingHollow = null;
+  return { kind: 'destination', nodeId, type, eventId };
+}
+export function completePendingHollowRoute(run) {
+  const held = run?.pendingHollowRoute;
+  if (!held) return true;
+  run.pendingHollowRoute = null;
+  if (saveRun(run)) return true;
+  run.pendingHollowRoute = held;
+  return false;
+}
+export function grantBequest(run, bequest, queue = null) {
+  if (!bequest) return false;
+  if (bequest.kind === 'card') addCardToDeck(run, bequest.id, bequest.up);
+  else if (bequest.kind === 'relic') gainRelic(run, bequest.id);
+  else if (bequest.kind === 'gold') {
+    run.player.gold += bequest.amount;
+    run.stats.goldEarned += bequest.amount;
+  } else return false;
+  queue?.push({ t: 'monumentGift', bequest });
+  return true;
+}
+
 // recover what the last Duskblade left in the stone
 export function claimMonument(run) {
   const m = run.monument;
-  if (!m || m.claimed || !m.bequest) return null;
+  if (!m || m.claimed || (!m.standing && !m.bequest)) return null;
   m.claimed = true;
-  const b = m.bequest;
-  if (b.kind === 'card') addCardToDeck(run, b.id, b.up);
-  else if (b.kind === 'relic') gainRelic(run, b.id);
-  else if (b.kind === 'gold') { run.player.gold += b.amount; run.stats.goldEarned += b.amount; }
-  return b;
+  if (m.standing) {
+    run.questScratch.ownShade ||= {};
+    run.questScratch.ownShade.pendingBequest = m.bequest ?? null;
+    const progress = questRecord(run, 'ownShade')?.progress || 0;
+    const tierIds = Object.keys(VARIANTS)
+      .filter((id) => /^ownShade[1-9]\d*$/.test(id))
+      .sort((a, b) => Number(a.slice('ownShade'.length)) - Number(b.slice('ownShade'.length)));
+    const tierCount = Math.min(
+      PROGRESSION.emberglass.ownShade.tiers.length,
+      QUESTS.ownShade.target,
+      tierIds.length,
+    );
+    if (tierCount < 1) throw new Error('Your Own Shade has no authored combat tier');
+    return {
+      kind: 'shadeDuel',
+      variantId: tierIds[Math.min(tierCount, progress + 1) - 1],
+      bequest: m.bequest ?? null,
+    };
+  }
+  grantBequest(run, m.bequest);
+  return m.bequest;
+}
+
+export const SHADE_DUEL_TX = Object.freeze({
+  READY: 'ready',
+  RETRY_CLAIM: 'retryClaim',
+  RETRY_CLEAR: 'retryClear',
+  RELOAD_PENDING: 'reloadPending',
+});
+
+function shadeClaimSnapshot(run) {
+  const hadScratch = Object.hasOwn(run.questScratch, 'ownShade');
+  return {
+    monumentClaimed: run.monument?.claimed,
+    pendingCombat: run.pendingCombat,
+    pendingEnemyIds: run.pendingEnemyIds == null ? null : [...run.pendingEnemyIds],
+    pendingQuestId: run.pendingQuestId,
+    hadScratch,
+    scratch: hadScratch ? { ...run.questScratch.ownShade } : null,
+  };
+}
+
+function restoreShadeClaim(run, snapshot) {
+  if (run.monument) run.monument.claimed = snapshot.monumentClaimed;
+  run.pendingCombat = snapshot.pendingCombat;
+  run.pendingEnemyIds = snapshot.pendingEnemyIds == null ? null : [...snapshot.pendingEnemyIds];
+  run.pendingQuestId = snapshot.pendingQuestId;
+  if (snapshot.hadScratch) run.questScratch.ownShade = snapshot.scratch;
+  else delete run.questScratch.ownShade;
+}
+
+export function beginShadeDuel(run, clearStandingBequest) {
+  if (!run?.monument?.standing || run.monument.claimed) {
+    return { status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false, duel: null };
+  }
+  const before = shadeClaimSnapshot(run);
+  const duel = claimMonument(run);
+  if (duel?.kind !== 'shadeDuel') {
+    restoreShadeClaim(run, before);
+    return { status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false, duel: null };
+  }
+  setPendingEncounter(run, 'monster', [duel.variantId], 'ownShade');
+  if (!saveRun(run)) {
+    restoreShadeClaim(run, before);
+    return { status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false, duel: null };
+  }
+  if (clearStandingBequest() === true) {
+    return { status: SHADE_DUEL_TX.READY, durablePending: true, duel };
+  }
+  restoreShadeClaim(run, before);
+  if (saveRun(run)) {
+    return { status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false, duel: null };
+  }
+  return { status: SHADE_DUEL_TX.RELOAD_PENDING, durablePending: true, duel: null };
+}
+
+export function resumeShadeDuel(run, clearStandingBequest) {
+  if (run?.pendingQuestId !== 'ownShade') {
+    return { status: SHADE_DUEL_TX.READY, durablePending: false };
+  }
+  return clearStandingBequest() === true
+    ? { status: SHADE_DUEL_TX.READY, durablePending: true }
+    : { status: SHADE_DUEL_TX.RETRY_CLEAR, durablePending: true };
+}
+
+export function shadeVictorySkipsRewards(run) {
+  return run?.pendingQuestId === 'ownShade';
+}
+
+export function shadeLossBequestState(run) {
+  const unpaidBequest = run?.questScratch?.ownShade?.fall?.bequest != null;
+  return { unpaidBequest, offerNewBequest: !unpaidBequest };
 }
 
 // ---------------------------------------------------------------- helpers
@@ -314,6 +718,11 @@ export function claimBossRelic(run, id) {
   if (id) gainRelic(run, id);
   return { already: false, id: id || null };
 }
+export function hasPendingBossRelic(run) {
+  if (!run || run.act >= 2 || run.pendingCombat || run.pendingReward || run.pendingRunEnd) return false;
+  const node = run.map?.nodes?.find((candidate) => candidate.id === run.nodeId);
+  return node?.type === 'boss' && run.map.visited?.includes(node.id) === true;
+}
 export function gainPotion(run, id) {
   if (!runRevealed(run, 'phials')) return false;
   if (id === 'random') id = pick(runRng(run), Object.keys(POTIONS));
@@ -339,6 +748,19 @@ export function rollCardReward(run, kind = 'normal') {
     const id = pick(rng, cardPool(run, pool));
     guard.add(id + Math.floor(rng() * 4));
     if (!out.includes(id)) out.push(id);
+  }
+  const pageQuest = questRecord(run, 'unreadablePage');
+  const isFinalBossReward = kind === 'boss' && run.act >= 2;
+  if (!isFinalBossReward && pageQuest && QUEST_ACTIVE_STATES.includes(pageQuest.state) &&
+      pageQuest.progress < QUESTS.unreadablePage.target) {
+    const scratch = (run.questScratch.unreadablePage ||= {});
+    scratch.rewardOrdinal = (scratch.rewardOrdinal || 0) + 1;
+    if (!scratch.offered &&
+        scratch.rewardOrdinal === PROGRESSION.emberglass.unreadablePage.offerRewardOrdinal && out.length) {
+      out[out.length - 1] = 'unreadablePage';
+      scratch.offered = true;
+      revealQuest(run, 'unreadablePage', run.endQueue);
+    }
   }
   return out;
 }
@@ -381,6 +803,20 @@ export function genShop(run) {
   const rng = runRng(run);
   const price = ([a, b], disc) => Math.round(irange(rng, [a, b]) * disc);
   const disc = (hasRelic(run, 'merchantsMark') ? 0.75 : 1) * (omenMods(run).shopMult || 1);
+  const questItems = [];
+  const usurper = questRecord(run, 'usurper');
+  if (usurper && QUEST_ACTIVE_STATES.includes(usurper.state) &&
+      run.act >= PROGRESSION.emberglass.usurper.minShopAct &&
+      !run.questScratch?.usurper?.bought) {
+    revealQuest(run, 'usurper');
+    questItems.push({
+      id: 'flamelessLantern',
+      name: QUESTS.usurper.itemName,
+      text: QUESTS.usurper.itemText,
+      price: PROGRESSION.emberglass.usurper.price,
+      sold: false,
+    });
+  }
   const cardIds = [];
   const wants = ['common', 'common', 'uncommon', 'uncommon', 'rare'];
   for (const t of wants) {
@@ -398,7 +834,30 @@ export function genShop(run) {
   if (runRevealed(run, 'phials')) {
     for (let i = 0; i < 2; i++) potions.push({ id: pick(rng, Object.keys(POTIONS)), price: price(SHOP.potionPrice, disc), sold: false });
   }
-  return { cards: cardIds, relics, potions, removeCost: Math.round(SHOP.removeCost * disc), removed: false };
+  return { cards: cardIds, relics, potions, questItems, removeCost: Math.round(SHOP.removeCost * disc), removed: false };
+}
+export function shopSessionKey(run) {
+  return `${run.runId}:${run.act}:${run.nodeId ?? ''}`;
+}
+export function shopStockForSession(session, run) {
+  const key = shopSessionKey(run);
+  if (!session.stock || session.key !== key) {
+    session.stock = genShop(run);
+    session.key = key;
+  }
+  return session.stock;
+}
+export function buyQuestItem(run, itemId) {
+  if (itemId !== 'flamelessLantern') return { ok: false, reason: 'unknown' };
+  const q = questRecord(run, 'usurper');
+  if (!q || !QUEST_ACTIVE_STATES.includes(q.state)) return { ok: false, reason: 'inactive' };
+  if (run.act < PROGRESSION.emberglass.usurper.minShopAct) return { ok: false, reason: 'act' };
+  if (run.questScratch?.usurper?.bought) return { ok: false, reason: 'bought' };
+  const price = PROGRESSION.emberglass.usurper.price;
+  if (run.player.gold < price) return { ok: false, reason: 'gold' };
+  run.player.gold -= price;
+  run.questScratch.usurper = { bought: true };
+  return { ok: true, reason: null };
 }
 export function rollEvent(run) {
   const rng = runRng(run);
@@ -409,7 +868,26 @@ export function rollEvent(run) {
   seen.push(id);
   return id;
 }
-export function rollEncounter(run, type, row) {
+export function rollEncounter(run, type, row, node) {
+  if (node?.questVariantId) return [node.questVariantId];
+  const pale = run.questScratch?.paleOnes;
+  const savedHiddenRemaining = Number.isInteger(pale?.hiddenRemaining)
+    ? pale.hiddenRemaining
+    : pale?.hiddenDue ? 1 : 0;
+  const hiddenRemaining = Math.min(savedHiddenRemaining,
+    Math.max(0, Math.floor(PROGRESSION.emberglass.paleOnes.hiddenPerRun)));
+  if (pale) {
+    pale.hiddenRemaining = hiddenRemaining;
+    pale.hiddenDue = hiddenRemaining > 0;
+  }
+  if (type === 'monster' && hiddenRemaining > 0) {
+    pale.hiddenRemaining = hiddenRemaining - 1;
+    pale.hiddenDue = pale.hiddenRemaining > 0;
+    return [paleVariantForAct(run.act)];
+  }
+  if (type === 'boss' && run.act === 2 && run.questScratch?.usurper?.bought) {
+    return ['usurpedSovereign'];
+  }
   const rng = runRng(run);
   const pools = ENCOUNTERS[run.act];
   const pool = type === 'boss' ? pools.boss : type === 'elite' ? pools.elite : row < 3 ? pools.weak : pools.normal;
@@ -421,12 +899,73 @@ export function rollEncounter(run, type, row) {
 }
 
 // ---------------------------------------------------------------- combat
+const scaleMoveDamage = (move, mult) => ({
+  ...move,
+  ...(move.dmg == null ? {} : { dmg: Math.max(0, Math.round(move.dmg * mult)) }),
+});
+
+export function makeVariant(baseDef, variantDef) {
+  const mods = variantDef.statMods || {};
+  const hpMult = mods.hpMult ?? 1;
+  const dmgMult = mods.dmgMult ?? 1;
+  return {
+    ...baseDef,
+    name: variantDef.name,
+    hp: baseDef.hp.map((n) => Math.max(1, Math.round(n * hpMult))),
+    moves: Object.fromEntries(Object.entries(baseDef.moves).map(([id, move]) => [id, scaleMoveDamage(move, dmgMult)])),
+    startStatus: { ...(baseDef.startStatus || {}), ...(mods.addStatuses || {}) },
+    variantId: variantDef.id,
+    dialogue: [...variantDef.dialogue],
+    deathDialogue: variantDef.deathDialogue ?? null,
+    drop: variantDef.drop,
+  };
+}
+
+function heroShadeBase(run) {
+  const aspectIndex = run.monument?.shadeAspect ?? run.aspect ?? 0;
+  const aspect = ASPECTS[aspectIndex] || ASPECTS[0];
+  const kit = SHADE_KITS[aspect.id];
+  return {
+    name: aspect.name + ' Shade', hp: [110, 110], facets: 6, boss: true,
+    art: ENEMIES.shade.art, moves: kit.moves, ai: kit.ai,
+    presentation: {
+      artCategory: 'heroes', artId: aspect.id, layoutKey: 'shade',
+      kind: 'humanoid', hue: aspect.hue || 0,
+    },
+  };
+}
+
+export function resolveCombatant(run, id) {
+  const variant = VARIANTS[id];
+  if (!variant) {
+    const def = ENEMIES[id];
+    return {
+      def, baseKey: id, variantId: null,
+      presentation: {
+        artCategory: 'enemies', artId: id, layoutKey: id,
+        kind: def.art.kind, hue: def.art.hue, tint: null, scale: 1,
+      },
+    };
+  }
+  const base = variant.base === 'hero' ? heroShadeBase(run) : ENEMIES[variant.base];
+  const def = makeVariant(base, variant);
+  const basePresentation = base.presentation || {
+    artCategory: 'enemies', artId: variant.base, layoutKey: variant.base,
+    kind: base.art.kind, hue: base.art.hue,
+  };
+  return {
+    def, baseKey: variant.base === 'hero' ? 'shade' : variant.base, variantId: variant.id,
+    presentation: { ...basePresentation, tint: variant.tint, scale: variant.scale },
+  };
+}
+
 export function startCombat(run, enemyIds, kind = 'normal', opts = {}) {
   const rng = runRng(run);
   const om = omenMods(run);
   const vm = vowMods(run);
   // every elite arrives wearing a title; the title is a promise
-  const affix = kind === 'elite' ? (opts.affix || pick(rng, Object.keys(AFFIXES))) : null;
+  const affixed = kind === 'elite' || (om.allCombatsAffixed && kind !== 'boss');
+  const affix = affixed ? (opts.affix || pick(rng, Object.keys(AFFIXES))) : null;
   const af = affix ? AFFIXES[affix].mods : {};
   const cb = {
     kind, affix, turn: 0, over: false, result: null, queue: [],
@@ -435,9 +974,11 @@ export function startCombat(run, enemyIds, kind = 'normal', opts = {}) {
       statuses: {},
     },
     enemies: enemyIds.map((id, i) => {
-      const d = ENEMIES[id];
+      const resolved = resolveCombatant(run, id);
+      const d = resolved.def;
       return {
-        key: id, idx: i, name: d.name,
+        key: resolved.baseKey, variantId: resolved.variantId, def: d, presentation: resolved.presentation,
+        idx: i, name: d.name,
         maxHp: Math.round(irange(rng, d.hp) * (om.hpMult || 1) * (af.hpMult || 1) * (vm.hpMult || 1)), block: af.startBlock || 0,
         statuses: { ...(d.startStatus || {}) }, flags: af.adamant ? { adamant: true } : {}, lastMoves: [], moveKey: null,
         elite: !!d.elite, boss: !!d.boss,
@@ -450,6 +991,16 @@ export function startCombat(run, enemyIds, kind = 'normal', opts = {}) {
     counters: { played: 0, attacks: 0, firstCardPlayed: false, hpLost: 0 },
   };
   cb.enemies.forEach((e) => (e.hp = e.maxHp));
+  for (const questId of new Set(cb.enemies.map((enemy) => enemy.def.drop?.quest))) {
+    if (questId === 'paleOnes' || questId === 'ownShade') revealQuest(run, questId, cb.queue);
+  }
+  if (kind === 'boss' && cb.enemies[0]) cb.queue.push({ t: 'bossIntro', name: cb.enemies[0].name });
+  const aspectName = ASPECTS[run.aspect].name.replace(/^The\s+/, '');
+  for (const e of cb.enemies) {
+    for (const line of e.def.dialogue || []) {
+      cb.queue.push({ t: 'variantDialogue', idx: e.idx, text: line.replace(/\{aspect\}/g, aspectName) });
+    }
+  }
   // what the night and the title impose on the glass
   for (const e of cb.enemies) {
     for (const [sid, n] of Object.entries({ ...(om.enemyStartStatus || {}), ...(af.startStatus || {}) })) {
@@ -500,19 +1051,35 @@ function computeIntents(run, cb) {
   const rng = runRng(run);
   for (const e of cb.enemies) {
     if (e.hp <= 0) continue;
-    const d = ENEMIES[e.key];
-    e.moveKey = d.ai({
+    e.moveKey = e.def.ai({
       turn: cb.turn + 1, last: e.lastMoves[e.lastMoves.length - 1], prev: e.lastMoves[e.lastMoves.length - 2],
       rng, hpFrac: e.hp / e.maxHp, self: e,
     });
     cb.queue.push({ t: 'intent', idx: e.idx, move: e.moveKey });
   }
 }
-export function enemyMove(e) { return ENEMIES[e.key].moves[e.moveKey]; }
+export function enemyMove(e) { return e.def.moves[e.moveKey]; }
 
 // ---------------------------------------------------------------- shatter & embers
 // spilled fire, caught by your lantern. Negative n = spent.
 export function gainEmbers(run, cb, n) {
+  if (n > 0) {
+    const q = questRecord(run, 'hollowLamplighter');
+    const debt = q?.state === 'revealed' && q.progress === 0 ? q.memory.emberDebt || 0 : 0;
+    const tithe = Math.min(n, debt);
+    if (tithe > 0) {
+      q.memory.emberDebt -= tithe;
+      const remaining = q.memory.emberDebt;
+      const event = { t: 'hollowTithe', n: tithe, remaining };
+      if (remaining === 0) {
+        delete q.memory.emberDebt;
+        event.paid = QUESTS.hollowLamplighter.meetings[0].paid;
+      }
+      cb.queue.push(event);
+      if (remaining === 0) advanceQuest(run, 'hollowLamplighter', 1, cb.queue);
+      n -= tithe;
+    }
+  }
   const next = clamp(cb.embers + n, 0, cb.emberCap);
   const delta = next - cb.embers;
   if (!delta) return 0;
@@ -669,6 +1236,38 @@ function onEnemyDeath(run, cb, e) {
   run.stats.slain++;
   if (e.elite) run.stats.elites++;
   if (e.boss) run.stats.bosses++;
+  if (e.def.drop?.quest === 'paleOnes') {
+    const q = advanceQuest(run, 'paleOnes', e.def.drop.n, cb.queue);
+    if (q && q.progress >= PROGRESSION.emberglass.paleOnes.lensAt &&
+        !run.unlocks.includes('insight:witchlightLens')) {
+      run.unlocks.push('insight:witchlightLens');
+      cb.queue.push({ t: 'questUnlock', id: 'insight:witchlightLens' });
+    }
+  }
+  if (e.def.drop?.quest === 'ownShade') {
+    if (e.def.deathDialogue) {
+      cb.queue.push({ t: 'variantDialogue', idx: e.idx, text: e.def.deathDialogue });
+    }
+    const before = questRecord(run, 'ownShade');
+    const wasComplete = before?.state === 'complete';
+    const q = advanceQuest(run, 'ownShade', e.def.drop.n, cb.queue);
+    const scratch = run.questScratch?.ownShade;
+    if (scratch && Object.hasOwn(scratch, 'pendingBequest')) {
+      grantBequest(run, scratch.pendingBequest, cb.queue);
+      delete scratch.pendingBequest;
+    }
+    if (!wasComplete && q?.state === 'complete' &&
+        !run.endQueue.some((event) => event.t === 'shadeResolved')) {
+      run.endQueue.push({ t: 'shadeResolved', text: QUESTS.ownShade.final });
+    }
+  }
+  if (e.def.drop?.quest === 'usurper') {
+    const wasComplete = questRecord(run, 'usurper')?.state === 'complete';
+    const q = advanceQuest(run, 'usurper', e.def.drop.n, cb.queue);
+    if (!wasComplete && q?.state === 'complete') {
+      cb.queue.push({ t: 'variantDialogue', idx: e.idx, text: QUESTS.usurper.death });
+    }
+  }
   if (cb.enemies.every((x) => x.hp <= 0)) { winCombat(run, cb); return; }
   gainEmbers(run, cb, 1); // the fire inside spills to your lantern
   jumpSmolder(run, cb, e, smolder);
@@ -1062,6 +1661,27 @@ export function endTurn(run, cb) {
 function winCombat(run, cb) {
   cb.over = true;
   cb.result = 'win';
+  if (cb.kind === 'boss' && run.act === 2 && run.questScratch?.eighthOmen?.active) {
+    const wasComplete = questRecord(run, 'eighthOmen')?.state === 'complete';
+    const q = advanceQuest(run, 'eighthOmen', 1, run.endQueue);
+    if (!wasComplete && q?.state === 'complete' &&
+        !run.endQueue.some((event) => event.t === 'eighthResolved')) {
+      run.endQueue.push({ t: 'eighthResolved', text: QUESTS.eighthOmen.resolved });
+    }
+  }
+  const pageQuest = questRecord(run, 'unreadablePage');
+  if (cb.kind === 'boss' && run.act === 2 &&
+      run.player.deck.some((card) => card.id === 'unreadablePage') &&
+      pageQuest && QUEST_ACTIVE_STATES.includes(pageQuest.state) &&
+      pageQuest.progress < QUESTS.unreadablePage.target &&
+      !run.endQueue.some((event) => event.t === 'pageRead')) {
+    const q = advanceQuest(run, 'unreadablePage', 1, run.endQueue);
+    run.endQueue.push({
+      t: 'pageRead',
+      index: q.progress,
+      text: QUESTS.unreadablePage.pages[q.progress - 1],
+    });
+  }
   // write back
   run.player.hp = clamp(cb.player.hp, 1, run.player.maxHp);
   if (hasRelic(run, 'emberHeart')) { healPlayer(run, 6); proc(cb, 'emberHeart'); }
@@ -1160,9 +1780,12 @@ export function addCardToDeck(run, id, up = false) {
   run.player.deck.push(c);
   return c;
 }
+export const removableCards = (run) => run.player.deck.filter((c) => !cardData(c).unremovable);
 export function removeCardFromDeck(run, uid) {
   const i = run.player.deck.findIndex((c) => c.uid === uid);
-  if (i >= 0) run.player.deck.splice(i, 1);
+  if (i < 0 || cardData(run.player.deck[i]).unremovable) return false;
+  run.player.deck.splice(i, 1);
+  return true;
 }
 export function upgradeCardInDeck(run, uid) {
   const c = run.player.deck.find((c) => c.uid === uid);
@@ -1176,8 +1799,64 @@ export function duplicateCardInDeck(run, uid) {
 // save / load ---------------------------------------------------------------
 const SAVE_KEY = 'spirebound_save_v2';
 const STATS_KEY = 'spirebound_stats_v1';
+const DAWN_UNLOCKS = new Set(Object.values(DEEDS).flatMap((deed) => deed.unlocks));
+const isPlainRecord = (value) => value && typeof value === 'object' && !Array.isArray(value);
+const hasExactRecordKeys = (value, keys) => isPlainRecord(value) &&
+  Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
+const validAspectIndex = (value) => Number.isInteger(value) && value >= 0 && value < ASPECTS.length;
+const DAWN_EVENT_TYPES = new Set([
+  'whisper', 'questReveal', 'questProgress', 'questUnlock', 'pageRead',
+  'eighthResolved', 'shadeResolved', 'questComplete', 'shardGrant', 'act4Reveal',
+]);
+const END_EVENT_TYPES = new Set([
+  'questReveal', 'questProgress', 'questUnlock', 'pageRead',
+  'eighthResolved', 'shadeResolved', 'questComplete',
+]);
+const validRunEvent = (event, allowedTypes) => {
+  if (!isPlainRecord(event) || typeof event.t !== 'string' || !allowedTypes.has(event.t)) return false;
+  if (event.t === 'whisper') {
+    return hasExactRecordKeys(event, ['t', 'text']) && typeof event.text === 'string';
+  }
+  if (['questReveal', 'questComplete', 'shardGrant'].includes(event.t)) {
+    return hasExactRecordKeys(event, ['t', 'id']) && QUEST_IDS.includes(event.id);
+  }
+  if (event.t === 'questProgress') {
+    const validTargets = event.id === 'paleOnes'
+      ? [PROGRESSION.emberglass.paleOnes.lensAt, QUESTS.paleOnes.target]
+      : [QUESTS[event.id]?.target];
+    return hasExactRecordKeys(event, ['t', 'id', 'progress', 'target']) &&
+      QUEST_IDS.includes(event.id) && Number.isInteger(event.progress) && event.progress >= 0 &&
+      validTargets.includes(event.target) && event.progress <= event.target;
+  }
+  if (event.t === 'questUnlock') {
+    return hasExactRecordKeys(event, ['t', 'id']) && event.id === 'insight:witchlightLens';
+  }
+  if (event.t === 'pageRead') {
+    return hasExactRecordKeys(event, ['t', 'index', 'text']) &&
+      Number.isInteger(event.index) && event.index >= 1 &&
+      event.index <= QUESTS.unreadablePage.target && typeof event.text === 'string';
+  }
+  if (event.t === 'eighthResolved' || event.t === 'shadeResolved') {
+    return hasExactRecordKeys(event, ['t', 'text']) && typeof event.text === 'string';
+  }
+  return event.t === 'act4Reveal' && hasExactRecordKeys(event, ['t']);
+};
+const validDawnEvent = (event) => validRunEvent(event, DAWN_EVENT_TYPES);
+const validPendingDawn = (pending) => pending == null || (
+  hasExactRecordKeys(pending, ['events', 'cursor', 'newUnlocks']) &&
+  Array.isArray(pending.events) && pending.events.every(validDawnEvent) &&
+  Number.isInteger(pending.cursor) && pending.cursor >= 0 && pending.cursor <= pending.events.length &&
+  Array.isArray(pending.newUnlocks) &&
+  pending.newUnlocks.every((id) => typeof id === 'string' && DAWN_UNLOCKS.has(id)) &&
+  new Set(pending.newUnlocks).size === pending.newUnlocks.length
+);
 export function saveRun(run) {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(run)); } catch { /* private mode */ }
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(run));
+    return true;
+  } catch {
+    return false;
+  }
 }
 export function loadRun() {
   try {
@@ -1185,41 +1864,306 @@ export function loadRun() {
     if (!s) return null;
     const run = JSON.parse(s);
     if (!run || run.v !== 2 || !run.player || !run.map) return null;
+    const hasOwn = (registry, id) => Object.hasOwn(registry, id);
     // stale-content shield: a save referencing ids this build no longer ships
     // (dev churn, old versions) is unresumable — drop it rather than crash mid-run
-    if (!run.player.deck.every((c) => CARDS[c.id])) return null;
-    if (!run.player.relics.every((id) => RELICS[id])) return null;
-    if (!run.player.potions.every((id) => id == null || POTIONS[id])) return null;
-    if (run.art != null && !ARTS[run.art]) return null;
-    if (!(run.omens || []).every((id) => id == null || OMENS[id])) return null;
+    if (!run.player.deck.every((c) => hasOwn(CARDS, c.id))) return null;
+    if (!run.player.relics.every((id) => hasOwn(RELICS, id))) return null;
+    if (!run.player.potions.every((id) => id == null || hasOwn(POTIONS, id))) return null;
+    if (run.art != null && !hasOwn(ARTS, run.art)) return null;
+    if (!(run.omens || []).every((id) => id == null || hasOwn(OMENS, id))) return null;
     // additive fields self-heal: a save from an older v2 build stays playable
     run.art ??= 'flare';
     run.aspect = clamp(run.aspect ?? 0, 0, ASPECTS.length - 1); run.vow = clamp(run.vow ?? 0, 0, VOWS.length);
+    run.runId ??= legacyRunId(run);
     run.unlocks ??= []; run.omens ??= []; run.boon ??= null; run.bossRelicAct ??= -1; run.orphanRewardClaimed ??= false; run.orphanRewardResolving ??= false;
     run.reveals ??= null;
+    run.quests ??= {};
+    run.shards ??= [];
+    run.questScratch ??= {};
+    run.questCompletions ??= [];
+    run.endQueue ??= [];
+    run.pendingEnemyIds ??= null;
+    run.pendingQuestId ??= null;
+    run.pendingReward ??= null;
+    run.pendingRunEnd ??= null;
+    run.pendingDawn ??= null;
+    run.pendingHollow ??= null;
+    run.pendingHollowRoute ??= null;
+    run.boonReceipt ??= null;
     if (run.reveals != null && !(Array.isArray(run.reveals) && run.reveals.every((id) => REVEALS.some((r) => r.id === id)))) return null;
-    while (run.omens.length <= run.act) run.omens.push(runRevealed(run, 'omens') ? rollOmen(run) : null);
+    const onlyKeys = (x, keys) => Object.keys(x).every((k) => keys.includes(k));
+    const optionalBool = (x, k) => x[k] == null || typeof x[k] === 'boolean';
+    const validBequest = (b) => b == null || (isPlainRecord(b) && (
+      (b.kind === 'card' && hasOwn(CARDS, b.id) && optionalBool(b, 'up')) ||
+      (b.kind === 'relic' && hasOwn(RELICS, b.id)) ||
+      (b.kind === 'gold' && Number.isFinite(b.amount) && b.amount >= 0)
+    ));
+    const validMonument = (monument) => monument == null || (
+      Number.isInteger(monument.act) && monument.act >= 0 && monument.act <= 2 &&
+      Number.isInteger(monument.row) && monument.row >= 0 &&
+      validBequest(monument.bequest) && typeof monument.claimed === 'boolean' && (
+        hasExactRecordKeys(monument, ['act', 'row', 'bequest', 'claimed']) ||
+        (hasExactRecordKeys(monument, ['act', 'row', 'bequest', 'standing', 'claimed']) && monument.standing === false) ||
+        (hasExactRecordKeys(monument, ['act', 'row', 'bequest', 'standing', 'shadeAspect', 'claimed']) &&
+          monument.standing === true && validAspectIndex(monument.shadeAspect))
+      )
+    );
+    const validMemory = (id, q) => {
+      const m = q.memory;
+      if (!isPlainRecord(m)) return false;
+      if (id === 'eighthOmen') {
+        if (q.state === 'dormant') return onlyKeys(m, []);
+        if (q.state === 'complete') return onlyKeys(m, ['seen']) && (m.seen == null || m.seen === true);
+        const dueMax = Math.max(
+          1,
+          Math.floor(PROGRESSION.emberglass.eighthOmen.guaranteeRuns),
+          Math.floor(PROGRESSION.emberglass.eighthOmen.saveDueInMax),
+        );
+        const dueValid = Number.isInteger(m.dueIn) && m.dueIn >= 1 && m.dueIn <= dueMax;
+        return onlyKeys(m, ['dueIn', 'seen']) && optionalBool(m, 'seen') &&
+          (m.seen === true ? m.dueIn == null : dueValid);
+      }
+      if (id === 'hollowLamplighter') {
+        if (q.state === 'dormant') return onlyKeys(m, []);
+        if (q.state === 'complete') return onlyKeys(m, ['eligibleMisses']) &&
+          (m.eligibleMisses == null || (Number.isInteger(m.eligibleMisses) && m.eligibleMisses >= 0));
+        const debtMax = Math.max(
+          1,
+          Math.floor(PROGRESSION.emberglass.hollowLamplighter.emberDebt),
+          Math.floor(PROGRESSION.emberglass.hollowLamplighter.saveEmberDebtMax),
+        );
+        return onlyKeys(m, ['eligibleMisses', 'emberDebt']) &&
+          (m.eligibleMisses == null || (Number.isInteger(m.eligibleMisses) && m.eligibleMisses >= 0)) &&
+          (m.emberDebt == null || (q.state === 'revealed' && q.progress === 0 &&
+            Number.isInteger(m.emberDebt) && m.emberDebt >= 1 && m.emberDebt <= debtMax));
+      }
+      return onlyKeys(m, []);
+    };
+    const validQuest = (id, q) => {
+      if (!isPlainRecord(q) || !QUEST_STATES.includes(q.state) ||
+        !Number.isInteger(q.progress) || q.progress < 0 || q.progress > QUESTS[id].target) return false;
+      const coherentProgress = q.state === 'dormant'
+        ? q.progress === 0
+        : q.state === 'complete'
+          ? q.progress === QUESTS[id].target
+          : q.progress < QUESTS[id].target;
+      return coherentProgress && validMemory(id, q);
+    };
+    const validEnemyId = (id) => hasOwn(ENEMIES, id) || hasOwn(VARIANTS, id);
+    const validPendingReward = (pending) => {
+      if (pending == null) return true;
+      if (!hasExactRecordKeys(pending, ['kind', 'rewards', 'taken', 'perfect']) ||
+        !['monster', 'elite', 'boss'].includes(pending.kind) || typeof pending.perfect !== 'boolean') return false;
+      const rewards = pending.rewards;
+      if (!hasExactRecordKeys(rewards, ['gold', 'cards', 'potion', 'relic']) ||
+        !Number.isInteger(rewards.gold) || rewards.gold < 0 ||
+        !Array.isArray(rewards.cards) || !rewards.cards.length ||
+        rewards.cards.some((id) => !hasOwn(CARDS, id)) || new Set(rewards.cards).size !== rewards.cards.length ||
+        (rewards.potion != null && !hasOwn(POTIONS, rewards.potion)) ||
+        (rewards.relic != null && !hasOwn(RELICS, rewards.relic))) return false;
+      return hasExactRecordKeys(pending.taken, ['gold', 'potion', 'relic', 'card']) &&
+        Object.values(pending.taken).every((value) => typeof value === 'boolean');
+    };
+    const validPendingRunEnd = (pending) =>
+      pending == null || (hasExactRecordKeys(pending, ['outcome']) && TERMINAL_OUTCOMES.includes(pending.outcome));
+    const validPendingHollow = (pending) => {
+      if (pending == null) return true;
+      if (!hasExactRecordKeys(pending, ['nodeId', 'type', 'paid', 'deferred', 'answer']) ||
+        typeof pending.paid !== 'boolean' || typeof pending.deferred !== 'boolean') return false;
+      const node = run.map.nodes.find((n) => n.id === pending.nodeId);
+      if (!node || pending.type !== node.type || run.nodeId !== node.id || !run.map.visited.includes(node.id)) return false;
+      if (!pending.paid) return pending.deferred === false && pending.answer === null;
+      return typeof pending.answer === 'string';
+    };
+    const validPendingHollowRoute = (pending) => {
+      if (pending == null) return true;
+      if (!hasExactRecordKeys(pending, ['nodeId', 'type', 'eventId']) ||
+        !HOLLOW_DESTINATION_TYPES.includes(pending.type)) return false;
+      const node = run.map.nodes.find((candidate) => candidate.id === pending.nodeId);
+      if (!node || node.type !== pending.type || run.nodeId !== node.id || !run.map.visited.includes(node.id)) return false;
+      if (pending.type === 'event') return hasOwn(EVENTS, pending.eventId);
+      return pending.eventId === null;
+    };
+    const validBoonReceipt = (receipt) => {
+      if (receipt == null) return true;
+      if (!hasExactRecordKeys(receipt, ['id', 'playerDelta', 'statsGoldEarned', 'relicsAdded', 'potionSlotsAdded']) ||
+        !hasOwn(BOONS, receipt.id) || receipt.id !== run.boon) return false;
+      const delta = receipt.playerDelta;
+      if (!hasExactRecordKeys(delta, ['gold', 'hp', 'maxHp', 'energyMax']) ||
+        Object.values(delta).some((n) => !Number.isFinite(n)) ||
+        !Number.isFinite(receipt.statsGoldEarned) || receipt.statsGoldEarned < 0 ||
+        !Array.isArray(receipt.relicsAdded) || receipt.relicsAdded.some((id) => !hasOwn(RELICS, id)) ||
+        !Array.isArray(receipt.potionSlotsAdded)) return false;
+      return receipt.potionSlotsAdded.every((slot) =>
+        hasExactRecordKeys(slot, ['index', 'id']) && Number.isInteger(slot.index) &&
+        slot.index >= 0 && slot.index < run.player.potions.length && hasOwn(POTIONS, slot.id));
+    };
+
+    const validScratch = (scratch) => {
+      if (!isPlainRecord(scratch) || Object.keys(scratch).some((id) => !QUEST_IDS.includes(id))) return false;
+      for (const [id, x] of Object.entries(scratch)) {
+        if (!isPlainRecord(x)) return false;
+        if (id === 'paleOnes' && !(onlyKeys(x, ['hiddenDue', 'hiddenRemaining', 'markedAct2']) &&
+          optionalBool(x, 'hiddenDue') && optionalBool(x, 'markedAct2') &&
+          (x.hiddenRemaining == null || (Number.isInteger(x.hiddenRemaining) && x.hiddenRemaining >= 0 &&
+            typeof x.hiddenDue === 'boolean' && x.hiddenDue === (x.hiddenRemaining > 0))))) return false;
+        if (id === 'usurper' && !(onlyKeys(x, ['bought']) && optionalBool(x, 'bought'))) return false;
+        if (id === 'eighthOmen' && !(onlyKeys(x, ['active']) && optionalBool(x, 'active'))) return false;
+        if (id === 'unreadablePage' && !(onlyKeys(x, ['rewardOrdinal', 'offered']) &&
+          (x.rewardOrdinal == null || (Number.isInteger(x.rewardOrdinal) && x.rewardOrdinal >= 0)) && optionalBool(x, 'offered'))) return false;
+        if (id === 'hollowLamplighter' && !(onlyKeys(x, ['due', 'met', 'meetings', 'debtActive']) &&
+          optionalBool(x, 'due') && optionalBool(x, 'met') && optionalBool(x, 'debtActive') &&
+          !(x.met === true && x.due !== true) &&
+          !(x.debtActive === true && (x.due === true || x.met === true || (x.meetings || 0) > 0)) &&
+          (x.meetings == null || (Number.isInteger(x.meetings) && x.meetings >= 0 &&
+            typeof x.met === 'boolean' && x.met === (x.meetings > 0) &&
+            (x.meetings === 0 || x.due === true))))) return false;
+        if (id === 'ownShade') {
+          const fall = x.fall;
+          const validFall = fall == null || (isPlainRecord(fall) && onlyKeys(fall, ['act', 'row', 'shadeAspect', 'bequest']) &&
+            Number.isInteger(fall.act) && fall.act >= 0 && fall.act <= 2 && Number.isInteger(fall.row) && fall.row >= 0 &&
+            validAspectIndex(fall.shadeAspect) && validBequest(fall.bequest));
+          if (!(onlyKeys(x, ['fall', 'pendingBequest']) && validFall && validBequest(x.pendingBequest))) return false;
+        }
+      }
+      return true;
+    };
+
+    const validEndEvent = (event) => validRunEvent(event, END_EVENT_TYPES);
+
+    if (!isPlainRecord(run.quests)) return null;
+    if (!validRunId(run.runId)) return null;
+    if (run.boon != null && !hasOwn(BOONS, run.boon)) return null;
+    if (!validMonument(run.monument)) return null;
+    if (Object.keys(run.quests).some((id) => !QUEST_IDS.includes(id))) return null;
+    if (Object.entries(run.quests).some(([id, q]) => !validQuest(id, q))) return null;
+    if (!(Array.isArray(run.shards) && run.shards.every((id) => QUEST_IDS.includes(id)) && new Set(run.shards).size === run.shards.length)) return null;
+    if (!validScratch(run.questScratch)) return null;
+    if (!(Array.isArray(run.questCompletions) && run.questCompletions.every((id) => QUEST_IDS.includes(id)) && new Set(run.questCompletions).size === run.questCompletions.length)) return null;
+    if (!(Array.isArray(run.endQueue) && run.endQueue.every(validEndEvent))) return null;
+    if (run.pendingCombat != null && !['monster', 'elite', 'boss'].includes(run.pendingCombat)) return null;
+    if (run.pendingEnemyIds != null && !(Array.isArray(run.pendingEnemyIds) && run.pendingEnemyIds.length && run.pendingEnemyIds.every(validEnemyId))) return null;
+    if (run.pendingQuestId != null && !QUEST_IDS.includes(run.pendingQuestId)) return null;
+    if (run.pendingEnemyIds != null && run.pendingCombat == null) return null;
+    if (run.pendingQuestId != null && run.pendingCombat == null) return null;
+    if (!validPendingReward(run.pendingReward)) return null;
+    if (!validPendingRunEnd(run.pendingRunEnd)) return null;
+    if (!validPendingDawn(run.pendingDawn)) return null;
+    if (!validPendingHollow(run.pendingHollow)) return null;
+    if (!validPendingHollowRoute(run.pendingHollowRoute)) return null;
+    if (!validBoonReceipt(run.boonReceipt)) return null;
+    if (run.pendingHollow != null &&
+      (run.pendingHollowRoute != null || run.pendingCombat != null || run.pendingReward != null ||
+        run.pendingRunEnd != null || run.pendingDawn != null)) return null;
+    if (run.pendingHollowRoute != null &&
+      (run.pendingHollow != null || run.pendingCombat != null || run.pendingReward != null ||
+        run.pendingRunEnd != null || run.pendingDawn != null)) return null;
+    if (run.pendingReward != null && run.pendingCombat != null) return null;
+    if (run.pendingRunEnd != null && (run.pendingCombat != null || run.pendingReward != null || run.pendingDawn != null)) return null;
+    if (run.pendingDawn != null &&
+      (run.pendingCombat != null || run.pendingReward != null || run.pendingRunEnd != null ||
+        run.pendingHollow != null || run.pendingHollowRoute != null)) return null;
+    if (!run.map.nodes.every((n) =>
+      (n.questVariantId == null || hasOwn(VARIANTS, n.questVariantId)) &&
+      (n.questMarked == null || typeof n.questMarked === 'boolean'))) return null;
+    // The immediately preceding Phase 2 build could persist the final
+    // Hollow completion before run-end reconciliation removed its pity
+    // counter. Accept that exact legacy residue and return the canonical
+    // completed shape so an in-flight dawn remains resumable.
+    if (run.quests.hollowLamplighter?.state === 'complete') {
+      run.quests.hollowLamplighter.memory = {};
+    }
+    while (run.omens.length <= run.act) run.omens.push(omenEnabled(run) ? rollOmen(run) : null);
     for (const k of ['shatters', 'kindles', 'perfects', 'smolderKills', 'unlitVisited', 'embersSpent']) run.stats[k] ??= 0;
     return run;
   } catch { return null; }
 }
-export function clearSave() {
+export function clearSave(runId = null) {
   try {
-    localStorage.removeItem(SAVE_KEY);
+    if (runId != null) {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return true;
+      let current = null;
+      try { current = JSON.parse(raw); } catch { /* an unreadable save is not this run */ }
+      if (current?.runId !== runId) return true;
+    }
     localStorage.removeItem('spirebound_save_v1'); // pre-vigil saves are unresumable
-  } catch { /* noop */ }
+    localStorage.removeItem(SAVE_KEY); // current run last: a failed cleanup remains resumable
+    return true;
+  } catch {
+    return false;
+  }
 }
 export function loadStats() {
-  try { return JSON.parse(localStorage.getItem(STATS_KEY)) || { runs: 0, wins: 0, best: 0 }; }
-  catch { return { runs: 0, wins: 0, best: 0 }; }
+  try {
+    const raw = JSON.parse(localStorage.getItem(STATS_KEY)) || {};
+    return { runs: 0, wins: 0, best: 0, lastRunId: null, ...raw };
+  } catch { return { runs: 0, wins: 0, best: 0, lastRunId: null }; }
+}
+export function commitRunStats(run, won) {
+  const s = loadStats();
+  if (s.lastRunId !== run.runId) {
+    s.runs++;
+    if (won) s.wins++;
+    s.best = Math.max(s.best, run.act * MAP_ROWS + run.floorsClimbed);
+    s.lastRunId = run.runId;
+    try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); }
+    catch { return false; }
+  }
+  return true;
 }
 export function recordRunEnd(run, won) {
-  const s = loadStats();
-  s.runs++;
-  if (won) s.wins++;
-  s.best = Math.max(s.best, run.act * MAP_ROWS + run.floorsClimbed);
-  try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); } catch { /* noop */ }
-  clearSave();
+  if (!commitRunStats(run, won)) return false;
+  return clearSave(run.runId);
+}
+
+export function stagePendingDawn(run, events, newUnlocks = []) {
+  if (run?.pendingRunEnd?.outcome !== 'win' || run.pendingDawn != null ||
+      run.pendingCombat != null || run.pendingReward != null ||
+      run.pendingHollow != null || run.pendingHollowRoute != null) return false;
+  const pending = {
+    events: Array.isArray(events) ? events.map((event) => ({ ...event })) : events,
+    cursor: 0,
+    newUnlocks: Array.isArray(newUnlocks) ? [...newUnlocks] : newUnlocks,
+  };
+  if (!validPendingDawn(pending) || !commitRunStats(run, true)) return false;
+  const journal = run.pendingRunEnd;
+  const receiptCacheKeys = [
+    'vigilCommitted', 'vigilWon', 'vigilResult',
+    'runEndCommitted', 'runEndOutcome', 'runEndResult',
+  ];
+  const receiptCache = new Map(receiptCacheKeys
+    .filter((key) => Object.hasOwn(run, key))
+    .map((key) => [key, run[key]]));
+  run.pendingRunEnd = null;
+  run.pendingDawn = pending;
+  receiptCacheKeys.forEach((key) => { delete run[key]; });
+  if (saveRun(run)) return true;
+  run.pendingDawn = null;
+  run.pendingRunEnd = journal;
+  for (const [key, value] of receiptCache) run[key] = value;
+  return false;
+}
+
+export function advancePendingDawn(run, nextCursor) {
+  const pending = run?.pendingDawn;
+  if (!validPendingDawn(pending) || pending == null ||
+      !Number.isInteger(nextCursor) || nextCursor !== pending.cursor + 1 ||
+      nextCursor > pending.events.length) return false;
+  const previous = pending.cursor;
+  pending.cursor = nextCursor;
+  if (saveRun(run)) return true;
+  pending.cursor = previous;
+  return false;
+}
+
+export function completePendingDawn(run) {
+  const pending = run?.pendingDawn;
+  if (!validPendingDawn(pending) || pending == null || pending.cursor !== pending.events.length) return false;
+  if (!clearSave(run.runId)) return false;
+  run.pendingDawn = null;
+  return true;
 }
 
 // event op executor (interactive picks handled by UI; returns list of pending picks)
@@ -1257,4 +2201,106 @@ export function applyEventOps(run, ops, rng = runRng(run)) {
     }
   }
   return { pending, log };
+}
+
+const multisetAdded = (after, before) => {
+  const left = new Map();
+  for (const id of before) left.set(id, (left.get(id) || 0) + 1);
+  return after.filter((id) => {
+    const n = left.get(id) || 0;
+    if (n) { left.set(id, n - 1); return false; }
+    return true;
+  });
+};
+
+export function applyBoon(run, id) {
+  if (!Object.hasOwn(BOONS, id)) throw new Error('unknown boon: ' + id);
+  const before = {
+    gold: run.player.gold, hp: run.player.hp, maxHp: run.player.maxHp,
+    energyMax: run.player.energyMax, goldEarned: run.stats.goldEarned,
+    relics: [...run.player.relics], potions: [...run.player.potions],
+  };
+  applyEventOps(run, BOONS[id].ops);
+  run.boon = id;
+  run.boonReceipt = {
+    id,
+    playerDelta: {
+      gold: run.player.gold - before.gold,
+      hp: run.player.hp - before.hp,
+      maxHp: run.player.maxHp - before.maxHp,
+      energyMax: run.player.energyMax - before.energyMax,
+    },
+    statsGoldEarned: run.stats.goldEarned - before.goldEarned,
+    relicsAdded: multisetAdded(run.player.relics, before.relics),
+    potionSlotsAdded: run.player.potions.flatMap((potionId, index) =>
+      potionId && before.potions[index] !== potionId ? [{ index, id: potionId }] : []),
+  };
+  return run.boonReceipt;
+}
+
+export function reverseBoon(run) {
+  const receipt = run.boonReceipt;
+  if (!receipt || run.boon !== receipt.id) return false;
+  const d = receipt.playerDelta;
+  if (d.gold > 0 && run.player.gold < d.gold) return false;
+  const needed = new Map();
+  for (const id of receipt.relicsAdded) needed.set(id, (needed.get(id) || 0) + 1);
+  for (const [id, n] of needed) {
+    if (run.player.relics.filter((x) => x === id).length < n) return false;
+  }
+  if (receipt.potionSlotsAdded.some(({ index, id }) => run.player.potions[index] !== id)) return false;
+
+  for (const id of receipt.relicsAdded) {
+    const index = run.player.relics.lastIndexOf(id);
+    run.player.relics.splice(index, 1);
+  }
+  for (const { index } of receipt.potionSlotsAdded) run.player.potions[index] = null;
+  run.player.gold -= d.gold;
+  run.player.energyMax = Math.max(1, run.player.energyMax - d.energyMax);
+  run.player.maxHp = Math.max(1, run.player.maxHp - d.maxHp);
+  run.player.hp = clamp(run.player.hp - d.hp, 1, run.player.maxHp);
+  run.stats.goldEarned = Math.max(0, run.stats.goldEarned - receipt.statsGoldEarned);
+  run.boon = null;
+  run.boonReceipt = null;
+  return true;
+}
+
+export function payHollowPrice(run) {
+  const pending = run.pendingHollow;
+  if (!pending) return { ok: false, deferred: false, message: '' };
+  if (pending.paid) {
+    return { ok: true, deferred: pending.deferred, message: pending.answer };
+  }
+  const q = questRecord(run, 'hollowLamplighter');
+  if (!q || !QUEST_ACTIVE_STATES.includes(q.state)) {
+    return { ok: false, deferred: false, message: '' };
+  }
+  const meeting = QUESTS.hollowLamplighter.meetings[q.progress];
+  const fail = () => ({ ok: false, deferred: false, message: meeting.cannot });
+  const accept = (deferred, message) => {
+    pending.paid = true;
+    pending.deferred = deferred;
+    pending.answer = message;
+    return { ok: true, deferred, message };
+  };
+  if (q.progress === 0) {
+    q.memory.emberDebt = PROGRESSION.emberglass.hollowLamplighter.emberDebt;
+    return accept(true, meeting.accepted);
+  }
+  if (q.progress === 1) {
+    const price = PROGRESSION.emberglass.hollowLamplighter.gold;
+    if (run.player.gold < price) return fail();
+    run.player.gold -= price;
+  } else if (q.progress === 2) {
+    const price = PROGRESSION.emberglass.hollowLamplighter.maxHp;
+    if (run.player.maxHp - price < PROGRESSION.emberglass.hollowLamplighter.minMaxHpAfter) return fail();
+    run.player.maxHp -= price;
+    run.player.hp = Math.min(run.player.hp, run.player.maxHp);
+  } else if (q.progress === 3) {
+    if (!reverseBoon(run)) return fail();
+  } else if (q.progress === 4) {
+    run.player.hp = PROGRESSION.emberglass.hollowLamplighter.finalHp;
+  } else return fail();
+  advanceQuest(run, 'hollowLamplighter', 1, run.endQueue);
+  return accept(false, meeting.paid);
 }

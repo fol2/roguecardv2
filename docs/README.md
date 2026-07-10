@@ -8,6 +8,7 @@ Quick map for agents and humans. Operational truth for running the game lives in
 |---|---|
 | [`../README.md`](../README.md) | Player-facing overview, tech stack, `npm test` / `npm run test:e2e` |
 | [`../AGENTS.md`](../AGENTS.md) | Agent conventions: module graph, fixed stage, engine purity, commands |
+| [`../CONTEXT-MAP.md`](../CONTEXT-MAP.md) | Ubiquitous language for the Climb and Vigil contexts |
 
 ## Rendering
 
@@ -26,9 +27,13 @@ Quick map for agents and humans. Operational truth for running the game lives in
 
 | Doc | Status |
 |---|---|
+| [`superpowers/specs/2026-07-10-e2e-ci-feedback-design.md`](superpowers/specs/2026-07-10-e2e-ci-feedback-design.md) | **Current** — owner-approved Draft fast feedback and Ready/full parallel Playwright gate |
+| [`superpowers/plans/2026-07-10-e2e-ci-feedback.md`](superpowers/plans/2026-07-10-e2e-ci-feedback.md) | Executor plan — CI contract, smoke tags, shardable random coverage, and parallel GitHub gate |
 | [`superpowers/plans/2026-07-10-versioned-audio-packs.md`](superpowers/plans/2026-07-10-versioned-audio-packs.md) | **Current** — versioned Music/SFX selection, individual overrides, backend/runtime boundary |
-| [`superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md`](superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md) | **Current** — progressive delivery engine, entrance redesign, Emberglass chain (Phase 2 pending) |
+| [`superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md`](superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md) | **Complete** — progressive delivery and entrances shipped in Phase 1; Emberglass chain shipped in Phase 2 |
 | [`superpowers/plans/2026-07-09-entrance-progressive-delivery-phase1.md`](superpowers/plans/2026-07-09-entrance-progressive-delivery-phase1.md) | Executor plan, Phase 1 (delivery engine + entrances — **shipped**) |
+| [`superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md`](superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md) | Executor plan, Phase 2 (variants + six Emberglass quests + Rose Window — **shipped**) |
+| [`superpowers/reports/2026-07-09-emberglass-phase2-evidence.md`](superpowers/reports/2026-07-09-emberglass-phase2-evidence.md) | Phase 2 release evidence: pacing, unit/build/e2e gates, performance reference, art review, and manual journey |
 | [`superpowers/specs/2026-07-08-vigil-surfaces-status-art-design.md`](superpowers/specs/2026-07-08-vigil-surfaces-status-art-design.md) | **Current** — status strip rasters, Vigil/meta emblems, defeat/victory plates, gallery + manifest gates |
 | [`superpowers/plans/2026-07-08-vigil-surfaces-status-art.md`](superpowers/plans/2026-07-08-vigil-surfaces-status-art.md) | Executor plan (8 tasks); Task 8 = baselines + final sweep |
 | [`superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md`](superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md) | **Complete / predecessor** — ground line, mesh death, Playwright kit, polish workstreams |
@@ -38,8 +43,8 @@ Quick map for agents and humans. Operational truth for running the game lives in
 
 ## Visual QA kit
 
-- Config: [`../playwright.config.js`](../playwright.config.js) — desktop 1600×900, portrait 375×812, landscape 812×375; dev server **5174**
-- Suites: [`../test/e2e/`](../test/e2e/) — `stage.spec` (fixed viewport), `geometry.spec` (ground-line feet), `battle.spec`, `visual.spec` (baselines refreshed for Vigil status/meta art), `perf.spec`
+- Config: [`../playwright.config.js`](../playwright.config.js) with strict-port resolution in [`../playwright-server.js`](../playwright-server.js) — desktop 1600×900, portrait 375×812, landscape 812×375; dev server **5174** by default. Set `SPIREBOUND_E2E_PORT=<free-port>` for an isolated launch that refuses to reuse an existing server.
+- Suites: [`../test/e2e/`](../test/e2e/) — config/runner contracts, battlefield-editor disk writes, stage and combat geometry, battle/reward flows, Emberglass progression and persistence transactions, Hollow routing, versioned audio selection, visual baselines, random-agent coverage, and performance.
 - In-page API: `window.__probe` in `src/ui.js` — geometry in **stage px**
 
 ## Fixed virtual stage (summary)

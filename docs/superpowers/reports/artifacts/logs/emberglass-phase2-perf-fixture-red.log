@@ -1,0 +1,36 @@
+[WebServer] (node:28587) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:28596) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [portrait] › test/e2e/perf.spec.js:18:1 › AoE effect burst holds the frame budget at 4x CPU throttle (2.0s)
+
+
+  1) [portrait] › test/e2e/perf.spec.js:18:1 › AoE effect burst holds the frame budget at 4x CPU throttle
+
+    Error: fixture must leave every enemy alive after both nine-damage Requiem bursts
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 18
+    Received:   14
+
+      26 |     minimumEnemyHp,
+      27 |     'fixture must leave every enemy alive after both nine-damage Requiem bursts',
+    > 28 |   ).toBeGreaterThan(18);
+         |     ^
+      29 |   await page.evaluate(() => {
+      30 |     window.__probe.setEnergy(9);
+      31 |     // keep every corpse off the critical path: leave all three alive,
+        at /Users/jamesto/Coding/roguecardv2/.worktrees/emberglass-phase2/test/e2e/perf.spec.js:28:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/perf-AoE-effect-burst-hold-f4bb5-e-budget-at-4x-CPU-throttle-portrait/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/perf-AoE-effect-burst-hold-f4bb5-e-budget-at-4x-CPU-throttle-portrait/error-context.md
+
+  1 failed
+    [portrait] › test/e2e/perf.spec.js:18:1 › AoE effect burst holds the frame budget at 4x CPU throttle

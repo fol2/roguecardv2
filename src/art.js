@@ -361,6 +361,7 @@ const CARD_GLYPHS = {
   frenzy: '※', virulence: '☣', wound: '✂', burn: '✹', hex: '♄',
   chisel: '◬', firstSpark: '✧', ashBite: '☄', smother: '☁', quakeblow: '⬲', resonantLance: '↟', tithe: '⚖', pyreheart: '♥',
   ashenChoir: '♬', flawlessForm: '❖', nightSight: '☾', novaflare: '✺', emberdance: '❂', shardstorm: '❉',
+  unreadablePage: '▤',
 };
 const hash = (s) => { let h = 9; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 387420489); return (h ^ (h >>> 9)) >>> 0; };
 
@@ -494,8 +495,15 @@ const ICONS = {
   scissors: `<path d="M7.6 7.6 L17.5 17.8 M16.4 7.6 L6.5 17.8" stroke-width="2.2"/><circle cx="6" cy="19.2" r="2.2" fill="none" stroke-width="1.8"/><circle cx="18" cy="19.2" r="2.2" fill="none" stroke-width="1.8"/>`,
   question: `<path d="M8.6 8.6 a3.4 3.4 0 1 1 5 3 c-1.1 .7-1.6 1.4-1.6 2.8" fill="none" stroke-width="2.6"/><circle cx="12" cy="18.6" r="1.7" fill="currentColor" stroke="none"/>`,
   facet: `<path d="M12 3.4 L20 12 L12 20.6 L4 12 Z" fill="none" stroke-width="2.3"/><path d="M12 3.4 v17.2 M4 12 h16" stroke-width="1.2" opacity=".55"/>`,
+  paleMote: `<path d="M12 2.8 L18.5 9.2 L15.4 20 L8.6 20 L5.5 9.2 Z" fill="currentColor" fill-opacity=".18" stroke-width="1.8"/><path d="M5.5 9.2 L12 12.2 L18.5 9.2 M12 2.8 V12.2 L15.4 20 M12 12.2 L8.6 20" fill="none" stroke-width="1.3" opacity=".85"/>`,
   ember: `<path d="M12 3.4 C10 7 8.2 8.8 8.2 11.6 a3.8 3.8 0 0 0 7.6 0 C15.8 8.8 14 7 12 3.4 Z" fill="currentColor" stroke="none"/><circle cx="7" cy="18.4" r="1.4" fill="currentColor" stroke="none" opacity=".8"/><circle cx="12" cy="20" r="1.7" fill="currentColor" stroke="none"/><circle cx="17" cy="18.4" r="1.4" fill="currentColor" stroke="none" opacity=".8"/>`,
   lantern: `<path d="M9 6.2 h6 M8 6.2 L8 15.6 a4 3 0 0 0 8 0 V6.2" fill="none" stroke-width="2"/><path d="M12 8.4 c-1.5 2-1.5 3.4 0 4.7 1.5-1.3 1.5-2.7 0-4.7 Z" fill="currentColor" stroke="none"/><path d="M10.6 3.6 h2.8 v2.6 h-2.8 Z M10 19.8 h4" stroke-width="1.8"/>`,
+  emptyLantern: `<path d="M9 6.2 h6 M8 6.2 L8 15.6 a4 3 0 0 0 8 0 V6.2" fill="none" stroke-width="2"/><path d="M10.6 3.6 h2.8 v2.6 h-2.8 Z M10 19.8 h4" stroke-width="1.8"/><path d="M10.2 9.2 v4.4 q1.8 1.4 3.6 0 V9.2 M10.2 11.4 h3.6" fill="none" stroke-width="1.25" opacity=".58"/>`,
+  emberglassShard: `<path d="M12 2.6 L19.2 8.2 L16.6 20.4 L8.1 18.8 L4.8 8.8 Z" fill="currentColor" fill-opacity=".2" stroke-width="1.9"/><path d="M4.8 8.8 L11.6 11.5 L19.2 8.2 M12 2.6 L11.6 11.5 L8.1 18.8 M11.6 11.5 L16.6 20.4" fill="none" stroke-width="1.35"/>`,
+  roseWindow: `<path d="M12 2.8 A9.2 9.2 0 1 1 11.9 2.8 Z M12 6.1 A5.9 5.9 0 1 0 12.1 6.1 Z" fill="none" stroke-width="1.8"/><path d="M12 3 V21 M4.2 7.5 L19.8 16.5 M19.8 7.5 L4.2 16.5" fill="none" stroke-width="1.45"/><path d="M12 9.7 A2.3 2.3 0 1 1 11.9 9.7 Z" fill="currentColor" stroke="none"/>`,
+  unreadablePage: `<path d="M6.2 3.2 H14.8 L18.2 6.8 V20.8 H6.2 Z" fill="none" stroke-width="1.9"/><path d="M14.8 3.2 V6.8 H18.2 M8.8 10.2 L12 9.3 L15.6 10.7 M8.8 14.1 L11 13.4 M13.1 13.8 L15.7 13.1 M8.8 17.4 L10.2 16.9 M12.2 17.3 L15.6 16.4" fill="none" stroke-width="1.45"/>`,
+  hollowLantern: `<path d="M9.2 5.8 H14.8 M8.2 6.2 L7.4 16.5 Q12 20.7 16.6 16.5 L15.8 6.2 M10.1 3.2 H13.9 V5.8 M9.2 20.6 H14.8" fill="none" stroke-width="1.85"/><path d="M9.5 9.1 L14.5 14.5 M14.5 9.1 L9.5 14.5 M7.9 15.7 L5.5 18.7 M16.1 15.7 L18.5 18.7" fill="none" stroke-width="1.35" opacity=".78"/>`,
+  sealedDoor: `<path d="M6.1 21 V9.4 A5.9 5.9 0 0 1 17.9 9.4 V21 Z" fill="currentColor" fill-opacity=".16" stroke-width="1.9"/><path d="M9 21 V9.7 A3 3 0 0 1 15 9.7 V21 M12 6.8 V21" fill="none" stroke-width="1.55"/><path d="M4.4 21 H19.6 M10.7 13.4 H12" fill="none" stroke-width="1.9"/>`,
   stagger: `<path d="M12 2.8 L13.8 8.6 L19.8 7 L15.6 11.6 L21 14.8 L14.6 14.9 L15.8 21 L11.9 16.2 L8 21 L9.2 14.9 L3 14.8 L8.4 11.6 L4.2 7 L10.2 8.6 Z" fill="currentColor" stroke="none"/>`,
   unlitLantern: `<path d="M9 6.2 h6 M8 6.2 L8 15.6 a4 3 0 0 0 8 0 V6.2" fill="none" stroke-width="2" opacity=".65"/><path d="M10.6 3.6 h2.8 v2.6 h-2.8 Z M10 19.8 h4" stroke-width="1.8" opacity=".65"/><path d="M10 10 L14 14 M14 10 L10 14" stroke-width="1.6" opacity=".8"/>`,
   monument: `<path d="M9.5 20 L10.2 6.5 L12 3.4 L13.8 6.5 L14.5 20 Z" fill="currentColor" stroke="none"/><path d="M6 20.6 h12" stroke-width="2.2"/><path d="M12 8.6 c-1.2 1.6-1.2 2.7 0 3.8 1.2-1.1 1.2-2.2 0-3.8 Z" fill="rgba(0,0,0,.55)" stroke="none"/>`,
@@ -546,6 +554,7 @@ const ICONS = {
   'boon-pilgrimsCache': `<rect x="4.5" y="8" width="15" height="11" rx="2" fill="none" stroke-width="2.2"/><path d="M4.5 12.5 h15 M9 8 q3 -5 6 0" fill="none" stroke-width="1.8"/><rect x="10.6" y="11" width="2.8" height="3.6" rx="0.8" fill="currentColor" stroke="none"/>`,
   'boon-venomPouch': `<path d="M7.5 6.5 q4.5 -3.4 9 0 l1.6 9.1 a3 3 0 0 1 -3 3.5 H8.9 a3 3 0 0 1 -3 -3.5 Z" fill="none" stroke-width="2.1"/><path d="M12 9.6 c-1.5 2-1.5 3.4 0 4.8 1.5-1.4 1.5-2.8 0-4.8 Z" fill="currentColor" stroke="none"/><circle cx="12" cy="17.4" r="1" fill="currentColor" stroke="none"/>`,
   // --- omens (omen-*) ---
+  eighthOmen: `<path class="broken-lead" d="M11.2 3.2 C7.8 3.7 6.2 5.3 6.7 7.3" fill="none" stroke-width="1.9"/><path class="broken-lead" d="M12.8 3.2 C16.2 3.7 17.8 5.3 17.3 7.3" fill="none" stroke-width="1.9"/><path class="broken-lead" d="M9.4 9.2 C6.5 10.2 5.5 12.3 7.2 14.2" fill="none" stroke-width="1.9"/><path class="broken-lead" d="M14.6 9.2 C17.5 10.2 18.5 12.3 16.8 14.2" fill="none" stroke-width="1.9"/><path class="broken-lead" d="M9.1 15.7 C6.3 17.2 7.6 20.6 11.1 20.8" fill="none" stroke-width="1.9"/><path class="broken-lead" d="M14.9 15.7 C17.7 17.2 16.4 20.6 12.9 20.8" fill="none" stroke-width="1.9"/>`,
   'omen-ashfall': `<path d="M7.2 12.5 a3.9 3.9 0 1 1 .7-7.7 A4.9 4.9 0 0 1 17.4 5.6 a3.4 3.4 0 0 1 -.6 6.9 Z" fill="currentColor" stroke="none"/><circle cx="8" cy="16.4" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="18.8" r="1.3" fill="currentColor" stroke="none"/><circle cx="16" cy="16.4" r="1.1" fill="currentColor" stroke="none"/>`,
   'omen-heavyAir': `<path d="M4 6.5 h16 M6 10.5 h12 M8 14.5 h8" stroke-width="2.2"/><path d="M12 21 L8.5 16.8 h7 Z" fill="currentColor" stroke="none"/>`,
   'omen-thinGlass': `<path d="M12 3.4 L20 12 L12 20.6 L4 12 Z" fill="none" stroke-width="1.4"/><path d="M12 3.4 L11 8.5 L13.5 11 L10.5 14 L12 20.6 M4 12 L8.5 11 M20 12 L15 13.5" fill="none" stroke-width="1.2"/>`,
@@ -554,6 +563,7 @@ const ICONS = {
   'omen-longNight': `<path d="M12 2.8 L13.7 8 L19 8.1 L14.8 11.3 L16.3 16.5 L12 13.4 L7.7 16.5 L9.2 11.3 L5 8.1 L10.3 8 Z" fill="currentColor" stroke="none"/><path d="M5 20.6 h14" stroke-width="1.8" opacity=".7"/>`,
   'omen-waningMoon': `<circle cx="12" cy="12" r="8" fill="none" stroke-width="2"/><path d="M12 4 a8 8 0 0 1 0 16 a11 11 0 0 0 0 -16 Z" fill="currentColor" stroke="none"/>`,
 };
+ICONS['omen-eighthOmen'] = ICONS.eighthOmen;
 export const hasIcon = (name) => !!ICONS[name];
 const iconBody = (name) => `<g fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</g>`;
 export function iconSvg(name, size = 18) {

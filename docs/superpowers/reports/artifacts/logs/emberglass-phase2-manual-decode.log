@@ -1,0 +1,25 @@
+ffmpeg started on 2026-07-10 at 15:28:51
+Report written to "docs/superpowers/reports/artifacts/logs/emberglass-phase2-manual-decode.log"
+Log level: 32
+Command line:
+ffmpeg -hide_banner -nostats -i docs/superpowers/reports/artifacts/emberglass-phase2-manual-journey.webm -f null -
+Input #0, matroska,webm, from 'docs/superpowers/reports/artifacts/emberglass-phase2-manual-journey.webm':
+  Metadata:
+    ENCODER         : Lavf61.1.100
+  Duration: 00:01:56.88, start: 0.000000, bitrate: 980 kb/s
+  Stream #0:0: Video: vp8, yuv420p(progressive), 1600x900, SAR 1:1 DAR 16:9, 25 fps, 25 tbr, 1k tbn
+    Metadata:
+      ENCODER         : Lavc61.3.100 libvpx
+      DURATION        : 00:01:56.880000000
+Stream mapping:
+  Stream #0:0 -> #0:0 (vp8 (native) -> wrapped_avframe (native))
+Press [q] to stop, [?] for help
+Output #0, null, to 'pipe:':
+  Metadata:
+    encoder         : Lavf62.12.102
+  Stream #0:0: Video: wrapped_avframe, yuv420p(tv, bt470bg/unknown/unknown, progressive), 1600x900 [SAR 1:1 DAR 16:9], q=2-31, 200 kb/s, 25 fps, 25 tbn
+    Metadata:
+      encoder         : Lavc62.28.102 wrapped_avframe
+      DURATION        : 00:01:56.880000000
+[out#0/null @ 0x74501c300] video:1210KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame= 2922 fps=0.0 q=-0.0 Lsize=N/A time=00:01:56.88 bitrate=N/A speed= 178x elapsed=0:00:00.65

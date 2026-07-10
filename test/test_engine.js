@@ -2,17 +2,27 @@
 import assert from 'node:assert';
 import { readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { inflateSync } from 'node:zlib';
+import { createServer as createViteServer } from 'vite';
 import {
-  newRun, startCombat, playCard, endTurn, drawCards, makeCard, cardData, availableNodes, genMap,
-  rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, finalizeNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, nodeEventInFlight, saveRun, loadRun, genCombatRewards, genShop, gainRelic, randomRelic,
-  rollBossRelics, addCardToDeck, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
-  MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, cardPool, relicPool,
+  newRun, startCombat, playCard, endTurn, drawCards, makeCard, makeVariant, cardData, availableNodes, genMap,
+  rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, finalizeNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, nodeEventInFlight, saveRun, loadRun, genCombatRewards, genShop, buyQuestItem, gainRelic, randomRelic,
+  rollBossRelics, addCardToDeck, removableCards, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
+  MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, grantBequest, markShadeFall, resolveCombatant, cardPool, relicPool,
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
   previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
+  revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter,
+  setPendingReward, takePendingReward, clearPendingReward, hasPendingBossRelic, recordRunEnd, commitRunStats,
+  stagePendingDawn, advancePendingDawn, completePendingDawn, loadStats, paleVariantForAct,
+  applyBoon, reverseBoon, payHollowPrice, stageHollowExit,
+  shopSessionKey, shopStockForSession,
+  finaliseTerminalOutbox, journalTerminalOutcome, savedRunRequiresFinalisation,
+  SHADE_DUEL_TX, shadeVictorySkipsRewards, shadeLossBequestState,
 } from '../src/engine.js';
-import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE } from '../src/data.js';
-import { _setStore, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, clearNews } from '../src/vigil.js';
-import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
+import * as EngineApi from '../src/engine.js';
+import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS } from '../src/data.js';
+import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, commitPendingRunEnd, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
+import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFrame, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
 import { uicResolve, _setUIC, uicRaw } from '../src/uic.js';
 import { serializeUIC, validateUIC } from '../src/dev/bfui-serialize.js';
@@ -23,6 +33,7 @@ import {
 import { BASE_AUDIO_VERSIONS, DEFAULT_AUDIO_SELECTION, audioRefFromPath, canonicalAudioFilename, normaliseAudioSelection, rankAudioRefs, resolveAudioRef, validateAudioSelection } from '../src/audio-packs.js';
 import { serializeAudioSelection } from '../src/dev/audio-selection-serialize.js';
 import { fetchAudioSelectionJson } from '../src/audio-selection-fetch.js';
+import { createChoiceLatch } from '../src/choice-latch.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -271,7 +282,165 @@ function forceHand(run, cb, ids) {
   }
 }
 {
+  const latch = createChoiceLatch();
+  assert.equal(latch.claim(), true, 'the first choice claims the interaction');
+  assert.equal(latch.claim(), false, 'a second rapid choice is rejected');
+  assert.equal(latch.locked, true, 'the latch exposes its settled state');
+}
+{
+  assert.equal(shadeVictorySkipsRewards({ pendingQuestId: 'ownShade' }), true);
+  assert.equal(shadeVictorySkipsRewards({ pendingQuestId: 'paleOnes' }), false);
+  assert.deepEqual(shadeLossBequestState({
+    questScratch: { ownShade: { fall: { bequest: { kind: 'gold', amount: 50 } } } },
+  }), { unpaidBequest: true, offerNewBequest: false });
+  assert.deepEqual(shadeLossBequestState({ questScratch: { ownShade: { fall: { bequest: null } } } }),
+    { unpaidBequest: false, offerNewBequest: true });
+}
+{
+  const previousLocalStorage = globalThis.localStorage;
+  const makeStandingShade = (seed) => {
+    const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'ownShade' ? 'revealed' : 'dormant', progress: 0, memory: {},
+    }]));
+    return newRun(seed, {
+      quests,
+      monument: {
+        act: 1, row: 7, bequest: { kind: 'gold', amount: 50 }, standing: true, shadeAspect: 1,
+      },
+    });
+  };
+  try {
+    const persisted = new Map();
+    let writes = 0;
+    let rejectWrite = () => false;
+    globalThis.localStorage = {
+      getItem: (key) => persisted.get(key) ?? null,
+      setItem: (key, value) => {
+        writes++;
+        if (rejectWrite(writes)) throw new Error('quota');
+        persisted.set(key, value);
+      },
+      removeItem: (key) => persisted.delete(key),
+    };
+
+    const rejectedSaveRun = makeStandingShade(4261);
+    const rejectedSaveBefore = structuredClone(rejectedSaveRun);
+    rejectWrite = () => true;
+    assert.deepEqual(EngineApi.beginShadeDuel(rejectedSaveRun, () => true), {
+      status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false, duel: null,
+    });
+    assert.deepEqual(rejectedSaveRun, rejectedSaveBefore,
+      'a rejected pending-duel save rolls every Shade claim mutation back inside the engine');
+
+    writes = 0;
+    rejectWrite = () => false;
+    const rejectedClearRun = makeStandingShade(4262);
+    const rejectedClearBefore = structuredClone(rejectedClearRun);
+    assert.deepEqual(EngineApi.beginShadeDuel(rejectedClearRun, () => false), {
+      status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false, duel: null,
+    });
+    assert.deepEqual(rejectedClearRun, rejectedClearBefore);
+    assert.deepEqual(loadRun(), rejectedClearBefore,
+      'an accepted rollback replaces the durable pending duel with the exact pre-claim run');
+
+    writes = 0;
+    rejectWrite = (attempt) => attempt === 2;
+    const reloadRun = makeStandingShade(4263);
+    const reloadBefore = structuredClone(reloadRun);
+    assert.deepEqual(EngineApi.beginShadeDuel(reloadRun, () => false), {
+      status: SHADE_DUEL_TX.RELOAD_PENDING, durablePending: true, duel: null,
+    });
+    assert.deepEqual(reloadRun, reloadBefore, 'the failed rollback also restores the live object');
+    const durablePending = loadRun();
+    assert.equal(durablePending.monument.claimed, true);
+    assert.equal(durablePending.pendingQuestId, 'ownShade');
+    assert.deepEqual(durablePending.questScratch.ownShade.pendingBequest, { kind: 'gold', amount: 50 });
+
+    rejectWrite = () => false;
+    assert.deepEqual(EngineApi.resumeShadeDuel(durablePending, () => false), {
+      status: SHADE_DUEL_TX.RETRY_CLEAR, durablePending: true,
+    });
+    assert.deepEqual(EngineApi.resumeShadeDuel(durablePending, () => true), {
+      status: SHADE_DUEL_TX.READY, durablePending: true,
+    });
+
+    writes = 0;
+    const readyRun = makeStandingShade(4264);
+    const ready = EngineApi.beginShadeDuel(readyRun, () => true);
+    assert.equal(ready.status, SHADE_DUEL_TX.READY);
+    assert.equal(ready.durablePending, true);
+    assert.equal(ready.duel.variantId, 'ownShade1');
+    assert.equal(readyRun.monument.claimed, true);
+    assert.equal(readyRun.pendingQuestId, 'ownShade');
+  } finally {
+    if (previousLocalStorage) globalThis.localStorage = previousLocalStorage;
+    else delete globalThis.localStorage;
+  }
+}
+{
+  // Title and Embark must preserve a terminal outbox instead of abandoning it.
+  for (const outcome of ['win', 'death']) {
+    const run = newRun(422 + outcome.length);
+    run.pendingRunEnd = { outcome };
+    assert.equal(savedRunRequiresFinalisation(run), true, `${outcome} resumes finalisation from entry screens`);
+    assert.strictEqual(journalTerminalOutcome(run, outcome), run.pendingRunEnd, `${outcome} may resume idempotently`);
+    assert.throws(
+      () => journalTerminalOutcome(run, 'abandon'),
+      /terminal outcome cannot change from .* to abandon/,
+      `${outcome} cannot be overwritten by Begin Anew`,
+    );
+    assert.equal(run.pendingRunEnd.outcome, outcome, `${outcome} survives the destructive action`);
+  }
+  assert.equal(savedRunRequiresFinalisation({ pendingDawn: { events: [], cursor: 0, newUnlocks: [] } }), true,
+    'a staged dawn resumes its presentation instead of exposing a destructive title action');
+  const dawn = newRun(425);
+  dawn.pendingDawn = { events: [], cursor: 0, newUnlocks: [] };
+  assert.throws(() => journalTerminalOutcome(dawn, 'abandon'), /staged dawn cannot be replaced/,
+    'a destructive global action cannot overwrite a staged dawn');
+  assert.deepEqual(dawn.pendingDawn, { events: [], cursor: 0, newUnlocks: [] });
+  assert.equal(dawn.pendingRunEnd, null);
+}
+{
+  // Persistence failures are retryable; a screen continuation is outside that catch and runs once.
+  const run = newRun(424);
+  let persistenceAttempts = 0;
+  let failures = 0;
+  let continuations = 0;
+  const fail = () => { failures++; };
+  assert.equal(finaliseTerminalOutbox(run, () => {
+    persistenceAttempts++;
+    throw new Error('quota');
+  }, fail, () => { continuations++; }), false);
+  assert.equal(finaliseTerminalOutbox(run, () => {
+    persistenceAttempts++;
+    return { accepted: false };
+  }, fail, () => { continuations++; }), false);
+  assert.equal(failures, 2, 'only persistence rejection opens retry handling');
+  assert.equal(continuations, 0);
+
+  assert.throws(() => finaliseTerminalOutbox(run, () => {
+    persistenceAttempts++;
+    return { accepted: true, outcome: 'win' };
+  }, fail, () => {
+    continuations++;
+    throw new Error('screen failed');
+  }), /screen failed/, 'continuation errors escape the persistence catch');
+  assert.equal(failures, 2, 'a screen error is never reported as a storage failure');
+  assert.equal(continuations, 1);
+
+  assert.equal(finaliseTerminalOutbox(run, () => {
+    persistenceAttempts++;
+    return { accepted: true };
+  }, fail, () => { continuations++; }), true, 'a started continuation is already finalised');
+  assert.equal(persistenceAttempts, 3, 'a continuation exception cannot replay persistence');
+  assert.equal(continuations, 1, 'a continuation exception cannot replay the screen action');
+}
+{
   const run = newRun(1);
+  assert.match(run.runId, /^run-[a-z0-9-]+$/, 'new runs own a stable receipt id');
+  assert.notEqual(newRun(1).runId, run.runId, 'same-seed runs still receive distinct ids');
+  assert.equal(run.pendingReward, null);
+  assert.equal(run.pendingRunEnd, null);
   assert.equal(run.player.deck.length, 10, 'starter deck');
   assert.equal(run.player.hp, 72);
   assert.ok(run.map.nodes.length > 20, 'map has nodes');
@@ -280,6 +449,95 @@ function forceHand(run, cb, ids) {
     for (const id of n.next) assert.ok(run.map.nodes.find((m) => m.id === id), 'edge target exists');
   }
   assert.ok(availableNodes(run).length > 0, 'start choices exist');
+}
+{
+  const base = {
+    name: 'Base', hp: [100, 120], facets: 4, art: { kind: 'beast', hue: 20, size: 1 },
+    startStatus: { thorns: 1 },
+    moves: { hit: { name: 'Hit', intent: 'attack', dmg: 10 }, guard: { name: 'Guard', intent: 'block', block: 8 } },
+    ai: () => 'hit',
+  };
+  const variant = {
+    id: 'testVariant', base: 'base', name: 'Wrong Glass',
+    tint: { hue: 90, saturation: 0.5, brightness: 1.1 }, scale: 1.2,
+    statMods: { hpMult: 1.25, dmgMult: 1.3, addStatuses: { str: 2 } },
+    dialogue: ['Speak.'], drop: null,
+  };
+  const made = makeVariant(base, variant);
+  assert.deepEqual(made.hp, [125, 150]);
+  assert.equal(made.moves.hit.dmg, 13);
+  assert.equal(made.moves.guard.block, 8, 'damage scaling does not change block');
+  assert.deepEqual(made.startStatus, { thorns: 1, str: 2 });
+  assert.equal(base.moves.hit.dmg, 10, 'base definition not mutated');
+
+  const run = newRun(420);
+  const cb = startCombat(run, ['paleDuskfang']);
+  assert.equal(cb.enemies[0].key, 'duskfang');
+  assert.equal(cb.enemies[0].variantId, 'paleDuskfang');
+  assert.equal(cb.enemies[0].presentation.artId, 'duskfang');
+  assert.ok(cb.enemies[0].maxHp > 30);
+
+  const bossCb = startCombat(newRun(421), ['usurpedSovereign'], 'boss');
+  assert.deepEqual(bossCb.queue.slice(0, 4).map((event) => event.t),
+    ['bossIntro', 'variantDialogue', 'variantDialogue', 'variantDialogue']);
+  assert.match(bossCb.queue[1].text, /^Duskblade\./, 'dialogue expands the aspect name without its article');
+  const ashBossCb = startCombat(newRun(422, { aspect: 1 }), ['usurpedSovereign'], 'boss');
+  assert.match(ashBossCb.queue[1].text, /^Ashwarden\./,
+    'variant dialogue expands the alternate aspect name without its article');
+
+  const shadeQuests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+    state: id === 'ownShade' ? 'armed' : 'dormant', progress: 0, memory: {},
+  }]));
+  const shadeRun = newRun(423, { quests: shadeQuests });
+  const shadeCb = startCombat(shadeRun, ['ownShade1']);
+  assert.equal(shadeRun.quests.ownShade.state, 'revealed',
+    'meeting an armed Shade reveals its Trail even if the duel is later lost');
+  assert.ok(shadeCb.queue.some((event) => event.t === 'questReveal' && event.id === 'ownShade'));
+  assert.equal(shadeCb.queue.some((event) => event.t === 'variantDialogue' &&
+    event.text === QUESTS.ownShade.fragments[0]), false,
+  'a living Shade does not reveal its defeated story fragment');
+  shadeCb.enemies[0].hp = 1;
+  forceHand(shadeRun, shadeCb, ['strike']);
+  shadeCb.player.energy = 3;
+  playCard(shadeRun, shadeCb, shadeCb.hand[0].uid, 0);
+  const shadeDeath = shadeCb.queue.findIndex((event) => event.t === 'die');
+  const shadeFragment = shadeCb.queue.findIndex((event) => event.t === 'variantDialogue' &&
+    event.text === QUESTS.ownShade.fragments[0]);
+  const shadeVictory = shadeCb.queue.findIndex((event) => event.t === 'victory');
+  assert.ok(shadeDeath >= 0 && shadeDeath < shadeFragment && shadeFragment < shadeVictory,
+    'a defeated Shade speaks its stage fragment after death and before victory');
+}
+{
+  const run = newRun(420);
+  const boss = run.map.nodes.find((node) => node.type === 'boss');
+  visitNode(run, boss);
+  setPendingEncounter(run, 'boss', ['rootheart']);
+  assert.equal(hasPendingBossRelic(run), false, 'an unfinished boss fight is not a relic ceremony');
+  clearPendingEncounter(run);
+  assert.equal(hasPendingBossRelic(run), true, 'a cleared visited Act 1 boss resumes its relic ceremony');
+  claimBossRelic(run, null);
+  assert.equal(hasPendingBossRelic(run), true, 'a saved relic claim still resumes the act transition');
+  run.act = 2;
+  assert.equal(hasPendingBossRelic(run), false, 'the final boss never offers a boss relic');
+}
+{
+  const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+    state: id === 'paleOnes' ? 'armed' : 'dormant', progress: 0, memory: {},
+  }]));
+  const run = newRun(410, { quests });
+
+  const dormantEvents = [];
+  const dormant = advanceQuest(run, 'ownShade', QUESTS.ownShade.target, dormantEvents);
+  assert.equal(dormant.state, 'dormant', 'a dormant quest stays dormant');
+  assert.equal(dormant.progress, 0, 'a dormant quest cannot progress');
+  assert.deepEqual(dormantEvents, [], 'a dormant quest emits no events');
+  assert.deepEqual(run.questCompletions, [], 'a dormant quest cannot complete');
+
+  const armedEvents = [];
+  const armed = advanceQuest(run, 'paleOnes', 1, armedEvents);
+  assert.equal(armed.state, 'revealed', 'an armed quest reveals before progressing');
+  assert.equal(armed.progress, 1, 'an armed quest can progress');
+  assert.deepEqual(armedEvents.map((e) => e.t), ['questReveal', 'questProgress']);
 }
 {
   const { run, cb } = freshCombat();
@@ -786,6 +1044,10 @@ function forceHand(run, cb, ids) {
     delete runLoad.bossRelicAct;
     delete runLoad.orphanRewardClaimed;
     delete runLoad.orphanRewardResolving;
+    delete runLoad.pendingHollow;
+    delete runLoad.pendingHollowRoute;
+    delete runLoad.pendingDawn;
+    delete runLoad.boonReceipt;
     saveRun(runLoad);
     const reloaded = loadRun();
     assert.ok(reloaded, 'loadRun returns saved run');
@@ -793,6 +1055,10 @@ function forceHand(run, cb, ids) {
     assert.equal(reloaded.bossRelicAct, -1, 'loadRun self-heals bossRelicAct');
     assert.equal(reloaded.orphanRewardClaimed, false, 'loadRun self-heals orphanRewardClaimed');
     assert.equal(reloaded.orphanRewardResolving, false, 'loadRun self-heals orphanRewardResolving');
+    assert.equal(reloaded.pendingHollow, null, 'loadRun self-heals pendingHollow');
+    assert.equal(reloaded.pendingHollowRoute, null, 'loadRun self-heals pendingHollowRoute');
+    assert.equal(reloaded.pendingDawn, null, 'loadRun self-heals pendingDawn');
+    assert.equal(reloaded.boonReceipt, null, 'loadRun self-heals boonReceipt');
     assert.equal(claimTreasure(reloaded).already, true, 'reward flags survive loadRun round-trip');
 
     const runEvLoad = newRun(96);
@@ -807,6 +1073,707 @@ function forceHand(run, cb, ids) {
     reloadedEv.nodeId = evNode.id;
     assert.equal(savedEvNode.rewardResolving, true, 'rewardResolving survives loadRun round-trip');
     assert.equal(applyNodeEventChoice(reloadedEv, [{ gold: 99 }]).already, true);
+
+    const saveQuests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'paleOnes' ? 'armed' : 'dormant', progress: 0, memory: {},
+    }]));
+    const pending = newRun(411, { quests: saveQuests });
+    setPendingEncounter(pending, 'monster', ['paleDuskfang'], 'paleOnes');
+    saveRun(pending);
+    assert.deepEqual(loadRun().pendingEnemyIds, ['paleDuskfang']);
+    assert.equal(saveRun(pending), true, 'saveRun acknowledges durable storage');
+    const workingSetItem = globalThis.localStorage.setItem;
+    globalThis.localStorage.setItem = () => { throw new Error('quota'); };
+    assert.equal(saveRun(pending), false, 'saveRun reports a rejected write');
+    globalThis.localStorage.setItem = workingSetItem;
+
+    clearPendingEncounter(pending);
+    assert.equal(saveRun(pending), true, 'victory clear requires a durable checkpoint');
+    const cleared = loadRun();
+    assert.equal(cleared.pendingCombat, null, 'victory checkpoint clears pending combat on reload');
+    assert.equal(cleared.pendingEnemyIds, null, 'victory checkpoint clears exact enemies on reload');
+    assert.equal(cleared.pendingQuestId, null, 'victory checkpoint clears pending quest on reload');
+
+    const rewardPending = newRun(416, { quests: saveQuests });
+    setPendingReward(rewardPending, 'elite', {
+      gold: 25, cards: ['strike', 'defend'], potion: 'healing', relic: 'ironTalisman',
+    }, true);
+    saveRun(rewardPending);
+    let rewardReload = loadRun();
+    assert.deepEqual(rewardReload.pendingReward, rewardPending.pendingReward, 'pending reward survives reload exactly');
+    const rewardGold0 = rewardReload.player.gold;
+    assert.equal(takePendingReward(rewardReload, 'gold'), true);
+    assert.equal(saveRun(rewardReload), true);
+    rewardReload = loadRun();
+    assert.equal(rewardReload.pendingReward.taken.gold, true);
+    assert.equal(rewardReload.player.gold, rewardGold0 + 25);
+    assert.equal(takePendingReward(rewardReload, 'gold'), false, 'reloaded taken reward stays idempotent');
+
+    const pageQuests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'unreadablePage' ? 'armed' : 'dormant', progress: 0, memory: {},
+    }]));
+    const pageRewardRun = newRun(419, { quests: pageQuests });
+    const firstPageRewards = genCombatRewards(pageRewardRun, 'monster');
+    setPendingReward(pageRewardRun, 'monster', firstPageRewards);
+    assert.ok(!pageRewardRun.pendingReward.rewards.cards.includes('unreadablePage'));
+    clearPendingReward(pageRewardRun);
+    const exactPageRewards = genCombatRewards(pageRewardRun, 'monster');
+    setPendingReward(pageRewardRun, 'monster', exactPageRewards);
+    const exactPageOutbox = structuredClone(pageRewardRun.pendingReward);
+    assert.ok(exactPageOutbox.rewards.cards.includes('unreadablePage'));
+    assert.equal(saveRun(pageRewardRun), true);
+    const pageRewardReload = loadRun();
+    assert.deepEqual(pageRewardReload.pendingReward, exactPageOutbox,
+      'reload resumes the exact generated Page choice and taken state');
+    assert.deepEqual(pageRewardReload.questScratch.unreadablePage, { rewardOrdinal: 2, offered: true },
+      'reload does not regenerate or re-advance the Page offer');
+
+    for (const outcome of ['win', 'death', 'abandon']) {
+      const finalPending = newRun(417, { quests: saveQuests });
+      finalPending.pendingRunEnd = { outcome };
+      saveRun(finalPending);
+      assert.deepEqual(loadRun().pendingRunEnd, { outcome }, `${outcome} run-end journal survives reload`);
+    }
+
+    for (const marker of ['meeting', 'destination']) {
+      const terminalHollow = newRun(marker === 'meeting' ? 426 : 427, { quests: saveQuests });
+      const node = terminalHollow.map.nodes[0];
+      node.type = 'rest';
+      terminalHollow.nodeId = node.id;
+      terminalHollow.map.visited.push(node.id);
+      if (marker === 'meeting') {
+        terminalHollow.pendingHollow = {
+          nodeId: node.id, type: 'rest', paid: false, deferred: false, answer: null,
+        };
+      } else {
+        terminalHollow.pendingHollowRoute = { nodeId: node.id, type: 'rest', eventId: null };
+      }
+
+      journalTerminalOutcome(terminalHollow, 'abandon');
+      assert.equal(terminalHollow.pendingHollow, null, `${marker} marker clears before terminal journalling`);
+      assert.equal(terminalHollow.pendingHollowRoute, null, `${marker} route clears before terminal journalling`);
+      assert.deepEqual(terminalHollow.pendingRunEnd, { outcome: 'abandon' });
+      assert.equal(saveRun(terminalHollow), true, `${marker} terminal outbox saves`);
+
+      let failures = 0;
+      assert.equal(finaliseTerminalOutbox(
+        terminalHollow,
+        () => ({ accepted: false }),
+        () => { failures++; },
+        () => assert.fail(`${marker} rejected finalisation must not continue`),
+      ), false, `${marker} failed finalisation remains retryable`);
+      assert.equal(failures, 1);
+      const terminalReload = loadRun();
+      assert.ok(terminalReload, `${marker} failed finalisation reloads the durable run`);
+      assert.equal(savedRunRequiresFinalisation(terminalReload), true,
+        `${marker} failed finalisation resumes its terminal outbox after reload`);
+      assert.deepEqual(terminalReload.pendingRunEnd, { outcome: 'abandon' });
+      assert.equal(terminalReload.pendingHollow, null);
+      assert.equal(terminalReload.pendingHollowRoute, null);
+    }
+
+    const legacyId = newRun(418, { quests: saveQuests });
+    delete legacyId.runId;
+    saveRun(legacyId);
+    const healedLegacy = loadRun();
+    assert.match(healedLegacy.runId, /^legacy-[a-z0-9-]+$/, 'legacy run id self-heals deterministically');
+    const healedId = healedLegacy.runId;
+    saveRun(healedLegacy);
+    assert.equal(loadRun().runId, healedId, 'healed legacy run id remains stable');
+
+    const legacyPending = newRun(413, { quests: saveQuests });
+    legacyPending.pendingCombat = 'monster';
+    delete legacyPending.pendingEnemyIds;
+    delete legacyPending.pendingQuestId;
+    saveRun(legacyPending);
+    const backfill = loadRun();
+    assert.equal(backfill.pendingEnemyIds, null, 'legacy pending save self-heals missing enemy ids');
+    setPendingEncounter(backfill, 'monster', ['paleDuskfang'], 'paleOnes');
+    globalThis.localStorage.setItem = () => { throw new Error('quota'); };
+    assert.equal(saveRun(backfill), false, 'rejected backfill is not durable');
+    globalThis.localStorage.setItem = workingSetItem;
+    assert.equal(loadRun().pendingEnemyIds, null, 'rejected backfill leaves the stored encounter unmodified');
+    assert.equal(saveRun(backfill), true, 'legacy backfill can be retried');
+    assert.deepEqual(loadRun().pendingEnemyIds, ['paleDuskfang'], 'accepted backfill survives reload');
+
+    const monumentRun = newRun(425, {
+      monument: { act: 1, row: 7, bequest: { kind: 'card', id: 'oblivionStrike', up: true } },
+    });
+    assert.equal(saveRun(monumentRun), true);
+    const monumentReload = loadRun();
+    assert.deepEqual(monumentReload.monument, {
+      act: 1, row: 7, bequest: { kind: 'card', id: 'oblivionStrike', up: true }, claimed: false,
+    }, 'a Phase 1 monument survives save/load exactly');
+    const monumentDeckSize = monumentReload.player.deck.length;
+    assert.deepEqual(claimMonument(monumentReload), { kind: 'card', id: 'oblivionStrike', up: true });
+    assert.equal(monumentReload.monument.claimed, true, 'claim state is a persisted boolean');
+    assert.equal(saveRun(monumentReload), true);
+    const claimedMonumentReload = loadRun();
+    assert.equal(claimedMonumentReload.monument.claimed, true);
+    assert.equal(claimedMonumentReload.player.deck.length, monumentDeckSize + 1);
+    assert.equal(claimMonument(claimedMonumentReload), null, 'a reloaded monument cannot pay twice');
+
+    const standingMonumentRun = newRun(426, {
+      monument: { act: 1, row: 8, bequest: { kind: 'gold', amount: 50 }, standing: true, shadeAspect: 1 },
+    });
+    assert.equal(saveRun(standingMonumentRun), true);
+    assert.deepEqual(loadRun().monument, {
+      act: 1, row: 8, bequest: { kind: 'gold', amount: 50 }, standing: true, shadeAspect: 1, claimed: false,
+    }, 'a standing Shade monument survives save/load exactly');
+
+    const phase2NormalMonumentRun = newRun(427, {
+      monument: { act: 1, row: 6, bequest: { kind: 'gold', amount: 40 }, standing: false },
+    });
+    assert.equal(saveRun(phase2NormalMonumentRun), true);
+    assert.deepEqual(loadRun().monument, {
+      act: 1, row: 6, bequest: { kind: 'gold', amount: 40 }, standing: false, claimed: false,
+    }, 'a Phase 2 normal monument keeps its explicit non-standing marker');
+
+    const legacyHollowComplete = newRun(429, { quests: saveQuests });
+    legacyHollowComplete.quests.hollowLamplighter = {
+      state: 'complete', progress: QUESTS.hollowLamplighter.target,
+      memory: { eligibleMisses: 0 },
+    };
+    assert.equal(saveRun(legacyHollowComplete), true);
+    assert.deepEqual(loadRun().quests.hollowLamplighter, {
+      state: 'complete', progress: QUESTS.hollowLamplighter.target, memory: {},
+    }, 'the preceding build\'s completed Hollow pity residue self-heals on load');
+
+    const rejectSaved = (label, mutate) => {
+      const bad = newRun(412, { quests: saveQuests });
+      mutate(bad);
+      saveRun(bad);
+      assert.equal(loadRun(), null, label);
+    };
+    const validDawnEvents = () => [
+      { t: 'whisper', text: 'The climb continues.' },
+      { t: 'questReveal', id: 'paleOnes' },
+      { t: 'questProgress', id: 'paleOnes', progress: 3, target: QUESTS.paleOnes.target },
+      { t: 'questUnlock', id: 'insight:witchlightLens' },
+      { t: 'pageRead', index: 2, text: 'A durable page.' },
+      { t: 'eighthResolved', text: 'Eight becomes one.' },
+      { t: 'shadeResolved', text: 'The shade remembers.' },
+      { t: 'questComplete', id: 'paleOnes' },
+      { t: 'shardGrant', id: 'paleOnes' },
+      { t: 'act4Reveal' },
+    ];
+    const setPendingDawn = (r, overrides = {}) => {
+      r.pendingDawn = {
+        events: validDawnEvents(), cursor: 0, newUnlocks: ['aspect2'], ...overrides,
+      };
+    };
+    const validDawn = newRun(428, { quests: saveQuests });
+    setPendingDawn(validDawn);
+    assert.equal(saveRun(validDawn), true);
+    assert.deepEqual(loadRun().pendingDawn, validDawn.pendingDawn,
+      'an exact dawn presentation outbox round-trips');
+    const terminalQueue = newRun(430, { quests: saveQuests });
+    terminalQueue.pendingRunEnd = { outcome: 'win' };
+    terminalQueue.endQueue = validDawnEvents().filter((event) =>
+      !['whisper', 'shardGrant', 'act4Reveal'].includes(event.t));
+    assert.equal(saveRun(terminalQueue), true);
+    const acceptedTerminalQueue = loadRun();
+    assert.ok(acceptedTerminalQueue, 'the strict shared schema accepts canonical terminal quest events');
+    assert.equal(stagePendingDawn(acceptedTerminalQueue, acceptedTerminalQueue.endQueue, []), true,
+      'every accepted canonical terminal event can enter the dawn outbox');
+    rejectSaved('unknown variant', (r) => setPendingEncounter(r, 'monster', ['paleUnknown'], 'paleOnes'));
+    rejectSaved('unknown quest record', (r) => { r.quests.unknown = { state: 'armed', progress: 0, memory: {} }; });
+    rejectSaved('invalid quest state', (r) => { r.quests.paleOnes.state = 'waiting'; });
+    rejectSaved('negative quest progress', (r) => { r.quests.paleOnes.progress = -1; });
+    rejectSaved('dormant quest with progress', (r) => { r.quests.ownShade.progress = 1; });
+    rejectSaved('complete quest below target', (r) => {
+      r.quests.ownShade = { state: 'complete', progress: QUESTS.ownShade.target - 1, memory: {} };
+    });
+    rejectSaved('active quest at completion target', (r) => {
+      r.quests.ownShade = { state: 'revealed', progress: QUESTS.ownShade.target, memory: {} };
+    });
+    rejectSaved('dormant Eighth with guarantee memory', (r) => {
+      r.quests.eighthOmen.memory = { dueIn: 1 };
+    });
+    rejectSaved('seen Eighth with a second guarantee', (r) => {
+      r.quests.eighthOmen = { state: 'revealed', progress: 0, memory: { seen: true, dueIn: 1 } };
+    });
+    rejectSaved('dormant Hollow with ember debt', (r) => {
+      r.quests.hollowLamplighter.memory = { emberDebt: 1 };
+    });
+    rejectSaved('advanced Hollow with ember debt', (r) => {
+      r.quests.hollowLamplighter = { state: 'revealed', progress: 1, memory: { emberDebt: 1 } };
+    });
+    rejectSaved('unknown shard', (r) => { r.shards = ['unknown']; });
+    rejectSaved('unknown scratch key', (r) => { r.questScratch.unknown = {}; });
+    rejectSaved('malformed scratch', (r) => { r.questScratch.paleOnes = { hiddenDue: 'yes' }; });
+    rejectSaved('unknown completion', (r) => { r.questCompletions = ['unknown']; });
+    rejectSaved('unknown end event', (r) => { r.endQueue = [{ t: 'mystery' }]; });
+    rejectSaved('fractional end-queue quest progress', (r) => {
+      r.endQueue = [{
+        t: 'questProgress', id: 'paleOnes', progress: 1.5, target: QUESTS.paleOnes.target,
+      }];
+    });
+    rejectSaved('stale end-queue quest target', (r) => {
+      r.endQueue = [{
+        t: 'questProgress', id: 'paleOnes', progress: 1, target: QUESTS.paleOnes.target - 1,
+      }];
+    });
+    rejectSaved('end-queue quest progress past target', (r) => {
+      r.endQueue = [{
+        t: 'questProgress', id: 'ownShade', progress: QUESTS.ownShade.target + 1,
+        target: QUESTS.ownShade.target,
+      }];
+    });
+    rejectSaved('extra end-queue quest event key', (r) => {
+      r.endQueue = [{ t: 'questReveal', id: 'paleOnes', extra: true }];
+    });
+    rejectSaved('unknown marked-node variant', (r) => { r.map.nodes[0].questVariantId = 'paleUnknown'; });
+    rejectSaved('malformed run id', (r) => { r.runId = '__proto__'; });
+    rejectSaved('invalid pending run end', (r) => { r.pendingRunEnd = { outcome: 'retreat' }; });
+    rejectSaved('extra pending run-end key', (r) => { r.pendingRunEnd = { outcome: 'win', extra: true }; });
+    rejectSaved('unknown pending dawn event', (r) => setPendingDawn(r, { events: [{ t: 'mystery' }] }));
+    rejectSaved('extra pending dawn marker key', (r) => {
+      setPendingDawn(r);
+      r.pendingDawn.extra = true;
+    });
+    rejectSaved('missing pending dawn cursor', (r) => {
+      setPendingDawn(r);
+      delete r.pendingDawn.cursor;
+    });
+    rejectSaved('fractional pending dawn cursor', (r) => setPendingDawn(r, { cursor: 0.5 }));
+    rejectSaved('pending dawn cursor past the queue', (r) => setPendingDawn(r, { cursor: 99 }));
+    rejectSaved('extra pending dawn event key', (r) => {
+      const events = validDawnEvents();
+      events[0].extra = true;
+      setPendingDawn(r, { events });
+    });
+    rejectSaved('unknown pending dawn quest', (r) => {
+      setPendingDawn(r, { events: [{ t: 'questReveal', id: 'toString' }] });
+    });
+    rejectSaved('invalid pending dawn quest target', (r) => {
+      setPendingDawn(r, { events: [{ t: 'questProgress', id: 'paleOnes', progress: 3, target: 99 }] });
+    });
+    rejectSaved('invalid pending dawn persisted copy', (r) => {
+      setPendingDawn(r, { events: [{ t: 'eighthResolved', text: 8 }] });
+    });
+    rejectSaved('unknown pending dawn unlock', (r) => setPendingDawn(r, { newUnlocks: ['card:toString'] }));
+    rejectSaved('duplicate pending dawn unlock', (r) => setPendingDawn(r, { newUnlocks: ['aspect2', 'aspect2'] }));
+    rejectSaved('pending dawn excludes pending run end', (r) => {
+      setPendingDawn(r);
+      r.pendingRunEnd = { outcome: 'win' };
+    });
+    rejectSaved('pending dawn excludes pending combat', (r) => {
+      setPendingDawn(r);
+      setPendingEncounter(r, 'monster', ['sporeling']);
+    });
+    rejectSaved('pending dawn excludes pending reward', (r) => {
+      setPendingDawn(r);
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+    });
+    rejectSaved('negative pending reward gold', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.rewards.gold = -1;
+    });
+    rejectSaved('invalid pending reward kind', (r) => {
+      setPendingReward(r, 'event', { gold: 1, cards: ['strike'], potion: null, relic: null });
+    });
+    rejectSaved('duplicate pending reward cards', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike', 'strike'], potion: null, relic: null });
+    });
+    rejectSaved('unknown pending reward card', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.rewards.cards = ['toString'];
+    });
+    rejectSaved('unknown pending reward potion', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.rewards.potion = 'constructor';
+    });
+    rejectSaved('unknown pending reward relic', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.rewards.relic = 'toString';
+    });
+    rejectSaved('invalid pending reward taken flag', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.taken.card = 'yes';
+    });
+    rejectSaved('missing pending reward taken flag', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      delete r.pendingReward.taken.card;
+    });
+    rejectSaved('invalid pending reward perfect flag', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.perfect = 1;
+    });
+    rejectSaved('extra pending reward key', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.extra = true;
+    });
+    rejectSaved('extra pending reward payload key', (r) => {
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+      r.pendingReward.rewards.extra = true;
+    });
+    rejectSaved('missing Hollow node', (r) => {
+      r.pendingHollow = { nodeId: 'missing', type: 'event', paid: false, deferred: false, answer: null };
+    });
+    rejectSaved('mismatched Hollow type', (r) => {
+      r.pendingHollow = {
+        nodeId: r.map.nodes[0].id, type: r.map.nodes[0].type === 'event' ? 'shop' : 'event',
+        paid: false, deferred: false, answer: null,
+      };
+    });
+    rejectSaved('extra Hollow field', (r) => {
+      r.pendingHollow = {
+        nodeId: r.map.nodes[0].id, type: r.map.nodes[0].type,
+        paid: false, deferred: false, answer: null, extra: true,
+      };
+    });
+    rejectSaved('unpaid Hollow answer', (r) => {
+      r.pendingHollow = {
+        nodeId: r.map.nodes[0].id, type: r.map.nodes[0].type,
+        paid: false, deferred: false, answer: 'too early',
+      };
+    });
+    const setPendingHollow = (r) => {
+      const node = r.map.nodes[0];
+      r.nodeId = node.id;
+      if (!r.map.visited.includes(node.id)) r.map.visited.push(node.id);
+      r.pendingHollow = {
+        nodeId: node.id, type: node.type,
+        paid: false, deferred: false, answer: null,
+      };
+    };
+    rejectSaved('Hollow meeting must be the current visited node', (r) => {
+      setPendingHollow(r);
+      r.nodeId = null;
+    });
+    rejectSaved('Hollow meeting rejects an unvisited current node', (r) => {
+      setPendingHollow(r);
+      r.map.visited = r.map.visited.filter((id) => id !== r.nodeId);
+    });
+    rejectSaved('Hollow meeting excludes pending combat', (r) => {
+      setPendingHollow(r);
+      setPendingEncounter(r, 'monster', ['sporeling']);
+    });
+    rejectSaved('Hollow meeting excludes pending reward', (r) => {
+      setPendingHollow(r);
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+    });
+    rejectSaved('Hollow meeting excludes pending run end', (r) => {
+      setPendingHollow(r);
+      r.pendingRunEnd = { outcome: 'death' };
+    });
+    rejectSaved('pending dawn excludes a Hollow meeting', (r) => {
+      setPendingHollow(r);
+      setPendingDawn(r);
+    });
+    const firstEventId = Object.keys(EVENTS)[0];
+    const setHollowRoute = (r, type = 'rest', eventId = null) => {
+      const node = r.map.nodes[0];
+      node.type = type;
+      r.nodeId = node.id;
+      if (!r.map.visited.includes(node.id)) r.map.visited.push(node.id);
+      r.pendingHollowRoute = { nodeId: node.id, type, eventId };
+    };
+    const validHollowRoute = newRun(497, { quests: saveQuests });
+    setHollowRoute(validHollowRoute, 'event', firstEventId);
+    assert.equal(saveRun(validHollowRoute), true);
+    assert.deepEqual(loadRun().pendingHollowRoute, validHollowRoute.pendingHollowRoute,
+      'valid exact Hollow destination route round-trips');
+    const heldHollowRoute = structuredClone(validHollowRoute.pendingHollowRoute);
+    globalThis.localStorage.setItem = () => { throw new Error('quota'); };
+    assert.equal(EngineApi.completePendingHollowRoute(validHollowRoute), false,
+      'a rejected Hollow-route clear is not acknowledged');
+    assert.deepEqual(validHollowRoute.pendingHollowRoute, heldHollowRoute,
+      'the engine restores the live Hollow route after a rejected clear');
+    globalThis.localStorage.setItem = workingSetItem;
+    assert.equal(EngineApi.completePendingHollowRoute(validHollowRoute), true,
+      'the same Hollow-route clear can be retried');
+    assert.equal(validHollowRoute.pendingHollowRoute, null);
+    assert.equal(loadRun().pendingHollowRoute, null,
+      'the accepted engine transaction clears the durable Hollow route');
+    rejectSaved('missing Hollow route node', (r) => {
+      r.pendingHollowRoute = { nodeId: 'missing', type: 'rest', eventId: null };
+    });
+    rejectSaved('mismatched Hollow route type', (r) => {
+      const node = r.map.nodes[0];
+      node.type = 'rest';
+      r.pendingHollowRoute = { nodeId: node.id, type: 'shop', eventId: null };
+    });
+    rejectSaved('Hollow route must be the current visited node', (r) => {
+      setHollowRoute(r);
+      r.nodeId = null;
+    });
+    rejectSaved('Hollow route rejects an unvisited current node', (r) => {
+      setHollowRoute(r);
+      r.map.visited = r.map.visited.filter((id) => id !== r.nodeId);
+    });
+    rejectSaved('combat cannot be a Hollow destination marker', (r) => setHollowRoute(r, 'monster'));
+    rejectSaved('Hollow event route requires exact event identity', (r) => setHollowRoute(r, 'event'));
+    rejectSaved('unknown Hollow route event', (r) => setHollowRoute(r, 'event', 'toString'));
+    rejectSaved('non-event Hollow route rejects event identity', (r) => setHollowRoute(r, 'shop', firstEventId));
+    rejectSaved('extra Hollow route field', (r) => {
+      setHollowRoute(r);
+      r.pendingHollowRoute.extra = true;
+    });
+    rejectSaved('Hollow route excludes pending meeting', (r) => {
+      setHollowRoute(r);
+      r.pendingHollow = {
+        nodeId: r.map.nodes[0].id, type: r.map.nodes[0].type,
+        paid: false, deferred: false, answer: null,
+      };
+    });
+    rejectSaved('Hollow route excludes pending combat', (r) => {
+      setHollowRoute(r);
+      setPendingEncounter(r, 'monster', ['sporeling']);
+    });
+    rejectSaved('Hollow route excludes pending reward', (r) => {
+      setHollowRoute(r);
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+    });
+    rejectSaved('Hollow route excludes pending run end', (r) => {
+      setHollowRoute(r);
+      r.pendingRunEnd = { outcome: 'death' };
+    });
+    rejectSaved('pending dawn excludes a Hollow destination', (r) => {
+      setHollowRoute(r);
+      setPendingDawn(r);
+    });
+    const receipt = {
+      id: 'fullPurse',
+      playerDelta: { gold: 120, hp: 0, maxHp: 0, energyMax: 0 },
+      statsGoldEarned: 120, relicsAdded: [], potionSlotsAdded: [],
+    };
+    const validReceiptRun = newRun(498, { quests: saveQuests });
+    applyBoon(validReceiptRun, 'fullPurse');
+    saveRun(validReceiptRun);
+    assert.deepEqual(loadRun().boonReceipt, validReceiptRun.boonReceipt, 'valid boon receipt round-trips');
+
+    const paymentQuests = structuredClone(saveQuests);
+    paymentQuests.hollowLamplighter = { state: 'revealed', progress: 1, memory: {} };
+    const paymentRun = newRun(499, { quests: paymentQuests });
+    const paymentNode = paymentRun.map.nodes[0];
+    paymentRun.nodeId = paymentNode.id;
+    paymentRun.map.visited.push(paymentNode.id);
+    paymentRun.pendingHollow = {
+      nodeId: paymentNode.id, type: paymentNode.type,
+      paid: false, deferred: false, answer: null,
+    };
+    paymentRun.player.gold = 160;
+    const paidOnce = payHollowPrice(paymentRun);
+    assert.equal(saveRun(paymentRun), true);
+    const paidReload = loadRun();
+    const paidSnapshot = { gold: paidReload.player.gold, progress: paidReload.quests.hollowLamplighter.progress };
+    assert.deepEqual(payHollowPrice(paidReload), paidOnce, 'reloaded paid meeting is idempotent');
+    assert.deepEqual({ gold: paidReload.player.gold, progress: paidReload.quests.hollowLamplighter.progress }, paidSnapshot);
+
+    rejectSaved('unknown receipt boon', (r) => { r.boon = 'unknown'; r.boonReceipt = { ...receipt, id: 'unknown' }; });
+    rejectSaved('unknown boon without receipt', (r) => { r.boon = 'toString'; });
+    rejectSaved('incomplete player delta', (r) => {
+      r.boon = 'fullPurse';
+      r.boonReceipt = { ...receipt, playerDelta: { gold: 120 } };
+    });
+    rejectSaved('negative stats delta', (r) => { r.boon = 'fullPurse'; r.boonReceipt = { ...receipt, statsGoldEarned: -1 }; });
+    rejectSaved('unknown receipt relic', (r) => { r.boon = 'fullPurse'; r.boonReceipt = { ...receipt, relicsAdded: ['unknown'] }; });
+    rejectSaved('invalid potion slot', (r) => {
+      r.boon = 'fullPurse';
+      r.boonReceipt = { ...receipt, potionSlotsAdded: [{ index: 999, id: 'fire' }] };
+    });
+    rejectSaved('extra receipt field', (r) => {
+      r.boon = 'fullPurse';
+      r.boonReceipt = { ...receipt, extra: true };
+    });
+    rejectSaved('extra player delta field', (r) => {
+      r.boon = 'fullPurse';
+      r.boonReceipt = { ...receipt, playerDelta: { ...receipt.playerDelta, extra: 0 } };
+    });
+    rejectSaved('extra potion record field', (r) => {
+      r.boon = 'fullPurse';
+      r.boonReceipt = { ...receipt, potionSlotsAdded: [{ index: 0, id: 'fire', extra: true }] };
+    });
+    rejectSaved('inherited monument card toString', (r) => {
+      r.monument = { act: 0, row: 5, bequest: { kind: 'card', id: 'toString', up: false }, claimed: false };
+    });
+    rejectSaved('inherited monument relic constructor', (r) => {
+      r.monument = { act: 0, row: 5, bequest: { kind: 'relic', id: 'constructor' }, claimed: false };
+    });
+    rejectSaved('unknown monument field', (r) => {
+      r.monument = { act: 0, row: 5, bequest: null, claimed: false, unknown: true };
+    });
+    rejectSaved('invalid monument act type', (r) => {
+      r.monument = { act: '0', row: 5, bequest: null, claimed: false };
+    });
+    rejectSaved('invalid monument row type', (r) => {
+      r.monument = { act: 0, row: 5.5, bequest: null, claimed: false };
+    });
+    rejectSaved('invalid monument claimed type', (r) => {
+      r.monument = { act: 0, row: 5, bequest: null, claimed: 'false' };
+    });
+    rejectSaved('missing monument claimed flag', (r) => {
+      r.monument = { act: 0, row: 5, bequest: null };
+    });
+    rejectSaved('invalid monument standing type', (r) => {
+      r.monument = { act: 1, row: 5, bequest: null, standing: 'true', shadeAspect: 1, claimed: false };
+    });
+    rejectSaved('standing monument missing shade aspect', (r) => {
+      r.monument = { act: 1, row: 5, bequest: null, standing: true, claimed: false };
+    });
+    rejectSaved('standing monument invalid shade aspect', (r) => {
+      r.monument = { act: 1, row: 5, bequest: null, standing: true, shadeAspect: 2, claimed: false };
+    });
+    rejectSaved('normal monument cannot carry shade aspect', (r) => {
+      r.monument = { act: 1, row: 5, bequest: null, standing: false, shadeAspect: 1, claimed: false };
+    });
+    for (const inheritedId of ['toString', 'constructor']) {
+      rejectSaved(`inherited deck card ${inheritedId}`, (r) => { r.player.deck[0].id = inheritedId; });
+      rejectSaved(`inherited player relic ${inheritedId}`, (r) => { r.player.relics = [inheritedId]; });
+      rejectSaved(`inherited player potion ${inheritedId}`, (r) => { r.player.potions[0] = inheritedId; });
+      rejectSaved(`inherited lantern art ${inheritedId}`, (r) => { r.art = inheritedId; });
+      rejectSaved(`inherited omen ${inheritedId}`, (r) => { r.omens = [inheritedId]; });
+      rejectSaved(`inherited pending enemy ${inheritedId}`, (r) => setPendingEncounter(r, 'monster', [inheritedId]));
+      rejectSaved(`inherited marked variant ${inheritedId}`, (r) => { r.map.nodes[0].questVariantId = inheritedId; });
+      rejectSaved(`inherited card bequest ${inheritedId}`, (r) => {
+        r.questScratch.ownShade = { pendingBequest: { kind: 'card', id: inheritedId } };
+      });
+      rejectSaved(`inherited relic bequest ${inheritedId}`, (r) => {
+        r.questScratch.ownShade = { pendingBequest: { kind: 'relic', id: inheritedId } };
+      });
+    }
+  } finally {
+    if (prevLs) globalThis.localStorage = prevLs;
+    else delete globalThis.localStorage;
+  }
+}
+{
+  // Legacy stats plus run-save cleanup are exactly once across a failed clear.
+  const store = new Map();
+  const prevLs = globalThis.localStorage;
+  let rejectRunClear = true;
+  try {
+    globalThis.localStorage = {
+      getItem: (k) => store.get(k) ?? null,
+      setItem: (k, v) => { store.set(k, v); },
+      removeItem: (k) => {
+        if (k === 'spirebound_save_v2' && rejectRunClear) throw new Error('busy');
+        store.delete(k);
+      },
+    };
+    const run = newRun(419);
+    run.pendingRunEnd = { outcome: 'win' };
+    saveRun(run);
+    assert.equal(recordRunEnd(run, true), false, 'failed run-save cleanup is retryable');
+    assert.equal(loadStats().runs, 1);
+    assert.equal(loadStats().wins, 1);
+    assert.equal(loadStats().lastRunId, run.runId);
+    assert.ok(loadRun(), 'failed cleanup leaves the final journal resumable');
+
+    rejectRunClear = false;
+    assert.equal(recordRunEnd(loadRun(), true), true, 'cleanup retry succeeds');
+    assert.equal(loadStats().runs, 1, 'cleanup retry cannot double-count runs');
+    assert.equal(loadStats().wins, 1, 'cleanup retry cannot double-count wins');
+    assert.equal(loadRun(), null, 'accepted cleanup removes the current run last');
+
+    const newerRun = newRun(423);
+    const newerSnapshot = JSON.stringify(newerRun);
+    saveRun(newerRun);
+    assert.equal(recordRunEnd(run, true), true, 'stale cleanup is an accepted no-op');
+    assert.equal(loadRun().runId, newerRun.runId, 'stale run A cleanup leaves newer run B intact');
+    assert.equal(store.get('spirebound_save_v2'), newerSnapshot, 'stale cleanup leaves run B byte-for-byte intact');
+    assert.equal(loadStats().runs, 1, 'stale cleanup cannot recount run A');
+  } finally {
+    if (prevLs) globalThis.localStorage = prevLs;
+    else delete globalThis.localStorage;
+  }
+}
+{
+  // A winning terminal journal becomes a durable, cursor-acknowledged dawn
+  // presentation before its run save may be removed.
+  const store = new Map();
+  const writes = [];
+  const prevLs = globalThis.localStorage;
+  let rejectStatsWrite = false;
+  let rejectRunWrite = false;
+  let rejectRunClear = false;
+  try {
+    globalThis.localStorage = {
+      getItem: (k) => store.get(k) ?? null,
+      setItem: (k, v) => {
+        writes.push(k);
+        if (k === 'spirebound_stats_v1' && rejectStatsWrite) throw new Error('stats busy');
+        if (k === 'spirebound_save_v2' && rejectRunWrite) throw new Error('run busy');
+        store.set(k, v);
+      },
+      removeItem: (k) => {
+        if (k === 'spirebound_save_v2' && rejectRunClear) throw new Error('clear busy');
+        store.delete(k);
+      },
+    };
+    const events = [
+      { t: 'whisper', text: 'The climb continues.' },
+      { t: 'eighthResolved', text: 'PERSIST THIS EXACT EIGHTH COPY' },
+      { t: 'shardGrant', id: 'paleOnes' },
+    ];
+    const run = newRun(429);
+    run.pendingRunEnd = { outcome: 'win' };
+    assert.equal(saveRun(run), true);
+
+    rejectStatsWrite = true;
+    assert.equal(stagePendingDawn(run, events, ['aspect2']), false,
+      'a rejected stats receipt cannot expose a dawn presentation');
+    assert.deepEqual(run.pendingRunEnd, { outcome: 'win' });
+    assert.equal(run.pendingDawn, null);
+    assert.equal(loadStats().runs, 0);
+    assert.deepEqual(loadRun().pendingRunEnd, { outcome: 'win' });
+
+    rejectStatsWrite = false;
+    rejectRunWrite = true;
+    writes.length = 0;
+    assert.equal(stagePendingDawn(run, events, ['aspect2']), false,
+      'a rejected dawn staging write restores the reloadable terminal journal');
+    assert.deepEqual(writes, ['spirebound_stats_v1', 'spirebound_save_v2'],
+      'the stats receipt is committed before the dawn outbox is attempted');
+    assert.deepEqual(run.pendingRunEnd, { outcome: 'win' });
+    assert.equal(run.pendingDawn, null);
+    assert.deepEqual(loadRun().pendingRunEnd, { outcome: 'win' });
+    assert.equal(loadStats().runs, 1);
+    assert.equal(loadStats().wins, 1);
+    const statsReceipt = store.get('spirebound_stats_v1');
+
+    rejectRunWrite = false;
+    assert.equal(stagePendingDawn(run, events, ['aspect2']), true, 'dawn staging is retryable');
+    assert.equal(run.pendingRunEnd, null);
+    assert.deepEqual(run.pendingDawn, { events, cursor: 0, newUnlocks: ['aspect2'] });
+    assert.deepEqual(loadRun().pendingDawn, run.pendingDawn, 'the presentation survives reload exactly');
+    assert.equal(store.get('spirebound_stats_v1'), statsReceipt, 'staging retry cannot recount the run');
+    assert.equal(savedRunRequiresFinalisation(loadRun()), true);
+
+    assert.equal(advancePendingDawn(run, 2), false, 'a cursor may acknowledge only the next panel');
+    assert.equal(advancePendingDawn(run, 1), true);
+    assert.equal(loadRun().pendingDawn.cursor, 1);
+    rejectRunWrite = true;
+    assert.equal(advancePendingDawn(run, 2), false, 'a rejected cursor acknowledgement remains retryable');
+    assert.equal(run.pendingDawn.cursor, 1, 'a rejected acknowledgement rolls back in memory');
+    assert.equal(loadRun().pendingDawn.cursor, 1, 'a rejected acknowledgement leaves the durable cursor untouched');
+    rejectRunWrite = false;
+    assert.equal(advancePendingDawn(run, 2), true);
+    assert.equal(advancePendingDawn(run, 3), true);
+    assert.equal(completePendingDawn(run), true, 'an acknowledged queue can clear its durable run');
+    assert.equal(run.pendingDawn, null);
+    assert.equal(loadRun(), null);
+    assert.equal(store.get('spirebound_stats_v1'), statsReceipt);
+
+    const clearRetry = newRun(430);
+    clearRetry.pendingRunEnd = { outcome: 'win' };
+    assert.equal(saveRun(clearRetry), true);
+    assert.equal(stagePendingDawn(clearRetry, [{ t: 'shadeResolved', text: 'Still here.' }], []), true);
+    assert.equal(completePendingDawn(clearRetry), false, 'an unfinished queue cannot clear its save');
+    assert.equal(advancePendingDawn(clearRetry, 1), true);
+    rejectRunClear = true;
+    assert.equal(completePendingDawn(clearRetry), false, 'a rejected final clear stays locked and retryable');
+    assert.equal(clearRetry.pendingDawn.cursor, 1);
+    assert.deepEqual(loadRun().pendingDawn, clearRetry.pendingDawn,
+      'a clear failure leaves the fully acknowledged outbox reloadable');
+    rejectRunClear = false;
+    assert.equal(completePendingDawn(clearRetry), true);
+    assert.equal(loadRun(), null);
+    assert.equal(commitRunStats(clearRetry, true), true, 'the committed stats receipt remains idempotent');
+    assert.equal(loadStats().runs, 2);
+    assert.equal(loadStats().wins, 2);
   } finally {
     if (prevLs) globalThis.localStorage = prevLs;
     else delete globalThis.localStorage;
@@ -1016,7 +1983,7 @@ function forceHand(run, cb, ids) {
   assert.equal(vigil.deeds.shatters, 15, 'deed stat folded in');
   assert.ok(newUnlocks.includes('card:quakeblow'), 'shatter deed pays out');
   assert.equal(vigil.news, true, 'deed progress pulses the Vigil');
-  assert.equal(commitRunToVigil(run, false).newUnlocks.length, 0, 'commit is idempotent');
+  assert.deepEqual(commitRunToVigil(run, false).newUnlocks, newUnlocks, 'receipt returns the original idempotent result');
   assert.equal(loadVigil().deeds.runs, 1, 'no double count');
   // a win unlocks the second aspect and the first vow
   const run2 = newRun(43);
@@ -1025,9 +1992,9 @@ function forceHand(run, cb, ids) {
   assert.equal(w.vigil.vowUnlocked, 1, 'vow I offered after a win');
   assert.deepEqual(syncVigil().unlocks, w.vigil.unlocks, 'sync finds nothing more owed');
   // bequests round-trip
-  setBequest(1, 7, { kind: 'gold', amount: 50 });
-  assert.deepEqual(loadVigil().lastFall, { act: 1, row: 7, bequest: { kind: 'gold', amount: 50 } });
-  clearBequest();
+  assert.equal(setBequest(1, 7, { kind: 'gold', amount: 50 }), true, 'bequest write persisted');
+  assert.deepEqual(loadVigil().lastFall, { act: 1, row: 7, bequest: { kind: 'gold', amount: 50 }, standing: false });
+  assert.equal(clearBequest(), true, 'bequest clear persisted');
   assert.equal(loadVigil().lastFall, null, 'monument claimed and cleared');
   _setStore(null);
 }
@@ -1069,11 +2036,12 @@ function forceHand(run, cb, ids) {
     'REVEALS derived from PROGRESSION.revealThresholds',
   );
   for (const r of REVEALS) {
-    assert.ok(r.trigger && (r.trigger.runsPlayed != null || r.trigger.wins != null), `reveal ${r.id} has a counter trigger`);
+    assert.ok(r.trigger && (r.trigger.runsPlayed != null || r.trigger.wins != null || r.trigger.shards != null), `reveal ${r.id} has a counter trigger`);
   }
-  for (const id of ['lamplighter', 'phials', 'omens', 'poolWave2', 'poolWave3', 'poolFull', 'emberglass']) {
+  for (const id of ['lamplighter', 'phials', 'omens', 'poolWave2', 'poolWave3', 'poolFull', 'emberglass', 'act4']) {
     assert.ok(REVEALS.some((r) => r.id === id), `reveal ${id} declared`);
   }
+  assert.equal(PROGRESSION.revealThresholds.act4.shards, QUEST_IDS.length, 'Act 4 waits for all quest shards');
   for (const [rev, w] of Object.entries(PROGRESSION.poolWaves)) {
     assert.ok(REVEALS.some((r) => r.id === rev), `wave ${rev} matches a reveal id`);
     for (const id of w.cards) assert.ok(CARDS[id] && !CARDS[id].locked, `wave card ${id} exists, not deed-locked`);
@@ -1082,13 +2050,684 @@ function forceHand(run, cb, ids) {
   assert.ok(Object.keys(POOL_GATE.cards).length && Object.keys(POOL_GATE.relics).length, 'pool gate derived');
 }
 {
+  const ids = ['paleOnes', 'ownShade', 'usurper', 'eighthOmen', 'unreadablePage', 'hollowLamplighter'];
+  assert.deepEqual(QUEST_IDS, ids);
+  assert.deepEqual(Object.keys(QUESTS), ids);
+  assert.equal(QUESTS.paleOnes.mode, 'Trail');
+  assert.equal(QUESTS.ownShade.mode, 'Trail');
+  assert.equal(QUESTS.usurper.mode, 'Gate');
+  assert.equal(QUESTS.eighthOmen.mode, 'Gate');
+  assert.equal(QUESTS.unreadablePage.mode, 'Trail');
+  assert.equal(QUESTS.hollowLamplighter.mode, 'Trail');
+  assert.equal(WHISPERS.length, 24);
+  assert.equal(WHISPERS.at(-1), 'The climb continues.');
+  assert.deepEqual(Object.keys(SHADE_KITS).sort(), ['ashwarden', 'duskblade']);
+  for (const [id, v] of Object.entries(VARIANTS)) {
+    assert.equal(v.id, id);
+    assert.ok(v.base === 'hero' || ENEMIES[v.base], 'variant base exists: ' + id);
+    assert.ok(v.tint && Number.isFinite(v.scale) && v.scale > 0);
+    assert.ok(Number.isFinite(v.statMods.hpMult) && Number.isFinite(v.statMods.dmgMult));
+    assert.ok(Array.isArray(v.dialogue));
+  }
+  const P = PROGRESSION.emberglass;
+  assert.deepEqual(P.armWins, [2, 4, 6, 8, 10]);
+  assert.equal(P.paleOnes.lensAt, 3);
+  assert.equal(P.paleOnes.completeAt, 9);
+  assert.equal(P.ownShade.completeAt, 3);
+  assert.equal(P.usurper.price, 650);
+  assert.equal(P.usurper.completeAt, 1);
+  assert.equal(P.eighthOmen.guaranteeRuns, 2);
+  assert.equal(P.eighthOmen.recurrenceChance, 1 / 3);
+  assert.equal(P.eighthOmen.completeAt, 1);
+  assert.equal(P.unreadablePage.completeAt, 5);
+  assert.equal(P.hollowLamplighter.completeAt, 5);
+}
+{
+  const q = Object.fromEntries(QUEST_IDS.map((id) => [id, { state: id === 'usurper' ? 'armed' : 'dormant', progress: 0, memory: {} }]));
+  const run = newRun(450, { quests: q });
+  run.act = 0;
+  assert.deepEqual(genShop(run).questItems, []);
+  const earlyGold = run.player.gold;
+  assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: false, reason: 'act' });
+  assert.equal(run.player.gold, earlyGold, 'an early direct purchase cannot spend gold');
+  assert.deepEqual(run.questScratch, {}, 'an early direct purchase cannot write scratch state');
+  run.act = 1;
+  let shop = genShop(run);
+  assert.equal(shop.questItems[0].price, 650);
+  assert.equal(shop.cards.length, 5, 'quest stock never displaces ordinary cards');
+  assert.equal(genShop(run).questItems.length, 1, 'every qualifying shop repeats the fixed item until purchase');
+  assert.equal(run.quests.usurper.state, 'revealed', 'first sight reveals inscription');
+  const poorGold = run.player.gold;
+  const poorScratch = structuredClone(run.questScratch);
+  assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: false, reason: 'gold' });
+  assert.equal(run.player.gold, poorGold, 'an unaffordable purchase cannot spend gold');
+  assert.deepEqual(run.questScratch, poorScratch, 'an unaffordable purchase cannot write scratch state');
+  run.player.gold = 650;
+  assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: true, reason: null });
+  assert.equal(run.player.gold, 0);
+  run.player.gold = 650;
+  const boughtScratch = structuredClone(run.questScratch);
+  assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: false, reason: 'bought' });
+  assert.equal(run.player.gold, 650, 'a duplicate purchase cannot spend gold');
+  assert.deepEqual(run.questScratch, boughtScratch, 'a duplicate purchase cannot rewrite scratch state');
+  assert.deepEqual(genShop(run).questItems, [], 'later shops omit the item bought in this run');
+  run.act = 2;
+  assert.deepEqual(rollEncounter(run, 'boss', 14), ['usurpedSovereign']);
+  setPendingEncounter(run, 'boss', rollEncounter(run, 'boss', 14));
+  assert.deepEqual(run.pendingEnemyIds, ['usurpedSovereign'], 'the exact Usurper identity is held pending');
+  clearPendingEncounter(run);
+
+  const boss = startCombat(run, ['usurpedSovereign'], 'boss');
+  boss.enemies[0].hp = 1;
+  forceHand(run, boss, ['strike']);
+  boss.player.energy = 3;
+  playCard(run, boss, boss.hand[0].uid, 0);
+  assert.equal(run.quests.usurper.state, 'complete');
+  assert.equal(run.questCompletions.filter((id) => id === 'usurper').length, 1);
+  const deathLine = boss.queue.findIndex((event) => event.t === 'variantDialogue' && event.text === QUESTS.usurper.death);
+  const victory = boss.queue.findIndex((event) => event.t === 'victory');
+  assert.ok(deathLine >= 0 && deathLine < victory, 'the authored death line and drop queue before victory');
+}
+{
+  const inactive = newRun(454);
+  const gold = inactive.player.gold;
+  assert.deepEqual(buyQuestItem(inactive, 'wrongItem'), { ok: false, reason: 'unknown' });
+  assert.deepEqual(buyQuestItem(inactive, 'flamelessLantern'), { ok: false, reason: 'inactive' });
+  assert.equal(inactive.player.gold, gold, 'unknown and inactive purchases cannot spend gold');
+  assert.deepEqual(inactive.questScratch, {}, 'unknown and inactive purchases cannot write scratch state');
+}
+{
+  const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, { state: id === 'usurper' ? 'armed' : 'dormant', progress: 0, memory: {} }]));
+  const run = newRun(455, { quests });
+  run.nodeId = 'shared-shop-coordinate';
+  run.act = 0;
+  const shopSession = {};
+  const ineligible = shopStockForSession(shopSession, run);
+  const actOneKey = shopSessionKey(run);
+  assert.deepEqual(ineligible.questItems, []);
+
+  run.act = 1;
+  assert.notEqual(shopSessionKey(run), actOneKey, 'act identity is part of the shop session key');
+  const eligible = shopStockForSession(shopSession, run);
+  assert.notStrictEqual(eligible, ineligible, 'the same node coordinate in another act regenerates stock');
+  assert.equal(eligible.questItems.length, 1, 'the regenerated Act 2 shop gains eligible quest stock');
+  run.player.gold = 650;
+  assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: true, reason: null });
+  eligible.questItems[0].sold = true;
+  assert.strictEqual(shopStockForSession(shopSession, run), eligible,
+    'a same-shop rerender preserves the sold row');
+
+  const nextRun = newRun(456, { quests: run.quests });
+  nextRun.nodeId = run.nodeId;
+  nextRun.act = run.act;
+  assert.notEqual(shopSessionKey(nextRun), shopSessionKey(run), 'run identity is part of the shop session key');
+  const nextStock = shopStockForSession(shopSession, nextRun);
+  assert.notStrictEqual(nextStock, eligible, 'the same node coordinate in another run regenerates stock');
+  assert.equal(nextStock.questItems.length, 1);
+  assert.equal(nextStock.questItems[0].sold, false, 'a new run cannot inherit the prior shop row state');
+}
+{
+  assert.ok(OMENS.eighthOmen, 'the Eighth Omen is registered as a real omen');
+  assert.deepEqual(OMENS.eighthOmen.mods, { allCombatsAffixed: true });
+  assert.equal(QUESTS.eighthOmen.floorEchoes.length, 4);
+  _setStore(null);
+  let v = loadVigil();
+  v.quests.eighthOmen = { state: 'armed', progress: 0, memory: { dueIn: 2 } };
+  saveVigil(v);
+
+  EngineApi._setQuestRng(() => 0.9); // first post-arm run misses its 1/3 chance
+  const first = newRun(460, { quests: questSnapshot(v), reveals: [] });
+  assert.equal(first.omens[0], null, 'a missed special roll does not leak generic omens early');
+  assert.deepEqual(first.questScratch.eighthOmen, { active: false });
+  assert.equal(first.quests.eighthOmen.memory.dueIn, 1);
+  let out = commitRunEnd(first, 'abandon');
+  assert.equal(out.vigil.quests.eighthOmen.memory.dueIn, 1, 'miss persists the guarantee countdown');
+
+  EngineApi._setQuestRng(() => 0.9); // chance no longer matters: second run is forced
+  const forced = newRun(461, { quests: questSnapshot(out.vigil), reveals: [] });
+  assert.equal(forced.omens[0], 'eighthOmen');
+  assert.deepEqual(forced.questScratch.eighthOmen, { active: true });
+  assert.equal(forced.quests.eighthOmen.memory.seen, true);
+  assert.equal('dueIn' in forced.quests.eighthOmen.memory, false);
+  for (const act of [1, 2]) {
+    forced.act = act;
+    forced.omens.push(EngineApi.omenEnabled(forced) ? rollOmen(forced) : null);
+    assert.equal(forced.omens[act], 'eighthOmen', 'live act transition keeps Eighth in act ' + (act + 1));
+  }
+  forced.act = 1;
+  const cb = startCombat(forced, ['duskfang'], 'normal');
+  assert.ok(cb.affix, 'non-boss combat receives one affix');
+
+  forced.act = 2;
+  forced.player.deck = forced.player.deck.filter((c) => c.id !== 'unreadablePage');
+  const boss = startCombat(forced, ['sovereign'], 'boss');
+  assert.equal(boss.affix, null, 'the final boss remains un-affixed');
+  boss.enemies[0].hp = 1;
+  forceHand(forced, boss, ['strike']);
+  boss.player.energy = 3;
+  playCard(forced, boss, boss.hand[0].uid, 0);
+  assert.equal(forced.quests.eighthOmen.state, 'complete');
+  assert.equal(forced.questCompletions.filter((id) => id === 'eighthOmen').length, 1);
+  assert.deepEqual(forced.endQueue.filter((event) => event.t === 'eighthResolved'), [{
+    t: 'eighthResolved', text: QUESTS.eighthOmen.resolved,
+  }], 'the Eighth producer persists the canonical authored copy once');
+  const forcedReceiptSnapshot = JSON.stringify(forced);
+  commitRunToVigil(forced, true);
+  out = commitRunEnd(forced, 'win');
+  assert.equal('dueIn' in out.vigil.quests.eighthOmen.memory, false, 'forced-run deletion persists');
+  const committedWhispers = out.vigil.whispers;
+  const receiptRetry = commitRunEnd(JSON.parse(forcedReceiptSnapshot), 'win');
+  assert.equal('dueIn' in receiptRetry.vigil.quests.eighthOmen.memory, false,
+    'fresh-object receipt retry preserves the authoritative dueIn deletion');
+  assert.equal(receiptRetry.vigil.whispers, committedWhispers,
+    'fresh-object receipt retry cannot consume another global whisper');
+  assert.deepEqual(receiptRetry.completed, ['eighthOmen']);
+
+  const firstHitQ = questSnapshot(out.vigil);
+  firstHitQ.eighthOmen = { state: 'armed', progress: 0, memory: { dueIn: 2 } };
+  EngineApi._setQuestRng(() => 0.1);
+  const firstHit = newRun(462, { quests: firstHitQ, reveals: [] });
+  assert.equal(firstHit.omens[0], 'eighthOmen', 'first post-arm run may hit the 1/3 roll');
+  assert.equal('dueIn' in firstHit.quests.eighthOmen.memory, false);
+
+  const recurrenceQ = questSnapshot(out.vigil);
+  recurrenceQ.eighthOmen = { state: 'revealed', progress: 0, memory: { seen: true } };
+  EngineApi._setQuestRng(() => 0.2);
+  assert.equal(newRun(463, { quests: recurrenceQ, reveals: [] }).omens[0], 'eighthOmen');
+  EngineApi._setQuestRng(() => 0.9);
+  assert.equal(newRun(464, { quests: recurrenceQ, reveals: [] }).omens[0], null);
+
+  const ordinary = newRun(465, { reveals: ['omens'] });
+  assert.notEqual(ordinary.omens[0], 'eighthOmen', 'an unarmed generic omen roll cannot leak the special omen');
+
+  EngineApi._setQuestRng(null);
+  _setStore(null);
+}
+{
+  // Emberglass scheduler/save bounds derive from authored tunables rather
+  // than retaining the launch values 2, 3, and 5 in parallel.
+  const oldGuaranteeRuns = PROGRESSION.emberglass.eighthOmen.guaranteeRuns;
+  const oldEmberDebt = PROGRESSION.emberglass.hollowLamplighter.emberDebt;
+  const oldPageTarget = QUESTS.unreadablePage.target;
+  const oldHiddenPerRun = PROGRESSION.emberglass.paleOnes.hiddenPerRun;
+  const oldMarkedAct1 = PROGRESSION.emberglass.paleOnes.markedAct1;
+  const oldMaxMeetings = PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun;
+  const previousLocalStorage = globalThis.localStorage;
+  const mem = new Map();
+  try {
+    assert.ok(PROGRESSION.emberglass.eighthOmen.saveDueInMax >= oldGuaranteeRuns,
+      'the Eighth save ceiling covers the shipped guarantee');
+    assert.ok(PROGRESSION.emberglass.hollowLamplighter.saveEmberDebtMax >= oldEmberDebt,
+      'the Hollow save ceiling covers the shipped deferred price');
+    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = 4;
+    EngineApi._setQuestRng(() => 0.99);
+    const eighthQuests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'eighthOmen' ? 'armed' : 'dormant', progress: 0,
+      memory: id === 'eighthOmen' ? { dueIn: 4 } : {},
+    }]));
+    const missed = newRun(466, { quests: eighthQuests, reveals: [] });
+    assert.deepEqual(missed.questScratch.eighthOmen, { active: false });
+    assert.equal(missed.quests.eighthOmen.memory.dueIn, 3,
+      'a configured four-run guarantee decrements instead of assuming two');
+    eighthQuests.eighthOmen.memory.dueIn = 1;
+    const forced = newRun(467, { quests: eighthQuests, reveals: [] });
+    assert.deepEqual(forced.questScratch.eighthOmen, { active: true },
+      'the final configured guarantee run remains forced');
+
+    const questSet = (activeId, memory = {}) => Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === activeId ? 'revealed' : 'dormant', progress: 0,
+      memory: id === activeId ? { ...memory } : {},
+    }]));
+    PROGRESSION.emberglass.paleOnes.hiddenPerRun = 2;
+    const hidden = newRun(468, { quests: questSet('paleOnes'), reveals: [] });
+    assert.equal(hidden.questScratch.paleOnes.hiddenRemaining, 2);
+    assert.equal(rollEncounter(hidden, 'monster', 1)[0], 'paleDuskfang');
+    assert.equal(rollEncounter(hidden, 'monster', 2)[0], 'paleDuskfang');
+    assert.ok(!rollEncounter(hidden, 'monster', 3)[0].startsWith('pale'),
+      'hiddenPerRun controls the exact unmarked encounter count');
+
+    PROGRESSION.emberglass.paleOnes.markedAct1 = 2;
+    const marked = newRun(469, {
+      quests: questSet('paleOnes'), unlocks: ['insight:witchlightLens'], reveals: [],
+    });
+    const actOneCandidates = marked.map.nodes.filter((node) => node.row === 0 && node.type === 'monster');
+    assert.equal(actOneCandidates.filter((node) => node.questMarked).length,
+      Math.min(2, actOneCandidates.length), 'markedAct1 controls distinct marked nodes');
+
+    PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun = 2;
+    const hollow = newRun(470, {
+      quests: questSet('hollowLamplighter', {
+        eligibleMisses: PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1,
+      }),
+      reveals: [],
+    });
+    const meetingNodes = hollow.map.nodes.slice(0, 3);
+    meetingNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
+    assert.equal(visitNode(hollow, meetingNodes[0]).hollow, true);
+    hollow.pendingHollow = null;
+    assert.equal(visitNode(hollow, meetingNodes[1]).hollow, true);
+    hollow.pendingHollow = null;
+    assert.equal(visitNode(hollow, meetingNodes[2]).hollow, undefined,
+      'maxMeetingsPerRun caps later eligible nodes');
+    assert.equal(hollow.questScratch.hollowLamplighter.meetings, 2);
+
+    const debtHollow = newRun(473, {
+      quests: questSet('hollowLamplighter', {
+        eligibleMisses: PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1,
+      }),
+      reveals: [],
+    });
+    const debtNodes = debtHollow.map.nodes.slice(0, 2);
+    debtNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
+    assert.equal(visitNode(debtHollow, debtNodes[0]).hollow, true);
+    assert.equal(payHollowPrice(debtHollow).deferred, true);
+    const debtCombat = startCombat(debtHollow, ['sporeling']);
+    gainEmbers(debtHollow, debtCombat, PROGRESSION.emberglass.hollowLamplighter.emberDebt - 1);
+    assert.equal(debtHollow.quests.hollowLamplighter.memory.emberDebt, 1);
+    debtHollow.pendingHollow = null;
+    assert.equal(visitNode(debtHollow, debtNodes[1]).hollow, undefined,
+      'an outstanding deferred ember price blocks a repeated meeting');
+    assert.equal(debtHollow.quests.hollowLamplighter.memory.emberDebt, 1,
+      'a later unlit node cannot reset an outstanding ember debt');
+    assert.equal(debtHollow.questScratch.hollowLamplighter.meetings, 1);
+
+    const completeHollow = newRun(474, {
+      quests: Object.fromEntries(QUEST_IDS.map((id) => [id, {
+        state: id === 'hollowLamplighter' ? 'revealed' : 'dormant',
+        progress: id === 'hollowLamplighter' ? QUESTS.hollowLamplighter.target - 1 : 0,
+        memory: id === 'hollowLamplighter'
+          ? { eligibleMisses: PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1 }
+          : {},
+      }])),
+      reveals: [],
+    });
+    const completeNodes = completeHollow.map.nodes.slice(0, 2);
+    completeNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
+    assert.equal(visitNode(completeHollow, completeNodes[0]).hollow, true);
+    assert.equal(payHollowPrice(completeHollow).ok, true);
+    assert.equal(completeHollow.quests.hollowLamplighter.state, 'complete');
+    completeHollow.pendingHollow = null;
+    assert.equal(visitNode(completeHollow, completeNodes[1]).hollow, undefined,
+      'a completed Hollow Trail cannot open another meeting');
+    assert.equal(completeHollow.questScratch.hollowLamplighter.meetings, 1);
+
+    const shadeTierIds = Object.keys(VARIANTS)
+      .filter((id) => /^ownShade[1-9]\d*$/.test(id))
+      .sort((a, b) => Number(a.slice('ownShade'.length)) - Number(b.slice('ownShade'.length)));
+    assert.equal(PROGRESSION.emberglass.ownShade.tiers.length, QUESTS.ownShade.target,
+      'each fixed Shade stage has one authored stat tier');
+    assert.deepEqual(shadeTierIds,
+      PROGRESSION.emberglass.ownShade.tiers.map((_, index) => `ownShade${index + 1}`),
+      'each fixed Shade stage has one contiguous combat variant');
+    assert.equal(QUESTS.hollowLamplighter.meetings.length, QUESTS.hollowLamplighter.target,
+      'each configured Hollow completion step has one authored price conversation');
+
+    PROGRESSION.emberglass.hollowLamplighter.emberDebt = 4;
+    QUESTS.unreadablePage.target = 6;
+    globalThis.localStorage = {
+      getItem: (key) => mem.get(key) ?? null,
+      setItem: (key, value) => mem.set(key, value),
+      removeItem: (key) => mem.delete(key),
+    };
+
+    const historicalQuests = questSet('paleOnes');
+    historicalQuests.hollowLamplighter = {
+      state: 'revealed', progress: 1, memory: { eligibleMisses: 0 },
+    };
+    const historical = newRun(471, { quests: historicalQuests, reveals: [] });
+    historical.questScratch.hollowLamplighter = {
+      due: true, met: true, meetings: 2, debtActive: false,
+    };
+    assert.equal(saveRun(historical), true);
+    const durableHistorical = JSON.parse(mem.get('spirebound_save_v2'));
+    PROGRESSION.emberglass.paleOnes.hiddenPerRun = 1;
+    PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun = 1;
+    const historicalReload = loadRun();
+    assert.ok(historicalReload, 'lower tuning does not invalidate historical scheduler counters');
+    assert.equal(historicalReload.questScratch.paleOnes.hiddenRemaining, 2);
+    assert.equal(historicalReload.questScratch.hollowLamplighter.meetings, 2);
+    assert.equal(rollEncounter(historicalReload, 'monster', 1)[0], 'paleDuskfang');
+    assert.ok(!rollEncounter(historicalReload, 'monster', 2)[0].startsWith('pale'),
+      'the current lower hidden-fight cap governs future encounters');
+
+    const inconsistentPale = structuredClone(durableHistorical);
+    inconsistentPale.questScratch.paleOnes.hiddenDue = false;
+    mem.set('spirebound_save_v2', JSON.stringify(inconsistentPale));
+    assert.equal(loadRun(), null, 'redundant Pale scheduler fields must agree');
+    const inconsistentHollow = structuredClone(durableHistorical);
+    inconsistentHollow.questScratch.hollowLamplighter.met = false;
+    mem.set('spirebound_save_v2', JSON.stringify(inconsistentHollow));
+    assert.equal(loadRun(), null, 'redundant Hollow scheduler fields must agree');
+
+    const dynamicSave = newRun(472);
+    dynamicSave.quests.eighthOmen = { state: 'armed', progress: 0, memory: { dueIn: 4 } };
+    dynamicSave.quests.hollowLamplighter = { state: 'revealed', progress: 0, memory: { emberDebt: 4 } };
+    dynamicSave.endQueue = [{ t: 'pageRead', index: 6, text: 'A sixth configured page.' }];
+    assert.equal(saveRun(dynamicSave), true);
+    assert.ok(loadRun(), 'configured guarantee, ember debt, and Page target pass save validation');
+
+    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = oldGuaranteeRuns;
+    PROGRESSION.emberglass.hollowLamplighter.emberDebt = oldEmberDebt;
+    const compatibilitySave = newRun(475);
+    compatibilitySave.quests.eighthOmen = {
+      state: 'armed', progress: 0, memory: { dueIn: oldGuaranteeRuns },
+    };
+    compatibilitySave.quests.hollowLamplighter = {
+      state: 'revealed', progress: 0, memory: { emberDebt: oldEmberDebt },
+    };
+    assert.equal(saveRun(compatibilitySave), true);
+    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = 1;
+    PROGRESSION.emberglass.hollowLamplighter.emberDebt = 2;
+    const lowerTuningReload = loadRun();
+    assert.ok(lowerTuningReload, 'lower memory tunables do not invalidate an existing run contract');
+    assert.equal(lowerTuningReload.quests.eighthOmen.memory.dueIn, oldGuaranteeRuns);
+    assert.equal(lowerTuningReload.quests.hollowLamplighter.memory.emberDebt, oldEmberDebt);
+
+    const excessiveDue = structuredClone(JSON.parse(mem.get('spirebound_save_v2')));
+    excessiveDue.quests.eighthOmen.memory.dueIn =
+      PROGRESSION.emberglass.eighthOmen.saveDueInMax + 1;
+    mem.set('spirebound_save_v2', JSON.stringify(excessiveDue));
+    assert.equal(loadRun(), null, 'Eighth historical compatibility remains schema-bounded');
+    const excessiveDebt = structuredClone(compatibilitySave);
+    excessiveDebt.quests.hollowLamplighter.memory.emberDebt =
+      PROGRESSION.emberglass.hollowLamplighter.saveEmberDebtMax + 1;
+    mem.set('spirebound_save_v2', JSON.stringify(excessiveDebt));
+    assert.equal(loadRun(), null, 'Hollow historical compatibility remains schema-bounded');
+  } finally {
+    EngineApi._setQuestRng(null);
+    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = oldGuaranteeRuns;
+    PROGRESSION.emberglass.hollowLamplighter.emberDebt = oldEmberDebt;
+    QUESTS.unreadablePage.target = oldPageTarget;
+    PROGRESSION.emberglass.paleOnes.hiddenPerRun = oldHiddenPerRun;
+    PROGRESSION.emberglass.paleOnes.markedAct1 = oldMarkedAct1;
+    PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun = oldMaxMeetings;
+    if (previousLocalStorage) globalThis.localStorage = previousLocalStorage;
+    else delete globalThis.localStorage;
+  }
+}
+{
+  const q = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+    state: id === 'unreadablePage' ? 'armed' : 'dormant', progress: 0, memory: {},
+  }]));
+  const run = newRun(470, { quests: q });
+  assert.equal(CARDS.unreadablePage?.unplayable, true, 'the Page is an unplayable special card');
+  assert.equal(CARDS.unreadablePage?.unremovable, true, 'the Page cannot be removed');
+  assert.ok(!Object.values(CARD_POOLS).flat().includes('unreadablePage'), 'the Page stays out of normal pools');
+
+  const first = rollCardReward(run);
+  assert.ok(!first.includes('unreadablePage'));
+  const second = rollCardReward(run);
+  assert.ok(second.includes('unreadablePage'));
+  assert.ok(!rollCardReward(run).includes('unreadablePage'), 'offered once per run');
+  assert.equal(run.quests.unreadablePage.state, 'revealed');
+  assert.deepEqual(run.questScratch.unreadablePage, { rewardOrdinal: 3, offered: true });
+
+  const page = addCardToDeck(run, 'unreadablePage');
+  assert.equal(removeCardFromDeck(run, page.uid), false);
+  assert.ok(run.player.deck.some((c) => c.uid === page.uid));
+  assert.ok(!removableCards(run).some((c) => c.id === 'unreadablePage'));
+  const ordinaryCard = removableCards(run)[0];
+  assert.equal(removeCardFromDeck(run, ordinaryCard.uid), true, 'ordinary cards remain removable');
+  assert.equal(removeCardFromDeck(run, ordinaryCard.uid), false, 'a missing card is not removed twice');
+
+  const onlyPage = newRun(471, { quests: q });
+  onlyPage.player.deck = [];
+  addCardToDeck(onlyPage, 'unreadablePage');
+  assert.deepEqual(removableCards(onlyPage), [], 'an all-Page deck has no impossible removal choice');
+
+  run.act = 2;
+  const cb = startCombat(run, ['sovereign'], 'boss');
+  cb.enemies[0].hp = 1;
+  forceHand(run, cb, ['strike']);
+  cb.player.energy = 3;
+  playCard(run, cb, cb.hand[0].uid, 0);
+  assert.equal(run.quests.unreadablePage.progress, 1);
+  assert.deepEqual(run.endQueue.filter((e) => e.t === 'pageRead'), [{
+    t: 'pageRead', index: 1, text: QUESTS.unreadablePage.pages[0],
+  }]);
+
+  const twoPages = newRun(472, { quests: q });
+  addCardToDeck(twoPages, 'unreadablePage');
+  addCardToDeck(twoPages, 'unreadablePage');
+  twoPages.act = 2;
+  const twoPageBoss = startCombat(twoPages, ['sovereign'], 'boss');
+  twoPageBoss.enemies[0].hp = 1;
+  forceHand(twoPages, twoPageBoss, ['strike']);
+  twoPageBoss.player.energy = 3;
+  playCard(twoPages, twoPageBoss, twoPageBoss.hand[0].uid, 0);
+  assert.equal(twoPages.quests.unreadablePage.progress, 1, 'one page-reading per winning run');
+  assert.equal(twoPages.endQueue.filter((e) => e.t === 'pageRead').length, 1);
+
+  const finalPageQ = structuredClone(q);
+  finalPageQ.unreadablePage = { state: 'revealed', progress: 4, memory: {} };
+  const finalPage = newRun(473, { quests: finalPageQ });
+  addCardToDeck(finalPage, 'unreadablePage');
+  finalPage.act = 2;
+  const finalPageBoss = startCombat(finalPage, ['sovereign'], 'boss');
+  finalPageBoss.enemies[0].hp = 1;
+  forceHand(finalPage, finalPageBoss, ['strike']);
+  finalPageBoss.player.energy = 3;
+  playCard(finalPage, finalPageBoss, finalPageBoss.hand[0].uid, 0);
+  assert.equal(finalPage.quests.unreadablePage.state, 'complete');
+  const finalPageRead = finalPage.endQueue.find((e) => e.t === 'pageRead');
+  assert.deepEqual(finalPageRead, { t: 'pageRead', index: 5, text: QUESTS.unreadablePage.pages[4] });
+  journalTerminalOutcome(finalPage, 'win');
+  assert.deepEqual(finalPage.pendingRunEnd, { outcome: 'win' });
+  assert.deepEqual(finalPage.endQueue.find((e) => e.t === 'pageRead'), finalPageRead,
+    'the exact authored reading remains in the terminal outbox');
+
+  const ordinary = newRun(474, { quests: q });
+  addCardToDeck(ordinary, 'unreadablePage');
+  ordinary.act = 2;
+  const ordinaryCombat = startCombat(ordinary, ['sporeling'], 'normal');
+  ordinaryCombat.enemies[0].hp = 1;
+  forceHand(ordinary, ordinaryCombat, ['strike']);
+  ordinaryCombat.player.energy = 3;
+  playCard(ordinary, ordinaryCombat, ordinaryCombat.hand[0].uid, 0);
+  assert.equal(ordinary.quests.unreadablePage.progress, 0, 'ordinary victories do not read the Page');
+
+  const midBoss = newRun(475, { quests: q });
+  addCardToDeck(midBoss, 'unreadablePage');
+  midBoss.act = 1;
+  const midBossCombat = startCombat(midBoss, ['leviathan'], 'boss');
+  midBossCombat.enemies[0].hp = 1;
+  forceHand(midBoss, midBossCombat, ['strike']);
+  midBossCombat.player.energy = 3;
+  playCard(midBoss, midBossCombat, midBossCombat.hand[0].uid, 0);
+  assert.equal(midBoss.quests.unreadablePage.progress, 0, 'mid-act boss victories do not read the Page');
+
+  const finalReward = newRun(476, { quests: q });
+  finalReward.act = 2;
+  rollCardReward(finalReward);
+  assert.ok(!rollCardReward(finalReward, 'boss').includes('unreadablePage'), 'the final boss has no Page reward');
+  assert.deepEqual(finalReward.questScratch.unreadablePage, { rewardOrdinal: 1 },
+    'a non-existent final reward does not advance the offer ordinal');
+}
+{
+  const q = Object.fromEntries(QUEST_IDS.map((id) => [id, { state: id === 'paleOnes' ? 'armed' : 'dormant', progress: 0, memory: {} }]));
+  const run = newRun(410, { quests: q, shards: ['paleOnes'] });
+  q.paleOnes.state = 'complete';
+  assert.equal(run.quests.paleOnes.state, 'armed', 'run owns a deep snapshot');
+  assert.deepEqual(run.shards, ['paleOnes']);
+
+  const events = [];
+  assert.equal(revealQuest(run, 'paleOnes', events).state, 'revealed');
+  assert.equal(events[0].t, 'questReveal');
+  advanceQuest(run, 'paleOnes', 9, events);
+  assert.equal(run.quests.paleOnes.state, 'complete');
+  assert.deepEqual(run.questCompletions, ['paleOnes']);
+  advanceQuest(run, 'paleOnes', 1, events);
+  assert.deepEqual(run.questCompletions, ['paleOnes'], 'completion emitted once');
+
+  setPendingEncounter(run, 'monster', ['paleDuskfang'], 'paleOnes');
+  assert.deepEqual(run.pendingEnemyIds, ['paleDuskfang']);
+  assert.equal(run.pendingQuestId, 'paleOnes');
+  clearPendingEncounter(run);
+  assert.equal(run.pendingCombat, null);
+  assert.equal(run.pendingEnemyIds, null);
+  assert.equal(run.pendingQuestId, null);
+}
+{
+  const run = newRun(429);
+  const cb = startCombat(run, ['paleDuskfang']);
+  cb.enemies[0].hp = 1;
+  forceHand(run, cb, ['strike']);
+  cb.player.energy = 3;
+  assert.doesNotThrow(
+    () => playCard(run, cb, cb.hand[0].uid, 0),
+    'a Pale variant drop is inert without an active quest snapshot',
+  );
+  assert.ok(!run.unlocks.includes('insight:witchlightLens'));
+}
+{
+  const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, { state: id === 'paleOnes' ? 'armed' : 'dormant', progress: 0, memory: {} }]));
+  assert.deepEqual(
+    [0, 1, 2].map(paleVariantForAct),
+    ['paleDuskfang', 'paleDrownedOne', 'paleVoidWisp'],
+    'each act maps to its fixed Pale variant',
+  );
+  const run = newRun(430, { quests, unlocks: [] });
+  assert.deepEqual(EngineApi.questDisclosure(run, 'paleOnes'), {
+    name: 'Hunt the Pale Ones',
+    inscription: QUESTS.paleOnes.huntInscription,
+    progress: 0,
+    target: PROGRESSION.emberglass.paleOnes.lensAt,
+  }, 'before the Lens, the Pale entry is a distinct 0/3 hunt');
+  const first = rollEncounter(run, 'monster', 0, run.map.nodes.find((n) => n.row === 0));
+  assert.deepEqual(first, ['paleDuskfang'], 'first ordinary fight is hidden guaranteed ambush');
+  assert.notDeepEqual(rollEncounter(run, 'monster', 1), ['paleDuskfang'], 'only one hidden ambush per run');
+
+  const cb = startCombat(run, ['paleDuskfang']);
+  assert.equal(run.quests.paleOnes.state, 'revealed', 'Pale contact reveals the Trail before the kill');
+  assert.equal(run.quests.paleOnes.progress, 0, 'contact alone does not award a mote');
+  assert.ok(cb.queue.some((e) => e.t === 'questReveal' && e.id === 'paleOnes'));
+  cb.enemies[0].hp = 1;
+  forceHand(run, cb, ['strike']);
+  cb.player.energy = 3;
+  playCard(run, cb, cb.hand[0].uid, 0);
+  assert.equal(run.quests.paleOnes.progress, 1);
+  assert.equal(run.quests.paleOnes.state, 'revealed');
+  assert.deepEqual(cb.queue.find((event) => event.t === 'questProgress'), {
+    t: 'questProgress', id: 'paleOnes', progress: 1,
+    target: PROGRESSION.emberglass.paleOnes.lensAt,
+  }, 'the hidden hunt discloses Pale kills against the 3-kill Lens threshold');
+
+  run.quests.paleOnes.progress = 2;
+  const cb3 = startCombat(run, ['paleDuskfang']);
+  cb3.enemies[0].hp = 1;
+  forceHand(run, cb3, ['strike']);
+  cb3.player.energy = 3;
+  playCard(run, cb3, cb3.hand[0].uid, 0);
+  assert.ok(run.unlocks.includes('insight:witchlightLens'));
+  assert.deepEqual(cb3.queue.find((event) => event.t === 'questProgress'), {
+    t: 'questProgress', id: 'paleOnes', progress: 3,
+    target: PROGRESSION.emberglass.paleOnes.lensAt,
+  }, 'the third hidden Pale closes the Hunt the Pale Ones disclosure');
+  assert.deepEqual(EngineApi.questDisclosure(run, 'paleOnes'), {
+    name: QUESTS.paleOnes.name,
+    inscription: QUESTS.paleOnes.inscription,
+    progress: 3,
+    target: QUESTS.paleOnes.target,
+  }, 'the Lens changes the same cumulative ledger into the 3/9 mote hunt');
+
+  const cb4 = startCombat(run, ['paleDuskfang']);
+  cb4.enemies[0].hp = 1;
+  forceHand(run, cb4, ['strike']);
+  cb4.player.energy = 3;
+  playCard(run, cb4, cb4.hand[0].uid, 0);
+  assert.deepEqual(cb4.queue.find((event) => event.t === 'questProgress'), {
+    t: 'questProgress', id: 'paleOnes', progress: 4,
+    target: QUESTS.paleOnes.target,
+  }, 'after the Lens unlocks, Pale progress switches to the 9-mote total');
+
+  const marked = newRun(431, { quests: run.quests, unlocks: run.unlocks });
+  assert.equal(marked.map.nodes.filter((n) => n.questVariantId).length, 1);
+  const mark = marked.map.nodes.find((n) => n.questVariantId);
+  assert.equal(mark.row, 0);
+  assert.equal(mark.questVariantId, 'paleDuskfang');
+  assert.equal(mark.type, 'monster', 'a marked node keeps its base monster type');
+
+  marked.questScratch.paleOnes.markedAct2 = true;
+  marked.act = 1;
+  marked.map = genMap(marked);
+  const act1Marks = marked.map.nodes.filter((n) => n.questVariantId);
+  assert.equal(act1Marks.length, 1, 'the locked Act 1 conditional adds one marked node');
+  assert.equal(act1Marks[0].questVariantId, 'paleDrownedOne');
+  assert.equal(act1Marks[0].type, 'monster');
+
+  marked.questScratch.paleOnes.markedAct2 = false;
+  marked.map = genMap(marked);
+  assert.equal(marked.map.nodes.filter((n) => n.questVariantId).length, 0,
+    'Act 1 has no marked node when its locked conditional is false');
+
+  marked.questScratch.paleOnes.markedAct2 = true;
+  marked.act = 2;
+  marked.map = genMap(marked);
+  assert.equal(marked.map.nodes.filter((n) => n.questVariantId).length, 0,
+    'Act 2 never adds a marked Pale node');
+
+  run.quests.paleOnes.progress = 8;
+  const cb9 = startCombat(run, ['paleDuskfang']);
+  cb9.enemies[0].hp = 1;
+  forceHand(run, cb9, ['strike']);
+  cb9.player.energy = 3;
+  playCard(run, cb9, cb9.hand[0].uid, 0);
+  assert.equal(run.quests.paleOnes.state, 'complete');
+  assert.deepEqual(run.questCompletions, ['paleOnes']);
+}
+{
+  const run = newRun(414);
+  const rewards = {
+    gold: 40,
+    cards: ['strike', 'defend', 'chisel'],
+    potion: 'healing',
+    relic: 'ironTalisman',
+  };
+  setPendingReward(run, 'elite', rewards, true);
+  assert.deepEqual(run.pendingReward, {
+    kind: 'elite',
+    rewards,
+    taken: { gold: false, potion: false, relic: false, card: false },
+    perfect: true,
+  });
+  assert.notStrictEqual(run.pendingReward.rewards, rewards, 'pending reward owns its payload');
+  assert.notStrictEqual(run.pendingReward.rewards.cards, rewards.cards, 'pending reward owns its card list');
+
+  const gold0 = run.player.gold;
+  assert.equal(takePendingReward(run, 'gold'), true);
+  assert.equal(takePendingReward(run, 'gold'), false, 'gold cannot be claimed twice');
+  assert.equal(run.player.gold, gold0 + rewards.gold);
+
+  assert.equal(takePendingReward(run, 'potion'), true);
+  assert.equal(takePendingReward(run, 'potion'), false, 'potion cannot be claimed twice');
+  assert.equal(run.player.potions.filter((id) => id === rewards.potion).length, 1);
+
+  assert.equal(takePendingReward(run, 'relic'), true);
+  assert.equal(takePendingReward(run, 'relic'), false, 'relic cannot be claimed twice');
+  assert.equal(run.player.relics.filter((id) => id === rewards.relic).length, 1);
+
+  const deck0 = run.player.deck.length;
+  assert.equal(takePendingReward(run, 'card', 'strike'), true);
+  assert.equal(takePendingReward(run, 'card', 'defend'), false, 'card choice is final');
+  assert.equal(run.player.deck.length, deck0 + 1);
+
+  const skipped = newRun(415);
+  setPendingReward(skipped, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+  assert.equal(takePendingReward(skipped, 'card', null), true, 'skipping is a final card choice');
+  assert.equal(takePendingReward(skipped, 'card', 'strike'), false, 'a skipped card cannot be reclaimed');
+
+  clearPendingReward(run);
+  assert.equal(run.pendingReward, null);
+}
+{
   // vigil v2: fresh shape, and one-way migration from v1 that leaves v1 intact
   _setStore(null);
   const fresh = loadVigil();
   assert.equal(fresh.v, 2, 'fresh vigil is v2');
   assert.equal(fresh.runsPlayed, 0);
   assert.deepEqual(fresh.shards, []);
-  assert.deepEqual(fresh.quests, {});
+  assert.deepEqual(Object.keys(fresh.quests), QUEST_IDS);
+  assert.ok(QUEST_IDS.every((id) => fresh.quests[id].state === 'dormant'));
   assert.equal(fresh.news, false);
 
   // a veteran v1 profile migrates: counters carry, news pulses once, v1 stays
@@ -1115,6 +2754,333 @@ function forceHand(run, cb, ids) {
   _setStore(null);
 }
 {
+  // Hydration repairs are durable: a malformed-but-readable v2 ledger is
+  // canonicalised once, then the next load is a read-only no-op.
+  const malformed = {
+    v: 2,
+    deeds: { wins: 0 },
+    unlocks: [],
+    vowUnlocked: 0,
+    lastFall: null,
+    runsPlayed: 0,
+    quests: {
+      paleOnes: { state: 'waiting', progress: '3.8', memory: [] },
+      ownShade: { state: 'revealed', progress: 999, memory: {}, extra: true },
+      eighthOmen: { state: 'armed', progress: 0, memory: { dueIn: 999, seen: 'yes', extra: true } },
+      hollowLamplighter: {
+        state: 'revealed', progress: 0,
+        memory: { eligibleMisses: '2.8', emberDebt: 999, extra: true },
+      },
+      unknown: { state: 'complete', progress: 1, memory: {} },
+    },
+    shards: ['paleOnes', 'unknown', 'paleOnes'],
+    whispers: '4.9',
+    news: false,
+    receipts: { deeds: null, runEnd: null },
+  };
+  const mem = new Map([['spirebound_vigil_v2', JSON.stringify(malformed)]]);
+  let writes = 0;
+  _setStore({
+    getItem: (key) => mem.get(key) ?? null,
+    setItem: (key, value) => { writes++; mem.set(key, value); },
+    removeItem: (key) => mem.delete(key),
+  });
+  const repaired = loadVigil();
+  assert.equal(repaired.quests.paleOnes.state, 'dormant', 'invalid quest state is repaired');
+  assert.equal(repaired.quests.paleOnes.progress, 0, 'a dormant repair cannot retain hidden progress');
+  assert.deepEqual(repaired.quests.paleOnes.memory, {}, 'invalid quest memory is repaired');
+  assert.equal(repaired.quests.ownShade.progress, QUESTS.ownShade.target - 1,
+    'an incomplete state cannot acquire completion through malformed progress');
+  assert.deepEqual(repaired.quests.eighthOmen.memory, {
+    dueIn: PROGRESSION.emberglass.eighthOmen.guaranteeRuns,
+  }, 'Eighth memory is canonicalised to the configured guarantee');
+  assert.deepEqual(repaired.quests.hollowLamplighter.memory, {
+    eligibleMisses: 2,
+    emberDebt: PROGRESSION.emberglass.hollowLamplighter.emberDebt,
+  }, 'Hollow memory is canonicalised to configured bounds');
+  assert.deepEqual(Object.keys(repaired.quests), QUEST_IDS, 'missing and unknown quest records are repaired');
+  assert.deepEqual(repaired.shards, ['paleOnes'], 'unknown and duplicate shards are removed');
+  assert.equal(repaired.whispers, 4, 'whisper count is canonicalised');
+  assert.equal(writes, 1, 'all repairs are persisted in one write');
+  const durable = mem.get('spirebound_vigil_v2');
+  assert.deepEqual(loadVigil(), repaired, 'the canonical ledger reloads identically');
+  assert.equal(mem.get('spirebound_vigil_v2'), durable, 'the second load leaves canonical bytes untouched');
+  assert.equal(writes, 1, 'the second load does not repeat a missed repair write');
+
+  const stateInvalid = structuredClone(repaired);
+  stateInvalid.quests.eighthOmen = {
+    state: 'complete', progress: 0, memory: { dueIn: 1, seen: true },
+  };
+  stateInvalid.quests.hollowLamplighter = {
+    state: 'dormant', progress: 4, memory: { eligibleMisses: 2, emberDebt: 3 },
+  };
+  mem.set('spirebound_vigil_v2', JSON.stringify(stateInvalid));
+  const stateRepaired = loadVigil();
+  assert.deepEqual(stateRepaired.quests.eighthOmen, {
+    state: 'complete', progress: QUESTS.eighthOmen.target, memory: { seen: true },
+  }, 'complete Eighth memory cannot retain a future guarantee');
+  assert.deepEqual(stateRepaired.quests.hollowLamplighter, {
+    state: 'dormant', progress: 0, memory: {},
+  }, 'dormant Hollow memory cannot retain misses or an ember debt');
+
+  const previousLocalStorage = globalThis.localStorage;
+  const runStore = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => runStore.get(key) ?? null,
+    setItem: (key, value) => runStore.set(key, value),
+    removeItem: (key) => runStore.delete(key),
+  };
+  const hydratedRun = newRun(400, { quests: questSnapshot(stateRepaired), shards: stateRepaired.shards });
+  assert.equal(saveRun(hydratedRun), true);
+  assert.ok(loadRun(), 'a hydrated Vigil snapshot passes the stricter run-save loader');
+  const noDebtCombat = startCombat(hydratedRun, ['sporeling']);
+  const embersBefore = noDebtCombat.embers;
+  gainEmbers(hydratedRun, noDebtCombat, 3);
+  assert.equal(noDebtCombat.embers, Math.min(noDebtCombat.emberCap, embersBefore + 3),
+    'a dormant Hollow cannot confiscate ordinary combat embers');
+  assert.ok(!noDebtCombat.queue.some((event) => event.t === 'hollowTithe'));
+  if (previousLocalStorage) globalThis.localStorage = previousLocalStorage;
+  else delete globalThis.localStorage;
+  _setStore(null);
+}
+{
+  _setStore({ getItem: () => null, setItem: () => { throw new Error('quota'); }, removeItem: () => {} });
+  assert.equal(saveVigil({ v: 2 }), false, 'saveVigil reports a rejected write');
+  _setStore(null);
+}
+{
+  _setStore(null);
+  _setRng(() => 0);
+  let v = loadVigil();
+  assert.deepEqual(Object.keys(v.quests), QUEST_IDS);
+  assert.ok(QUEST_IDS.every((id) => v.quests[id].state === 'dormant'));
+
+  v.deeds.wins = 1;
+  saveVigil(v);
+  v = loadVigil();
+  assert.equal(v.quests.paleOnes.state, 'armed', 'Phase 1 v2 save hydrates Pale opener');
+  assert.ok(QUEST_IDS.slice(1).every((id) => v.quests[id].state === 'dormant'));
+
+  const won = newRun(401);
+  won.quests = questSnapshot(v);
+  commitRunToVigil(won, true); // deeds.wins is now 2
+  let out = commitRunEnd(won, 'win');
+  assert.equal(out.vigil.runsPlayed, 1);
+  assert.equal(out.whisper, WHISPERS[0]);
+  assert.deepEqual(out.armed, ['ownShade']);
+  assert.equal(out.vigil.quests.ownShade.state, 'armed');
+  assert.equal(out.vigil.whispers, 1);
+
+  assert.deepEqual(commitRunEnd(won, 'win'), out, 'same run returns the cached result');
+
+  const completed = newRun(402);
+  completed.quests = questSnapshot(out.vigil);
+  completed.quests.paleOnes = { state: 'complete', progress: 9, memory: {} };
+  completed.questCompletions = ['paleOnes'];
+  out = commitRunEnd(completed, 'death');
+  assert.deepEqual(out.newShards, ['paleOnes']);
+  assert.deepEqual(out.vigil.shards, ['paleOnes']);
+  assert.equal(out.whisper, null, 'death does not consume a global whisper');
+
+  const duplicate = newRun(403);
+  duplicate.quests = questSnapshot(out.vigil);
+  duplicate.questCompletions = ['paleOnes'];
+  out = commitRunEnd(duplicate, 'abandon');
+  assert.deepEqual(out.newShards, []);
+  assert.deepEqual(out.vigil.shards, ['paleOnes']);
+
+  assert.equal(whisperAt(1), WHISPERS[0]);
+  assert.equal(whisperAt(999), WHISPERS.at(-1));
+
+  _setStore(null);
+  for (let win = 1; win <= 10; win++) {
+    const before = loadVigil();
+    const cadenceRun = newRun(4100 + win);
+    cadenceRun.quests = questSnapshot(before);
+    commitRunToVigil(cadenceRun, true);
+    const cadence = commitRunEnd(cadenceRun, 'win').vigil;
+    const expectedArmed = 1 + Math.floor(win / 2);
+    assert.equal(QUEST_IDS.filter((id) => cadence.quests[id].state !== 'dormant').length,
+      expectedArmed, 'one opener plus one quest per even win ' + win);
+    if (win === 1) assert.equal(cadence.quests.ownShade.state, 'dormant');
+  }
+  assert.ok(QUEST_IDS.every((id) => loadVigil().quests[id].state !== 'dormant'),
+    'all six quests are armed by win 10');
+
+  const veteran = loadVigil();
+  veteran.deeds.wins = 40;
+  for (const id of QUEST_IDS.slice(1)) veteran.quests[id] = { state: 'dormant', progress: 0, memory: {} };
+  saveVigil(veteran);
+  const veteranWin = newRun(404);
+  veteranWin.quests = questSnapshot(veteran);
+  commitRunToVigil(veteranWin, true);
+  out = commitRunEnd(veteranWin, 'win');
+  assert.equal(out.armed.length, 1, 'post-Phase-1 veteran catches up one quest per future win');
+
+  _setRng(null);
+  _setStore(null);
+}
+{
+  // A run end is committed only after the Vigil write becomes durable.
+  _setStore(null);
+  const initial = loadVigil();
+  const persisted = new Map([['spirebound_vigil_v2', JSON.stringify(initial)]]);
+  let rejectWrites = true;
+  let acceptedWrites = 0;
+  _setStore({
+    getItem: (k) => (persisted.has(k) ? persisted.get(k) : null),
+    setItem: (k, v) => {
+      if (rejectWrites) throw new Error('quota');
+      acceptedWrites++;
+      persisted.set(k, v);
+    },
+    removeItem: (k) => persisted.delete(k),
+  });
+
+  const retryable = newRun(405);
+  retryable.quests = questSnapshot(loadVigil());
+  assert.throws(
+    () => commitRunEnd(retryable, 'abandon'),
+    /Vigil storage rejected the run end; retry when storage is available/,
+  );
+  assert.ok(!Object.hasOwn(retryable, 'runEndCommitted'), 'failed write leaves the run uncommitted');
+  assert.ok(!Object.hasOwn(retryable, 'runEndResult'), 'failed write leaves no cached result');
+  assert.equal(loadVigil().runsPlayed, 0, 'failed write does not advance durable state');
+  assert.equal(acceptedWrites, 0);
+
+  rejectWrites = false;
+  const committed = commitRunEnd(retryable, 'abandon');
+  assert.equal(committed.vigil.runsPlayed, 1);
+  assert.equal(retryable.runEndCommitted, true);
+  assert.equal(loadVigil().runsPlayed, 1, 'recovery retry persists exactly once');
+  assert.equal(acceptedWrites, 1);
+  assert.strictEqual(commitRunEnd(retryable, 'abandon'), committed, 'successful retry is then cached');
+  assert.equal(loadVigil().runsPlayed, 1, 'cached repeat cannot double-commit');
+  assert.equal(acceptedWrites, 1);
+
+  _setStore(null);
+}
+{
+  // Every journalled outcome treats legacy stats/save cleanup as the final gate.
+  for (const outcome of ['win', 'death', 'abandon']) {
+    _setStore(null);
+    const run = newRun(421 + outcome.length);
+    run.quests = questSnapshot(loadVigil());
+    run.pendingRunEnd = { outcome };
+    let cleanupCalls = 0;
+    const rejected = commitPendingRunEnd(run, (_run, won) => {
+      cleanupCalls++;
+      assert.equal(won, outcome === 'win');
+      return false;
+    });
+    assert.equal(rejected.accepted, false, `${outcome} waits for cleanup acknowledgement`);
+    assert.equal(rejected.ledger.vigil.runsPlayed, 1);
+    assert.equal(rejected.newUnlocks.length >= 0, true);
+    assert.equal(loadVigil().deeds.runs, outcome === 'abandon' ? 0 : 1, `${outcome} preserves its existing deed semantics`);
+
+    const accepted = commitPendingRunEnd(run, () => { cleanupCalls++; return true; });
+    assert.equal(accepted.accepted, true, `${outcome} cleanup can be retried`);
+    assert.equal(cleanupCalls, 2);
+    assert.equal(loadVigil().runsPlayed, 1, `${outcome} retry cannot duplicate the run-end ledger`);
+    assert.equal(loadVigil().deeds.runs, outcome === 'abandon' ? 0 : 1, `${outcome} retry cannot duplicate deeds`);
+  }
+  _setStore(null);
+}
+{
+  // Run-id receipts make both Vigil stages exactly once across failure and reload.
+  _setStore(null);
+  _setRng(() => 0);
+  const initial = loadVigil();
+  initial.deeds.wins = 1;
+  initial.quests.paleOnes.state = 'armed';
+  const persisted = new Map([['spirebound_vigil_v2', JSON.stringify(initial)]]);
+  let rejectWrites = false;
+  let acceptedWrites = 0;
+  _setStore({
+    getItem: (k) => (persisted.has(k) ? persisted.get(k) : null),
+    setItem: (k, v) => {
+      if (rejectWrites) throw new Error('quota');
+      acceptedWrites++;
+      persisted.set(k, v);
+    },
+    removeItem: (k) => persisted.delete(k),
+  });
+
+  const run = newRun(406);
+  run.quests = questSnapshot(loadVigil());
+  run.quests.paleOnes.state = 'complete';
+  run.quests.paleOnes.progress = QUESTS.paleOnes.target;
+  run.questCompletions = ['paleOnes'];
+  run.pendingRunEnd = { outcome: 'win' };
+  const savedRun = JSON.stringify(run);
+
+  rejectWrites = true;
+  assert.throws(
+    () => commitRunToVigil(run, true),
+    /Vigil storage rejected the deed commit; retry when storage is available/,
+  );
+  assert.ok(!Object.hasOwn(run, 'vigilCommitted'), 'rejected deed write leaves no marker');
+  assert.ok(!Object.hasOwn(run, 'vigilResult'), 'rejected deed write leaves no cache');
+  assert.equal(loadVigil().deeds.wins, 1);
+  assert.equal(acceptedWrites, 0);
+
+  rejectWrites = false;
+  const deeds = commitRunToVigil(run, true);
+  assert.equal(deeds.vigil.deeds.wins, 2);
+  assert.equal(loadVigil().receipts.deeds.runId, run.runId);
+  assert.equal(acceptedWrites, 1);
+  assert.throws(() => commitRunToVigil(run, false), /does not match durable deed receipt/, 'same-object deed retries preserve their semantic input');
+
+  const afterDeedReload = JSON.parse(savedRun);
+  const receiptDeeds = commitRunToVigil(afterDeedReload, true);
+  assert.deepEqual(receiptDeeds.newUnlocks, deeds.newUnlocks);
+  assert.equal(loadVigil().deeds.wins, 2, 'deed receipt prevents reload duplication');
+  assert.equal(acceptedWrites, 1, 'fresh deed receipt lookup performs no write');
+
+  rejectWrites = true;
+  assert.throws(
+    () => commitRunEnd(afterDeedReload, 'win'),
+    /Vigil storage rejected the run end; retry when storage is available/,
+  );
+  assert.ok(!Object.hasOwn(afterDeedReload, 'runEndCommitted'));
+  assert.ok(!Object.hasOwn(afterDeedReload, 'runEndResult'));
+  assert.equal(loadVigil().runsPlayed, 0);
+  assert.equal(loadVigil().whispers, 0);
+  assert.equal(acceptedWrites, 1);
+
+  rejectWrites = false;
+  const finalReload = JSON.parse(savedRun);
+  commitRunToVigil(finalReload, true);
+  const ended = commitRunEnd(finalReload, 'win');
+  assert.equal(ended.vigil.deeds.wins, 2);
+  assert.equal(ended.vigil.runsPlayed, 1);
+  assert.equal(ended.vigil.whispers, 1);
+  assert.deepEqual(ended.completed, ['paleOnes'], 'the durable receipt records quest completion');
+  assert.deepEqual(ended.newShards, ['paleOnes'], 'the durable receipt records the granted shard');
+  assert.deepEqual(ended.armed, ['ownShade'], 'the win arms the next dormant quest');
+  assert.equal(ended.vigil.quests.ownShade.state, 'armed');
+  assert.equal(loadVigil().receipts.runEnd.runId, run.runId);
+  assert.equal(acceptedWrites, 2, 'deeds and run end each require exactly one accepted write');
+  assert.throws(() => commitRunEnd(finalReload, 'death'), /does not match durable receipt/, 'same-object end retries preserve their semantic input');
+
+  const duplicateReload = JSON.parse(savedRun);
+  assert.deepEqual(commitRunToVigil(duplicateReload, true).newUnlocks, deeds.newUnlocks);
+  const duplicateEnd = commitRunEnd(duplicateReload, 'win');
+  assert.equal(duplicateEnd.vigil.deeds.wins, 2);
+  assert.equal(duplicateEnd.vigil.runsPlayed, 1);
+  assert.equal(duplicateEnd.vigil.whispers, 1);
+  assert.deepEqual(duplicateEnd.newShards, ['paleOnes']);
+  assert.deepEqual(duplicateEnd.armed, ['ownShade']);
+  assert.equal(loadVigil().deeds.wins, 2, 'fresh reload cannot duplicate deeds');
+  assert.equal(loadVigil().runsPlayed, 1, 'fresh reload cannot duplicate run end');
+  assert.equal(acceptedWrites, 2, 'third fresh retry performs zero additional writes');
+  assert.throws(() => commitRunToVigil(JSON.parse(savedRun), false), /does not match durable deed receipt/);
+  assert.throws(() => commitRunEnd(JSON.parse(savedRun), 'death'), /does not match durable receipt/);
+
+  _setRng(null);
+  _setStore(null);
+}
+{
   // the reveal ladder: counters only ever open doors
   _setStore(null);
   let v = loadVigil();
@@ -1125,7 +3091,7 @@ function forceHand(run, cb, ids) {
   // Begin Anew (abandon a saved climb) must advance the ladder — same ledger
   // path as confirmAbandon — so the next run's snapshot sees new reveals.
   const abandoned = newRun(300, { reveals: [] });
-  v = commitRunEnd(abandoned);
+  v = commitRunEnd(abandoned, 'abandon').vigil;
   assert.equal(v.runsPlayed, 1, 'Begin Anew counts as a run end');
   assert.ok(isRevealed(v, 'lamplighter'), 'abandon unlocks Lamplighter for the next climb');
   const afterAbandon = newRun(3001, { reveals: revealSnapshot(v) });
@@ -1135,28 +3101,28 @@ function forceHand(run, cb, ids) {
 
   // run ends advance the ladder — win, fall, or abandon alike — exactly once
   const r1 = newRun(301);
-  v = commitRunEnd(r1);
+  v = commitRunEnd(r1, 'abandon').vigil;
   assert.equal(v.runsPlayed, 1);
-  assert.equal(commitRunEnd(r1).runsPlayed, 1, 'commitRunEnd idempotent per run');
+  assert.equal(commitRunEnd(r1, 'abandon').vigil.runsPlayed, 1, 'commitRunEnd idempotent per run');
   assert.ok(isRevealed(v, 'lamplighter'), 'run 2 gets the Lamplighter');
   assert.equal(v.news, true, 'crossing a reveal pulses the Vigil');
   assert.equal(clearNews().news, false, 'opening the Vigil clears the pulse');
 
-  v = commitRunEnd(newRun(302));
+  v = commitRunEnd(newRun(302), 'abandon').vigil;
   assert.ok(isRevealed(v, 'phials') && isRevealed(v, 'poolWave2'), 'runsPlayed 2 tier');
-  v = commitRunEnd(newRun(303));
+  v = commitRunEnd(newRun(303), 'abandon').vigil;
   assert.ok(isRevealed(v, 'omens'), 'runsPlayed 3 tier');
-  commitRunEnd(newRun(304));
-  v = commitRunEnd(newRun(305));
+  commitRunEnd(newRun(304), 'abandon');
+  v = commitRunEnd(newRun(305), 'abandon').vigil;
   assert.ok(isRevealed(v, 'poolWave3'), 'runsPlayed 4 tier (already crossed)');
-  v = commitRunEnd(newRun(306));
+  v = commitRunEnd(newRun(306), 'abandon').vigil;
   assert.ok(isRevealed(v, 'poolFull'), 'runsPlayed 6 tier');
   assert.ok(!isRevealed(v, 'emberglass'), 'wins-gated reveal still dark');
 
   // a win reveals the emberglass chain and marks news
   const wr = newRun(307);
   commitRunToVigil(wr, true);
-  v = loadVigil();
+  v = commitRunEnd(wr, 'win').vigil;
   assert.ok(isRevealed(v, 'emberglass'), 'first dawn arms the chain');
   assert.equal(v.news, true, 'unlocks pulse the Vigil too');
   _setStore(null);
@@ -1216,6 +3182,227 @@ function forceHand(run, cb, ids) {
   claimMonument(run3);
   const got = run3.player.deck.find((c) => c.id === 'oblivionStrike');
   assert.ok(got && got.up, 'card bequest arrives upgraded');
+}
+{
+  // Your Own Shade: eligible deaths stand, their gift waits for victory, and
+  // each fallen aspect returns through the three-stage duel.
+  _setStore(null);
+  const v = loadVigil();
+  v.quests.ownShade.state = 'armed';
+  saveVigil(v);
+
+  const tooEarly = newRun(4390, { quests: questSnapshot(v) });
+  assert.equal(markShadeFall(tooEarly, 0, 7), false, 'Act 1 index 0 cannot carve a standing Shade');
+  assert.equal(tooEarly.questScratch.ownShade, undefined);
+  const dormantQuests = questSnapshot(v);
+  dormantQuests.ownShade.state = 'dormant';
+  const dormantFall = newRun(4391, { quests: dormantQuests });
+  assert.equal(markShadeFall(dormantFall, 1, 7), false, 'a dormant Shade quest cannot mark a fall');
+  const completeQuests = questSnapshot(v);
+  completeQuests.ownShade = { state: 'complete', progress: 3, memory: {} };
+  const completeFall = newRun(4392, { quests: completeQuests });
+  assert.equal(markShadeFall(completeFall, 1, 7), false, 'a completed Shade quest cannot mark another fall');
+
+  const fallen = newRun(440, { aspect: 1, quests: questSnapshot(v) });
+  fallen.act = 1;
+  assert.equal(markShadeFall(fallen, 1, 7), true);
+  let out = commitRunEnd(fallen, 'death');
+  assert.deepEqual(out.vigil.lastFall, {
+    act: 1, row: 7, bequest: null, standing: true, shadeAspect: 1,
+  });
+
+  setBequest(1, 7, { kind: 'gold', amount: 50 });
+  assert.equal(loadVigil().lastFall.standing, true);
+  assert.equal(loadVigil().lastFall.shadeAspect, 1);
+
+  const tierIds = [];
+  for (let stage = 0; stage < 3; stage++) {
+    const tierQuests = questSnapshot(loadVigil());
+    tierQuests.ownShade = { state: 'revealed', progress: stage, memory: {} };
+    const tierRun = newRun(4400 + stage, {
+      aspect: 0, quests: tierQuests, monument: loadVigil().lastFall,
+    });
+    const tierDuel = claimMonument(tierRun);
+    const id = `ownShade${stage + 1}`;
+    tierIds.push(tierDuel.variantId);
+    assert.equal(tierDuel.variantId, id, `progress ${stage} selects Shade tier ${stage + 1}`);
+    const resolved = resolveCombatant(tierRun, id);
+    const mods = PROGRESSION.emberglass.ownShade.tiers[stage];
+    assert.deepEqual(resolved.def.hp, [Math.round(110 * mods.hpMult), Math.round(110 * mods.hpMult)]);
+    assert.equal(resolved.def.moves.ashbite.dmg, Math.round(SHADE_KITS.ashwarden.moves.ashbite.dmg * mods.dmgMult));
+    assert.equal(resolved.def.startStatus.str || 0, mods.addStatuses.str || 0);
+    assert.equal(resolved.presentation.scale, mods.scale);
+  }
+  assert.deepEqual(tierIds, ['ownShade1', 'ownShade2', 'ownShade3']);
+
+  const next = newRun(441, { aspect: 0, quests: questSnapshot(loadVigil()), monument: loadVigil().lastFall });
+  next.act = 1;
+  next.map = genMap(next);
+  const beforeDuelGold = next.player.gold;
+  const duel = claimMonument(next);
+  assert.equal(duel.kind, 'shadeDuel');
+  assert.equal(duel.variantId, 'ownShade1');
+  assert.equal(next.player.gold, beforeDuelGold, 'a standing stone does not pay before victory');
+  const shade = resolveCombatant(next, duel.variantId);
+  assert.equal(shade.presentation.artId, 'ashwarden', 'uses fallen aspect, not current aspect');
+
+  for (let stage = 0; stage < 3; stage++) {
+    next.quests.ownShade.state = 'revealed';
+    next.quests.ownShade.progress = stage;
+    const id = 'ownShade' + (stage + 1);
+    const cb = startCombat(next, [id], 'monster');
+    cb.enemies[0].hp = 1;
+    forceHand(next, cb, ['strike']);
+    cb.player.energy = 3;
+    playCard(next, cb, cb.hand[0].uid, 0);
+    assert.equal(next.quests.ownShade.progress, stage + 1);
+    if (stage === 0) {
+      assert.equal(next.player.gold, beforeDuelGold + 50, 'the won duel pays the held gift');
+      assert.ok(cb.queue.some((e) => e.t === 'monumentGift' && e.bequest.amount === 50));
+      assert.equal(next.questScratch.ownShade.pendingBequest, undefined, 'a paid gift cannot replay');
+    }
+  }
+  assert.equal(next.quests.ownShade.state, 'complete');
+  assert.equal(next.endQueue.filter((e) => e.t === 'shadeResolved' && e.text === QUESTS.ownShade.final).length, 1);
+
+  const unpaid = { kind: 'gold', amount: 50 };
+  const lostDuel = newRun(442, {
+    aspect: 0, quests: questSnapshot(loadVigil()),
+    monument: { act: 1, row: 7, bequest: unpaid, standing: true, shadeAspect: 1 },
+  });
+  lostDuel.act = 1;
+  assert.equal(claimMonument(lostDuel).kind, 'shadeDuel');
+  assert.equal(markShadeFall(lostDuel, 1, 7), true);
+  out = commitRunEnd(lostDuel, 'death');
+  assert.deepEqual(out.vigil.lastFall.bequest, unpaid, 'a lost duel preserves the unpaid gift');
+  setBequest(1, 7, { kind: 'gold', amount: 99 });
+  assert.deepEqual(loadVigil().lastFall.bequest, unpaid, 'later defeat selection cannot overwrite the unpaid gift');
+
+  const claimedNormal = newRun(443, {
+    aspect: 0, quests: questSnapshot(loadVigil()),
+    monument: { act: 1, row: 6, bequest: { kind: 'gold', amount: 40 }, standing: false },
+  });
+  const beforeGold = claimedNormal.player.gold;
+  assert.equal(claimMonument(claimedNormal).kind, 'gold');
+  assert.equal(claimedNormal.player.gold, beforeGold + 40);
+  assert.equal(markShadeFall(claimedNormal, 1, 8), true);
+  out = commitRunEnd(claimedNormal, 'death');
+  assert.equal(out.vigil.lastFall.bequest, null, 'an already-paid normal monument is not duplicated');
+
+  const directGift = newRun(444);
+  const giftQueue = [];
+  const giftGold = directGift.player.gold;
+  grantBequest(directGift, { kind: 'gold', amount: 12 }, giftQueue);
+  assert.equal(directGift.player.gold, giftGold + 12);
+  assert.deepEqual(giftQueue, [{ t: 'monumentGift', bequest: { kind: 'gold', amount: 12 } }]);
+  _setStore(null);
+}
+{
+  // A rejected post-victory checkpoint reloads the accepted pending duel. The
+  // replay pays the held gift once; the unsaved in-memory victory is discarded.
+  const previousLocalStorage = globalThis.localStorage;
+  const persisted = new Map();
+  let rejectWrites = false;
+  try {
+    globalThis.localStorage = {
+      getItem: (key) => persisted.get(key) ?? null,
+      setItem: (key, value) => {
+        if (rejectWrites) throw new Error('quota');
+        persisted.set(key, value);
+      },
+      removeItem: (key) => persisted.delete(key),
+    };
+    const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'ownShade' ? 'revealed' : 'dormant', progress: 0, memory: {},
+    }]));
+    const run = newRun(445, {
+      quests,
+      monument: { act: 1, row: 7, bequest: { kind: 'gold', amount: 50 }, standing: true, shadeAspect: 1 },
+    });
+    const startGold = run.player.gold;
+    const duel = claimMonument(run);
+    setPendingEncounter(run, 'monster', [duel.variantId], 'ownShade');
+    assert.equal(saveRun(run), true, 'the pending duel is the durable pre-combat checkpoint');
+
+    const winShade = (candidate) => {
+      const cb = startCombat(candidate, candidate.pendingEnemyIds, candidate.pendingCombat);
+      cb.enemies[0].hp = 1;
+      forceHand(candidate, cb, ['strike']);
+      cb.player.energy = 3;
+      playCard(candidate, cb, cb.hand[0].uid, 0);
+      assert.equal(cb.result, 'win');
+    };
+
+    const rejectedVictory = loadRun();
+    winShade(rejectedVictory);
+    assert.equal(rejectedVictory.player.gold, startGold + 50);
+    assert.equal(shadeVictorySkipsRewards(rejectedVictory), true, 'the ownShade checkpoint bypasses ordinary rewards');
+    clearPendingEncounter(rejectedVictory);
+    rejectWrites = true;
+    assert.equal(saveRun(rejectedVictory), false, 'the post-victory checkpoint reports quota rejection');
+
+    rejectWrites = false;
+    const replay = loadRun();
+    assert.equal(replay.player.gold, startGold, 'reload discards the uncheckpointed gift');
+    assert.equal(replay.quests.ownShade.progress, 0);
+    assert.equal(replay.pendingQuestId, 'ownShade');
+    assert.deepEqual(replay.questScratch.ownShade.pendingBequest, { kind: 'gold', amount: 50 });
+    winShade(replay);
+    clearPendingEncounter(replay);
+    assert.equal(saveRun(replay), true);
+
+    const settled = loadRun();
+    assert.equal(settled.player.gold, startGold + 50, 'the replayed victory pays exactly once');
+    assert.equal(settled.quests.ownShade.progress, 1);
+    assert.equal(settled.pendingCombat, null);
+    assert.equal(settled.questScratch.ownShade.pendingBequest, undefined);
+    assert.equal(claimMonument(settled), null, 'the claimed stone cannot replay after the accepted victory');
+  } finally {
+    if (previousLocalStorage) globalThis.localStorage = previousLocalStorage;
+    else delete globalThis.localStorage;
+  }
+}
+{
+  // A rejected Shade-loss run-end receipt leaves no partial standing gift. A
+  // fresh-object retry persists it once and the receipt makes later retries inert.
+  _setStore(null);
+  const initial = loadVigil();
+  initial.quests.ownShade = { state: 'revealed', progress: 0, memory: {} };
+  const persisted = new Map([['spirebound_vigil_v2', JSON.stringify(initial)]]);
+  let rejectWrites = true;
+  let acceptedWrites = 0;
+  _setStore({
+    getItem: (key) => persisted.get(key) ?? null,
+    setItem: (key, value) => {
+      if (rejectWrites) throw new Error('quota');
+      acceptedWrites++;
+      persisted.set(key, value);
+    },
+    removeItem: (key) => persisted.delete(key),
+  });
+  const unpaid = { kind: 'gold', amount: 50 };
+  const lost = newRun(446, {
+    quests: questSnapshot(loadVigil()),
+    monument: { act: 1, row: 7, bequest: unpaid, standing: true, shadeAspect: 1 },
+  });
+  lost.act = 1;
+  claimMonument(lost);
+  assert.equal(markShadeFall(lost, 1, 8), true);
+  const savedLoss = JSON.stringify(lost);
+  assert.throws(() => commitRunEnd(lost, 'death'), /Vigil storage rejected the run end/);
+  assert.equal(loadVigil().lastFall, null, 'a rejected receipt writes no partial standing monument');
+  assert.equal(acceptedWrites, 0);
+
+  rejectWrites = false;
+  const accepted = commitRunEnd(JSON.parse(savedLoss), 'death');
+  assert.deepEqual(accepted.vigil.lastFall, {
+    act: 1, row: 8, bequest: unpaid, standing: true, shadeAspect: 0,
+  });
+  assert.equal(acceptedWrites, 1, 'fall and receipt share one accepted write');
+  const retry = commitRunEnd(JSON.parse(savedLoss), 'death');
+  assert.deepEqual(retry.vigil.lastFall.bequest, unpaid);
+  assert.equal(acceptedWrites, 1, 'fresh-object receipt retry cannot duplicate the standing gift');
+  _setStore(null);
 }
 {
   // bequestOptions offers the best of what was carried
@@ -1301,6 +3488,277 @@ function forceHand(run, cb, ids) {
   const hp0 = glass.player.maxHp;
   applyEventOps(glass, BOONS.temperedGlass.ops);
   assert.equal(glass.player.maxHp, hp0 + 14, 'Tempered Glass raises Max HP');
+}
+{
+  const pityMisses = PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1;
+  const q = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+    state: id === 'hollowLamplighter' ? 'armed' : 'dormant', progress: 0,
+    memory: id === 'hollowLamplighter' ? { eligibleMisses: pityMisses } : {},
+  }]));
+  const run = newRun(480, { quests: q, lamplighter: true });
+  assert.equal(run.questScratch.hollowLamplighter.due, true, 'configured pity forces the eligible run');
+
+  const unlit = run.map.nodes.find((n) => n.unlit);
+  assert.ok(unlit, 'scenario has an unlit node');
+  const visit = visitNode(run, unlit);
+  assert.equal(visit.hollow, true);
+  assert.ok(run.pendingHollow);
+  assert.equal(run.quests.hollowLamplighter.state, 'revealed');
+
+  let pay = payHollowPrice(run);
+  assert.deepEqual(pay, { ok: true, deferred: true, message: QUESTS.hollowLamplighter.meetings[0].accepted });
+  assert.equal(run.quests.hollowLamplighter.memory.emberDebt, 3);
+  assert.deepEqual(payHollowPrice(run), pay, 'the same meeting is idempotent');
+
+  const cb = startCombat(run, ['sporeling']);
+  gainEmbers(run, cb, 2);
+  assert.equal(cb.embers, 0);
+  gainEmbers(run, cb, 1);
+  assert.equal(run.quests.hollowLamplighter.progress, 1);
+
+  const openMeeting = (seed, previous) => {
+    const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'hollowLamplighter' ? previous.state : 'dormant',
+      progress: id === 'hollowLamplighter' ? previous.progress : 0,
+      memory: id === 'hollowLamplighter'
+        ? { ...previous.memory, eligibleMisses: pityMisses } : {},
+    }]));
+    const next = newRun(seed, { quests });
+    const node = next.map.nodes.find((n) => n.unlit);
+    assert.ok(node);
+    assert.equal(visitNode(next, node).hollow, true);
+    return next;
+  };
+
+  const goldRun = openMeeting(481, run.quests.hollowLamplighter);
+  goldRun.player.gold = 160;
+  pay = payHollowPrice(goldRun);
+  assert.equal(pay.ok, true);
+  assert.equal(goldRun.player.gold, 0);
+  assert.deepEqual(payHollowPrice(goldRun), pay);
+
+  const hpRun = openMeeting(482, goldRun.quests.hollowLamplighter);
+  hpRun.player.maxHp = 42;
+  hpRun.player.hp = 42;
+  pay = payHollowPrice(hpRun);
+  assert.equal(pay.ok, true);
+  assert.equal(hpRun.player.maxHp, 30);
+  assert.deepEqual(payHollowPrice(hpRun), pay);
+
+  const boonRun = openMeeting(483, hpRun.quests.hollowLamplighter);
+  applyBoon(boonRun, 'temperedGlass');
+  pay = payHollowPrice(boonRun);
+  assert.equal(pay.ok, true);
+  assert.equal(boonRun.boon, null);
+  assert.deepEqual(payHollowPrice(boonRun), pay);
+
+  const finalRun = openMeeting(484, boonRun.quests.hollowLamplighter);
+  finalRun.player.hp = 40;
+  pay = payHollowPrice(finalRun);
+  assert.equal(pay.ok, true);
+  assert.equal(finalRun.player.hp, 1);
+  assert.equal(finalRun.quests.hollowLamplighter.state, 'complete');
+  assert.deepEqual(payHollowPrice(finalRun), pay);
+
+  for (const [i, id] of Object.keys(BOONS).entries()) {
+    const bq = Object.fromEntries(QUEST_IDS.map((qid) => [qid, {
+      state: qid === 'hollowLamplighter' ? 'revealed' : 'dormant',
+      progress: qid === 'hollowLamplighter' ? 3 : 0, memory: {},
+    }]));
+    const br = newRun(490 + i, { quests: bq });
+    br.pendingHollow = {
+      nodeId: br.map.nodes[0].id, type: br.map.nodes[0].type,
+      paid: false, deferred: false, answer: null,
+    };
+    const before = structuredClone({
+      hp: br.player.hp, maxHp: br.player.maxHp, energyMax: br.player.energyMax,
+      gold: br.player.gold, relics: br.player.relics, potions: br.player.potions,
+      goldEarned: br.stats.goldEarned,
+    });
+    applyBoon(br, id);
+    assert.equal(payHollowPrice(br).ok, true, id + ' can be surrendered');
+    assert.deepEqual({
+      hp: br.player.hp, maxHp: br.player.maxHp, energyMax: br.player.energyMax,
+      gold: br.player.gold, relics: br.player.relics, potions: br.player.potions,
+      goldEarned: br.stats.goldEarned,
+    }, before, id + ' reverses every recorded delta');
+  }
+
+  const crown = newRun(499, { quests: q });
+  const crownBefore = {
+    hp: crown.player.hp, maxHp: crown.player.maxHp,
+    energyMax: crown.player.energyMax, relics: [...crown.player.relics],
+  };
+  gainRelic(crown, 'hollowCrown');
+  crown.boon = 'keenEye';
+  crown.boonReceipt = {
+    id: 'keenEye',
+    playerDelta: { gold: 0, hp: crown.player.hp - crownBefore.hp,
+      maxHp: crown.player.maxHp - crownBefore.maxHp,
+      energyMax: crown.player.energyMax - crownBefore.energyMax },
+    statsGoldEarned: 0,
+    relicsAdded: ['hollowCrown'], potionSlotsAdded: [],
+  };
+  assert.equal(reverseBoon(crown), true);
+  assert.deepEqual({
+    hp: crown.player.hp, maxHp: crown.player.maxHp,
+    energyMax: crown.player.energyMax, relics: crown.player.relics,
+  }, crownBefore, 'instant relic max-HP and energy effects reverse');
+
+  _setStore(null);
+  const debtVigil = loadVigil();
+  debtVigil.quests.hollowLamplighter = {
+    state: 'armed', progress: 0, memory: { eligibleMisses: pityMisses },
+  };
+  saveVigil(debtVigil);
+  const debtRun = newRun(520, { quests: questSnapshot(debtVigil) });
+  const debtNode = debtRun.map.nodes.find((n) => n.unlit);
+  assert.ok(debtNode);
+  visitNode(debtRun, debtNode);
+  assert.equal(payHollowPrice(debtRun).deferred, true);
+  const debtCombat = startCombat(debtRun, ['sporeling']);
+  gainEmbers(debtRun, debtCombat, 2);
+  let debtOut = commitRunEnd(debtRun, 'death');
+  assert.equal(debtOut.vigil.quests.hollowLamplighter.memory.emberDebt, 1);
+
+  const carry = newRun(521, { quests: questSnapshot(debtOut.vigil) });
+  assert.deepEqual(carry.questScratch.hollowLamplighter,
+    { due: false, met: false, meetings: 0, debtActive: true });
+  const carryCombat = startCombat(carry, ['sporeling']);
+  gainEmbers(carry, carryCombat, 1);
+  assert.equal(carry.quests.hollowLamplighter.progress, 1);
+  debtOut = commitRunEnd(carry, 'abandon');
+  assert.equal('emberDebt' in debtOut.vigil.quests.hollowLamplighter.memory, false,
+    'cleared debt stays deleted after the authoritative merge');
+  assert.equal('emberDebt' in loadVigil().quests.hollowLamplighter.memory, false,
+    'cleared debt is absent from the stored authoritative Vigil');
+  _setStore(null);
+}
+{
+  const makeHollowMeeting = (seed, progress, type) => {
+    const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'hollowLamplighter' ? 'revealed' : 'dormant',
+      progress: id === 'hollowLamplighter' ? progress : 0,
+      memory: {},
+    }]));
+    const run = newRun(seed, { quests });
+    const node = run.map.nodes[0];
+    node.type = type;
+    run.nodeId = node.id;
+    run.map.visited.push(node.id);
+    run.questScratch.hollowLamplighter = { due: true, met: true, debtActive: false };
+    run.pendingHollow = {
+      nodeId: node.id, type, paid: false, deferred: false, answer: null,
+    };
+    return { run, node };
+  };
+
+  const failures = [
+    {
+      label: 'insufficient gold', progress: 1, type: 'event',
+      prepare: (run) => { run.player.gold = PROGRESSION.emberglass.hollowLamplighter.gold - 1; },
+    },
+    {
+      label: 'insufficient Max HP', progress: 2, type: 'rest',
+      prepare: (run) => { run.player.maxHp = 41; run.player.hp = 41; },
+    },
+    {
+      label: 'spent boon', progress: 3, type: 'shop',
+      prepare: (run) => { applyBoon(run, 'fullPurse'); run.player.gold = 0; },
+    },
+  ];
+  const previousLocalStorage = globalThis.localStorage;
+  const hollowSaveStore = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => hollowSaveStore.get(key) ?? null,
+    setItem: (key, value) => { hollowSaveStore.set(key, value); },
+    removeItem: (key) => { hollowSaveStore.delete(key); },
+  };
+  for (const [i, spec] of failures.entries()) {
+    const { run, node } = makeHollowMeeting(530 + i, spec.progress, spec.type);
+    spec.prepare(run);
+    const before = structuredClone({
+      progress: run.quests.hollowLamplighter.progress,
+      gold: run.player.gold, hp: run.player.hp, maxHp: run.player.maxHp,
+      boon: run.boon, boonReceipt: run.boonReceipt,
+    });
+    assert.equal(payHollowPrice(run).ok, false, spec.label + ' cannot pay');
+    const route = stageHollowExit(run);
+    assert.deepEqual({ kind: route.kind, nodeId: route.nodeId, type: route.type },
+      { kind: 'destination', nodeId: node.id, type: spec.type }, spec.label + ' can return later');
+    assert.equal(run.pendingHollow, null);
+    assert.deepEqual(run.pendingHollowRoute, {
+      nodeId: node.id, type: spec.type,
+      eventId: spec.type === 'event' ? route.eventId : null,
+    });
+    if (spec.type === 'event') assert.ok(Object.hasOwn(EVENTS, route.eventId));
+    assert.deepEqual({
+      progress: run.quests.hollowLamplighter.progress,
+      gold: run.player.gold, hp: run.player.hp, maxHp: run.player.maxHp,
+      boon: run.boon, boonReceipt: run.boonReceipt,
+    }, before, spec.label + ' leave does not charge or advance');
+    assert.equal(saveRun(run), true, spec.label + ' Return Later transaction saves');
+    const reloaded = loadRun();
+    assert.ok(reloaded, spec.label + ' Return Later transaction reloads');
+    assert.deepEqual(reloaded.pendingHollowRoute, run.pendingHollowRoute,
+      spec.label + ' reload retains the exact destination');
+    assert.equal(reloaded.questScratch.hollowLamplighter.met, true,
+      spec.label + ' reload retains the one-meeting-per-run latch');
+    assert.deepEqual({
+      progress: reloaded.quests.hollowLamplighter.progress,
+      gold: reloaded.player.gold, hp: reloaded.player.hp, maxHp: reloaded.player.maxHp,
+      boon: reloaded.boon, boonReceipt: reloaded.boonReceipt,
+    }, before, spec.label + ' reload retains no payment or progress');
+    const laterQuests = structuredClone(reloaded.quests);
+    laterQuests.hollowLamplighter.memory.eligibleMisses =
+      PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1;
+    const later = newRun(540 + i, { quests: laterQuests });
+    assert.equal(later.questScratch.hollowLamplighter.due, true,
+      spec.label + ' remains eligible for the same price in a later run');
+    assert.equal(later.quests.hollowLamplighter.progress, before.progress,
+      spec.label + ' later eligibility does not imply payment');
+    assert.equal(run.questScratch.hollowLamplighter.met, true,
+      spec.label + ' leave keeps the one-meeting-per-run latch');
+  }
+  if (previousLocalStorage) globalThis.localStorage = previousLocalStorage;
+  else delete globalThis.localStorage;
+
+  const combatMeeting = makeHollowMeeting(533, 2, 'monster');
+  combatMeeting.run.pendingHollow.paid = true;
+  combatMeeting.run.pendingHollow.answer = QUESTS.hollowLamplighter.meetings[1].paid;
+  const combatRoute = stageHollowExit(combatMeeting.run);
+  assert.equal(combatRoute.kind, 'combat');
+  assert.deepEqual(combatRoute.enemyIds, combatMeeting.run.pendingEnemyIds);
+  assert.equal(combatMeeting.run.pendingHollow, null);
+  assert.equal(combatMeeting.run.pendingHollowRoute, null);
+  assert.equal(combatMeeting.run.pendingCombat, 'monster');
+  assert.ok(combatMeeting.run.pendingEnemyIds.length > 0, 'combat route journals exact enemies before save');
+
+  _setStore(null);
+  const vigil = loadVigil();
+  vigil.quests.hollowLamplighter = { state: 'revealed', progress: 1, memory: {} };
+  saveVigil(vigil);
+  const left = makeHollowMeeting(534, 1, 'rest').run;
+  left.quests = questSnapshot(vigil);
+  left.questScratch.hollowLamplighter = { due: true, met: true, debtActive: false };
+  stageHollowExit(left);
+  left.pendingHollowRoute = null;
+  let out = commitRunEnd(left, 'death');
+  assert.equal(out.vigil.quests.hollowLamplighter.memory.eligibleMisses, 0,
+    'returning later ends only this run meeting');
+  const pityRuns = PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns;
+  for (let misses = 1; misses < pityRuns; misses++) {
+    const laterEligible = newRun(534 + misses, { quests: questSnapshot(out.vigil) });
+    assert.ok(laterEligible.questScratch.hollowLamplighter,
+      'an unpaid price remains eligible in a later run');
+    laterEligible.questScratch.hollowLamplighter = { due: false, met: false, debtActive: false };
+    out = commitRunEnd(laterEligible, 'death');
+    assert.equal(out.vigil.quests.hollowLamplighter.memory.eligibleMisses, misses);
+  }
+  const pityRetry = newRun(535 + pityRuns, { quests: questSnapshot(out.vigil) });
+  assert.equal(pityRetry.questScratch.hollowLamplighter.due, true,
+    'an unpaid price returns under the normal pity guarantee');
+  _setStore(null);
 }
 {
   // monuments in the map: the last fall stands in its own act, nowhere else
@@ -1471,18 +3929,104 @@ function randomAgentRun(seed) {
       .filter((f) => /\.(png|jpg)$/i.test(f))
       .map((f) => f.replace(/\.(png|jpg)$/i, '')),
   );
-  const checkManifest = (cat, expectedIds) => {
+  const checkManifest = (cat, requiredIds, optionalIds = []) => {
     const have = assetIds(cat);
-    const want = new Set(expectedIds);
-    for (const id of want) assert.ok(have.has(id), `asset missing: src/assets/${cat}/${id} (data id has no art)`);
-    for (const id of have) assert.ok(want.has(id), `orphan asset: src/assets/${cat}/${id} (art has no data id)`);
+    const required = new Set(requiredIds);
+    const known = new Set([...requiredIds, ...optionalIds]);
+    for (const id of required) assert.ok(have.has(id), `asset missing: src/assets/${cat}/${id} (data id has no art)`);
+    for (const id of have) assert.ok(known.has(id), `orphan asset: src/assets/${cat}/${id} (art has no data id)`);
   };
-  checkManifest('cards', Object.keys(CARDS));
+  const paeth = (left, up, upperLeft) => {
+    const estimate = left + up - upperLeft;
+    const leftDistance = Math.abs(estimate - left);
+    const upDistance = Math.abs(estimate - up);
+    const upperLeftDistance = Math.abs(estimate - upperLeft);
+    if (leftDistance <= upDistance && leftDistance <= upperLeftDistance) return left;
+    return upDistance <= upperLeftDistance ? up : upperLeft;
+  };
+  const readPng = (url) => {
+    const bytes = readFileSync(url);
+    const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    assert.ok(bytes.subarray(0, signature.length).equals(signature), `${url}: invalid PNG signature`);
+
+    let offset = signature.length;
+    let header = null;
+    let ended = false;
+    const compressed = [];
+    while (offset + 12 <= bytes.length) {
+      const length = bytes.readUInt32BE(offset);
+      const type = bytes.toString('ascii', offset + 4, offset + 8);
+      const dataStart = offset + 8;
+      const dataEnd = dataStart + length;
+      assert.ok(dataEnd + 4 <= bytes.length, `${url}: truncated ${type} chunk`);
+      if (type === 'IHDR') {
+        assert.equal(length, 13, `${url}: invalid IHDR length`);
+        assert.equal(header, null, `${url}: duplicate IHDR`);
+        header = {
+          width: bytes.readUInt32BE(dataStart),
+          height: bytes.readUInt32BE(dataStart + 4),
+          bitDepth: bytes[dataStart + 8],
+          colourType: bytes[dataStart + 9],
+          compression: bytes[dataStart + 10],
+          filter: bytes[dataStart + 11],
+          interlace: bytes[dataStart + 12],
+        };
+      } else if (type === 'IDAT') {
+        compressed.push(bytes.subarray(dataStart, dataEnd));
+      } else if (type === 'IEND') {
+        ended = true;
+        break;
+      }
+      offset = dataEnd + 4;
+    }
+
+    assert.ok(header, `${url}: missing IHDR`);
+    assert.ok(ended, `${url}: missing IEND`);
+    assert.ok(compressed.length, `${url}: missing IDAT`);
+    assert.equal(header.bitDepth, 8, `${url}: PNG must use 8-bit channels`);
+    assert.ok(header.colourType === 2 || header.colourType === 6,
+      `${url}: PNG must be RGB or RGBA`);
+    assert.equal(header.compression, 0, `${url}: unsupported PNG compression`);
+    assert.equal(header.filter, 0, `${url}: unsupported PNG filter method`);
+    assert.equal(header.interlace, 0, `${url}: PNG must be non-interlaced`);
+
+    const channels = header.colourType === 6 ? 4 : 3;
+    const stride = header.width * channels;
+    const filtered = inflateSync(Buffer.concat(compressed));
+    assert.equal(filtered.length, (stride + 1) * header.height,
+      `${url}: unexpected inflated PNG length`);
+    const pixels = Buffer.alloc(stride * header.height);
+    let source = 0;
+    for (let y = 0; y < header.height; y++) {
+      const filterType = filtered[source++];
+      assert.ok(filterType >= 0 && filterType <= 4, `${url}: unsupported PNG row filter ${filterType}`);
+      const rowStart = y * stride;
+      for (let x = 0; x < stride; x++) {
+        const target = rowStart + x;
+        const left = x >= channels ? pixels[target - channels] : 0;
+        const up = y > 0 ? pixels[target - stride] : 0;
+        const upperLeft = y > 0 && x >= channels ? pixels[target - stride - channels] : 0;
+        let predictor = 0;
+        if (filterType === 1) predictor = left;
+        else if (filterType === 2) predictor = up;
+        else if (filterType === 3) predictor = Math.floor((left + up) / 2);
+        else if (filterType === 4) predictor = paeth(left, up, upperLeft);
+        pixels[target] = (filtered[source++] + predictor) & 0xff;
+      }
+    }
+
+    const alpha = new Set();
+    if (channels === 4) {
+      for (let i = 3; i < pixels.length; i += channels) alpha.add(pixels[i]);
+    }
+    return { ...header, channels, alpha };
+  };
+  checkManifest('cards', Object.keys(CARDS).filter((id) => id !== 'unreadablePage'), ['unreadablePage']);
   checkManifest('enemies', Object.keys(ENEMIES));
   checkManifest('relics', Object.keys(RELICS));
   checkManifest('potions', Object.keys(POTIONS));
   checkManifest('events', Object.keys(EVENTS));
-  checkManifest('omens', Object.keys(OMENS));
+  checkManifest('omens', Object.keys(OMENS).filter((id) => id !== 'eighthOmen'), ['eighthOmen']);
   checkManifest('boons', Object.keys(BOONS));
   checkManifest('arts', Object.keys(ARTS));
   checkManifest('heroes', ASPECTS.map((a) => a.id));
@@ -1491,7 +4035,36 @@ function randomAgentRun(seed) {
   checkManifest('statuses', Object.keys(STATUS_INFO));
   checkManifest('deeds', Object.keys(DEEDS));
   checkManifest('bequests', ['relic', 'card', 'gold']);
-  checkManifest('meta', ['fallen', 'ascended', 'monument-node']);
+  const ROSE_OPTIONAL = [
+    'emberglass-mural', 'emberglass-frame',
+    ...QUEST_IDS.map((id) => 'emberglass-mask-' + id),
+  ];
+  checkManifest('meta', ['fallen', 'ascended', 'monument-node'], ROSE_OPTIONAL);
+  {
+    const roseIds = [
+      'emberglass-mural', 'emberglass-frame',
+      ...QUEST_IDS.map((id) => 'emberglass-mask-' + id),
+    ];
+    const present = roseIds.filter((id) => assetIds('meta').has(id));
+    assert.ok(present.length === 0 || present.length === roseIds.length,
+      `Rose assets are atomic: found ${present.length}/${roseIds.length}`);
+    if (present.length) {
+      for (const id of roseIds) {
+        const image = readPng(new URL(`../src/assets/meta/${id}.png`, import.meta.url));
+        assert.deepEqual([image.width, image.height], [1024, 1024], `${id}: expected 1024×1024`);
+        if (id === 'emberglass-mural') {
+          assert.ok(image.colourType === 2 || image.colourType === 6, `${id}: expected RGB or RGBA`);
+          if (image.colourType === 6) {
+            assert.deepEqual([...image.alpha].sort((a, b) => a - b), [255], `${id}: RGBA mural must be opaque`);
+          }
+        } else {
+          assert.equal(image.colourType, 6, `${id}: frame and masks must be RGBA`);
+          assert.deepEqual([...image.alpha].sort((a, b) => a - b), [0, 255],
+            `${id}: alpha must be exactly binary`);
+        }
+      }
+    }
+  }
   checkManifest('ui', UI_CHROME_IDS);
 }
 
@@ -1562,6 +4135,41 @@ function randomAgentRun(seed) {
   assert.equal(nodeGlyphId('monster', true), 'node-unlit');
 }
 
+// Load through Vite so import.meta.glob is resolved and this checks the actual
+// iconSvg output used by the browser, not merely the structural registry source.
+{
+  const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
+  let paleMote, emptyLantern, eighthOmen, emberglassIcons;
+  try {
+    const { iconSvg } = await vite.ssrLoadModule('/src/art.js');
+    paleMote = iconSvg('paleMote', 18);
+    emptyLantern = iconSvg('emptyLantern', 18);
+    eighthOmen = iconSvg('eighthOmen', 18);
+    emberglassIcons = Object.fromEntries(
+      ['emberglassShard', 'roseWindow', 'unreadablePage', 'hollowLantern', 'sealedDoor']
+        .map((id) => [id, iconSvg(id, 18)]),
+    );
+  } finally {
+    await vite.close();
+  }
+  assert.match(paleMote, /<path\b[^>]*\bd="[^"]+"[^>]*>/,
+    'paleMote iconSvg output contains a non-empty path d');
+  assert.match(emptyLantern, /<path\b[^>]*\bd="[^"]+"[^>]*>/,
+    'emptyLantern iconSvg output contains a non-empty path d');
+  const brokenLeads = [...eighthOmen.matchAll(/<path(?=[^>]*class="broken-lead")(?=[^>]*\bd="([^"]+)")[^>]*>/g)];
+  assert.equal(brokenLeads.length, 6, 'the broken omen icon has six disconnected structural strokes');
+  assert.ok(brokenLeads.every((match) => match[1].trim().length > 0),
+    'every broken omen stroke has real non-empty path output');
+  assert.equal(eighthOmen.replace(/<[^>]+>/g, '').trim(), '',
+    'the broken omen icon contains no font glyph');
+  for (const [id, svg] of Object.entries(emberglassIcons)) {
+    assert.match(svg, /<path\b[^>]*\bd="[^"]+"[^>]*>/,
+      `${id} iconSvg output contains a non-empty path d`);
+    assert.equal(svg.replace(/<[^>]+>/g, '').trim(), '',
+      `${id} icon contains no font glyph`);
+  }
+}
+
 // ---- battlefield layout schema (spec 2026-07-06-battlefield-editor-design) ----
 {
   const shapes = ['phone-portrait', 'phone-landscape', 'pad-portrait', 'pad-landscape', 'desktop-landscape'];
@@ -1598,12 +4206,50 @@ function randomAgentRun(seed) {
   _setBF({ ...bfRaw(), shared: { ...bfRaw().shared, sizes: { normal: 99999, elite: 99999, boss: 99999 } } });
   assert.equal(bfEnemySize(bfResolve('pad-landscape'), 'duskfang', 'normal', { x: 0, s: 1 }, 1180, 820),
     Math.round(99999 * bfActor('enemies', 'duskfang').scale), 'bf: no stage size clamp');
+  _setBF(null);
   // depth: lower slot lift draws in front
   assert.deepEqual(bfEnemyZOrder([{ y: 40 }, { y: 0 }], ['a', 'b']), [1, 2], 'bf: enemy z-order by bottom');
   assert.equal(bfEnemyFootY({ footY: 5 }, 'duskfang'), 5, 'bf: slot footY override');
   assert.equal(bfEnemyFootY({}, 'duskfang'), bfActor('enemies', 'duskfang').footY, 'bf: shared footY fallback');
   assert.equal(bfEnemyFootX({ footX: 12 }, 'duskfang'), 12, 'bf: slot footX override');
   assert.equal(bfEnemyFootX({}, 'duskfang'), 0, 'bf: shared footX default');
+  const portrait = bfResolve('phone-portrait', 2);
+  const [portraitSingle] = bfSlots(portrait, 1);
+  assert.deepEqual(
+    bfEnemyFrame(portrait, 'sovereign', 'boss', portraitSingle, 390, 844,
+      VARIANTS.usurpedSovereign.scale),
+    { size: 233, left: 84, bottom: 0 },
+    'bf: portrait Usurper frame keeps sovereign footX, slot footY, and presentation scale',
+  );
+  assert.deepEqual(
+    bfEnemyFrame(bfResolve('phone-portrait', 0), 'leviathan', 'boss',
+      bfSlots(bfResolve('phone-portrait', 0), 1)[0], 390, 844),
+    { size: 374, left: -37, bottom: 0 },
+    'bf: oversized portrait actor frame preserves the authored horizontal foot anchor',
+  );
+  const stageShapes = {
+    'phone-portrait': [390, 844],
+    'phone-landscape': [844, 390],
+    'pad-portrait': [820, 1180],
+    'pad-landscape': [1180, 820],
+    'desktop-landscape': [1458, 820],
+  };
+  for (const [shape, [stageWidth, stageHeight]] of Object.entries(stageShapes)) {
+    for (const act of [0, 1, 2]) {
+      const layout = bfResolve(shape, act);
+      const [slot] = bfSlots(layout, 1);
+      for (const [key, enemy] of Object.entries(ENEMIES)) {
+        const tier = enemy.boss ? 'boss' : enemy.elite ? 'elite' : 'normal';
+        const frame = bfEnemyFrame(layout, key, tier, slot, stageWidth, stageHeight);
+        const top = stageHeight - layout.groundY - frame.bottom - frame.size;
+        assert.ok(top >= 8,
+          `bf: ${shape} act ${act} single ${key} root stays below the 8px stage crown (top ${top})`);
+        assert.equal(frame.left,
+          Math.round(slot.x - frame.size / 2 + bfEnemyFootX(slot, key)),
+          `bf: ${shape} act ${act} single ${key} preserves its authored horizontal foot anchor`);
+      }
+    }
+  }
   _setBF({ ...bfRaw(), shapes: { 'pad-landscape': { hero: { y: 12 } } } });
   assert.equal(bfHeroY(bfResolve('pad-landscape', 0)), 12, 'bf: hero.y pad-landscape shape override');
   _setBF({ ...bfRaw(), shapes: { 'desktop-landscape': { hero: { y: 24 } } } });

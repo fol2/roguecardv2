@@ -1,0 +1,34 @@
+Spirebound Emberglass Phase 2 — canonical Linux visual evidence
+Capture date: 2026-07-10
+
+Source commit: 0829fed8aeb8425f5c93eb596ab7048c0457e676
+Source tree: 9f43cba94a04f630779fddcc0f5aa991f97966d5
+Allow-listed source archive: /private/tmp/emberglass-phase2-0829fed-source.tar.gz
+Source archive SHA-256: ac38ab2bb0c1b7950940ae54fd2417f7ae27e602a631f7e1b01309b6c82285b3
+Source archive contents: root runtime/test configuration plus src/, public/, test/ and tools/; dist/, docs/ and scratch/ excluded.
+Source archive manifest: source-archive-manifest.txt (694 entries)
+Committed Git tree manifest: source-git-tree.txt (2,704 entries)
+
+Execution host: Vercel Sandbox emberglass-p2-linux-0829fed, 4 vCPU, 8,192 MB, node24 base runtime
+Execution image: mcr.microsoft.com/playwright:v1.61.1-noble
+Image digest: sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48
+Image architecture: linux/amd64
+Container OS: Ubuntu 24.04.4 LTS (Noble Numbat)
+Container Node.js: v24.17.0
+Container npm: 11.13.0
+Playwright: 1.61.1
+
+Install: npm ci — passed, 23 packages, 0 vulnerabilities
+Rose asset proof: rose-assets-sha256.txt — exactly eight Emberglass frame/mask/mural PNGs
+Visual update: SPIREBOUND_E2E_PORT=5314 npm run test:e2e:update — 48 passed (5.9m)
+Immediate no-update verification: SPIREBOUND_E2E_PORT=5315 npm run test:e2e:visual — 48 passed (5.9m)
+Canonical baselines: snapshots-sha256.txt — exactly 48 *-linux.png files
+
+Evidence archive: emberglass-phase2-linux-visual-evidence-0829fed.tar.gz
+Evidence archive SHA-256: f24fb694d6ff2385f0e83e80bb660f3a693fe29b883d67a0b487ddca3ae7d87c
+The archive contains the complete update and verification logs, npm install log, environment and image records, source-archive and Git-tree manifests, Rose asset checksums, all 48 canonical Linux PNGs and their checksums, and all three sandbox lifecycle records.
+
+Sandbox lifecycle proof:
+- emberglass-phase2-linux-sandbox-before-removal.txt records the running sandbox.
+- emberglass-phase2-linux-sandbox-removal.txt records successful permanent removal.
+- emberglass-phase2-linux-sandbox-after-removal.txt records an empty sandbox list.
