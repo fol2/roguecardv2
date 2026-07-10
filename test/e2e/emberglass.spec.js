@@ -298,27 +298,27 @@ test('normal-motion reload resumes only unacknowledged dawn panels', async ({ pa
   test.skip(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches),
     'the checkpoint timing contract is specifically normal motion');
   const staged = await stagePendingRunEnd(page, 'win');
+  // Capture the cursor===2 checkpoint inside waitForFunction so Playwright
+  // round-trips cannot miss the ~550ms normal-motion panel window.
   await page.reload();
-  await page.waitForFunction(() => window.spirebound && window.__probe?.state().screen === 'end');
-  const reloaded = page.waitForEvent('load');
-  await page.evaluate(() => {
-    const captureAtCursorTwo = () => {
-      const run = JSON.parse(localStorage.getItem('spirebound_save_v2'));
-      if (run?.pendingDawn?.cursor !== 2 || run.pendingDawn.cursor >= run.pendingDawn.events.length) {
-        setTimeout(captureAtCursorTwo, 10);
-        return;
-      }
+  await page.waitForFunction(() => {
+    if (!(window.spirebound && window.__probe?.state().screen === 'end')) return false;
+    const run = JSON.parse(localStorage.getItem('spirebound_save_v2') || 'null');
+    const pending = run?.pendingDawn;
+    if (!pending || pending.cursor !== 2 || pending.cursor >= pending.events.length) return false;
+    if (!sessionStorage.getItem('spirebound_dawn_checkpoint')) {
       sessionStorage.setItem('spirebound_dawn_checkpoint', JSON.stringify({
-        cursor: run.pendingDawn.cursor,
-        acknowledged: run.pendingDawn.events.slice(0, run.pendingDawn.cursor),
-        remaining: run.pendingDawn.events.slice(run.pendingDawn.cursor),
+        cursor: pending.cursor,
+        acknowledged: pending.events.slice(0, pending.cursor),
+        remaining: pending.events.slice(pending.cursor),
         vigilRaw: localStorage.getItem('spirebound_vigil_v2'),
         statsRaw: localStorage.getItem('spirebound_stats_v1'),
       }));
-      location.reload();
-    };
-    captureAtCursorTwo();
+    }
+    return true;
   });
+  const reloaded = page.waitForEvent('load');
+  await page.evaluate(() => location.reload());
   await reloaded;
   const checkpoint = await page.evaluate(() =>
     JSON.parse(sessionStorage.getItem('spirebound_dawn_checkpoint')));
