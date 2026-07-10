@@ -2952,6 +2952,21 @@ composition-repair pass with this exact prompt, then re-run the gate:
 Recompose only the contents of this existing square stained-glass mural so it aligns with six fixed equal radial masks. Clockwise from the top, the six sectors must be exactly: three pale figures carrying one cold shard down a black stair; a standing memorial shadow facing its living self; an empty lantern beneath a false crown; seven simple abstract marks broken by one eighth dark stroke; five pages turning into one stair-map; and a gaunt lamplighter surrendering the last flame. Keep one narrow black-and-gold stair as the continuous central connective motif and keep the sealed obsidian door with one thin white-gold seam above it, but do not let the door replace or create a seventh sector. Keep every quest subject well inside its own sector and outside the central 14 percent boss. Preserve the serious cartoon-gothic stained-glass style, chunky black lead, matte texture, black obsidian, smoke violet, cold cyan, dead white, tarnished gold, and one restrained ember-orange seam. Change no other design intent. No text, letters, numbers, labels, logo, watermark, UI, open door, door landscape, church congregation, modern architecture, or playable Act 4 scene.
 ~~~
 
+If that composition repair still fails the same gate, make one third built-in
+generation using this tighter coordinate-contract prompt, then continue only
+when it passes:
+
+~~~text
+Use case: stylized-concept
+Asset type: Spirebound meta mural, opaque square full-scene art aligned to deterministic masks
+Primary request: Create one square dark-fantasy stained-glass mural with exactly six equal radial wedge-shaped narrative sectors around one small central circular boss. Count exactly six sectors, never seven. Place these six subjects at fixed clock positions: at 12 o'clock, three pale figures carrying one cold shard down a black stair; at 2 o'clock, a standing memorial shadow facing its living self; at 4 o'clock, an empty lantern held beneath a false crown; at 6 o'clock, exactly seven simple pale-gold abstract marks visibly broken by one thick eighth black stroke; at 8 o'clock, five pages turning into one stair-map; at 10 o'clock, a gaunt lamplighter surrendering the last flame. Centre every subject well inside its own sector and keep all subjects away from radial boundaries and the central 14 percent boss.
+Continuous motif: a narrow black-and-gold stair connects the six stories through the centre and rises to a small sealed obsidian door with one thin white-gold seam. The door is a central connective motif only: it must not occupy, replace, split, or create a narrative sector. Keep the door visibly closed, with no view beyond it.
+Style/medium: serious cartoon-gothic dark-fantasy stained glass; chunky dark lead contours within the illustration; six large readable colour masses; matte painterly glass texture; thumbnail-readable; restrained cathedral geometry.
+Palette: black obsidian, smoke violet, cold cyan, dead white, tarnished gold, one restrained ember-orange accent only at the closed door seam.
+Composition: full opaque square; exact six-sector radial clock layout; no outer frame because a deterministic lead frame will be overlaid; subjects readable through six equal masks.
+Constraints: no seventh sector or pane; no text, letters, numbers, labels, logo, watermark, UI, card frame, people worshipping, modern architecture, open door, landscape beyond the door, or playable Act 4 scene.
+~~~
+
 Save the returned source and generated ID evidence under scratch/style-tests/emberglass-rose-window-20260709/. Run the fixed Nano Banana clean-up for a full-background scene, preserving the square composition and lowering background detail. Record source, prompt, generated ID, cleaned path, selection, and review verdict in prompt-ledger.md using apply_patch. Promote the accepted cleaned mural to src/assets/meta/emberglass-mural.png. If generation is unavailable, mark this task BLOCKED and leave the fallback intact; never fabricate an asset.
 
 Use this exact Nano Banana prompt:

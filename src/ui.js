@@ -843,9 +843,32 @@ function titleRoseMedallion(v, assets) {
   if (!assets || v.shards.length < 1) return '';
   const panes = QUEST_IDS.filter((id) => v.shards.includes(id)).map((id) =>
     `<span class="title-rose-pane" style="--rose-mural:url('${escHtml(assets.mural)}');--rose-mask:url('${escHtml(assets.masks[id])}')"></span>`).join('');
-  return `<button class="title-rose-medallion" data-a="rose" aria-label="Open the Rose Window">
+  const urls = [assets.mural, assets.frame, ...QUEST_IDS.map((id) => assets.masks[id])];
+  return `<button class="title-rose-medallion" data-a="rose" aria-label="Open the Rose Window" disabled>
     <span class="title-rose-composite">${panes}<img src="${escHtml(assets.frame)}" alt=""></span>
+    <span class="title-rose-preload" aria-hidden="true">${urls.map((url) => `<img src="${escHtml(url)}" alt="">`).join('')}</span>
   </button>`;
+}
+
+function decodeTitleRoseAssets(root) {
+  const medallion = $('.title-rose-medallion', root);
+  if (!medallion) return;
+  const images = $$('.title-rose-preload img', medallion);
+  const decode = (image) => {
+    if (image.decode) return image.decode();
+    if (image.complete) return image.naturalWidth ? Promise.resolve() : Promise.reject(new Error('Rose asset failed to load'));
+    return new Promise((resolve, reject) => {
+      image.addEventListener('load', resolve, { once: true });
+      image.addEventListener('error', reject, { once: true });
+    });
+  };
+  Promise.all(images.map(decode))
+    .then(() => {
+      if (!medallion.isConnected) return;
+      medallion.disabled = false;
+      medallion.classList.add('ready');
+    })
+    .catch(() => {});
 }
 
 function renderTitle() {
@@ -872,6 +895,7 @@ function renderTitle() {
     </div>
     <div class="title-stats">${d.runs} climbs · ${d.wins} dawns · ${d.slain} slain${vigil.unlocks.length ? ` · ${vigil.unlocks.length} secrets unearthed` : ''}</div>
   </div>`;
+  decodeTitleRoseAssets(sc);
   sc.onclick = (e) => {
     const t = e.target.closest('[data-a]');
     if (!t || t.disabled) return;

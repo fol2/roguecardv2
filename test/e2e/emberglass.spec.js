@@ -35,7 +35,38 @@ test('Rose panes disclose only their current state', async ({ page }) => {
   await expect(page.locator('.rose-window.rose-assets')).toHaveClass(/ready/);
   await expect(page.locator('.whisper-row')).toHaveCount(v.whispers);
   await page.click('[data-a="back"]');
-  await expect(page.locator('.title-rose-medallion')).toBeVisible();
+  const medallion = page.locator('.title-rose-medallion');
+  await expect(medallion).toHaveClass(/ready/);
+  await expect(medallion).toBeEnabled();
+  const pane = medallion.locator('.title-rose-pane');
+  await expect(pane).toHaveCount(1);
+  expect(await pane.evaluate((node) => getComputedStyle(node).backgroundImage))
+    .toContain('emberglass-mural');
+  expect(await pane.evaluate((node) => getComputedStyle(node).maskImage
+    || getComputedStyle(node).webkitMaskImage)).toContain('emberglass-mask-usurper');
+  await expect(medallion.locator('.title-rose-composite > img'))
+    .toHaveAttribute('src', /emberglass-frame/);
+  await expect(medallion.locator('.title-rose-preload img')).toHaveCount(8);
+  await medallion.click();
+  await expect(page.locator('.rose-window.rose-assets')).toHaveClass(/ready/);
+});
+
+test('title Rose stays inert when any asset fails to decode', async ({ page }) => {
+  await page.addInitScript(() => {
+    const decode = HTMLImageElement.prototype.decode;
+    HTMLImageElement.prototype.decode = function decodeRoseAsset() {
+      if (this.src.includes('emberglass-mural')) return Promise.reject(new Error('injected mural decode failure'));
+      return decode.call(this);
+    };
+  });
+  await seed(page, mixedLedger());
+  const medallion = page.locator('.title-rose-medallion');
+  await expect(medallion).toHaveCount(1);
+  await expect(medallion).not.toHaveClass(/ready/);
+  await expect(medallion).toBeDisabled();
+  await expect(medallion).toBeHidden();
+  await medallion.evaluate((node) => node.click());
+  expect(await page.evaluate(() => window.__probe.state().screen)).toBe('title');
 });
 
 test('opening Vigil clears only the news pulse', async ({ page }) => {

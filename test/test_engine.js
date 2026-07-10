@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { inflateSync } from 'node:zlib';
 import { createServer as createViteServer } from 'vite';
 import {
   newRun, startCombat, playCard, endTurn, drawCards, makeCard, makeVariant, cardData, availableNodes, genMap,
@@ -3470,6 +3470,91 @@ function randomAgentRun(seed) {
     for (const id of required) assert.ok(have.has(id), `asset missing: src/assets/${cat}/${id} (data id has no art)`);
     for (const id of have) assert.ok(known.has(id), `orphan asset: src/assets/${cat}/${id} (art has no data id)`);
   };
+  const paeth = (left, up, upperLeft) => {
+    const estimate = left + up - upperLeft;
+    const leftDistance = Math.abs(estimate - left);
+    const upDistance = Math.abs(estimate - up);
+    const upperLeftDistance = Math.abs(estimate - upperLeft);
+    if (leftDistance <= upDistance && leftDistance <= upperLeftDistance) return left;
+    return upDistance <= upperLeftDistance ? up : upperLeft;
+  };
+  const readPng = (url) => {
+    const bytes = readFileSync(url);
+    const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    assert.ok(bytes.subarray(0, signature.length).equals(signature), `${url}: invalid PNG signature`);
+
+    let offset = signature.length;
+    let header = null;
+    let ended = false;
+    const compressed = [];
+    while (offset + 12 <= bytes.length) {
+      const length = bytes.readUInt32BE(offset);
+      const type = bytes.toString('ascii', offset + 4, offset + 8);
+      const dataStart = offset + 8;
+      const dataEnd = dataStart + length;
+      assert.ok(dataEnd + 4 <= bytes.length, `${url}: truncated ${type} chunk`);
+      if (type === 'IHDR') {
+        assert.equal(length, 13, `${url}: invalid IHDR length`);
+        assert.equal(header, null, `${url}: duplicate IHDR`);
+        header = {
+          width: bytes.readUInt32BE(dataStart),
+          height: bytes.readUInt32BE(dataStart + 4),
+          bitDepth: bytes[dataStart + 8],
+          colourType: bytes[dataStart + 9],
+          compression: bytes[dataStart + 10],
+          filter: bytes[dataStart + 11],
+          interlace: bytes[dataStart + 12],
+        };
+      } else if (type === 'IDAT') {
+        compressed.push(bytes.subarray(dataStart, dataEnd));
+      } else if (type === 'IEND') {
+        ended = true;
+        break;
+      }
+      offset = dataEnd + 4;
+    }
+
+    assert.ok(header, `${url}: missing IHDR`);
+    assert.ok(ended, `${url}: missing IEND`);
+    assert.ok(compressed.length, `${url}: missing IDAT`);
+    assert.equal(header.bitDepth, 8, `${url}: PNG must use 8-bit channels`);
+    assert.ok(header.colourType === 2 || header.colourType === 6,
+      `${url}: PNG must be RGB or RGBA`);
+    assert.equal(header.compression, 0, `${url}: unsupported PNG compression`);
+    assert.equal(header.filter, 0, `${url}: unsupported PNG filter method`);
+    assert.equal(header.interlace, 0, `${url}: PNG must be non-interlaced`);
+
+    const channels = header.colourType === 6 ? 4 : 3;
+    const stride = header.width * channels;
+    const filtered = inflateSync(Buffer.concat(compressed));
+    assert.equal(filtered.length, (stride + 1) * header.height,
+      `${url}: unexpected inflated PNG length`);
+    const pixels = Buffer.alloc(stride * header.height);
+    let source = 0;
+    for (let y = 0; y < header.height; y++) {
+      const filterType = filtered[source++];
+      assert.ok(filterType >= 0 && filterType <= 4, `${url}: unsupported PNG row filter ${filterType}`);
+      const rowStart = y * stride;
+      for (let x = 0; x < stride; x++) {
+        const target = rowStart + x;
+        const left = x >= channels ? pixels[target - channels] : 0;
+        const up = y > 0 ? pixels[target - stride] : 0;
+        const upperLeft = y > 0 && x >= channels ? pixels[target - stride - channels] : 0;
+        let predictor = 0;
+        if (filterType === 1) predictor = left;
+        else if (filterType === 2) predictor = up;
+        else if (filterType === 3) predictor = Math.floor((left + up) / 2);
+        else if (filterType === 4) predictor = paeth(left, up, upperLeft);
+        pixels[target] = (filtered[source++] + predictor) & 0xff;
+      }
+    }
+
+    const alpha = new Set();
+    if (channels === 4) {
+      for (let i = 3; i < pixels.length; i += channels) alpha.add(pixels[i]);
+    }
+    return { ...header, channels, alpha };
+  };
   checkManifest('cards', Object.keys(CARDS).filter((id) => id !== 'unreadablePage'), ['unreadablePage']);
   checkManifest('enemies', Object.keys(ENEMIES));
   checkManifest('relics', Object.keys(RELICS));
@@ -3498,24 +3583,20 @@ function randomAgentRun(seed) {
     assert.ok(present.length === 0 || present.length === roseIds.length,
       `Rose assets are atomic: found ${present.length}/${roseIds.length}`);
     if (present.length) {
-      const files = roseIds.map((id) => fileURLToPath(
-        new URL(`../src/assets/meta/${id}.png`, import.meta.url)));
-      const check = String.raw`
-import sys
-from PIL import Image
-for path in sys.argv[1:]:
-    image = Image.open(path)
-    assert image.size == (1024, 1024), (path, image.size)
-    if path.endswith('emberglass-mural.png'):
-        assert image.mode in ('RGB', 'RGBA'), (path, image.mode)
-        if image.mode == 'RGBA':
-            assert image.getchannel('A').getextrema() == (255, 255), path
-    else:
-        assert image.mode == 'RGBA', (path, image.mode)
-        assert image.getchannel('A').getextrema() == (0, 255), path
-`;
-      const checked = spawnSync('python3', ['-c', check, ...files], { encoding: 'utf8' });
-      assert.equal(checked.status, 0, checked.stderr || checked.stdout);
+      for (const id of roseIds) {
+        const image = readPng(new URL(`../src/assets/meta/${id}.png`, import.meta.url));
+        assert.deepEqual([image.width, image.height], [1024, 1024], `${id}: expected 1024×1024`);
+        if (id === 'emberglass-mural') {
+          assert.ok(image.colourType === 2 || image.colourType === 6, `${id}: expected RGB or RGBA`);
+          if (image.colourType === 6) {
+            assert.deepEqual([...image.alpha].sort((a, b) => a - b), [255], `${id}: RGBA mural must be opaque`);
+          }
+        } else {
+          assert.equal(image.colourType, 6, `${id}: frame and masks must be RGBA`);
+          assert.deepEqual([...image.alpha].sort((a, b) => a - b), [0, 255],
+            `${id}: alpha must be exactly binary`);
+        }
+      }
     }
   }
   checkManifest('ui', UI_CHROME_IDS);

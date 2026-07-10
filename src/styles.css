@@ -2407,9 +2407,11 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
   position: absolute; left: calc(18px + var(--sal)); bottom: calc(18px + var(--sab));
   width: 78px; height: 78px; padding: 0; border: 1px solid rgba(242, 193, 78, 0.45); border-radius: 50%;
   overflow: hidden; background: #070912; color: var(--gold); cursor: pointer;
-  box-shadow: 0 0 24px rgba(242, 193, 78, 0.2); transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 0 24px rgba(242, 193, 78, 0.2); opacity: 0; visibility: hidden; pointer-events: none;
+  transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
 }
-.title-rose-medallion:hover { transform: scale(1.06); box-shadow: 0 0 30px rgba(242, 193, 78, 0.36); }
+.title-screen > .title-rose-medallion.ready { opacity: 1; visibility: visible; pointer-events: auto; }
+.title-rose-medallion.ready:hover { transform: scale(1.06); box-shadow: 0 0 30px rgba(242, 193, 78, 0.36); }
 .title-rose-composite, .title-rose-pane { position: absolute; inset: 0; display: block; }
 .title-rose-composite { background: #080a12; }
 .title-rose-pane {
@@ -2418,6 +2420,7 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
   -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
 }
 .title-rose-composite > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.title-rose-preload { display: none; }
 
 /* the door is a promise above the projected summit, never a map node */
 .sealed-door {
