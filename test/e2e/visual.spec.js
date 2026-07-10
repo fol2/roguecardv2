@@ -196,9 +196,13 @@ test('sealed summit promise', async ({ page }) => {
     });
     sp.S.run.act = 2;
     sp.S.run.map = sp.E.genMap(sp.S.run);
-    sp.show('map');
   });
-  await waitMapSettled(page);
+  await showMapAndWaitSettled(page);
+  // This case verifies the promise panel's pixels, while emberglass.spec.js
+  // owns pointer/touch actionability. Freeze the projected tower first so
+  // Playwright is not waiting for a continuously camera-tracked button to
+  // satisfy its two-frame stability heuristic on slower snapshot hosts.
+  await freeze(page);
   await page.click('[data-a="sealed-door"]');
   await page.waitForSelector('.sealed-door-panel');
   await shoot(page, 'sealed-door');
