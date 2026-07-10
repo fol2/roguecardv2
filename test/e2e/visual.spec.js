@@ -33,6 +33,8 @@ async function showMapAndWaitSettled(page) {
       moved: false,
       quietSince: 0,
       quietFrames: 0,
+      samples: 0,
+      changes: 0,
     };
     window.spirebound.show('map');
   });
@@ -52,6 +54,7 @@ async function showMapAndWaitSettled(page) {
       const current = [...values, ...edgeOpacities].join(';');
       const state = window.__visualMapSettle;
       const now = performance.now();
+      state.samples += 1;
       if (state.initial == null) {
         state.initial = current;
         state.last = current;
@@ -59,6 +62,7 @@ async function showMapAndWaitSettled(page) {
         return false;
       }
       if (current !== state.last) {
+        state.changes += 1;
         state.moved ||= current !== state.initial;
         state.last = current;
         state.quietSince = now;
@@ -73,6 +77,24 @@ async function showMapAndWaitSettled(page) {
       quietMs: MAP_SETTLE_QUIET_MS,
       quietFrames: MAP_SETTLE_QUIET_FRAMES,
     }, { polling: 'raf', timeout: MAP_SETTLE_TIMEOUT_MS });
+  } catch (error) {
+    const diagnostic = await page.evaluate(() => {
+      const state = window.__visualMapSettle;
+      if (!state) return null;
+      return {
+        moved: state.moved,
+        samples: state.samples,
+        changes: state.changes,
+        quietFrames: state.quietFrames,
+        quietAgeMs: state.quietSince
+          ? Math.round(performance.now() - state.quietSince)
+          : null,
+        initialMatchesLast: state.initial == null ? null : state.initial === state.last,
+        nodeCount: document.querySelectorAll('.mnode').length,
+        edgeCount: document.querySelectorAll('.medge').length,
+      };
+    }).catch(() => null);
+    throw new Error(`map settle failed: ${error.message}; state=${JSON.stringify(diagnostic)}`, { cause: error });
   } finally {
     await page.evaluate(() => { delete window.__visualMapSettle; }).catch(() => {});
   }

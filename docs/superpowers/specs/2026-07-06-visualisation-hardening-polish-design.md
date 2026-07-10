@@ -286,6 +286,15 @@ Suites (`test/e2e/`):
    Reference runs settled in about 5.7s; the 60s upper guard accommodates the
    observed 5–8x Ubuntu runner slowdown and is not a fixed wait. This changes
    harness timing only; retry count, pixels, and tolerance stay unchanged.
+
+   **2026-07-10 constrained-runner amendment:** the complete visual suite runs
+   last in one Playwright invocation with one worker; baseline refresh uses the
+   same contract. `scene3d.js` caps render-frame `dt` at 50ms, so a full-size
+   desktop map competing with another WebGL-heavy desktop page can remain
+   genuinely in-flight past the 60s guard. The non-visual matrix keeps two
+   workers. Timeout diagnostics record settle samples, changes, quiet frames,
+   and live node/edge counts without changing the predicate or screenshot
+   contract.
 4. `perf.spec` — the previously unmeasured gate, now measured: portrait
    project, 3s shader warm-up, CDP `Emulation.setCPUThrottlingRate(4)`, rAF
    sampler across a double-annihilate burst into three enemies; assert avg
