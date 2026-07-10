@@ -23,9 +23,9 @@ test('audio gallery exposes the selected complete v2 versions and every gameplay
 test('override options put pack default once, then other same-action versions', async ({ page }) => {
   await openAudioGallery(page);
   const options = page.locator('.ag-source[data-source-kind="sfx"][data-source-id="click"] option');
-  await expect(options.first()).toHaveValue('');
-  const packLabel = await options.first().textContent();
-  const packRef = packLabel.replace(/^Pack default ·\s*/, '').trim();
+  const first = await options.first().evaluate((option) => ({ value: option.value, label: option.textContent.trim() }));
+  expect(first.value).toBe('');
+  const packRef = first.label.replace(/^Pack default ·\s*/, '').trim();
   expect(packRef).toMatch(/\/click\.mp3$/);
   const values = await options.evaluateAll((nodes) => nodes.map((option) => option.value).filter(Boolean));
   expect(values).not.toContain(packRef);
