@@ -1,0 +1,88 @@
+[
+    {
+        "Id": "sha256:89924b46ec81c1c0eb0055a7d72790b8067a16a5d0d0512e8117a01aa4a5d7ee",
+        "RepoTags": [
+            "mcr.microsoft.com/playwright:v1.61.1-noble"
+        ],
+        "RepoDigests": [
+            "mcr.microsoft.com/playwright@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48"
+        ],
+        "Parent": "",
+        "Comment": "buildkit.dockerfile.v0",
+        "Created": "2026-06-23T20:01:45.20935721Z",
+        "Container": "",
+        "ContainerConfig": {
+            "Hostname": "",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": false,
+            "AttachStderr": false,
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": null,
+            "Cmd": null,
+            "Image": "",
+            "Volumes": null,
+            "WorkingDir": "",
+            "Entrypoint": null,
+            "OnBuild": null,
+            "Labels": null
+        },
+        "DockerVersion": "",
+        "Author": "",
+        "Config": {
+            "Hostname": "",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": false,
+            "AttachStderr": false,
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "LANG=C.UTF-8",
+                "LC_ALL=C.UTF-8",
+                "PLAYWRIGHT_BROWSERS_PATH=/ms-playwright"
+            ],
+            "Cmd": [
+                "/bin/bash"
+            ],
+            "Image": "",
+            "Volumes": null,
+            "WorkingDir": "",
+            "Entrypoint": null,
+            "OnBuild": null,
+            "Labels": {
+                "org.opencontainers.image.version": "24.04"
+            }
+        },
+        "Architecture": "amd64",
+        "Os": "linux",
+        "Size": 2440574063,
+        "GraphDriver": {
+            "Data": {
+                "LowerDir": "/var/lib/docker/overlay2/2f0d5758cde8a26a9ed9aac05e1d6f63643e58d821202c0914771c8b64624399/diff:/var/lib/docker/overlay2/71903c7de20f8f5c673ea446269205b58c44e8c2cf2565fe5c6ecb7a1bd6cec0/diff:/var/lib/docker/overlay2/09b98bb0db7f65722ccd48b90317cdd5b663a70ad47abf562bc21d2fc384f24e/diff",
+                "MergedDir": "/var/lib/docker/overlay2/6fae4e64601ea6ca70c97f85d2dcf16da8ca5177e3f154f8ec5abcceb08bd284/merged",
+                "UpperDir": "/var/lib/docker/overlay2/6fae4e64601ea6ca70c97f85d2dcf16da8ca5177e3f154f8ec5abcceb08bd284/diff",
+                "WorkDir": "/var/lib/docker/overlay2/6fae4e64601ea6ca70c97f85d2dcf16da8ca5177e3f154f8ec5abcceb08bd284/work"
+            },
+            "Name": "overlay2"
+        },
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:98effb2dfe85d4c431f97d90482075f19e5fc3a57c2dd423d8bdfd4813620043",
+                "sha256:3510962c86ba3c3226d639c3b2587fd5a2d9e09f470ee99c89614aedf5bb9b5b",
+                "sha256:327e4f7d52815156914c4c654c60170bc631bcbaa823df672e37f7b7110909a8",
+                "sha256:94b9e4adef57f1882ab0c94b3b55c33087910f76bc791e21aa076854f1785886"
+            ]
+        },
+        "Metadata": {
+            "LastTagTime": "0001-01-01T00:00:00Z"
+        }
+    }
+]

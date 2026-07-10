@@ -56,9 +56,10 @@ door, and buys construction time for Act 4 itself.
 - `newRun()` stays backward compatible: **when reveal/unlock opts are omitted
   it behaves fully-revealed** (today's behaviour), so `test_engine.js`,
   monte-carlo, and e2e `helpers.js boot()` keep working unchanged.
-- `spirebound_vigil_v1` is never destroyed. v2 lives under a new key
-  (`spirebound_vigil_v2`); migration is one-way, idempotent, and leaves v1 in
-  place as backup.
+- `spirebound_vigil_v1` is never written or destroyed by migration or normal
+  play. v2 lives under a new key (`spirebound_vigil_v2`); migration is one-way,
+  idempotent, and leaves v1 in place as backup. The explicit confirmed
+  Settings → Erase Everything action is the sole deletion exception.
 - `loadRun` save validation still rejects unknown content ids; new run fields
   (`reveals`, quest scratch state) are validated the same way.
 - `assetUrl` fallback discipline: zero new PNGs → UI still renders (SVG/CSS

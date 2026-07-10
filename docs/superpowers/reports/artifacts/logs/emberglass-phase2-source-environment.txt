@@ -1,0 +1,37 @@
+Captured: 2026-07-10T14:19:28Z
+Branch: codex/emberglass-phase2
+Application source commit: 0829fed8aeb8425f5c93eb596ab7048c0457e676
+Application source tree: 9f43cba94a04f630779fddcc0f5aa991f97966d5
+Integrated main: fb54325d744e601ef705aa4fe447eab56f7eb334
+HEAD...main at source checkpoint: 38 ahead, 0 behind
+
+ProductName: macOS
+ProductVersion: 26.5.2
+BuildVersion: 25F84
+Architecture: arm64
+Kernel: 25.5.0
+Node: v22.23.1
+npm: 10.9.8
+Playwright: 1.61.1
+
+The captured application allow-list was clean relative to the source commit:
+.gitattributes, index.html, package files, Vite/Playwright configuration,
+playwright-server.js, src/, public/, test/, and tools/. Only release evidence,
+documentation corrections, and the unstaged scratch recorder existed outside
+that allow-list while final evidence was captured.
+
+The isolated manual and Linux runners used the committed allow-list archive:
+/private/tmp/emberglass-phase2-0829fed-source.tar.gz
+
+Archive SHA-256:
+ac38ab2bb0c1b7950940ae54fd2417f7ae27e602a631f7e1b01309b6c82285b3  emberglass-phase2-0829fed-source.tar.gz
+
+Manual origins:
+http://127.0.0.1:5329  complete committed source
+http://127.0.0.1:5330  same source with all eight Rose files physically absent
+
+Darwin visual origins:
+http://127.0.0.1:5327  update run
+http://127.0.0.1:5328  immediate no-update verification
+
+The normal development port 5174 was not reused or changed.

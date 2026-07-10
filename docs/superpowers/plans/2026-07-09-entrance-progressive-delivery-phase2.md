@@ -14,7 +14,7 @@
 - Preserve the module graph: engine.js and vigil.js import data.js only. Do not add a shared browser module beneath them.
 - Existing internal card, relic, status, enemy, omen, reveal, and save IDs are immutable. New IDs are fixed by this plan.
 - Calling newRun(seed) without quest options keeps all existing structural systems fully revealed and leaves Emberglass hooks dormant. This preserves the Monte Carlo and Playwright boot contract.
-- spirebound_vigil_v1 remains untouched. Existing Phase 1 spirebound_vigil_v2 records must be hydrated in place because they will never re-run v1 migration.
+- spirebound_vigil_v1 remains untouched by migration and normal play. The explicit confirmed Settings → Erase Everything flow is the sole deletion exception. Existing Phase 1 spirebound_vigil_v2 records must be hydrated in place because they will never re-run v1 migration.
 - All quest scratch state and exact pending enemy IDs live in spirebound_save_v2 and pass loadRun validation.
 - Every threshold, target, price, probability, guarantee window, and Shade tier lives under PROGRESSION.emberglass in data.js.
 - No playable Act 4, new enemy base art, combat-maths or preview-mirror changes, audio wiring, localisation, daily seeds, achievements, or unlock-toast art.
@@ -43,12 +43,12 @@ After owner approval, use superpowers:using-git-worktrees to create the isolated
 
 1. The six detailed quest sections are canonical: **2 Gates and 4 Trails**. The scope table's 3 Gates / 3 Trails wording is an editorial error corrected in Task 1.
 2. Quest IDs are paleOnes, ownShade, usurper, eighthOmen, unreadablePage, and hollowLamplighter.
-3. Pale Ones uses duskfang, drownedOne, and voidWisp as Act 1–3 bases. Before the Lens, the first ordinary fight of each run is a hidden Pale ambush until three motes; after the Lens, one Act 1 row-zero node and, on a 50% roll, one Act 2 row-zero node are visibly marked. Nine motes complete it.
+3. Pale Ones uses duskfang, drownedOne, and voidWisp as Act 1–3 bases. Before the Lens, the first ordinary fight of each run is a hidden Pale ambush until three motes; after the Lens, one Act 1 row-zero node and, on the accepted 60% roll from Task 13, one Act 2 row-zero node are visibly marked. Nine motes complete it.
 4. Shade captures the aspect of the qualifying death, uses hero art with the existing shade layout/VFX anchor, and has three fixed tiers. Bequest payment waits until the duel is won.
 5. The Usurper lantern costs 650 gold and appears in every Act 2+ merchant until bought. Buying it affects only that run.
 6. The Eighth Omen is forced on the second run after arming if it did not occur on the first, then recurs at 1/3. Every non-boss combat receives one affix. Per-floor broken echoes are separate copy and never consume WHISPERS.
 7. The Unreadable Page replaces the last choice in the second eligible card reward of a run. One winning run advances one page regardless of copies; five winning runs complete it.
-8. Hollow appearance rolls 50% per run and is forced by the second eligible run. It triggers on the first unlit node, at most once per run. Prices are: next 3 earned embers, 160 gold, 12 Max HP while leaving at least 30, the tracked reversible Lamplighter boon receipt, then current HP down to 1.
+8. Hollow appearance uses the accepted 20% roll from Task 13 and is forced by the third eligible run. It triggers on the first unlit node, at most once per run. Prices are: next 3 earned embers, 160 gold, 12 Max HP while leaving at least 30, the tracked reversible Lamplighter boon receipt, then current HP down to 1.
 9. The unique whisper prefix is shown in the Vigil; after line 24, line 24 repeats only on dawn screens and the log states that it repeats.
 10. Six shards derive reveal act4. The sealed door is a non-path Act 3 summit emblem and one promise panel; it never changes nodeId or starts a fourth act.
 11. The Rose art set is atomic: mural, frame, and six masks. The title miniature reuses it.
@@ -89,10 +89,10 @@ Update imports in the first task that needs each name; by Task 12 these lists mu
 - src/engine.js from data.js: existing names plus `PROGRESSION, QUEST_IDS, QUESTS, SHADE_KITS, VARIANTS, BOONS, DEEDS`.
 - src/vigil.js from data.js: existing names plus `PROGRESSION, QUEST_IDS, QUESTS, WHISPERS`.
 - src/ui.js from data.js: existing names plus `PROGRESSION, QUEST_IDS, QUESTS, WHISPERS`; use the existing `E.runRevealed(...)` namespace call rather than a bare runRevealed import.
-- test/test_engine.js from engine.js: `questRecord, revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter, setPendingReward, takePendingReward, clearPendingReward, makeVariant, resolveCombatant, paleVariantForAct, markShadeFall, grantBequest, buyQuestItem, _setQuestRng, omenEnabled, removableCards, applyBoon, reverseBoon, payHollowPrice` in addition to its current imports.
+- test/test_engine.js from engine.js: direct imports include `revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter, setPendingReward, takePendingReward, clearPendingReward, makeVariant, resolveCombatant, paleVariantForAct, markShadeFall, grantBequest, buyQuestItem, removableCards, applyBoon, reverseBoon, payHollowPrice`; review hardening accesses the low-frequency `_setQuestRng` and `omenEnabled` test hooks through the `EngineApi` namespace.
 - test/test_engine.js from data.js: `QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS` in addition to its current imports.
 - test/test_engine.js from vigil.js: `_setRng, questSnapshot, whisperAt` in addition to its current imports.
-- test/test_engine.js from Node: `spawnSync` from node:child_process and `fileURLToPath` from node:url.
+- test/test_engine.js from Node: `spawnSync` from node:child_process, `readFileSync`/`readdirSync` from node:fs, and `inflateSync` from node:zlib. The final Rose gate is dependency-free and does not use `fileURLToPath`, Python, or Pillow.
 - test/e2e/stage.spec.js and test/e2e/visual.spec.js import their named ledger helpers from `./emberglass-fixtures.js`; battle.spec.js already has all helpers used by Task 4.
 
 Every intermediate build gate is also an import-completeness gate; do not defer a named import to a later task.
@@ -3078,7 +3078,13 @@ Open http://localhost:5174/?gallery=1 and then the seeded Rose Window in desktop
 
 - [x] **Step 5: Run atomic art tests and commit**
 
-Extend the test imports with `spawnSync` from node:child_process and `fileURLToPath` from node:url, then add this block inside the existing asset-manifest scope immediately after the meta check (where assetIds is available):
+The originally planned Python/Pillow probe was superseded during review by a
+stronger dependency-free Node PNG parser. Extend the test imports with
+`readFileSync` from node:fs and `inflateSync` from node:zlib. Inside the
+existing asset-manifest scope, parse PNG signature/chunks, inflate and
+reconstruct scanlines for filter types 0–4, and return width, height, colour
+type, and the alpha-value set. Then apply this atomic check immediately after
+the meta manifest check (where assetIds and readPng are available):
 
 ~~~js
 {
@@ -3090,29 +3096,26 @@ Extend the test imports with `spawnSync` from node:child_process and `fileURLToP
   assert.ok(present.length === 0 || present.length === roseIds.length,
     `Rose assets are atomic: found ${present.length}/${roseIds.length}`);
   if (present.length) {
-    const files = roseIds.map((id) => fileURLToPath(
-      new URL(`../src/assets/meta/${id}.png`, import.meta.url)));
-    const check = String.raw`
-import sys
-from PIL import Image
-for path in sys.argv[1:]:
-    image = Image.open(path)
-    assert image.size == (1024, 1024), (path, image.size)
-    if path.endswith('emberglass-mural.png'):
-        assert image.mode in ('RGB', 'RGBA'), (path, image.mode)
-        if image.mode == 'RGBA':
-            assert image.getchannel('A').getextrema() == (255, 255), path
-    else:
-        assert image.mode == 'RGBA', (path, image.mode)
-        assert image.getchannel('A').getextrema() == (0, 255), path
-`;
-    const checked = spawnSync('python3', ['-c', check, ...files], { encoding: 'utf8' });
-    assert.equal(checked.status, 0, checked.stderr || checked.stdout);
+    for (const id of roseIds) {
+      const image = readPng(new URL(`../src/assets/meta/${id}.png`, import.meta.url));
+      assert.deepEqual([image.width, image.height], [1024, 1024]);
+      if (id === 'emberglass-mural') {
+        assert.ok(image.colourType === 2 || image.colourType === 6);
+        if (image.colourType === 6) assert.deepEqual([...image.alpha], [255]);
+      } else {
+        assert.equal(image.colourType, 6);
+        assert.deepEqual([...image.alpha].sort((a, b) => a - b), [0, 255]);
+      }
+    }
   }
 }
 ~~~
 
-This allows zero Rose files or all eight and fails a partial set. It asserts every image is 1024×1024, frame/masks have transparent and opaque alpha, and an RGBA mural is fully opaque. Dark corners remain valid.
+This allows zero Rose files or all eight and fails a partial set. The parser
+also rejects malformed, truncated, interlaced, unsupported-colour, or
+unsupported-filter PNGs. It asserts every image is 1024×1024, frame/masks have
+binary transparent/opaque alpha, and an RGBA mural is fully opaque. Dark
+corners remain valid.
 
 Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyOutDir
 Expected: PASS, gallery loads every file, and no orphan manifest failure.

@@ -1,0 +1,33 @@
+[2026-07-10T14:26:22.163Z] Source commit: 0829fed8aeb8425f5c93eb596ab7048c0457e676
+[2026-07-10T14:26:22.164Z] Source tree: 9f43cba94a04f630779fddcc0f5aa991f97966d5
+[2026-07-10T14:26:22.164Z] Recording origins: main=http://127.0.0.1:5329; fallback=http://127.0.0.1:5330
+[2026-07-10T14:26:22.904Z] CHAPTER 1 START — A clean Vigil
+[2026-07-10T14:26:29.084Z] CHAPTER 1 PASS — fresh profile has neither Rose tab nor title medallion
+[2026-07-10T14:26:29.542Z] CHAPTER 2 START — The first Pale ambush
+[2026-07-10T14:26:38.700Z] CHAPTER 2 PASS — win-one hydration arms Pale and the first unmarked monster resolves to paleDuskfang
+[2026-07-10T14:26:38.700Z] CHAPTER 3 START — From mystery to Witchlight
+[2026-07-10T14:27:01.853Z] CHAPTER 3 PASS — contact reveals the inscription; three kills grant Lens; next map marks a Pale node
+[2026-07-10T14:27:02.434Z] CHAPTER 4 START — Five remaining quest hooks
+[2026-07-10T14:27:37.812Z] CHAPTER 4 PASS — Shade, lantern, Eighth, Page, and Hollow each exercised a real hook
+[2026-07-10T14:27:38.397Z] CHAPTER 5 START — The Rose survives without art
+[2026-07-10T14:27:46.879Z] CHAPTER 5 PASS — true missing-file origin renders fallback; full origin decodes all eight Rose assets
+[2026-07-10T14:27:47.339Z] CHAPTER 6 START — The sixth pane answers
+[2026-07-10T14:28:03.676Z] CHAPTER 6 PASS — production dawn grants shard six; medallion opens six lit panes; door remains an Act 3 promise
+[2026-07-10T14:28:04.250Z] CHAPTER 7 START — A pending variant cannot reroll
+[2026-07-10T14:28:11.019Z] CHAPTER 7 PASS — pending usurpedSovereign survives save/load and resumes with the same variant ID
+[2026-07-10T14:28:11.276Z] CHAPTER 8 START — The hidden music remains future-facing
+[2026-07-10T14:28:18.139Z] CHAPTER 8 PASS — all eight Phase 2 music cues are registered but wired:false and absent from SCREEN_CUES
+[2026-07-10T14:28:18.139Z] BROWSER ERROR GATE PASS — zero pageerror/console.error events
+[2026-07-10T14:28:18.335Z] Continuous recording saved at /Users/jamesto/Coding/roguecardv2/.worktrees/emberglass-phase2/docs/superpowers/reports/artifacts/emberglass-phase2-manual-journey.webm
+
+CHAPTER VERDICTS
+1: PASS — fresh profile has neither Rose tab nor title medallion
+2: PASS — win-one hydration arms Pale and the first unmarked monster resolves to paleDuskfang
+3: PASS — contact reveals the inscription; three kills grant Lens; next map marks a Pale node
+4: PASS — Shade, lantern, Eighth, Page, and Hollow each exercised a real hook
+5: PASS — true missing-file origin renders fallback; full origin decodes all eight Rose assets
+6: PASS — production dawn grants shard six; medallion opens six lit panes; door remains an Act 3 promise
+7: PASS — pending usurpedSovereign survives save/load and resumes with the same variant ID
+8: PASS — all eight Phase 2 music cues are registered but wired:false and absent from SCREEN_CUES
+
+FINAL: GO

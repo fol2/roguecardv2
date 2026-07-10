@@ -1,0 +1,2 @@
+NAME                          STATUS    CREATED          MEMORY     VCPUS   RUNTIME   TIMEOUT         SNAPSHOT   TAGS
+emberglass-p2-linux-0829fed   running   19 minutes ago   8,192 MB   4       node24    in 26 minutes   -          purpose:phase2-linux-visual, source:0829fed

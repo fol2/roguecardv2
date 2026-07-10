@@ -1,0 +1,5 @@
+
+> spirebound@1.0.0 test
+> node test/test_engine.js
+
+unit checks passed; monte-carlo: 300 runs, 1 random-agent wins, 299 deaths

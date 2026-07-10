@@ -1,0 +1,25 @@
+{
+    "programs": [
+
+    ],
+    "stream_groups": [
+
+    ],
+    "streams": [
+        {
+            "index": 0,
+            "codec_name": "vp8",
+            "codec_type": "video",
+            "width": 1600,
+            "height": 900,
+            "r_frame_rate": "25/1",
+            "avg_frame_rate": "25/1"
+        }
+    ],
+    "format": {
+        "filename": "docs/superpowers/reports/artifacts/emberglass-phase2-manual-journey.webm",
+        "format_name": "matroska,webm",
+        "duration": "116.880000",
+        "size": "14327646"
+    }
+}

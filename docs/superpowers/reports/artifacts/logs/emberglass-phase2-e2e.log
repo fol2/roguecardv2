@@ -1,0 +1,419 @@
+
+> spirebound@1.0.0 test:e2e
+> npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:main && npm run test:e2e:visual
+
+
+> spirebound@1.0.0 test:e2e:disk
+> playwright test bfeditor --project=bfeditor-disk --workers=1
+
+[WebServer] (node:52484) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:52501) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [bfeditor-disk] › test/e2e/bfeditor.spec.js:258:1 › Save writes layout to disk and reload picks it up (4.4s)
+
+  1 passed (5.3s)
+
+> spirebound@1.0.0 test:e2e:random-agent
+> playwright test battle --config=playwright.random-agent.config.js --project=desktop --grep "random-agent mini-run" --workers=1 --no-deps
+
+[WebServer] (node:52746) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:52763) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop] › test/e2e/battle.spec.js:204:1 › random-agent mini-run: three fights, zero playback errors (1.2m)
+
+  1 passed (1.2m)
+
+> spirebound@1.0.0 test:e2e:main
+> playwright test --project=desktop --project=portrait --project=landscape --no-deps --grep-invert "random-agent mini-run|visual\.spec\.js"
+
+[WebServer] (node:57521) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 297 tests using 2 workers
+
+(node:57540) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57539) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓    1 [desktop] › test/e2e/audio.spec.js:13:1 › audio gallery exposes the selected complete v2 versions and every gameplay id (1.0s)
+  ✓    2 [desktop] › test/e2e/audio.spec.js:23:1 › per-file source choice posts selection metadata without audio binaries (1.6s)
+[WebServer] 3:37:23 PM [vite] (client) [console.warn] [audio-selection] music.version: unknown or incomplete pack missing-pack
+  ✓    3 [desktop] › test/e2e/audio.spec.js:41:1 › invalid host selection visibly falls back to both immutable base packs (863ms)
+  ✓    4 [desktop] › test/e2e/audio.spec.js:54:1 › a broken selected music file falls back once without restart churn (1.8s)
+  ✓    5 [desktop] › test/e2e/audio.spec.js:122:1 › a broken selected SFX file falls back once without retry churn (1.7s)
+  ✓    6 [desktop] › test/e2e/battle.spec.js:27:1 › opening state is coherent (1.9s)
+  ✓    7 [desktop] › test/e2e/battle.spec.js:75:1 › variant tint and identity reach the live mesh (3.7s)
+  ✓    8 [desktop] › test/e2e/battle.spec.js:102:1 › variant CSS fallback matches mesh-off identity and stats (3.6s)
+  ✓    9 [desktop] › test/e2e/battle.spec.js:117:1 › mid-fight kill leaves no corpse on stage (mesh on) (7.8s)
+  ✓   10 [desktop] › test/e2e/battle.spec.js:128:1 › mid-fight kill leaves no corpse on stage (mesh off) (7.6s)
+  ✓   11 [desktop] › test/e2e/battle.spec.js:138:1 › smolder tick kill during the enemy phase (9.0s)
+  ✓   12 [desktop] › test/e2e/battle.spec.js:157:1 › boss death reaches the rewards screen with the world restored (8.3s)
+  ✓   13 [desktop] › test/e2e/battle.spec.js:176:1 › lantern art fires clean (3.4s)
+  ✓   15 [desktop] › test/e2e/bfeditor.spec.js:71:1 › ?bfedit=1 mounts the editor over a sandbox fight (926ms)
+  ✓   14 [desktop] › test/e2e/battle.spec.js:192:1 › potion quaffed clean (4.4s)
+  ✓   16 [desktop] › test/e2e/bfeditor.spec.js:82:1 › a normal session never loads the editor (748ms)
+  ✓   18 [desktop] › test/e2e/bfeditor.spec.js:96:1 › dragging the hero moves its x by the drag distance (stage px) (1.5s)
+  ✓   17 [desktop] › test/e2e/bfeditor.spec.js:88:1 › clicking a box without dragging does not dirty the layout (1.7s)
+  ✓   19 [desktop] › test/e2e/bfeditor.spec.js:111:1 › a hero drag locks to the axis of the first decisive move for the whole drag (1.6s)
+  ✓   20 [desktop] › test/e2e/bfeditor.spec.js:140:1 › dragging the hero vertically writes hero.y at shape scope (1.5s)
+  ✓   22 [desktop] › test/e2e/bfeditor.spec.js:170:1 › /__bf-save rejects bodies over 1 MB with 413 (1.2s)
+  ✓   21 [desktop] › test/e2e/bfeditor.spec.js:162:1 › pad-landscape offers base, shape, and act scope for positional rows (1.5s)
+  ✓   23 [desktop] › test/e2e/bfeditor.spec.js:180:1 › panel numeric edit applies live to the working layout (1.7s)
+  ✓   24 [desktop] › test/e2e/bfeditor.spec.js:191:1 › Save POSTs the edited layout to /__bf-save (1.9s)
+  ✓   25 [desktop] › test/e2e/bfeditor.spec.js:212:1 › clearing a slot override restores the base formation intact (2.1s)
+  -   27 [desktop] › test/e2e/bfeditor.spec.js:258:1 › Save writes layout to disk and reload picks it up
+  ✓   26 [desktop] › test/e2e/bfeditor.spec.js:240:1 › a partial shape layer override passes validation and saves (1.8s)
+  ✓   29 [desktop] › test/e2e/config.spec.js:55:1 › the default E2E server remains compatible with local development (0ms)
+  ✓   30 [desktop] › test/e2e/config.spec.js:66:3 › invalid E2E port is rejected before launch — "" (1ms)
+  ✓   31 [desktop] › test/e2e/config.spec.js:66:3 › invalid E2E port is rejected before launch — "0" (0ms)
+  ✓   32 [desktop] › test/e2e/config.spec.js:66:3 › invalid E2E port is rejected before launch — "65536" (0ms)
+  ✓   33 [desktop] › test/e2e/config.spec.js:66:3 › invalid E2E port is rejected before launch — "1.5" (2ms)
+  ✓   34 [desktop] › test/e2e/config.spec.js:66:3 › invalid E2E port is rejected before launch — "5174; echo unsafe" (0ms)
+  ✓   28 [desktop] › test/e2e/config.spec.js:36:1 › an explicit E2E port cannot reuse or hide an occupied server (603ms)
+  ✓   36 [desktop] › test/e2e/emberglass-persistence.spec.js:112:1 › Usurper first sight is durable before the shop item is exposed (1.6s)
+  ✓   35 [desktop] › test/e2e/emberglass-persistence.spec.js:36:1 › fresh climb waits for its exact initial save before routing (3.1s)
+  ✓   37 [desktop] › test/e2e/emberglass-persistence.spec.js:172:1 › Usurper purchase confirms only after the single 650-gold mutation is durable (1.9s)
+  ✓   38 [desktop] › test/e2e/emberglass-persistence.spec.js:275:1 › Reload Saved Climb discards a failed live mutation and restores the durable run (3.0s)
+  ✓   39 [desktop] › test/e2e/emberglass-persistence.spec.js:307:1 › Shade cross-store failure keeps the saved duel behind an exclusive retry dialog (2.5s)
+  ✓   41 [desktop] › test/e2e/emberglass.spec.js:23:1 › desktop Emberglass behaviour › one shard adds a title medallion that opens the Rose (2.0s)
+  ✓   40 [desktop] › test/e2e/emberglass.spec.js:15:1 › desktop Emberglass behaviour › fresh profile exposes no Rose tab or medallion (2.8s)
+  ✓   43 [desktop] › test/e2e/emberglass.spec.js:68:1 › desktop Emberglass behaviour › title Rose stays inert when any asset fails to decode (1.1s)
+  ✓   44 [desktop] › test/e2e/emberglass.spec.js:86:1 › desktop Emberglass behaviour › opening Vigil clears only the news pulse (1.9s)
+  ✓   42 [desktop] › test/e2e/emberglass.spec.js:37:1 › desktop Emberglass behaviour › Rose panes disclose only their current state (4.6s)
+  ✓   45 [desktop] › test/e2e/emberglass.spec.js:97:1 › desktop Emberglass behaviour › six shards expose a promise, never Act 4 gameplay (4.0s)
+  ✓   46 [desktop] › test/e2e/emberglass.spec.js:125:1 › desktop Emberglass behaviour › dawn ceremony drains in canonical order and signals completion (4.2s)
+  ✓   48 [desktop] › test/e2e/emberglass.spec.js:231:1 › desktop Emberglass behaviour › run-end persistence failure owns input until finalisation retries (1.5s)
+  ✓   47 [desktop] › test/e2e/emberglass.spec.js:161:1 › desktop Emberglass behaviour › pending win recovers once through the production terminal outbox (7.7s)
+  ✓   49 [desktop] › test/e2e/emberglass.spec.js:258:1 › desktop Emberglass behaviour › normal-motion reload resumes only unacknowledged dawn panels (5.8s)
+  ✓   50 [desktop] › test/e2e/emberglass.spec.js:311:1 › desktop Emberglass behaviour › a rejected dawn cursor save stays locked and retries the same panel (2.3s)
+  ✓   51 [desktop] › test/e2e/emberglass.spec.js:346:1 › desktop Emberglass behaviour › a rejected final dawn clear stays locked and retryable (1.3s)
+  ✓   52 [desktop] › test/e2e/emberglass.spec.js:382:3 › desktop Emberglass behaviour › pending death recovers once without a dawn ceremony (1.9s)
+  ✓   53 [desktop] › test/e2e/emberglass.spec.js:382:3 › desktop Emberglass behaviour › pending abandon recovers once without a dawn ceremony (1.8s)
+  ✓   54 [desktop] › test/e2e/emberglass.spec.js:426:1 › Rose pane details disclose safely through click and keyboard (3.5s)
+  -   56 [desktop] › test/e2e/emberglass.spec.js:569:1 › sealed door ignores a phone-landscape drag and opens on a later tap
+  ✓   57 [desktop] › test/e2e/geometry.spec.js:260:3 › combatant art boxes honour authored ground positions — act 1 pair (3.4s)
+  ✓   58 [desktop] › test/e2e/geometry.spec.js:260:3 › combatant art boxes honour authored ground positions — act 2 pair (3.4s)
+  ✓   59 [desktop] › test/e2e/geometry.spec.js:260:3 › combatant art boxes honour authored ground positions — act 3 single (3.4s)
+  ✓   60 [desktop] › test/e2e/geometry.spec.js:260:3 › combatant art boxes honour authored ground positions — act 1 trio (3.4s)
+  -   61 [desktop] › test/e2e/geometry.spec.js:275:3 › portrait combat chrome is bounded and separated — canonical act 2 pair
+  -   62 [desktop] › test/e2e/geometry.spec.js:275:3 › portrait combat chrome is bounded and separated — canonical act 1 trio
+  -   63 [desktop] › test/e2e/geometry.spec.js:309:1 › reduced-motion portrait chrome is stable after the entrance class clears
+  -   64 [desktop] › test/e2e/geometry.spec.js:344:1 › portrait intent and status chrome stays separated through death and refits
+  ✓   65 [desktop] › test/e2e/geometry.spec.js:394:1 › authored ground positions survive a live resize (3.8s)
+  ✓   66 [desktop] › test/e2e/geometry.spec.js:409:3 › scaled variant keeps its feet and chrome inside the stage — paleDuskfang (3.3s)
+  ✓   55 [desktop] › test/e2e/emberglass.spec.js:472:1 › Rose pane detail stays legible and bounded in every canonical shape (33.9s)
+  ✓   67 [desktop] › test/e2e/geometry.spec.js:409:3 › scaled variant keeps its feet and chrome inside the stage — usurpedSovereign (11.0s)
+  ✓   68 [desktop] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — alphaFang (3.5s)
+  ✓   69 [desktop] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — gravewarden (3.6s)
+  ✓   71 [desktop] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — siren (3.4s)
+  ✓   70 [desktop] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — rootheart (5.5s)
+  ✓   73 [desktop] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — heraldOfEnd (3.9s)
+  ✓   72 [desktop] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — leviathan (5.5s)
+  ✓   74 [desktop] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — voidColossus (3.6s)
+  ✓   76 [desktop] › test/e2e/hollow-transaction.spec.js:41:1 › Hollow actions fit the canonical pad portrait without overlap (1.8s)
+  ✓   75 [desktop] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — sovereign (5.6s)
+  ✓   77 [desktop] › test/e2e/hollow-transaction.spec.js:82:1 › Hollow combat exit journals destination in one acknowledged save (4.7s)
+  ✓   78 [desktop] › test/e2e/hollow-transaction.spec.js:114:1 › Return Later waits for save acknowledgement and resumes the exact event (5.2s)
+  ✓   80 [desktop] › test/e2e/hollow-transaction.spec.js:198:1 › Hollow destination cannot return to the map until marker clear is acknowledged (3.4s)
+  -   81 [desktop] › test/e2e/perf.spec.js:18:1 › AoE effect burst holds the frame budget at 4x CPU throttle
+  ✓   82 [desktop] › test/e2e/rewards.spec.js:14:3 › reward tap guards › treasure chest double-tap grants at most one relic (1.0s)
+  ✓   83 [desktop] › test/e2e/rewards.spec.js:38:3 › reward tap guards › voidChest event double-tap applies choice once (1.7s)
+  ✓   84 [desktop] › test/e2e/rewards.spec.js:56:3 › reward tap guards › voidChest rapid choice buttons apply once (873ms)
+  ✓   79 [desktop] › test/e2e/hollow-transaction.spec.js:175:1 › Hollow rest and shop routes survive reload until their acknowledged exit (11.1s)
+  ✓   85 [desktop] › test/e2e/rewards.spec.js:77:3 › reward tap guards › boss relic double-tap grants at most one relic (2.0s)
+  ✓   86 [desktop] › test/e2e/rewards.spec.js:89:3 › reward tap guards › boss relic rapid different picks grant at most one relic (1.0s)
+  ✓   88 [desktop] › test/e2e/rewards.spec.js:142:3 › reward tap guards › boss relic screen advances when act relic already claimed (959ms)
+  ✓   87 [desktop] › test/e2e/rewards.spec.js:104:3 › reward tap guards › treasure chest stays empty after reload (2.4s)
+  ✓   89 [desktop] › test/e2e/rewards.spec.js:164:3 › reward tap guards › event with card remove finalizes after pending (2.3s)
+  ✓   91 [desktop] › test/e2e/stage.spec.js:116:1 › viewport maps to its canonical stage shape (729ms)
+  ✓   90 [desktop] › test/e2e/rewards.spec.js:188:3 › reward tap guards › event reload during pending finalizes on remount (3.1s)
+  ✓   92 [desktop] › test/e2e/stage.spec.js:136:1 › ?shape= override forces the remaining shapes (874ms)
+  ✓   93 [desktop] › test/e2e/stage.spec.js:145:1 › a 4:3-ish desktop window keeps the pad-landscape stage (670ms)
+  ✓   94 [desktop] › test/e2e/stage.spec.js:154:1 › title and embark screens fit their stage: no scrollable overflow anywhere (4.3s)
+  ✓   96 [desktop] › test/e2e/stage.spec.js:324:1 › fresh profile title has no aspect row; Embark shows zero sections (2.2s)
+  ✓   97 [desktop] › test/e2e/stage.spec.js:341:1 › seeded veteran Embark shows aspect and vow sections (2.1s)
+  ✓   98 [desktop] › test/e2e/stage.spec.js:363:1 › Begin Anew on Embark confirms before abandoning a saved climb (3.2s)
+  ✓   95 [desktop] › test/e2e/stage.spec.js:179:1 › maximum Emberglass profile and ceremonies fit every stage (12.2s)
+(node:65683) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  -  100 [portrait] › test/e2e/audio.spec.js:13:1 › audio gallery exposes the selected complete v2 versions and every gameplay id
+  -  101 [portrait] › test/e2e/audio.spec.js:23:1 › per-file source choice posts selection metadata without audio binaries
+  -  102 [portrait] › test/e2e/audio.spec.js:41:1 › invalid host selection visibly falls back to both immutable base packs
+  -  103 [portrait] › test/e2e/audio.spec.js:54:1 › a broken selected music file falls back once without restart churn
+  -  104 [portrait] › test/e2e/audio.spec.js:122:1 › a broken selected SFX file falls back once without retry churn
+  -  105 [portrait] › test/e2e/battle.spec.js:27:1 › opening state is coherent
+  -  106 [portrait] › test/e2e/battle.spec.js:75:1 › variant tint and identity reach the live mesh
+  -  107 [portrait] › test/e2e/battle.spec.js:102:1 › variant CSS fallback matches mesh-off identity and stats
+  -  108 [portrait] › test/e2e/battle.spec.js:117:1 › mid-fight kill leaves no corpse on stage (mesh on)
+  -  109 [portrait] › test/e2e/battle.spec.js:128:1 › mid-fight kill leaves no corpse on stage (mesh off)
+  -  110 [portrait] › test/e2e/battle.spec.js:138:1 › smolder tick kill during the enemy phase
+  -  111 [portrait] › test/e2e/battle.spec.js:157:1 › boss death reaches the rewards screen with the world restored
+  -  112 [portrait] › test/e2e/battle.spec.js:176:1 › lantern art fires clean
+  -  113 [portrait] › test/e2e/battle.spec.js:192:1 › potion quaffed clean
+  -  114 [portrait] › test/e2e/bfeditor.spec.js:71:1 › ?bfedit=1 mounts the editor over a sandbox fight
+  -  115 [portrait] › test/e2e/bfeditor.spec.js:82:1 › a normal session never loads the editor
+  -  116 [portrait] › test/e2e/bfeditor.spec.js:88:1 › clicking a box without dragging does not dirty the layout
+  -  117 [portrait] › test/e2e/bfeditor.spec.js:96:1 › dragging the hero moves its x by the drag distance (stage px)
+  -  118 [portrait] › test/e2e/bfeditor.spec.js:111:1 › a hero drag locks to the axis of the first decisive move for the whole drag
+  -  119 [portrait] › test/e2e/bfeditor.spec.js:140:1 › dragging the hero vertically writes hero.y at shape scope
+  -  120 [portrait] › test/e2e/bfeditor.spec.js:162:1 › pad-landscape offers base, shape, and act scope for positional rows
+  -  121 [portrait] › test/e2e/bfeditor.spec.js:170:1 › /__bf-save rejects bodies over 1 MB with 413
+  -  122 [portrait] › test/e2e/bfeditor.spec.js:180:1 › panel numeric edit applies live to the working layout
+  -  123 [portrait] › test/e2e/bfeditor.spec.js:191:1 › Save POSTs the edited layout to /__bf-save
+  -  124 [portrait] › test/e2e/bfeditor.spec.js:212:1 › clearing a slot override restores the base formation intact
+  -  125 [portrait] › test/e2e/bfeditor.spec.js:240:1 › a partial shape layer override passes validation and saves
+  -  126 [portrait] › test/e2e/bfeditor.spec.js:258:1 › Save writes layout to disk and reload picks it up
+  -  127 [portrait] › test/e2e/config.spec.js:36:1 › an explicit E2E port cannot reuse or hide an occupied server
+  -  128 [portrait] › test/e2e/config.spec.js:55:1 › the default E2E server remains compatible with local development
+  -  129 [portrait] › test/e2e/config.spec.js:66:3 › invalid E2E port is rejected before launch — ""
+  -  130 [portrait] › test/e2e/config.spec.js:66:3 › invalid E2E port is rejected before launch — "0"
+  -  131 [portrait] › test/e2e/config.spec.js:66:3 › invalid E2E port is rejected before launch — "65536"
+  -  132 [portrait] › test/e2e/config.spec.js:66:3 › invalid E2E port is rejected before launch — "1.5"
+  -  133 [portrait] › test/e2e/config.spec.js:66:3 › invalid E2E port is rejected before launch — "5174; echo unsafe"
+  -  134 [portrait] › test/e2e/emberglass-persistence.spec.js:36:1 › fresh climb waits for its exact initial save before routing
+  -  135 [portrait] › test/e2e/emberglass-persistence.spec.js:112:1 › Usurper first sight is durable before the shop item is exposed
+  -  136 [portrait] › test/e2e/emberglass-persistence.spec.js:172:1 › Usurper purchase confirms only after the single 650-gold mutation is durable
+  -  137 [portrait] › test/e2e/emberglass-persistence.spec.js:275:1 › Reload Saved Climb discards a failed live mutation and restores the durable run
+  -  138 [portrait] › test/e2e/emberglass-persistence.spec.js:307:1 › Shade cross-store failure keeps the saved duel behind an exclusive retry dialog
+  -  139 [portrait] › test/e2e/emberglass.spec.js:15:1 › desktop Emberglass behaviour › fresh profile exposes no Rose tab or medallion
+  -  140 [portrait] › test/e2e/emberglass.spec.js:23:1 › desktop Emberglass behaviour › one shard adds a title medallion that opens the Rose
+  -  141 [portrait] › test/e2e/emberglass.spec.js:37:1 › desktop Emberglass behaviour › Rose panes disclose only their current state
+  -  142 [portrait] › test/e2e/emberglass.spec.js:68:1 › desktop Emberglass behaviour › title Rose stays inert when any asset fails to decode
+  -  143 [portrait] › test/e2e/emberglass.spec.js:86:1 › desktop Emberglass behaviour › opening Vigil clears only the news pulse
+  -  144 [portrait] › test/e2e/emberglass.spec.js:97:1 › desktop Emberglass behaviour › six shards expose a promise, never Act 4 gameplay
+  -  145 [portrait] › test/e2e/emberglass.spec.js:125:1 › desktop Emberglass behaviour › dawn ceremony drains in canonical order and signals completion
+  -  146 [portrait] › test/e2e/emberglass.spec.js:161:1 › desktop Emberglass behaviour › pending win recovers once through the production terminal outbox
+  -  147 [portrait] › test/e2e/emberglass.spec.js:231:1 › desktop Emberglass behaviour › run-end persistence failure owns input until finalisation retries
+  -  148 [portrait] › test/e2e/emberglass.spec.js:258:1 › desktop Emberglass behaviour › normal-motion reload resumes only unacknowledged dawn panels
+  -  149 [portrait] › test/e2e/emberglass.spec.js:311:1 › desktop Emberglass behaviour › a rejected dawn cursor save stays locked and retries the same panel
+  -  150 [portrait] › test/e2e/emberglass.spec.js:346:1 › desktop Emberglass behaviour › a rejected final dawn clear stays locked and retryable
+  -  151 [portrait] › test/e2e/emberglass.spec.js:382:3 › desktop Emberglass behaviour › pending death recovers once without a dawn ceremony
+  -  152 [portrait] › test/e2e/emberglass.spec.js:382:3 › desktop Emberglass behaviour › pending abandon recovers once without a dawn ceremony
+  ✓   99 [desktop] › test/e2e/stage.spec.js:407:1 › window size changes scale, never layout: geometry is identical at two window sizes (3.9s)
+(node:65911) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  -  154 [portrait] › test/e2e/emberglass.spec.js:472:1 › Rose pane detail stays legible and bounded in every canonical shape
+  -  155 [portrait] › test/e2e/emberglass.spec.js:569:1 › sealed door ignores a phone-landscape drag and opens on a later tap
+  ✓  153 [portrait] › test/e2e/emberglass.spec.js:426:1 › Rose pane details disclose safely through click and keyboard (3.4s)
+  ✓  156 [portrait] › test/e2e/geometry.spec.js:260:3 › combatant art boxes honour authored ground positions — act 1 pair (3.2s)
+  ✓  157 [portrait] › test/e2e/geometry.spec.js:260:3 › combatant art boxes honour authored ground positions — act 2 pair (3.0s)
+  ✓  158 [portrait] › test/e2e/geometry.spec.js:260:3 › combatant art boxes honour authored ground positions — act 3 single (3.0s)
+  ✓  159 [portrait] › test/e2e/geometry.spec.js:260:3 › combatant art boxes honour authored ground positions — act 1 trio (2.9s)
+  ✓  160 [portrait] › test/e2e/geometry.spec.js:275:3 › portrait combat chrome is bounded and separated — canonical act 2 pair (3.0s)
+  ✓  162 [portrait] › test/e2e/geometry.spec.js:309:1 › reduced-motion portrait chrome is stable after the entrance class clears (2.5s)
+  ✓  161 [portrait] › test/e2e/geometry.spec.js:275:3 › portrait combat chrome is bounded and separated — canonical act 1 trio (5.5s)
+  -  164 [portrait] › test/e2e/geometry.spec.js:394:1 › authored ground positions survive a live resize
+  ✓  165 [portrait] › test/e2e/geometry.spec.js:409:3 › scaled variant keeps its feet and chrome inside the stage — paleDuskfang (3.0s)
+  ✓  163 [portrait] › test/e2e/geometry.spec.js:344:1 › portrait intent and status chrome stays separated through death and refits (4.2s)
+  ✓  167 [portrait] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — alphaFang (3.2s)
+  ✓  168 [portrait] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — gravewarden (3.0s)
+  ✓  166 [portrait] › test/e2e/geometry.spec.js:409:3 › scaled variant keeps its feet and chrome inside the stage — usurpedSovereign (10.6s)
+  ✓  169 [portrait] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — rootheart (5.1s)
+  ✓  170 [portrait] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — siren (3.0s)
+  ✓  171 [portrait] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — leviathan (5.1s)
+  ✓  172 [portrait] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — heraldOfEnd (3.0s)
+  ✓  173 [portrait] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — voidColossus (3.1s)
+  -  175 [portrait] › test/e2e/hollow-transaction.spec.js:41:1 › Hollow actions fit the canonical pad portrait without overlap
+  -  176 [portrait] › test/e2e/hollow-transaction.spec.js:82:1 › Hollow combat exit journals destination in one acknowledged save
+  -  177 [portrait] › test/e2e/hollow-transaction.spec.js:114:1 › Return Later waits for save acknowledgement and resumes the exact event
+  -  178 [portrait] › test/e2e/hollow-transaction.spec.js:175:1 › Hollow rest and shop routes survive reload until their acknowledged exit
+  -  179 [portrait] › test/e2e/hollow-transaction.spec.js:198:1 › Hollow destination cannot return to the map until marker clear is acknowledged
+  -  180 [portrait] › test/e2e/perf.spec.js:18:1 › AoE effect burst holds the frame budget at 4x CPU throttle
+  ✓  181 [portrait] › test/e2e/rewards.spec.js:14:3 › reward tap guards › treasure chest double-tap grants at most one relic (507ms)
+  ✓  182 [portrait] › test/e2e/rewards.spec.js:38:3 › reward tap guards › voidChest event double-tap applies choice once (1.3s)
+  ✓  174 [portrait] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — sovereign (5.3s)
+  ✓  183 [portrait] › test/e2e/rewards.spec.js:56:3 › reward tap guards › voidChest rapid choice buttons apply once (467ms)
+  ✓  185 [portrait] › test/e2e/rewards.spec.js:89:3 › reward tap guards › boss relic rapid different picks grant at most one relic (709ms)
+  ✓  184 [portrait] › test/e2e/rewards.spec.js:77:3 › reward tap guards › boss relic double-tap grants at most one relic (1.7s)
+  ✓  187 [portrait] › test/e2e/rewards.spec.js:142:3 › reward tap guards › boss relic screen advances when act relic already claimed (560ms)
+  ✓  186 [portrait] › test/e2e/rewards.spec.js:104:3 › reward tap guards › treasure chest stays empty after reload (1.7s)
+  ✓  188 [portrait] › test/e2e/rewards.spec.js:164:3 › reward tap guards › event with card remove finalizes after pending (1.6s)
+  ✓  190 [portrait] › test/e2e/stage.spec.js:116:1 › viewport maps to its canonical stage shape (542ms)
+  -  191 [portrait] › test/e2e/stage.spec.js:136:1 › ?shape= override forces the remaining shapes
+  -  192 [portrait] › test/e2e/stage.spec.js:145:1 › a 4:3-ish desktop window keeps the pad-landscape stage
+  ✓  189 [portrait] › test/e2e/rewards.spec.js:188:3 › reward tap guards › event reload during pending finalizes on remount (2.8s)
+  ✓  193 [portrait] › test/e2e/stage.spec.js:154:1 › title and embark screens fit their stage: no scrollable overflow anywhere (3.1s)
+  -  195 [portrait] › test/e2e/stage.spec.js:324:1 › fresh profile title has no aspect row; Embark shows zero sections
+  -  196 [portrait] › test/e2e/stage.spec.js:341:1 › seeded veteran Embark shows aspect and vow sections
+  -  197 [portrait] › test/e2e/stage.spec.js:363:1 › Begin Anew on Embark confirms before abandoning a saved climb
+  -  198 [portrait] › test/e2e/stage.spec.js:407:1 › window size changes scale, never layout: geometry is identical at two window sizes
+(node:69393) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  -  199 [landscape] › test/e2e/audio.spec.js:13:1 › audio gallery exposes the selected complete v2 versions and every gameplay id
+  -  200 [landscape] › test/e2e/audio.spec.js:23:1 › per-file source choice posts selection metadata without audio binaries
+  -  201 [landscape] › test/e2e/audio.spec.js:41:1 › invalid host selection visibly falls back to both immutable base packs
+  -  202 [landscape] › test/e2e/audio.spec.js:54:1 › a broken selected music file falls back once without restart churn
+  -  203 [landscape] › test/e2e/audio.spec.js:122:1 › a broken selected SFX file falls back once without retry churn
+  -  204 [landscape] › test/e2e/battle.spec.js:27:1 › opening state is coherent
+  -  205 [landscape] › test/e2e/battle.spec.js:75:1 › variant tint and identity reach the live mesh
+  -  206 [landscape] › test/e2e/battle.spec.js:102:1 › variant CSS fallback matches mesh-off identity and stats
+  -  207 [landscape] › test/e2e/battle.spec.js:117:1 › mid-fight kill leaves no corpse on stage (mesh on)
+  -  208 [landscape] › test/e2e/battle.spec.js:128:1 › mid-fight kill leaves no corpse on stage (mesh off)
+  -  209 [landscape] › test/e2e/battle.spec.js:138:1 › smolder tick kill during the enemy phase
+  -  210 [landscape] › test/e2e/battle.spec.js:157:1 › boss death reaches the rewards screen with the world restored
+  -  211 [landscape] › test/e2e/battle.spec.js:176:1 › lantern art fires clean
+  -  212 [landscape] › test/e2e/battle.spec.js:192:1 › potion quaffed clean
+  -  213 [landscape] › test/e2e/bfeditor.spec.js:71:1 › ?bfedit=1 mounts the editor over a sandbox fight
+  -  214 [landscape] › test/e2e/bfeditor.spec.js:82:1 › a normal session never loads the editor
+  -  215 [landscape] › test/e2e/bfeditor.spec.js:88:1 › clicking a box without dragging does not dirty the layout
+  -  216 [landscape] › test/e2e/bfeditor.spec.js:96:1 › dragging the hero moves its x by the drag distance (stage px)
+  -  217 [landscape] › test/e2e/bfeditor.spec.js:111:1 › a hero drag locks to the axis of the first decisive move for the whole drag
+  -  218 [landscape] › test/e2e/bfeditor.spec.js:140:1 › dragging the hero vertically writes hero.y at shape scope
+  -  219 [landscape] › test/e2e/bfeditor.spec.js:162:1 › pad-landscape offers base, shape, and act scope for positional rows
+  -  220 [landscape] › test/e2e/bfeditor.spec.js:170:1 › /__bf-save rejects bodies over 1 MB with 413
+  -  221 [landscape] › test/e2e/bfeditor.spec.js:180:1 › panel numeric edit applies live to the working layout
+  -  222 [landscape] › test/e2e/bfeditor.spec.js:191:1 › Save POSTs the edited layout to /__bf-save
+  -  223 [landscape] › test/e2e/bfeditor.spec.js:212:1 › clearing a slot override restores the base formation intact
+  -  224 [landscape] › test/e2e/bfeditor.spec.js:240:1 › a partial shape layer override passes validation and saves
+  -  225 [landscape] › test/e2e/bfeditor.spec.js:258:1 › Save writes layout to disk and reload picks it up
+  -  226 [landscape] › test/e2e/config.spec.js:36:1 › an explicit E2E port cannot reuse or hide an occupied server
+  -  227 [landscape] › test/e2e/config.spec.js:55:1 › the default E2E server remains compatible with local development
+  -  228 [landscape] › test/e2e/config.spec.js:66:3 › invalid E2E port is rejected before launch — ""
+  -  229 [landscape] › test/e2e/config.spec.js:66:3 › invalid E2E port is rejected before launch — "0"
+  -  230 [landscape] › test/e2e/config.spec.js:66:3 › invalid E2E port is rejected before launch — "65536"
+  -  231 [landscape] › test/e2e/config.spec.js:66:3 › invalid E2E port is rejected before launch — "1.5"
+  -  232 [landscape] › test/e2e/config.spec.js:66:3 › invalid E2E port is rejected before launch — "5174; echo unsafe"
+  -  233 [landscape] › test/e2e/emberglass-persistence.spec.js:36:1 › fresh climb waits for its exact initial save before routing
+  -  234 [landscape] › test/e2e/emberglass-persistence.spec.js:112:1 › Usurper first sight is durable before the shop item is exposed
+  -  235 [landscape] › test/e2e/emberglass-persistence.spec.js:172:1 › Usurper purchase confirms only after the single 650-gold mutation is durable
+  -  236 [landscape] › test/e2e/emberglass-persistence.spec.js:275:1 › Reload Saved Climb discards a failed live mutation and restores the durable run
+  -  237 [landscape] › test/e2e/emberglass-persistence.spec.js:307:1 › Shade cross-store failure keeps the saved duel behind an exclusive retry dialog
+  -  238 [landscape] › test/e2e/emberglass.spec.js:15:1 › desktop Emberglass behaviour › fresh profile exposes no Rose tab or medallion
+  -  239 [landscape] › test/e2e/emberglass.spec.js:23:1 › desktop Emberglass behaviour › one shard adds a title medallion that opens the Rose
+  -  240 [landscape] › test/e2e/emberglass.spec.js:37:1 › desktop Emberglass behaviour › Rose panes disclose only their current state
+  -  241 [landscape] › test/e2e/emberglass.spec.js:68:1 › desktop Emberglass behaviour › title Rose stays inert when any asset fails to decode
+  -  242 [landscape] › test/e2e/emberglass.spec.js:86:1 › desktop Emberglass behaviour › opening Vigil clears only the news pulse
+  -  243 [landscape] › test/e2e/emberglass.spec.js:97:1 › desktop Emberglass behaviour › six shards expose a promise, never Act 4 gameplay
+  -  244 [landscape] › test/e2e/emberglass.spec.js:125:1 › desktop Emberglass behaviour › dawn ceremony drains in canonical order and signals completion
+  -  245 [landscape] › test/e2e/emberglass.spec.js:161:1 › desktop Emberglass behaviour › pending win recovers once through the production terminal outbox
+  -  246 [landscape] › test/e2e/emberglass.spec.js:231:1 › desktop Emberglass behaviour › run-end persistence failure owns input until finalisation retries
+  -  247 [landscape] › test/e2e/emberglass.spec.js:258:1 › desktop Emberglass behaviour › normal-motion reload resumes only unacknowledged dawn panels
+  -  248 [landscape] › test/e2e/emberglass.spec.js:311:1 › desktop Emberglass behaviour › a rejected dawn cursor save stays locked and retries the same panel
+  -  249 [landscape] › test/e2e/emberglass.spec.js:346:1 › desktop Emberglass behaviour › a rejected final dawn clear stays locked and retryable
+  -  250 [landscape] › test/e2e/emberglass.spec.js:382:3 › desktop Emberglass behaviour › pending death recovers once without a dawn ceremony
+  -  251 [landscape] › test/e2e/emberglass.spec.js:382:3 › desktop Emberglass behaviour › pending abandon recovers once without a dawn ceremony
+  ✓  252 [landscape] › test/e2e/emberglass.spec.js:426:1 › Rose pane details disclose safely through click and keyboard (3.3s)
+  -  253 [landscape] › test/e2e/emberglass.spec.js:472:1 › Rose pane detail stays legible and bounded in every canonical shape
+  ✓  194 [portrait] › test/e2e/stage.spec.js:179:1 › maximum Emberglass profile and ceremonies fit every stage (11.0s)
+  ✓  254 [landscape] › test/e2e/emberglass.spec.js:569:1 › sealed door ignores a phone-landscape drag and opens on a later tap (3.7s)
+(node:70048) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  255 [landscape] › test/e2e/geometry.spec.js:260:3 › combatant art boxes honour authored ground positions — act 2 pair (3.0s)
+  ✓  256 [landscape] › test/e2e/geometry.spec.js:260:3 › combatant art boxes honour authored ground positions — act 1 pair (3.5s)
+  ✓  257 [landscape] › test/e2e/geometry.spec.js:260:3 › combatant art boxes honour authored ground positions — act 3 single (3.1s)
+  -  259 [landscape] › test/e2e/geometry.spec.js:275:3 › portrait combat chrome is bounded and separated — canonical act 2 pair
+  -  260 [landscape] › test/e2e/geometry.spec.js:275:3 › portrait combat chrome is bounded and separated — canonical act 1 trio
+  -  261 [landscape] › test/e2e/geometry.spec.js:309:1 › reduced-motion portrait chrome is stable after the entrance class clears
+  -  262 [landscape] › test/e2e/geometry.spec.js:344:1 › portrait intent and status chrome stays separated through death and refits
+  -  263 [landscape] › test/e2e/geometry.spec.js:394:1 › authored ground positions survive a live resize
+  ✓  258 [landscape] › test/e2e/geometry.spec.js:260:3 › combatant art boxes honour authored ground positions — act 1 trio (3.0s)
+  ✓  264 [landscape] › test/e2e/geometry.spec.js:409:3 › scaled variant keeps its feet and chrome inside the stage — paleDuskfang (3.0s)
+  ✓  266 [landscape] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — alphaFang (3.0s)
+  ✓  267 [landscape] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — gravewarden (3.0s)
+  ✓  265 [landscape] › test/e2e/geometry.spec.js:409:3 › scaled variant keeps its feet and chrome inside the stage — usurpedSovereign (10.6s)
+  ✓  268 [landscape] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — rootheart (5.2s)
+  ✓  269 [landscape] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — siren (3.4s)
+  ✓  271 [landscape] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — heraldOfEnd (3.6s)
+  ✓  270 [landscape] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — leviathan (5.4s)
+  ✓  272 [landscape] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — voidColossus (3.4s)
+  -  274 [landscape] › test/e2e/hollow-transaction.spec.js:41:1 › Hollow actions fit the canonical pad portrait without overlap
+  -  275 [landscape] › test/e2e/hollow-transaction.spec.js:82:1 › Hollow combat exit journals destination in one acknowledged save
+  -  276 [landscape] › test/e2e/hollow-transaction.spec.js:114:1 › Return Later waits for save acknowledgement and resumes the exact event
+  -  277 [landscape] › test/e2e/hollow-transaction.spec.js:175:1 › Hollow rest and shop routes survive reload until their acknowledged exit
+  -  278 [landscape] › test/e2e/hollow-transaction.spec.js:198:1 › Hollow destination cannot return to the map until marker clear is acknowledged
+  -  279 [landscape] › test/e2e/perf.spec.js:18:1 › AoE effect burst holds the frame budget at 4x CPU throttle
+  ✓  280 [landscape] › test/e2e/rewards.spec.js:14:3 › reward tap guards › treasure chest double-tap grants at most one relic (661ms)
+  ✓  281 [landscape] › test/e2e/rewards.spec.js:38:3 › reward tap guards › voidChest event double-tap applies choice once (1.4s)
+  ✓  282 [landscape] › test/e2e/rewards.spec.js:56:3 › reward tap guards › voidChest rapid choice buttons apply once (499ms)
+  ✓  273 [landscape] › test/e2e/geometry.spec.js:450:3 › canonical single-enemy chrome stays grounded and stage-bounded — sovereign (5.4s)
+  ✓  284 [landscape] › test/e2e/rewards.spec.js:89:3 › reward tap guards › boss relic rapid different picks grant at most one relic (770ms)
+  ✓  283 [landscape] › test/e2e/rewards.spec.js:77:3 › reward tap guards › boss relic double-tap grants at most one relic (1.7s)
+  ✓  286 [landscape] › test/e2e/rewards.spec.js:142:3 › reward tap guards › boss relic screen advances when act relic already claimed (822ms)
+  ✓  285 [landscape] › test/e2e/rewards.spec.js:104:3 › reward tap guards › treasure chest stays empty after reload (2.2s)
+  ✓  287 [landscape] › test/e2e/rewards.spec.js:164:3 › reward tap guards › event with card remove finalizes after pending (1.7s)
+  ✓  289 [landscape] › test/e2e/stage.spec.js:116:1 › viewport maps to its canonical stage shape (473ms)
+  -  290 [landscape] › test/e2e/stage.spec.js:136:1 › ?shape= override forces the remaining shapes
+  -  291 [landscape] › test/e2e/stage.spec.js:145:1 › a 4:3-ish desktop window keeps the pad-landscape stage
+  ✓  288 [landscape] › test/e2e/rewards.spec.js:188:3 › reward tap guards › event reload during pending finalizes on remount (2.7s)
+  ✓  292 [landscape] › test/e2e/stage.spec.js:154:1 › title and embark screens fit their stage: no scrollable overflow anywhere (3.1s)
+  -  294 [landscape] › test/e2e/stage.spec.js:324:1 › fresh profile title has no aspect row; Embark shows zero sections
+  -  295 [landscape] › test/e2e/stage.spec.js:341:1 › seeded veteran Embark shows aspect and vow sections
+  -  296 [landscape] › test/e2e/stage.spec.js:363:1 › Begin Anew on Embark confirms before abandoning a saved climb
+  -  297 [landscape] › test/e2e/stage.spec.js:407:1 › window size changes scale, never layout: geometry is identical at two window sizes
+  ✓  293 [landscape] › test/e2e/stage.spec.js:179:1 › maximum Emberglass profile and ceremonies fit every stage (10.3s)
+
+  146 skipped
+  151 passed (4.3m)
+
+> spirebound@1.0.0 test:e2e:visual
+> playwright test visual --project=desktop --project=portrait --project=landscape --workers=1 --no-deps
+
+[WebServer] (node:73913) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 48 tests using 1 worker
+
+(node:73914) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [desktop] › test/e2e/visual.spec.js:110:1 › title screen (2.4s)
+  ✓   2 [desktop] › test/e2e/visual.spec.js:115:1 › map screen (8.0s)
+  ✓   3 [desktop] › test/e2e/visual.spec.js:123:3 › combat act 1 (3.5s)
+  ✓   4 [desktop] › test/e2e/visual.spec.js:123:3 › combat act 2 (3.5s)
+  ✓   5 [desktop] › test/e2e/visual.spec.js:123:3 › combat act 3 (3.5s)
+  ✓   6 [desktop] › test/e2e/visual.spec.js:131:1 › reward screen (6.1s)
+  ✓   7 [desktop] › test/e2e/visual.spec.js:144:3 › shop screen (2.6s)
+  ✓   8 [desktop] › test/e2e/visual.spec.js:144:3 › rest screen (2.3s)
+  ✓   9 [desktop] › test/e2e/visual.spec.js:144:3 › treasure screen (2.3s)
+  ✓  10 [desktop] › test/e2e/visual.spec.js:144:3 › embark screen (2.1s)
+  ✓  11 [desktop] › test/e2e/visual.spec.js:144:3 › vigil screen (2.2s)
+  ✓  12 [desktop] › test/e2e/visual.spec.js:151:1 › event screen (2.3s)
+  ✓  13 [desktop] › test/e2e/visual.spec.js:160:1 › title with Emberglass medallion (2.5s)
+  ✓  14 [desktop] › test/e2e/visual.spec.js:166:1 › Rose Window with mixed disclosure states (4.1s)
+  ✓  15 [desktop] › test/e2e/visual.spec.js:176:1 › Rose Window fallback with mixed disclosure states (4.1s)
+  ✓  16 [desktop] › test/e2e/visual.spec.js:187:1 › sealed summit promise (9.5s)
+(node:78193) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  17 [portrait] › test/e2e/visual.spec.js:110:1 › title screen (2.2s)
+  ✓  18 [portrait] › test/e2e/visual.spec.js:115:1 › map screen (6.9s)
+  ✓  19 [portrait] › test/e2e/visual.spec.js:123:3 › combat act 1 (3.0s)
+  ✓  20 [portrait] › test/e2e/visual.spec.js:123:3 › combat act 2 (3.0s)
+  ✓  21 [portrait] › test/e2e/visual.spec.js:123:3 › combat act 3 (3.0s)
+  ✓  22 [portrait] › test/e2e/visual.spec.js:131:1 › reward screen (5.9s)
+  ✓  23 [portrait] › test/e2e/visual.spec.js:144:3 › shop screen (2.2s)
+  ✓  24 [portrait] › test/e2e/visual.spec.js:144:3 › rest screen (2.1s)
+  ✓  25 [portrait] › test/e2e/visual.spec.js:144:3 › treasure screen (2.1s)
+  ✓  26 [portrait] › test/e2e/visual.spec.js:144:3 › embark screen (2.0s)
+  ✓  27 [portrait] › test/e2e/visual.spec.js:144:3 › vigil screen (2.0s)
+  ✓  28 [portrait] › test/e2e/visual.spec.js:151:1 › event screen (2.1s)
+  ✓  29 [portrait] › test/e2e/visual.spec.js:160:1 › title with Emberglass medallion (2.2s)
+  ✓  30 [portrait] › test/e2e/visual.spec.js:166:1 › Rose Window with mixed disclosure states (3.9s)
+  ✓  31 [portrait] › test/e2e/visual.spec.js:176:1 › Rose Window fallback with mixed disclosure states (3.9s)
+  ✓  32 [portrait] › test/e2e/visual.spec.js:187:1 › sealed summit promise (8.7s)
+(node:82153) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  33 [landscape] › test/e2e/visual.spec.js:110:1 › title screen (2.2s)
+  ✓  34 [landscape] › test/e2e/visual.spec.js:115:1 › map screen (7.8s)
+  ✓  35 [landscape] › test/e2e/visual.spec.js:123:3 › combat act 1 (3.1s)
+  ✓  36 [landscape] › test/e2e/visual.spec.js:123:3 › combat act 2 (3.0s)
+  ✓  37 [landscape] › test/e2e/visual.spec.js:123:3 › combat act 3 (3.0s)
+  ✓  38 [landscape] › test/e2e/visual.spec.js:131:1 › reward screen (5.9s)
+  ✓  39 [landscape] › test/e2e/visual.spec.js:144:3 › shop screen (2.2s)
+  ✓  40 [landscape] › test/e2e/visual.spec.js:144:3 › rest screen (2.0s)
+  ✓  41 [landscape] › test/e2e/visual.spec.js:144:3 › treasure screen (2.0s)
+  ✓  42 [landscape] › test/e2e/visual.spec.js:144:3 › embark screen (2.0s)
+  ✓  43 [landscape] › test/e2e/visual.spec.js:144:3 › vigil screen (2.0s)
+  ✓  44 [landscape] › test/e2e/visual.spec.js:151:1 › event screen (2.0s)
+  ✓  45 [landscape] › test/e2e/visual.spec.js:160:1 › title with Emberglass medallion (2.2s)
+  ✓  46 [landscape] › test/e2e/visual.spec.js:166:1 › Rose Window with mixed disclosure states (4.0s)
+  ✓  47 [landscape] › test/e2e/visual.spec.js:176:1 › Rose Window fallback with mixed disclosure states (3.9s)
+  ✓  48 [landscape] › test/e2e/visual.spec.js:187:1 › sealed summit promise (9.3s)
+
+  48 passed (2.9m)
