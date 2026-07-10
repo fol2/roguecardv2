@@ -12,6 +12,7 @@ import {
   previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
   revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter,
   setPendingReward, takePendingReward, clearPendingReward, hasPendingBossRelic, recordRunEnd, loadStats, paleVariantForAct,
+  applyBoon, reverseBoon, payHollowPrice,
 } from '../src/engine.js';
 import * as EngineApi from '../src/engine.js';
 import { shopSessionKey, shopStockForSession } from '../src/shop-session.js';
@@ -962,6 +963,8 @@ function forceHand(run, cb, ids) {
     delete runLoad.bossRelicAct;
     delete runLoad.orphanRewardClaimed;
     delete runLoad.orphanRewardResolving;
+    delete runLoad.pendingHollow;
+    delete runLoad.boonReceipt;
     saveRun(runLoad);
     const reloaded = loadRun();
     assert.ok(reloaded, 'loadRun returns saved run');
@@ -969,6 +972,8 @@ function forceHand(run, cb, ids) {
     assert.equal(reloaded.bossRelicAct, -1, 'loadRun self-heals bossRelicAct');
     assert.equal(reloaded.orphanRewardClaimed, false, 'loadRun self-heals orphanRewardClaimed');
     assert.equal(reloaded.orphanRewardResolving, false, 'loadRun self-heals orphanRewardResolving');
+    assert.equal(reloaded.pendingHollow, null, 'loadRun self-heals pendingHollow');
+    assert.equal(reloaded.boonReceipt, null, 'loadRun self-heals boonReceipt');
     assert.equal(claimTreasure(reloaded).already, true, 'reward flags survive loadRun round-trip');
 
     const runEvLoad = newRun(96);
@@ -1162,6 +1167,77 @@ function forceHand(run, cb, ids) {
     rejectSaved('extra pending reward payload key', (r) => {
       setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
       r.pendingReward.rewards.extra = true;
+    });
+    rejectSaved('missing Hollow node', (r) => {
+      r.pendingHollow = { nodeId: 'missing', type: 'event', paid: false, deferred: false, answer: null };
+    });
+    rejectSaved('mismatched Hollow type', (r) => {
+      r.pendingHollow = {
+        nodeId: r.map.nodes[0].id, type: r.map.nodes[0].type === 'event' ? 'shop' : 'event',
+        paid: false, deferred: false, answer: null,
+      };
+    });
+    rejectSaved('extra Hollow field', (r) => {
+      r.pendingHollow = {
+        nodeId: r.map.nodes[0].id, type: r.map.nodes[0].type,
+        paid: false, deferred: false, answer: null, extra: true,
+      };
+    });
+    rejectSaved('unpaid Hollow answer', (r) => {
+      r.pendingHollow = {
+        nodeId: r.map.nodes[0].id, type: r.map.nodes[0].type,
+        paid: false, deferred: false, answer: 'too early',
+      };
+    });
+    const receipt = {
+      id: 'fullPurse',
+      playerDelta: { gold: 120, hp: 0, maxHp: 0, energyMax: 0 },
+      statsGoldEarned: 120, relicsAdded: [], potionSlotsAdded: [],
+    };
+    const validReceiptRun = newRun(498, { quests: saveQuests });
+    applyBoon(validReceiptRun, 'fullPurse');
+    saveRun(validReceiptRun);
+    assert.deepEqual(loadRun().boonReceipt, validReceiptRun.boonReceipt, 'valid boon receipt round-trips');
+
+    const paymentQuests = structuredClone(saveQuests);
+    paymentQuests.hollowLamplighter = { state: 'revealed', progress: 1, memory: {} };
+    const paymentRun = newRun(499, { quests: paymentQuests });
+    const paymentNode = paymentRun.map.nodes[0];
+    paymentRun.pendingHollow = {
+      nodeId: paymentNode.id, type: paymentNode.type,
+      paid: false, deferred: false, answer: null,
+    };
+    paymentRun.player.gold = 160;
+    const paidOnce = payHollowPrice(paymentRun);
+    assert.equal(saveRun(paymentRun), true);
+    const paidReload = loadRun();
+    const paidSnapshot = { gold: paidReload.player.gold, progress: paidReload.quests.hollowLamplighter.progress };
+    assert.deepEqual(payHollowPrice(paidReload), paidOnce, 'reloaded paid meeting is idempotent');
+    assert.deepEqual({ gold: paidReload.player.gold, progress: paidReload.quests.hollowLamplighter.progress }, paidSnapshot);
+
+    rejectSaved('unknown receipt boon', (r) => { r.boon = 'unknown'; r.boonReceipt = { ...receipt, id: 'unknown' }; });
+    rejectSaved('unknown boon without receipt', (r) => { r.boon = 'toString'; });
+    rejectSaved('incomplete player delta', (r) => {
+      r.boon = 'fullPurse';
+      r.boonReceipt = { ...receipt, playerDelta: { gold: 120 } };
+    });
+    rejectSaved('negative stats delta', (r) => { r.boon = 'fullPurse'; r.boonReceipt = { ...receipt, statsGoldEarned: -1 }; });
+    rejectSaved('unknown receipt relic', (r) => { r.boon = 'fullPurse'; r.boonReceipt = { ...receipt, relicsAdded: ['unknown'] }; });
+    rejectSaved('invalid potion slot', (r) => {
+      r.boon = 'fullPurse';
+      r.boonReceipt = { ...receipt, potionSlotsAdded: [{ index: 999, id: 'fire' }] };
+    });
+    rejectSaved('extra receipt field', (r) => {
+      r.boon = 'fullPurse';
+      r.boonReceipt = { ...receipt, extra: true };
+    });
+    rejectSaved('extra player delta field', (r) => {
+      r.boon = 'fullPurse';
+      r.boonReceipt = { ...receipt, playerDelta: { ...receipt.playerDelta, extra: 0 } };
+    });
+    rejectSaved('extra potion record field', (r) => {
+      r.boon = 'fullPurse';
+      r.boonReceipt = { ...receipt, potionSlotsAdded: [{ index: 0, id: 'fire', extra: true }] };
     });
     rejectSaved('inherited monument card toString', (r) => {
       r.monument = { act: 0, row: 5, bequest: { kind: 'card', id: 'toString', up: false }, claimed: false };
@@ -2642,6 +2718,150 @@ function forceHand(run, cb, ids) {
   const hp0 = glass.player.maxHp;
   applyEventOps(glass, BOONS.temperedGlass.ops);
   assert.equal(glass.player.maxHp, hp0 + 14, 'Tempered Glass raises Max HP');
+}
+{
+  const q = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+    state: id === 'hollowLamplighter' ? 'armed' : 'dormant', progress: 0,
+    memory: id === 'hollowLamplighter' ? { eligibleMisses: 1 } : {},
+  }]));
+  const run = newRun(480, { quests: q, lamplighter: true });
+  assert.equal(run.questScratch.hollowLamplighter.due, true, 'pity forces second eligible run');
+
+  const unlit = run.map.nodes.find((n) => n.unlit);
+  assert.ok(unlit, 'scenario has an unlit node');
+  const visit = visitNode(run, unlit);
+  assert.equal(visit.hollow, true);
+  assert.ok(run.pendingHollow);
+  assert.equal(run.quests.hollowLamplighter.state, 'revealed');
+
+  let pay = payHollowPrice(run);
+  assert.deepEqual(pay, { ok: true, deferred: true, message: QUESTS.hollowLamplighter.meetings[0].accepted });
+  assert.equal(run.quests.hollowLamplighter.memory.emberDebt, 3);
+  assert.deepEqual(payHollowPrice(run), pay, 'the same meeting is idempotent');
+
+  const cb = startCombat(run, ['sporeling']);
+  gainEmbers(run, cb, 2);
+  assert.equal(cb.embers, 0);
+  gainEmbers(run, cb, 1);
+  assert.equal(run.quests.hollowLamplighter.progress, 1);
+
+  const openMeeting = (seed, previous) => {
+    const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'hollowLamplighter' ? previous.state : 'dormant',
+      progress: id === 'hollowLamplighter' ? previous.progress : 0,
+      memory: id === 'hollowLamplighter'
+        ? { ...previous.memory, eligibleMisses: 1 } : {},
+    }]));
+    const next = newRun(seed, { quests });
+    const node = next.map.nodes.find((n) => n.unlit);
+    assert.ok(node);
+    assert.equal(visitNode(next, node).hollow, true);
+    return next;
+  };
+
+  const goldRun = openMeeting(481, run.quests.hollowLamplighter);
+  goldRun.player.gold = 160;
+  pay = payHollowPrice(goldRun);
+  assert.equal(pay.ok, true);
+  assert.equal(goldRun.player.gold, 0);
+  assert.deepEqual(payHollowPrice(goldRun), pay);
+
+  const hpRun = openMeeting(482, goldRun.quests.hollowLamplighter);
+  hpRun.player.maxHp = 42;
+  hpRun.player.hp = 42;
+  pay = payHollowPrice(hpRun);
+  assert.equal(pay.ok, true);
+  assert.equal(hpRun.player.maxHp, 30);
+  assert.deepEqual(payHollowPrice(hpRun), pay);
+
+  const boonRun = openMeeting(483, hpRun.quests.hollowLamplighter);
+  applyBoon(boonRun, 'temperedGlass');
+  pay = payHollowPrice(boonRun);
+  assert.equal(pay.ok, true);
+  assert.equal(boonRun.boon, null);
+  assert.deepEqual(payHollowPrice(boonRun), pay);
+
+  const finalRun = openMeeting(484, boonRun.quests.hollowLamplighter);
+  finalRun.player.hp = 40;
+  pay = payHollowPrice(finalRun);
+  assert.equal(pay.ok, true);
+  assert.equal(finalRun.player.hp, 1);
+  assert.equal(finalRun.quests.hollowLamplighter.state, 'complete');
+  assert.deepEqual(payHollowPrice(finalRun), pay);
+
+  for (const [i, id] of Object.keys(BOONS).entries()) {
+    const bq = Object.fromEntries(QUEST_IDS.map((qid) => [qid, {
+      state: qid === 'hollowLamplighter' ? 'revealed' : 'dormant',
+      progress: qid === 'hollowLamplighter' ? 3 : 0, memory: {},
+    }]));
+    const br = newRun(490 + i, { quests: bq });
+    br.pendingHollow = {
+      nodeId: br.map.nodes[0].id, type: br.map.nodes[0].type,
+      paid: false, deferred: false, answer: null,
+    };
+    const before = structuredClone({
+      hp: br.player.hp, maxHp: br.player.maxHp, energyMax: br.player.energyMax,
+      gold: br.player.gold, relics: br.player.relics, potions: br.player.potions,
+      goldEarned: br.stats.goldEarned,
+    });
+    applyBoon(br, id);
+    assert.equal(payHollowPrice(br).ok, true, id + ' can be surrendered');
+    assert.deepEqual({
+      hp: br.player.hp, maxHp: br.player.maxHp, energyMax: br.player.energyMax,
+      gold: br.player.gold, relics: br.player.relics, potions: br.player.potions,
+      goldEarned: br.stats.goldEarned,
+    }, before, id + ' reverses every recorded delta');
+  }
+
+  const crown = newRun(499, { quests: q });
+  const crownBefore = {
+    hp: crown.player.hp, maxHp: crown.player.maxHp,
+    energyMax: crown.player.energyMax, relics: [...crown.player.relics],
+  };
+  gainRelic(crown, 'hollowCrown');
+  crown.boon = 'keenEye';
+  crown.boonReceipt = {
+    id: 'keenEye',
+    playerDelta: { gold: 0, hp: crown.player.hp - crownBefore.hp,
+      maxHp: crown.player.maxHp - crownBefore.maxHp,
+      energyMax: crown.player.energyMax - crownBefore.energyMax },
+    statsGoldEarned: 0,
+    relicsAdded: ['hollowCrown'], potionSlotsAdded: [],
+  };
+  assert.equal(reverseBoon(crown), true);
+  assert.deepEqual({
+    hp: crown.player.hp, maxHp: crown.player.maxHp,
+    energyMax: crown.player.energyMax, relics: crown.player.relics,
+  }, crownBefore, 'instant relic max-HP and energy effects reverse');
+
+  _setStore(null);
+  const debtVigil = loadVigil();
+  debtVigil.quests.hollowLamplighter = {
+    state: 'armed', progress: 0, memory: { eligibleMisses: 1 },
+  };
+  saveVigil(debtVigil);
+  const debtRun = newRun(520, { quests: questSnapshot(debtVigil) });
+  const debtNode = debtRun.map.nodes.find((n) => n.unlit);
+  assert.ok(debtNode);
+  visitNode(debtRun, debtNode);
+  assert.equal(payHollowPrice(debtRun).deferred, true);
+  const debtCombat = startCombat(debtRun, ['sporeling']);
+  gainEmbers(debtRun, debtCombat, 2);
+  let debtOut = commitRunEnd(debtRun, 'death');
+  assert.equal(debtOut.vigil.quests.hollowLamplighter.memory.emberDebt, 1);
+
+  const carry = newRun(521, { quests: questSnapshot(debtOut.vigil) });
+  assert.deepEqual(carry.questScratch.hollowLamplighter,
+    { due: false, met: false, debtActive: true });
+  const carryCombat = startCombat(carry, ['sporeling']);
+  gainEmbers(carry, carryCombat, 1);
+  assert.equal(carry.quests.hollowLamplighter.progress, 1);
+  debtOut = commitRunEnd(carry, 'abandon');
+  assert.equal('emberDebt' in debtOut.vigil.quests.hollowLamplighter.memory, false,
+    'cleared debt stays deleted after the authoritative merge');
+  assert.equal('emberDebt' in loadVigil().quests.hollowLamplighter.memory, false,
+    'cleared debt is absent from the stored authoritative Vigil');
+  _setStore(null);
 }
 {
   // monuments in the map: the last fall stands in its own act, nowhere else

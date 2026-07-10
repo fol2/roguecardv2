@@ -505,8 +505,7 @@ function closeOverlay() {
   ov.classList.remove('open');
   ov.innerHTML = '';
 }
-function requireRunSave(run, onSaved) {
-  if (E.saveRun(run)) return true;
+function showRunSaveFailure(run, onSaved) {
   openOverlay(`<div class="panel ov-panel" style="text-align:center">
     <div class="ov-title">Save Failed</div>
     <div class="ov-sub">The climb could not be secured. Free storage and retry, or reload the last durable climb state.</div>
@@ -526,6 +525,10 @@ function requireRunSave(run, onSaved) {
       onSaved();
     };
   });
+}
+function requireRunSave(run, onSaved) {
+  if (E.saveRun(run)) return true;
+  showRunSaveFailure(run, onSaved);
   return false;
 }
 function showStonePersistenceFailure(onRetry, retryLabel = 'Retry') {
@@ -694,7 +697,7 @@ export function show(name, data) {
   sc.onclick = null; // screens share #screen — never let a stale delegate survive
   ({
     title: renderTitle, embark: renderEmbark, vigil: renderVigil, map: renderMap, combat: () => {}, reward: renderReward, rest: renderRest,
-    shop: renderShop, event: renderEvent, treasure: renderTreasure, bossRelic: renderBossRelic, end: renderEnd,
+    shop: renderShop, event: renderEvent, treasure: renderTreasure, hollow: renderHollow, bossRelic: renderBossRelic, end: renderEnd,
   })[name](data);
   if (name === 'map') warmAssets();
   if (name !== 'combat' && name !== 'title') meshClear();
@@ -887,6 +890,7 @@ function startRun(run, resumed = false) {
   setAltitude(run.act, curNode ? curNode.row : 0);
   if (!resumed) E.saveRun(run);
   if (run.pendingRunEnd) { finalisePendingRunEnd(run); return; }
+  if (run.pendingHollow) { show('hollow', { nodeId: run.pendingHollow.nodeId }); return; }
   if (run.pendingReward) { show('reward'); return; }
   if (resumed && run.pendingCombat) {
     // died-to-reload protection: an unfinished fight restarts fresh
@@ -980,14 +984,104 @@ function renderLamplighter() {
 function beginFromLamplighter() {
   const run = S.run, L = S.lamp;
   run.art = L.art;
-  run.boon = L.boon;
-  E.applyEventOps(run, BOONS[L.boon].ops);
+  E.applyBoon(run, L.boon);
   delete run.pendingLamplighter;
-  S.lamp = null;
-  sfx.relic();
-  E.saveRun(run);
-  show('map');
-  setTimeout(() => omenBanner(run), 900);
+  const finish = () => {
+    S.lamp = null;
+    sfx.relic();
+    show('map');
+    setTimeout(() => omenBanner(run), 900);
+  };
+  if (!requireRunSave(run, finish)) return;
+  finish();
+}
+
+// THE HOLLOW LAMPLIGHTER — a persisted interruption on the Unlit Way. The
+// visited node is routed only after the price and Continue checkpoints hold.
+function renderHollow() {
+  const run = S.run;
+  const pending = run?.pendingHollow;
+  if (!pending) { show('map'); return; }
+  const q = E.questRecord(run, 'hollowLamplighter');
+  const paidAdvance = pending.paid && !pending.deferred ? 1 : 0;
+  const meetingIndex = Math.max(0, Math.min(QUESTS.hollowLamplighter.meetings.length - 1,
+    (q?.progress || 0) - paidAdvance));
+  const meeting = QUESTS.hollowLamplighter.meetings[meetingIndex];
+  const sc = screenEl();
+  sc.innerHTML = `<div class="hollow-lamplighter${REDUCED ? ' reduced' : ''}">
+    <div class="hollow-vignette"></div>
+    <div class="hollow-figure" aria-hidden="true">
+      <svg viewBox="0 0 180 300" role="presentation">
+        <path class="hollow-cloak" d="M91 35c-24 3-38 28-35 59-14 22-24 58-27 101l-12 72c19 13 47 20 77 20 31 0 58-7 76-21l-14-72c-4-42-13-77-29-101 2-31-12-56-36-58Z"/>
+        <path class="hollow-face" d="M69 67c7-17 37-18 45 0l-6 39c-9 8-24 8-33 0Z"/>
+        <path class="hollow-staff" d="M139 56l5 217M127 68l19-30 17 31"/>
+        <path class="hollow-lantern" d="M118 143h48l-5 63h-38Zm5 13h38m-31-13 5-15h14l6 15"/>
+        <path class="hollow-void" d="M78 76c6-7 21-7 28 0l-4 21c-7 5-15 5-21 0Z"/>
+      </svg>
+    </div>
+    <div class="hollow-copy screen-enter">
+      <div class="hollow-kicker">THE UNLIT WAY · PRICE ${meetingIndex + 1} OF 5</div>
+      <div class="hollow-title">THE HOLLOW LAMPLIGHTER</div>
+      <div class="hollow-ask">“${escHtml(meeting.ask)}”</div>
+      <div class="hollow-answer${pending.paid ? ' paid' : ''}" aria-live="polite">${pending.paid ? escHtml(pending.answer) : ''}</div>
+      <div class="hollow-error" aria-live="assertive"></div>
+      <div class="hollow-actions">
+        <button class="btn btn-primary" data-a="hollow-pay"${pending.paid ? ' disabled' : ''}>${pending.paid ? 'Price Paid' : 'Pay the Price'}</button>
+        <button class="btn ghost" data-a="hollow-continue"${pending.paid ? '' : ' disabled'}>Continue</button>
+      </div>
+    </div>
+  </div>`;
+  sc.onclick = (e) => {
+    const target = e.target.closest('[data-a]');
+    if (!target || target.disabled) return;
+    const action = target.dataset.a;
+    if (action === 'hollow-pay') {
+      target.disabled = true;
+      unlock(); sfx.click();
+      const result = E.payHollowPrice(run);
+      const answer = $('.hollow-answer', sc);
+      const error = $('.hollow-error', sc);
+      const continueButton = $('[data-a="hollow-continue"]', sc);
+      if (!result.ok) {
+        answer.textContent = result.message;
+        answer.classList.add('error');
+        error.textContent = '';
+        target.disabled = false;
+        return;
+      }
+      if (!E.saveRun(run)) {
+        answer.textContent = '';
+        answer.classList.remove('paid', 'error');
+        error.textContent = 'The price is not yet secured. Retry the save.';
+        target.textContent = 'Retry Save';
+        target.disabled = false;
+        continueButton.disabled = true;
+        return;
+      }
+      answer.textContent = result.message;
+      answer.classList.remove('error');
+      answer.classList.add('paid');
+      error.textContent = '';
+      target.textContent = 'Price Paid';
+      continueButton.disabled = false;
+      renderHud();
+      return;
+    }
+    if (action !== 'hollow-continue' || !run.pendingHollow?.paid) return;
+    target.disabled = true;
+    unlock(); sfx.click();
+    const held = { ...run.pendingHollow };
+    run.pendingHollow = null;
+    if (!E.saveRun(run)) {
+      run.pendingHollow = held;
+      $('.hollow-error', sc).textContent = 'The way onward is not secured. Try Continue again.';
+      target.disabled = false;
+      return;
+    }
+    const node = run.map.nodes.find((n) => n.id === held.nodeId);
+    if (!node) { show('map'); return; }
+    routeVisitedNode(node, held.type);
+  };
 }
 
 const NODE_ICONS = { monster: 'sword', elite: 'skull', event: 'question', rest: 'flame', shop: 'coin', treasure: 'chest', boss: 'crown', monument: 'monument' };
@@ -1167,14 +1261,7 @@ function renderMap() {
   ms.addEventListener('pointerup', panEnd);
   ms.addEventListener('pointercancel', panEnd);
 }
-function enterNode(node) {
-  const run = S.run;
-  sfx.map();
-  setAltitude(run.act, node.row);
-  const { type, bounty } = E.visitNode(run, node);
-  showEighthFloorEcho(run);
-  const isCombat = type === 'monster' || type === 'elite' || type === 'boss';
-  if (!isCombat && type !== 'monument') E.saveRun(run);
+function showNodeBounty(node, bounty) {
   if (bounty) {
     // first light: the dark lantern pays for the walking
     sfx.coin();
@@ -1183,6 +1270,34 @@ function enterNode(node) {
     V.floatText(from.x, from.y - 34, `${iconSvg('coin', 12)} +${bounty}`, 'goldf');
     flyTo(from.x, from.y, 120, 30, { n: 5, color: '#ffe9ac', size: 7, dur: 620 });
   }
+}
+function enterNode(node) {
+  const run = S.run;
+  sfx.map();
+  setAltitude(run.act, node.row);
+  const { type, bounty, hollow } = E.visitNode(run, node);
+  if (hollow) {
+    if (!E.saveRun(run)) {
+      S.run = E.loadRun();
+      if (!S.run) { show('title'); return; }
+      show('map');
+      showRunSaveFailure(S.run, () => {});
+      return;
+    }
+    showEighthFloorEcho(run);
+    showNodeBounty(node, bounty);
+    show('hollow', { nodeId: node.id });
+    return;
+  }
+  showEighthFloorEcho(run);
+  const isCombat = type === 'monster' || type === 'elite' || type === 'boss';
+  if (!isCombat && type !== 'monument') E.saveRun(run);
+  showNodeBounty(node, bounty);
+  routeVisitedNode(node, type);
+}
+function routeVisitedNode(node, type) {
+  const run = S.run;
+  const isCombat = type === 'monster' || type === 'elite' || type === 'boss';
   if (isCombat) {
     const ids = E.rollEncounter(run, type, node.row, node);
     E.setPendingEncounter(run, type, ids);
@@ -3075,6 +3190,24 @@ async function handleEvent(ev, targetIdx) {
       V.ring(ex, ey, '#d8c27a', 8, 480, 4);
       syncCombat();
       await sleep(260);
+      break;
+    }
+    case 'hollowTithe': {
+      const from = emberFrom || heroCenter();
+      const to = ce.lantern ? V.centerOf(ce.lantern) : heroCenter();
+      flyTo(from.x, from.y, to.x, to.y, {
+        n: Math.min(ev.n * 2, 6), color: '#91a0af', size: 5, dur: 520,
+      });
+      sfx.ember();
+      V.floatText(to.x, to.y - 48, `−${ev.n} TO THE HOLLOW`, 'debufff');
+      if (ev.paid) {
+        const banner = el('div', 'turn-banner hollow-tithe-banner', escHtml(ev.paid));
+        screenEl().appendChild(banner);
+        setTimeout(() => banner.remove(), 2200);
+      }
+      syncCombat();
+      emberFrom = null;
+      await sleep(ev.paid ? 460 : 260);
       break;
     }
     case 'ember': {

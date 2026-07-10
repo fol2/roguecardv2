@@ -247,6 +247,14 @@ export function commitRunEnd(run, outcome = 'abandon') {
     quests: v.quests, shards: v.shards, unlocks: v.unlocks, whispers: v.whispers,
   });
   const completed = mergeRunQuests(v, run);
+  const hs = run.questScratch?.hollowLamplighter;
+  const persistedHollow = v.quests.hollowLamplighter;
+  if (hs && !hs.debtActive && ['armed', 'revealed'].includes(persistedHollow.state)) {
+    persistedHollow.memory.eligibleMisses = hs.met
+      ? 0
+      : (persistedHollow.memory.eligibleMisses || 0) + 1;
+  }
+  if (persistedHollow.state === 'complete') delete persistedHollow.memory.eligibleMisses;
   for (const id of completed) v.shards.push(id);
   for (const id of run.unlocks || []) if (!v.unlocks.includes(id)) v.unlocks.push(id);
   const fall = run.questScratch?.ownShade?.fall;

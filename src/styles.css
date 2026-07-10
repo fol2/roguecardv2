@@ -1846,6 +1846,99 @@ html.mesh-on .enemy-art.warded::before { display: none; }
 .lamp-art-desc b { font-family: 'Cinzel', serif; }
 .lamp-actions { margin-top: 8px; }
 
+/* ============ THE HOLLOW LAMPLIGHTER — persisted Unlit Way interruption */
+.hollow-lamplighter {
+  position: absolute; inset: 0; isolation: isolate; overflow: hidden;
+  display: grid; grid-template-columns: minmax(220px, 0.8fr) minmax(360px, 1.2fr);
+  align-items: center; gap: clamp(18px, 5cqw, 72px); padding: 7cqh 8cqw;
+  background:
+    radial-gradient(circle at 28% 42%, rgba(105, 128, 142, 0.13), transparent 27%),
+    linear-gradient(105deg, #05080d 0%, #0a1118 48%, #08090f 100%);
+}
+.hollow-vignette {
+  position: absolute; inset: -12%; z-index: -1; pointer-events: none;
+  background: radial-gradient(ellipse at 58% 48%, transparent 20%, rgba(0, 0, 0, 0.84) 76%);
+  box-shadow: inset 0 0 16cqw rgba(0, 0, 0, 0.88);
+}
+.hollow-figure {
+  --hollow-opacity: 1;
+  position: relative; z-index: 1; height: min(68cqh, 560px); min-height: 280px;
+  display: grid; place-items: center; color: #6f7d87;
+  filter: drop-shadow(0 24px 28px rgba(0, 0, 0, 0.82));
+  animation: hollowArrival 0.9s cubic-bezier(0.16, 0.72, 0.24, 1) both;
+}
+.hollow-figure::after {
+  content: ''; position: absolute; left: 12%; right: 8%; bottom: 3%; height: 7%;
+  border-radius: 50%; background: rgba(0, 0, 0, 0.72); filter: blur(9px);
+}
+.hollow-figure svg { width: 100%; height: 100%; overflow: visible; }
+.hollow-cloak { fill: #111923; stroke: #65727d; stroke-width: 1.3; }
+.hollow-face { fill: #202a31; stroke: #84919a; stroke-width: 1.1; }
+.hollow-void { fill: #020407; stroke: rgba(153, 172, 181, 0.36); stroke-width: 0.8; }
+.hollow-staff, .hollow-lantern {
+  fill: none; stroke: #78858e; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round;
+}
+.hollow-lantern { fill: rgba(8, 14, 18, 0.9); stroke-width: 3; }
+.hollow-copy {
+  position: relative; z-index: 2; width: min(620px, 100%); padding: clamp(24px, 4cqh, 46px);
+  border: 1px solid rgba(130, 153, 165, 0.25); border-radius: 3px 18px 3px 18px;
+  background: linear-gradient(145deg, rgba(15, 23, 31, 0.92), rgba(6, 9, 14, 0.9));
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.62), inset 0 1px rgba(255, 255, 255, 0.035);
+}
+.hollow-kicker {
+  color: #83939d; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.hollow-title {
+  font-family: 'Cinzel', serif; color: #c3cdd2; font-size: clamp(25px, 3.4cqw, 42px);
+  letter-spacing: 0.11em; line-height: 1.12; text-shadow: 0 0 24px rgba(148, 171, 181, 0.15);
+}
+.hollow-ask {
+  max-width: 42ch; margin: 22px 0 18px; color: #d8dfe2; font-family: 'Cinzel', serif;
+  font-size: clamp(16px, 1.65cqw, 21px); line-height: 1.65; font-style: italic;
+}
+.hollow-answer {
+  min-height: 3.2em; color: #9eabb2; font-size: 14px; line-height: 1.55;
+  border-left: 2px solid rgba(130, 153, 165, 0.28); padding-left: 12px;
+}
+.hollow-answer.paid { color: #d9c98c; border-left-color: rgba(217, 201, 140, 0.55); }
+.hollow-answer.error { color: #d58f8f; border-left-color: rgba(213, 91, 91, 0.5); }
+.hollow-error { min-height: 1.5em; margin-top: 8px; color: #e2a0a0; font-size: 12.5px; }
+.hollow-actions { display: flex; gap: 12px; margin-top: 20px; }
+.hollow-actions .btn { min-width: 150px; }
+.hollow-tithe-banner {
+  width: min(720px, 84cqw); text-align: center; white-space: normal;
+  font-size: clamp(14px, 2cqw, 22px); line-height: 1.45; letter-spacing: 0.08em;
+  color: #bdc9cf; border-color: rgba(145, 160, 175, 0.5);
+}
+@keyframes hollowArrival {
+  from { opacity: 0; transform: translateX(-24px) scale(1.03); filter: blur(5px) drop-shadow(0 24px 28px rgba(0, 0, 0, 0.82)); }
+  to { opacity: var(--hollow-opacity); transform: translateX(0) scale(1); filter: blur(0) drop-shadow(0 24px 28px rgba(0, 0, 0, 0.82)); }
+}
+.hollow-lamplighter.reduced .hollow-figure,
+.hollow-lamplighter.reduced .screen-enter { animation: none; }
+@container stage (max-width: 740px) {
+  .hollow-lamplighter { display: flex; justify-content: center; padding: calc(68px + var(--sat)) 18px calc(18px + var(--sab)); }
+  .hollow-figure { --hollow-opacity: 0.22; position: absolute; inset: 6% -18% 2% -34%; height: auto; min-height: 0; opacity: 0.22; }
+  .hollow-copy { width: 100%; padding: 26px 22px; }
+  .hollow-title { font-size: clamp(24px, 7.5cqw, 34px); }
+  .hollow-ask { margin: 18px 0 14px; font-size: 16px; }
+  .hollow-actions { flex-direction: column; }
+  .hollow-actions .btn { width: 100%; }
+}
+@container stage (max-height: 480px) and (min-width: 500px) {
+  .hollow-lamplighter { grid-template-columns: 180px minmax(420px, 1fr); gap: 24px; padding: 48px 7cqw 18px; }
+  .hollow-figure { height: 78cqh; min-height: 0; }
+  .hollow-copy { padding: 18px 24px; }
+  .hollow-kicker { margin-bottom: 5px; font-size: 9px; }
+  .hollow-title { font-size: 24px; }
+  .hollow-ask { margin: 10px 0 8px; font-size: 13.5px; line-height: 1.45; }
+  .hollow-answer { min-height: 2.4em; font-size: 12px; }
+  .hollow-error { margin-top: 3px; font-size: 11px; }
+  .hollow-actions { margin-top: 8px; }
+  .hollow-actions .btn { padding-block: 7px; }
+}
+
 /* ============ the bequest carved at death, and unlock toasts */
 .bequest { margin: 6px 0 2px; display: flex; flex-direction: column; gap: 9px; align-items: center; }
 .bequest-title { font-size: 13px; color: var(--text-dim); text-align: center; max-width: 480px; line-height: 1.5; }
@@ -1898,6 +1991,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .mnode.avail .nwrap, .mnode.avail .icg, .mnode.avail .nglyph { animation: none; }
   .mnode .pale-lens { animation: none; opacity: 1; }
   .reward-list .reward-row, .shop-row .shop-item, .deed-list .deed-row { animation: none; }
+  .hollow-figure, .hollow-lamplighter .screen-enter { animation: none; }
 }
 
 /* breakpoints now query the fixed stage, not the window: pad shapes (1024/768)

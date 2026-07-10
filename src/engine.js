@@ -1,5 +1,5 @@
 // SPIREBOUND engine — pure game logic, no DOM. UI consumes cb.queue for animation.
-import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE, PROGRESSION, QUEST_IDS, QUESTS, VARIANTS, SHADE_KITS } from './data.js';
+import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE, PROGRESSION, QUEST_IDS, QUESTS, VARIANTS, SHADE_KITS, BOONS } from './data.js';
 
 // ---------------------------------------------------------------- RNG (mulberry32)
 export function makeRng(state) {
@@ -33,7 +33,7 @@ export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
   const vow = clamp(opts.vow || 0, 0, VOWS.length);
   const run = {
     v: 2, runId: opts.runId || freshRunId(seed, startedAt), seed, rngState: seed, uid: 1, act: 0, nodeId: null, floorsClimbed: 0, bossRelicAct: -1, orphanRewardClaimed: false, orphanRewardResolving: false,
-    aspect, vow, art: opts.art || A.art || 'flare', omens: [], boon: opts.boon || null,
+    aspect, vow, art: opts.art || A.art || 'flare', omens: [], boon: opts.boon || null, boonReceipt: null,
     unlocks: [...(opts.unlocks || [])],
     reveals: opts.reveals ? [...opts.reveals] : null,
     monument: opts.monument ? { ...opts.monument, claimed: false } : null,
@@ -54,6 +54,7 @@ export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
     pendingQuestId: null,
     pendingReward: null,
     pendingRunEnd: null,
+    pendingHollow: null,
     player: {
       hp: A.maxHp, maxHp: A.maxHp, gold: A.startGold, energyMax: A.energy,
       relics: [A.startRelic], potions: Array(A.potionSlots || 3).fill(null), deck: [],
@@ -70,6 +71,7 @@ export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
   prepareEighthOmen(run);
   run.omens.push(omenEnabled(run) ? rollOmen(run) : null);
   preparePaleRun(run);
+  prepareHollowLamplighter(run);
   run.map = genMap(run);
   return run;
 }
@@ -229,6 +231,19 @@ function preparePaleRun(run) {
   };
 }
 
+function prepareHollowLamplighter(run) {
+  const hq = questRecord(run, 'hollowLamplighter');
+  if (!hq || !['armed', 'revealed'].includes(hq.state)) return;
+  if (hq.memory.emberDebt > 0) {
+    run.questScratch.hollowLamplighter = { due: false, met: false, debtActive: true };
+    return;
+  }
+  const misses = hq.memory.eligibleMisses || 0;
+  const due = misses >= PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1 ||
+    runRng(run)() < PROGRESSION.emberglass.hollowLamplighter.appearanceChance;
+  run.questScratch.hollowLamplighter = { due, met: false, debtActive: false };
+}
+
 // ---------------------------------------------------------------- map generation
 export const MAP_ROWS = 15, MAP_COLS = 7;
 export function genMap(run) {
@@ -320,6 +335,7 @@ export function availableNodes(run) {
 }
 // stepping onto a node: bookkeeping + unlit bounty. Returns the node's true face.
 export function visitNode(run, node) {
+  const wasUnlit = !!node.unlit;
   run.nodeId = node.id;
   if (run.orphanRewardClaimed) {
     node.rewardClaimed = true;
@@ -339,6 +355,15 @@ export function visitNode(run, node) {
     run.player.gold += bounty;
     run.stats.goldEarned += bounty;
     run.stats.unlitVisited++;
+  }
+  const hollow = run.questScratch?.hollowLamplighter;
+  if (wasUnlit && hollow?.due && !hollow.met) {
+    hollow.met = true;
+    revealQuest(run, 'hollowLamplighter', run.endQueue);
+    run.pendingHollow = {
+      nodeId: node.id, type: node.type, paid: false, deferred: false, answer: null,
+    };
+    return { type: node.type, bounty, hollow: true };
   }
   return { type: node.type, bounty };
 }
@@ -819,6 +844,23 @@ export function enemyMove(e) { return e.def.moves[e.moveKey]; }
 // ---------------------------------------------------------------- shatter & embers
 // spilled fire, caught by your lantern. Negative n = spent.
 export function gainEmbers(run, cb, n) {
+  if (n > 0) {
+    const q = questRecord(run, 'hollowLamplighter');
+    const debt = q?.memory?.emberDebt || 0;
+    const tithe = Math.min(n, debt);
+    if (tithe > 0) {
+      q.memory.emberDebt -= tithe;
+      const remaining = q.memory.emberDebt;
+      const event = { t: 'hollowTithe', n: tithe, remaining };
+      if (remaining === 0) {
+        delete q.memory.emberDebt;
+        event.paid = QUESTS.hollowLamplighter.meetings[0].paid;
+      }
+      cb.queue.push(event);
+      if (remaining === 0) advanceQuest(run, 'hollowLamplighter', 1, cb.queue);
+      n -= tithe;
+    }
+  }
   const next = clamp(cb.embers + n, 0, cb.emberCap);
   const delta = next - cb.embers;
   if (!delta) return 0;
@@ -1572,6 +1614,8 @@ export function loadRun() {
     run.pendingQuestId ??= null;
     run.pendingReward ??= null;
     run.pendingRunEnd ??= null;
+    run.pendingHollow ??= null;
+    run.boonReceipt ??= null;
     if (run.reveals != null && !(Array.isArray(run.reveals) && run.reveals.every((id) => REVEALS.some((r) => r.id === id)))) return null;
     const plainObject = (x) => x && typeof x === 'object' && !Array.isArray(x);
     const onlyKeys = (x, keys) => Object.keys(x).every((k) => keys.includes(k));
@@ -1623,6 +1667,29 @@ export function loadRun() {
     };
     const validPendingRunEnd = (pending) =>
       pending == null || (exactKeys(pending, ['outcome']) && ['win', 'death', 'abandon'].includes(pending.outcome));
+    const validPendingHollow = (pending) => {
+      if (pending == null) return true;
+      if (!exactKeys(pending, ['nodeId', 'type', 'paid', 'deferred', 'answer']) ||
+        typeof pending.paid !== 'boolean' || typeof pending.deferred !== 'boolean') return false;
+      const node = run.map.nodes.find((n) => n.id === pending.nodeId);
+      if (!node || pending.type !== node.type) return false;
+      if (!pending.paid) return pending.deferred === false && pending.answer === null;
+      return typeof pending.answer === 'string';
+    };
+    const validBoonReceipt = (receipt) => {
+      if (receipt == null) return true;
+      if (!exactKeys(receipt, ['id', 'playerDelta', 'statsGoldEarned', 'relicsAdded', 'potionSlotsAdded']) ||
+        !hasOwn(BOONS, receipt.id) || receipt.id !== run.boon) return false;
+      const delta = receipt.playerDelta;
+      if (!exactKeys(delta, ['gold', 'hp', 'maxHp', 'energyMax']) ||
+        Object.values(delta).some((n) => !Number.isFinite(n)) ||
+        !Number.isFinite(receipt.statsGoldEarned) || receipt.statsGoldEarned < 0 ||
+        !Array.isArray(receipt.relicsAdded) || receipt.relicsAdded.some((id) => !hasOwn(RELICS, id)) ||
+        !Array.isArray(receipt.potionSlotsAdded)) return false;
+      return receipt.potionSlotsAdded.every((slot) =>
+        exactKeys(slot, ['index', 'id']) && Number.isInteger(slot.index) &&
+        slot.index >= 0 && slot.index < run.player.potions.length && hasOwn(POTIONS, slot.id));
+    };
 
     const validScratch = (scratch) => {
       if (!plainObject(scratch) || Object.keys(scratch).some((id) => !QUEST_IDS.includes(id))) return false;
@@ -1658,6 +1725,7 @@ export function loadRun() {
 
     if (!plainObject(run.quests)) return null;
     if (!validRunId(run.runId)) return null;
+    if (run.boon != null && !hasOwn(BOONS, run.boon)) return null;
     if (!validMonument(run.monument)) return null;
     if (Object.keys(run.quests).some((id) => !QUEST_IDS.includes(id))) return null;
     if (Object.entries(run.quests).some(([id, q]) => !validQuest(id, q))) return null;
@@ -1672,6 +1740,8 @@ export function loadRun() {
     if (run.pendingQuestId != null && run.pendingCombat == null) return null;
     if (!validPendingReward(run.pendingReward)) return null;
     if (!validPendingRunEnd(run.pendingRunEnd)) return null;
+    if (!validPendingHollow(run.pendingHollow)) return null;
+    if (!validBoonReceipt(run.boonReceipt)) return null;
     if (run.pendingReward != null && run.pendingCombat != null) return null;
     if (run.pendingRunEnd != null && (run.pendingCombat != null || run.pendingReward != null)) return null;
     if (!run.map.nodes.every((n) =>
@@ -1752,4 +1822,106 @@ export function applyEventOps(run, ops, rng = runRng(run)) {
     }
   }
   return { pending, log };
+}
+
+const multisetAdded = (after, before) => {
+  const left = new Map();
+  for (const id of before) left.set(id, (left.get(id) || 0) + 1);
+  return after.filter((id) => {
+    const n = left.get(id) || 0;
+    if (n) { left.set(id, n - 1); return false; }
+    return true;
+  });
+};
+
+export function applyBoon(run, id) {
+  if (!Object.hasOwn(BOONS, id)) throw new Error('unknown boon: ' + id);
+  const before = {
+    gold: run.player.gold, hp: run.player.hp, maxHp: run.player.maxHp,
+    energyMax: run.player.energyMax, goldEarned: run.stats.goldEarned,
+    relics: [...run.player.relics], potions: [...run.player.potions],
+  };
+  applyEventOps(run, BOONS[id].ops);
+  run.boon = id;
+  run.boonReceipt = {
+    id,
+    playerDelta: {
+      gold: run.player.gold - before.gold,
+      hp: run.player.hp - before.hp,
+      maxHp: run.player.maxHp - before.maxHp,
+      energyMax: run.player.energyMax - before.energyMax,
+    },
+    statsGoldEarned: run.stats.goldEarned - before.goldEarned,
+    relicsAdded: multisetAdded(run.player.relics, before.relics),
+    potionSlotsAdded: run.player.potions.flatMap((potionId, index) =>
+      potionId && before.potions[index] !== potionId ? [{ index, id: potionId }] : []),
+  };
+  return run.boonReceipt;
+}
+
+export function reverseBoon(run) {
+  const receipt = run.boonReceipt;
+  if (!receipt || run.boon !== receipt.id) return false;
+  const d = receipt.playerDelta;
+  if (d.gold > 0 && run.player.gold < d.gold) return false;
+  const needed = new Map();
+  for (const id of receipt.relicsAdded) needed.set(id, (needed.get(id) || 0) + 1);
+  for (const [id, n] of needed) {
+    if (run.player.relics.filter((x) => x === id).length < n) return false;
+  }
+  if (receipt.potionSlotsAdded.some(({ index, id }) => run.player.potions[index] !== id)) return false;
+
+  for (const id of receipt.relicsAdded) {
+    const index = run.player.relics.lastIndexOf(id);
+    run.player.relics.splice(index, 1);
+  }
+  for (const { index } of receipt.potionSlotsAdded) run.player.potions[index] = null;
+  run.player.gold -= d.gold;
+  run.player.energyMax = Math.max(1, run.player.energyMax - d.energyMax);
+  run.player.maxHp = Math.max(1, run.player.maxHp - d.maxHp);
+  run.player.hp = clamp(run.player.hp - d.hp, 1, run.player.maxHp);
+  run.stats.goldEarned = Math.max(0, run.stats.goldEarned - receipt.statsGoldEarned);
+  run.boon = null;
+  run.boonReceipt = null;
+  return true;
+}
+
+export function payHollowPrice(run) {
+  const pending = run.pendingHollow;
+  if (!pending) return { ok: false, deferred: false, message: '' };
+  if (pending.paid) {
+    return { ok: true, deferred: pending.deferred, message: pending.answer };
+  }
+  const q = questRecord(run, 'hollowLamplighter');
+  if (!q || !['armed', 'revealed'].includes(q.state)) {
+    return { ok: false, deferred: false, message: '' };
+  }
+  const meeting = QUESTS.hollowLamplighter.meetings[q.progress];
+  const fail = () => ({ ok: false, deferred: false, message: meeting.cannot });
+  const accept = (deferred, message) => {
+    pending.paid = true;
+    pending.deferred = deferred;
+    pending.answer = message;
+    return { ok: true, deferred, message };
+  };
+  if (q.progress === 0) {
+    q.memory.emberDebt = PROGRESSION.emberglass.hollowLamplighter.emberDebt;
+    return accept(true, meeting.accepted);
+  }
+  if (q.progress === 1) {
+    const price = PROGRESSION.emberglass.hollowLamplighter.gold;
+    if (run.player.gold < price) return fail();
+    run.player.gold -= price;
+  } else if (q.progress === 2) {
+    const price = PROGRESSION.emberglass.hollowLamplighter.maxHp;
+    if (run.player.maxHp - price < PROGRESSION.emberglass.hollowLamplighter.minMaxHpAfter) return fail();
+    run.player.maxHp -= price;
+    run.player.hp = Math.min(run.player.hp, run.player.maxHp);
+  } else if (q.progress === 3) {
+    if (!reverseBoon(run)) return fail();
+  } else if (q.progress === 4) {
+    run.player.hp = PROGRESSION.emberglass.hollowLamplighter.finalHp;
+  } else return fail();
+  advanceQuest(run, 'hollowLamplighter', 1, run.endQueue);
+  return accept(false, meeting.paid);
 }
