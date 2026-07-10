@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "test:ci": "node test/test_ci_contract.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "node test/test_engine.js",
