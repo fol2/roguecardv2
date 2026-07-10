@@ -272,3 +272,66 @@ Final source/environment provenance is in
 The final artifact checksum manifest is
 [`emberglass-phase2-final-sha256.txt`](artifacts/emberglass-phase2-final-sha256.txt),
 SHA-256 `4c602e5b2a2fa9139007a7fc4149492a1986a446c4f4936f89e2c61a605b0626`.
+
+## PR #14 review repair addendum (10 July 2026)
+
+**GO for the reported review blockers.** Source checkpoint
+`e158884dc5816ad2bede1513612bddd1dd708c7a` (tree
+`d50c0012b4bb986ed2579955c03ea4fa3640a848`) is linearly based on
+`d048640b962ccd17663e37bc0d1c8c5c692567b5`, 41 commits ahead and zero
+behind at capture.
+
+The repair consolidates terminal, Shade, Hollow-route, and shop-session domain
+transactions in `engine.js`; removes the three UI-adjacent domain helpers;
+shares strict quest-event validation; moves Shade fragments to confirmed
+defeat; restores the Pale 0/3 hunt before cumulative 3/9 Lens progress; and
+uses a named persistence-dialog configuration. The unapproved v1 deletion
+waiver is removed. `src/audio.js` and `test/e2e/audio.spec.js` are byte-clean
+against `origin/main`, so the out-of-scope audio retry change is absent.
+
+Fresh verification for the repair checkpoint:
+
+~~~text
+npm test
+unit checks passed; monte-carlo: 300 runs, 1 random-agent wins, 299 deaths
+
+npm run test:progression (twice, identical)
+guided: median=18 p10=14 p90=22 complete=2000/2000
+unguided: median=50 p10=37 p90=69 complete=1991/2000
+
+npm run build (twice)
+PASS; 520 modules; deterministic dist aggregate SHA-256
+dedc0de3162329f6760bba3ef6a91a85e2994b488dd0ec94e2f75808e3cbef00
+
+SPIREBOUND_E2E_PORT=5194 npm run test:e2e
+disk: 1 passed
+random-agent: 1 passed
+main matrix: 153 passed, 150 expected project skips
+visual: 48 passed
+
+git diff --check
+PASS; no output
+~~~
+
+Performance follows the owner-approved reference/warning policy. The current
+capture host exposed a 3840 × 2160 main display, UI-scaled to 1920 × 1080 at
+60 Hz; this is not directly comparable with the historical 144 Hz capture.
+Both final runs produced valid metrics and exited zero:
+
+~~~text
+port 5200: PERF_RESULT {"avgFps":96.18,"p95FrameMs":21.1,"worstFrameMs":41.2,"frames":290,"project":"portrait"}
+port 5201: PERF_RESULT {"avgFps":78.09,"p95FrameMs":28,"worstFrameMs":49.1,"frames":236,"project":"portrait"}
+           PERF_WARNING p95 28.0 ms > 22 ms target
+~~~
+
+Missing or invalid metrics still fail the job; only a valid target miss is
+non-blocking. A control run on clean `origin/main` under the same 60 Hz host
+also missed p95 at 27.5 ms, supporting the conclusion that the warning is not
+a review-repair regression.
+
+The immutable original release artefacts remain historical evidence. Current
+repair source, test, workflow, documentation, and bundle hashes are in
+[`emberglass-phase2-review-sha256.txt`](artifacts/emberglass-phase2-review-sha256.txt),
+SHA-256 `e1b5510fa62678fdfb9b52ff0925b9a4e7d80637080290384b1ca60169dadd36`.
+The deleted `terminal-outbox.js`, `shade-duel-transaction.js`, and
+`shop-session.js` are intentionally absent from this current manifest.
