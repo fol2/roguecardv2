@@ -362,7 +362,7 @@ The owner-approved CI redesign is specified in
 and implemented through the accompanying
 [`plan`](../plans/2026-07-10-e2e-ci-feedback.md). Draft PRs run unit, build, and
 four critical browser smokes in parallel. Ready PRs and `main` fan out one
-disk job, three independent random-agent shards, eight main shards, one
+disk job, three independent random-agent shards, ten main shards, one
 serial-heavy job, and one visual job per canonical project. Required check names remain exactly `unit`
 and `e2e`; their dependency-free aggregator rejects failed, cancelled,
 skipped, or missing required lanes.
@@ -396,11 +396,11 @@ initial test:e2e:main --shard=N/4 calibration
 4/4: 28 passed, 47 skipped (48.6s)
 aggregate: 153 passed, 150 intentional project skips
 
-final test:e2e:main --list --shard=N/8
-38, 38, 38, 38, 37, 37, 37, 37 selected tests; aggregate 300
+final test:e2e:main --list --shard=N/10
+30 selected tests per shard; aggregate 300
 
 test:e2e:serial
-1 passed (7.3s)
+5 passed (9.5s)
 
 test:e2e:visual:project
 desktop: 16 passed (58.9s)
@@ -423,7 +423,21 @@ the moving 3D sealed-door projection never satisfied Playwright's stable-box
 actionability wait, and the multi-shape Rose journey exhausted its 90-second
 budget while sharing a WebGL runner. The former now dispatches its click
 directly because the test measures the resulting panel layout; the latter is
-isolated as `e2e-serial` with one worker. Main work is split eight ways.
+isolated as `e2e-serial` with one worker. Main work is split ten ways.
+
+Ready run [29123520778](https://github.com/fol2/roguecardv2/actions/runs/29123520778)
+confirmed that runner contention was not the remaining Rose cause: all five
+shape checks shared one Playwright 90-second test budget, and Linux exhausted
+that cumulative budget. Each shape is now an independent `@serial` test with
+its own timeout while the lane remains one-worker and complete. The serial
+local gate and aggregate local `test:e2e` command both include all five.
+The same run also exposed a ceremony-test race: separate Playwright round
+trips allowed the pending dawn to finish between checking disabled buttons
+and clicking one. The test now captures the lock, attempts the click, and
+reads the resulting screen atomically in one browser task; the focused case
+passes locally in 8.2 seconds. The three desktop-heavy 8-way shards also
+exceeded the eight-minute run target, so the final topology uses ten equal
+30-test main shards.
 
 The next pushed Ready/full run must provide the real final wall-clock result.
 The eight-minute target and ten-minute warning threshold remain timing

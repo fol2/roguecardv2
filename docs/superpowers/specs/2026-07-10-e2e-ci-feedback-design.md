@@ -119,7 +119,7 @@ Full E2E fans out immediately; it does not wait for `unit` or `build-dist`:
 |---|---:|---|
 | `e2e-disk` | 1 job | Real battlefield-editor save, one worker, clean-checkout proof |
 | `e2e-random` | 3 shards | One deterministic seeded fight per shard, reduced motion, one worker each |
-| `e2e-main` | 8 shards | All other non-visual desktop/portrait/landscape tests, two workers per runner |
+| `e2e-main` | 10 shards | All other non-visual desktop/portrait/landscape tests, two workers per runner |
 | `e2e-serial` | 1 job | The multi-shape Rose geometry journey, isolated on one worker to avoid WebGL contention |
 | `e2e-visual` | 3 jobs | One canonical Playwright project per runner, one worker, read-only Linux baselines |
 
@@ -175,7 +175,7 @@ The package scripts expose reproducible local equivalents:
 npm run test:ci
 npm run test:e2e:smoke
 npm run test:e2e:random-agent -- --shard=1/3
-npm run test:e2e:main -- --shard=1/8
+npm run test:e2e:main -- --shard=1/10
 npm run test:e2e:serial
 npm run test:e2e:visual:project -- --project=desktop
 ```
@@ -196,7 +196,7 @@ ordinary local verification open ten browser processes on one machine.
 - Rollback is one workflow reversion plus removal of the auxiliary CI scripts;
   product code, save data, and baselines are unaffected.
 - If runner concurrency proves lower than expected, reduce main shards from
-  eight to six before removing any test coverage.
+  ten to eight before removing any test coverage.
 
 ## 9. Out of scope
 

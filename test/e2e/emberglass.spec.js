@@ -197,14 +197,23 @@ test('pending win recovers once through the production terminal outbox', async (
   const reduced = await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
   const endButtons = page.locator('.end-btns button');
   if (!reduced) {
-    expect(await endButtons.evaluateAll((buttons) => buttons.map((button) => button.disabled)))
-      .toEqual([true, true]);
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2'))?.pendingDawn != null))
-      .toBe(true);
-    await expect(page.locator('[data-act="menu"]')).toHaveCount(0);
-    await expect(page.locator('[data-m="abandon"]')).toHaveCount(0);
-    await page.evaluate(() => document.querySelector('[data-a="title"]').click());
-    expect(await page.evaluate(() => window.__probe.state().screen)).toBe('end');
+    // Capture and exercise the lock in one browser task. Separate Playwright
+    // round trips can let the remaining ceremony panels finish between the
+    // disabled-state assertion and the synthetic click on a loaded runner.
+    const locked = await page.evaluate(() => {
+      const buttons = [...document.querySelectorAll('.end-btns button')];
+      const pending = JSON.parse(localStorage.getItem('spirebound_save_v2'))?.pendingDawn != null;
+      const menuCount = document.querySelectorAll('[data-act="menu"]').length;
+      const abandonCount = document.querySelectorAll('[data-m="abandon"]').length;
+      document.querySelector('[data-a="title"]').click();
+      return {
+        disabled: buttons.map((button) => button.disabled), pending, menuCount, abandonCount,
+        screen: window.__probe.state().screen,
+      };
+    });
+    expect(locked).toEqual({
+      disabled: [true, true], pending: true, menuCount: 0, abandonCount: 0, screen: 'end',
+    });
   }
 
   await waitForDawnComplete(page);
@@ -506,16 +515,14 @@ test('Rose pane details disclose safely through click and keyboard', async ({ pa
   await expect(detail).toHaveText('???');
 });
 
-test('Rose pane detail stays legible and bounded in every canonical shape', { tag: '@serial' }, async ({ page }) => {
-  test.skip(test.info().project.name !== 'desktop', 'one project forces all five stage shapes');
-  await page.addInitScript((vigil) => {
-    localStorage.removeItem('spirebound_save_v2');
-    localStorage.setItem('spirebound_vigil_v2', JSON.stringify(vigil));
-  }, mixedLedger());
-  const shapes = [
-    'phone-portrait', 'pad-portrait', 'phone-landscape', 'pad-landscape', 'desktop-landscape',
-  ];
-  for (const shape of shapes) {
+for (const shape of [
+  'phone-portrait', 'pad-portrait', 'phone-landscape', 'pad-landscape', 'desktop-landscape',
+]) {
+  test(`Rose pane detail stays legible and bounded — ${shape}`, { tag: '@serial' }, async ({ page }) => {
+    await page.addInitScript((vigil) => {
+      localStorage.removeItem('spirebound_save_v2');
+      localStorage.setItem('spirebound_vigil_v2', JSON.stringify(vigil));
+    }, mixedLedger());
     await page.goto(`/?shape=${shape}`);
     await page.waitForFunction(() => window.spirebound && window.__probe);
     for (const fallback of [false, true]) {
@@ -608,8 +615,8 @@ test('Rose pane detail stays legible and bounded in every canonical shape', { ta
         }
       }
     }
-  }
-});
+  });
+}
 
 test('sealed door ignores a phone-landscape drag and opens on a later tap', async ({ page }) => {
   test.skip(test.info().project.name !== 'landscape', 'touch drag runs once in phone landscape');

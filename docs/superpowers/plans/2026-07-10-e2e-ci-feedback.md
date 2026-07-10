@@ -17,7 +17,7 @@
 - Documentation-only changes produce successful no-op aggregators.
 - Playwright retries remain zero and each browser process uses at most two workers.
 - Disk-writing E2E remains isolated; screenshot refresh remains manual and serial.
-- Full CI uses three random-agent shards, eight main shards, one isolated serial-heavy job, and one visual job per canonical project.
+- Full CI uses three random-agent shards, ten main shards, one isolated serial-heavy job, and one visual job per canonical project.
 - Draft target is at most three minutes and full target is at most eight minutes; timing is warning/reference evidence, never a correctness hard gate.
 - Performance FPS/frame-time remains nightly/manual reference evidence and is not part of this workflow change.
 - Preserve the existing untracked `scratch/emberglass-phase2-manual-journey.mjs` file and never stage it.
@@ -306,14 +306,16 @@ npm run test:e2e:random-agent -- --list
 npm run test:e2e:random-agent -- --list --shard=1/3
 npm run test:e2e:random-agent -- --list --shard=2/3
 npm run test:e2e:random-agent -- --list --shard=3/3
-npm run test:e2e:main -- --list --shard=1/8
-npm run test:e2e:main -- --list --shard=2/8
-npm run test:e2e:main -- --list --shard=3/8
-npm run test:e2e:main -- --list --shard=4/8
-npm run test:e2e:main -- --list --shard=5/8
-npm run test:e2e:main -- --list --shard=6/8
-npm run test:e2e:main -- --list --shard=7/8
-npm run test:e2e:main -- --list --shard=8/8
+npm run test:e2e:main -- --list --shard=1/10
+npm run test:e2e:main -- --list --shard=2/10
+npm run test:e2e:main -- --list --shard=3/10
+npm run test:e2e:main -- --list --shard=4/10
+npm run test:e2e:main -- --list --shard=5/10
+npm run test:e2e:main -- --list --shard=6/10
+npm run test:e2e:main -- --list --shard=7/10
+npm run test:e2e:main -- --list --shard=8/10
+npm run test:e2e:main -- --list --shard=9/10
+npm run test:e2e:main -- --list --shard=10/10
 ```
 
 Expected: three random tests overall, one in each random shard, and at least
@@ -576,13 +578,13 @@ jobs:
           if-no-files-found: ignore
 
   e2e_main:
-    name: e2e main ${{ matrix.shard }}/8
+    name: e2e main ${{ matrix.shard }}/10
     needs: changes
     if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -595,7 +597,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e:main -- --shard=${{ matrix.shard }}/8
+      - run: npm run test:e2e:main -- --shard=${{ matrix.shard }}/10
       - name: Verify clean checkout
         if: always()
         run: test -z "$(git status --porcelain --untracked-files=all)"
@@ -741,8 +743,8 @@ git diff --check
 yq eval '.' .github/workflows/ci.yml >/dev/null
 SPIREBOUND_E2E_PORT=5210 npm run test:e2e:smoke
 SPIREBOUND_E2E_PORT=5211 npm run test:e2e:random-agent
-for shard in 1 2 3 4 5 6 7 8; do
-  SPIREBOUND_E2E_PORT=$((5211 + shard)) npm run test:e2e:main -- --shard=$shard/8
+for shard in 1 2 3 4 5 6 7 8 9 10; do
+  SPIREBOUND_E2E_PORT=$((5211 + shard)) npm run test:e2e:main -- --shard=$shard/10
 done
 SPIREBOUND_E2E_PORT=5220 npm run test:e2e:serial
 for project in desktop portrait landscape; do
@@ -755,7 +757,7 @@ for project in desktop portrait landscape; do
 done
 ```
 
-Expected: every command exits zero; the eight main shards plus serial-heavy
+Expected: every command exits zero; the ten main shards plus serial-heavy
 lane collectively cover the same non-visual test set; the three visual jobs collectively cover all 48
 Linux baseline comparisons.
 
