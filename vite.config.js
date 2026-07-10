@@ -111,7 +111,7 @@ function bfSavePlugin() {
           if (problems.length) { res.statusCode = 400; return res.end(JSON.stringify({ ok: false, problems })); }
           writeFileSync(AUDIO_SELECTION_TMP, serializeAudioSelection(selection));
           renameSync(AUDIO_SELECTION_TMP, AUDIO_SELECTION_PATH);
-          res.end(JSON.stringify({ ok: true, reload: true }));
+          res.end(JSON.stringify({ ok: true, hot: true }));
         } catch (e) {
           res.statusCode = 400;
           res.end(JSON.stringify({ ok: false, problems: [String(e?.message ?? e)] }));

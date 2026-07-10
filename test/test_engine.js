@@ -20,7 +20,7 @@ import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, drawBatchSche
 import {
   UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyphId,
 } from '../src/ui-chrome.js';
-import { BASE_AUDIO_VERSIONS, DEFAULT_AUDIO_SELECTION, audioRefFromPath, canonicalAudioFilename, normaliseAudioSelection, resolveAudioRef, validateAudioSelection } from '../src/audio-packs.js';
+import { BASE_AUDIO_VERSIONS, DEFAULT_AUDIO_SELECTION, audioRefFromPath, canonicalAudioFilename, normaliseAudioSelection, rankAudioRefs, resolveAudioRef, validateAudioSelection } from '../src/audio-packs.js';
 import { serializeAudioSelection } from '../src/dev/audio-selection-serialize.js';
 import { fetchAudioSelectionJson } from '../src/audio-selection-fetch.js';
 
@@ -118,6 +118,22 @@ function forceHand(run, cb, ids) {
     audioRefFromPath('music', './assets/musics/stained-glass-v1/title.mp3'),
     null,
     'audio packs: the base version id is reserved for root files',
+  );
+  assert.deepEqual(
+    rankAudioRefs('sfx', 'click', [
+      'ashglass-v2/art.mp3',
+      'ashglass-v2/click.mp3',
+      'ashglass-v1/hover.mp3',
+      'ashglass-v1/click.mp3',
+      'draft/click-soft.mp3',
+    ], { exclude: 'ashglass-v1/click.mp3' }),
+    [
+      'ashglass-v2/click.mp3',
+      'ashglass-v1/hover.mp3',
+      'ashglass-v2/art.mp3',
+      'draft/click-soft.mp3',
+    ],
+    'audio packs: gallery omits pack default and ranks other same-action versions first',
   );
   const currentFiles = (kind, dir) => readdirSync(new URL(dir, import.meta.url), { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith('.mp3'))

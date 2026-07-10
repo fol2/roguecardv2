@@ -163,9 +163,38 @@ function play(name, fallback, opts) {
   loadSample(name);
 }
 
+/** Gallery: play the sample resolved from an (unsaved) selection without touching gameplay cache. */
+export async function previewSfx(id, selection) {
+  if (!ensureAudio() || typeof id !== 'string') return false;
+  const selected = getAudioSource('sfx', id, selection);
+  const base = getAudioSource('sfx', id, DEFAULT_AUDIO_SELECTION);
+  let buffer = null;
+  for (const source of [selected, base]) {
+    if (!source || (source !== selected && source.ref === selected?.ref)) continue;
+    buffer = await loadSource(source);
+    if (buffer) break;
+  }
+  if (!buffer) {
+    synth[id]?.();
+    return false;
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  const g = ctx.createGain();
+  g.gain.value = 0.85;
+  src.connect(g).connect(sfxBus);
+  src.start();
+  return true;
+}
+
 export function preloadSfx() {
   if (!ensureAudio()) return;
   SFX_IDS.forEach((id) => { loadSample(id); });
+}
+
+/** Drop logical-id → ref bindings so gameplay picks up a hot-applied selection. */
+export function invalidateSfxSelection() {
+  for (const key of Object.keys(loadedSampleRefs)) delete loadedSampleRefs[key];
 }
 
 const synth = {

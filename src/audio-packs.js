@@ -53,6 +53,29 @@ export function resolveAudioRef(kind, id, inventory, selection) {
   return available.has(baseRef) ? baseRef : null;
 }
 
+/** Gallery override list: same-action alternatives first (excluding pack default), then the rest. */
+export function rankAudioRefs(kind, id, refs, { exclude = null } = {}) {
+  const filename = canonicalAudioFilename(kind, id);
+  const baseVersion = BASE_AUDIO_VERSIONS[kind];
+  const same = [];
+  const other = [];
+  for (const ref of refs ?? []) {
+    if (exclude && ref === exclude) continue;
+    const file = String(ref).includes('/') ? String(ref).slice(String(ref).indexOf('/') + 1) : String(ref);
+    if (filename && file === filename) same.push(ref);
+    else other.push(ref);
+  }
+  same.sort((a, b) => {
+    const va = String(a).split('/', 1)[0];
+    const vb = String(b).split('/', 1)[0];
+    if (va === baseVersion && vb !== baseVersion) return -1;
+    if (vb === baseVersion && va !== baseVersion) return 1;
+    return String(a).localeCompare(String(b));
+  });
+  other.sort((a, b) => String(a).localeCompare(String(b)));
+  return [...same, ...other];
+}
+
 export function audioVersions(kind, inventory, { completeOnly = false } = {}) {
   if (!IDS[kind]) return [];
   const available = new Set(inventory?.[kind] ?? []);

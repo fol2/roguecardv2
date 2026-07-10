@@ -73,8 +73,11 @@ roughly the size of that music folder to `dist/`.
 Open `http://localhost:5174/?audio=1` in development. The Runtime audio
 selection panel has independent whole-pack selectors for Music and SFX. Each
 gallery row also has an override selector containing every installed file of
-the same kind. Save writes `public/audio-selection.json` through the dev-only,
-same-origin `/__audio-save` endpoint and reloads the page.
+the same kind, with Pack default once at the top and other same-action versions
+next. Save writes `public/audio-selection.json` through the
+dev-only, same-origin `/__audio-save` endpoint and hot-applies the selection
+without a page reload. ▶ previews the current row choice, including unsaved
+overrides.
 
 Resolution precedence is:
 
