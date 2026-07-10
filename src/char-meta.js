@@ -25,14 +25,14 @@ export const CHAR_MESH_KEYS = ["sway","bob","breathe","head","cloth","pin","floa
 
 /** @type {Record<string, CharMetaEntry>} */
 export const CHAR_META = {
-  abyssalKnight: { scale: 1.3, footY: -20, shadow: { ox: 38, oy: 87 } },
+  abyssalKnight: { scale: 1.3, footY: -20, shadow: { ox: 38, oy: 87 }, mesh: { sway: 0, bob: 0, breathe: 0.55, head: 1.05, cloth: 1.7, pin: 1.5 } },
   alphaFang: { scale: 2, footX: -30, footY: -60, shadow: { ox: 47, oy: 83, sy: 0.33 } },
   ashAcolyte: { scale: 0.95, shadow: { oy: 91 } },
-  ashwarden: { shadow: { ox: 54, oy: 93, skew: 5 }, aim: { color: "#f9bd95" } },
+  ashwarden: { shadow: { ox: 54, oy: 93, skew: 5 }, aim: { color: "#f9bd95" }, mesh: { sway: 0, bob: 0, breathe: 1.3, head: 0, cloth: 0 } },
   chaosHound: { scale: 1.05, shadow: { ox: 53, oy: 87 } },
   deepmaw: { scale: 1.14, shadow: { ox: 48, oy: 87 } },
   drownedOne: { scale: 0.8, shadow: { ox: 51, oy: 88 } },
-  duskblade: { footY: -30, shadow: { ox: 47, oy: 95, skew: 5 }, aim: { color: "#6d9edf" } },
+  duskblade: { footY: -30, shadow: { ox: 47, oy: 95, skew: 5 }, aim: { color: "#6d9edf" }, mesh: { sway: 0.5, bob: 0, breathe: 1.6, head: 1.35, cloth: 0.75, pin: 0.5 } },
   duskfang: { scale: 0.95, shadow: { ox: 46, oy: 87 } },
   gloomslime: { scale: 0.95, shadow: { ox: 52, oy: 86 } },
   gravewarden: { scale: 2.5, footX: -40, footY: -50, shadow: { ox: 51, oy: 88 } },
@@ -45,7 +45,7 @@ export const CHAR_META = {
   shellback: { scale: 1.09, shadow: { ox: 56, oy: 78.1 } },
   siren: { scale: 1.6, footX: -10, footY: -20, shadow: { ox: 48, oy: 99 } },
   sovereign: { scale: 1.45, footX: -100, footY: 50, shadow: { ox: 49.7, oy: 97 } },
-  sporeling: { scale: 0.62, shadow: { ox: 54.8, dy: 10 } },
+  sporeling: { scale: 0.62, shadow: { ox: 54.8, skew: -4, dy: 10 } },
   starCultist: { shadow: { ox: 56.6, oy: 95.3 } },
   thornling: { scale: 0.81, shadow: { ox: 51, oy: 91 } },
   tidecaller: { shadow: { ox: 56, oy: 89.5 } },
