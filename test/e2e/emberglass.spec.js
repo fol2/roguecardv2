@@ -529,6 +529,7 @@ test('Rose pane detail stays legible and bounded in every canonical shape', asyn
             index, inside: inside(copyRect, controlRect),
             copy: { width: copyRect.width / scale, height: copyRect.height / scale },
             control: { width: controlRect.width / scale, height: controlRect.height / scale },
+            overflow: [copy.scrollWidth - copy.clientWidth, copy.scrollHeight - copy.clientHeight],
           };
         });
         return {
@@ -549,6 +550,9 @@ test('Rose pane detail stays legible and bounded in every canonical shape', asyn
       expect(geometry.panelOverflow.every((amount) => amount <= 1), context).toBe(true);
       const missedLabels = geometry.labelContainment.filter((label) => !label.inside);
       expect(missedLabels, `${context}: visible pane labels must be clickable`).toEqual([]);
+      const clippedLabels = geometry.labelContainment
+        .filter((label) => label.overflow?.some((amount) => amount > 1));
+      expect(clippedLabels, `${context}: visible pane labels must not clip`).toEqual([]);
       expect(stateFontMins.every((fontPx) => fontPx >= 12), context).toBe(true);
       expect(geometry.controls.every(({ width, height }) => width >= 44 && height >= 44), context).toBe(true);
       for (let i = 0; i < geometry.controls.length; i++) {

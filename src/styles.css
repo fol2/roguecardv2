@@ -2389,7 +2389,7 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
 .rose-assets .rose-pane.complete .rose-pane-art { background-image: var(--rose-mural); background-size: 100% 100%; opacity: 1; }
 .rose-assets .rose-pane-copy {
   position: absolute; left: var(--rose-x); top: var(--rose-y); z-index: 3;
-  width: 24%; transform: translate(-50%, -50%); padding: 3px 4px; pointer-events: none;
+  width: 28%; transform: translate(-50%, -50%); padding: 3px 4px; pointer-events: none;
   border-radius: 6px; background: rgba(3, 5, 11, 0.76); text-align: center;
   text-shadow: 0 1px 3px #000;
 }
@@ -2399,7 +2399,7 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
   position: absolute;
   left: clamp(23px, var(--rose-x), calc(100% - 23px));
   top: clamp(23px, var(--rose-y), calc(100% - 23px)); z-index: 4;
-  width: 24%; height: 14%; min-width: 46px; min-height: 52px;
+  width: 28%; height: 14%; min-width: 46px; min-height: 60px;
   transform: translate(-50%, -50%); border: 1px solid transparent; border-radius: 9px;
   background: transparent; color: inherit; cursor: pointer; pointer-events: auto;
 }
@@ -2541,7 +2541,7 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
   .rose-fallback { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rose-fallback .rose-slot { min-height: 102px; }
   .rose-view .rose-window { width: min(86cqw, 44cqh); }
-  .rose-assets .rose-pane-copy { width: 24%; padding: 2px 3px; }
+  .rose-assets .rose-pane-copy { width: 28%; padding: 2px 3px; }
   .rose-pane-name, .rose-pane-progress, .rose-pane-mystery { font-size: 7px; }
   .rose-pane-inscription { font-size: 5.5px; }
   .title-screen > .title-rose-medallion { width: 58px; height: 58px; }
@@ -2584,7 +2584,11 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
   }
   .rose-tab-open .rose-view .rose-window { grid-column: 1; grid-row: 1 / 3; }
   .rose-tab-open .rose-view .rose-pane-detail { grid-column: 2; grid-row: 1; width: 100%; }
-  .rose-tab-open .rose-assets .rose-pane-copy { width: 24%; }
+  .rose-tab-open .rose-assets .rose-pane-copy { width: 27.5%; }
+  .rose-tab-open .rose-assets .rose-pane-select { width: 27.5%; min-height: 52px; }
+  .rose-tab-open .rose-assets .rose-pane-name,
+  .rose-tab-open .rose-assets .rose-pane-progress,
+  .rose-tab-open .rose-assets .rose-pane-mystery { font-size: 7px; }
   .rose-tab-open .rose-view .rose-fallback { width: 100% !important; }
   .rose-tab-open .rose-view .whisper-log { grid-column: 2; grid-row: 2; width: 100%; }
   .end-screen:has(.dawn-ceremony) {
