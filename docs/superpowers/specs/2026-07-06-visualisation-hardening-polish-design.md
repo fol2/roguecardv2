@@ -271,7 +271,7 @@ Suites (`test/e2e/`):
    constants (omens legitimately bend opening rules — e.g. seed 20260706
    rolls Ember Wind, draw 4).
 3. `visual.spec` — screenshot regression: title, map (observed scale/opacity
-   motion, then 800ms and 20 animation frames quiet; 12s timeout), combat acts
+   motion, then 800ms and 20 animation frames quiet; 60s timeout), combat acts
    1–3, reward, shop, rest, treasure, event; `?mesh=0` + explicit
    `freeze()`; `maxDiffPixelRatio: 0.01`. **Baselines are deliberately not
    committed yet** — capturing them now would enshrine the broken geometry;
@@ -283,8 +283,9 @@ Suites (`test/e2e/`):
    signal because the scene's camera roll continues indefinitely. The helper
    arms before `show('map')`, observes a change in projected node scale/opacity
    (camera distance/focus), then requires the sustained quiet period above.
-   This changes harness timing only; retry count, pixels, and tolerance stay
-   unchanged.
+   Reference runs settled in about 5.7s; the 60s upper guard accommodates the
+   observed 5–8x Ubuntu runner slowdown and is not a fixed wait. This changes
+   harness timing only; retry count, pixels, and tolerance stay unchanged.
 4. `perf.spec` — the previously unmeasured gate, now measured: portrait
    project, 3s shader warm-up, CDP `Emulation.setCPUThrottlingRate(4)`, rAF
    sampler across a double-annihilate burst into three enemies; assert avg

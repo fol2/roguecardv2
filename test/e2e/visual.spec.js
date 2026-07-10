@@ -22,7 +22,7 @@ test.beforeEach(({}, testInfo) => {
 
 const MAP_SETTLE_QUIET_MS = 800;
 const MAP_SETTLE_QUIET_FRAMES = 20;
-const MAP_SETTLE_TIMEOUT_MS = 12_000;
+const MAP_SETTLE_TIMEOUT_MS = 60_000;
 
 /** Wait for the map dolly's roll-invariant distance/focus signal to settle. */
 async function showMapAndWaitSettled(page) {

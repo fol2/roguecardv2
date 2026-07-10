@@ -29,6 +29,25 @@ async function mockCharSave(page) {
   return payloads;
 }
 
+async function openBfEditor(page, params = {}) {
+  const query = new URLSearchParams({
+    bfedit: '1',
+    mesh: '0',
+    ...params,
+  });
+  await page.goto(`/?${query.toString()}`);
+  await page.waitForFunction(() => Boolean(
+    typeof window.__bfEditor?.resolved === 'function'
+    && typeof window.__bfEditor?.working === 'function'
+    && typeof window.__probe?.stage === 'function'
+    && Number.isFinite(window.__probe.stage().scale)
+    && window.__bfEditor.resolved()
+    && document.querySelector('#bf-toolbar')
+    && document.querySelector('#bf-panel')
+    && document.querySelector('.bf-box[data-bf="hero"]')
+  ));
+}
+
 async function waitForEditorOverlayStable(page) {
   await page.evaluate(async () => {
     const layers = [...document.querySelectorAll('.combat-screen .sl')];
@@ -50,7 +69,7 @@ test.beforeEach(({ }, testInfo) => {
 });
 
 test('?bfedit=1 mounts the editor over a sandbox fight', async ({ page }) => {
-  await page.goto('/?bfedit=1&mesh=0');
+  await openBfEditor(page);
   await expect(page.locator('#bf-toolbar')).toBeVisible();
   await expect(page.locator('#bf-panel')).toBeVisible();
   // default scenario: hero + 2 enemies + 3 layers + ground line
@@ -67,7 +86,7 @@ test('a normal session never loads the editor', async ({ page }) => {
 });
 
 test('clicking a box without dragging does not dirty the layout', async ({ page }) => {
-  await page.goto('/?bfedit=1&mesh=0');
+  await openBfEditor(page);
   await page.locator('.bf-box[data-bf="hero"]').click();
   await page.locator('.bf-box[data-bf="ground"]').click();
   await expect(page.locator('.bf-box[data-bf="ground"]')).toHaveClass(/bf-sel/);
@@ -75,7 +94,7 @@ test('clicking a box without dragging does not dirty the layout', async ({ page 
 });
 
 test('dragging the hero moves its x by the drag distance (stage px)', async ({ page }) => {
-  await page.goto('/?bfedit=1&mesh=0');
+  await openBfEditor(page);
   const hero = page.locator('.bf-box[data-bf="hero"]');
   const scale = await page.evaluate(() => window.__probe.stage().scale);
   const before = await page.evaluate(() => window.__bfEditor.resolved().hero.x);
@@ -90,7 +109,7 @@ test('dragging the hero moves its x by the drag distance (stage px)', async ({ p
 });
 
 test('a hero drag locks to the axis of the first decisive move for the whole drag', async ({ page }) => {
-  await page.goto('/?bfedit=1&mesh=0');
+  await openBfEditor(page);
   const hero = page.locator('.bf-box[data-bf="hero"]');
   const scale = await page.evaluate(() => window.__probe.stage().scale);
   const before = await page.evaluate(() => ({
@@ -119,7 +138,7 @@ test('a hero drag locks to the axis of the first decisive move for the whole dra
 });
 
 test('dragging the hero vertically writes hero.y at shape scope', async ({ page }) => {
-  await page.goto('/?bfedit=1&mesh=0');
+  await openBfEditor(page);
   const hero = page.locator('.bf-box[data-bf="hero"]');
   const scale = await page.evaluate(() => window.__probe.stage().scale);
   const before = await page.evaluate(() => ({
@@ -141,7 +160,7 @@ test('dragging the hero vertically writes hero.y at shape scope', async ({ page 
 });
 
 test('pad-landscape offers base, shape, and act scope for positional rows', async ({ page }) => {
-  await page.goto('/?bfedit=1&mesh=0&shape=pad-landscape');
+  await openBfEditor(page, { shape: 'pad-landscape' });
   await page.locator('.bf-box[data-bf="ground"]').click();
   const scopeSel = page.locator('#bf-panel select[data-scope="0"]'); // groundY row
   await expect(scopeSel.locator('option')).toHaveText(['base', 'shape', 'act']);
@@ -149,7 +168,7 @@ test('pad-landscape offers base, shape, and act scope for positional rows', asyn
 });
 
 test('/__bf-save rejects bodies over 1 MB with 413', async ({ page }) => {
-  await page.goto('/?bfedit=1&mesh=0');
+  await openBfEditor(page);
   const result = await page.evaluate(async () => {
     const r = await fetch('/__bf-save', { method: 'POST', body: 'x'.repeat(1_200_000) });
     return { status: r.status, json: await r.json() };
@@ -159,7 +178,7 @@ test('/__bf-save rejects bodies over 1 MB with 413', async ({ page }) => {
 });
 
 test('panel numeric edit applies live to the working layout', async ({ page }) => {
-  await page.goto('/?bfedit=1&mesh=0');
+  await openBfEditor(page);
   await page.locator('.bf-box[data-bf="ground"]').click();
   const input = page.locator('#bf-panel input[data-path="groundY"]');
   await input.fill('250');
@@ -176,7 +195,7 @@ test('Save POSTs the edited layout to /__bf-save', async ({ page }) => {
     payload = JSON.parse(route.request().postData());
     await route.fulfill({ json: { ok: true } });
   });
-  await page.goto('/?bfedit=1&mesh=0');
+  await openBfEditor(page);
   await page.locator('.bf-box[data-bf="ground"]').click();
   const input = page.locator('#bf-panel input[data-path="groundY"]');
   await input.fill('241');
@@ -191,7 +210,7 @@ test('Save POSTs the edited layout to /__bf-save', async ({ page }) => {
 });
 
 test('clearing a slot override restores the base formation intact', async ({ page }) => {
-  await page.goto('/?bfedit=1&mesh=0');
+  await openBfEditor(page);
   await page.locator('.bf-box[data-bf="enemy-0"]').click();
   const panel = page.locator('#bf-panel');
   // the layout file ships a desktop-landscape slots override: clear it first
@@ -225,7 +244,7 @@ test('a partial shape layer override passes validation and saves', async ({ page
     payload = JSON.parse(route.request().postData());
     await route.fulfill({ json: { ok: true } });
   });
-  await page.goto('/?bfedit=1&mesh=0');
+  await openBfEditor(page);
   await page.locator('#bf-panel [data-select="layer-ledge"]').click();
   const input = page.locator('#bf-panel input[data-path="y"]');
   await input.fill('5');
@@ -244,8 +263,7 @@ test('Save writes layout to disk and reload picks it up', async ({ page }) => {
   const originalLayout = readFileSync(layoutPath, 'utf8');
   const originalChar = readFileSync(charPath, 'utf8');
   try {
-    await page.goto('/?bfedit=1&mesh=0&shape=pad-landscape');
-    await page.waitForFunction(() => window.__bfEditor);
+    await openBfEditor(page, { shape: 'pad-landscape' });
     const before = await page.evaluate(() => window.__bfEditor.resolved().groundY);
     const target = before + 3;
     await page.locator('.bf-box[data-bf="ground"]').click();
@@ -262,8 +280,7 @@ test('Save writes layout to disk and reload picks it up', async ({ page }) => {
     expect(bfResponse.ok()).toBe(true);
     await expect.poll(() => readFileSync(layoutPath, 'utf8')).toContain(`groundY: ${target}`);
     await waitForDevServerReady();
-    await page.goto('/?bfedit=1&mesh=0&shape=pad-landscape');
-    await page.waitForFunction(() => window.__bfEditor);
+    await openBfEditor(page, { shape: 'pad-landscape' });
     const after = await page.evaluate(() => window.__bfEditor.resolved().groundY);
     expect(after).toBe(target);
   } finally {
