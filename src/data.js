@@ -1275,6 +1275,8 @@ export const WHISPERS = [
 export const QUESTS = {
   paleOnes: {
     name: 'The Pale Ones', mode: 'Trail', target: PROGRESSION.emberglass.paleOnes.completeAt,
+    huntName: 'Hunt the Pale Ones',
+    huntInscription: 'Defeat three pale foes and follow the cold motes they leave behind.',
     inscription: 'Hunt the Pale Ones. Gather nine motes from glass that has forgotten colour.',
     progress: ['No mote answers the Lens.', 'The first pale mote chills the lantern.'],
   },
@@ -1350,9 +1352,9 @@ export const VARIANTS = {
   paleDuskfang: { id: 'paleDuskfang', base: 'duskfang', name: 'Pale Duskfang', tint: { hue: 165, saturation: 0.45, brightness: 1.18 }, scale: 1.08, statMods: pale, dialogue: [], drop: { quest: 'paleOnes', kind: 'paleMote', n: 1 } },
   paleDrownedOne: { id: 'paleDrownedOne', base: 'drownedOne', name: 'Pale Drowned One', tint: { hue: 120, saturation: 0.38, brightness: 1.2 }, scale: 1.1, statMods: pale, dialogue: [], drop: { quest: 'paleOnes', kind: 'paleMote', n: 1 } },
   paleVoidWisp: { id: 'paleVoidWisp', base: 'voidWisp', name: 'Pale Void Wisp', tint: { hue: -90, saturation: 0.32, brightness: 1.25 }, scale: 1.12, statMods: pale, dialogue: [], drop: { quest: 'paleOnes', kind: 'paleMote', n: 1 } },
-  ownShade1: { id: 'ownShade1', base: 'hero', name: 'The Shade That Fell', tint: { hue: 35, saturation: 0.25, brightness: 0.62 }, scale: shadeTier[0].scale, statMods: shadeTier[0], dialogue: [QUESTS.ownShade.fragments[0]], drop: { quest: 'ownShade', kind: 'shadeMemory', n: 1 } },
-  ownShade2: { id: 'ownShade2', base: 'hero', name: 'The Shade That Returned', tint: { hue: 20, saturation: 0.2, brightness: 0.55 }, scale: shadeTier[1].scale, statMods: shadeTier[1], dialogue: [QUESTS.ownShade.fragments[1]], drop: { quest: 'ownShade', kind: 'shadeMemory', n: 1 } },
-  ownShade3: { id: 'ownShade3', base: 'hero', name: 'The Shade That Remembers', tint: { hue: 0, saturation: 0.16, brightness: 0.48 }, scale: shadeTier[2].scale, statMods: shadeTier[2], dialogue: [QUESTS.ownShade.fragments[2]], drop: { quest: 'ownShade', kind: 'shadeMemory', n: 1 } },
+  ownShade1: { id: 'ownShade1', base: 'hero', name: 'The Shade That Fell', tint: { hue: 35, saturation: 0.25, brightness: 0.62 }, scale: shadeTier[0].scale, statMods: shadeTier[0], dialogue: [], deathDialogue: QUESTS.ownShade.fragments[0], drop: { quest: 'ownShade', kind: 'shadeMemory', n: 1 } },
+  ownShade2: { id: 'ownShade2', base: 'hero', name: 'The Shade That Returned', tint: { hue: 20, saturation: 0.2, brightness: 0.55 }, scale: shadeTier[1].scale, statMods: shadeTier[1], dialogue: [], deathDialogue: QUESTS.ownShade.fragments[1], drop: { quest: 'ownShade', kind: 'shadeMemory', n: 1 } },
+  ownShade3: { id: 'ownShade3', base: 'hero', name: 'The Shade That Remembers', tint: { hue: 0, saturation: 0.16, brightness: 0.48 }, scale: shadeTier[2].scale, statMods: shadeTier[2], dialogue: [], deathDialogue: QUESTS.ownShade.fragments[2], drop: { quest: 'ownShade', kind: 'shadeMemory', n: 1 } },
   usurpedSovereign: {
     id: 'usurpedSovereign', base: 'sovereign', name: 'The Usurper',
     tint: { hue: 105, saturation: 0.65, brightness: 1.08 }, scale: 1.15,

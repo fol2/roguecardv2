@@ -24,7 +24,6 @@ let muted = readMute();
 const buffers = Object.create(null);
 const loading = Object.create(null);
 const loadedSampleRefs = Object.create(null);
-const failedRefs = new Set();
 
 export const SFX_IDS = Object.freeze(SFX_CATALOG.map((row) => row.id));
 
@@ -108,7 +107,6 @@ function noise({ a = 0.002, d = 0.15, peak = 0.25, f0 = 800, f1 = 300, q = 1, ty
 
 async function loadSource(source) {
   if (!source?.ref || !source.url) return null;
-  if (failedRefs.has(source.ref)) return null;
   if (buffers[source.ref]) return buffers[source.ref];
   if (loading[source.ref]) return loading[source.ref];
   loading[source.ref] = (async () => {
@@ -120,7 +118,6 @@ async function loadSource(source) {
       buffers[source.ref] = await ctx.decodeAudioData(arr.slice(0));
       return buffers[source.ref];
     } catch {
-      failedRefs.add(source.ref);
       buffers[source.ref] = null;
       return null;
     } finally {

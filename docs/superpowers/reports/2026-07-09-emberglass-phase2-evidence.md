@@ -7,13 +7,18 @@ is linearly based on current `main`
 checkpoint is 39 commits ahead, zero behind. All local browser gates used
 isolated ports 5327–5345. Port 5174 was not reused or changed.
 
+Owner decision recorded during PR #14 review: performance is now a reference
+and warning, not a release or merge hard gate. Missing or invalid metrics still
+fail; the historical captures below remain unchanged evidence of the original
+checkpoint.
+
 ## Verdict
 
 **GO.** Every Phase 2 acceptance item is implemented and evidenced: the enemy
 variant engine, all six Emberglass quests, persistence/recovery, whispers and
 dawn ceremonies, atomic Rose Window art and labelled fallback, title medallion,
 sealed Act 3 promise, deterministic pacing, unit/save safety, production build,
-complete Playwright matrix, unchanged performance budget, canonical Darwin and
+complete Playwright matrix, valid performance reference, canonical Darwin and
 Linux pixels, and the continuous manual journey.
 
 ## Implemented commits
@@ -131,7 +136,7 @@ Full output:
 (SHA-256 `384ee381e97b99046e90fb87377c7933ad7d4ed3fec6ed2df735ddf35ad46512`).
 Final `git diff --check` exited 0 with no output.
 
-## Performance gate
+## Performance reference (historical hard-gate capture)
 
 The unchanged budget is portrait/LITE, three enemies, two Requiem plays,
 three-second rAF sampling, 4× CPU throttle, average at least 55 fps, and p95 at
@@ -256,8 +261,9 @@ The unwired cue IDs are `roseWindow`, `paleOnes`, `shadeDuel`, `usurper`,
 - Rose delivery is atomic: one unavailable raster selects the complete labelled
   fallback.
 - Darwin and Linux baselines remain host-specific and were verified separately.
-- Vite's existing large-chunk advisory remains non-gating; build and performance
-  budgets pass.
+- Vite's existing large-chunk advisory remains non-gating. Performance metrics
+  remain mandatory evidence, but target misses are warnings under the current
+  owner-approved policy.
 - `scratch/emberglass-phase2-manual-journey.mjs` is an unstaged local recorder,
   not a release deliverable.
 

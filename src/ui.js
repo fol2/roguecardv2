@@ -20,11 +20,6 @@ import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.
 import { bfResolve, bfActor, bfSlots, bfEnemyFrame, bfEnemyFootY, bfEnemyZOrder, bfHeroY, onBFChange } from './battlefield.js';
 import { uicResolve, onUICChange } from './uic.js';
 import { createChoiceLatch } from './choice-latch.js';
-import { finaliseTerminalOutbox, journalTerminalOutcome, savedRunRequiresFinalisation } from './terminal-outbox.js';
-import {
-  SHADE_DUEL_TX, settleShadeDuel, shadeVictorySkipsRewards, shadeLossBequestState,
-} from './shade-duel-transaction.js';
-import { shopStockForSession } from './shop-session.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
@@ -519,11 +514,11 @@ function closeOverlay() {
   ov.innerHTML = '';
   return true;
 }
-function persistenceFailureHtml(id, title, description, retryAction, retryLabel, reloadAction, reloadLabel) {
+function persistenceFailureHtml({ id, title, description, retry, reload }) {
   return `<div class="panel ov-panel" role="alertdialog" aria-modal="true" aria-labelledby="${id}-title" aria-describedby="${id}-description" style="text-align:center">
     <div class="ov-title" id="${id}-title">${title}</div>
     <div class="ov-sub" id="${id}-description" role="status" aria-live="assertive" aria-atomic="true">${description}</div>
-    <div class="ov-actions"><button class="btn btn-primary" data-a="${retryAction}">${retryLabel}</button><button class="btn ghost" data-a="${reloadAction}">${reloadLabel}</button></div>
+    <div class="ov-actions"><button class="btn btn-primary" data-a="${retry.action}">${retry.label}</button><button class="btn ghost" data-a="${reload.action}">${reload.label}</button></div>
   </div>`;
 }
 function openPersistenceDialog(html, focusSelector, wire) {
@@ -588,11 +583,13 @@ function openPersistenceDialog(html, focusSelector, wire) {
   return transaction;
 }
 function showRunSaveFailure(run, onSaved) {
-  const html = persistenceFailureHtml(
-    'run-save-failure', 'Save Failed',
-    'The climb could not be secured. Free storage and retry, or reload the last durable climb state.',
-    'retry-save', 'Retry Save', 'reload-save', 'Reload Saved Climb',
-  );
+  const html = persistenceFailureHtml({
+    id: 'run-save-failure',
+    title: 'Save Failed',
+    description: 'The climb could not be secured. Free storage and retry, or reload the last durable climb state.',
+    retry: { action: 'retry-save', label: 'Retry Save' },
+    reload: { action: 'reload-save', label: 'Reload Saved Climb' },
+  });
   openPersistenceDialog(html, '[data-a="retry-save"]', (root, transaction) => {
     root.onclick = (e) => {
       if (!transaction.active()) return;
@@ -622,16 +619,15 @@ function requireRunSave(run, onSaved) {
   return false;
 }
 function requireHollowRouteClear(run, onCleared) {
-  const held = run.pendingHollowRoute;
-  if (!held) return true;
-  run.pendingHollowRoute = null;
-  if (E.saveRun(run)) return true;
-  run.pendingHollowRoute = held;
-  const html = persistenceFailureHtml(
-    'hollow-route-save-failure', 'Save Failed',
-    'This destination is still pending. Free storage and retry, or reload the exact saved destination.',
-    'retry-hollow-route', 'Retry Save', 'reload-hollow-route', 'Reload Saved Destination',
-  );
+  if (!run.pendingHollowRoute) return true;
+  if (E.completePendingHollowRoute(run)) return true;
+  const html = persistenceFailureHtml({
+    id: 'hollow-route-save-failure',
+    title: 'Save Failed',
+    description: 'This destination is still pending. Free storage and retry, or reload the exact saved destination.',
+    retry: { action: 'retry-hollow-route', label: 'Retry Save' },
+    reload: { action: 'reload-hollow-route', label: 'Reload Saved Destination' },
+  });
   openPersistenceDialog(html, '[data-a="retry-hollow-route"]', (root, transaction) => {
     root.onclick = (e) => {
       if (!transaction.active()) return;
@@ -652,11 +648,13 @@ function leaveHollowDestination(run, onCleared) {
   onCleared();
 }
 function showStonePersistenceFailure(onRetry, retryLabel = 'Retry') {
-  const html = persistenceFailureHtml(
-    'stone-save-failure', 'The Stone Could Not Hold',
-    'The stone could not hold this duel. Free storage and try again.',
-    'retry-stone', retryLabel, 'reload-stone', 'Reload Saved Climb',
-  );
+  const html = persistenceFailureHtml({
+    id: 'stone-save-failure',
+    title: 'The Stone Could Not Hold',
+    description: 'The stone could not hold this duel. Free storage and try again.',
+    retry: { action: 'retry-stone', label: retryLabel },
+    reload: { action: 'reload-stone', label: 'Reload Saved Climb' },
+  });
   openPersistenceDialog(html, '[data-a="retry-stone"]', (root, transaction) => {
     root.onclick = (e) => {
       if (!transaction.active()) return;
@@ -677,8 +675,8 @@ function requireBequestClear(onCleared) {
   return false;
 }
 function requirePendingShadeDuelClear(onCleared) {
-  const result = settleShadeDuel({ phase: 'resume', clearBequest });
-  if (result.status === SHADE_DUEL_TX.READY) return true;
+  const result = E.resumeShadeDuel(S.run, clearBequest);
+  if (result.status === E.SHADE_DUEL_TX.READY) return true;
   showStonePersistenceFailure(() => {
     if (requirePendingShadeDuelClear(onCleared)) onCleared();
   });
@@ -690,11 +688,13 @@ function resumeSavedCombat(run, onReady) {
   return true;
 }
 function showRunEndPersistenceFailure(run, onFinalised = null) {
-  const html = persistenceFailureHtml(
-    'run-end-save-failure', 'The Vigil Could Not Hold',
-    'This run end is safely journalled, but its ledgers or final dawn could not be secured. Free storage and retry, or reload this saved finalisation.',
-    'retry-end', 'Retry Finalisation', 'reload-end', 'Reload Saved Finalisation',
-  );
+  const html = persistenceFailureHtml({
+    id: 'run-end-save-failure',
+    title: 'The Vigil Could Not Hold',
+    description: 'This run end is safely journalled, but its ledgers or final dawn could not be secured. Free storage and retry, or reload this saved finalisation.',
+    retry: { action: 'retry-end', label: 'Retry Finalisation' },
+    reload: { action: 'reload-end', label: 'Reload Saved Finalisation' },
+  });
   openPersistenceDialog(html, '[data-a="retry-end"]', (root, transaction) => {
     root.onclick = (e) => {
       if (!transaction.active()) return;
@@ -853,25 +853,27 @@ function roseAssets() {
   return mural && frame && Object.values(masks).every(Boolean) ? { mural, frame, masks } : null;
 }
 
-function rosePaneCopy(id, record) {
+function rosePaneCopy(vigil, id, record) {
   const quest = QUESTS[id];
+  const disclosure = E.questDisclosure(vigil, id);
   if (record.state === 'armed') return '<div class="rose-pane-mystery">???</div>';
-  if (record.state === 'revealed') return `<div class="rose-pane-name">${escHtml(quest.name)}</div>
-    <div class="rose-pane-inscription">${escHtml(quest.inscription)}</div>
-    <div class="rose-pane-progress">${record.progress}/${quest.target}</div>`;
+  if (record.state === 'revealed') return `<div class="rose-pane-name">${escHtml(disclosure.name)}</div>
+    <div class="rose-pane-inscription">${escHtml(disclosure.inscription)}</div>
+    <div class="rose-pane-progress">${disclosure.progress}/${disclosure.target}</div>`;
   if (record.state === 'complete') return `<div class="rose-pane-name">${escHtml(quest.name)}</div>
     <div class="rose-pane-progress">Shard recovered</div>`;
   return '';
 }
 
-function rosePaneControl(id, record, index, selected, assets) {
+function rosePaneControl(vigil, id, record, index, selected, assets) {
   const state = record.state;
+  const disclosure = E.questDisclosure(vigil, id);
   const name = state === 'dormant'
     ? `Dormant Emberglass pane ${index + 1}`
     : state === 'armed'
       ? `Unknown Emberglass pane ${index + 1}`
       : state === 'revealed'
-        ? `${QUESTS[id].name}, ${record.progress} of ${QUESTS[id].target}`
+        ? `${disclosure.name}, ${disclosure.progress} of ${disclosure.target}`
         : `${QUESTS[id].name}, Shard recovered`;
   const [x, y] = ROSE_LABEL_POSITIONS[index];
   const style = assets ? ` style="--rose-x:${x}%;--rose-y:${y}%"` : '';
@@ -879,12 +881,13 @@ function rosePaneControl(id, record, index, selected, assets) {
     aria-label="${escHtml(name)}" aria-controls="rose-pane-detail" aria-pressed="${selected ? 'true' : 'false'}"${style}></button>`;
 }
 
-function roseDetailCopy(id, record) {
+function roseDetailCopy(vigil, id, record) {
   const quest = QUESTS[id];
+  const disclosure = E.questDisclosure(vigil, id);
   if (record.state === 'armed') return '<div class="rose-detail-mystery">???</div>';
-  if (record.state === 'revealed') return `<div class="rose-detail-name">${escHtml(quest.name)}</div>
-    <div class="rose-detail-inscription">${escHtml(quest.inscription)}</div>
-    <div class="rose-detail-progress">${record.progress}/${quest.target}</div>`;
+  if (record.state === 'revealed') return `<div class="rose-detail-name">${escHtml(disclosure.name)}</div>
+    <div class="rose-detail-inscription">${escHtml(disclosure.inscription)}</div>
+    <div class="rose-detail-progress">${disclosure.progress}/${disclosure.target}</div>`;
   if (record.state === 'complete') return `<div class="rose-detail-name">${escHtml(quest.name)}</div>
     <div class="rose-detail-progress">Shard recovered</div>`;
   return '<div class="rose-detail-dormant">This pane is dark.</div>';
@@ -895,7 +898,7 @@ function rosePaneDetailHtml(v, index) {
   const record = v.quests[id] || { state: 'dormant', progress: 0, memory: {} };
   const state = ['armed', 'revealed', 'complete'].includes(record.state) ? record.state : 'dormant';
   return `<section id="rose-pane-detail" class="rose-pane-detail ${state}" role="region"
-    aria-label="Selected Emberglass pane" aria-live="polite" data-index="${index}">${roseDetailCopy(id, { ...record, state })}</section>`;
+    aria-label="Selected Emberglass pane" aria-live="polite" data-index="${index}">${roseDetailCopy(v, id, { ...record, state })}</section>`;
 }
 
 function initialRosePaneIndex(v) {
@@ -911,20 +914,20 @@ function rosePaneHtml(v, assets, id, index, selected) {
   const state = ['armed', 'revealed', 'complete'].includes(record.state) ? record.state : 'dormant';
   const stateClasses = state === 'complete' ? 'complete lit' : state;
   const identity = state === 'dormant' ? '' : ` data-quest="${id}"`;
-  const copy = rosePaneCopy(id, { ...record, state });
+  const copy = rosePaneCopy(v, id, { ...record, state });
   if (!assets) {
     const mark = state === 'complete' ? 'emberglassShard' : 'roseWindow';
     return `<div class="rose-pane rose-slot ${stateClasses}" data-index="${index}"${identity}>
       <span class="rose-slot-mark">${iconSvg(mark, 34)}</span>
       <div class="rose-pane-copy" aria-hidden="true">${copy}</div>
-      ${rosePaneControl(id, record, index, selected, assets)}
+      ${rosePaneControl(v, id, record, index, selected, assets)}
     </div>`;
   }
   const [x, y] = ROSE_LABEL_POSITIONS[index];
   return `<div class="rose-pane ${stateClasses}" data-index="${index}"${identity} style="--rose-x:${x}%;--rose-y:${y}%">
     <div class="rose-pane-art" style="--rose-mural:url('${escHtml(assets.mural)}');--rose-mask:url('${escHtml(assets.masks[id])}')"></div>
     <div class="rose-pane-copy" aria-hidden="true">${copy}</div>
-    ${rosePaneControl(id, record, index, selected, assets)}
+    ${rosePaneControl(v, id, record, index, selected, assets)}
   </div>`;
 }
 
@@ -972,7 +975,7 @@ function selectRosePane(root, v, index) {
   const state = ['armed', 'revealed', 'complete'].includes(record.state) ? record.state : 'dormant';
   detail.className = `rose-pane-detail ${state}`;
   detail.dataset.index = String(index);
-  detail.innerHTML = roseDetailCopy(id, { ...record, state });
+  detail.innerHTML = roseDetailCopy(v, id, { ...record, state });
   $$('.rose-pane-select', root).forEach((control) => {
     control.setAttribute('aria-pressed', control.dataset.index === String(index) ? 'true' : 'false');
   });
@@ -1023,7 +1026,7 @@ function renderTitle() {
   setTheme(0);
   const vigil = syncVigil(); // reconcile any owed unlocks (e.g. seeded from old stats)
   const saved = E.loadRun();
-  if (savedRunRequiresFinalisation(saved)) { startRun(saved, true); return; }
+  if (E.savedRunRequiresFinalisation(saved)) { startRun(saved, true); return; }
   const d = vigil.deeds;
   const banner = assetUrl('title-background', 'background');
   const titleText = assetUrl('title', 'title');
@@ -1065,7 +1068,7 @@ function renderEmbark() {
   setTheme(0);
   const vigil = syncVigil();
   const saved = E.loadRun();
-  if (savedRunRequiresFinalisation(saved)) { startRun(saved, true); return; }
+  if (E.savedRunRequiresFinalisation(saved)) { startRun(saved, true); return; }
   const sel = (S.embark ||= { aspect: 0, vow: 0 });
   const hasAspects = vigil.unlocks.includes('aspect2');
   if (!hasAspects) sel.aspect = 0;
@@ -1731,40 +1734,29 @@ function showEighthFloorEcho(run) {
 // stepping onto the stone a past self left behind
 function claimMonumentNode(node) {
   const run = S.run;
-  const b = E.claimMonument(run);
   const continueMap = () => show('map');
-  if (!b) {
-    if (!requireRunSave(run, continueMap)) return;
-    continueMap();
-    return;
-  }
-  if (b.kind === 'shadeDuel') {
+  if (run.monument?.standing && !run.monument.claimed) {
+    const transaction = E.beginShadeDuel(run, clearBequest);
     const beginDuel = () => {
       const g = $(`.mnode[data-node="${node.id}"]`);
       transition('combat-in', g ? V.centerOf(g) : {});
-      startCombatUI([b.variantId], 'monster');
+      startCombatUI([transaction.duel.variantId], 'monster');
     };
-    const rollbackClaim = () => {
-      E.clearPendingEncounter(run);
-      run.monument.claimed = false;
-      if (run.questScratch?.ownShade) delete run.questScratch.ownShade.pendingBequest;
-    };
-    E.setPendingEncounter(run, 'monster', [b.variantId], 'ownShade');
-    const transaction = settleShadeDuel({
-      phase: 'claim',
-      saveRun: () => E.saveRun(run),
-      clearBequest,
-      rollbackClaim,
-    });
-    if (transaction.status === SHADE_DUEL_TX.READY) {
+    if (transaction.status === E.SHADE_DUEL_TX.READY) {
       beginDuel();
       return;
     }
-    const reloadPending = transaction.status === SHADE_DUEL_TX.RELOAD_PENDING;
+    const reloadPending = transaction.status === E.SHADE_DUEL_TX.RELOAD_PENDING;
     showStonePersistenceFailure(
       reloadPending ? () => location.reload() : () => claimMonumentNode(node),
       reloadPending ? 'Reload Saved Duel' : 'Retry',
     );
+    return;
+  }
+  const b = E.claimMonument(run);
+  if (!b) {
+    if (!requireRunSave(run, continueMap)) return;
+    continueMap();
     return;
   }
   const finishGift = () => {
@@ -3689,12 +3681,16 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'questReveal': {
       const quest = QUESTS[ev.id];
-      banner(escHtml(`${quest.mode.toUpperCase()} REVEALED — ${quest.name}`));
+      const disclosure = E.questDisclosure(S.run, ev.id);
+      const progress = quest.huntName
+        ? ` (${disclosure.progress}/${disclosure.target})`
+        : '';
+      banner(escHtml(`${quest.mode.toUpperCase()} REVEALED — ${disclosure.name}${progress}`));
       await sleep(REDUCED ? 40 : 1150);
       break;
     }
     case 'questProgress': {
-      banner(escHtml(`${QUESTS[ev.id].name} — ${ev.progress}/${ev.target}`));
+      banner(escHtml(`${E.questProgressName(ev.id, ev.target)} — ${ev.progress}/${ev.target}`));
       await sleep(REDUCED ? 40 : 1150);
       break;
     }
@@ -4366,7 +4362,7 @@ function afterAction() {
 function victoryFlow() {
   transition('victory-out');
   const run = S.run, kind = S.cb.kind, affix = S.cb.affix;
-  const skipOrdinaryRewards = shadeVictorySkipsRewards(run);
+  const skipOrdinaryRewards = E.shadeVictorySkipsRewards(run);
   if (kind === 'boss' && run.act >= 2) {
     journalRunEnd(run, 'win');
     return;
@@ -4395,7 +4391,7 @@ function victoryFlow() {
   continueVictory();
 }
 function journalRunEnd(run, outcome, onFinalised = null) {
-  journalTerminalOutcome(run, outcome);
+  E.journalTerminalOutcome(run, outcome);
   const continueRunEnd = () => {
     S.cb = null;
     finalisePendingRunEnd(run, onFinalised);
@@ -4414,7 +4410,7 @@ function finalisePendingRunEnd(run, onFinalised = null) {
         candidate.vigilResult?.newUnlocks || [],
       )
     : E.recordRunEnd;
-  return finaliseTerminalOutbox(
+  return E.finaliseTerminalOutbox(
     run,
     () => commitPendingRunEnd(run, acknowledgeRunEnd),
     () => showRunEndPersistenceFailure(run, onFinalised),
@@ -4426,7 +4422,7 @@ function finalisePendingRunEnd(run, onFinalised = null) {
         show('end', { won: true });
       } else if (outcome === 'death') {
         const node = run.map.nodes.find((candidate) => candidate.id === run.nodeId);
-        const { unpaidBequest, offerNewBequest } = shadeLossBequestState(run);
+        const { unpaidBequest, offerNewBequest } = E.shadeLossBequestState(run);
         show('end', {
           won: false,
           newUnlocks,
@@ -4734,7 +4730,7 @@ function renderShop() {
   const run = S.run;
   const shop = (S.shopData ||= {});
   const usurperState = E.questRecord(run, 'usurper')?.state;
-  const st = shopStockForSession(shop, run, E.genShop);
+  const st = E.shopStockForSession(shop, run);
   const firstUsurperSight = usurperState === 'armed' && E.questRecord(run, 'usurper')?.state === 'revealed';
   if (firstUsurperSight && !requireRunSave(run, renderShop)) return;
   const sc = screenEl();
@@ -5026,7 +5022,7 @@ function dawnEventHtml(event) {
       <div class="dawn-copy">${escHtml(quest.inscription)}</div>`;
   }
   if (event.t === 'questProgress') return `<div class="dawn-kicker">The trail continues</div>
-    <div class="dawn-name">${escHtml(QUESTS[event.id].name)}</div>
+    <div class="dawn-name">${escHtml(E.questProgressName(event.id, event.target))}</div>
     <div class="dawn-count">${event.progress}/${event.target}</div>`;
   if (event.t === 'questUnlock') return `<div class="dawn-kicker">Insight awakened</div>
     <div class="dawn-name">Witchlight Lens</div>
@@ -5052,10 +5048,13 @@ function showDawnPersistenceFailure(onRetry, phase) {
   const description = finishing
     ? 'Every panel has been seen, but the saved dawn could not be released. Retry before leaving this screen.'
     : 'This panel was shown, but its place in the dawn could not be secured. Retry before the ceremony continues.';
-  const html = persistenceFailureHtml(
-    'dawn-save-failure', 'The Dawn Could Not Hold', description,
-    'retry-dawn', 'Retry Save', 'reload-dawn', 'Reload Saved Dawn',
-  );
+  const html = persistenceFailureHtml({
+    id: 'dawn-save-failure',
+    title: 'The Dawn Could Not Hold',
+    description,
+    retry: { action: 'retry-dawn', label: 'Retry Save' },
+    reload: { action: 'reload-dawn', label: 'Reload Saved Dawn' },
+  });
   openPersistenceDialog(html, '[data-a="retry-dawn"]', (root, transaction) => {
     root.onclick = (event) => {
       if (!transaction.active()) return;

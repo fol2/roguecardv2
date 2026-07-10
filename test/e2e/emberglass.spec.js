@@ -65,6 +65,35 @@ test('Rose panes disclose only their current state', async ({ page }) => {
   await expect(page.locator('.rose-window.rose-assets')).toHaveClass(/ready/);
 });
 
+test('Pale Ones discloses the 0/3 hunt before the Lens and the cumulative 3/9 mote trail after it', async ({ page }) => {
+  const hunt = freshLedger();
+  hunt.deeds.runs = 1;
+  hunt.deeds.wins = 1;
+  hunt.runsPlayed = 1;
+  hunt.quests.paleOnes = { state: 'revealed', progress: 0, memory: {} };
+  await seed(page, hunt);
+  await page.click('[data-a="vigil"]');
+  await page.click('[data-a="tab-rose"]');
+  const huntControl = page.getByRole('button', { name: 'Hunt the Pale Ones, 0 of 3', exact: true });
+  await expect(huntControl).toHaveCount(1);
+  await huntControl.click();
+  await expect(page.locator('#rose-pane-detail .rose-detail-name')).toHaveText('Hunt the Pale Ones');
+  await expect(page.locator('#rose-pane-detail .rose-detail-progress')).toHaveText('0/3');
+  await expect(page.locator('#rose-pane-detail')).not.toContainText('0/9');
+
+  const lens = structuredClone(hunt);
+  lens.unlocks.push('insight:witchlightLens');
+  lens.quests.paleOnes.progress = 3;
+  await seed(page, lens);
+  await page.click('[data-a="vigil"]');
+  await page.click('[data-a="tab-rose"]');
+  const lensControl = page.getByRole('button', { name: 'The Pale Ones, 3 of 9', exact: true });
+  await expect(lensControl).toHaveCount(1);
+  await lensControl.click();
+  await expect(page.locator('#rose-pane-detail .rose-detail-name')).toHaveText('The Pale Ones');
+  await expect(page.locator('#rose-pane-detail .rose-detail-progress')).toHaveText('3/9');
+});
+
 test('title Rose stays inert when any asset fails to decode', async ({ page }) => {
   await page.addInitScript(() => {
     const decode = HTMLImageElement.prototype.decode;

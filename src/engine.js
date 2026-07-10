@@ -23,6 +23,48 @@ const freshRunId = (seed, startedAt) =>
 const legacyRunId = (run) =>
   `legacy-${(Number(run.seed) >>> 0).toString(36)}-${Math.max(0, Math.floor(Number(run.stats?.start) || 0)).toString(36)}`;
 const validRunId = (id) => typeof id === 'string' && /^(?:run|legacy)-[a-z0-9]+(?:-[a-z0-9]+){1,3}$/.test(id);
+const TERMINAL_OUTCOMES = ['win', 'death', 'abandon'];
+const continuedTerminalRuns = new WeakSet();
+
+export function savedRunRequiresFinalisation(run) {
+  return TERMINAL_OUTCOMES.includes(run?.pendingRunEnd?.outcome) || run?.pendingDawn != null;
+}
+
+export function journalTerminalOutcome(run, outcome) {
+  if (!TERMINAL_OUTCOMES.includes(outcome)) throw new Error(`invalid terminal outcome: ${outcome}`);
+  if (run.pendingDawn != null) throw new Error('a staged dawn cannot be replaced by another terminal outcome');
+  const current = run.pendingRunEnd?.outcome;
+  if (current != null) {
+    if (current !== outcome) throw new Error(`terminal outcome cannot change from ${current} to ${outcome}`);
+    return run.pendingRunEnd;
+  }
+  run.pendingReward = null;
+  run.pendingCombat = null;
+  run.pendingEnemyIds = null;
+  run.pendingQuestId = null;
+  run.pendingHollow = null;
+  run.pendingHollowRoute = null;
+  run.pendingRunEnd = { outcome };
+  return run.pendingRunEnd;
+}
+
+export function finaliseTerminalOutbox(run, persist, onFailure, onFinalised) {
+  if (continuedTerminalRuns.has(run)) return true;
+  let result = null;
+  let failure = null;
+  try {
+    result = persist();
+  } catch (error) {
+    failure = error;
+  }
+  if (failure || result?.accepted !== true) {
+    onFailure(failure);
+    return false;
+  }
+  continuedTerminalRuns.add(run);
+  onFinalised(result);
+  return true;
+}
 
 // ---------------------------------------------------------------- run lifecycle
 // opts: { aspect, vow, unlocks (vigil snapshot), reveals (vigil snapshot; null/absent = fully revealed), monument (last fall), lamplighter, quests, shards }
@@ -91,11 +133,40 @@ export function revealQuest(run, id, queue = run.endQueue) {
   return q;
 }
 
+export function questProgressTarget(state, id, progress = questRecord(state, id)?.progress ?? 0) {
+  if (id === 'paleOnes' && !state?.unlocks?.includes('insight:witchlightLens') &&
+      progress <= PROGRESSION.emberglass.paleOnes.lensAt) {
+    return PROGRESSION.emberglass.paleOnes.lensAt;
+  }
+  return QUESTS[id]?.target ?? 0;
+}
+
+export function questProgressName(id, target) {
+  if (id === 'paleOnes' && target === PROGRESSION.emberglass.paleOnes.lensAt) {
+    return QUESTS.paleOnes.huntName;
+  }
+  return QUESTS[id]?.name ?? id;
+}
+
+export function questDisclosure(state, id) {
+  const quest = QUESTS[id];
+  const progress = questRecord(state, id)?.progress ?? 0;
+  const huntingPaleOnes = id === 'paleOnes' &&
+    !state?.unlocks?.includes('insight:witchlightLens') &&
+    progress <= PROGRESSION.emberglass.paleOnes.lensAt;
+  return {
+    name: huntingPaleOnes ? quest.huntName : quest.name,
+    inscription: huntingPaleOnes ? quest.huntInscription : quest.inscription,
+    progress,
+    target: questProgressTarget(state, id, progress),
+  };
+}
+
 export function advanceQuest(run, id, n = 1, queue = run.endQueue) {
   const q = revealQuest(run, id, queue);
   if (!q || q.state === 'dormant' || q.state === 'complete' || n <= 0) return q;
   q.progress = Math.min(QUESTS[id].target, q.progress + n);
-  queue?.push({ t: 'questProgress', id, progress: q.progress, target: QUESTS[id].target });
+  queue?.push({ t: 'questProgress', id, progress: q.progress, target: questProgressTarget(run, id, q.progress) });
   if (q.progress >= QUESTS[id].target) {
     q.state = 'complete';
     if (id === 'hollowLamplighter') q.memory = {};
@@ -404,6 +475,14 @@ export function stageHollowExit(run) {
   run.pendingHollow = null;
   return { kind: 'destination', nodeId, type, eventId };
 }
+export function completePendingHollowRoute(run) {
+  const held = run?.pendingHollowRoute;
+  if (!held) return true;
+  run.pendingHollowRoute = null;
+  if (saveRun(run)) return true;
+  run.pendingHollowRoute = held;
+  return false;
+}
 export function grantBequest(run, bequest, queue = null) {
   if (!bequest) return false;
   if (bequest.kind === 'card') addCardToDeck(run, bequest.id, bequest.up);
@@ -442,6 +521,77 @@ export function claimMonument(run) {
   }
   grantBequest(run, m.bequest);
   return m.bequest;
+}
+
+export const SHADE_DUEL_TX = Object.freeze({
+  READY: 'ready',
+  RETRY_CLAIM: 'retryClaim',
+  RETRY_CLEAR: 'retryClear',
+  RELOAD_PENDING: 'reloadPending',
+});
+
+function shadeClaimSnapshot(run) {
+  const hadScratch = Object.hasOwn(run.questScratch, 'ownShade');
+  return {
+    monumentClaimed: run.monument?.claimed,
+    pendingCombat: run.pendingCombat,
+    pendingEnemyIds: run.pendingEnemyIds == null ? null : [...run.pendingEnemyIds],
+    pendingQuestId: run.pendingQuestId,
+    hadScratch,
+    scratch: hadScratch ? { ...run.questScratch.ownShade } : null,
+  };
+}
+
+function restoreShadeClaim(run, snapshot) {
+  if (run.monument) run.monument.claimed = snapshot.monumentClaimed;
+  run.pendingCombat = snapshot.pendingCombat;
+  run.pendingEnemyIds = snapshot.pendingEnemyIds == null ? null : [...snapshot.pendingEnemyIds];
+  run.pendingQuestId = snapshot.pendingQuestId;
+  if (snapshot.hadScratch) run.questScratch.ownShade = snapshot.scratch;
+  else delete run.questScratch.ownShade;
+}
+
+export function beginShadeDuel(run, clearStandingBequest) {
+  if (!run?.monument?.standing || run.monument.claimed) {
+    return { status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false, duel: null };
+  }
+  const before = shadeClaimSnapshot(run);
+  const duel = claimMonument(run);
+  if (duel?.kind !== 'shadeDuel') {
+    restoreShadeClaim(run, before);
+    return { status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false, duel: null };
+  }
+  setPendingEncounter(run, 'monster', [duel.variantId], 'ownShade');
+  if (!saveRun(run)) {
+    restoreShadeClaim(run, before);
+    return { status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false, duel: null };
+  }
+  if (clearStandingBequest() === true) {
+    return { status: SHADE_DUEL_TX.READY, durablePending: true, duel };
+  }
+  restoreShadeClaim(run, before);
+  if (saveRun(run)) {
+    return { status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false, duel: null };
+  }
+  return { status: SHADE_DUEL_TX.RELOAD_PENDING, durablePending: true, duel: null };
+}
+
+export function resumeShadeDuel(run, clearStandingBequest) {
+  if (run?.pendingQuestId !== 'ownShade') {
+    return { status: SHADE_DUEL_TX.READY, durablePending: false };
+  }
+  return clearStandingBequest() === true
+    ? { status: SHADE_DUEL_TX.READY, durablePending: true }
+    : { status: SHADE_DUEL_TX.RETRY_CLEAR, durablePending: true };
+}
+
+export function shadeVictorySkipsRewards(run) {
+  return run?.pendingQuestId === 'ownShade';
+}
+
+export function shadeLossBequestState(run) {
+  const unpaidBequest = run?.questScratch?.ownShade?.fall?.bequest != null;
+  return { unpaidBequest, offerNewBequest: !unpaidBequest };
 }
 
 // ---------------------------------------------------------------- helpers
@@ -687,6 +837,17 @@ export function genShop(run) {
   }
   return { cards: cardIds, relics, potions, questItems, removeCost: Math.round(SHOP.removeCost * disc), removed: false };
 }
+export function shopSessionKey(run) {
+  return `${run.runId}:${run.act}:${run.nodeId ?? ''}`;
+}
+export function shopStockForSession(session, run) {
+  const key = shopSessionKey(run);
+  if (!session.stock || session.key !== key) {
+    session.stock = genShop(run);
+    session.key = key;
+  }
+  return session.stock;
+}
 export function buyQuestItem(run, itemId) {
   if (itemId !== 'flamelessLantern') return { ok: false, reason: 'unknown' };
   const q = questRecord(run, 'usurper');
@@ -756,6 +917,7 @@ export function makeVariant(baseDef, variantDef) {
     startStatus: { ...(baseDef.startStatus || {}), ...(mods.addStatuses || {}) },
     variantId: variantDef.id,
     dialogue: [...variantDef.dialogue],
+    deathDialogue: variantDef.deathDialogue ?? null,
     drop: variantDef.drop,
   };
 }
@@ -830,7 +992,9 @@ export function startCombat(run, enemyIds, kind = 'normal', opts = {}) {
     counters: { played: 0, attacks: 0, firstCardPlayed: false, hpLost: 0 },
   };
   cb.enemies.forEach((e) => (e.hp = e.maxHp));
-  if (cb.enemies.some((e) => e.def.drop?.quest === 'paleOnes')) revealQuest(run, 'paleOnes', cb.queue);
+  for (const questId of new Set(cb.enemies.map((enemy) => enemy.def.drop?.quest))) {
+    if (questId === 'paleOnes' || questId === 'ownShade') revealQuest(run, questId, cb.queue);
+  }
   if (kind === 'boss' && cb.enemies[0]) cb.queue.push({ t: 'bossIntro', name: cb.enemies[0].name });
   const aspectName = ASPECTS[run.aspect].name.replace(/^The\s+/, '');
   for (const e of cb.enemies) {
@@ -1082,6 +1246,9 @@ function onEnemyDeath(run, cb, e) {
     }
   }
   if (e.def.drop?.quest === 'ownShade') {
+    if (e.def.deathDialogue) {
+      cb.queue.push({ t: 'variantDialogue', idx: e.idx, text: e.def.deathDialogue });
+    }
     const before = questRecord(run, 'ownShade');
     const wasComplete = before?.state === 'complete';
     const q = advanceQuest(run, 'ownShade', e.def.drop.n, cb.queue);
@@ -1637,8 +1804,16 @@ const DAWN_UNLOCKS = new Set(Object.values(DEEDS).flatMap((deed) => deed.unlocks
 const isPlainRecord = (value) => value && typeof value === 'object' && !Array.isArray(value);
 const hasExactRecordKeys = (value, keys) => isPlainRecord(value) &&
   Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
-const validDawnEvent = (event) => {
-  if (!isPlainRecord(event) || typeof event.t !== 'string') return false;
+const DAWN_EVENT_TYPES = new Set([
+  'whisper', 'questReveal', 'questProgress', 'questUnlock', 'pageRead',
+  'eighthResolved', 'shadeResolved', 'questComplete', 'shardGrant', 'act4Reveal',
+]);
+const END_EVENT_TYPES = new Set([
+  'questReveal', 'questProgress', 'questUnlock', 'pageRead',
+  'eighthResolved', 'shadeResolved', 'questComplete',
+]);
+const validRunEvent = (event, allowedTypes) => {
+  if (!isPlainRecord(event) || typeof event.t !== 'string' || !allowedTypes.has(event.t)) return false;
   if (event.t === 'whisper') {
     return hasExactRecordKeys(event, ['t', 'text']) && typeof event.text === 'string';
   }
@@ -1646,9 +1821,12 @@ const validDawnEvent = (event) => {
     return hasExactRecordKeys(event, ['t', 'id']) && QUEST_IDS.includes(event.id);
   }
   if (event.t === 'questProgress') {
+    const validTargets = event.id === 'paleOnes'
+      ? [PROGRESSION.emberglass.paleOnes.lensAt, QUESTS.paleOnes.target]
+      : [QUESTS[event.id]?.target];
     return hasExactRecordKeys(event, ['t', 'id', 'progress', 'target']) &&
-      QUEST_IDS.includes(event.id) && Number.isInteger(event.progress) &&
-      event.progress >= 0 && event.target === QUESTS[event.id].target && event.progress <= event.target;
+      QUEST_IDS.includes(event.id) && Number.isInteger(event.progress) && event.progress >= 0 &&
+      validTargets.includes(event.target) && event.progress <= event.target;
   }
   if (event.t === 'questUnlock') {
     return hasExactRecordKeys(event, ['t', 'id']) && event.id === 'insight:witchlightLens';
@@ -1663,6 +1841,7 @@ const validDawnEvent = (event) => {
   }
   return event.t === 'act4Reveal' && hasExactRecordKeys(event, ['t']);
 };
+const validDawnEvent = (event) => validRunEvent(event, DAWN_EVENT_TYPES);
 const validPendingDawn = (pending) => pending == null || (
   hasExactRecordKeys(pending, ['events', 'cursor', 'newUnlocks']) &&
   Array.isArray(pending.events) && pending.events.every(validDawnEvent) &&
@@ -1853,16 +2032,7 @@ export function loadRun() {
       return true;
     };
 
-    const validEndEvent = (e) => {
-      if (!plainObject(e) || typeof e.t !== 'string') return false;
-      if (['questReveal', 'questComplete'].includes(e.t)) return QUEST_IDS.includes(e.id);
-      if (e.t === 'questProgress') return QUEST_IDS.includes(e.id) && Number.isFinite(e.progress) && Number.isFinite(e.target);
-      if (e.t === 'questUnlock') return e.id === 'insight:witchlightLens';
-      if (e.t === 'pageRead') return Number.isInteger(e.index) && e.index >= 1 &&
-        e.index <= QUESTS.unreadablePage.target && typeof e.text === 'string';
-      if (e.t === 'eighthResolved' || e.t === 'shadeResolved') return typeof e.text === 'string';
-      return false;
-    };
+    const validEndEvent = (event) => validRunEvent(event, END_EVENT_TYPES);
 
     if (!plainObject(run.quests)) return null;
     if (!validRunId(run.runId)) return null;

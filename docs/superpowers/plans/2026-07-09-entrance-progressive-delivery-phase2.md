@@ -14,7 +14,7 @@
 - Preserve the module graph: engine.js and vigil.js import data.js only. Do not add a shared browser module beneath them.
 - Existing internal card, relic, status, enemy, omen, reveal, and save IDs are immutable. New IDs are fixed by this plan.
 - Calling newRun(seed) without quest options keeps all existing structural systems fully revealed and leaves Emberglass hooks dormant. This preserves the Monte Carlo and Playwright boot contract.
-- spirebound_vigil_v1 remains untouched by migration and normal play. The explicit confirmed Settings → Erase Everything flow is the sole deletion exception. Existing Phase 1 spirebound_vigil_v2 records must be hydrated in place because they will never re-run v1 migration.
+- spirebound_vigil_v1 remains untouched. Existing Phase 1 spirebound_vigil_v2 records must be hydrated in place because they will never re-run v1 migration.
 - All quest scratch state and exact pending enemy IDs live in spirebound_save_v2 and pass loadRun validation.
 - Every threshold, target, price, probability, guarantee window, and Shade tier lives under PROGRESSION.emberglass in data.js.
 - No playable Act 4, new enemy base art, combat-maths or preview-mirror changes, audio wiring, localisation, daily seeds, achievements, or unlock-toast art.
@@ -55,6 +55,8 @@ After owner approval, use superpowers:using-git-worktrees to create the isolated
 12. Phase 2 leaves the already-registered hidden-suite music cues unwired because audio is out of scope.
 13. Existing Phase 1 veterans above ten wins do not receive five quests at once: after the Pale opener, exactly one dormant quest catches up on each future winning run.
 14. The mural is generative art; the lead frame and six masks are deterministic derivatives of one coordinate system so the panes cannot drift out of alignment.
+15. Phase 2 terminal finalisation, Shade duel, Hollow exit-marker, and shop-session transactions live in engine.js. UI projects their state and may inject cross-store persistence callbacks, but does not clear, restore, or decide those transactions directly.
+16. Performance capture must produce valid metrics. Average 55 fps and p95 22 ms remain reference targets whose misses emit warnings; they are not release or merge hard gates.
 
 ## File map
 
@@ -62,8 +64,7 @@ After owner approval, use superpowers:using-git-worktrees to create the isolated
 |---|---|
 | src/data.js | QUESTS, WHISPERS, VARIANTS, SHADE_KITS, Eighth Omen, Unreadable Page, all PROGRESSION tunables |
 | src/vigil.js | In-place v2 hydration, injectable arming RNG, outcome commit, whisper/shard ledger, standing monument |
-| src/engine.js | Quest snapshots/transitions, pending encounter and dawn validation, variant resolver, six hook implementations |
-| src/terminal-outbox.js | Terminal ownership and boot-resume routing for run-end and staged-dawn outboxes |
+| src/engine.js | Quest snapshots/transitions, strict shared queue validation, terminal/Shop/Shade/Hollow transactions, variant resolver, and six hook implementations |
 | src/ui.js | Variant presentation, quest event playback, special shop/Hollow surfaces, dawn ceremonies, Rose/door/title surfaces |
 | src/battlefield.js | Variant frame sizing, authored foot anchors, and vertical crown bounds |
 | src/mesh.js | Variant hue/saturation/brightness uniforms and debug proof |
@@ -237,6 +238,8 @@ export const WHISPERS = [
 export const QUESTS = {
   paleOnes: {
     name: 'The Pale Ones', mode: 'Trail', target: PROGRESSION.emberglass.paleOnes.completeAt,
+    huntName: 'Hunt the Pale Ones',
+    huntInscription: 'Defeat three pale foes and follow the cold motes they leave behind.',
     inscription: 'Hunt the Pale Ones. Gather nine motes from glass that has forgotten colour.',
     progress: ['No mote answers the Lens.', 'The first pale mote chills the lantern.'],
   },
@@ -338,9 +341,9 @@ export const VARIANTS = {
   paleDuskfang: { id: 'paleDuskfang', base: 'duskfang', name: 'Pale Duskfang', tint: { hue: 165, saturation: 0.45, brightness: 1.18 }, scale: 1.08, statMods: pale, dialogue: [], drop: { quest: 'paleOnes', kind: 'paleMote', n: 1 } },
   paleDrownedOne: { id: 'paleDrownedOne', base: 'drownedOne', name: 'Pale Drowned One', tint: { hue: 120, saturation: 0.38, brightness: 1.2 }, scale: 1.1, statMods: pale, dialogue: [], drop: { quest: 'paleOnes', kind: 'paleMote', n: 1 } },
   paleVoidWisp: { id: 'paleVoidWisp', base: 'voidWisp', name: 'Pale Void Wisp', tint: { hue: -90, saturation: 0.32, brightness: 1.25 }, scale: 1.12, statMods: pale, dialogue: [], drop: { quest: 'paleOnes', kind: 'paleMote', n: 1 } },
-  ownShade1: { id: 'ownShade1', base: 'hero', name: 'The Shade That Fell', tint: { hue: 35, saturation: 0.25, brightness: 0.62 }, scale: shadeTier[0].scale, statMods: shadeTier[0], dialogue: [QUESTS.ownShade.fragments[0]], drop: { quest: 'ownShade', kind: 'shadeMemory', n: 1 } },
-  ownShade2: { id: 'ownShade2', base: 'hero', name: 'The Shade That Returned', tint: { hue: 20, saturation: 0.2, brightness: 0.55 }, scale: shadeTier[1].scale, statMods: shadeTier[1], dialogue: [QUESTS.ownShade.fragments[1]], drop: { quest: 'ownShade', kind: 'shadeMemory', n: 1 } },
-  ownShade3: { id: 'ownShade3', base: 'hero', name: 'The Shade That Remembers', tint: { hue: 0, saturation: 0.16, brightness: 0.48 }, scale: shadeTier[2].scale, statMods: shadeTier[2], dialogue: [QUESTS.ownShade.fragments[2]], drop: { quest: 'ownShade', kind: 'shadeMemory', n: 1 } },
+  ownShade1: { id: 'ownShade1', base: 'hero', name: 'The Shade That Fell', tint: { hue: 35, saturation: 0.25, brightness: 0.62 }, scale: shadeTier[0].scale, statMods: shadeTier[0], dialogue: [], deathDialogue: QUESTS.ownShade.fragments[0], drop: { quest: 'ownShade', kind: 'shadeMemory', n: 1 } },
+  ownShade2: { id: 'ownShade2', base: 'hero', name: 'The Shade That Returned', tint: { hue: 20, saturation: 0.2, brightness: 0.55 }, scale: shadeTier[1].scale, statMods: shadeTier[1], dialogue: [], deathDialogue: QUESTS.ownShade.fragments[1], drop: { quest: 'ownShade', kind: 'shadeMemory', n: 1 } },
+  ownShade3: { id: 'ownShade3', base: 'hero', name: 'The Shade That Remembers', tint: { hue: 0, saturation: 0.16, brightness: 0.48 }, scale: shadeTier[2].scale, statMods: shadeTier[2], dialogue: [], deathDialogue: QUESTS.ownShade.fragments[2], drop: { quest: 'ownShade', kind: 'shadeMemory', n: 1 } },
   usurpedSovereign: {
     id: 'usurpedSovereign', base: 'sovereign', name: 'The Usurper',
     tint: { hue: 105, saturation: 0.65, brightness: 1.08 }, scale: 1.15,
@@ -632,7 +635,6 @@ git commit -m "Hydrate Emberglass ledgers and arm quests on run end"
 - Modify: src/vigil.js:20-245
 - Modify: src/ui.js:9, 636-645, 725-741, 978-984, 3409-3432
 - Create: src/choice-latch.js
-- Create: src/terminal-outbox.js
 - Test: test/test_engine.js
 
 **Interfaces:**
@@ -1063,7 +1065,7 @@ Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyO
 Expected: both PASS; terminal-caller source audit reports only journalTerminalOutcome writes and runId-scoped recordRunEnd cleanup.
 
 ~~~bash
-git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/engine.js src/terminal-outbox.js src/ui.js test/test_engine.js
+git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/engine.js src/ui.js test/test_engine.js
 git commit -m "Harden terminal outbox finalisation"
 ~~~
 
@@ -1373,13 +1375,13 @@ git commit -m "Add mesh-safe enemy variant presentation"
 **Files:**
 - Modify: src/art.js (paleMote structural icon)
 - Modify: src/engine.js (newRun, genMap, rollEncounter, startCombat, onEnemyDeath)
-- Modify: src/ui.js (map nodes and encounter call)
+- Modify: src/ui.js (map nodes, encounter call, and two-stage Rose disclosure)
 - Modify: src/styles.css (marked node)
 - Test: test/test_engine.js
 
 **Interfaces:**
 - Consumes: questRecord/revealQuest/advanceQuest, VARIANTS, run.unlocks.
-- Produces: preparePaleRun(run), paleVariantForAct(act), node.questVariantId, and unlock token insight:witchlightLens.
+- Produces: preparePaleRun(run), paleVariantForAct(act), questDisclosure(state,id), node.questVariantId, and unlock token insight:witchlightLens.
 
 - [x] **Step 1: Write failing deterministic Trail tests**
 
@@ -1398,6 +1400,7 @@ git commit -m "Add mesh-safe enemy variant presentation"
   playCard(run, cb, cb.hand[0].uid, 0);
   assert.equal(run.quests.paleOnes.progress, 1);
   assert.equal(run.quests.paleOnes.state, 'revealed');
+  assert.equal(cb.queue.find((event) => event.t === 'questProgress').target, 3);
 
   run.quests.paleOnes.progress = 2;
   const cb3 = startCombat(run, ['paleDuskfang']);
@@ -1406,6 +1409,8 @@ git commit -m "Add mesh-safe enemy variant presentation"
   cb3.player.energy = 3;
   playCard(run, cb3, cb3.hand[0].uid, 0);
   assert.ok(run.unlocks.includes('insight:witchlightLens'));
+  assert.equal(cb3.queue.find((event) => event.t === 'questProgress').target, 3);
+  assert.equal(questDisclosure(run, 'paleOnes').target, 9);
 
   const marked = newRun(431, { quests: run.quests, unlocks: run.unlocks });
   assert.equal(marked.map.nodes.filter((n) => n.questVariantId).length, 1);
@@ -1461,7 +1466,7 @@ In rollEncounter(run,type,row,node):
 
 - [x] **Step 4: Implement contact, drops, Lens, and map projection**
 
-When startCombat resolves a variant whose drop.quest is paleOnes, call revealQuest(run,'paleOnes',cb.queue). In onEnemyDeath insert this block after kill stats and before the existing all-enemies-dead winCombat early return, so the last enemy's drop cannot be skipped:
+When startCombat resolves a variant whose drop.quest is paleOnes, call revealQuest(run,'paleOnes',cb.queue). That contact projects `Hunt the Pale Ones (0/3)`. Pre-Lens progress events use `lensAt` as their target; the third kill emits `3/3`, unlocks the Lens, and the same cumulative ledger then projects `3/9`. In onEnemyDeath insert this block after kill stats and before the existing all-enemies-dead winCombat early return, so the last enemy's drop cannot be skipped:
 
 ~~~js
 if (e.def.drop?.quest === 'paleOnes') {
@@ -1476,7 +1481,7 @@ if (e.def.drop?.quest === 'paleOnes') {
 
 The `q` guard is required: direct or compatibility encounters can resolve a Pale variant on a run with no active quest snapshot, and that drop must remain inert rather than reading progress or unlocking the Lens.
 
-In renderMap add pale-marked only when node.questMarked is true. Use iconSvg('paleMote',18) inside a small lens halo, title “Witchlight trembles”, and body “Pale glass waits here.” CSS may animate opacity only; REDUCED is static.
+In renderMap add pale-marked only when node.questMarked is true. Use iconSvg('paleMote',18) inside a small lens halo, title “Witchlight trembles”, and body “Pale glass waits here.” Rose pane copy, detail copy, and accessibility labels consume questDisclosure; live/dawn progress banners consume questProgressName(id,target) so the queued 3/3 stage survives the same-tick Lens unlock. Neither UI path hardcodes 3 or 9. CSS may animate opacity only; REDUCED is static.
 
 - [x] **Step 5: Run green and commit**
 
@@ -1497,12 +1502,11 @@ git commit -m "Implement the Pale Ones Trail and Witchlight Lens"
 - Modify: src/engine.js (fall marker, monument claim, Shade resolver/drop)
 - Modify: src/vigil.js (standing lastFall and bequest preservation)
 - Modify: src/ui.js:990-1006, 3409-3432, 3909-3978
-- Create: src/shade-duel-transaction.js (Node-safe injected-callback save/clear/rollback ordering and pure UI decisions)
 - Test: test/test_engine.js
 
 **Interfaces:**
 - Produces: markShadeFall(run,act,row), claimMonument(run) returning either a normal bequest or { kind:'shadeDuel', variantId, bequest }, and grantBequest(run,bequest,queue).
-- Produces `settleShadeDuel({phase,saveRun,clearBequest,rollbackClaim})`, `shadeVictorySkipsRewards(run)`, and `shadeLossBequestState(run)` as the production-backed test seam for claim/resume persistence, reward bypass, and unpaid-gift presentation.
+- Produces `beginShadeDuel(run,clearBequest)`, `resumeShadeDuel(run,clearBequest)`, `shadeVictorySkipsRewards(run)`, and `shadeLossBequestState(run)` as engine-owned APIs for claim/resume persistence, reward bypass, and unpaid-gift presentation.
 - New normal `lastFall` records add `standing:false`; standing records add `standing:true` and `shadeAspect:0|1`. Persisted legacy Phase 1 run monuments retain their exact four-field compatibility shape.
 - pendingQuestId ownShade suppresses ordinary combat rewards and returns to the map after a won duel.
 
@@ -1619,11 +1623,11 @@ When monument.standing is true, claimMonument:
 - returns variant ownShade + min(3, progress+1);
 - does not grant the bequest yet.
 
-Add grantBequest using the old card/relic/gold code and queue {t:'monumentGift',bequest}. In the same pre-winCombat drop block established by Task 5, a Shade drop calls advanceQuest, grants the pending bequest, and clears it. If the third advance completes the quest, append `{t:'shadeResolved',text:QUESTS.ownShade.final}` to run.endQueue exactly once.
+Add grantBequest using the old card/relic/gold code and queue {t:'monumentGift',bequest}. Starting an armed Shade duel reveals the Trail but emits no story fragment. In the same pre-winCombat drop block established by Task 5, a Shade death queues its `deathDialogue` after `die`, then calls advanceQuest, grants the pending bequest, and clears it. If the third advance completes the quest, append `{t:'shadeResolved',text:QUESTS.ownShade.final}` to run.endQueue exactly once.
 
-In claimMonumentNode, call setPendingEncounter with kind monster, `[variantId]`, and questId ownShade; then require `E.saveRun(run) === true`. After that require `clearBequest() === true` before starting combat. If the run save fails, keep lastFall untouched, call clearPendingEncounter, reset `run.monument.claimed=false`, delete `run.questScratch.ownShade.pendingBequest`, and show “The stone could not hold this duel. Free storage and try again.” If clearBequest fails after the run save, perform the same in-memory rollback and attempt one acknowledged E.saveRun rollback; if that rollback also fails, leave the saved pending duel intact so resume retries clearBequest rather than duplicating the gift. On resume, a valid pending ownShade encounter requires clearBequest to succeed before combat begins, making the sequence idempotent across a crash or quota failure between the two stores.
+`beginShadeDuel` claims the standing monument, stages the exact pending encounter, saves it, then requires `clearBequest() === true` before returning READY. If the run save fails, the engine restores the entire pre-claim run snapshot. If clearBequest fails after the run save, the engine restores that snapshot and attempts one acknowledged rollback save; if that rollback also fails, the durable pending duel remains authoritative so resume retries clearBequest rather than duplicating the gift. `resumeShadeDuel` owns the resume decision. UI only reacts to the returned status and never clears encounter, monument, or Shade scratch fields directly.
 
-`settleShadeDuel` owns that exact order for both claim and resume. `claimMonumentNode`, `startRun`, and `renderMap` inject the real callbacks; the two resume call sites share one UI recovery wrapper and may not reimplement the ordering independently.
+`beginShadeDuel` and `resumeShadeDuel` own that exact order. `claimMonumentNode`, `startRun`, and `renderMap` inject only the cross-store clear callback; the resume call sites share one UI recovery wrapper and may not reimplement domain ordering.
 
 In victoryFlow, capture `shadeVictorySkipsRewards(run)` before `clearPendingEncounter`. If true, save and show map without `genCombatRewards`. On loss, the normal defeat flow records a new standing fall when Act 2+, so the next run re-offers the current tier.
 If `shadeLossBequestState(run)` reports that the Shade loss carried `pendingBequest`, renderEnd suppresses the ordinary new-bequest picker and shows “The unpaid gift remains in the standing stone”; this prevents the later UI call from replacing the preserved gift.
@@ -1640,10 +1644,10 @@ git commit -m "Implement the three-stage Own Shade Trail"
 
 #### Review hardening checkpoint
 
-Run the regression suite and isolated build again after extracting the transaction seam. Preserve the clarified product behaviour for an unclaimed prior standing monument; document it as a non-blocking product note rather than changing Task 6 semantics.
+Run the regression suite and isolated build again after consolidating the transaction inside engine.js. Preserve the clarified product behaviour for an unclaimed prior standing monument; document it as a non-blocking product note rather than changing Task 6 semantics.
 
 ~~~bash
-git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/shade-duel-transaction.js src/ui.js test/test_engine.js
+git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/engine.js src/ui.js test/test_engine.js
 git commit -m "Cover Shade transaction failure paths"
 ~~~
 
@@ -1656,13 +1660,12 @@ git commit -m "Cover Shade transaction failure paths"
 - Modify: src/ui.js:3685-3784
 - Modify: src/styles.css (quest shop item)
 - Modify: src/art.js (structural empty-lantern icon)
-- Create: src/shop-session.js (Node-safe stable shop cache seam)
 - Test: test/test_engine.js
 
 **Interfaces:**
 - genShop returns questItems: [] or [{ id:'flamelessLantern', name, text, price:650, sold:false }].
 - Produces: buyQuestItem(run,itemId): { ok, reason }, where reason is `unknown`, `inactive`, `act`, `bought`, `gold`, or null.
-- shopSessionKey(run) includes stable runId + act + nodeId; shopStockForSession(session,run,generate) preserves only an exact matching shop session.
+- shopSessionKey(run) includes stable runId + act + nodeId; engine-owned shopStockForSession(session,run) preserves only an exact matching shop session and calls genShop internally on cache miss.
 - run.questScratch.usurper.bought is same-run only.
 
 - [x] **Step 1: Write failing shop/boss tests**
@@ -1711,7 +1714,7 @@ Append this exact kill assertion:
 Extend the existing Vite-loaded structural icon check so `iconSvg('emptyLantern')`
 must contain a non-empty hand-drawn path. Run RED before adding it to `ICONS`.
 
-Add a shop-session regression using the production helper: the same run/act/node
+Add a shop-session regression using the engine production helper: the same run/act/node
 returns the same stock object (preserving the sold row), while the same node
 coordinate in another act or run regenerates stock. Pin an ineligible Act 1
 shop becoming an eligible Act 2 shop after that regeneration. Also pin the
@@ -1761,7 +1764,7 @@ Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyO
 Expected: PASS.
 
 ~~~bash
-git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/art.js src/engine.js src/ui.js src/styles.css src/shop-session.js test/test_engine.js
+git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/art.js src/engine.js src/ui.js src/styles.css test/test_engine.js
 git commit -m "Add the flameless lantern and Usurper Gate"
 ~~~
 
@@ -1771,8 +1774,8 @@ The first review found two invariants that must be production-backed rather
 than report-only: shop stock identity spans run + act + node, and the purchase
 API itself rejects early/duplicate calls without mutation.
 
-RED 1: after importing and exercising the new shop-session seam, `npm test`
-fails with `ERR_MODULE_NOT_FOUND` for `src/shop-session.js`.
+RED 1: after importing and exercising the new engine shop-session API, `npm test`
+fails because shopStockForSession is not exported from engine.js.
 
 RED 2: after adding only that seam, `npm test` reaches the purchase regression
 and receives `{ ok:false, reason:'gold' }` instead of the required
@@ -1782,7 +1785,7 @@ After both fixes, run the full unit/Monte-Carlo and isolated build gate above.
 Stage the follow-up exactly:
 
 ~~~bash
-git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/engine.js src/shop-session.js src/ui.js test/test_engine.js
+git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/engine.js src/ui.js test/test_engine.js
 git commit -m "Harden Usurper shop session invariants"
 ~~~
 
@@ -2085,14 +2088,13 @@ git commit -m "Add the Unreadable Page Trail"
 - Modify: src/engine.js (newRun, visitNode, stageHollowExit, gainEmbers, applyBoon, payHollowPrice)
 - Modify: src/vigil.js (eligible-run pity memory)
 - Modify: src/ui.js:544-547, 725-815, 964-1006
-- Modify: src/terminal-outbox.js (Hollow-to-terminal ownership transfer)
 - Modify: src/styles.css
 - Test: test/test_engine.js
 - Test: test/e2e/hollow-transaction.spec.js
 - Modify: docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md (review hardening contract)
 
 **Interfaces:**
-- Produces: applyBoon(run,id), reverseBoon(run), payHollowPrice(run), stageHollowExit(run), run.pendingHollow, and run.pendingHollowRoute.
+- Produces: applyBoon(run,id), reverseBoon(run), payHollowPrice(run), stageHollowExit(run), completePendingHollowRoute(run), run.pendingHollow, and run.pendingHollowRoute.
 - applyBoon returns/stores boonReceipt `{id,playerDelta,statsGoldEarned,relicsAdded,potionSlotsAdded}`.
 - payHollowPrice returns { ok, deferred, message }.
 - stageHollowExit returns either `{kind:'combat',nodeId,type,enemyIds}` or `{kind:'destination',nodeId,type,eventId}` after preparing the complete durable exit transaction in memory.
@@ -2478,7 +2480,7 @@ Add `test/e2e/hollow-transaction.spec.js` with permanent fault injection which p
 1. combat Continue performs one save containing both cleared pendingHollow and exact pendingCombat/enemy IDs, and reload resumes that combat;
 2. a rejected Return Later save restores the full durable Hollow meeting with no progress or resource change;
 3. event identity and rest/shop routes survive reload until their acknowledged destination exit; and
-4. a rejected destination-marker clear cannot return to map, keeps the live and durable marker, and only Retry Save can complete the exit.
+4. a rejected destination-marker clear cannot return to map, keeps the live and durable marker through the engine transaction, and only Retry Save can complete the exit.
 
 The marker owns Hollow route identity and acknowledged destination completion only. Do not use this task to redesign ordinary shop stock persistence or the generic event-choice outbox.
 
@@ -2509,7 +2511,7 @@ At canonical `shape=pad-portrait` (820×1180), lay out the three Hollow actions 
 Run the focused browser test through an uncommitted isolated-port config whenever 5174 belongs to another worktree. Delete that config before exact-path staging.
 
 ~~~bash
-git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/terminal-outbox.js src/styles.css test/test_engine.js test/e2e/hollow-transaction.spec.js
+git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/engine.js src/styles.css test/test_engine.js test/e2e/hollow-transaction.spec.js
 git commit -m "Close Hollow terminal and pad gates"
 ~~~
 
@@ -2521,7 +2523,6 @@ git commit -m "Close Hollow terminal and pad gates"
 **Files:**
 - Modify: src/art.js (remaining structural fallbacks; paleMote is owned by Task 5)
 - Modify: src/engine.js (strict pendingDawn shape plus stage/cursor/clear transactions)
-- Modify: src/terminal-outbox.js (pendingDawn resume ownership and destructive-action guard)
 - Modify: src/ui.js:560-724, 817-927, 3409-3432, 3878-3980, 4038-4045
 - Modify: src/styles.css
 - Modify: test/test_engine.js (optional-art manifest, malformed-marker validation, and storage-failure transactions)
@@ -3689,7 +3690,7 @@ With the isolated dev server on port 5194, record one demo video and the exact o
 
 Do not claim a gate closed without the video path and exact command outputs in the report.
 
-- [x] **Step 4: Run the complete release gate**
+- [x] **Step 4: Run the complete release gate and performance reference**
 
 ~~~bash
 npm test
@@ -3704,7 +3705,7 @@ Expected:
 - npm test ends with 300-run Monte Carlo success;
 - both pacing bands pass;
 - all Playwright projects pass;
-- perf remains average >=55 fps and p95 <=22 ms;
+- perf writes finite positive metrics; average below 55 fps or p95 above 22 ms emits a non-blocking warning;
 - build succeeds;
 - diff check prints nothing.
 
@@ -3716,7 +3717,7 @@ In docs/README.md replace the current spec row and insert the Phase 2 plan/repor
 | [`superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md`](superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md) | **Complete** — progressive delivery and entrances shipped in Phase 1; Emberglass chain shipped in Phase 2 |
 | [`superpowers/plans/2026-07-09-entrance-progressive-delivery-phase1.md`](superpowers/plans/2026-07-09-entrance-progressive-delivery-phase1.md) | Executor plan, Phase 1 (delivery engine + entrances — **shipped**) |
 | [`superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md`](superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md) | Executor plan, Phase 2 (variants + six Emberglass quests + Rose Window — **shipped**) |
-| [`superpowers/reports/2026-07-09-emberglass-phase2-evidence.md`](superpowers/reports/2026-07-09-emberglass-phase2-evidence.md) | Phase 2 release evidence: pacing, unit/build/e2e/perf gates, art review, and manual journey |
+| [`superpowers/reports/2026-07-09-emberglass-phase2-evidence.md`](superpowers/reports/2026-07-09-emberglass-phase2-evidence.md) | Phase 2 release evidence: pacing, unit/build/e2e gates, performance reference, art review, and manual journey |
 ~~~
 
 Write the evidence report with these exact headings, pasting unedited command output beneath each gate and recording `GO` only if every acceptance statement is true:
@@ -3730,14 +3731,14 @@ Write the evidence report with these exact headings, pasting unedited command ou
 ## Guided and unguided pacing gate
 ## Production build gate
 ## Behavioural, geometry, stage, and visual Playwright gate
-## Performance gate
+## Performance reference
 ## Rose art review
 ## Canonical snapshot host
 ## Manual journey and demo recording
 ## Known caveats
 ~~~
 
-The report must contain the actual commit hashes, both percentile lines, snapshot OS/architecture, absolute or repository-relative demo path, the eight-asset review decision, and the fact that hidden Phase 2 cues remain unwired. A missing output or video is a `NO-GO`, not an empty section.
+The report must contain the actual commit hashes, both percentile lines, snapshot OS/architecture, absolute or repository-relative demo path, the eight-asset review decision, and the fact that hidden Phase 2 cues remain unwired. A performance target miss is recorded as a warning; a missing or invalid measurement, other missing required output, or missing video is a `NO-GO`, not an empty section.
 
 Task 14 Step 4 already performed the one tracked `npm run build` after source and art were final; documentation does not change the bundle. Inspect git status and stage exact paths only:
 
@@ -3754,6 +3755,36 @@ git commit -m "Verify and ship Emberglass Phase 2"
 ~~~
 
 Do not stage unrelated audio/SFX/UI work from the original dirty checkout.
+
+---
+
+### Task 15: Close PR #14 review blockers
+
+**Files:**
+- Modify: src/data.js, src/engine.js, src/ui.js
+- Delete: src/terminal-outbox.js, src/shade-duel-transaction.js, src/shop-session.js
+- Modify: test/test_engine.js, test/e2e/battle.spec.js, test/e2e/emberglass.spec.js
+- Modify: test/e2e/perf.spec.js and .github/workflows/perf.yml
+- Modify: docs/superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md and this plan
+- Modify: README.md, docs/README.md, and docs/superpowers/reports/2026-07-09-emberglass-phase2-evidence.md
+- Revert to base behaviour: src/audio.js and the Phase 2 addition in test/e2e/audio.spec.js
+- Rebuild: dist/
+
+- [x] **Step 1: Reproduce and regression-test the review failures**
+
+Pin rejected fractional/stale end-queue quest progress, Shade fragment timing, armed-Shade first-contact disclosure, Pale 0/3 → cumulative 3/9 disclosure, Hollow route rollback, and every Shade cross-store ordering branch. Each behavioural test must be observed failing for the reported reason before production changes.
+
+- [x] **Step 2: Restore the engine/UI boundary**
+
+Move terminal ownership, Shade transaction ordering, reward/bequest decisions, and shop session identity into engine.js. Add completePendingHollowRoute so UI never clears or restores the route marker directly. Delete the three domain helper modules, remove their imports, and use a named persistence-dialog config instead of seven positional strings.
+
+- [x] **Step 3: Correct the story/disclosure flow and review scope**
+
+Shade variants carry deathDialogue and speak only after `die`. An armed Shade reveals on contact. Pale contact projects Hunt the Pale Ones at 0/3, the third kill emits 3/3 and unlocks the Lens, and subsequent progress uses the same cumulative ledger against 9. Restore the unwaived v1 invariant wording and remove the out-of-scope failed-audio-reference cache plus its SFX test.
+
+- [ ] **Step 4: Rebuild, run the complete release gate and performance reference, refresh evidence, and update PR #14**
+
+Run the Task 14 full gate plus focused persistence/story Playwright tests. Rebuild tracked dist, refresh source/evidence hashes for the new head, and record performance target misses as warnings while still requiring valid metrics. Run `git diff --check`, commit exact paths, push, and report live GitHub checks without treating queued/running jobs as green.
 
 ---
 

@@ -56,7 +56,7 @@ npm test           # engine unit checks + 300-run monte-carlo (Node, no browser)
 npm run test:e2e   # Playwright visual-QA kit (needs dev server on 5174 + Chromium)
 ```
 
-`npm run test:e2e:update` refreshes screenshot baselines; `npm run test:e2e:perf` runs the fps gate alone. See `docs/superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md` §3 for the full harness contract. Documentation index: [`docs/README.md`](docs/README.md).
+`npm run test:e2e:update` refreshes screenshot baselines; `npm run test:e2e:perf` records the standalone FPS/frame-time reference and warns on target misses. See `docs/superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md` §3 for the full harness contract. Documentation index: [`docs/README.md`](docs/README.md).
 
 Audio inventory and preview: `?audio=1`. In development the same page edits the
 runtime Music/SFX versions and individual file overrides. See

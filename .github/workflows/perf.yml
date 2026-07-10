@@ -30,7 +30,6 @@ jobs:
       # Non-gating by spec: CI runner fps numbers are noisy (software WebGL).
       # The measured numbers are recorded in this step's log, never enforced.
       - run: npm run test:e2e:perf
-        continue-on-error: true
       - name: Require a valid performance measurement
         if: always()
         run: |

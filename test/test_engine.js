@@ -15,9 +15,11 @@ import {
   setPendingReward, takePendingReward, clearPendingReward, hasPendingBossRelic, recordRunEnd, commitRunStats,
   stagePendingDawn, advancePendingDawn, completePendingDawn, loadStats, paleVariantForAct,
   applyBoon, reverseBoon, payHollowPrice, stageHollowExit,
+  shopSessionKey, shopStockForSession,
+  finaliseTerminalOutbox, journalTerminalOutcome, savedRunRequiresFinalisation,
+  SHADE_DUEL_TX, shadeVictorySkipsRewards, shadeLossBequestState,
 } from '../src/engine.js';
 import * as EngineApi from '../src/engine.js';
-import { shopSessionKey, shopStockForSession } from '../src/shop-session.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS } from '../src/data.js';
 import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, commitPendingRunEnd, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFrame, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
@@ -32,10 +34,6 @@ import { BASE_AUDIO_VERSIONS, DEFAULT_AUDIO_SELECTION, audioRefFromPath, canonic
 import { serializeAudioSelection } from '../src/dev/audio-selection-serialize.js';
 import { fetchAudioSelectionJson } from '../src/audio-selection-fetch.js';
 import { createChoiceLatch } from '../src/choice-latch.js';
-import { finaliseTerminalOutbox, journalTerminalOutcome, savedRunRequiresFinalisation } from '../src/terminal-outbox.js';
-import {
-  SHADE_DUEL_TX, settleShadeDuel, shadeVictorySkipsRewards, shadeLossBequestState,
-} from '../src/shade-duel-transaction.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -274,52 +272,6 @@ function forceHand(run, cb, ids) {
   assert.equal(latch.locked, true, 'the latch exposes its settled state');
 }
 {
-  // Pending Shade claim persistence is one ordered transaction: save the duel,
-  // clear the cross-run stone, then roll back only when the clear is rejected.
-  const trace = [];
-  const rejectedSave = settleShadeDuel({
-    phase: 'claim',
-    saveRun: () => { trace.push('save-pending'); return false; },
-    clearBequest: () => { trace.push('clear'); return true; },
-    rollbackClaim: () => { trace.push('rollback'); },
-  });
-  assert.deepEqual(rejectedSave, { status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false });
-  assert.deepEqual(trace, ['save-pending', 'rollback'], 'a rejected pending save never clears the stone');
-
-  trace.length = 0;
-  let saveAttempt = 0;
-  const rolledBack = settleShadeDuel({
-    phase: 'claim',
-    saveRun: () => { trace.push(++saveAttempt === 1 ? 'save-pending' : 'save-rollback'); return true; },
-    clearBequest: () => { trace.push('clear'); return false; },
-    rollbackClaim: () => { trace.push('rollback'); },
-  });
-  assert.deepEqual(rolledBack, { status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false });
-  assert.deepEqual(trace, ['save-pending', 'clear', 'rollback', 'save-rollback']);
-
-  trace.length = 0;
-  saveAttempt = 0;
-  const durablePending = settleShadeDuel({
-    phase: 'claim',
-    saveRun: () => { trace.push(++saveAttempt === 1 ? 'save-pending' : 'save-rollback'); return saveAttempt === 1; },
-    clearBequest: () => { trace.push('clear'); return false; },
-    rollbackClaim: () => { trace.push('rollback'); },
-  });
-  assert.deepEqual(durablePending, { status: SHADE_DUEL_TX.RELOAD_PENDING, durablePending: true });
-  assert.deepEqual(trace, ['save-pending', 'clear', 'rollback', 'save-rollback'], 'the accepted pending snapshot remains authoritative');
-
-  trace.length = 0;
-  let stoneCleared = false;
-  const clearStone = () => { trace.push('clear'); return stoneCleared; };
-  const beforeClear = settleShadeDuel({ phase: 'resume', clearBequest: clearStone });
-  assert.deepEqual(beforeClear, { status: SHADE_DUEL_TX.RETRY_CLEAR, durablePending: true });
-  stoneCleared = true;
-  const afterClear = settleShadeDuel({ phase: 'resume', clearBequest: clearStone });
-  const idempotentRetry = settleShadeDuel({ phase: 'resume', clearBequest: clearStone });
-  assert.deepEqual(afterClear, { status: SHADE_DUEL_TX.READY, durablePending: true });
-  assert.deepEqual(idempotentRetry, afterClear, 'resume after an already-cleared stone stays ready');
-  assert.deepEqual(trace, ['clear', 'clear', 'clear'], 'resume never rewrites or rolls back the accepted pending duel');
-
   assert.equal(shadeVictorySkipsRewards({ pendingQuestId: 'ownShade' }), true);
   assert.equal(shadeVictorySkipsRewards({ pendingQuestId: 'paleOnes' }), false);
   assert.deepEqual(shadeLossBequestState({
@@ -327,6 +279,87 @@ function forceHand(run, cb, ids) {
   }), { unpaidBequest: true, offerNewBequest: false });
   assert.deepEqual(shadeLossBequestState({ questScratch: { ownShade: { fall: { bequest: null } } } }),
     { unpaidBequest: false, offerNewBequest: true });
+}
+{
+  const previousLocalStorage = globalThis.localStorage;
+  const makeStandingShade = (seed) => {
+    const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'ownShade' ? 'revealed' : 'dormant', progress: 0, memory: {},
+    }]));
+    return newRun(seed, {
+      quests,
+      monument: {
+        act: 1, row: 7, bequest: { kind: 'gold', amount: 50 }, standing: true, shadeAspect: 1,
+      },
+    });
+  };
+  try {
+    const persisted = new Map();
+    let writes = 0;
+    let rejectWrite = () => false;
+    globalThis.localStorage = {
+      getItem: (key) => persisted.get(key) ?? null,
+      setItem: (key, value) => {
+        writes++;
+        if (rejectWrite(writes)) throw new Error('quota');
+        persisted.set(key, value);
+      },
+      removeItem: (key) => persisted.delete(key),
+    };
+
+    const rejectedSaveRun = makeStandingShade(4261);
+    const rejectedSaveBefore = structuredClone(rejectedSaveRun);
+    rejectWrite = () => true;
+    assert.deepEqual(EngineApi.beginShadeDuel(rejectedSaveRun, () => true), {
+      status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false, duel: null,
+    });
+    assert.deepEqual(rejectedSaveRun, rejectedSaveBefore,
+      'a rejected pending-duel save rolls every Shade claim mutation back inside the engine');
+
+    writes = 0;
+    rejectWrite = () => false;
+    const rejectedClearRun = makeStandingShade(4262);
+    const rejectedClearBefore = structuredClone(rejectedClearRun);
+    assert.deepEqual(EngineApi.beginShadeDuel(rejectedClearRun, () => false), {
+      status: SHADE_DUEL_TX.RETRY_CLAIM, durablePending: false, duel: null,
+    });
+    assert.deepEqual(rejectedClearRun, rejectedClearBefore);
+    assert.deepEqual(loadRun(), rejectedClearBefore,
+      'an accepted rollback replaces the durable pending duel with the exact pre-claim run');
+
+    writes = 0;
+    rejectWrite = (attempt) => attempt === 2;
+    const reloadRun = makeStandingShade(4263);
+    const reloadBefore = structuredClone(reloadRun);
+    assert.deepEqual(EngineApi.beginShadeDuel(reloadRun, () => false), {
+      status: SHADE_DUEL_TX.RELOAD_PENDING, durablePending: true, duel: null,
+    });
+    assert.deepEqual(reloadRun, reloadBefore, 'the failed rollback also restores the live object');
+    const durablePending = loadRun();
+    assert.equal(durablePending.monument.claimed, true);
+    assert.equal(durablePending.pendingQuestId, 'ownShade');
+    assert.deepEqual(durablePending.questScratch.ownShade.pendingBequest, { kind: 'gold', amount: 50 });
+
+    rejectWrite = () => false;
+    assert.deepEqual(EngineApi.resumeShadeDuel(durablePending, () => false), {
+      status: SHADE_DUEL_TX.RETRY_CLEAR, durablePending: true,
+    });
+    assert.deepEqual(EngineApi.resumeShadeDuel(durablePending, () => true), {
+      status: SHADE_DUEL_TX.READY, durablePending: true,
+    });
+
+    writes = 0;
+    const readyRun = makeStandingShade(4264);
+    const ready = EngineApi.beginShadeDuel(readyRun, () => true);
+    assert.equal(ready.status, SHADE_DUEL_TX.READY);
+    assert.equal(ready.durablePending, true);
+    assert.equal(ready.duel.variantId, 'ownShade1');
+    assert.equal(readyRun.monument.claimed, true);
+    assert.equal(readyRun.pendingQuestId, 'ownShade');
+  } finally {
+    if (previousLocalStorage) globalThis.localStorage = previousLocalStorage;
+    else delete globalThis.localStorage;
+  }
 }
 {
   // Title and Embark must preserve a terminal outbox instead of abandoning it.
@@ -435,6 +468,28 @@ function forceHand(run, cb, ids) {
   const ashBossCb = startCombat(newRun(422, { aspect: 1 }), ['usurpedSovereign'], 'boss');
   assert.match(ashBossCb.queue[1].text, /^Ashwarden\./,
     'variant dialogue expands the alternate aspect name without its article');
+
+  const shadeQuests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+    state: id === 'ownShade' ? 'armed' : 'dormant', progress: 0, memory: {},
+  }]));
+  const shadeRun = newRun(423, { quests: shadeQuests });
+  const shadeCb = startCombat(shadeRun, ['ownShade1']);
+  assert.equal(shadeRun.quests.ownShade.state, 'revealed',
+    'meeting an armed Shade reveals its Trail even if the duel is later lost');
+  assert.ok(shadeCb.queue.some((event) => event.t === 'questReveal' && event.id === 'ownShade'));
+  assert.equal(shadeCb.queue.some((event) => event.t === 'variantDialogue' &&
+    event.text === QUESTS.ownShade.fragments[0]), false,
+  'a living Shade does not reveal its defeated story fragment');
+  shadeCb.enemies[0].hp = 1;
+  forceHand(shadeRun, shadeCb, ['strike']);
+  shadeCb.player.energy = 3;
+  playCard(shadeRun, shadeCb, shadeCb.hand[0].uid, 0);
+  const shadeDeath = shadeCb.queue.findIndex((event) => event.t === 'die');
+  const shadeFragment = shadeCb.queue.findIndex((event) => event.t === 'variantDialogue' &&
+    event.text === QUESTS.ownShade.fragments[0]);
+  const shadeVictory = shadeCb.queue.findIndex((event) => event.t === 'victory');
+  assert.ok(shadeDeath >= 0 && shadeDeath < shadeFragment && shadeFragment < shadeVictory,
+    'a defeated Shade speaks its stage fragment after death and before victory');
 }
 {
   const run = newRun(420);
@@ -1196,6 +1251,15 @@ function forceHand(run, cb, ids) {
     assert.equal(saveRun(validDawn), true);
     assert.deepEqual(loadRun().pendingDawn, validDawn.pendingDawn,
       'an exact dawn presentation outbox round-trips');
+    const terminalQueue = newRun(430, { quests: saveQuests });
+    terminalQueue.pendingRunEnd = { outcome: 'win' };
+    terminalQueue.endQueue = validDawnEvents().filter((event) =>
+      !['whisper', 'shardGrant', 'act4Reveal'].includes(event.t));
+    assert.equal(saveRun(terminalQueue), true);
+    const acceptedTerminalQueue = loadRun();
+    assert.ok(acceptedTerminalQueue, 'the strict shared schema accepts canonical terminal quest events');
+    assert.equal(stagePendingDawn(acceptedTerminalQueue, acceptedTerminalQueue.endQueue, []), true,
+      'every accepted canonical terminal event can enter the dawn outbox');
     rejectSaved('unknown variant', (r) => setPendingEncounter(r, 'monster', ['paleUnknown'], 'paleOnes'));
     rejectSaved('unknown quest record', (r) => { r.quests.unknown = { state: 'armed', progress: 0, memory: {} }; });
     rejectSaved('invalid quest state', (r) => { r.quests.paleOnes.state = 'waiting'; });
@@ -1224,6 +1288,25 @@ function forceHand(run, cb, ids) {
     rejectSaved('malformed scratch', (r) => { r.questScratch.paleOnes = { hiddenDue: 'yes' }; });
     rejectSaved('unknown completion', (r) => { r.questCompletions = ['unknown']; });
     rejectSaved('unknown end event', (r) => { r.endQueue = [{ t: 'mystery' }]; });
+    rejectSaved('fractional end-queue quest progress', (r) => {
+      r.endQueue = [{
+        t: 'questProgress', id: 'paleOnes', progress: 1.5, target: QUESTS.paleOnes.target,
+      }];
+    });
+    rejectSaved('stale end-queue quest target', (r) => {
+      r.endQueue = [{
+        t: 'questProgress', id: 'paleOnes', progress: 1, target: QUESTS.paleOnes.target - 1,
+      }];
+    });
+    rejectSaved('end-queue quest progress past target', (r) => {
+      r.endQueue = [{
+        t: 'questProgress', id: 'ownShade', progress: QUESTS.ownShade.target + 1,
+        target: QUESTS.ownShade.target,
+      }];
+    });
+    rejectSaved('extra end-queue quest event key', (r) => {
+      r.endQueue = [{ t: 'questReveal', id: 'paleOnes', extra: true }];
+    });
     rejectSaved('unknown marked-node variant', (r) => { r.map.nodes[0].questVariantId = 'paleUnknown'; });
     rejectSaved('malformed run id', (r) => { r.runId = '__proto__'; });
     rejectSaved('invalid pending run end', (r) => { r.pendingRunEnd = { outcome: 'retreat' }; });
@@ -1376,6 +1459,18 @@ function forceHand(run, cb, ids) {
     assert.equal(saveRun(validHollowRoute), true);
     assert.deepEqual(loadRun().pendingHollowRoute, validHollowRoute.pendingHollowRoute,
       'valid exact Hollow destination route round-trips');
+    const heldHollowRoute = structuredClone(validHollowRoute.pendingHollowRoute);
+    globalThis.localStorage.setItem = () => { throw new Error('quota'); };
+    assert.equal(EngineApi.completePendingHollowRoute(validHollowRoute), false,
+      'a rejected Hollow-route clear is not acknowledged');
+    assert.deepEqual(validHollowRoute.pendingHollowRoute, heldHollowRoute,
+      'the engine restores the live Hollow route after a rejected clear');
+    globalThis.localStorage.setItem = workingSetItem;
+    assert.equal(EngineApi.completePendingHollowRoute(validHollowRoute), true,
+      'the same Hollow-route clear can be retried');
+    assert.equal(validHollowRoute.pendingHollowRoute, null);
+    assert.equal(loadRun().pendingHollowRoute, null,
+      'the accepted engine transaction clears the durable Hollow route');
     rejectSaved('missing Hollow route node', (r) => {
       r.pendingHollowRoute = { nodeId: 'missing', type: 'rest', eventId: null };
     });
@@ -2031,26 +2126,26 @@ function forceHand(run, cb, ids) {
   run.nodeId = 'shared-shop-coordinate';
   run.act = 0;
   const shopSession = {};
-  const ineligible = shopStockForSession(shopSession, run, genShop);
+  const ineligible = shopStockForSession(shopSession, run);
   const actOneKey = shopSessionKey(run);
   assert.deepEqual(ineligible.questItems, []);
 
   run.act = 1;
   assert.notEqual(shopSessionKey(run), actOneKey, 'act identity is part of the shop session key');
-  const eligible = shopStockForSession(shopSession, run, genShop);
+  const eligible = shopStockForSession(shopSession, run);
   assert.notStrictEqual(eligible, ineligible, 'the same node coordinate in another act regenerates stock');
   assert.equal(eligible.questItems.length, 1, 'the regenerated Act 2 shop gains eligible quest stock');
   run.player.gold = 650;
   assert.deepEqual(buyQuestItem(run, 'flamelessLantern'), { ok: true, reason: null });
   eligible.questItems[0].sold = true;
-  assert.strictEqual(shopStockForSession(shopSession, run, genShop), eligible,
+  assert.strictEqual(shopStockForSession(shopSession, run), eligible,
     'a same-shop rerender preserves the sold row');
 
   const nextRun = newRun(456, { quests: run.quests });
   nextRun.nodeId = run.nodeId;
   nextRun.act = run.act;
   assert.notEqual(shopSessionKey(nextRun), shopSessionKey(run), 'run identity is part of the shop session key');
-  const nextStock = shopStockForSession(shopSession, nextRun, genShop);
+  const nextStock = shopStockForSession(shopSession, nextRun);
   assert.notStrictEqual(nextStock, eligible, 'the same node coordinate in another run regenerates stock');
   assert.equal(nextStock.questItems.length, 1);
   assert.equal(nextStock.questItems[0].sold, false, 'a new run cannot inherit the prior shop row state');
@@ -2476,6 +2571,12 @@ function forceHand(run, cb, ids) {
     'each act maps to its fixed Pale variant',
   );
   const run = newRun(430, { quests, unlocks: [] });
+  assert.deepEqual(EngineApi.questDisclosure(run, 'paleOnes'), {
+    name: 'Hunt the Pale Ones',
+    inscription: QUESTS.paleOnes.huntInscription,
+    progress: 0,
+    target: PROGRESSION.emberglass.paleOnes.lensAt,
+  }, 'before the Lens, the Pale entry is a distinct 0/3 hunt');
   const first = rollEncounter(run, 'monster', 0, run.map.nodes.find((n) => n.row === 0));
   assert.deepEqual(first, ['paleDuskfang'], 'first ordinary fight is hidden guaranteed ambush');
   assert.notDeepEqual(rollEncounter(run, 'monster', 1), ['paleDuskfang'], 'only one hidden ambush per run');
@@ -2490,6 +2591,10 @@ function forceHand(run, cb, ids) {
   playCard(run, cb, cb.hand[0].uid, 0);
   assert.equal(run.quests.paleOnes.progress, 1);
   assert.equal(run.quests.paleOnes.state, 'revealed');
+  assert.deepEqual(cb.queue.find((event) => event.t === 'questProgress'), {
+    t: 'questProgress', id: 'paleOnes', progress: 1,
+    target: PROGRESSION.emberglass.paleOnes.lensAt,
+  }, 'the hidden hunt discloses Pale kills against the 3-kill Lens threshold');
 
   run.quests.paleOnes.progress = 2;
   const cb3 = startCombat(run, ['paleDuskfang']);
@@ -2498,6 +2603,26 @@ function forceHand(run, cb, ids) {
   cb3.player.energy = 3;
   playCard(run, cb3, cb3.hand[0].uid, 0);
   assert.ok(run.unlocks.includes('insight:witchlightLens'));
+  assert.deepEqual(cb3.queue.find((event) => event.t === 'questProgress'), {
+    t: 'questProgress', id: 'paleOnes', progress: 3,
+    target: PROGRESSION.emberglass.paleOnes.lensAt,
+  }, 'the third hidden Pale closes the Hunt the Pale Ones disclosure');
+  assert.deepEqual(EngineApi.questDisclosure(run, 'paleOnes'), {
+    name: QUESTS.paleOnes.name,
+    inscription: QUESTS.paleOnes.inscription,
+    progress: 3,
+    target: QUESTS.paleOnes.target,
+  }, 'the Lens changes the same cumulative ledger into the 3/9 mote hunt');
+
+  const cb4 = startCombat(run, ['paleDuskfang']);
+  cb4.enemies[0].hp = 1;
+  forceHand(run, cb4, ['strike']);
+  cb4.player.energy = 3;
+  playCard(run, cb4, cb4.hand[0].uid, 0);
+  assert.deepEqual(cb4.queue.find((event) => event.t === 'questProgress'), {
+    t: 'questProgress', id: 'paleOnes', progress: 4,
+    target: QUESTS.paleOnes.target,
+  }, 'after the Lens unlocks, Pale progress switches to the 9-mote total');
 
   const marked = newRun(431, { quests: run.quests, unlocks: run.unlocks });
   assert.equal(marked.map.nodes.filter((n) => n.questVariantId).length, 1);

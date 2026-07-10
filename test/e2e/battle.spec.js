@@ -62,19 +62,15 @@ async function expectMeshLive(page) {
     .catch(() => { throw new Error('mesh planes never bound — is WebGL unavailable in this environment?'); });
 }
 
-async function startShadeAndSeeDialogue(page, query) {
+async function startShade(page, query) {
   await boot(page, { query });
-  const dialogue = page.locator('.variant-dialogue');
   await page.evaluate(() => window.spirebound.startCombatUI(['ownShade1'], 'monster'));
-  await expect(dialogue).toContainText('I remember the stone', { timeout: 7000 });
-  const animationDuration = await dialogue.evaluate((el) => getComputedStyle(el).animationDuration);
   await settle(page);
-  return animationDuration;
 }
 
 test('variant tint and identity reach the live mesh', async ({ page }) => {
   const errors = collectErrors(page);
-  await startShadeAndSeeDialogue(page, 'mesh=1');
+  await startShade(page, 'mesh=1');
   await expectMeshLive(page);
   const result = await page.evaluate(() => {
     const debug = window.spirebound.meshDebug();
@@ -101,8 +97,7 @@ test('variant tint and identity reach the live mesh', async ({ page }) => {
 
 test('variant CSS fallback matches mesh-off identity and stats', async ({ page }) => {
   const errors = collectErrors(page);
-  const animationDuration = await startShadeAndSeeDialogue(page, 'mesh=0');
-  expect(animationDuration).toBe('1.8s');
+  await startShade(page, 'mesh=0');
   const enemy = await probeState(page).then((s) => s.enemies[0]);
   expect(enemy).toMatchObject({ key: 'shade', variantId: 'ownShade1', artId: 'duskblade', maxHp: 110 });
   await expect(page.locator('.enemy[data-variant-id="ownShade1"] .name')).toContainText('THE SHADE THAT FELL');
@@ -112,6 +107,53 @@ test('variant CSS fallback matches mesh-off identity and stats', async ({ page }
   expect((await page.evaluate(() => window.spirebound.meshDebug().planes))).toBe(0);
   await expectInvariants(page, 'shade CSS variant');
   expectNoErrors(errors, 'shade CSS variant');
+});
+
+test('Shade story fragment waits for defeat', async ({ page }) => {
+  const errors = collectErrors(page);
+  await boot(page, { query: 'mesh=0' });
+  const dialogue = page.locator('.variant-dialogue');
+  await page.evaluate(() => window.spirebound.startCombatUI(['ownShade1'], 'monster'));
+  await settle(page);
+  await expect(dialogue).toHaveCount(0);
+
+  const uid = await page.evaluate(() => {
+    window.__probe.setEnemyHp(0, 1);
+    window.__probe.setEnergy(3);
+    return window.__probe.forceHand(['strike'])[0];
+  });
+  const fragment = expect(dialogue).toContainText('I remember the stone', { timeout: 7000 });
+  const played = page.evaluate((cardUid) => window.__probe.play(cardUid, 0), uid);
+  await Promise.all([fragment, played]);
+  await settle(page);
+  expectNoErrors(errors, 'Shade death fragment');
+});
+
+test('Pale combat banners disclose the 0/3 hunt before the Lens', async ({ page }) => {
+  const errors = collectErrors(page);
+  await boot(page, { query: 'mesh=0' });
+  await page.evaluate(async () => {
+    const { QUEST_IDS } = await import('/src/data.js');
+    const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'paleOnes' ? 'armed' : 'dormant', progress: 0, memory: {},
+    }]));
+    const sp = window.spirebound;
+    sp.S.run = sp.E.newRun(20260710, { quests, unlocks: [] });
+    sp.startCombatUI(['paleDuskfang'], 'monster');
+  });
+  await expect(page.locator('.turn-banner')).toContainText('Hunt the Pale Ones (0/3)', { timeout: 7000 });
+  await settle(page);
+
+  const uid = await page.evaluate(() => {
+    window.__probe.setEnemyHp(0, 1);
+    window.__probe.setEnergy(3);
+    return window.__probe.forceHand(['strike'])[0];
+  });
+  const progress = expect(page.locator('.turn-banner')).toContainText('Hunt the Pale Ones — 1/3', { timeout: 7000 });
+  const played = page.evaluate((cardUid) => window.__probe.play(cardUid, 0), uid);
+  await Promise.all([progress, played]);
+  await settle(page);
+  expectNoErrors(errors, 'Pale hunt disclosure');
 });
 
 test('mid-fight kill leaves no corpse on stage (mesh on)', async ({ page }) => {
