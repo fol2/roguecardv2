@@ -362,7 +362,10 @@ function validateManifest(manifest, context, report) {
     if (item.file !== filename) report.errors.push(`${prefix}.file: expected ${filename}`);
     if (item.bytes !== media.bytes) report.errors.push(`${prefix}.bytes: expected ${media.bytes}`);
     if (item.sha256 !== media.sha256) report.errors.push(`${prefix}.sha256: does not match file`);
-    if (!closeEnough(Number(item.duration_seconds), media.duration_seconds)) {
+    // sha256 above is the byte-exact integrity guarantee; ffprobe's MP3 duration
+    // estimate itself varies by ~1 frame across ffmpeg builds/versions (gapless
+    // delay/padding heuristics), so this check only needs frame-level tolerance.
+    if (!closeEnough(Number(item.duration_seconds), media.duration_seconds, MP3_FRAME_TOLERANCE_SECONDS)) {
       report.errors.push(`${prefix}.duration_seconds: expected ${media.duration_seconds.toFixed(6)}`);
     }
     if (item.codec !== media.codec) report.errors.push(`${prefix}.codec: expected ${media.codec}`);
