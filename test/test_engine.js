@@ -3762,8 +3762,8 @@ function randomAgentRun(seed) {
   assert.deepEqual(
     bfEnemyFrame(bfResolve('phone-portrait', 0), 'leviathan', 'boss',
       bfSlots(bfResolve('phone-portrait', 0), 1)[0], 390, 844),
-    { size: 374, left: 8, bottom: 0 },
-    'bf: oversized portrait actor frame clamps inside the stage while keeping the slot footY override',
+    { size: 374, left: -37, bottom: 0 },
+    'bf: oversized portrait actor frame preserves the authored horizontal foot anchor',
   );
   const stageShapes = {
     'phone-portrait': [390, 844],
@@ -3782,8 +3782,9 @@ function randomAgentRun(seed) {
         const top = stageHeight - layout.groundY - frame.bottom - frame.size;
         assert.ok(top >= 8,
           `bf: ${shape} act ${act} single ${key} root stays below the 8px stage crown (top ${top})`);
-        assert.ok(frame.left >= 8 && frame.left + frame.size <= stageWidth - 8,
-          `bf: ${shape} act ${act} single ${key} root stays inside horizontal stage margins`);
+        assert.equal(frame.left,
+          Math.round(slot.x - frame.size / 2 + bfEnemyFootX(slot, key)),
+          `bf: ${shape} act ${act} single ${key} preserves its authored horizontal foot anchor`);
       }
     }
   }

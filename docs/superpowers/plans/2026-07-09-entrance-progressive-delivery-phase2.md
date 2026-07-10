@@ -6,7 +6,7 @@
 
 **Architecture:** data.js remains the single declarative source for quest copy, variants, and every threshold, count, price, probability, and stat tier. vigil.js owns cross-run hydration, arming, whispers, shards, and outcome commits; engine.js owns run snapshots and pure quest hooks; ui.js only projects state and drains event queues. Variants retain a base enemy/layout key plus a separate variant identity and presentation record so existing battlefield, VFX, asset, and save contracts remain intact.
 
-**Tech Stack:** Vite + vanilla JavaScript + Three.js; node test/test_engine.js through npm test; Playwright visual-QA on port 5174; optional raster art through the documented gpt-image-2 → Nano Banana Pro workflow.
+**Tech Stack:** Vite + vanilla JavaScript + Three.js; node test/test_engine.js through npm test; Playwright visual-QA on its default port 5174 or an isolated `SPIREBOUND_E2E_PORT`; optional raster art through the documented gpt-image-2 → Nano Banana Pro workflow.
 
 ## Global Constraints
 
@@ -65,6 +65,7 @@ After owner approval, use superpowers:using-git-worktrees to create the isolated
 | src/engine.js | Quest snapshots/transitions, pending encounter and dawn validation, variant resolver, six hook implementations |
 | src/terminal-outbox.js | Terminal ownership and boot-resume routing for run-end and staged-dawn outboxes |
 | src/ui.js | Variant presentation, quest event playback, special shop/Hollow surfaces, dawn ceremonies, Rose/door/title surfaces |
+| src/battlefield.js | Variant frame sizing, authored foot anchors, and vertical crown bounds |
 | src/mesh.js | Variant hue/saturation/brightness uniforms and debug proof |
 | src/art.js | Page glyph plus structural mote, shard, Rose, broken-omen, and sealed-door SVG fallbacks |
 | src/styles.css | Variant, dialogue, Rose, medallion, door, responsive, and reduced-motion presentation |
@@ -74,6 +75,7 @@ After owner approval, use superpowers:using-git-worktrees to create the isolated
 | test/e2e/geometry.spec.js | Scaled-variant feet contract |
 | test/e2e/stage.spec.js | Maximum Phase 2 profile overflow |
 | test/e2e/visual.spec.js | Title medallion, Rose, and sealed-door baselines |
+| playwright.config.js | Default-compatible isolated E2E port validation and strict server launch |
 | tools/gen-emberglass-frame.py | Deterministic aligned frame and six alpha masks |
 | tools/emberglass-pacing.mjs | Guided/unguided deterministic pacing simulation |
 | docs/meta-art-bible.md | Mural, pane order, frame, masks, and fallback art direction |
@@ -109,7 +111,7 @@ Every intermediate build gate is also an import-completeness gate; do not defer 
 - Produces: QUEST_IDS: string[], QUESTS: Record<string, QuestDefinition>, WHISPERS: string[24], SHADE_KITS, VARIANTS, and PROGRESSION.emberglass.
 - Consumed by: every later task. No later task may invent player copy or a numeric quest rule.
 
-- [ ] **Step 1: Write the failing table-contract test**
+- [x] **Step 1: Write the failing table-contract test**
 
 Extend the data import with QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, and VARIANTS, then add:
 
@@ -149,12 +151,12 @@ Extend the data import with QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, and VARIANT
 }
 ~~~
 
-- [ ] **Step 2: Run the test and verify the red state**
+- [x] **Step 2: Run the test and verify the red state**
 
 Run: npm test
 Expected: FAIL because QUEST_IDS is not exported.
 
-- [ ] **Step 3: Correct the taxonomy sentence in the spec**
+- [x] **Step 3: Correct the taxonomy sentence in the spec**
 
 Change the scope row to:
 
@@ -164,7 +166,7 @@ Change the scope row to:
 
 Do not change the six detailed quest headings or mechanics.
 
-- [ ] **Step 4: Add the complete data contract**
+- [x] **Step 4: Add the complete data contract**
 
 Add this emberglass member inside the existing PROGRESSION object:
 
@@ -355,7 +357,7 @@ export const VARIANTS = {
 
 The tint hue is a delta in degrees, not an absolute hue.
 
-- [ ] **Step 5: Run the green gate and commit**
+- [x] **Step 5: Run the green gate and commit**
 
 Run: npm test
 Expected: PASS ending with unit checks passed and the 300-run Monte Carlo line.
@@ -384,7 +386,7 @@ git commit -m "Define Emberglass quests variants and authored copy"
 - commitRunEnd marks and caches the run only after saveVigil succeeds; a rejected write throws a retryable persistence error and leaves the run eligible for retry.
 - Later tasks put run-local quest records in run.quests and earned-order IDs in run.questCompletions.
 
-- [ ] **Step 1: Write failing hydration, arming, and exactly-once tests**
+- [x] **Step 1: Write failing hydration, arming, and exactly-once tests**
 
 Extend the vigil import with _setRng, questSnapshot, and whisperAt. Add:
 
@@ -465,12 +467,12 @@ Extend the vigil import with _setRng, questSnapshot, and whisperAt. Add:
 
 Update every existing Phase 1 test assignment from v = commitRunEnd(run) to v = commitRunEnd(run, 'abandon').vigil. For the winning reveal test, call commitRunToVigil(run, true) followed by commitRunEnd(run, 'win'). Extend the reveal-table trigger assertion to accept trigger.shards alongside runsPlayed and wins.
 
-- [ ] **Step 2: Run the test and verify the red state**
+- [x] **Step 2: Run the test and verify the red state**
 
 Run: npm test
 Expected: FAIL because _setRng and questSnapshot are not exported.
 
-- [ ] **Step 3: Add act4 and implement deterministic hydration**
+- [x] **Step 3: Add act4 and implement deterministic hydration**
 
 Add this reveal threshold beside emberglass:
 
@@ -535,7 +537,7 @@ Extend isRevealed:
 if (t.shards != null && (vigil.shards || []).length < t.shards) return false;
 ~~~
 
-- [ ] **Step 4: Replace commitRunEnd with the structured transaction**
+- [x] **Step 4: Replace commitRunEnd with the structured transaction**
 
 Use this rank and merge contract:
 
@@ -611,7 +613,7 @@ The beforeRevealCount line and revealLanded comparison are both inside the funct
 The durable save check is deliberately before both runEndCommitted and runEndResult. A rejected write throws the retryable error without marking or caching the run, so the same run object can repeat the transaction after storage recovers; only the first accepted write becomes the cached exactly-once result.
 The authoritative memory replacement is intentional: run snapshots are complete, not sparse patches. It is what makes `delete q.memory.dueIn` and `delete q.memory.emberDebt` persist; a run with no record for an ID is skipped and cannot wipe a newer Vigil record.
 
-- [ ] **Step 5: Run the green gate and commit**
+- [x] **Step 5: Run the green gate and commit**
 
 Run: npm test
 Expected: PASS, including Phase 1 ladder tests updated for the structured return.
@@ -1094,7 +1096,7 @@ git commit -m "Validate persisted monument bequests"
 - presentation is { artCategory, artId, layoutKey, kind, hue, tint, scale }.
 - cb.enemies[].key remains an existing ENEMIES key. For hero shades it is shade; variantId carries ownShade1/2/3.
 
-- [ ] **Step 1: Write failing pure variant tests**
+- [x] **Step 1: Write failing pure variant tests**
 
 ~~~js
 {
@@ -1126,12 +1128,12 @@ git commit -m "Validate persisted monument bequests"
 }
 ~~~
 
-- [ ] **Step 2: Run the test and verify the red state**
+- [x] **Step 2: Run the test and verify the red state**
 
 Run: npm test
 Expected: FAIL because makeVariant is not exported.
 
-- [ ] **Step 3: Implement the pure resolver**
+- [x] **Step 3: Implement the pure resolver**
 
 ~~~js
 const scaleMoveDamage = (move, mult) => ({
@@ -1196,7 +1198,7 @@ export function resolveCombatant(run, id) {
 
 In startCombat resolve each requested ID once. Store key: resolved.baseKey, variantId, def, and presentation. computeIntents calls e.def.ai; enemyMove returns e.def.moves[e.moveKey]. Queue bossIntro first and then one variantDialogue event per dialogue line, replacing {aspect} with ASPECTS[run.aspect].name without the leading “The ”.
 
-- [ ] **Step 4: Make every visual path consume presentation**
+- [x] **Step 4: Make every visual path consume presentation**
 
 Use one helper in ui.js:
 
@@ -1256,7 +1258,7 @@ Replace the immediate boss banner in startCombatUI with queue event handling:
 
 Extend __probe.state enemies with key, variantId, artId, hp, maxHp, and block.
 
-- [ ] **Step 5: Carry tint through the mesh shader and prove both modes**
+- [x] **Step 5: Carry tint through the mesh shader and prove both modes**
 
 Add BODY_FRAG uniforms uHue, uSaturation, and uBrightness. Place this helper at shader-global scope after the uniforms and before `void main()`:
 
@@ -1379,7 +1381,7 @@ git commit -m "Add mesh-safe enemy variant presentation"
 - Consumes: questRecord/revealQuest/advanceQuest, VARIANTS, run.unlocks.
 - Produces: preparePaleRun(run), paleVariantForAct(act), node.questVariantId, and unlock token insight:witchlightLens.
 
-- [ ] **Step 1: Write failing deterministic Trail tests**
+- [x] **Step 1: Write failing deterministic Trail tests**
 
 ~~~js
 {
@@ -1424,12 +1426,12 @@ git commit -m "Add mesh-safe enemy variant presentation"
 
 Use the forceHand plus playCard sequence shown above; do not export hitEnemy solely for tests.
 
-- [ ] **Step 2: Run red**
+- [x] **Step 2: Run red**
 
 Run: npm test
 Expected: FAIL because rollEncounter returns a normal encounter.
 
-- [ ] **Step 3: Implement the hidden and marked spawn contract**
+- [x] **Step 3: Implement the hidden and marked spawn contract**
 
 ~~~js
 const PALE_BY_ACT = ['paleDuskfang', 'paleDrownedOne', 'paleVoidWisp'];
@@ -1457,7 +1459,7 @@ In rollEncounter(run,type,row,node):
 - otherwise, for type monster only, consume hiddenDue and return [paleVariantForAct(run.act)].
 - hidden nodes expose no class, tooltip, or different map glyph.
 
-- [ ] **Step 4: Implement contact, drops, Lens, and map projection**
+- [x] **Step 4: Implement contact, drops, Lens, and map projection**
 
 When startCombat resolves a variant whose drop.quest is paleOnes, call revealQuest(run,'paleOnes',cb.queue). In onEnemyDeath insert this block after kill stats and before the existing all-enemies-dead winCombat early return, so the last enemy's drop cannot be skipped:
 
@@ -1476,7 +1478,7 @@ The `q` guard is required: direct or compatibility encounters can resolve a Pale
 
 In renderMap add pale-marked only when node.questMarked is true. Use iconSvg('paleMote',18) inside a small lens halo, title “Witchlight trembles”, and body “Pale glass waits here.” CSS may animate opacity only; REDUCED is static.
 
-- [ ] **Step 5: Run green and commit**
+- [x] **Step 5: Run green and commit**
 
 Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyOutDir
 Expected: PASS.
@@ -1504,7 +1506,7 @@ git commit -m "Implement the Pale Ones Trail and Witchlight Lens"
 - New normal `lastFall` records add `standing:false`; standing records add `standing:true` and `shadeAspect:0|1`. Persisted legacy Phase 1 run monuments retain their exact four-field compatibility shape.
 - pendingQuestId ownShade suppresses ordinary combat rewards and returns to the map after a won duel.
 
-- [ ] **Step 1: Write failing standing, capture, and three-tier tests**
+- [x] **Step 1: Write failing standing, capture, and three-tier tests**
 
 Also round-trip the exact Phase 2 normal and standing persisted monument shapes while retaining the Phase 1 four-field compatibility test. Reject non-boolean `standing`, a standing record without `shadeAspect`, an out-of-range `shadeAspect`, and a non-standing record that carries `shadeAspect`.
 
@@ -1579,12 +1581,12 @@ Regression coverage must fault-inject every cross-store ordering branch: initial
 }
 ~~~
 
-- [ ] **Step 2: Run red**
+- [x] **Step 2: Run red**
 
 Run: npm test
 Expected: FAIL because markShadeFall is not exported.
 
-- [ ] **Step 3: Record and preserve standing falls**
+- [x] **Step 3: Record and preserve standing falls**
 
 ~~~js
 export function markShadeFall(run, act, row) {
@@ -1609,7 +1611,7 @@ if (outcome === 'death' && fall) {
 
 Change setBequest so a matching existing standing lastFall preserves standing, shadeAspect, and any non-null existing bequest; it uses the supplied bequest only when the matching standing record has no prior gift. A non-matching normal bequest gets standing:false.
 
-- [ ] **Step 4: Split monument duel from bequest payment**
+- [x] **Step 4: Split monument duel from bequest payment**
 
 When monument.standing is true, claimMonument:
 - sets monument.claimed true;
@@ -1626,7 +1628,7 @@ In claimMonumentNode, call setPendingEncounter with kind monster, `[variantId]`,
 In victoryFlow, capture `shadeVictorySkipsRewards(run)` before `clearPendingEncounter`. If true, save and show map without `genCombatRewards`. On loss, the normal defeat flow records a new standing fall when Act 2+, so the next run re-offers the current tier.
 If `shadeLossBequestState(run)` reports that the Shade loss carried `pendingBequest`, renderEnd suppresses the ordinary new-bequest picker and shows “The unpaid gift remains in the standing stone”; this prevents the later UI call from replacing the preserved gift.
 
-- [ ] **Step 5: Run green and commit**
+- [x] **Step 5: Run green and commit**
 
 Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyOutDir
 Expected: PASS.
@@ -1663,7 +1665,7 @@ git commit -m "Cover Shade transaction failure paths"
 - shopSessionKey(run) includes stable runId + act + nodeId; shopStockForSession(session,run,generate) preserves only an exact matching shop session.
 - run.questScratch.usurper.bought is same-run only.
 
-- [ ] **Step 1: Write failing shop/boss tests**
+- [x] **Step 1: Write failing shop/boss tests**
 
 ~~~js
 {
@@ -1715,12 +1717,12 @@ coordinate in another act or run regenerates stock. Pin an ineligible Act 1
 shop becoming an eligible Act 2 shop after that regeneration. Also pin the
 Usurper intro's `{aspect}` expansion for an Ashwarden run.
 
-- [ ] **Step 2: Run red**
+- [x] **Step 2: Run red**
 
 Run: npm test
 Expected: FAIL because questItems is undefined.
 
-- [ ] **Step 3: Add persistent availability and same-run purchase**
+- [x] **Step 3: Add persistent availability and same-run purchase**
 
 In genShop initialise questItems. If Usurper is armed/revealed, incomplete, act >= minShopAct, and not bought, call revealQuest and append the fixed item. It is generated by every qualifying shop; it is not a random slot and never displaces ordinary stock.
 
@@ -1741,7 +1743,7 @@ export function buyQuestItem(run, itemId) {
 
 In rollEncounter, before the normal boss pool, return usurpedSovereign only when act===2 and bought. In onEnemyDeath's pre-winCombat drop block, its drop advances usurper by one with cb.queue.
 
-- [ ] **Step 4: Render the authored item and dialogue**
+- [x] **Step 4: Render the authored item and dialogue**
 
 Render questItems after relics. Use iconSvg('emptyLantern'), the authored name/text, and exact price. An unaffordable click displays QUESTS.usurper.poor; a successful purchase displays QUESTS.usurper.bought and marks only the current shop row sold. Later shops omit it because run scratch is bought.
 
@@ -1753,7 +1755,7 @@ Add `emptyLantern` to `art.js` now; Task 7 must render a real structural icon ra
 
 The variant intro replaces {aspect} with Duskblade or Ashwarden. Its death queue uses QUESTS.usurper.death. Do not wire the usurper music cue.
 
-- [ ] **Step 5: Run green and commit**
+- [x] **Step 5: Run green and commit**
 
 Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyOutDir
 Expected: PASS.
@@ -1802,7 +1804,7 @@ git commit -m "Harden Usurper shop session invariants"
 - Run scratch uses eighthOmen.active:boolean.
 - Adds the Node-safe test hook _setQuestRng(fn|null); production falls back to runRng(run).
 
-- [ ] **Step 1: Write failing guarantee, recurrence, and victory tests**
+- [x] **Step 1: Write failing guarantee, recurrence, and victory tests**
 
 ~~~js
 {
@@ -1862,12 +1864,12 @@ git commit -m "Harden Usurper shop session invariants"
 }
 ~~~
 
-- [ ] **Step 2: Run red**
+- [x] **Step 2: Run red**
 
 Run: npm test
 Expected: FAIL because OMENS.eighthOmen does not exist.
 
-- [ ] **Step 3: Add the omen and scheduling**
+- [x] **Step 3: Add the omen and scheduling**
 
 Add:
 
@@ -1912,7 +1914,7 @@ Call prepareEighthOmen after the run object and questScratch exist but before th
 
 startCombat chooses one affix for kind elite or when omenMods(run).allCombatsAffixed && kind !== boss. Boss remains un-affixed. Full Act 3 boss victory under active Eighth advances the quest once and pushes {t:'eighthResolved',text:QUESTS.eighthOmen.resolved} to run.endQueue.
 
-- [ ] **Step 4: Render broken glyphs and separate floor echoes**
+- [x] **Step 4: Render broken glyphs and separate floor echoes**
 
 Add iconSvg('eighthOmen') to art.js using six disconnected lead strokes and no font glyph. The omen banner uses class broken-omen and that icon. On each entered floor under Eighth, display the next QUESTS.eighthOmen.floorEchoes line by floorsClimbed modulo four. Do not modify vigil.whispers.
 
@@ -1933,7 +1935,7 @@ checkManifest('omens', Object.keys(OMENS).filter((id) => id !== 'eighthOmen'), [
 
 All pre-existing omen assets remain required and unknown files remain rejected. Task 9 reuses this helper for the Page.
 
-- [ ] **Step 5: Run green and commit**
+- [x] **Step 5: Run green and commit**
 
 Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyOutDir
 Expected: PASS.
@@ -1959,7 +1961,7 @@ git commit -m "Implement the Eighth Omen Gate"
 - Produces: removableCards(run), and removeCardFromDeck returns boolean.
 - run.questScratch.unreadablePage.rewardOrdinal/offered cap the offer at one per run.
 
-- [ ] **Step 1: Write failing offer/removal/page-reading tests**
+- [x] **Step 1: Write failing offer/removal/page-reading tests**
 
 ~~~js
 {
@@ -2012,12 +2014,12 @@ git commit -m "Implement the Eighth Omen Gate"
 }
 ~~~
 
-- [ ] **Step 2: Run red**
+- [x] **Step 2: Run red**
 
 Run: npm test
 Expected: FAIL because CARDS.unreadablePage is missing.
 
-- [ ] **Step 3: Add the special card and deterministic injection**
+- [x] **Step 3: Add the special card and deterministic injection**
 
 ~~~js
 unreadablePage: {
@@ -2032,7 +2034,7 @@ Add unreadablePage:'▤' to CARD_GLYPHS. Do not add it to CARD_POOLS and do not 
 
 In rollCardReward, increment rewardOrdinal only while the quest is armed/revealed and incomplete. On ordinal 2, replace the final ordinary choice with unreadablePage, set offered, and reveal the quest. Never inject into boss card rewards after the final boss.
 
-- [ ] **Step 4: Enforce removal and final-win reading**
+- [x] **Step 4: Enforce removal and final-win reading**
 
 ~~~js
 export const removableCards = (run) => run.player.deck.filter((c) => !cardData(c).unremovable);
@@ -2057,7 +2059,7 @@ run.endQueue.push({
 });
 ~~~
 
-- [ ] **Step 5: Preserve strict manifest fallback, run green, and commit**
+- [x] **Step 5: Preserve strict manifest fallback, run green, and commit**
 
 Reuse checkManifest's optionalIds parameter from Task 8 and replace the card call with:
 
@@ -2097,7 +2099,7 @@ git commit -m "Add the Unreadable Page Trail"
 - pendingHollowRoute is null or exactly `{nodeId,type,eventId}`. It is used only for actual unlit rest/shop/event destinations; eventId is an own EVENTS key for event and null otherwise.
 - journalTerminalOutcome(run,outcome) clears pendingHollow and pendingHollowRoute before installing pendingRunEnd, so the terminal outbox becomes the sole durable owner without weakening exactly-once finalisation.
 
-- [ ] **Step 1: Write failing appearance, five-price, and debt tests**
+- [x] **Step 1: Write failing appearance, five-price, and debt tests**
 
 ~~~js
 {
@@ -2244,12 +2246,12 @@ git commit -m "Add the Unreadable Page Trail"
 }
 ~~~
 
-- [ ] **Step 2: Run red**
+- [x] **Step 2: Run red**
 
 Run: npm test
 Expected: FAIL because applyBoon and payHollowPrice do not exist.
 
-- [ ] **Step 3: Roll and persist the encounter**
+- [x] **Step 3: Roll and persist the encounter**
 
 At newRun, for an active incomplete Hollow quest:
 
@@ -2343,7 +2345,7 @@ Extend Task 3's rejectSaved matrix inside the same temporary-localStorage block:
   });
 ~~~
 
-- [ ] **Step 4: Track and reverse the boon receipt**
+- [x] **Step 4: Track and reverse the boon receipt**
 
 Replace direct UI applyEventOps for Lamplighter boons with:
 
@@ -2413,7 +2415,7 @@ export function reverseBoon(run) {
 
 The receipt records numeric side effects as well as objects, so instant relics such as sweetRoot and hollowCrown are reversed without boon-ID branches. The all-BOONS loop proves the live table; the crafted hollowCrown case above pins maxHp:-10 and energyMax:+1 even though keenEye's ordinary rarity roll may not select it.
 
-- [ ] **Step 5: Implement all five prices and the ember diversion**
+- [x] **Step 5: Implement all five prices and the ember diversion**
 
 Implement the price transaction exactly:
 
@@ -2537,7 +2539,7 @@ git commit -m "Close Hollow terminal and pad gates"
 - Title contract: .title-rose-medallion[data-a=rose].
 - Door contract: .sealed-door[data-a=sealed-door] and .sealed-door-panel.
 
-- [ ] **Step 1: Write failing disclosure and door Playwright cases**
+- [x] **Step 1: Write failing disclosure and door Playwright cases**
 
 Create test/e2e/emberglass-fixtures.js with reusable v2 ledgers and a seeder that first navigates to the app origin, writes storage, reloads, and waits for window.spirebound.
 
@@ -2683,12 +2685,12 @@ test('six shards expose a promise, never Act 4 gameplay', async ({ page }) => {
 
 Do not rely on mutable global profile state; every helper call above returns a new complete ledger object.
 
-- [ ] **Step 2: Run red**
+- [x] **Step 2: Run red**
 
 Run: npx playwright test test/e2e/emberglass.spec.js --project=desktop --reporter=list
 Expected: FAIL because tab-rose and sealed-door do not exist.
 
-- [ ] **Step 3: Render queue-driven dawn ceremonies**
+- [x] **Step 3: Render queue-driven dawn ceremonies**
 
 In finalisePendingRunEnd preserve the receipt-backed ordering established by Task 3, but defer winning cleanup into a separate presentation outbox:
 
@@ -2778,7 +2780,7 @@ makes every one-shot disclosure observable before the terminal save is removed.
 
 No event mutates engine or Vigil state.
 
-- [ ] **Step 4: Build the Rose and title surfaces with an atomic fallback**
+- [x] **Step 4: Build the Rose and title surfaces with an atomic fallback**
 
 Add:
 
@@ -2811,7 +2813,7 @@ The whisper log renders WHISPERS.slice(0,Math.min(v.whispers,WHISPERS.length)). 
 
 On title, show a medallion only when v.shards.length>=1 and roseAssets() is non-null. Click show('vigil',{tab:'rose'}). No CSS fallback medallion.
 
-- [ ] **Step 5: Add the non-path door, fallbacks, tests, and commit**
+- [x] **Step 5: Add the non-path door, fallbacks, tests, and commit**
 
 Add the remaining art.js icons: emberglassShard, roseWindow, eighthOmen, unreadablePage, hollowLantern, and sealedDoor. (`paleMote` is already owned by Task 5; `emptyLantern` is owned by Task 7.) They are paths in the structural ICONS table, never font glyphs.
 
@@ -2906,7 +2908,7 @@ git commit -m "Add Emberglass ceremonies Rose Window and sealed door"
 - Produces: one atomic 1024×1024 set. Mural is opaque; frame and masks are RGBA.
 - Required execution sub-skill: imagegen for the mural source. Do not invoke tools/imagegen.sh or codex exec.
 
-- [ ] **Step 1: Amend the art bible before generation**
+- [x] **Step 1: Amend the art bible before generation**
 
 Add this normative section:
 
@@ -2927,7 +2929,7 @@ The complete mural is one continuous scene: the six lower symbols converge into 
 emberglass-frame is transparent black lead: two circular rims, a small central boss, and six broad equal radial panes. Masks are binary-alpha derivatives of the approved frame geometry, never independently generated. The title medallion is the same composite at small scale. If any file is absent, gameplay uses the labelled fallback.
 ~~~
 
-- [ ] **Step 2: Generate the mural source with the exact prompt**
+- [x] **Step 2: Generate the mural source with the exact prompt**
 
 Invoke the built-in image tool directly with:
 
@@ -2997,7 +2999,7 @@ clearance. The promoted PNG is accepted only when the composite has one lead
 system, no clipped critical subject, exactly seven pale Eighth marks plus one
 black breaking stroke, and a closed-door/stair silhouette at 160 px.
 
-- [ ] **Step 3: Create the deterministic frame/mask generator**
+- [x] **Step 3: Create the deterministic frame/mask generator**
 
 Create tools/gen-emberglass-frame.py with this complete implementation:
 
@@ -3063,7 +3065,7 @@ PY
 
 Expected: eight 1024×1024 files; frame/masks RGBA; mural RGB or RGBA.
 
-- [ ] **Step 4: Register and visually review the atomic set**
+- [x] **Step 4: Register and visually review the atomic set**
 
 Add all eight IDs to the meta gallery list in ui.js. In src/assets/README.md record the atomic/fallback rule and exact generator command.
 
@@ -3074,7 +3076,7 @@ Open http://localhost:5174/?gallery=1 and then the seeded Rose Window in desktop
 - text or a seventh pane appears;
 - the 160 px medallion loses the sealed-door/stair silhouette.
 
-- [ ] **Step 5: Run atomic art tests and commit**
+- [x] **Step 5: Run atomic art tests and commit**
 
 Extend the test imports with `spawnSync` from node:child_process and `fileURLToPath` from node:url, then add this block inside the existing asset-manifest scope immediately after the meta check (where assetIds is available):
 
@@ -3137,7 +3139,7 @@ git commit -m "Add the Emberglass Rose Window art set"
 - Produces deterministic medians and p10/p90 for guided and unguided models.
 - Acceptance: guided median 18-24 wins; unguided median 40-65 wins; at least 1,980 of 2,000 runs in each model complete by 100 wins.
 
-- [ ] **Step 1: Create the simulator against real transitions**
+- [x] **Step 1: Create the simulator against real transitions**
 
 The simulator must:
 1. run 2,000 seeds per model;
@@ -3384,7 +3386,7 @@ guided: median=INTEGER p10=INTEGER p90=INTEGER complete=INTEGER/2000
 unguided: median=INTEGER p10=INTEGER p90=INTEGER complete=INTEGER/2000
 ~~~
 
-- [ ] **Step 2: Add and run the script**
+- [x] **Step 2: Add and run the script**
 
 Add:
 
@@ -3395,13 +3397,13 @@ Add:
 Run: npm run test:progression
 Expected: both deterministic lines print. If both acceptance bands already pass, skip Step 3; otherwise the command exits 1 and Step 3 changes data only.
 
-- [ ] **Step 3: Tune data only**
+- [x] **Step 3: Tune data only**
 
 If the guided median is below 18, lower Hollow appearanceChance no lower than 0.2, raise pityEligibleRuns no higher than 3, or lower markedAct2Chance no lower than 0.4. If slowing one axis pushes unguided completion below 1,980, compensate with markedAct2Chance up to 0.6 before lowering appearanceChance another 0.1. If the guided median is above 24, reverse those changes up to 0.6, 2, and 0.6 respectively. If the unguided median is outside 40-65, adjust only those same three real data tunables, one at a time, rerunning both models after each change. Do not change quest target counts, arm wins, offer ordinal, or simulation policy to make the test pass.
 
 The first accepted triple for this implementation is markedAct2Chance 0.6, appearanceChance 0.2, and pityEligibleRuns 3. Record the accepted values in a short comment beside PROGRESSION.emberglass. No engine/UI refactor is allowed in this step.
 
-- [ ] **Step 4: Run regression and reproducibility gates**
+- [x] **Step 4: Run regression and reproducibility gates**
 
 Run twice:
 
@@ -3413,7 +3415,7 @@ npm test
 
 Expected: identical percentile output on both simulator runs; npm test PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ~~~bash
 git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md package.json src/data.js test/test_engine.js tools/emberglass-pacing.mjs
@@ -3425,6 +3427,12 @@ git commit -m "Tune Emberglass progression to the long-game target"
 ### Task 14: Full Playwright, manual journey, docs, and tracked dist
 
 **Files:**
+- Create: .gitattributes
+- Modify: playwright.config.js
+- Modify: src/battlefield.js
+- Modify: src/styles.css
+- Modify: src/ui.js
+- Modify: test/test_engine.js
 - Modify: test/e2e/emberglass.spec.js
 - Modify: test/e2e/geometry.spec.js
 - Modify: test/e2e/stage.spec.js
@@ -3438,7 +3446,18 @@ git commit -m "Tune Emberglass progression to the long-game target"
 - Consumes every Phase 2 surface.
 - Produces the final go/no-go evidence and only then the tracked distribution.
 
-- [ ] **Step 1: Finish behavioural and geometry coverage**
+#### Execution record
+
+- The release work started from `20fa18a` (`Harden Emberglass release surfaces`), then integrated current main/PR8 at `b3f5544` with merge commit `b63c0d5`. The merged runner keeps its disk-writing battlefield-editor case and long random-agent case single-run, then partitions the remaining behavioural matrix and visual suite.
+- `.gitattributes` exempts only generated `dist/assets/*.js` from whitespace diagnostics because Vite preserves upstream three.js GLSL template whitespace in the hashed bundle. Source, tests, documentation, CSS, and HTML remain covered by the ordinary `git diff --check` gate.
+- `playwright.config.js` retains the normal `localhost:5174` contract. Setting `SPIREBOUND_E2E_PORT=5194` selects `127.0.0.1:5194` and a strict-port Vite launch; non-integer and out-of-range ports fail before Playwright starts. Every local Task 14 browser command used that isolated port so an unrelated 5174 server was never reused.
+- Map screenshots use observed movement followed by 20 quiet animation frames and 800 ms of quiet, with a 90 s diagnostic timeout. Map and sealed-door visual cases have a 120 s test budget. This is the PR8 settle contract, not the superseded fixed wait.
+- The visual suite has four Phase 2 cases in every shape: title medallion, full Rose Window, genuine labelled Rose fallback, and sealed summit promise. The reviewed baseline delta is asymmetric by host: Darwin has 12 new Phase 2 files plus intentional Vigil (three), landscape shop, and landscape Act 1 combat refreshes; Linux has the same 12 new files plus the three Vigil and landscape shop refreshes. Linux Act 1 combat remained within its existing canonical image and passed both no-update runs.
+- Review hardening removed the enemy root's horizontal translation so variant scale retains the authored foot anchor while width/height and crown bounds remain clamped. Mobile enemy HP/Ward chrome is compacted independently of the hero; overlapping visible enemy chrome is right-packed in DOM order with a six-pixel gap, retains dead members so survivors do not jump, and re-clamps after the entrance class clears. Canonical Act 1 trio, Act 2 Ward pair, reduced-motion, repeated refit, descendant bounds, and real-kill stability tests cover the fix.
+- The raster fallback proof used a throwaway source tree with the mural, frame, and all six masks physically absent. With `forceRoseFallback()` false, the title medallion count was zero and the Vigil rendered one six-pane `.rose-fallback` surface. The forced-fallback screenshot remains a separate deterministic visual regression case.
+- Canonical Linux capture ran in Vercel Sandbox project `vercel-sandbox-default-project`, scope `fol2s-projects`, inside `mcr.microsoft.com/playwright:v1.61.1-noble` (Ubuntu 24.04.4, x86_64). Update and no-update verification each passed 48/48; a forced current landscape-shop capture was followed by a second 48/48 verification.
+
+- [x] **Step 1: Finish behavioural and geometry coverage**
 
 Append to geometry.spec.js; existing `measure`, `assertGrounded`, `collectErrors`, and `expectNoErrors` are reused:
 
@@ -3587,7 +3606,7 @@ npx playwright test test/e2e/stage.spec.js --reporter=list
 
 Expected: all PASS.
 
-- [ ] **Step 2: Add and review visual baselines**
+- [x] **Step 2: Add and review visual baselines**
 
 Import `mixedLedger`, `completeLedger`, and `seed` from emberglass-fixtures.js, then append:
 
@@ -3606,6 +3625,17 @@ test('Rose Window with mixed disclosure states', async ({ page }) => {
   await page.click('[data-a="tab-rose"]');
   await page.waitForSelector('.rose-window.ready');
   await shoot(page, 'rose-window');
+});
+
+test('Rose Window fallback with mixed disclosure states', async ({ page }) => {
+  const v = mixedLedger();
+  v.whispers = 12;
+  await seed(page, v);
+  await page.evaluate(() => { window.__probe.forceRoseFallback(true); });
+  await page.click('[data-a="vigil"]');
+  await page.click('[data-a="tab-rose"]');
+  await page.waitForSelector('.rose-window.rose-fallback');
+  await shoot(page, 'rose-window-fallback');
 });
 
 test('sealed summit promise', async ({ page }) => {
@@ -3634,14 +3664,15 @@ The `.rose-window.ready` wait is mandatory because CSS masks/backgrounds are not
 Capture on the canonical Linux snapshot runner:
 
 ~~~bash
-npx playwright test test/e2e/visual.spec.js --update-snapshots --reporter=list
+SPIREBOUND_E2E_PORT=5194 npm run test:e2e:update
+SPIREBOUND_E2E_PORT=5194 npm run test:e2e:visual
 ~~~
 
-Expected: only the three named Phase 2 baselines are new or intentionally changed. Do not accept unrelated macOS re-renders.
+Expected: all four Phase 2 cases pass in desktop, portrait, and landscape. Review the exact Darwin and canonical-Linux deltas recorded above; do not accept unrelated host re-renders.
 
-- [ ] **Step 3: Run the manual GUI smoke and record evidence**
+- [x] **Step 3: Run the manual GUI smoke and record evidence**
 
-With npm run dev on port 5174, record one demo video and the exact observed state in the evidence report:
+With the isolated dev server on port 5194, record one demo video and the exact observed state in the evidence report:
 
 1. Wiped profile has no Rose tab/medallion.
 2. Seed win 1; next run's first ordinary fight is an unmarked Pale variant.
@@ -3654,14 +3685,14 @@ With npm run dev on port 5174, record one demo video and the exact observed stat
 
 Do not claim a gate closed without the video path and exact command outputs in the report.
 
-- [ ] **Step 4: Run the complete release gate**
+- [x] **Step 4: Run the complete release gate**
 
 ~~~bash
 npm test
 npm run test:progression
 npm run build
-npm run test:e2e
-npm run test:e2e:perf
+SPIREBOUND_E2E_PORT=5194 npm run test:e2e
+SPIREBOUND_E2E_PORT=5194 npm run test:e2e:perf
 git diff --check
 ~~~
 
@@ -3673,7 +3704,7 @@ Expected:
 - build succeeds;
 - diff check prints nothing.
 
-- [ ] **Step 5: Update docs, write the evidence verdict, and commit exact paths**
+- [x] **Step 5: Update docs, write the evidence verdict, and commit exact paths**
 
 In docs/README.md replace the current spec row and insert the Phase 2 plan/report rows with exactly:
 
@@ -3707,7 +3738,12 @@ The report must contain the actual commit hashes, both percentile lines, snapsho
 Task 14 Step 4 already performed the one tracked `npm run build` after source and art were final; documentation does not change the bundle. Inspect git status and stage exact paths only:
 
 ~~~bash
-git add docs/README.md docs/superpowers/reports/2026-07-09-emberglass-phase2-evidence.md \
+git add docs/README.md \
+  .gitattributes \
+  docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md \
+  docs/superpowers/reports/2026-07-09-emberglass-phase2-evidence.md \
+  docs/superpowers/reports/artifacts/emberglass-phase2-manual-journey.webm \
+  playwright.config.js src/battlefield.js src/styles.css src/ui.js test/test_engine.js \
   test/e2e/emberglass.spec.js test/e2e/geometry.spec.js test/e2e/stage.spec.js \
   test/e2e/visual.spec.js test/e2e/visual.spec.js-snapshots dist
 git commit -m "Verify and ship Emberglass Phase 2"

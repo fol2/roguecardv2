@@ -2067,6 +2067,11 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   /* stage */
   .stage-ledge { --glow-h: 90px; }
   .hpbar-wrap { width: 118px; }
+  .enemy .hpbar-wrap { width: 80px; gap: 2px; }
+  .enemy .hp-label { min-width: 36px; font-size: 10px; }
+  .enemy .block-chip { min-width: 0; height: 22px; padding: 0 2px; gap: 1px; font-size: 11px; }
+  .enemy .block-chip .ic { margin: 0 -4px 0 0; }
+  .enemy .block-chip .ic .ui-icon, .enemy .block-chip .ic .gicon { width: 22px; height: 22px; }
   .status-row { max-width: 34cqw; }
   .enemy .name { font-size: 10.5px; letter-spacing: 0.06em; }
   .enemy.boss-e .name { font-size: 12px; }

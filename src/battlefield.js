@@ -147,10 +147,7 @@ export function bfEnemyFrame(layout, key, tier, slot, stgW, stgH, presentationSc
     ? Math.max(8, stgH - (layout?.groundY ?? 0) - bottom - 8)
     : rawSize;
   const size = Math.round(Math.max(8, Math.min(rawSize, maxW, maxH)));
-  const intendedLeft = Math.round((slot?.x ?? stgW / 2) - size / 2 + bfEnemyFootX(slot, key));
-  const left = Number.isFinite(stgW)
-    ? Math.max(8, Math.min(stgW - size - 8, intendedLeft))
-    : intendedLeft;
+  const left = Math.round((slot?.x ?? stgW / 2) - size / 2 + bfEnemyFootX(slot, key));
   return {
     size,
     left,

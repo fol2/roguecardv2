@@ -27,8 +27,10 @@ Quick map for agents and humans. Operational truth for running the game lives in
 | Doc | Status |
 |---|---|
 | [`superpowers/plans/2026-07-10-versioned-audio-packs.md`](superpowers/plans/2026-07-10-versioned-audio-packs.md) | **Current** — versioned Music/SFX selection, individual overrides, backend/runtime boundary |
-| [`superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md`](superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md) | **Current** — progressive delivery engine, entrance redesign, Emberglass chain (Phase 2 pending) |
+| [`superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md`](superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md) | **Complete** — progressive delivery and entrances shipped in Phase 1; Emberglass chain shipped in Phase 2 |
 | [`superpowers/plans/2026-07-09-entrance-progressive-delivery-phase1.md`](superpowers/plans/2026-07-09-entrance-progressive-delivery-phase1.md) | Executor plan, Phase 1 (delivery engine + entrances — **shipped**) |
+| [`superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md`](superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md) | Executor plan, Phase 2 (variants + six Emberglass quests + Rose Window — **shipped**) |
+| [`superpowers/reports/2026-07-09-emberglass-phase2-evidence.md`](superpowers/reports/2026-07-09-emberglass-phase2-evidence.md) | Phase 2 release evidence: pacing, unit/build/e2e/perf gates, art review, and manual journey |
 | [`superpowers/specs/2026-07-08-vigil-surfaces-status-art-design.md`](superpowers/specs/2026-07-08-vigil-surfaces-status-art-design.md) | **Current** — status strip rasters, Vigil/meta emblems, defeat/victory plates, gallery + manifest gates |
 | [`superpowers/plans/2026-07-08-vigil-surfaces-status-art.md`](superpowers/plans/2026-07-08-vigil-surfaces-status-art.md) | Executor plan (8 tasks); Task 8 = baselines + final sweep |
 | [`superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md`](superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md) | **Complete / predecessor** — ground line, mesh death, Playwright kit, polish workstreams |

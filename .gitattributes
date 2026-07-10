@@ -1,0 +1,2 @@
+# Vite bundles preserve upstream GLSL template whitespace in generated JavaScript.
+dist/assets/*.js -whitespace

@@ -1788,7 +1788,12 @@ function renderCombat() {
   rigCombatants();
   scheduleMeshBind();
   // drop the intro class once entrances finish so intro animations don't retrigger
-  setTimeout(() => ce.root.classList.remove('intro'), 1300);
+  const introRoot = ce.root;
+  setTimeout(() => {
+    if (S.screen !== 'combat' || S.ce !== ce || ce.root !== introRoot || !introRoot.isConnected) return;
+    introRoot.classList.remove('intro');
+    scheduleChromeClamp();
+  }, 1300);
   ce.endTurn.onclick = onEndTurn;
   ce.draw.onclick = () => { sfx.click(); showCardGrid('Draw Pile', cb.draw, { sub: 'Order hidden — shown alphabetically', inCombat: true }); };
   ce.discard.onclick = () => { sfx.click(); showCardGrid('Discard Pile', cb.discard, { inCombat: true }); };
@@ -1989,6 +1994,47 @@ function clampCombatChrome() {
   };
   for (const x of ce.enemies) clampOne(x.topChrome, x.cplate);
   clampOne(ce.pTopChrome, ce.pCplate);
+
+  // Portrait formations can put independently edge-clamped plates on top of
+  // one another. Keep their authored actors in place and pack only the enemy
+  // plates, in DOM order, against the right edge. Dead members stay in this
+  // set so killing one foe cannot make the survivors jump sideways.
+  const gap = 6;
+  const plates = ce.enemies.map((x) => x.cplate).filter(Boolean);
+  const visibleRect = (plate) => {
+    const nodes = [plate, ...plate.querySelectorAll(
+      '.name,.hpbar-wrap,.block-chip,.block-chip .ic,.block-chip .ui-icon,.block-chip .gicon,.hp-vial,.hp-label,.facet-row',
+    )];
+    const rs = nodes.map((node) => stageRect(node)).filter((r) => r.width > 0 && r.height > 0);
+    return {
+      left: Math.min(...rs.map((r) => r.left)),
+      right: Math.max(...rs.map((r) => r.right)),
+      top: Math.min(...rs.map((r) => r.top)),
+      bottom: Math.max(...rs.map((r) => r.bottom)),
+      width: Math.max(...rs.map((r) => r.right)) - Math.min(...rs.map((r) => r.left)),
+      height: Math.max(...rs.map((r) => r.bottom)) - Math.min(...rs.map((r) => r.top)),
+    };
+  };
+  const rects = plates.map(visibleRect);
+  const overlaps2D = (a, b) => a.left < b.right && b.left < a.right &&
+    a.top < b.bottom && b.top < a.bottom;
+  const overlapsVertically = (a, b) => a.top < b.bottom && b.top < a.bottom;
+  const hasCollision = rects.some((r, i) => rects.slice(i + 1).some((other) => overlaps2D(r, other)));
+  if (plates.length >= 2 && hasCollision) {
+    const packedWidth = rects.reduce((sum, r) => sum + r.width, 0) + gap * (rects.length - 1);
+    const packedLeft = maxRight - packedWidth;
+    const heroRect = ce.pCplate ? stageRect(ce.pCplate) : null;
+    const heroSharesRows = heroRect && rects.some((r) => overlapsVertically(heroRect, r));
+    const packedMinLeft = heroSharesRows ? Math.max(minLeft, heroRect.right + gap) : minLeft;
+    if (packedLeft >= packedMinLeft) {
+      let targetLeft = packedLeft;
+      plates.forEach((plate, i) => {
+        const currentDx = Number.parseFloat(plate.style.getPropertyValue('--chrome-dx')) || 0;
+        plate.style.setProperty('--chrome-dx', `${currentDx + targetLeft - rects[i].left}px`);
+        targetLeft += rects[i].width + gap;
+      });
+    }
+  }
 }
 
 let chromeClampRaf = 0;
