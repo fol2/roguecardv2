@@ -28,13 +28,47 @@ const RUN_ID_RE = /^(?:run|legacy)-[a-z0-9]+(?:-[a-z0-9]+){1,3}$/;
 let armRng = Math.random;
 export function _setRng(fn) { armRng = typeof fn === 'function' ? fn : Math.random; }
 
-const blankQuest = () => ({ state: 'dormant', progress: 0, memory: {} });
-const cloneQuest = (q) => ({
-  state: QUEST_STATES.includes(q?.state) ? q.state : 'dormant',
-  progress: Math.max(0, Math.floor(Number(q?.progress) || 0)),
-  memory: q?.memory && typeof q.memory === 'object' && !Array.isArray(q.memory) ? { ...q.memory } : {},
-});
 const plainObject = (x) => x && typeof x === 'object' && !Array.isArray(x);
+const blankQuest = () => ({ state: 'dormant', progress: 0, memory: {} });
+const cleanQuestMemory = (id, memory, state, progress) => {
+  const source = plainObject(memory) ? memory : {};
+  if (id === 'eighthOmen') {
+    if (state === 'dormant') return {};
+    if (state === 'complete') return source.seen === true ? { seen: true } : {};
+    if (source.seen === true) return { seen: true };
+    const guarantee = Math.max(1, Math.floor(PROGRESSION.emberglass.eighthOmen.guaranteeRuns));
+    const dueIn = Math.floor(Number(source.dueIn));
+    return {
+      dueIn: Number.isFinite(dueIn) && dueIn >= 1 ? Math.min(guarantee, dueIn) : guarantee,
+    };
+  }
+  if (id === 'hollowLamplighter') {
+    if (!['armed', 'revealed'].includes(state)) return {};
+    const out = {};
+    const eligibleMisses = Math.floor(Number(source.eligibleMisses));
+    if (Number.isFinite(eligibleMisses) && eligibleMisses >= 0) out.eligibleMisses = eligibleMisses;
+    if (state === 'revealed' && progress === 0) {
+      const maxDebt = Math.max(1, Math.floor(PROGRESSION.emberglass.hollowLamplighter.emberDebt));
+      const emberDebt = Math.floor(Number(source.emberDebt));
+      if (Number.isFinite(emberDebt) && emberDebt >= 1) out.emberDebt = Math.min(maxDebt, emberDebt);
+    }
+    return out;
+  }
+  return {};
+};
+const cloneQuest = (id, q) => {
+  const target = QUESTS[id].target;
+  let state = QUEST_STATES.includes(q?.state) ? q.state : 'dormant';
+  let progress = Math.min(target, Math.max(0, Math.floor(Number(q?.progress) || 0)));
+  if (state === 'dormant') progress = 0;
+  else if (state === 'complete') progress = target;
+  else progress = Math.min(progress, Math.max(0, target - 1));
+  return {
+    state,
+    progress,
+    memory: cleanQuestMemory(id, q?.memory, state, progress),
+  };
+};
 const exactKeys = (x, keys) => plainObject(x) && Object.keys(x).length === keys.length && keys.every((k) => Object.hasOwn(x, k));
 const validRunId = (id) => typeof id === 'string' && RUN_ID_RE.test(id);
 const validQuestIds = (ids) => Array.isArray(ids) && ids.every((id) => QUEST_IDS.includes(id));
@@ -70,8 +104,7 @@ function hydrateV2(v) {
   const quests = {};
   for (const id of QUEST_IDS) {
     const source = sourceQuests[id];
-    const quest = cloneQuest(source || blankQuest());
-    quest.progress = Math.min(QUESTS[id].target, quest.progress);
+    const quest = cloneQuest(id, source || blankQuest());
     quests[id] = quest;
     if (!source || JSON.stringify(source) !== JSON.stringify(quest)) changed = true;
   }
@@ -93,7 +126,7 @@ function hydrateV2(v) {
 }
 
 export function questSnapshot(vigil) {
-  return Object.fromEntries(QUEST_IDS.map((id) => [id, cloneQuest(vigil.quests[id])]));
+  return Object.fromEntries(QUEST_IDS.map((id) => [id, cloneQuest(id, vigil.quests[id])]));
 }
 
 export function whisperAt(count) {
@@ -218,7 +251,7 @@ function mergeRunQuests(v, run) {
   const completed = [];
   for (const id of QUEST_IDS) {
     if (!run.quests?.[id]) continue;
-    const from = cloneQuest(run.quests[id]);
+    const from = cloneQuest(id, run.quests[id]);
     const to = v.quests[id];
     if (STATE_RANK[from.state] > STATE_RANK[to.state]) to.state = from.state;
     to.progress = Math.max(to.progress, from.progress);

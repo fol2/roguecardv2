@@ -1190,6 +1190,25 @@ function forceHand(run, cb, ids) {
     rejectSaved('unknown quest record', (r) => { r.quests.unknown = { state: 'armed', progress: 0, memory: {} }; });
     rejectSaved('invalid quest state', (r) => { r.quests.paleOnes.state = 'waiting'; });
     rejectSaved('negative quest progress', (r) => { r.quests.paleOnes.progress = -1; });
+    rejectSaved('dormant quest with progress', (r) => { r.quests.ownShade.progress = 1; });
+    rejectSaved('complete quest below target', (r) => {
+      r.quests.ownShade = { state: 'complete', progress: QUESTS.ownShade.target - 1, memory: {} };
+    });
+    rejectSaved('active quest at completion target', (r) => {
+      r.quests.ownShade = { state: 'revealed', progress: QUESTS.ownShade.target, memory: {} };
+    });
+    rejectSaved('dormant Eighth with guarantee memory', (r) => {
+      r.quests.eighthOmen.memory = { dueIn: 1 };
+    });
+    rejectSaved('seen Eighth with a second guarantee', (r) => {
+      r.quests.eighthOmen = { state: 'revealed', progress: 0, memory: { seen: true, dueIn: 1 } };
+    });
+    rejectSaved('dormant Hollow with ember debt', (r) => {
+      r.quests.hollowLamplighter.memory = { emberDebt: 1 };
+    });
+    rejectSaved('advanced Hollow with ember debt', (r) => {
+      r.quests.hollowLamplighter = { state: 'revealed', progress: 1, memory: { emberDebt: 1 } };
+    });
     rejectSaved('unknown shard', (r) => { r.shards = ['unknown']; });
     rejectSaved('unknown scratch key', (r) => { r.questScratch.unknown = {}; });
     rejectSaved('malformed scratch', (r) => { r.questScratch.paleOnes = { hiddenDue: 'yes' }; });
@@ -2109,6 +2128,9 @@ function forceHand(run, cb, ids) {
   const oldGuaranteeRuns = PROGRESSION.emberglass.eighthOmen.guaranteeRuns;
   const oldEmberDebt = PROGRESSION.emberglass.hollowLamplighter.emberDebt;
   const oldPageTarget = QUESTS.unreadablePage.target;
+  const oldHiddenPerRun = PROGRESSION.emberglass.paleOnes.hiddenPerRun;
+  const oldMarkedAct1 = PROGRESSION.emberglass.paleOnes.markedAct1;
+  const oldMaxMeetings = PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun;
   const previousLocalStorage = globalThis.localStorage;
   const mem = new Map();
   try {
@@ -2127,6 +2149,54 @@ function forceHand(run, cb, ids) {
     assert.deepEqual(forced.questScratch.eighthOmen, { active: true },
       'the final configured guarantee run remains forced');
 
+    const questSet = (activeId, memory = {}) => Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === activeId ? 'revealed' : 'dormant', progress: 0,
+      memory: id === activeId ? { ...memory } : {},
+    }]));
+    PROGRESSION.emberglass.paleOnes.hiddenPerRun = 2;
+    const hidden = newRun(468, { quests: questSet('paleOnes'), reveals: [] });
+    assert.equal(hidden.questScratch.paleOnes.hiddenRemaining, 2);
+    assert.equal(rollEncounter(hidden, 'monster', 1)[0], 'paleDuskfang');
+    assert.equal(rollEncounter(hidden, 'monster', 2)[0], 'paleDuskfang');
+    assert.ok(!rollEncounter(hidden, 'monster', 3)[0].startsWith('pale'),
+      'hiddenPerRun controls the exact unmarked encounter count');
+
+    PROGRESSION.emberglass.paleOnes.markedAct1 = 2;
+    const marked = newRun(469, {
+      quests: questSet('paleOnes'), unlocks: ['insight:witchlightLens'], reveals: [],
+    });
+    const actOneCandidates = marked.map.nodes.filter((node) => node.row === 0 && node.type === 'monster');
+    assert.equal(actOneCandidates.filter((node) => node.questMarked).length,
+      Math.min(2, actOneCandidates.length), 'markedAct1 controls distinct marked nodes');
+
+    PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun = 2;
+    const hollow = newRun(470, {
+      quests: questSet('hollowLamplighter', {
+        eligibleMisses: PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1,
+      }),
+      reveals: [],
+    });
+    const meetingNodes = hollow.map.nodes.slice(0, 3);
+    meetingNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
+    assert.equal(visitNode(hollow, meetingNodes[0]).hollow, true);
+    hollow.pendingHollow = null;
+    assert.equal(visitNode(hollow, meetingNodes[1]).hollow, true);
+    hollow.pendingHollow = null;
+    assert.equal(visitNode(hollow, meetingNodes[2]).hollow, undefined,
+      'maxMeetingsPerRun caps later eligible nodes');
+    assert.equal(hollow.questScratch.hollowLamplighter.meetings, 2);
+
+    const shadeTierIds = Object.keys(VARIANTS)
+      .filter((id) => /^ownShade[1-9]\d*$/.test(id))
+      .sort((a, b) => Number(a.slice('ownShade'.length)) - Number(b.slice('ownShade'.length)));
+    assert.equal(PROGRESSION.emberglass.ownShade.tiers.length, QUESTS.ownShade.target,
+      'each fixed Shade stage has one authored stat tier');
+    assert.deepEqual(shadeTierIds,
+      PROGRESSION.emberglass.ownShade.tiers.map((_, index) => `ownShade${index + 1}`),
+      'each fixed Shade stage has one contiguous combat variant');
+    assert.equal(QUESTS.hollowLamplighter.meetings.length, QUESTS.hollowLamplighter.target,
+      'each configured Hollow completion step has one authored price conversation');
+
     PROGRESSION.emberglass.hollowLamplighter.emberDebt = 4;
     QUESTS.unreadablePage.target = 6;
     globalThis.localStorage = {
@@ -2134,7 +2204,37 @@ function forceHand(run, cb, ids) {
       setItem: (key, value) => mem.set(key, value),
       removeItem: (key) => mem.delete(key),
     };
-    const dynamicSave = newRun(468);
+
+    const historicalQuests = questSet('paleOnes');
+    historicalQuests.hollowLamplighter = {
+      state: 'revealed', progress: 1, memory: { eligibleMisses: 0 },
+    };
+    const historical = newRun(471, { quests: historicalQuests, reveals: [] });
+    historical.questScratch.hollowLamplighter = {
+      due: true, met: true, meetings: 2, debtActive: false,
+    };
+    assert.equal(saveRun(historical), true);
+    const durableHistorical = JSON.parse(mem.get('spirebound_save_v2'));
+    PROGRESSION.emberglass.paleOnes.hiddenPerRun = 1;
+    PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun = 1;
+    const historicalReload = loadRun();
+    assert.ok(historicalReload, 'lower tuning does not invalidate historical scheduler counters');
+    assert.equal(historicalReload.questScratch.paleOnes.hiddenRemaining, 2);
+    assert.equal(historicalReload.questScratch.hollowLamplighter.meetings, 2);
+    assert.equal(rollEncounter(historicalReload, 'monster', 1)[0], 'paleDuskfang');
+    assert.ok(!rollEncounter(historicalReload, 'monster', 2)[0].startsWith('pale'),
+      'the current lower hidden-fight cap governs future encounters');
+
+    const inconsistentPale = structuredClone(durableHistorical);
+    inconsistentPale.questScratch.paleOnes.hiddenDue = false;
+    mem.set('spirebound_save_v2', JSON.stringify(inconsistentPale));
+    assert.equal(loadRun(), null, 'redundant Pale scheduler fields must agree');
+    const inconsistentHollow = structuredClone(durableHistorical);
+    inconsistentHollow.questScratch.hollowLamplighter.met = false;
+    mem.set('spirebound_save_v2', JSON.stringify(inconsistentHollow));
+    assert.equal(loadRun(), null, 'redundant Hollow scheduler fields must agree');
+
+    const dynamicSave = newRun(472);
     dynamicSave.quests.eighthOmen = { state: 'armed', progress: 0, memory: { dueIn: 4 } };
     dynamicSave.quests.hollowLamplighter = { state: 'revealed', progress: 0, memory: { emberDebt: 4 } };
     dynamicSave.endQueue = [{ t: 'pageRead', index: 6, text: 'A sixth configured page.' }];
@@ -2145,6 +2245,9 @@ function forceHand(run, cb, ids) {
     PROGRESSION.emberglass.eighthOmen.guaranteeRuns = oldGuaranteeRuns;
     PROGRESSION.emberglass.hollowLamplighter.emberDebt = oldEmberDebt;
     QUESTS.unreadablePage.target = oldPageTarget;
+    PROGRESSION.emberglass.paleOnes.hiddenPerRun = oldHiddenPerRun;
+    PROGRESSION.emberglass.paleOnes.markedAct1 = oldMarkedAct1;
+    PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun = oldMaxMeetings;
     if (previousLocalStorage) globalThis.localStorage = previousLocalStorage;
     else delete globalThis.localStorage;
   }
@@ -2440,6 +2543,11 @@ function forceHand(run, cb, ids) {
     quests: {
       paleOnes: { state: 'waiting', progress: '3.8', memory: [] },
       ownShade: { state: 'revealed', progress: 999, memory: {}, extra: true },
+      eighthOmen: { state: 'armed', progress: 0, memory: { dueIn: 999, seen: 'yes', extra: true } },
+      hollowLamplighter: {
+        state: 'revealed', progress: 0,
+        memory: { eligibleMisses: '2.8', emberDebt: 999, extra: true },
+      },
       unknown: { state: 'complete', progress: 1, memory: {} },
     },
     shards: ['paleOnes', 'unknown', 'paleOnes'],
@@ -2456,9 +2564,17 @@ function forceHand(run, cb, ids) {
   });
   const repaired = loadVigil();
   assert.equal(repaired.quests.paleOnes.state, 'dormant', 'invalid quest state is repaired');
-  assert.equal(repaired.quests.paleOnes.progress, 3, 'string/fraction progress is canonicalised');
+  assert.equal(repaired.quests.paleOnes.progress, 0, 'a dormant repair cannot retain hidden progress');
   assert.deepEqual(repaired.quests.paleOnes.memory, {}, 'invalid quest memory is repaired');
-  assert.equal(repaired.quests.ownShade.progress, QUESTS.ownShade.target, 'progress is capped by data');
+  assert.equal(repaired.quests.ownShade.progress, QUESTS.ownShade.target - 1,
+    'an incomplete state cannot acquire completion through malformed progress');
+  assert.deepEqual(repaired.quests.eighthOmen.memory, {
+    dueIn: PROGRESSION.emberglass.eighthOmen.guaranteeRuns,
+  }, 'Eighth memory is canonicalised to the configured guarantee');
+  assert.deepEqual(repaired.quests.hollowLamplighter.memory, {
+    eligibleMisses: 2,
+    emberDebt: PROGRESSION.emberglass.hollowLamplighter.emberDebt,
+  }, 'Hollow memory is canonicalised to configured bounds');
   assert.deepEqual(Object.keys(repaired.quests), QUEST_IDS, 'missing and unknown quest records are repaired');
   assert.deepEqual(repaired.shards, ['paleOnes'], 'unknown and duplicate shards are removed');
   assert.equal(repaired.whispers, 4, 'whisper count is canonicalised');
@@ -2467,6 +2583,41 @@ function forceHand(run, cb, ids) {
   assert.deepEqual(loadVigil(), repaired, 'the canonical ledger reloads identically');
   assert.equal(mem.get('spirebound_vigil_v2'), durable, 'the second load leaves canonical bytes untouched');
   assert.equal(writes, 1, 'the second load does not repeat a missed repair write');
+
+  const stateInvalid = structuredClone(repaired);
+  stateInvalid.quests.eighthOmen = {
+    state: 'complete', progress: 0, memory: { dueIn: 1, seen: true },
+  };
+  stateInvalid.quests.hollowLamplighter = {
+    state: 'dormant', progress: 4, memory: { eligibleMisses: 2, emberDebt: 3 },
+  };
+  mem.set('spirebound_vigil_v2', JSON.stringify(stateInvalid));
+  const stateRepaired = loadVigil();
+  assert.deepEqual(stateRepaired.quests.eighthOmen, {
+    state: 'complete', progress: QUESTS.eighthOmen.target, memory: { seen: true },
+  }, 'complete Eighth memory cannot retain a future guarantee');
+  assert.deepEqual(stateRepaired.quests.hollowLamplighter, {
+    state: 'dormant', progress: 0, memory: {},
+  }, 'dormant Hollow memory cannot retain misses or an ember debt');
+
+  const previousLocalStorage = globalThis.localStorage;
+  const runStore = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => runStore.get(key) ?? null,
+    setItem: (key, value) => runStore.set(key, value),
+    removeItem: (key) => runStore.delete(key),
+  };
+  const hydratedRun = newRun(400, { quests: questSnapshot(stateRepaired), shards: stateRepaired.shards });
+  assert.equal(saveRun(hydratedRun), true);
+  assert.ok(loadRun(), 'a hydrated Vigil snapshot passes the stricter run-save loader');
+  const noDebtCombat = startCombat(hydratedRun, ['sporeling']);
+  const embersBefore = noDebtCombat.embers;
+  gainEmbers(hydratedRun, noDebtCombat, 3);
+  assert.equal(noDebtCombat.embers, Math.min(noDebtCombat.emberCap, embersBefore + 3),
+    'a dormant Hollow cannot confiscate ordinary combat embers');
+  assert.ok(!noDebtCombat.queue.some((event) => event.t === 'hollowTithe'));
+  if (previousLocalStorage) globalThis.localStorage = previousLocalStorage;
+  else delete globalThis.localStorage;
   _setStore(null);
 }
 {
@@ -3249,7 +3400,7 @@ function forceHand(run, cb, ids) {
 
   const carry = newRun(521, { quests: questSnapshot(debtOut.vigil) });
   assert.deepEqual(carry.questScratch.hollowLamplighter,
-    { due: false, met: false, debtActive: true });
+    { due: false, met: false, meetings: 0, debtActive: true });
   const carryCombat = startCombat(carry, ['sporeling']);
   gainEmbers(carry, carryCombat, 1);
   assert.equal(carry.quests.hollowLamplighter.progress, 1);

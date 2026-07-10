@@ -68,8 +68,8 @@ export function pendingTerminalLedger() {
   return v;
 }
 
-export async function seed(page, vigil) {
-  await page.goto('/');
+export async function seed(page, vigil, url = '/') {
+  await page.goto(url);
   await page.waitForFunction(() => window.spirebound && window.__probe);
   await page.evaluate((value) => {
     localStorage.removeItem('spirebound_save_v2');

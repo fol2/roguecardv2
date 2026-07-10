@@ -400,11 +400,12 @@ test('Rose pane details disclose safely through click and keyboard', async ({ pa
   const controls = page.locator('.rose-pane-select');
   const detail = page.locator('#rose-pane-detail');
   await expect(controls).toHaveCount(6);
+  await expect(page.locator('.rose-pane-copy:not([aria-hidden="true"])')).toHaveCount(0);
   await expect(detail).toHaveAttribute('role', 'region');
   await expect(detail).toHaveAttribute('aria-live', 'polite');
 
   const armed = page.getByRole('button', { name: 'Unknown Emberglass pane 1' });
-  const revealed = page.getByRole('button', { name: 'Your Own Shade' });
+  const revealed = page.getByRole('button', { name: 'Your Own Shade, 1 of 3', exact: true });
   await expect(revealed).toHaveAttribute('aria-pressed', 'true');
   await expect(detail.locator('.rose-detail-inscription'))
     .toHaveText('Defeat the self that remembers falling. Three shades must fall.');
@@ -420,7 +421,7 @@ test('Rose pane details disclose safely through click and keyboard', async ({ pa
     .toHaveText('Defeat the self that remembers falling. Three shades must fall.');
   await expect(detail.locator('.rose-detail-progress')).toHaveText('1/3');
 
-  const complete = page.getByRole('button', { name: 'The Usurper' });
+  const complete = page.getByRole('button', { name: 'The Usurper, Shard recovered', exact: true });
   await complete.click();
   await expect(detail).toHaveText(/The Usurper\s*Shard recovered/);
   await expect(detail.locator('.rose-detail-inscription')).toHaveCount(0);
@@ -436,56 +437,81 @@ test('Rose pane details disclose safely through click and keyboard', async ({ pa
 });
 
 test('Rose pane detail stays legible and bounded in every canonical shape', async ({ page }) => {
-  await seed(page, mixedLedger());
-  await page.click('[data-a="vigil"]');
-  await page.waitForTimeout(600);
-  await page.click('[data-a="tab-rose"]');
-  await expect(page.locator('.rose-window.rose-assets')).toHaveClass(/ready/);
+  test.skip(test.info().project.name !== 'desktop', 'one project forces all five stage shapes');
+  const shapes = [
+    'phone-portrait', 'pad-portrait', 'phone-landscape', 'pad-landscape', 'desktop-landscape',
+  ];
+  for (const shape of shapes) {
+    for (const fallback of [false, true]) {
+      const context = `${shape} ${fallback ? 'fallback' : 'assets'}`;
+      await seed(page, mixedLedger(), `/?shape=${shape}`);
+      await page.evaluate((on) => window.__probe.forceRoseFallback(on), fallback);
+      await page.click('[data-a="vigil"]');
+      await page.click('[data-a="tab-rose"]');
+      if (fallback) await expect(page.locator('.rose-window.rose-fallback')).toHaveCount(1);
+      else await expect(page.locator('.rose-window.rose-assets')).toHaveClass(/ready/);
+      expect((await page.evaluate(() => window.__probe.stage())).shape, context).toBe(shape);
 
-  const stateFontMins = [];
-  for (const name of [
-    'Unknown Emberglass pane 1', 'Your Own Shade', 'The Usurper', 'Dormant Emberglass pane 4',
-  ]) {
-    await page.getByRole('button', { name }).click();
-    stateFontMins.push(await page.locator('#rose-pane-detail').evaluate((detail) => {
-      const visibleText = [detail, ...detail.querySelectorAll('*')].filter((node) => {
-        const style = getComputedStyle(node);
-        return node.textContent.trim() && style.display !== 'none' && style.visibility !== 'hidden';
+      const stateFontMins = [];
+      for (const name of [
+        'Unknown Emberglass pane 1',
+        'Your Own Shade, 1 of 3',
+        'The Usurper, Shard recovered',
+        'Dormant Emberglass pane 4',
+      ]) {
+        await page.getByRole('button', { name, exact: true }).click();
+        stateFontMins.push(await page.locator('#rose-pane-detail').evaluate((detail) => {
+          const visibleText = [detail, ...detail.querySelectorAll('*')].filter((node) => {
+            const style = getComputedStyle(node);
+            return node.textContent.trim() && style.display !== 'none' && style.visibility !== 'hidden';
+          });
+          return Math.min(...visibleText.map((node) => Number.parseFloat(getComputedStyle(node).fontSize)));
+        }));
+      }
+      await page.getByRole('button', { name: 'Your Own Shade, 1 of 3', exact: true }).click();
+
+      const geometry = await page.evaluate(() => {
+        const scale = window.__probe.stage().scale;
+        const stage = document.getElementById('stage').getBoundingClientRect();
+        const panel = document.querySelector('.vigil-panel');
+        const detail = document.getElementById('rose-pane-detail');
+        const box = detail.getBoundingClientRect();
+        const panelBox = panel.getBoundingClientRect();
+        const controls = [...document.querySelectorAll('.rose-pane-select')].map((control) => {
+          const rect = control.getBoundingClientRect();
+          return {
+            left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom,
+            width: rect.width / scale, height: rect.height / scale,
+          };
+        });
+        const inside = (inner, outer) => inner.left >= outer.left - 1 && inner.right <= outer.right + 1 &&
+          inner.top >= outer.top - 1 && inner.bottom <= outer.bottom + 1;
+        return {
+          detailVisible: box.width > 0 && box.height > 0,
+          detailInsideStage: inside(box, stage),
+          detailInsidePanel: inside(box, panelBox),
+          detailOverflow: [detail.scrollWidth - detail.clientWidth, detail.scrollHeight - detail.clientHeight],
+          panelOverflow: [panel.scrollWidth - panel.clientWidth, panel.scrollHeight - panel.clientHeight],
+          controls,
+        };
       });
-      return Math.min(...visibleText.map((node) => Number.parseFloat(getComputedStyle(node).fontSize)));
-    }));
+
+      expect(geometry.detailVisible, context).toBe(true);
+      expect(geometry.detailInsideStage, context).toBe(true);
+      expect(geometry.detailInsidePanel, context).toBe(true);
+      expect(geometry.detailOverflow.every((amount) => amount <= 1), context).toBe(true);
+      expect(geometry.panelOverflow.every((amount) => amount <= 1), context).toBe(true);
+      expect(stateFontMins.every((fontPx) => fontPx >= 12), context).toBe(true);
+      expect(geometry.controls.every(({ width, height }) => width >= 44 && height >= 44), context).toBe(true);
+      for (let i = 0; i < geometry.controls.length; i++) {
+        for (let j = i + 1; j < geometry.controls.length; j++) {
+          const a = geometry.controls[i], b = geometry.controls[j];
+          const overlaps = a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+          expect(overlaps, `${context}: Rose touch targets ${i} and ${j} overlap`).toBe(false);
+        }
+      }
+    }
   }
-  await page.getByRole('button', { name: 'Your Own Shade' }).click();
-
-  const geometry = await page.evaluate(() => {
-    const stage = document.getElementById('stage').getBoundingClientRect();
-    const panel = document.querySelector('.vigil-panel');
-    const detail = document.getElementById('rose-pane-detail');
-    const box = detail.getBoundingClientRect();
-    const panelBox = panel.getBoundingClientRect();
-    const controls = [...document.querySelectorAll('.rose-pane-select')].map((control) => {
-      const rect = control.getBoundingClientRect();
-      return { width: rect.width, height: rect.height };
-    });
-    const inside = (inner, outer) => inner.left >= outer.left - 1 && inner.right <= outer.right + 1 &&
-      inner.top >= outer.top - 1 && inner.bottom <= outer.bottom + 1;
-    return {
-      detailVisible: box.width > 0 && box.height > 0,
-      detailInsideStage: inside(box, stage),
-      detailInsidePanel: inside(box, panelBox),
-      detailOverflow: [detail.scrollWidth - detail.clientWidth, detail.scrollHeight - detail.clientHeight],
-      panelOverflow: [panel.scrollWidth - panel.clientWidth, panel.scrollHeight - panel.clientHeight],
-      controls,
-    };
-  });
-
-  expect(geometry.detailVisible).toBe(true);
-  expect(geometry.detailInsideStage).toBe(true);
-  expect(geometry.detailInsidePanel).toBe(true);
-  expect(geometry.detailOverflow.every((amount) => amount <= 1)).toBe(true);
-  expect(geometry.panelOverflow.every((amount) => amount <= 1)).toBe(true);
-  expect(stateFontMins.every((fontPx) => fontPx >= 12)).toBe(true);
-  expect(geometry.controls.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
 });
 
 test('sealed door ignores a phone-landscape drag and opens on a later tap', async ({ page }) => {

@@ -502,40 +502,100 @@ function confirmAbandon() {
 }
 
 // ------------------------------------------------------------ overlay helpers
+let runSaveTransaction = null;
 function openOverlay(html, wire = null, closable = false) {
+  if (runSaveTransaction) return false;
   const ov = $('#overlay');
   ov.innerHTML = html;
   ov.classList.add('open');
   ov._closable = closable;
   if (wire) wire(ov.firstElementChild);
+  return true;
 }
 function closeOverlay() {
+  if (runSaveTransaction) return false;
   const ov = $('#overlay');
-  ov.classList.remove('open');
+  ov.classList.remove('open', 'run-save-lock');
   ov.innerHTML = '';
+  return true;
 }
 function showRunSaveFailure(run, onSaved) {
-  openOverlay(`<div class="panel ov-panel" style="text-align:center">
-    <div class="ov-title">Save Failed</div>
-    <div class="ov-sub">The climb could not be secured. Free storage and retry, or reload the last durable climb state.</div>
+  if (runSaveTransaction) return;
+  closeMenus();
+  const background = $('#shake');
+  const blockBackground = (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+  const transaction = {
+    run, onSaved, background, wasInert: !!background?.inert, blockBackground, settled: false,
+  };
+  const opened = openOverlay(`<div class="panel ov-panel" role="alertdialog" aria-modal="true" aria-labelledby="run-save-failure-title" aria-describedby="run-save-failure-description" style="text-align:center">
+    <div class="ov-title" id="run-save-failure-title">Save Failed</div>
+    <div class="ov-sub" id="run-save-failure-description" role="status" aria-live="assertive" aria-atomic="true">The climb could not be secured. Free storage and retry, or reload the last durable climb state.</div>
     <div class="ov-actions"><button class="btn btn-primary" data-a="retry-save">Retry Save</button><button class="btn ghost" data-a="reload-save">Reload Saved Climb</button></div>
   </div>`, (root) => {
+    root.onkeydown = (event) => {
+      // Keep global combat shortcuts from reaching the document while this
+      // transaction owns input. Background controls are inert, but the
+      // dialog itself still bubbles key events unless it stops them here.
+      event.stopPropagation();
+      if (event.key !== 'Tab') return;
+      const buttons = $$('button:not(:disabled)', root);
+      if (!buttons.length) return;
+      const first = buttons[0], last = buttons.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
     root.onclick = (e) => {
+      if (runSaveTransaction !== transaction || transaction.settled) return;
       const a = e.target.closest('[data-a]')?.dataset.a;
       if (a === 'reload-save') { location.reload(); return; }
       if (a !== 'retry-save') return;
       sfx.click();
+      const retry = $('[data-a="retry-save"]', root);
+      const reload = $('[data-a="reload-save"]', root);
+      retry.disabled = true;
+      reload.disabled = true;
       if (!E.saveRun(run)) {
         $('.ov-sub', root).textContent = 'The save is still unavailable. Free storage, then retry or reload the last durable climb state.';
+        retry.disabled = false;
+        reload.disabled = false;
+        retry.focus();
         return;
       }
+      transaction.settled = true;
       root.onclick = null;
+      root.onkeydown = null;
+      if (background) {
+        background.inert = transaction.wasInert;
+        for (const type of ['click', 'pointerdown', 'pointerup', 'keydown']) {
+          background.removeEventListener(type, blockBackground, true);
+        }
+      }
+      runSaveTransaction = null;
       closeOverlay();
       onSaved();
     };
   });
+  if (!opened) return;
+  $('#overlay').classList.add('run-save-lock');
+  runSaveTransaction = transaction;
+  if (background) {
+    background.inert = true;
+    for (const type of ['click', 'pointerdown', 'pointerup', 'keydown']) {
+      background.addEventListener(type, blockBackground, true);
+    }
+  }
+  requestAnimationFrame(() => $('[data-a="retry-save"]', $('#overlay'))?.focus());
 }
 function requireRunSave(run, onSaved) {
+  if (runSaveTransaction) return false;
   if (E.saveRun(run)) return true;
   showRunSaveFailure(run, onSaved);
   return false;
@@ -661,8 +721,9 @@ function showCardGrid(title, instances, { sub = '', pick = null, canSkip = false
     actions.appendChild(close);
   }
   panel.appendChild(actions);
-  openOverlay('', null, !pick);
+  if (!openOverlay('', null, !pick)) return false;
   $('#overlay').appendChild(panel);
+  return true;
 }
 function showHelp() {
   openOverlay(`<div class="panel ov-panel howto">
@@ -780,12 +841,15 @@ function rosePaneCopy(id, record) {
   return '';
 }
 
-function rosePaneControl(id, state, index, selected, assets) {
+function rosePaneControl(id, record, index, selected, assets) {
+  const state = record.state;
   const name = state === 'dormant'
     ? `Dormant Emberglass pane ${index + 1}`
     : state === 'armed'
       ? `Unknown Emberglass pane ${index + 1}`
-      : QUESTS[id].name;
+      : state === 'revealed'
+        ? `${QUESTS[id].name}, ${record.progress} of ${QUESTS[id].target}`
+        : `${QUESTS[id].name}, Shard recovered`;
   const [x, y] = ROSE_LABEL_POSITIONS[index];
   const style = assets ? ` style="--rose-x:${x}%;--rose-y:${y}%"` : '';
   return `<button type="button" class="rose-pane-select${assets ? '' : ' slot-control'}" data-a="rose-pane" data-index="${index}"
@@ -829,15 +893,15 @@ function rosePaneHtml(v, assets, id, index, selected) {
     const mark = state === 'complete' ? 'emberglassShard' : 'roseWindow';
     return `<div class="rose-pane rose-slot ${stateClasses}" data-index="${index}"${identity}>
       <span class="rose-slot-mark">${iconSvg(mark, 34)}</span>
-      <div class="rose-pane-copy">${copy}</div>
-      ${rosePaneControl(id, state, index, selected, assets)}
+      <div class="rose-pane-copy" aria-hidden="true">${copy}</div>
+      ${rosePaneControl(id, record, index, selected, assets)}
     </div>`;
   }
   const [x, y] = ROSE_LABEL_POSITIONS[index];
   return `<div class="rose-pane ${stateClasses}" data-index="${index}"${identity} style="--rose-x:${x}%;--rose-y:${y}%">
     <div class="rose-pane-art" style="--rose-mural:url('${escHtml(assets.mural)}');--rose-mask:url('${escHtml(assets.masks[id])}')"></div>
-    <div class="rose-pane-copy">${copy}</div>
-    ${rosePaneControl(id, state, index, selected, assets)}
+    <div class="rose-pane-copy" aria-hidden="true">${copy}</div>
+    ${rosePaneControl(id, record, index, selected, assets)}
   </div>`;
 }
 
@@ -1127,6 +1191,7 @@ function resumePendingHollowRoute(run) {
   return true;
 }
 function startRun(run, resumed = false) {
+  if (!resumed && runSaveTransaction) return;
   S.run = run;
   S.cb = null;
   setTheme(run.act);
@@ -1301,7 +1366,7 @@ function renderHollow() {
       </svg>
     </div>
     <div class="hollow-copy screen-enter">
-      <div class="hollow-kicker">THE UNLIT WAY · PRICE ${meetingIndex + 1} OF ${QUESTS.hollowLamplighter.meetings.length}</div>
+      <div class="hollow-kicker">THE UNLIT WAY · PRICE ${meetingIndex + 1} OF ${QUESTS.hollowLamplighter.target}</div>
       <div class="hollow-title">THE HOLLOW LAMPLIGHTER</div>
       <div class="hollow-ask">“${escHtml(meeting.ask)}”</div>
       <div class="hollow-answer${pending.paid ? ' paid' : ''}" aria-live="polite">${pending.paid ? escHtml(pending.answer) : ''}</div>

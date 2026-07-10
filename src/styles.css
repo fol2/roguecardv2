@@ -126,6 +126,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 #overlay { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center;
   background: rgba(5, 7, 16, 0.72); backdrop-filter: blur(6px); }
 #overlay.open { display: flex; animation: fadein 0.22s ease-out; }
+#overlay.run-save-lock { z-index: 80; }
 #tooltip { position: fixed; z-index: 70; pointer-events: none; max-width: 300px; display: none;
   background: var(--panel); border: 1px solid var(--panel-line); border-radius: 8px; padding: 10px 12px;
   font-size: 14px; line-height: 1.45; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
@@ -2397,7 +2398,7 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
   position: absolute;
   left: clamp(23px, var(--rose-x), calc(100% - 23px));
   top: clamp(23px, var(--rose-y), calc(100% - 23px)); z-index: 4;
-  width: 30%; height: 24%; min-width: 46px; min-height: 46px;
+  width: 24%; height: 14%; min-width: 46px; min-height: 46px;
   transform: translate(-50%, -50%); border: 1px solid transparent; border-radius: 9px;
   background: transparent; color: inherit; cursor: pointer; pointer-events: auto;
 }

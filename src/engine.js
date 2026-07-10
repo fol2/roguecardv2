@@ -98,6 +98,7 @@ export function advanceQuest(run, id, n = 1, queue = run.endQueue) {
   queue?.push({ t: 'questProgress', id, progress: q.progress, target: QUESTS[id].target });
   if (q.progress >= QUESTS[id].target) {
     q.state = 'complete';
+    if (id === 'hollowLamplighter') q.memory = {};
     if (!run.questCompletions.includes(id)) run.questCompletions.push(id);
     queue?.push({ t: 'questComplete', id });
   }
@@ -226,8 +227,12 @@ function preparePaleRun(run) {
   const q = questRecord(run, 'paleOnes');
   if (!q || !['armed', 'revealed'].includes(q.state)) return;
   const lens = run.unlocks.includes('insight:witchlightLens');
+  const hiddenRemaining = !lens && q.progress < PROGRESSION.emberglass.paleOnes.lensAt
+    ? Math.max(0, Math.floor(PROGRESSION.emberglass.paleOnes.hiddenPerRun))
+    : 0;
   run.questScratch.paleOnes = {
-    hiddenDue: !lens && q.progress < PROGRESSION.emberglass.paleOnes.lensAt,
+    hiddenDue: hiddenRemaining > 0,
+    hiddenRemaining,
     markedAct2: lens && runRng(run)() < PROGRESSION.emberglass.paleOnes.markedAct2Chance,
   };
 }
@@ -236,13 +241,13 @@ function prepareHollowLamplighter(run) {
   const hq = questRecord(run, 'hollowLamplighter');
   if (!hq || !['armed', 'revealed'].includes(hq.state)) return;
   if (hq.memory.emberDebt > 0) {
-    run.questScratch.hollowLamplighter = { due: false, met: false, debtActive: true };
+    run.questScratch.hollowLamplighter = { due: false, met: false, meetings: 0, debtActive: true };
     return;
   }
   const misses = hq.memory.eligibleMisses || 0;
   const due = misses >= PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1 ||
     runRng(run)() < PROGRESSION.emberglass.hollowLamplighter.appearanceChance;
-  run.questScratch.hollowLamplighter = { due, met: false, debtActive: false };
+  run.questScratch.hollowLamplighter = { due, met: false, meetings: 0, debtActive: false };
 }
 
 // ---------------------------------------------------------------- map generation
@@ -316,12 +321,15 @@ export function genMap(run) {
     }
   }
   const pale = run.questScratch?.paleOnes;
-  const markPale = run.unlocks.includes('insight:witchlightLens') && pale &&
-    (run.act === 0 || (run.act === 1 && pale.markedAct2));
-  if (markPale) {
+  const markCount = run.unlocks.includes('insight:witchlightLens') && pale
+    ? run.act === 0
+      ? Math.max(0, Math.floor(PROGRESSION.emberglass.paleOnes.markedAct1))
+      : run.act === 1 && pale.markedAct2 ? 1 : 0
+    : 0;
+  if (markCount > 0) {
     const candidates = nodes.filter((n) => n.row === 0 && n.type === 'monster');
-    if (candidates.length) {
-      const marked = pick(rng, candidates);
+    for (let i = 0; i < markCount && candidates.length; i++) {
+      const [marked] = candidates.splice(Math.floor(rng() * candidates.length), 1);
       marked.questVariantId = paleVariantForAct(run.act);
       marked.questMarked = true;
     }
@@ -358,7 +366,12 @@ export function visitNode(run, node) {
     run.stats.unlitVisited++;
   }
   const hollow = run.questScratch?.hollowLamplighter;
-  if (wasUnlit && hollow?.due && !hollow.met) {
+  const maxMeetings = Math.max(0, Math.floor(PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun));
+  const meetings = Number.isInteger(hollow?.meetings)
+    ? hollow.meetings
+    : hollow?.met ? maxMeetings : 0;
+  if (wasUnlit && hollow?.due && meetings < maxMeetings) {
+    hollow.meetings = meetings + 1;
     hollow.met = true;
     revealQuest(run, 'hollowLamplighter', run.endQueue);
     run.pendingHollow = {
@@ -408,9 +421,18 @@ export function claimMonument(run) {
     run.questScratch.ownShade ||= {};
     run.questScratch.ownShade.pendingBequest = m.bequest ?? null;
     const progress = questRecord(run, 'ownShade')?.progress || 0;
+    const tierIds = Object.keys(VARIANTS)
+      .filter((id) => /^ownShade[1-9]\d*$/.test(id))
+      .sort((a, b) => Number(a.slice('ownShade'.length)) - Number(b.slice('ownShade'.length)));
+    const tierCount = Math.min(
+      PROGRESSION.emberglass.ownShade.tiers.length,
+      QUESTS.ownShade.target,
+      tierIds.length,
+    );
+    if (tierCount < 1) throw new Error('Your Own Shade has no authored combat tier');
     return {
       kind: 'shadeDuel',
-      variantId: `ownShade${Math.min(3, progress + 1)}`,
+      variantId: tierIds[Math.min(tierCount, progress + 1) - 1],
       bequest: m.bequest ?? null,
     };
   }
@@ -685,8 +707,18 @@ export function rollEvent(run) {
 export function rollEncounter(run, type, row, node) {
   if (node?.questVariantId) return [node.questVariantId];
   const pale = run.questScratch?.paleOnes;
-  if (type === 'monster' && pale?.hiddenDue) {
-    pale.hiddenDue = false;
+  const savedHiddenRemaining = Number.isInteger(pale?.hiddenRemaining)
+    ? pale.hiddenRemaining
+    : pale?.hiddenDue ? 1 : 0;
+  const hiddenRemaining = Math.min(savedHiddenRemaining,
+    Math.max(0, Math.floor(PROGRESSION.emberglass.paleOnes.hiddenPerRun)));
+  if (pale) {
+    pale.hiddenRemaining = hiddenRemaining;
+    pale.hiddenDue = hiddenRemaining > 0;
+  }
+  if (type === 'monster' && hiddenRemaining > 0) {
+    pale.hiddenRemaining = hiddenRemaining - 1;
+    pale.hiddenDue = pale.hiddenRemaining > 0;
     return [paleVariantForAct(run.act)];
   }
   if (type === 'boss' && run.act === 2 && run.questScratch?.usurper?.bought) {
@@ -866,7 +898,7 @@ export function enemyMove(e) { return e.def.moves[e.moveKey]; }
 export function gainEmbers(run, cb, n) {
   if (n > 0) {
     const q = questRecord(run, 'hollowLamplighter');
-    const debt = q?.memory?.emberDebt || 0;
+    const debt = q?.state === 'revealed' && q.progress === 0 ? q.memory.emberDebt || 0 : 0;
     const tithe = Math.min(n, debt);
     if (tithe > 0) {
       q.memory.emberDebt -= tithe;
@@ -1696,23 +1728,37 @@ export function loadRun() {
           monument.standing === true && (monument.shadeAspect === 0 || monument.shadeAspect === 1))
       )
     );
-    const validMemory = (id, m) => {
+    const validMemory = (id, q) => {
+      const m = q.memory;
       if (!plainObject(m)) return false;
-      if (id === 'eighthOmen') return onlyKeys(m, ['dueIn', 'seen']) &&
-        (m.dueIn == null || (Number.isInteger(m.dueIn) && m.dueIn >= 1 &&
-          m.dueIn <= Math.max(1, Math.floor(PROGRESSION.emberglass.eighthOmen.guaranteeRuns)))) &&
-        optionalBool(m, 'seen');
-      if (id === 'hollowLamplighter') return onlyKeys(m, ['eligibleMisses', 'emberDebt']) &&
-        (m.eligibleMisses == null || (Number.isInteger(m.eligibleMisses) && m.eligibleMisses >= 0)) &&
-        (m.emberDebt == null || (Number.isInteger(m.emberDebt) && m.emberDebt >= 1 &&
-          m.emberDebt <= Math.max(1, Math.floor(PROGRESSION.emberglass.hollowLamplighter.emberDebt))));
+      if (id === 'eighthOmen') {
+        if (q.state === 'dormant') return onlyKeys(m, []);
+        if (q.state === 'complete') return onlyKeys(m, ['seen']) && (m.seen == null || m.seen === true);
+        const dueValid = Number.isInteger(m.dueIn) && m.dueIn >= 1 &&
+          m.dueIn <= Math.max(1, Math.floor(PROGRESSION.emberglass.eighthOmen.guaranteeRuns));
+        return onlyKeys(m, ['dueIn', 'seen']) && optionalBool(m, 'seen') &&
+          (m.seen === true ? m.dueIn == null : dueValid);
+      }
+      if (id === 'hollowLamplighter') {
+        if (q.state === 'dormant' || q.state === 'complete') return onlyKeys(m, []);
+        return onlyKeys(m, ['eligibleMisses', 'emberDebt']) &&
+          (m.eligibleMisses == null || (Number.isInteger(m.eligibleMisses) && m.eligibleMisses >= 0)) &&
+          (m.emberDebt == null || (q.state === 'revealed' && q.progress === 0 &&
+            Number.isInteger(m.emberDebt) && m.emberDebt >= 1 &&
+            m.emberDebt <= Math.max(1, Math.floor(PROGRESSION.emberglass.hollowLamplighter.emberDebt))));
+      }
       return onlyKeys(m, []);
     };
-    const validQuest = (id, q) =>
-      plainObject(q) &&
-      ['dormant', 'armed', 'revealed', 'complete'].includes(q.state) &&
-      Number.isInteger(q.progress) && q.progress >= 0 && q.progress <= QUESTS[id].target &&
-      validMemory(id, q.memory);
+    const validQuest = (id, q) => {
+      if (!plainObject(q) || !['dormant', 'armed', 'revealed', 'complete'].includes(q.state) ||
+        !Number.isInteger(q.progress) || q.progress < 0 || q.progress > QUESTS[id].target) return false;
+      const coherentProgress = q.state === 'dormant'
+        ? q.progress === 0
+        : q.state === 'complete'
+          ? q.progress === QUESTS[id].target
+          : q.progress < QUESTS[id].target;
+      return coherentProgress && validMemory(id, q);
+    };
     const validEnemyId = (id) => hasOwn(ENEMIES, id) || hasOwn(VARIANTS, id);
     const validPendingReward = (pending) => {
       if (pending == null) return true;
@@ -1767,13 +1813,21 @@ export function loadRun() {
       if (!plainObject(scratch) || Object.keys(scratch).some((id) => !QUEST_IDS.includes(id))) return false;
       for (const [id, x] of Object.entries(scratch)) {
         if (!plainObject(x)) return false;
-        if (id === 'paleOnes' && !(onlyKeys(x, ['hiddenDue', 'markedAct2']) && optionalBool(x, 'hiddenDue') && optionalBool(x, 'markedAct2'))) return false;
+        if (id === 'paleOnes' && !(onlyKeys(x, ['hiddenDue', 'hiddenRemaining', 'markedAct2']) &&
+          optionalBool(x, 'hiddenDue') && optionalBool(x, 'markedAct2') &&
+          (x.hiddenRemaining == null || (Number.isInteger(x.hiddenRemaining) && x.hiddenRemaining >= 0 &&
+            typeof x.hiddenDue === 'boolean' && x.hiddenDue === (x.hiddenRemaining > 0))))) return false;
         if (id === 'usurper' && !(onlyKeys(x, ['bought']) && optionalBool(x, 'bought'))) return false;
         if (id === 'eighthOmen' && !(onlyKeys(x, ['active']) && optionalBool(x, 'active'))) return false;
         if (id === 'unreadablePage' && !(onlyKeys(x, ['rewardOrdinal', 'offered']) &&
           (x.rewardOrdinal == null || (Number.isInteger(x.rewardOrdinal) && x.rewardOrdinal >= 0)) && optionalBool(x, 'offered'))) return false;
-        if (id === 'hollowLamplighter' && !(onlyKeys(x, ['due', 'met', 'debtActive']) &&
-          optionalBool(x, 'due') && optionalBool(x, 'met') && optionalBool(x, 'debtActive'))) return false;
+        if (id === 'hollowLamplighter' && !(onlyKeys(x, ['due', 'met', 'meetings', 'debtActive']) &&
+          optionalBool(x, 'due') && optionalBool(x, 'met') && optionalBool(x, 'debtActive') &&
+          !(x.met === true && x.due !== true) &&
+          !(x.debtActive === true && (x.due === true || x.met === true || (x.meetings || 0) > 0)) &&
+          (x.meetings == null || (Number.isInteger(x.meetings) && x.meetings >= 0 &&
+            typeof x.met === 'boolean' && x.met === (x.meetings > 0) &&
+            (x.meetings === 0 || x.due === true))))) return false;
         if (id === 'ownShade') {
           const fall = x.fall;
           const validFall = fall == null || (plainObject(fall) && onlyKeys(fall, ['act', 'row', 'shadeAspect', 'bequest']) &&

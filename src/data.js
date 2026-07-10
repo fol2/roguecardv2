@@ -1129,6 +1129,35 @@ export const DEEDS = {
   firstDawn: { name: 'The First Dawn', desc: 'Reach the sunrise once', stat: 'wins', n: 1, unlocks: ['aspect2'] },
 };
 
+const HOLLOW_LAMPLIGHTER_MEETINGS = [
+  {
+    ask: 'Your lantern is noisy. Give me the next three embers it catches.',
+    accepted: 'The next three embers belong to the hollow lantern.',
+    paid: 'Six panes were carried away from a window no wall could hold.',
+    cannot: 'Promise the embers now. The lantern will pay before you do.',
+  },
+  {
+    ask: 'Gold remembers every hand. Let one hundred and sixty pieces forget yours.',
+    paid: 'The Pale Ones watch the paths that point above the crown.',
+    cannot: 'Your purse is warm, but not warm enough.',
+  },
+  {
+    ask: 'The Spire counts the vessel. Give me twelve measures of yours.',
+    paid: 'Your standing dead have seen the stair above the Sovereign.',
+    cannot: 'I will not hollow you below thirty. Return with a larger vessel.',
+  },
+  {
+    ask: 'The first keeper gave you a boon. Give me the gift, not the gratitude.',
+    paid: 'The empty lantern is the token that purchases an audience with the mask.',
+    cannot: 'You have spent the gift already. Bring me one that is still yours.',
+  },
+  {
+    ask: 'Last price: leave this lantern with one heartbeat. The rest belongs to the dark.',
+    paid: 'Light the panes. The door will know you.',
+    cannot: 'One heartbeat is enough. Refusal is the only poverty left.',
+  },
+];
+
 // ---------------------------------------------------------------- THE VIGIL: PROGRESSIVE DELIVERY
 // Every pacing tunable lives in PROGRESSION. REVEALS is derived from
 // revealThresholds so the ladder ids stay declarative while counts stay
@@ -1185,7 +1214,8 @@ export const PROGRESSION = {
     unreadablePage: { offerRewardOrdinal: 2, completeAt: 5 },
     hollowLamplighter: {
       appearanceChance: 0.2, pityEligibleRuns: 3, maxMeetingsPerRun: 1,
-      completeAt: 5, emberDebt: 3, gold: 160, maxHp: 12, minMaxHpAfter: 30, finalHp: 1,
+      completeAt: 5,
+      emberDebt: 3, gold: 160, maxHp: 12, minMaxHpAfter: 30, finalHp: 1,
     },
     variantStats: {
       pale: { hpMult: 1.18, dmgMult: 1.1, addStatuses: { str: 1 } },
@@ -1285,36 +1315,10 @@ export const QUESTS = {
     ],
   },
   hollowLamplighter: {
-    name: 'The Hollow Lamplighter', mode: 'Trail', target: PROGRESSION.emberglass.hollowLamplighter.completeAt,
+    name: 'The Hollow Lamplighter', mode: 'Trail',
+    get target() { return PROGRESSION.emberglass.hollowLamplighter.completeAt; },
     inscription: 'Pay the Hollow Lamplighter five prices along the Unlit Way.',
-    meetings: [
-      {
-        ask: 'Your lantern is noisy. Give me the next three embers it catches.',
-        accepted: 'The next three embers belong to the hollow lantern.',
-        paid: 'Six panes were carried away from a window no wall could hold.',
-        cannot: 'Promise the embers now. The lantern will pay before you do.',
-      },
-      {
-        ask: 'Gold remembers every hand. Let one hundred and sixty pieces forget yours.',
-        paid: 'The Pale Ones watch the paths that point above the crown.',
-        cannot: 'Your purse is warm, but not warm enough.',
-      },
-      {
-        ask: 'The Spire counts the vessel. Give me twelve measures of yours.',
-        paid: 'Your standing dead have seen the stair above the Sovereign.',
-        cannot: 'I will not hollow you below thirty. Return with a larger vessel.',
-      },
-      {
-        ask: 'The first keeper gave you a boon. Give me the gift, not the gratitude.',
-        paid: 'The empty lantern is the token that purchases an audience with the mask.',
-        cannot: 'You have spent the gift already. Bring me one that is still yours.',
-      },
-      {
-        ask: 'Last price: leave this lantern with one heartbeat. The rest belongs to the dark.',
-        paid: 'Light the panes. The door will know you.',
-        cannot: 'One heartbeat is enough. Refusal is the only poverty left.',
-      },
-    ],
+    meetings: HOLLOW_LAMPLIGHTER_MEETINGS,
   },
 };
 

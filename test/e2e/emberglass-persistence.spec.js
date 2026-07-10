@@ -51,6 +51,10 @@ test('fresh climb waits for its exact initial save before routing', async ({ pag
 
   await page.click('[data-a="begin"]');
   await expect(page.locator('#overlay .ov-title')).toHaveText('Save Failed');
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
+  await expect(page.locator('[data-a="retry-save"]')).toBeFocused();
+  await expect(page.locator('#run-save-failure-description')).toHaveAttribute('role', 'status');
+  await expect(page.locator('#run-save-failure-description')).toHaveAttribute('aria-live', 'assertive');
   const rejected = await page.evaluate(() => ({
     screen: window.spirebound.S.screen,
     snapshot: JSON.stringify(window.spirebound.S.run),
@@ -60,6 +64,34 @@ test('fresh climb waits for its exact initial save before routing', async ({ pag
   expect(rejected.screen).toBe('embark');
   expect(rejected.durable).toBeNull();
   expect(rejected.attempts).toBe(1);
+
+  const afterBlockedReentry = await page.evaluate(() => {
+    document.querySelector('[data-a="begin"]').click();
+    return {
+      snapshot: JSON.stringify(window.spirebound.S.run),
+      attempts: window.__initialRunSaveAttempts,
+      overlay: document.querySelector('#overlay .ov-title')?.textContent,
+    };
+  });
+  expect(afterBlockedReentry).toEqual({
+    snapshot: rejected.snapshot, attempts: 1, overlay: 'Save Failed',
+  });
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.locator('[data-a="reload-save"]')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('[data-a="retry-save"]')).toBeFocused();
+  await page.evaluate(() => {
+    window.__saveDialogKeyLeaks = 0;
+    document.addEventListener('keydown', () => { window.__saveDialogKeyLeaks++; });
+  });
+  await page.keyboard.press('e');
+  expect(await page.evaluate(() => window.__saveDialogKeyLeaks)).toBe(0);
+
+  await page.click('[data-a="retry-save"]');
+  await expect(page.locator('#overlay .ov-title')).toHaveText('Save Failed');
+  await expect(page.locator('#run-save-failure-description')).toContainText('still unavailable');
+  await expect(page.locator('[data-a="retry-save"]')).toBeFocused();
+  expect(await page.evaluate(() => window.__initialRunSaveAttempts)).toBe(2);
 
   await page.evaluate(() => { window.__rejectInitialRunSave = false; });
   await page.click('[data-a="retry-save"]');
@@ -71,7 +103,10 @@ test('fresh climb waits for its exact initial save before routing', async ({ pag
   }));
   expect(accepted.live).toBe(rejected.snapshot);
   expect(accepted.durable).toBe(rejected.snapshot);
-  expect(accepted.attempts).toBeGreaterThanOrEqual(2);
+  // One acknowledged retry routes to the map, whose normal render then
+  // refreshes the same durable snapshot once more.
+  expect(accepted.attempts).toBe(4);
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
 });
 
 test('Usurper first sight is durable before the shop item is exposed', async ({ page }) => {
@@ -92,12 +127,34 @@ test('Usurper first sight is durable before the shop item is exposed', async ({ 
 
   await expect(page.locator('#overlay .ov-title')).toHaveText('Save Failed');
   await expect(page.locator('.quest-shop-item')).toHaveCount(0);
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
+  await expect(page.locator('[data-a="retry-save"]')).toBeFocused();
   const rejected = await page.evaluate(() => ({
     live: window.spirebound.S.run.quests.usurper.state,
     durable: JSON.parse(localStorage.getItem('spirebound_save_v2')).quests.usurper.state,
     attempts: window.__usurperSightAttempts,
   }));
   expect(rejected).toEqual({ live: 'revealed', durable: 'armed', attempts: 1 });
+
+  const blockedShopAction = await page.evaluate(() => {
+    const run = window.spirebound.S.run;
+    const before = { gold: run.player.gold, deck: run.player.deck.length };
+    document.querySelector('.cards-row .card')?.click();
+    [...document.querySelectorAll('.shop-relic')]
+      .find((button) => button.textContent.includes('Card Removal'))?.click();
+    return {
+      before,
+      after: { gold: run.player.gold, deck: run.player.deck.length },
+      overlay: document.querySelector('#overlay .ov-title')?.textContent,
+      attempts: window.__usurperSightAttempts,
+    };
+  });
+  expect(blockedShopAction).toEqual({
+    before: blockedShopAction.before,
+    after: blockedShopAction.before,
+    overlay: 'Save Failed',
+    attempts: 1,
+  });
 
   await page.evaluate(() => { window.__rejectUsurperSight = false; });
   await page.click('[data-a="retry-save"]');
@@ -109,12 +166,21 @@ test('Usurper first sight is durable before the shop item is exposed', async ({ 
     attempts: window.__usurperSightAttempts,
   }));
   expect(accepted).toEqual({ live: 'revealed', durable: 'revealed', attempts: 2 });
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
 });
 
 test('Usurper purchase confirms only after the single 650-gold mutation is durable', async ({ page }) => {
   await seedUsurperShop(page);
   await page.evaluate(() => window.spirebound.show('shop'));
   await expect(page.locator('.quest-shop-item')).toHaveCount(1);
+  await page.evaluate(() => {
+    const sp = window.spirebound;
+    sp.S.run.player.potions[0] = 'healing';
+    if (!sp.E.saveRun(sp.S.run)) throw new Error('potion-menu fixture did not persist');
+    sp.show('shop');
+  });
+  await page.click('.potion-slot.full');
+  await expect(page.locator('.pop-menu')).toHaveCount(1);
   await page.evaluate(() => {
     window.__usurperBuySetItem = Storage.prototype.setItem;
     window.__rejectUsurperBuy = true;
@@ -128,8 +194,14 @@ test('Usurper purchase confirms only after the single 650-gold mutation is durab
     };
   });
 
-  await page.click('.quest-shop-item button');
+  // Keyboard activation deliberately bypasses the document's pointerdown
+  // menu closer, so the save-failure transaction itself must remove it.
+  await page.locator('.quest-shop-item button').focus();
+  await page.keyboard.press('Enter');
   await expect(page.locator('#overlay .ov-title')).toHaveText('Save Failed');
+  await expect(page.locator('.pop-menu, .audio-panel, .settings-panel')).toHaveCount(0);
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
+  await expect(page.locator('[data-a="retry-save"]')).toBeFocused();
   await expect(page.locator('.shop-dialogue')).not.toContainText('Now the summit knows');
   const rejected = await page.evaluate(() => {
     const live = window.spirebound.S.run;
@@ -141,6 +213,7 @@ test('Usurper purchase confirms only after the single 650-gold mutation is durab
       durableBought: Boolean(durable.questScratch.usurper?.bought),
       itemDisabled: document.querySelector('.quest-shop-item button').disabled,
       leaveDisabled: document.querySelector('[data-a="leave"]').disabled,
+      potion: live.player.potions[0],
       attempts: window.__usurperBuyAttempts,
     };
   });
@@ -151,8 +224,19 @@ test('Usurper purchase confirms only after the single 650-gold mutation is durab
     durableBought: false,
     itemDisabled: true,
     leaveDisabled: true,
+    potion: 'healing',
     attempts: 1,
   });
+
+  await page.click('[data-a="retry-save"]');
+  await expect(page.locator('#overlay .ov-title')).toHaveText('Save Failed');
+  await expect(page.locator('[data-a="retry-save"]')).toBeFocused();
+  const repeatedFailure = await page.evaluate(() => ({
+    gold: window.spirebound.S.run.player.gold,
+    bought: Boolean(window.spirebound.S.run.questScratch.usurper?.bought),
+    attempts: window.__usurperBuyAttempts,
+  }));
+  expect(repeatedFailure).toEqual({ gold: 0, bought: true, attempts: 2 });
 
   await page.evaluate(() => { window.__rejectUsurperBuy = false; });
   await page.click('[data-a="retry-save"]');
@@ -176,13 +260,46 @@ test('Usurper purchase confirms only after the single 650-gold mutation is durab
     durableGold: 0,
     liveBought: true,
     durableBought: true,
-    attempts: 2,
+    attempts: 3,
   });
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
 
   await page.evaluate(() => document.querySelector('.quest-shop-item button').click());
   const afterRepeatClick = await page.evaluate(() => ({
     gold: window.spirebound.S.run.player.gold,
     attempts: window.__usurperBuyAttempts,
   }));
-  expect(afterRepeatClick).toEqual({ gold: 0, attempts: 2 });
+  expect(afterRepeatClick).toEqual({ gold: 0, attempts: 3 });
+});
+
+test('Reload Saved Climb discards a failed live mutation and restores the durable run', async ({ page }) => {
+  await seedUsurperShop(page);
+  await page.evaluate(() => window.spirebound.show('shop'));
+  await expect(page.locator('.quest-shop-item')).toHaveCount(1);
+  const durableBefore = await page.evaluate(() => localStorage.getItem('spirebound_save_v2'));
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function rejectPurchase(key, value) {
+      if (key === 'spirebound_save_v2') throw new Error('injected reload-path failure');
+      return original.call(this, key, value);
+    };
+  });
+
+  await page.locator('.quest-shop-item button').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#overlay .ov-title')).toHaveText('Save Failed');
+  expect(await page.evaluate(() => ({
+    gold: window.spirebound.S.run.player.gold,
+    bought: Boolean(window.spirebound.S.run.questScratch.usurper?.bought),
+  }))).toEqual({ gold: 0, bought: true });
+
+  await page.click('[data-a="reload-save"]');
+  await page.waitForFunction(() => window.spirebound?.S.screen === 'title');
+  expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBe(durableBefore);
+  await page.click('[data-a="continue"]');
+  await page.waitForFunction(() => window.spirebound?.S.run?.player);
+  expect(await page.evaluate(() => ({
+    gold: window.spirebound.S.run.player.gold,
+    bought: Boolean(window.spirebound.S.run.questScratch.usurper?.bought),
+  }))).toEqual({ gold: 650, bought: false });
 });
