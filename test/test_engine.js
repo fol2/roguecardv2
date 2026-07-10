@@ -1453,7 +1453,8 @@ function randomAgentRun(seed) {
   const c = charShadow('duskblade');
   assert.ok(c.sy > 0 && c.sy < 1, 'char-meta: duskblade shadow flattened');
   assert.equal(charLayout('sporeling').scale, 0.62, 'char-meta: sporeling scale migrated');
-  assert.deepEqual(charMesh('duskblade'), {}, 'char-meta: no mesh override by default');
+  assert.deepEqual(charMesh('duskfang'), {}, 'char-meta: no mesh override by default');
+  assert.equal(charMesh('duskblade').breathe, 1.6, 'char-meta: duskblade mesh tuning applied');
   assert.ok(AIM_STYLES.includes(CHAR_AIM_DEFAULT.style), 'char-meta: aim default style valid');
   assert.ok(Number.isInteger(CHAR_AIM_DEFAULT.beams) && CHAR_AIM_DEFAULT.beams >= 1 && CHAR_AIM_DEFAULT.beams <= 4, 'char-meta: aim default beams in 1..4');
   assert.ok(Number.isInteger(CHAR_AIM_DEFAULT.dashes) && CHAR_AIM_DEFAULT.dashes >= 1 && CHAR_AIM_DEFAULT.dashes <= 4, 'char-meta: aim default dashes in 1..4');
