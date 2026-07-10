@@ -1,4 +1,4 @@
-import { PROGRESSION, QUEST_IDS } from '../src/data.js';
+import { PROGRESSION, QUEST_IDS, QUEST_ACTIVE_STATES } from '../src/data.js';
 import {
   newRun, cardData, drawCards, playCard, startCombat, genMap, rollEncounter,
   visitNode, gainEmbers, genShop, buyQuestItem, rollCardReward, addCardToDeck,
@@ -32,7 +32,7 @@ function mulberry32(seed) {
   };
 }
 
-const active = (q) => q && (q.state === 'armed' || q.state === 'revealed');
+const active = (q) => q && QUEST_ACTIVE_STATES.includes(q.state);
 
 function killWithRealCombat(run, enemyId, kind = 'monster') {
   const cb = startCombat(run, [enemyId], kind);

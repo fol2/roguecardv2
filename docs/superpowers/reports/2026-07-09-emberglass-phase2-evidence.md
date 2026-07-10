@@ -332,7 +332,7 @@ a review-repair regression.
 The immutable original release artefacts remain historical evidence. Current
 repair source, test, workflow, documentation, and bundle hashes are in
 [`emberglass-phase2-review-sha256.txt`](artifacts/emberglass-phase2-review-sha256.txt),
-SHA-256 `fb3b3d37290235fa00928cbd2c69d23e0d05c65462cea89b0d71b9cee4aaaebc`.
+SHA-256 `fb206be9075442ddc1651b3d1d0a2a4b499e2ab3247ae6c6b4169dfcac763392`.
 The deleted `terminal-outbox.js`, `shade-duel-transaction.js`, and
 `shop-session.js` are intentionally absent from this current manifest.
 
@@ -468,3 +468,63 @@ budget: rest and shop recovery were two scenarios inside one Hollow test.
 They are now independent cases, preserving both assertions while allowing
 Playwright to schedule them separately; both pass locally in 7.4 seconds.
 Live latest-head required checks remain the final merge authority.
+
+## PR #14 standards follow-up (10 July 2026)
+
+The post-ready review found that the binding agent guide still described the
+pre-parallel test topology. `AGENTS.md` now records the five local Playwright
+lanes, Draft smoke versus Ready/full CI, and the warning-only performance
+reference. A CI contract assertion protects those statements from drifting
+again.
+
+The engine and Vigil import rule is now an explicit, executable contract:
+`test/test_module_boundaries.mjs` requires both modules to import only
+`data.js`, and `npm run test:ci` runs that contract. Shared quest states,
+terminal outcomes, and the run-id pattern now have one source in `data.js`.
+`loadRun()` reuses its module-level record validators, and Aspect validation
+follows `ASPECTS.length` rather than assuming exactly two Aspects.
+
+The domain-documentation gap is closed through `CONTEXT-MAP.md` and separate
+Climb and Vigil glossaries. They define the four Emberglass Quest states,
+Trail/Gate, Shards, the Dawn Ceremony, and the Hollow Bargain. Persistence
+outboxes remain implementation language rather than player/domain vocabulary.
+No ADR was required because this records existing language rather than a new,
+hard-to-reverse architectural decision.
+
+Three review judgements deliberately remain unchanged:
+
+- Performance targets remain reference warnings, not merge gates. This is the
+  owner-approved policy; missing or invalid metrics still fail.
+- Hollow appearance chance remains `0.2`, the owner-approved tuning selected
+  from the 2,000-seed pacing evidence.
+- Transactional dawn and Hollow recovery remain in scope because they provide
+  the exactly-once interruption safety claimed by this Phase 2 delivery.
+
+The small record validators remain local to engine and Vigil so neither module
+imports a generic runtime helper; moving them into `data.js` would weaken its
+content-and-constants role. The repeated GitHub Actions job setup also remains
+explicit: a composite wrapper would not reduce install or browser download
+time and would disturb a topology already proven on the canonical runner.
+Per-quest validation branches remain explicit schemas rather than a table
+rewrite in this release-repair pass.
+
+Fresh local verification for this follow-up:
+
+~~~text
+npm run test:ci
+ci contract checks passed
+module boundary checks passed
+
+npm test
+unit checks passed; monte-carlo: 300 runs, 1 random-agent wins, 299 deaths
+
+npm run test:progression
+guided: median=18 p10=14 p90=22 complete=2000/2000
+unguided: median=50 p10=37 p90=69 complete=1991/2000
+
+npm run build
+PASS; 520 modules
+
+SPIREBOUND_E2E_PORT=5371 npm run test:e2e:smoke
+4 passed
+~~~

@@ -1,7 +1,7 @@
 // THE VIGIL — what persists between climbs: deeds, unlocks, vows, and the
 // monument of the last fall. Storage is Node-safe: without localStorage
 // (tests) it keeps the ledger in memory so callers can still assert on it.
-import { DEEDS, CARDS, RELICS, REVEALS, QUEST_IDS, QUESTS, WHISPERS, PROGRESSION } from './data.js';
+import { DEEDS, CARDS, RELICS, REVEALS, QUEST_IDS, QUESTS, QUEST_STATES, QUEST_ACTIVE_STATES, TERMINAL_OUTCOMES, RUN_ID_RE, WHISPERS, PROGRESSION } from './data.js';
 
 const KEY = 'spirebound_vigil_v2';
 const KEY_V1 = 'spirebound_vigil_v1'; // read-only: migration source, never written
@@ -23,8 +23,6 @@ function getStore() {
 // test hook: pass null to start over on a fresh in-memory store
 export function _setStore(s) { store = s; memory = new Map(); }
 
-const QUEST_STATES = ['dormant', 'armed', 'revealed', 'complete'];
-const RUN_ID_RE = /^(?:run|legacy)-[a-z0-9]+(?:-[a-z0-9]+){1,3}$/;
 let armRng = Math.random;
 export function _setRng(fn) { armRng = typeof fn === 'function' ? fn : Math.random; }
 
@@ -43,7 +41,7 @@ const cleanQuestMemory = (id, memory, state, progress) => {
     };
   }
   if (id === 'hollowLamplighter') {
-    if (!['armed', 'revealed'].includes(state)) return {};
+    if (!QUEST_ACTIVE_STATES.includes(state)) return {};
     const out = {};
     const eligibleMisses = Math.floor(Number(source.eligibleMisses));
     if (Number.isFinite(eligibleMisses) && eligibleMisses >= 0) out.eligibleMisses = eligibleMisses;
@@ -78,7 +76,7 @@ const cleanDeedReceipt = (receipt) => exactKeys(receipt, ['runId', 'won', 'newUn
   ? { runId: receipt.runId, won: receipt.won, newUnlocks: [...receipt.newUnlocks] }
   : null;
 const cleanRunEndReceipt = (receipt) => exactKeys(receipt, ['runId', 'outcome', 'whisper', 'armed', 'completed', 'newShards']) &&
-  validRunId(receipt.runId) && ['win', 'death', 'abandon'].includes(receipt.outcome) &&
+  validRunId(receipt.runId) && TERMINAL_OUTCOMES.includes(receipt.outcome) &&
   (receipt.whisper == null || typeof receipt.whisper === 'string') &&
   validQuestIds(receipt.armed) && validQuestIds(receipt.completed) && validQuestIds(receipt.newShards)
   ? {
@@ -268,7 +266,7 @@ function mergeRunQuests(v, run) {
 }
 
 export function commitRunEnd(run, outcome = 'abandon') {
-  if (!['win', 'death', 'abandon'].includes(outcome)) throw new Error('invalid run outcome: ' + outcome);
+  if (!TERMINAL_OUTCOMES.includes(outcome)) throw new Error('invalid run outcome: ' + outcome);
   if (run.runEndResult) {
     if (run.runEndOutcome !== outcome) throw new Error('run end outcome does not match durable receipt');
     return run.runEndResult;
@@ -292,7 +290,7 @@ export function commitRunEnd(run, outcome = 'abandon') {
   const completed = mergeRunQuests(v, run);
   const hs = run.questScratch?.hollowLamplighter;
   const persistedHollow = v.quests.hollowLamplighter;
-  if (hs && !hs.debtActive && ['armed', 'revealed'].includes(persistedHollow.state)) {
+  if (hs && !hs.debtActive && QUEST_ACTIVE_STATES.includes(persistedHollow.state)) {
     persistedHollow.memory.eligibleMisses = hs.met
       ? 0
       : (persistedHollow.memory.eligibleMisses || 0) + 1;
@@ -394,7 +392,7 @@ export function commitRunToVigil(run, won) {
 
 export function commitPendingRunEnd(run, recordRunEnd) {
   const outcome = run.pendingRunEnd?.outcome;
-  if (!['win', 'death', 'abandon'].includes(outcome)) throw new Error('run has no valid pending outcome');
+  if (!TERMINAL_OUTCOMES.includes(outcome)) throw new Error('run has no valid pending outcome');
   if (typeof recordRunEnd !== 'function') throw new Error('run cleanup acknowledgement is required');
   const won = outcome === 'win';
   const deedResult = outcome === 'abandon' ? { newUnlocks: [] } : commitRunToVigil(run, won);

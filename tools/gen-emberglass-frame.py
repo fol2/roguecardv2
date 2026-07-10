@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import math
 from pathlib import Path
 from PIL import Image, ImageDraw
 
@@ -23,7 +24,6 @@ d.ellipse(inner, outline=gold, width=8)
 d.ellipse(boss, outline=lead, width=28)
 for i in range(6):
     angle = -120 + i * 60
-    import math
     x1 = C + int(70 * math.cos(math.radians(angle)))
     y1 = C + int(70 * math.sin(math.radians(angle)))
     x2 = C + int(430 * math.cos(math.radians(angle)))

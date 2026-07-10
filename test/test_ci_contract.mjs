@@ -55,5 +55,13 @@ assert.match(workflow, /e2e_serial:[\s\S]*?name: e2e serial[\s\S]*?npm run test:
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 assert.match(pkg.scripts['test:e2e'], /test:e2e:main && npm run test:e2e:serial && npm run test:e2e:visual/);
+assert.equal(pkg.scripts['test:boundaries'], 'node test/test_module_boundaries.mjs');
+assert.match(pkg.scripts['test:ci'], /npm run test:boundaries/);
+
+const agents = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
+assert.match(agents, /test:e2e:perf\s+# performance reference; warns on target misses/);
+assert.match(agents, /disk-writing[\s\S]*random-agent[\s\S]*main[\s\S]*serial-heavy[\s\S]*visual/);
+assert.match(agents, /browser smoke[\s\S]*Draft PRs/);
+assert.match(agents, /Ready PRs[\s\S]*complete parallel Playwright gate/);
 
 console.log('ci contract checks passed');

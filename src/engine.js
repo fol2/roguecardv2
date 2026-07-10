@@ -1,5 +1,5 @@
 // SPIREBOUND engine — pure game logic, no DOM. UI consumes cb.queue for animation.
-import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE, PROGRESSION, QUEST_IDS, QUESTS, VARIANTS, SHADE_KITS, BOONS, DEEDS } from './data.js';
+import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE, PROGRESSION, QUEST_IDS, QUESTS, QUEST_STATES, QUEST_ACTIVE_STATES, TERMINAL_OUTCOMES, RUN_ID_RE, VARIANTS, SHADE_KITS, BOONS, DEEDS } from './data.js';
 
 // ---------------------------------------------------------------- RNG (mulberry32)
 export function makeRng(state) {
@@ -22,8 +22,7 @@ const freshRunId = (seed, startedAt) =>
   `run-${startedAt.toString(36)}-${(seed >>> 0).toString(36)}-${(++runSequence).toString(36)}`;
 const legacyRunId = (run) =>
   `legacy-${(Number(run.seed) >>> 0).toString(36)}-${Math.max(0, Math.floor(Number(run.stats?.start) || 0)).toString(36)}`;
-const validRunId = (id) => typeof id === 'string' && /^(?:run|legacy)-[a-z0-9]+(?:-[a-z0-9]+){1,3}$/.test(id);
-const TERMINAL_OUTCOMES = ['win', 'death', 'abandon'];
+const validRunId = (id) => typeof id === 'string' && RUN_ID_RE.test(id);
 const continuedTerminalRuns = new WeakSet();
 
 export function savedRunRequiresFinalisation(run) {
@@ -179,7 +178,7 @@ export function advanceQuest(run, id, n = 1, queue = run.endQueue) {
 const questRoll = (run) => questRngOverride ? questRngOverride() : runRng(run)();
 function prepareEighthOmen(run) {
   const q = questRecord(run, 'eighthOmen');
-  if (!q || !['armed', 'revealed'].includes(q.state)) return;
+  if (!q || !QUEST_ACTIVE_STATES.includes(q.state)) return;
   const due = q.memory.dueIn;
   const guaranteeRuns = Math.max(1, Math.floor(PROGRESSION.emberglass.eighthOmen.guaranteeRuns));
   let active = false;
@@ -296,7 +295,7 @@ export const paleVariantForAct = (act) => PALE_BY_ACT[clamp(act | 0, 0, 2)];
 
 function preparePaleRun(run) {
   const q = questRecord(run, 'paleOnes');
-  if (!q || !['armed', 'revealed'].includes(q.state)) return;
+  if (!q || !QUEST_ACTIVE_STATES.includes(q.state)) return;
   const lens = run.unlocks.includes('insight:witchlightLens');
   const hiddenRemaining = !lens && q.progress < PROGRESSION.emberglass.paleOnes.lensAt
     ? Math.max(0, Math.floor(PROGRESSION.emberglass.paleOnes.hiddenPerRun))
@@ -310,7 +309,7 @@ function preparePaleRun(run) {
 
 function prepareHollowLamplighter(run) {
   const hq = questRecord(run, 'hollowLamplighter');
-  if (!hq || !['armed', 'revealed'].includes(hq.state)) return;
+  if (!hq || !QUEST_ACTIVE_STATES.includes(hq.state)) return;
   if (hq.memory.emberDebt > 0) {
     run.questScratch.hollowLamplighter = { due: false, met: false, meetings: 0, debtActive: true };
     return;
@@ -443,7 +442,7 @@ export function visitNode(run, node) {
     : hollow?.met ? maxMeetings : 0;
   const meetings = Math.min(storedMeetings, maxMeetings);
   const hollowQuest = questRecord(run, 'hollowLamplighter');
-  const hollowActive = ['armed', 'revealed'].includes(hollowQuest?.state);
+  const hollowActive = QUEST_ACTIVE_STATES.includes(hollowQuest?.state);
   const hollowDebt = hollowQuest?.memory?.emberDebt || 0;
   if (wasUnlit && hollow?.due && hollowActive && !hollowDebt && meetings < maxMeetings) {
     hollow.meetings = storedMeetings + 1;
@@ -752,7 +751,7 @@ export function rollCardReward(run, kind = 'normal') {
   }
   const pageQuest = questRecord(run, 'unreadablePage');
   const isFinalBossReward = kind === 'boss' && run.act >= 2;
-  if (!isFinalBossReward && pageQuest && ['armed', 'revealed'].includes(pageQuest.state) &&
+  if (!isFinalBossReward && pageQuest && QUEST_ACTIVE_STATES.includes(pageQuest.state) &&
       pageQuest.progress < QUESTS.unreadablePage.target) {
     const scratch = (run.questScratch.unreadablePage ||= {});
     scratch.rewardOrdinal = (scratch.rewardOrdinal || 0) + 1;
@@ -806,7 +805,7 @@ export function genShop(run) {
   const disc = (hasRelic(run, 'merchantsMark') ? 0.75 : 1) * (omenMods(run).shopMult || 1);
   const questItems = [];
   const usurper = questRecord(run, 'usurper');
-  if (usurper && ['armed', 'revealed'].includes(usurper.state) &&
+  if (usurper && QUEST_ACTIVE_STATES.includes(usurper.state) &&
       run.act >= PROGRESSION.emberglass.usurper.minShopAct &&
       !run.questScratch?.usurper?.bought) {
     revealQuest(run, 'usurper');
@@ -851,7 +850,7 @@ export function shopStockForSession(session, run) {
 export function buyQuestItem(run, itemId) {
   if (itemId !== 'flamelessLantern') return { ok: false, reason: 'unknown' };
   const q = questRecord(run, 'usurper');
-  if (!q || !['armed', 'revealed'].includes(q.state)) return { ok: false, reason: 'inactive' };
+  if (!q || !QUEST_ACTIVE_STATES.includes(q.state)) return { ok: false, reason: 'inactive' };
   if (run.act < PROGRESSION.emberglass.usurper.minShopAct) return { ok: false, reason: 'act' };
   if (run.questScratch?.usurper?.bought) return { ok: false, reason: 'bought' };
   const price = PROGRESSION.emberglass.usurper.price;
@@ -1673,7 +1672,7 @@ function winCombat(run, cb) {
   const pageQuest = questRecord(run, 'unreadablePage');
   if (cb.kind === 'boss' && run.act === 2 &&
       run.player.deck.some((card) => card.id === 'unreadablePage') &&
-      pageQuest && ['armed', 'revealed'].includes(pageQuest.state) &&
+      pageQuest && QUEST_ACTIVE_STATES.includes(pageQuest.state) &&
       pageQuest.progress < QUESTS.unreadablePage.target &&
       !run.endQueue.some((event) => event.t === 'pageRead')) {
     const q = advanceQuest(run, 'unreadablePage', 1, run.endQueue);
@@ -1804,6 +1803,7 @@ const DAWN_UNLOCKS = new Set(Object.values(DEEDS).flatMap((deed) => deed.unlocks
 const isPlainRecord = (value) => value && typeof value === 'object' && !Array.isArray(value);
 const hasExactRecordKeys = (value, keys) => isPlainRecord(value) &&
   Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
+const validAspectIndex = (value) => Number.isInteger(value) && value >= 0 && value < ASPECTS.length;
 const DAWN_EVENT_TYPES = new Set([
   'whisper', 'questReveal', 'questProgress', 'questUnlock', 'pageRead',
   'eighthResolved', 'shadeResolved', 'questComplete', 'shardGrant', 'act4Reveal',
@@ -1892,11 +1892,9 @@ export function loadRun() {
     run.pendingHollowRoute ??= null;
     run.boonReceipt ??= null;
     if (run.reveals != null && !(Array.isArray(run.reveals) && run.reveals.every((id) => REVEALS.some((r) => r.id === id)))) return null;
-    const plainObject = (x) => x && typeof x === 'object' && !Array.isArray(x);
     const onlyKeys = (x, keys) => Object.keys(x).every((k) => keys.includes(k));
-    const exactKeys = (x, keys) => plainObject(x) && onlyKeys(x, keys) && keys.every((k) => hasOwn(x, k));
     const optionalBool = (x, k) => x[k] == null || typeof x[k] === 'boolean';
-    const validBequest = (b) => b == null || (plainObject(b) && (
+    const validBequest = (b) => b == null || (isPlainRecord(b) && (
       (b.kind === 'card' && hasOwn(CARDS, b.id) && optionalBool(b, 'up')) ||
       (b.kind === 'relic' && hasOwn(RELICS, b.id)) ||
       (b.kind === 'gold' && Number.isFinite(b.amount) && b.amount >= 0)
@@ -1905,15 +1903,15 @@ export function loadRun() {
       Number.isInteger(monument.act) && monument.act >= 0 && monument.act <= 2 &&
       Number.isInteger(monument.row) && monument.row >= 0 &&
       validBequest(monument.bequest) && typeof monument.claimed === 'boolean' && (
-        exactKeys(monument, ['act', 'row', 'bequest', 'claimed']) ||
-        (exactKeys(monument, ['act', 'row', 'bequest', 'standing', 'claimed']) && monument.standing === false) ||
-        (exactKeys(monument, ['act', 'row', 'bequest', 'standing', 'shadeAspect', 'claimed']) &&
-          monument.standing === true && (monument.shadeAspect === 0 || monument.shadeAspect === 1))
+        hasExactRecordKeys(monument, ['act', 'row', 'bequest', 'claimed']) ||
+        (hasExactRecordKeys(monument, ['act', 'row', 'bequest', 'standing', 'claimed']) && monument.standing === false) ||
+        (hasExactRecordKeys(monument, ['act', 'row', 'bequest', 'standing', 'shadeAspect', 'claimed']) &&
+          monument.standing === true && validAspectIndex(monument.shadeAspect))
       )
     );
     const validMemory = (id, q) => {
       const m = q.memory;
-      if (!plainObject(m)) return false;
+      if (!isPlainRecord(m)) return false;
       if (id === 'eighthOmen') {
         if (q.state === 'dormant') return onlyKeys(m, []);
         if (q.state === 'complete') return onlyKeys(m, ['seen']) && (m.seen == null || m.seen === true);
@@ -1943,7 +1941,7 @@ export function loadRun() {
       return onlyKeys(m, []);
     };
     const validQuest = (id, q) => {
-      if (!plainObject(q) || !['dormant', 'armed', 'revealed', 'complete'].includes(q.state) ||
+      if (!isPlainRecord(q) || !QUEST_STATES.includes(q.state) ||
         !Number.isInteger(q.progress) || q.progress < 0 || q.progress > QUESTS[id].target) return false;
       const coherentProgress = q.state === 'dormant'
         ? q.progress === 0
@@ -1955,23 +1953,23 @@ export function loadRun() {
     const validEnemyId = (id) => hasOwn(ENEMIES, id) || hasOwn(VARIANTS, id);
     const validPendingReward = (pending) => {
       if (pending == null) return true;
-      if (!exactKeys(pending, ['kind', 'rewards', 'taken', 'perfect']) ||
+      if (!hasExactRecordKeys(pending, ['kind', 'rewards', 'taken', 'perfect']) ||
         !['monster', 'elite', 'boss'].includes(pending.kind) || typeof pending.perfect !== 'boolean') return false;
       const rewards = pending.rewards;
-      if (!exactKeys(rewards, ['gold', 'cards', 'potion', 'relic']) ||
+      if (!hasExactRecordKeys(rewards, ['gold', 'cards', 'potion', 'relic']) ||
         !Number.isInteger(rewards.gold) || rewards.gold < 0 ||
         !Array.isArray(rewards.cards) || !rewards.cards.length ||
         rewards.cards.some((id) => !hasOwn(CARDS, id)) || new Set(rewards.cards).size !== rewards.cards.length ||
         (rewards.potion != null && !hasOwn(POTIONS, rewards.potion)) ||
         (rewards.relic != null && !hasOwn(RELICS, rewards.relic))) return false;
-      return exactKeys(pending.taken, ['gold', 'potion', 'relic', 'card']) &&
+      return hasExactRecordKeys(pending.taken, ['gold', 'potion', 'relic', 'card']) &&
         Object.values(pending.taken).every((value) => typeof value === 'boolean');
     };
     const validPendingRunEnd = (pending) =>
-      pending == null || (exactKeys(pending, ['outcome']) && ['win', 'death', 'abandon'].includes(pending.outcome));
+      pending == null || (hasExactRecordKeys(pending, ['outcome']) && TERMINAL_OUTCOMES.includes(pending.outcome));
     const validPendingHollow = (pending) => {
       if (pending == null) return true;
-      if (!exactKeys(pending, ['nodeId', 'type', 'paid', 'deferred', 'answer']) ||
+      if (!hasExactRecordKeys(pending, ['nodeId', 'type', 'paid', 'deferred', 'answer']) ||
         typeof pending.paid !== 'boolean' || typeof pending.deferred !== 'boolean') return false;
       const node = run.map.nodes.find((n) => n.id === pending.nodeId);
       if (!node || pending.type !== node.type || run.nodeId !== node.id || !run.map.visited.includes(node.id)) return false;
@@ -1980,7 +1978,7 @@ export function loadRun() {
     };
     const validPendingHollowRoute = (pending) => {
       if (pending == null) return true;
-      if (!exactKeys(pending, ['nodeId', 'type', 'eventId']) ||
+      if (!hasExactRecordKeys(pending, ['nodeId', 'type', 'eventId']) ||
         !HOLLOW_DESTINATION_TYPES.includes(pending.type)) return false;
       const node = run.map.nodes.find((candidate) => candidate.id === pending.nodeId);
       if (!node || node.type !== pending.type || run.nodeId !== node.id || !run.map.visited.includes(node.id)) return false;
@@ -1989,23 +1987,23 @@ export function loadRun() {
     };
     const validBoonReceipt = (receipt) => {
       if (receipt == null) return true;
-      if (!exactKeys(receipt, ['id', 'playerDelta', 'statsGoldEarned', 'relicsAdded', 'potionSlotsAdded']) ||
+      if (!hasExactRecordKeys(receipt, ['id', 'playerDelta', 'statsGoldEarned', 'relicsAdded', 'potionSlotsAdded']) ||
         !hasOwn(BOONS, receipt.id) || receipt.id !== run.boon) return false;
       const delta = receipt.playerDelta;
-      if (!exactKeys(delta, ['gold', 'hp', 'maxHp', 'energyMax']) ||
+      if (!hasExactRecordKeys(delta, ['gold', 'hp', 'maxHp', 'energyMax']) ||
         Object.values(delta).some((n) => !Number.isFinite(n)) ||
         !Number.isFinite(receipt.statsGoldEarned) || receipt.statsGoldEarned < 0 ||
         !Array.isArray(receipt.relicsAdded) || receipt.relicsAdded.some((id) => !hasOwn(RELICS, id)) ||
         !Array.isArray(receipt.potionSlotsAdded)) return false;
       return receipt.potionSlotsAdded.every((slot) =>
-        exactKeys(slot, ['index', 'id']) && Number.isInteger(slot.index) &&
+        hasExactRecordKeys(slot, ['index', 'id']) && Number.isInteger(slot.index) &&
         slot.index >= 0 && slot.index < run.player.potions.length && hasOwn(POTIONS, slot.id));
     };
 
     const validScratch = (scratch) => {
-      if (!plainObject(scratch) || Object.keys(scratch).some((id) => !QUEST_IDS.includes(id))) return false;
+      if (!isPlainRecord(scratch) || Object.keys(scratch).some((id) => !QUEST_IDS.includes(id))) return false;
       for (const [id, x] of Object.entries(scratch)) {
-        if (!plainObject(x)) return false;
+        if (!isPlainRecord(x)) return false;
         if (id === 'paleOnes' && !(onlyKeys(x, ['hiddenDue', 'hiddenRemaining', 'markedAct2']) &&
           optionalBool(x, 'hiddenDue') && optionalBool(x, 'markedAct2') &&
           (x.hiddenRemaining == null || (Number.isInteger(x.hiddenRemaining) && x.hiddenRemaining >= 0 &&
@@ -2023,9 +2021,9 @@ export function loadRun() {
             (x.meetings === 0 || x.due === true))))) return false;
         if (id === 'ownShade') {
           const fall = x.fall;
-          const validFall = fall == null || (plainObject(fall) && onlyKeys(fall, ['act', 'row', 'shadeAspect', 'bequest']) &&
+          const validFall = fall == null || (isPlainRecord(fall) && onlyKeys(fall, ['act', 'row', 'shadeAspect', 'bequest']) &&
             Number.isInteger(fall.act) && fall.act >= 0 && fall.act <= 2 && Number.isInteger(fall.row) && fall.row >= 0 &&
-            (fall.shadeAspect === 0 || fall.shadeAspect === 1) && validBequest(fall.bequest));
+            validAspectIndex(fall.shadeAspect) && validBequest(fall.bequest));
           if (!(onlyKeys(x, ['fall', 'pendingBequest']) && validFall && validBequest(x.pendingBequest))) return false;
         }
       }
@@ -2034,7 +2032,7 @@ export function loadRun() {
 
     const validEndEvent = (event) => validRunEvent(event, END_EVENT_TYPES);
 
-    if (!plainObject(run.quests)) return null;
+    if (!isPlainRecord(run.quests)) return null;
     if (!validRunId(run.runId)) return null;
     if (run.boon != null && !hasOwn(BOONS, run.boon)) return null;
     if (!validMonument(run.monument)) return null;
@@ -2274,7 +2272,7 @@ export function payHollowPrice(run) {
     return { ok: true, deferred: pending.deferred, message: pending.answer };
   }
   const q = questRecord(run, 'hollowLamplighter');
-  if (!q || !['armed', 'revealed'].includes(q.state)) {
+  if (!q || !QUEST_ACTIVE_STATES.includes(q.state)) {
     return { ok: false, deferred: false, message: '' };
   }
   const meeting = QUESTS.hollowLamplighter.meetings[q.progress];

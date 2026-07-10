@@ -1,6 +1,6 @@
 // SPIREBOUND UI — screens, combat playback, interactions.
 import * as E from './engine.js';
-import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS, QUESTS, QUEST_IDS, WHISPERS, PROGRESSION } from './data.js';
+import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS, QUESTS, QUEST_IDS, TERMINAL_OUTCOMES, WHISPERS, PROGRESSION } from './data.js';
 import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, uiIcon, uiIconUrl, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
 import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule, drawBatchSchedule } from './pile-chrome.js';
 import { UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyphId } from './ui-chrome.js';
@@ -4402,7 +4402,7 @@ function journalRunEnd(run, outcome, onFinalised = null) {
 }
 function finalisePendingRunEnd(run, onFinalised = null) {
   const outcome = run.pendingRunEnd?.outcome;
-  if (!['win', 'death', 'abandon'].includes(outcome)) return false;
+  if (!TERMINAL_OUTCOMES.includes(outcome)) return false;
   const acknowledgeRunEnd = outcome === 'win'
     ? (candidate) => E.stagePendingDawn(
         candidate,

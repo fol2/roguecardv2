@@ -18,7 +18,7 @@ Use the default five-label triage vocabulary. See `docs/agents/triage-labels.md`
 
 ### Domain docs
 
-Use a multi-context domain documentation layout. See `docs/agents/domain.md`.
+Read `CONTEXT-MAP.md` before naming or changing domain concepts. The repo uses a multi-context domain documentation layout; see `docs/agents/domain.md`.
 
 ## Commands
 
@@ -30,14 +30,14 @@ npm run preview      # serve the built dist/
 npm test             # node test/test_engine.js — unit checks + 300-run monte-carlo bot
 npm run test:e2e     # Playwright visual-QA kit (geometry, battle, stage, visual, perf)
 npm run test:e2e:update   # refresh screenshot baselines
-npm run test:e2e:perf     # fps gate only (single worker)
+npm run test:e2e:perf     # performance reference; warns on target misses
 ```
 
 - **Tests are a single self-check script**, not a framework. `npm test` runs the whole of `test/test_engine.js` (plain `node`, `node:assert`). There is no test runner or `-t` filter — to run a subset, comment out blocks in that file. Any assertion failure exits non-zero.
 - **Playwright** (`test/e2e/`) is separate from `npm test` and requires Chromium (`npx playwright install chromium` once if launch fails). It reuses the dev server on port 5174. Spec: `docs/superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md` §3.
-- **The complete Playwright gate is partitioned.** `npm run test:e2e` runs the disk-writing battlefield-editor case once, the long random-agent case once on desktop with one reduced-motion worker, the remaining non-visual desktop/portrait/landscape matrix with two workers, then the complete visual suite with one worker. Baseline refresh also uses one worker; visual, update, random-agent, and perf lanes use `--no-deps`.
+- **The complete Playwright gate is partitioned into five lanes.** `npm run test:e2e` runs the disk-writing battlefield-editor case, random-agent coverage, the remaining non-visual main matrix, serial-heavy `@serial` coverage, then the complete visual suite. Baseline refresh uses one worker; visual, update, random-agent, serial-heavy, and performance lanes use `--no-deps`.
 - **`dist/` is committed** and rebuilt into the repo, so `npm run build` produces large diffs — that is expected here, not a mistake.
-- **CI:** `.github/workflows/ci.yml` runs `npm test` + `npm run build` + committed-`dist/` verification (`unit`) and the full Playwright kit (`e2e`, linux baselines) on every PR/push to main; `perf.yml` records nightly/manual fps without gating the budget but fails if no measurement is produced; `update-baselines.yml` (manual dispatch) regenerates only linux visual baselines as an artifact.
+- **CI:** `.github/workflows/ci.yml` runs unit/build checks and browser smoke in parallel for Draft PRs. Ready PRs and pushes to `main` run the complete parallel Playwright gate; the stable aggregate check names are `unit` and `e2e`. `perf.yml` records nightly/manual performance reference metrics without gating the target budget but fails if no valid measurement is produced; `update-baselines.yml` (manual dispatch) regenerates only linux visual baselines as an artifact.
 
 ## Cursor Cloud specific instructions
 
