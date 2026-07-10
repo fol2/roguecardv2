@@ -14,6 +14,13 @@ const VERSION_RE = /^[a-z0-9][a-z0-9-]*$/;
 const CANONICAL_COUNTS = Object.freeze({ music: 22, sfx: 36 });
 const MP3_FRAME_TOLERANCE_SECONDS = 0.035;
 const MUSIC_BOUND_TOLERANCE_SECONDS = 0.05;
+// Separate from MP3_FRAME_TOLERANCE_SECONDS (which bounds SFX ledger-target
+// enforcement, a real quality gate): this only absorbs cross-ffmpeg-version
+// MP3 duration-probe drift (observed up to ~40ms on some files between the
+// dev machine's ffmpeg 8.1.2 and CI's apt-installed build). sha256 is the
+// byte-exact integrity guarantee; this check just shouldn't fail on decoder
+// version differences.
+const DURATION_PROBE_TOLERANCE_SECONDS = 0.1;
 const ISO_DATE_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
 const SHA256_RE = /^[a-f0-9]{64}$/i;
 const RENDER_PROVENANCE_FILE = 'render-provenance.json';
@@ -365,7 +372,7 @@ function validateManifest(manifest, context, report) {
     // sha256 above is the byte-exact integrity guarantee; ffprobe's MP3 duration
     // estimate itself varies by ~1 frame across ffmpeg builds/versions (gapless
     // delay/padding heuristics), so this check only needs frame-level tolerance.
-    if (!closeEnough(Number(item.duration_seconds), media.duration_seconds, MP3_FRAME_TOLERANCE_SECONDS)) {
+    if (!closeEnough(Number(item.duration_seconds), media.duration_seconds, DURATION_PROBE_TOLERANCE_SECONDS)) {
       report.errors.push(`${prefix}.duration_seconds: expected ${media.duration_seconds.toFixed(6)}`);
     }
     if (item.codec !== media.codec) report.errors.push(`${prefix}.codec: expected ${media.codec}`);
