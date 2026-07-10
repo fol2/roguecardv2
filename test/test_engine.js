@@ -1052,6 +1052,43 @@ function forceHand(run, cb, ids) {
       assert.deepEqual(loadRun().pendingRunEnd, { outcome }, `${outcome} run-end journal survives reload`);
     }
 
+    for (const marker of ['meeting', 'destination']) {
+      const terminalHollow = newRun(marker === 'meeting' ? 426 : 427, { quests: saveQuests });
+      const node = terminalHollow.map.nodes[0];
+      node.type = 'rest';
+      terminalHollow.nodeId = node.id;
+      terminalHollow.map.visited.push(node.id);
+      if (marker === 'meeting') {
+        terminalHollow.pendingHollow = {
+          nodeId: node.id, type: 'rest', paid: false, deferred: false, answer: null,
+        };
+      } else {
+        terminalHollow.pendingHollowRoute = { nodeId: node.id, type: 'rest', eventId: null };
+      }
+
+      journalTerminalOutcome(terminalHollow, 'abandon');
+      assert.equal(terminalHollow.pendingHollow, null, `${marker} marker clears before terminal journalling`);
+      assert.equal(terminalHollow.pendingHollowRoute, null, `${marker} route clears before terminal journalling`);
+      assert.deepEqual(terminalHollow.pendingRunEnd, { outcome: 'abandon' });
+      assert.equal(saveRun(terminalHollow), true, `${marker} terminal outbox saves`);
+
+      let failures = 0;
+      assert.equal(finaliseTerminalOutbox(
+        terminalHollow,
+        () => ({ accepted: false }),
+        () => { failures++; },
+        () => assert.fail(`${marker} rejected finalisation must not continue`),
+      ), false, `${marker} failed finalisation remains retryable`);
+      assert.equal(failures, 1);
+      const terminalReload = loadRun();
+      assert.ok(terminalReload, `${marker} failed finalisation reloads the durable run`);
+      assert.equal(savedRunRequiresFinalisation(terminalReload), true,
+        `${marker} failed finalisation resumes its terminal outbox after reload`);
+      assert.deepEqual(terminalReload.pendingRunEnd, { outcome: 'abandon' });
+      assert.equal(terminalReload.pendingHollow, null);
+      assert.equal(terminalReload.pendingHollowRoute, null);
+    }
+
     const legacyId = newRun(418, { quests: saveQuests });
     delete legacyId.runId;
     saveRun(legacyId);
@@ -1204,6 +1241,10 @@ function forceHand(run, cb, ids) {
       setPendingHollow(r);
       r.nodeId = null;
     });
+    rejectSaved('Hollow meeting rejects an unvisited current node', (r) => {
+      setPendingHollow(r);
+      r.map.visited = r.map.visited.filter((id) => id !== r.nodeId);
+    });
     rejectSaved('Hollow meeting excludes pending combat', (r) => {
       setPendingHollow(r);
       setPendingEncounter(r, 'monster', ['sporeling']);
@@ -1240,6 +1281,10 @@ function forceHand(run, cb, ids) {
     rejectSaved('Hollow route must be the current visited node', (r) => {
       setHollowRoute(r);
       r.nodeId = null;
+    });
+    rejectSaved('Hollow route rejects an unvisited current node', (r) => {
+      setHollowRoute(r);
+      r.map.visited = r.map.visited.filter((id) => id !== r.nodeId);
     });
     rejectSaved('combat cannot be a Hollow destination marker', (r) => setHollowRoute(r, 'monster'));
     rejectSaved('Hollow event route requires exact event identity', (r) => setHollowRoute(r, 'event'));

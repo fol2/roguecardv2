@@ -16,6 +16,8 @@ export function journalTerminalOutcome(run, outcome) {
   run.pendingCombat = null;
   run.pendingEnemyIds = null;
   run.pendingQuestId = null;
+  run.pendingHollow = null;
+  run.pendingHollowRoute = null;
   run.pendingRunEnd = { outcome };
   return run.pendingRunEnd;
 }

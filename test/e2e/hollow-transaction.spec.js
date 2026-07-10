@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
 
 async function seedHollow(page, {
-  seed, progress, type, paid = false, gold = 99, maxHp = 72,
+  seed, progress, type, paid = false, gold = 99, maxHp = 72, shape = null,
 }) {
-  await page.goto('/');
+  await page.goto(shape ? `/?shape=${shape}` : '/');
   await page.waitForFunction(() => window.spirebound && window.__probe);
   await page.evaluate(async (opts) => {
     localStorage.clear();
@@ -36,6 +36,35 @@ async function seedHollow(page, {
 
 test.beforeEach(() => {
   test.skip(test.info().project.name !== 'desktop', 'transaction behaviour is shape-independent');
+});
+
+test('Hollow actions fit the canonical pad portrait without overlap', async ({ page }) => {
+  await seedHollow(page, {
+    seed: 915, progress: 1, type: 'rest', gold: 0, shape: 'pad-portrait',
+  });
+  const stage = await page.locator('#stage').boundingBox();
+  const actions = await page.locator('.hollow-actions .btn').evaluateAll((buttons) => buttons.map((button) => {
+    const box = button.getBoundingClientRect();
+    return { x: box.x, y: box.y, width: box.width, height: box.height };
+  }));
+  expect(stage).not.toBeNull();
+  expect(actions).toHaveLength(3);
+  for (const box of actions) {
+    expect(box.width).toBeGreaterThan(0);
+    expect(box.height).toBeGreaterThan(0);
+    expect(box.x).toBeGreaterThanOrEqual(stage.x - 0.5);
+    expect(box.y).toBeGreaterThanOrEqual(stage.y - 0.5);
+    expect(box.x + box.width).toBeLessThanOrEqual(stage.x + stage.width + 0.5);
+    expect(box.y + box.height).toBeLessThanOrEqual(stage.y + stage.height + 0.5);
+  }
+  for (let i = 0; i < actions.length; i++) {
+    for (let j = i + 1; j < actions.length; j++) {
+      const a = actions[i], b = actions[j];
+      const overlaps = a.x < b.x + b.width && a.x + a.width > b.x &&
+        a.y < b.y + b.height && a.y + a.height > b.y;
+      expect(overlaps, `Hollow actions ${i} and ${j} overlap`).toBe(false);
+    }
+  }
 });
 
 test('Hollow combat exit journals destination in one acknowledged save', async ({ page }) => {

@@ -2080,6 +2080,7 @@ git commit -m "Add the Unreadable Page Trail"
 - Modify: src/engine.js (newRun, visitNode, stageHollowExit, gainEmbers, applyBoon, payHollowPrice)
 - Modify: src/vigil.js (eligible-run pity memory)
 - Modify: src/ui.js:544-547, 725-815, 964-1006
+- Modify: src/terminal-outbox.js (Hollow-to-terminal ownership transfer)
 - Modify: src/styles.css
 - Test: test/test_engine.js
 - Test: test/e2e/hollow-transaction.spec.js
@@ -2091,6 +2092,7 @@ git commit -m "Add the Unreadable Page Trail"
 - payHollowPrice returns { ok, deferred, message }.
 - stageHollowExit returns either `{kind:'combat',nodeId,type,enemyIds}` or `{kind:'destination',nodeId,type,eventId}` after preparing the complete durable exit transaction in memory.
 - pendingHollowRoute is null or exactly `{nodeId,type,eventId}`. It is used only for actual unlit rest/shop/event destinations; eventId is an own EVENTS key for event and null otherwise.
+- journalTerminalOutcome(run,outcome) clears pendingHollow and pendingHollowRoute before installing pendingRunEnd, so the terminal outbox becomes the sole durable owner without weakening exactly-once finalisation.
 
 - [ ] **Step 1: Write failing appearance, five-price, and debt tests**
 
@@ -2491,6 +2493,19 @@ After a rejected-review hardening pass, stage only the exact changed paths (incl
 ~~~bash
 git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/engine.js src/ui.js test/test_engine.js test/e2e/hollow-transaction.spec.js
 git commit -m "Harden Hollow exit transactions"
+~~~
+
+- [x] **Step 7: Close terminal-outbox and canonical pad-portrait gates**
+
+Terminal outcomes may be journalled while either an unpaid/paid Hollow meeting or a rest/shop/event Hollow route owns the current node. Before assigning pendingRunEnd, journalTerminalOutcome must clear both Hollow markers alongside combat/reward state. Add one regression for each marker shape which journals abandon, saves, rejects finalisation, reloads the durable run, and proves savedRunRequiresFinalisation remains true. Keep the existing run-ID receipts, retry path, and one-continuation WeakSet semantics unchanged. Independently reject a current but unvisited node for both Hollow marker validators.
+
+At canonical `shape=pad-portrait` (820×1180), lay out the three Hollow actions as a two-column grid with Return Later spanning the second row. Scope this adjustment to stage widths 741–1100px: desktop and pad landscape retain the ordinary row, phone portrait retains its full-width column, and the short-landscape and reduced-motion rules remain unchanged. Add permanent Playwright geometry coverage which forces pad portrait and asserts all three non-zero action boxes are wholly inside #stage and pairwise non-overlapping.
+
+Run the focused browser test through an uncommitted isolated-port config whenever 5174 belongs to another worktree. Delete that config before exact-path staging.
+
+~~~bash
+git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/terminal-outbox.js src/styles.css test/test_engine.js test/e2e/hollow-transaction.spec.js
+git commit -m "Close Hollow terminal and pad gates"
 ~~~
 
 

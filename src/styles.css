@@ -1917,6 +1917,11 @@ html.mesh-on .enemy-art.warded::before { display: none; }
 }
 .hollow-lamplighter.reduced .hollow-figure,
 .hollow-lamplighter.reduced .screen-enter { animation: none; }
+@container stage (min-width: 741px) and (max-width: 1100px) {
+  .hollow-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hollow-actions .btn { min-width: 0; }
+  .hollow-actions .btn:last-child { grid-column: 1 / -1; }
+}
 @container stage (max-width: 740px) {
   .hollow-lamplighter { display: flex; justify-content: center; padding: calc(68px + var(--sat)) 18px calc(18px + var(--sab)); }
   .hollow-figure { --hollow-opacity: 0.22; position: absolute; inset: 6% -18% 2% -34%; height: auto; min-height: 0; opacity: 0.22; }
