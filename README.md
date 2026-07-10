@@ -60,8 +60,8 @@ npm run test:e2e   # Playwright visual-QA kit (needs dev server on 5174 + Chromi
 
 CI uses two pull-request modes. Draft pushes run `npm test`, `npm run build`,
 and `npm run test:e2e:smoke` in parallel. Marking a PR Ready for review runs
-the complete Playwright gate across isolated random-agent, main, visual, and
-disk-writing jobs; later Ready pushes rerun that full gate. `npm run test:e2e`
+the complete Playwright gate across isolated random-agent, main, serial-heavy,
+visual, and disk-writing jobs; later Ready pushes rerun that full gate. `npm run test:e2e`
 remains the complete serial local equivalent. CI wall-clock targets are
 warnings, not correctness gates.
 

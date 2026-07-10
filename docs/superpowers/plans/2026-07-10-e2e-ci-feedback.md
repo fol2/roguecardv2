@@ -4,7 +4,7 @@
 
 **Goal:** Give Draft PR pushes a parallel unit/build/browser result in roughly three minutes while making every Ready PR and `main` push pass the complete Playwright contract through parallel, latest-head shards.
 
-**Architecture:** A dependency-free Node module owns CI mode and aggregator rules so conditional required-check behaviour is locally testable. GitHub Actions evaluates paths and Draft/Ready mode once, then fans unit, build, smoke, disk, random-agent, main, and visual lanes onto isolated runners; tiny `unit` and `e2e` aggregators preserve the existing branch-protection check names.
+**Architecture:** A dependency-free Node module owns CI mode and aggregator rules so conditional required-check behaviour is locally testable. GitHub Actions evaluates paths and Draft/Ready mode once, then fans unit, build, smoke, disk, random-agent, main, serial-heavy, and visual lanes onto isolated runners; tiny `unit` and `e2e` aggregators preserve the existing branch-protection check names.
 
 **Tech Stack:** GitHub Actions on `ubuntu-24.04`, Node.js 24, npm, Vite, Playwright 1.61, vanilla ESM, `node:assert`.
 
@@ -17,7 +17,7 @@
 - Documentation-only changes produce successful no-op aggregators.
 - Playwright retries remain zero and each browser process uses at most two workers.
 - Disk-writing E2E remains isolated; screenshot refresh remains manual and serial.
-- Full CI uses three random-agent shards, four main shards, and one visual job per canonical project.
+- Full CI uses three random-agent shards, eight main shards, one isolated serial-heavy job, and one visual job per canonical project.
 - Draft target is at most three minutes and full target is at most eight minutes; timing is warning/reference evidence, never a correctness hard gate.
 - Performance FPS/frame-time remains nightly/manual reference evidence and is not part of this workflow change.
 - Preserve the existing untracked `scratch/emberglass-phase2-manual-journey.mjs` file and never stage it.
@@ -34,7 +34,7 @@
 |---|---|
 | `tools/ci-contract.mjs` | Pure Draft/Ready mode resolver and required-lane aggregator validation; dependency-free CLI for Actions |
 | `test/test_ci_contract.mjs` | Direct assertions for mode, no-op, success, failure, cancelled, skipped, and missing-result cases |
-| `package.json` | Reproducible CI-contract, smoke, random shard, main shard, and visual-project commands |
+| `package.json` | Reproducible CI-contract, smoke, random shard, main shard, serial-heavy, and visual-project commands |
 | `test/e2e/config.spec.js` | Tagged server-contract smoke case |
 | `test/e2e/stage.spec.js` | Tagged title/Embark safe-layout smoke case |
 | `test/e2e/battle.spec.js` | Tagged combat smoke case and three independent random-agent cases |
@@ -81,7 +81,7 @@ assert.deepEqual(requiredCiLanes('unit', false, 'smoke'), ['changes']);
 assert.deepEqual(requiredCiLanes('unit', true, 'smoke'), ['changes', 'unit-tests', 'build-dist']);
 assert.deepEqual(requiredCiLanes('e2e', true, 'smoke'), ['changes', 'smoke-e2e']);
 assert.deepEqual(requiredCiLanes('e2e', true, 'full'), [
-  'changes', 'e2e-disk', 'e2e-random', 'e2e-main', 'e2e-visual',
+  'changes', 'e2e-disk', 'e2e-random', 'e2e-main', 'e2e-serial', 'e2e-visual',
 ]);
 
 assert.deepEqual(verifyCiGate({
@@ -95,9 +95,9 @@ assert.deepEqual(verifyCiGate({
   gate: 'e2e', relevant: true, mode: 'full',
   results: {
     changes: 'success', 'e2e-disk': 'success', 'e2e-random': 'success',
-    'e2e-main': 'success', 'e2e-visual': 'success',
+    'e2e-main': 'success', 'e2e-serial': 'success', 'e2e-visual': 'success',
   },
-}).required.length, 5);
+}).required.length, 6);
 
 for (const result of ['failure', 'cancelled', 'skipped', undefined]) {
   assert.throws(() => verifyCiGate({
@@ -135,7 +135,7 @@ import { pathToFileURL } from 'node:url';
 
 const UNIT_LANES = ['changes', 'unit-tests', 'build-dist'];
 const SMOKE_LANES = ['changes', 'smoke-e2e'];
-const FULL_E2E_LANES = ['changes', 'e2e-disk', 'e2e-random', 'e2e-main', 'e2e-visual'];
+const FULL_E2E_LANES = ['changes', 'e2e-disk', 'e2e-random', 'e2e-main', 'e2e-serial', 'e2e-visual'];
 
 const truthy = (value) => value === true || String(value).toLowerCase() === 'true';
 
@@ -306,10 +306,14 @@ npm run test:e2e:random-agent -- --list
 npm run test:e2e:random-agent -- --list --shard=1/3
 npm run test:e2e:random-agent -- --list --shard=2/3
 npm run test:e2e:random-agent -- --list --shard=3/3
-npm run test:e2e:main -- --list --shard=1/4
-npm run test:e2e:main -- --list --shard=2/4
-npm run test:e2e:main -- --list --shard=3/4
-npm run test:e2e:main -- --list --shard=4/4
+npm run test:e2e:main -- --list --shard=1/8
+npm run test:e2e:main -- --list --shard=2/8
+npm run test:e2e:main -- --list --shard=3/8
+npm run test:e2e:main -- --list --shard=4/8
+npm run test:e2e:main -- --list --shard=5/8
+npm run test:e2e:main -- --list --shard=6/8
+npm run test:e2e:main -- --list --shard=7/8
+npm run test:e2e:main -- --list --shard=8/8
 ```
 
 Expected: three random tests overall, one in each random shard, and at least
@@ -572,13 +576,13 @@ jobs:
           if-no-files-found: ignore
 
   e2e_main:
-    name: e2e main ${{ matrix.shard }}/4
+    name: e2e main ${{ matrix.shard }}/8
     needs: changes
     if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -591,7 +595,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e:main -- --shard=${{ matrix.shard }}/4
+      - run: npm run test:e2e:main -- --shard=${{ matrix.shard }}/8
       - name: Verify clean checkout
         if: always()
         run: test -z "$(git status --porcelain --untracked-files=all)"
@@ -638,7 +642,7 @@ jobs:
   e2e:
     name: e2e
     if: always()
-    needs: [changes, smoke_e2e, e2e_disk, e2e_random, e2e_main, e2e_visual]
+    needs: [changes, smoke_e2e, e2e_disk, e2e_random, e2e_main, e2e_serial, e2e_visual]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -651,7 +655,7 @@ jobs:
           CI_RELEVANT: ${{ needs.changes.outputs.e2e }}
           CI_MODE: ${{ needs.changes.outputs.mode }}
           CI_RESULTS: >-
-            {"changes":"${{ needs.changes.result }}","smoke-e2e":"${{ needs.smoke_e2e.result }}","e2e-disk":"${{ needs.e2e_disk.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-main":"${{ needs.e2e_main.result }}","e2e-visual":"${{ needs.e2e_visual.result }}"}
+            {"changes":"${{ needs.changes.result }}","smoke-e2e":"${{ needs.smoke_e2e.result }}","e2e-disk":"${{ needs.e2e_disk.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-main":"${{ needs.e2e_main.result }}","e2e-serial":"${{ needs.e2e_serial.result }}","e2e-visual":"${{ needs.e2e_visual.result }}"}
 ```
 
 - [x] **Step 2: Parse and inspect the workflow locally**
@@ -677,7 +681,7 @@ CI_RESULTS='{"changes":"success","smoke-e2e":"success"}' \
 node tools/ci-contract.mjs gate
 
 ! CI_GATE=e2e CI_RELEVANT=true CI_MODE=full \
-CI_RESULTS='{"changes":"success","e2e-disk":"success","e2e-random":"success","e2e-main":"failure","e2e-visual":"success"}' \
+CI_RESULTS='{"changes":"success","e2e-disk":"success","e2e-random":"success","e2e-main":"failure","e2e-serial":"success","e2e-visual":"success"}' \
 node tools/ci-contract.mjs gate
 ```
 
@@ -711,8 +715,8 @@ Add after the existing E2E command block:
 ```markdown
 CI uses two pull-request modes. Draft pushes run `npm test`, `npm run build`,
 and `npm run test:e2e:smoke` in parallel. Marking a PR Ready for review runs
-the complete Playwright gate across isolated random-agent, main, visual, and
-disk-writing jobs; later Ready pushes rerun that full gate. `npm run test:e2e`
+the complete Playwright gate across isolated random-agent, main, serial-heavy,
+visual, and disk-writing jobs; later Ready pushes rerun that full gate. `npm run test:e2e`
 remains the complete serial local equivalent. CI wall-clock targets are
 warnings, not correctness gates.
 ```
@@ -737,9 +741,10 @@ git diff --check
 yq eval '.' .github/workflows/ci.yml >/dev/null
 SPIREBOUND_E2E_PORT=5210 npm run test:e2e:smoke
 SPIREBOUND_E2E_PORT=5211 npm run test:e2e:random-agent
-for shard in 1 2 3 4; do
-  SPIREBOUND_E2E_PORT=$((5211 + shard)) npm run test:e2e:main -- --shard=$shard/4
+for shard in 1 2 3 4 5 6 7 8; do
+  SPIREBOUND_E2E_PORT=$((5211 + shard)) npm run test:e2e:main -- --shard=$shard/8
 done
+SPIREBOUND_E2E_PORT=5220 npm run test:e2e:serial
 for project in desktop portrait landscape; do
   case "$project" in
     desktop) port=5216 ;;
@@ -750,8 +755,8 @@ for project in desktop portrait landscape; do
 done
 ```
 
-Expected: every command exits zero; the four main shards collectively cover
-the same non-visual test set; the three visual jobs collectively cover all 48
+Expected: every command exits zero; the eight main shards plus serial-heavy
+lane collectively cover the same non-visual test set; the three visual jobs collectively cover all 48
 Linux baseline comparisons.
 
 - [x] **Step 4: Rebuild twice and verify deterministic tracked output**
@@ -804,4 +809,4 @@ blocker to diagnose and fix.
   unnamed test step remains.
 - Interface consistency: lane keys in `tools/ci-contract.mjs`, its tests, and
   workflow `CI_RESULTS` maps are exactly `changes`, `unit-tests`, `build-dist`,
-  `smoke-e2e`, `e2e-disk`, `e2e-random`, `e2e-main`, and `e2e-visual`.
+  `smoke-e2e`, `e2e-disk`, `e2e-random`, `e2e-main`, `e2e-serial`, and `e2e-visual`.

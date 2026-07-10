@@ -506,7 +506,7 @@ test('Rose pane details disclose safely through click and keyboard', async ({ pa
   await expect(detail).toHaveText('???');
 });
 
-test('Rose pane detail stays legible and bounded in every canonical shape', async ({ page }) => {
+test('Rose pane detail stays legible and bounded in every canonical shape', { tag: '@serial' }, async ({ page }) => {
   test.skip(test.info().project.name !== 'desktop', 'one project forces all five stage shapes');
   await page.addInitScript((vigil) => {
     localStorage.removeItem('spirebound_save_v2');

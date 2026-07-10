@@ -217,13 +217,13 @@ jobs:
           if-no-files-found: ignore
 
   e2e_main:
-    name: e2e main ${{ matrix.shard }}/4
+    name: e2e main ${{ matrix.shard }}/8
     needs: changes
     if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -236,7 +236,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e:main -- --shard=${{ matrix.shard }}/4
+      - run: npm run test:e2e:main -- --shard=${{ matrix.shard }}/8
       - name: Verify clean checkout
         if: always()
         run: test -z "$(git status --porcelain --untracked-files=all)"
@@ -244,6 +244,34 @@ jobs:
         if: failure()
         with:
           name: playwright-main-${{ matrix.shard }}-${{ github.run_id }}
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  e2e_serial:
+    name: e2e serial
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:serial
+      - name: Verify clean checkout
+        if: always()
+        run: test -z "$(git status --porcelain --untracked-files=all)"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-serial-${{ github.run_id }}
           path: test-results/
           retention-days: 14
           if-no-files-found: ignore
@@ -283,7 +311,7 @@ jobs:
   e2e:
     name: e2e
     if: always()
-    needs: [changes, smoke_e2e, e2e_disk, e2e_random, e2e_main, e2e_visual]
+    needs: [changes, smoke_e2e, e2e_disk, e2e_random, e2e_main, e2e_serial, e2e_visual]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -296,4 +324,4 @@ jobs:
           CI_RELEVANT: ${{ needs.changes.outputs.e2e }}
           CI_MODE: ${{ needs.changes.outputs.mode }}
           CI_RESULTS: >-
-            {"changes":"${{ needs.changes.result }}","smoke-e2e":"${{ needs.smoke_e2e.result }}","e2e-disk":"${{ needs.e2e_disk.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-main":"${{ needs.e2e_main.result }}","e2e-visual":"${{ needs.e2e_visual.result }}"}
+            {"changes":"${{ needs.changes.result }}","smoke-e2e":"${{ needs.smoke_e2e.result }}","e2e-disk":"${{ needs.e2e_disk.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-main":"${{ needs.e2e_main.result }}","e2e-serial":"${{ needs.e2e_serial.result }}","e2e-visual":"${{ needs.e2e_visual.result }}"}

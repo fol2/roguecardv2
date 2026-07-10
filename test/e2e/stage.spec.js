@@ -270,7 +270,10 @@ test('maximum Emberglass profile and ceremonies fit every stage', async ({ page 
     document.getElementById('screen').scrollLeft,
     document.getElementById('screen').scrollTop,
   ])).toEqual([0, 0, 0, 0]);
-  await page.click('[data-a="sealed-door"]');
+  // The sealed door is projected from the continuously moving 3D camera.
+  // Dispatch the click without Playwright's stable-box wait: this assertion
+  // measures the resulting panel layout, not the map camera's animation.
+  await page.locator('[data-a="sealed-door"]').dispatchEvent('click');
   await page.waitForTimeout(250);
   expect(await page.evaluate(() => [
     document.getElementById('stage').scrollLeft,

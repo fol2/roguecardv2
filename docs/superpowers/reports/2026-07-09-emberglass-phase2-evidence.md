@@ -362,8 +362,8 @@ The owner-approved CI redesign is specified in
 and implemented through the accompanying
 [`plan`](../plans/2026-07-10-e2e-ci-feedback.md). Draft PRs run unit, build, and
 four critical browser smokes in parallel. Ready PRs and `main` fan out one
-disk job, three independent random-agent shards, four main shards, and one
-visual job per canonical project. Required check names remain exactly `unit`
+disk job, three independent random-agent shards, eight main shards, one
+serial-heavy job, and one visual job per canonical project. Required check names remain exactly `unit`
 and `e2e`; their dependency-free aggregator rejects failed, cancelled,
 skipped, or missing required lanes.
 
@@ -389,12 +389,18 @@ test:e2e:disk
 test:e2e:random-agent
 3 passed (1.5m serial); individual cases 25.3s, 32.4s, 34.2s
 
-test:e2e:main --shard=N/4
+initial test:e2e:main --shard=N/4 calibration
 1/4: 70 passed, 6 skipped (1.7m)
 2/4: 24 passed, 52 skipped (37.1s)
 3/4: 31 passed, 45 skipped (54.0s)
 4/4: 28 passed, 47 skipped (48.6s)
 aggregate: 153 passed, 150 intentional project skips
+
+final test:e2e:main --list --shard=N/8
+38, 38, 38, 38, 37, 37, 37, 37 selected tests; aggregate 300
+
+test:e2e:serial
+1 passed (7.3s)
 
 test:e2e:visual:project
 desktop: 16 passed (58.9s)
@@ -409,12 +415,19 @@ git diff --check
 PASS; no output
 ~~~
 
-On the local machine the projected full browser critical path is therefore
-approximately 1.7 minutes before runner checkout/install overhead, compared
-with more than 24 minutes for the previous serial GitHub job. This is a
-projection only: the real Ready/full wall-clock result must be recorded from
-the first green GitHub run. The eight-minute target and ten-minute warning
-threshold remain timing references, not correctness gates.
+Ready run [29122318611](https://github.com/fol2/roguecardv2/actions/runs/29122318611)
+proved the first topology but failed correctness. The 4-way main split was
+runtime-imbalanced: `main 1/4` took 13.5 minutes and `main 2/4` took 6.4
+minutes of browser time. It also exposed two deterministic harness faults:
+the moving 3D sealed-door projection never satisfied Playwright's stable-box
+actionability wait, and the multi-shape Rose journey exhausted its 90-second
+budget while sharing a WebGL runner. The former now dispatches its click
+directly because the test measures the resulting panel layout; the latter is
+isolated as `e2e-serial` with one worker. Main work is split eight ways.
+
+The next pushed Ready/full run must provide the real final wall-clock result.
+The eight-minute target and ten-minute warning threshold remain timing
+references, not correctness gates.
 
 PR #14 remains **NO-GO until that pushed Ready/full run reports green**. A
 timing miss alone will not block it; any failed required child lane will.
