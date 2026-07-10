@@ -2077,16 +2077,20 @@ git commit -m "Add the Unreadable Page Trail"
 ### Task 10: Implement the Hollow Lamplighter and reversible boon price
 
 **Files:**
-- Modify: src/engine.js (newRun, visitNode, gainEmbers, applyBoon, payHollowPrice)
+- Modify: src/engine.js (newRun, visitNode, stageHollowExit, gainEmbers, applyBoon, payHollowPrice)
 - Modify: src/vigil.js (eligible-run pity memory)
 - Modify: src/ui.js:544-547, 725-815, 964-1006
 - Modify: src/styles.css
 - Test: test/test_engine.js
+- Test: test/e2e/hollow-transaction.spec.js
+- Modify: docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md (review hardening contract)
 
 **Interfaces:**
-- Produces: applyBoon(run,id), reverseBoon(run), payHollowPrice(run), and run.pendingHollow.
+- Produces: applyBoon(run,id), reverseBoon(run), payHollowPrice(run), stageHollowExit(run), run.pendingHollow, and run.pendingHollowRoute.
 - applyBoon returns/stores boonReceipt `{id,playerDelta,statsGoldEarned,relicsAdded,potionSlotsAdded}`.
 - payHollowPrice returns { ok, deferred, message }.
+- stageHollowExit returns either `{kind:'combat',nodeId,type,enemyIds}` or `{kind:'destination',nodeId,type,eventId}` after preparing the complete durable exit transaction in memory.
+- pendingHollowRoute is null or exactly `{nodeId,type,eventId}`. It is used only for actual unlit rest/shop/event destinations; eventId is an own EVENTS key for event and null otherwise.
 
 - [ ] **Step 1: Write failing appearance, five-price, and debt tests**
 
@@ -2277,11 +2281,11 @@ if (hs && !hs.debtActive && ['armed', 'revealed'].includes(persistedHollow.state
 if (persistedHollow.state === 'complete') delete persistedHollow.memory.eligibleMisses;
 ~~~
 
-At most one meeting occurs because met is saved in the run.
+At most one meeting occurs because met is saved in the run. An unpaid **Return Later** exit clears only the current pending meeting: it neither charges nor advances the quest, routes the already-visited node, and leaves `met:true`, so no second meeting can occur in that run. A later eligible run can offer the same price again; an unsuccessful payment does not complete or suppress the quest.
 
-startRun checks pendingHollow before map and reopens the Hollow screen, preventing reload skips. Leaving the Hollow screen clears pendingHollow and routes the already-visited node exactly once without calling visitNode again.
+startRun checks pendingHollow before map and reopens the Hollow screen, preventing reload skips. An exit calls stageHollowExit before saving. Combat exit installs pendingCombat and the exact rolled enemy IDs, clears pendingHollow, and acknowledges that complete state with one save; UI combat startup consumes those IDs without a second save. A failed save reloads the full durable Hollow state and displays no successful-exit UI. Rest/shop/event exit installs pendingHollowRoute (including the exact rolled event ID), clears pendingHollow, and acknowledges both changes in the same save. startRun and renderMap resume that marker before map. The marker remains through the destination and is cleared only by a save-acknowledged rest action, shop Leave, or event completion; a failed clear remains at the destination with Retry Save or reload available.
 
-loadRun self-heals pendingHollow and boonReceipt to null. It accepts pendingHollow only as null or a plain object with exactly nodeId, type, paid, deferred, and answer: nodeId identifies an existing run.map node; type exactly matches that node; paid/deferred are booleans; answer is null before payment and a string after payment. It accepts boonReceipt only when its id exists in BOONS and equals run.boon; playerDelta has exactly finite signed gold/hp/maxHp/energyMax values; statsGoldEarned is finite and non-negative; relicsAdded is an array of RELICS ids; and potionSlotsAdded is an array of `{index,id}` records with a valid slot and POTIONS id. Unknown fields or invalid pending data reject the save.
+loadRun self-heals pendingHollow, pendingHollowRoute, and boonReceipt to null. It accepts pendingHollow only as null or a plain object with exactly nodeId, type, paid, deferred, and answer: nodeId identifies the current visited run.map node; type exactly matches that node; paid/deferred are booleans; answer is null before payment and a string after payment. It accepts pendingHollowRoute only with the exact shape above, a current visited matching rest/shop/event node, and a valid own EVENTS key when applicable. pendingHollow and pendingHollowRoute are each mutually exclusive with the other marker, pendingCombat, pendingReward, and pendingRunEnd. It accepts boonReceipt only when its id exists in BOONS and equals run.boon; playerDelta has exactly finite signed gold/hp/maxHp/energyMax values; statsGoldEarned is finite and non-negative; relicsAdded is an array of RELICS ids; and potionSlotsAdded is an array of `{index,id}` records with a valid slot and POTIONS id. Unknown fields or invalid pending data reject the save.
 
 Extend Task 3's rejectSaved matrix inside the same temporary-localStorage block:
 
@@ -2452,18 +2456,41 @@ export function payHollowPrice(run) {
 
 At the top of positive gainEmbers, divert `tithe = Math.min(n,q.memory.emberDebt)` before applying the ember-cap calculation, decrement the debt, and push `{t:'hollowTithe',n:tithe,remaining}`. When remaining reaches zero, delete emberDebt, call `advanceQuest(run,'hollowLamplighter',1,cb.queue)`, and include `paid:QUESTS.hollowLamplighter.meetings[0].paid` on that final hollowTithe event. Continue the original function with `n -= tithe`; negative spending is unchanged. After a run-end merge, assert a cleared debt is absent from loadVigil to prove authoritative memory replacement.
 
-Extract the existing post-visit type switch from enterNode into `routeVisitedNode(node,type)`. After visitNode, if result.hollow is true, require a successful save and call show('hollow',{nodeId:node.id}); on save failure restore `S.run=E.loadRun()`, return to its map, and show the storage error without opening Hollow. Otherwise call routeVisitedNode. Add show('hollow') to the router. The `.hollow-lamplighter` screen uses the gaunt CSS/SVG silhouette, exact meeting ask, `[data-a=hollow-pay]`, `.hollow-answer`, and `[data-a=hollow-continue]`.
+Extract the existing post-visit type switch from enterNode into `routeVisitedNode(node,type,{enemyIds,eventId}={})`. After visitNode, if result.hollow is true, require a successful save and call show('hollow',{nodeId:node.id}); on save failure restore `S.run=E.loadRun()`, return to its map, and show the storage error without opening Hollow. Otherwise call routeVisitedNode. Exact staged enemy IDs bypass encounter reroll and the ordinary second combat save; exact staged eventId bypasses event reroll. Add show('hollow') to the router. The `.hollow-lamplighter` screen uses the gaunt CSS/SVG silhouette, exact meeting ask, `[data-a=hollow-pay]`, `.hollow-answer`, `[data-a=hollow-continue]`, and `[data-a=hollow-leave]`.
 
-On render, a pending record with paid:true restores its answer and enables Continue; an unpaid record disables Continue. A Pay click disables Pay synchronously, calls payHollowPrice once, then immediately calls E.saveRun before showing success. On a successful save it leaves Pay disabled, writes the answer, and enables Continue. On a failed save it keeps Continue disabled, labels the button “Retry Save”, and a repeat click receives the idempotent stored result and retries only the save. A failed price re-enables Pay and shows cannot copy.
+On render, a pending record with paid:true restores its answer and enables Continue while disabling Return Later; an unpaid record disables Continue and enables Return Later. A Pay click disables Pay synchronously, calls payHollowPrice once, then immediately calls E.saveRun before showing success. On a successful save it leaves Pay disabled, writes the answer, and enables Continue. On a failed save it keeps Continue and Return Later disabled, labels the button “Retry Save”, and a repeat click receives the idempotent stored result and retries only the save. A failed price re-enables Pay and shows cannot copy; Return Later remains available because no price mutation occurred.
 
-Continue is accepted only when pending.paid is true. It copies pendingHollow, clears it, and requires E.saveRun to return true; on failure it restores pendingHollow and remains on the screen. On success it finds the already-visited node by nodeId and calls routeVisitedNode(node,pending.type) without visitNode. On resume, startRun routes pendingHollow to this screen before map. REDUCED removes entrance motion.
+Continue is accepted only when pending.paid is true; Return Later only when it is false. Both synchronously disable the Hollow controls and call stageHollowExit. The resulting pendingCombat or pendingHollowRoute and cleared pendingHollow are acknowledged together by one E.saveRun call. On failure, reload the full durable run with E.loadRun and render its Hollow meeting; do not merge or hand-restore a partial in-memory transaction. On success route the already-visited node without visitNode. On resume, startRun routes pendingHollow or pendingHollowRoute before map. renderMap repeats the route-marker guard so a stale callback cannot bypass it. REDUCED removes entrance motion.
+
+- [x] **Step 6: Harden rejected prices and atomic destination exits**
+
+Add engine regressions for all three recoverable price failures: gold below 160, Max HP below 42, and a spent/unreversible boon receipt. For each, prove the failed payment is unchanged, Return Later staging does not advance/charge, a save/load round trip retains no Hollow progress, and a later eligible run may offer the meeting again. Validate the exact pendingHollowRoute union, current visited node requirement, own-key event identity, and all marker exclusivity combinations.
+
+Add `test/e2e/hollow-transaction.spec.js` with permanent fault injection which proves:
+
+1. combat Continue performs one save containing both cleared pendingHollow and exact pendingCombat/enemy IDs, and reload resumes that combat;
+2. a rejected Return Later save restores the full durable Hollow meeting with no progress or resource change;
+3. event identity and rest/shop routes survive reload until their acknowledged destination exit; and
+4. a rejected destination-marker clear cannot return to map, keeps the live and durable marker, and only Retry Save can complete the exit.
+
+The marker owns Hollow route identity and acknowledged destination completion only. Do not use this task to redesign ordinary shop stock persistence or the generic event-choice outbox.
 
 Run: npm test && npm run build -- --outDir /tmp/spirebound-phase2-build --emptyOutDir
 Expected: PASS.
 
+Run: npx playwright test test/e2e/hollow-transaction.spec.js --project=desktop --no-deps --workers=1
+Expected: PASS. If port 5174 belongs to another worktree, use an uncommitted temporary config and isolated port; never reuse or stop the other worktree's server.
+
 ~~~bash
 git add src/engine.js src/vigil.js src/ui.js src/styles.css test/test_engine.js
 git commit -m "Implement the Hollow Lamplighter Trail"
+~~~
+
+After a rejected-review hardening pass, stage only the exact changed paths (including this plan and the focused Playwright spec) and create a new checkpoint rather than amending the implementation checkpoint:
+
+~~~bash
+git add docs/superpowers/plans/2026-07-09-entrance-progressive-delivery-phase2.md src/engine.js src/ui.js test/test_engine.js test/e2e/hollow-transaction.spec.js
+git commit -m "Harden Hollow exit transactions"
 ~~~
 
 
@@ -3003,7 +3030,7 @@ import { PROGRESSION, QUEST_IDS } from '../src/data.js';
 import {
   newRun, cardData, drawCards, playCard, startCombat, genMap, rollEncounter,
   visitNode, gainEmbers, genShop, buyQuestItem, rollCardReward, addCardToDeck,
-  markShadeFall, claimMonument, applyBoon, payHollowPrice,
+  markShadeFall, claimMonument, applyBoon, payHollowPrice, stageHollowExit,
 } from '../src/engine.js';
 import {
   _setStore, _setRng, loadVigil, questSnapshot, revealSnapshot,
@@ -3151,7 +3178,7 @@ function pursueHollow(run, mode, rng) {
     const cb = startCombat(run, ['sporeling']);
     gainEmbers(run, cb, PROGRESSION.emberglass.hollowLamplighter.emberDebt);
   }
-  run.pendingHollow = null;
+  if (!stageHollowExit(run)) throw new Error('Hollow exit staging failed');
 }
 
 function finishSummit(run) {

@@ -531,6 +531,34 @@ function requireRunSave(run, onSaved) {
   showRunSaveFailure(run, onSaved);
   return false;
 }
+function requireHollowRouteClear(run, onCleared) {
+  const held = run.pendingHollowRoute;
+  if (!held) return true;
+  run.pendingHollowRoute = null;
+  if (E.saveRun(run)) return true;
+  run.pendingHollowRoute = held;
+  openOverlay(`<div class="panel ov-panel" style="text-align:center">
+    <div class="ov-title">Save Failed</div>
+    <div class="ov-sub">This destination is still pending. Free storage and retry, or reload the exact saved destination.</div>
+    <div class="ov-actions"><button class="btn btn-primary" data-a="retry-hollow-route">Retry Save</button><button class="btn ghost" data-a="reload-hollow-route">Reload Saved Destination</button></div>
+  </div>`, (root) => {
+    root.onclick = (e) => {
+      const action = e.target.closest('[data-a]')?.dataset.a;
+      if (action === 'reload-hollow-route') { location.reload(); return; }
+      if (action !== 'retry-hollow-route') return;
+      sfx.click();
+      root.onclick = null;
+      closeOverlay();
+      if (requireHollowRouteClear(run, onCleared)) onCleared();
+    };
+  });
+  return false;
+}
+function leaveHollowDestination(run, onCleared) {
+  if (!run.pendingHollowRoute) { onCleared(); return; }
+  if (!requireHollowRouteClear(run, onCleared)) return;
+  onCleared();
+}
 function showStonePersistenceFailure(onRetry, retryLabel = 'Retry') {
   openOverlay(`<div class="panel ov-panel" style="text-align:center">
     <div class="ov-title">The Stone Could Not Hold</div>
@@ -882,6 +910,14 @@ function renderVigil() {
     if (t.dataset.a === 'back') show('title');
   };
 }
+function resumePendingHollowRoute(run) {
+  const route = run.pendingHollowRoute;
+  if (!route) return false;
+  const node = run.map.nodes.find((candidate) => candidate.id === route.nodeId);
+  if (!node) return false;
+  routeVisitedNode(node, route.type, { eventId: route.eventId });
+  return true;
+}
 function startRun(run, resumed = false) {
   S.run = run;
   S.cb = null;
@@ -909,6 +945,7 @@ function startRun(run, resumed = false) {
     resumePersistedCombat();
     return;
   }
+  if (run.pendingHollowRoute) { resumePendingHollowRoute(run); return; }
   if (resumed && curNode?.type === 'monument' && run.monument) {
     if (!run.monument.claimed) { claimMonumentNode(curNode); return; }
     const continueMap = () => show('map');
@@ -996,6 +1033,37 @@ function beginFromLamplighter() {
   finish();
 }
 
+function restoreDurableHollow(message) {
+  S.run = E.loadRun();
+  if (!S.run?.pendingHollow) { show('title'); return; }
+  show('hollow', { nodeId: S.run.pendingHollow.nodeId });
+  const error = $('.hollow-error', screenEl());
+  if (error) error.textContent = message;
+}
+
+function exitHollow(run) {
+  const route = E.stageHollowExit(run);
+  if (!route) {
+    const error = $('.hollow-error', screenEl());
+    if (error) error.textContent = 'The way onward could not be prepared.';
+    $$('[data-a^="hollow-"]', screenEl()).forEach((button) => {
+      if (button.dataset.a === 'hollow-continue') button.disabled = !run.pendingHollow?.paid;
+      else if (button.dataset.a === 'hollow-leave') button.disabled = !!run.pendingHollow?.paid;
+    });
+    return;
+  }
+  if (!E.saveRun(run)) {
+    restoreDurableHollow('The way onward is not secured. Retry when storage is available.');
+    return;
+  }
+  const node = run.map.nodes.find((candidate) => candidate.id === route.nodeId);
+  if (!node) { show('map'); return; }
+  routeVisitedNode(node, route.type, {
+    enemyIds: route.kind === 'combat' ? route.enemyIds : null,
+    eventId: route.kind === 'destination' ? route.eventId : null,
+  });
+}
+
 // THE HOLLOW LAMPLIGHTER — a persisted interruption on the Unlit Way. The
 // visited node is routed only after the price and Continue checkpoints hold.
 function renderHollow() {
@@ -1028,6 +1096,7 @@ function renderHollow() {
       <div class="hollow-actions">
         <button class="btn btn-primary" data-a="hollow-pay"${pending.paid ? ' disabled' : ''}>${pending.paid ? 'Price Paid' : 'Pay the Price'}</button>
         <button class="btn ghost" data-a="hollow-continue"${pending.paid ? '' : ' disabled'}>Continue</button>
+        <button class="btn ghost" data-a="hollow-leave"${pending.paid ? ' disabled' : ''}>Return Later</button>
       </div>
     </div>
   </div>`;
@@ -1042,6 +1111,7 @@ function renderHollow() {
       const answer = $('.hollow-answer', sc);
       const error = $('.hollow-error', sc);
       const continueButton = $('[data-a="hollow-continue"]', sc);
+      const leaveButton = $('[data-a="hollow-leave"]', sc);
       if (!result.ok) {
         answer.textContent = result.message;
         answer.classList.add('error');
@@ -1056,6 +1126,7 @@ function renderHollow() {
         target.textContent = 'Retry Save';
         target.disabled = false;
         continueButton.disabled = true;
+        leaveButton.disabled = true;
         return;
       }
       answer.textContent = result.message;
@@ -1064,23 +1135,16 @@ function renderHollow() {
       error.textContent = '';
       target.textContent = 'Price Paid';
       continueButton.disabled = false;
+      leaveButton.disabled = true;
       renderHud();
       return;
     }
-    if (action !== 'hollow-continue' || !run.pendingHollow?.paid) return;
-    target.disabled = true;
+    if (action === 'hollow-continue' && !run.pendingHollow?.paid) return;
+    if (action === 'hollow-leave' && run.pendingHollow?.paid) return;
+    if (!['hollow-continue', 'hollow-leave'].includes(action)) return;
+    $$('[data-a^="hollow-"]', sc).forEach((button) => { button.disabled = true; });
     unlock(); sfx.click();
-    const held = { ...run.pendingHollow };
-    run.pendingHollow = null;
-    if (!E.saveRun(run)) {
-      run.pendingHollow = held;
-      $('.hollow-error', sc).textContent = 'The way onward is not secured. Try Continue again.';
-      target.disabled = false;
-      return;
-    }
-    const node = run.map.nodes.find((n) => n.id === held.nodeId);
-    if (!node) { show('map'); return; }
-    routeVisitedNode(node, held.type);
+    exitHollow(run);
   };
 }
 
@@ -1102,6 +1166,7 @@ function renderMap() {
     resumePersistedCombat();
     return;
   }
+  if (run.pendingHollowRoute) { resumePendingHollowRoute(run); return; }
   E.saveRun(run);
   S.cb = null;
   const { nodes } = run.map;
@@ -1295,23 +1360,24 @@ function enterNode(node) {
   showNodeBounty(node, bounty);
   routeVisitedNode(node, type);
 }
-function routeVisitedNode(node, type) {
+function routeVisitedNode(node, type, { enemyIds = null, eventId = null } = {}) {
   const run = S.run;
   const isCombat = type === 'monster' || type === 'elite' || type === 'boss';
   if (isCombat) {
-    const ids = E.rollEncounter(run, type, node.row, node);
-    E.setPendingEncounter(run, type, ids);
+    const ids = enemyIds ? [...enemyIds] : E.rollEncounter(run, type, node.row, node);
+    if (!enemyIds) E.setPendingEncounter(run, type, ids);
     const beginCombat = () => {
       const g = $(`.mnode[data-node="${node.id}"]`);
       transition('combat-in', g ? V.centerOf(g) : {});
       startCombatUI(ids, type);
     };
+    if (enemyIds) { beginCombat(); return; }
     if (!requireRunSave(run, beginCombat)) return;
     beginCombat();
   } else if (type === 'rest') show('rest');
   else if (type === 'shop') show('shop');
   else if (type === 'treasure') show('treasure');
-  else if (type === 'event') show('event', E.rollEvent(run));
+  else if (type === 'event') show('event', eventId || E.rollEvent(run));
   else if (type === 'monument') claimMonumentNode(node);
 }
 function showEighthFloorEcho(run) {
@@ -4114,15 +4180,20 @@ function renderRest() {
   $('[data-a="rest"]').onclick = (e) => {
     e.currentTarget.disabled = true;
     $('[data-a="smith"]').disabled = true;
-    sfx.heal();
     const healed = E.healPlayer(run, Math.round(run.player.maxHp * E.restHealFrac(run)));
-    // the fire answers: a swell of warmth, embers rising off the hearth
-    V.flash('#ff9a4d', 0.12, 0.8);
-    V.floatText(stageW() / 2, stageH() / 2 - 40, `+${healed} HP`, 'healf');
-    V.motes(stageW() / 2, stageH() / 2, '#8fe8a0', 22);
-    V.motes(stageW() / 2, stageH() / 2 + 60, '#ffb066', 16);
-    E.saveRun(run);
-    setTimeout(() => { if (S.screen === 'rest') show('map'); }, 900);
+    const finish = () => {
+      sfx.heal();
+      // the fire answers: a swell of warmth, embers rising off the hearth
+      V.flash('#ff9a4d', 0.12, 0.8);
+      V.floatText(stageW() / 2, stageH() / 2 - 40, `+${healed} HP`, 'healf');
+      V.motes(stageW() / 2, stageH() / 2, '#8fe8a0', 22);
+      V.motes(stageW() / 2, stageH() / 2 + 60, '#ffb066', 16);
+      setTimeout(() => { if (S.screen === 'rest') show('map'); }, 900);
+    };
+    if (run.pendingHollowRoute) {
+      if (!requireHollowRouteClear(run, finish)) return;
+    } else E.saveRun(run);
+    finish();
   };
   $('[data-a="smith"]').onclick = () => {
     sfx.click();
@@ -4132,11 +4203,16 @@ function renderRest() {
       pick: (inst) => {
         if (!inst) return;
         E.upgradeCardInDeck(run, inst.uid);
-        sfx.upgrade();
-        V.flash('#ffe9ac', 0.12, 0.4);
-        showCardGrid('Upgraded!', [run.player.deck.find((c) => c.uid === inst.uid)], { sub: 'It gleams with new power.' });
-        E.saveRun(run);
-        setTimeout(() => { if (S.screen === 'rest') { closeOverlay(); show('map'); } }, 1300);
+        const finish = () => {
+          sfx.upgrade();
+          V.flash('#ffe9ac', 0.12, 0.4);
+          showCardGrid('Upgraded!', [run.player.deck.find((c) => c.uid === inst.uid)], { sub: 'It gleams with new power.' });
+          setTimeout(() => { if (S.screen === 'rest') { closeOverlay(); show('map'); } }, 1300);
+        };
+        if (run.pendingHollowRoute) {
+          if (!requireHollowRouteClear(run, finish)) return;
+        } else E.saveRun(run);
+        finish();
       },
     });
   };
@@ -4315,7 +4391,10 @@ function renderShop() {
     shopSeeded = true;
   }
   refresh();
-  $('[data-a="leave"]', sc).onclick = () => { sfx.click(); show('map'); };
+  $('[data-a="leave"]', sc).onclick = () => {
+    sfx.click();
+    leaveHollowDestination(run, () => show('map'));
+  };
 }
 function renderEvent(eventId) {
   const run = S.run;
@@ -4329,10 +4408,11 @@ function renderEvent(eventId) {
     <div class="event-choices"></div>
   </div></div>`;
   const choices = $('.event-choices', sc);
+  const leaveEvent = () => leaveHollowDestination(run, () => show('map'));
   const showEventContinue = () => {
     choices.innerHTML = '';
     const done = el('button', 'btn btn-primary', 'Continue');
-    done.onclick = () => { sfx.click(); show('map'); };
+    done.onclick = () => { sfx.click(); leaveEvent(); };
     choices.appendChild(done);
   };
   if (E.nodeRewardClaimed(run)) {
@@ -4376,7 +4456,7 @@ function renderEvent(eventId) {
       E.saveRun(run);
       renderHud();
       showEventContinue();
-      if (!bits.length && !pending.length && !ch.ops.length) show('map');
+      if (!bits.length && !pending.length && !ch.ops.length) leaveEvent();
     } catch (err) {
       if (E.nodeEventInFlight(run) || E.nodeRewardClaimed(run)) {
         if (E.nodeEventInFlight(run)) E.finalizeNodeEventChoice(run);

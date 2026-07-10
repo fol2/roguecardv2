@@ -55,6 +55,7 @@ export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
     pendingReward: null,
     pendingRunEnd: null,
     pendingHollow: null,
+    pendingHollowRoute: null,
     player: {
       hp: A.maxHp, maxHp: A.maxHp, gold: A.startGold, energyMax: A.energy,
       relics: [A.startRelic], potions: Array(A.potionSlots || 3).fill(null), deck: [],
@@ -366,6 +367,25 @@ export function visitNode(run, node) {
     return { type: node.type, bounty, hollow: true };
   }
   return { type: node.type, bounty };
+}
+const HOLLOW_DESTINATION_TYPES = ['rest', 'shop', 'event'];
+export function stageHollowExit(run) {
+  const pending = run.pendingHollow;
+  if (!pending || run.pendingHollowRoute || run.pendingCombat || run.pendingReward || run.pendingRunEnd) return null;
+  const node = run.map?.nodes?.find((candidate) => candidate.id === pending.nodeId);
+  if (!node || node.type !== pending.type || run.nodeId !== node.id || !run.map.visited.includes(node.id)) return null;
+  const { nodeId, type } = pending;
+  if (['monster', 'elite', 'boss'].includes(type)) {
+    const enemyIds = rollEncounter(run, type, node.row, node);
+    setPendingEncounter(run, type, enemyIds);
+    run.pendingHollow = null;
+    return { kind: 'combat', nodeId, type, enemyIds: [...enemyIds] };
+  }
+  if (!HOLLOW_DESTINATION_TYPES.includes(type)) return null;
+  const eventId = type === 'event' ? rollEvent(run) : null;
+  run.pendingHollowRoute = { nodeId, type, eventId };
+  run.pendingHollow = null;
+  return { kind: 'destination', nodeId, type, eventId };
 }
 export function grantBequest(run, bequest, queue = null) {
   if (!bequest) return false;
@@ -1615,6 +1635,7 @@ export function loadRun() {
     run.pendingReward ??= null;
     run.pendingRunEnd ??= null;
     run.pendingHollow ??= null;
+    run.pendingHollowRoute ??= null;
     run.boonReceipt ??= null;
     if (run.reveals != null && !(Array.isArray(run.reveals) && run.reveals.every((id) => REVEALS.some((r) => r.id === id)))) return null;
     const plainObject = (x) => x && typeof x === 'object' && !Array.isArray(x);
@@ -1672,9 +1693,18 @@ export function loadRun() {
       if (!exactKeys(pending, ['nodeId', 'type', 'paid', 'deferred', 'answer']) ||
         typeof pending.paid !== 'boolean' || typeof pending.deferred !== 'boolean') return false;
       const node = run.map.nodes.find((n) => n.id === pending.nodeId);
-      if (!node || pending.type !== node.type) return false;
+      if (!node || pending.type !== node.type || run.nodeId !== node.id || !run.map.visited.includes(node.id)) return false;
       if (!pending.paid) return pending.deferred === false && pending.answer === null;
       return typeof pending.answer === 'string';
+    };
+    const validPendingHollowRoute = (pending) => {
+      if (pending == null) return true;
+      if (!exactKeys(pending, ['nodeId', 'type', 'eventId']) ||
+        !HOLLOW_DESTINATION_TYPES.includes(pending.type)) return false;
+      const node = run.map.nodes.find((candidate) => candidate.id === pending.nodeId);
+      if (!node || node.type !== pending.type || run.nodeId !== node.id || !run.map.visited.includes(node.id)) return false;
+      if (pending.type === 'event') return hasOwn(EVENTS, pending.eventId);
+      return pending.eventId === null;
     };
     const validBoonReceipt = (receipt) => {
       if (receipt == null) return true;
@@ -1741,7 +1771,12 @@ export function loadRun() {
     if (!validPendingReward(run.pendingReward)) return null;
     if (!validPendingRunEnd(run.pendingRunEnd)) return null;
     if (!validPendingHollow(run.pendingHollow)) return null;
+    if (!validPendingHollowRoute(run.pendingHollowRoute)) return null;
     if (!validBoonReceipt(run.boonReceipt)) return null;
+    if (run.pendingHollow != null &&
+      (run.pendingHollowRoute != null || run.pendingCombat != null || run.pendingReward != null || run.pendingRunEnd != null)) return null;
+    if (run.pendingHollowRoute != null &&
+      (run.pendingHollow != null || run.pendingCombat != null || run.pendingReward != null || run.pendingRunEnd != null)) return null;
     if (run.pendingReward != null && run.pendingCombat != null) return null;
     if (run.pendingRunEnd != null && (run.pendingCombat != null || run.pendingReward != null)) return null;
     if (!run.map.nodes.every((n) =>

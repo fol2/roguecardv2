@@ -12,7 +12,7 @@ import {
   previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
   revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter,
   setPendingReward, takePendingReward, clearPendingReward, hasPendingBossRelic, recordRunEnd, loadStats, paleVariantForAct,
-  applyBoon, reverseBoon, payHollowPrice,
+  applyBoon, reverseBoon, payHollowPrice, stageHollowExit,
 } from '../src/engine.js';
 import * as EngineApi from '../src/engine.js';
 import { shopSessionKey, shopStockForSession } from '../src/shop-session.js';
@@ -964,6 +964,7 @@ function forceHand(run, cb, ids) {
     delete runLoad.orphanRewardClaimed;
     delete runLoad.orphanRewardResolving;
     delete runLoad.pendingHollow;
+    delete runLoad.pendingHollowRoute;
     delete runLoad.boonReceipt;
     saveRun(runLoad);
     const reloaded = loadRun();
@@ -973,6 +974,7 @@ function forceHand(run, cb, ids) {
     assert.equal(reloaded.orphanRewardClaimed, false, 'loadRun self-heals orphanRewardClaimed');
     assert.equal(reloaded.orphanRewardResolving, false, 'loadRun self-heals orphanRewardResolving');
     assert.equal(reloaded.pendingHollow, null, 'loadRun self-heals pendingHollow');
+    assert.equal(reloaded.pendingHollowRoute, null, 'loadRun self-heals pendingHollowRoute');
     assert.equal(reloaded.boonReceipt, null, 'loadRun self-heals boonReceipt');
     assert.equal(claimTreasure(reloaded).already, true, 'reward flags survive loadRun round-trip');
 
@@ -1189,6 +1191,83 @@ function forceHand(run, cb, ids) {
         paid: false, deferred: false, answer: 'too early',
       };
     });
+    const setPendingHollow = (r) => {
+      const node = r.map.nodes[0];
+      r.nodeId = node.id;
+      if (!r.map.visited.includes(node.id)) r.map.visited.push(node.id);
+      r.pendingHollow = {
+        nodeId: node.id, type: node.type,
+        paid: false, deferred: false, answer: null,
+      };
+    };
+    rejectSaved('Hollow meeting must be the current visited node', (r) => {
+      setPendingHollow(r);
+      r.nodeId = null;
+    });
+    rejectSaved('Hollow meeting excludes pending combat', (r) => {
+      setPendingHollow(r);
+      setPendingEncounter(r, 'monster', ['sporeling']);
+    });
+    rejectSaved('Hollow meeting excludes pending reward', (r) => {
+      setPendingHollow(r);
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+    });
+    rejectSaved('Hollow meeting excludes pending run end', (r) => {
+      setPendingHollow(r);
+      r.pendingRunEnd = { outcome: 'death' };
+    });
+    const firstEventId = Object.keys(EVENTS)[0];
+    const setHollowRoute = (r, type = 'rest', eventId = null) => {
+      const node = r.map.nodes[0];
+      node.type = type;
+      r.nodeId = node.id;
+      if (!r.map.visited.includes(node.id)) r.map.visited.push(node.id);
+      r.pendingHollowRoute = { nodeId: node.id, type, eventId };
+    };
+    const validHollowRoute = newRun(497, { quests: saveQuests });
+    setHollowRoute(validHollowRoute, 'event', firstEventId);
+    assert.equal(saveRun(validHollowRoute), true);
+    assert.deepEqual(loadRun().pendingHollowRoute, validHollowRoute.pendingHollowRoute,
+      'valid exact Hollow destination route round-trips');
+    rejectSaved('missing Hollow route node', (r) => {
+      r.pendingHollowRoute = { nodeId: 'missing', type: 'rest', eventId: null };
+    });
+    rejectSaved('mismatched Hollow route type', (r) => {
+      const node = r.map.nodes[0];
+      node.type = 'rest';
+      r.pendingHollowRoute = { nodeId: node.id, type: 'shop', eventId: null };
+    });
+    rejectSaved('Hollow route must be the current visited node', (r) => {
+      setHollowRoute(r);
+      r.nodeId = null;
+    });
+    rejectSaved('combat cannot be a Hollow destination marker', (r) => setHollowRoute(r, 'monster'));
+    rejectSaved('Hollow event route requires exact event identity', (r) => setHollowRoute(r, 'event'));
+    rejectSaved('unknown Hollow route event', (r) => setHollowRoute(r, 'event', 'toString'));
+    rejectSaved('non-event Hollow route rejects event identity', (r) => setHollowRoute(r, 'shop', firstEventId));
+    rejectSaved('extra Hollow route field', (r) => {
+      setHollowRoute(r);
+      r.pendingHollowRoute.extra = true;
+    });
+    rejectSaved('Hollow route excludes pending meeting', (r) => {
+      setHollowRoute(r);
+      r.pendingHollow = {
+        nodeId: r.map.nodes[0].id, type: r.map.nodes[0].type,
+        paid: false, deferred: false, answer: null,
+      };
+    });
+    rejectSaved('Hollow route excludes pending combat', (r) => {
+      setHollowRoute(r);
+      setPendingEncounter(r, 'monster', ['sporeling']);
+    });
+    rejectSaved('Hollow route excludes pending reward', (r) => {
+      setHollowRoute(r);
+      setPendingReward(r, 'monster', { gold: 1, cards: ['strike'], potion: null, relic: null });
+    });
+    rejectSaved('Hollow route excludes pending run end', (r) => {
+      setHollowRoute(r);
+      r.pendingRunEnd = { outcome: 'death' };
+    });
     const receipt = {
       id: 'fullPurse',
       playerDelta: { gold: 120, hp: 0, maxHp: 0, energyMax: 0 },
@@ -1203,6 +1282,8 @@ function forceHand(run, cb, ids) {
     paymentQuests.hollowLamplighter = { state: 'revealed', progress: 1, memory: {} };
     const paymentRun = newRun(499, { quests: paymentQuests });
     const paymentNode = paymentRun.map.nodes[0];
+    paymentRun.nodeId = paymentNode.id;
+    paymentRun.map.visited.push(paymentNode.id);
     paymentRun.pendingHollow = {
       nodeId: paymentNode.id, type: paymentNode.type,
       paid: false, deferred: false, answer: null,
@@ -2861,6 +2942,129 @@ function forceHand(run, cb, ids) {
     'cleared debt stays deleted after the authoritative merge');
   assert.equal('emberDebt' in loadVigil().quests.hollowLamplighter.memory, false,
     'cleared debt is absent from the stored authoritative Vigil');
+  _setStore(null);
+}
+{
+  const makeHollowMeeting = (seed, progress, type) => {
+    const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'hollowLamplighter' ? 'revealed' : 'dormant',
+      progress: id === 'hollowLamplighter' ? progress : 0,
+      memory: {},
+    }]));
+    const run = newRun(seed, { quests });
+    const node = run.map.nodes[0];
+    node.type = type;
+    run.nodeId = node.id;
+    run.map.visited.push(node.id);
+    run.questScratch.hollowLamplighter = { due: true, met: true, debtActive: false };
+    run.pendingHollow = {
+      nodeId: node.id, type, paid: false, deferred: false, answer: null,
+    };
+    return { run, node };
+  };
+
+  const failures = [
+    {
+      label: 'insufficient gold', progress: 1, type: 'event',
+      prepare: (run) => { run.player.gold = PROGRESSION.emberglass.hollowLamplighter.gold - 1; },
+    },
+    {
+      label: 'insufficient Max HP', progress: 2, type: 'rest',
+      prepare: (run) => { run.player.maxHp = 41; run.player.hp = 41; },
+    },
+    {
+      label: 'spent boon', progress: 3, type: 'shop',
+      prepare: (run) => { applyBoon(run, 'fullPurse'); run.player.gold = 0; },
+    },
+  ];
+  const previousLocalStorage = globalThis.localStorage;
+  const hollowSaveStore = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => hollowSaveStore.get(key) ?? null,
+    setItem: (key, value) => { hollowSaveStore.set(key, value); },
+    removeItem: (key) => { hollowSaveStore.delete(key); },
+  };
+  for (const [i, spec] of failures.entries()) {
+    const { run, node } = makeHollowMeeting(530 + i, spec.progress, spec.type);
+    spec.prepare(run);
+    const before = structuredClone({
+      progress: run.quests.hollowLamplighter.progress,
+      gold: run.player.gold, hp: run.player.hp, maxHp: run.player.maxHp,
+      boon: run.boon, boonReceipt: run.boonReceipt,
+    });
+    assert.equal(payHollowPrice(run).ok, false, spec.label + ' cannot pay');
+    const route = stageHollowExit(run);
+    assert.deepEqual({ kind: route.kind, nodeId: route.nodeId, type: route.type },
+      { kind: 'destination', nodeId: node.id, type: spec.type }, spec.label + ' can return later');
+    assert.equal(run.pendingHollow, null);
+    assert.deepEqual(run.pendingHollowRoute, {
+      nodeId: node.id, type: spec.type,
+      eventId: spec.type === 'event' ? route.eventId : null,
+    });
+    if (spec.type === 'event') assert.ok(Object.hasOwn(EVENTS, route.eventId));
+    assert.deepEqual({
+      progress: run.quests.hollowLamplighter.progress,
+      gold: run.player.gold, hp: run.player.hp, maxHp: run.player.maxHp,
+      boon: run.boon, boonReceipt: run.boonReceipt,
+    }, before, spec.label + ' leave does not charge or advance');
+    assert.equal(saveRun(run), true, spec.label + ' Return Later transaction saves');
+    const reloaded = loadRun();
+    assert.ok(reloaded, spec.label + ' Return Later transaction reloads');
+    assert.deepEqual(reloaded.pendingHollowRoute, run.pendingHollowRoute,
+      spec.label + ' reload retains the exact destination');
+    assert.equal(reloaded.questScratch.hollowLamplighter.met, true,
+      spec.label + ' reload retains the one-meeting-per-run latch');
+    assert.deepEqual({
+      progress: reloaded.quests.hollowLamplighter.progress,
+      gold: reloaded.player.gold, hp: reloaded.player.hp, maxHp: reloaded.player.maxHp,
+      boon: reloaded.boon, boonReceipt: reloaded.boonReceipt,
+    }, before, spec.label + ' reload retains no payment or progress');
+    const laterQuests = structuredClone(reloaded.quests);
+    laterQuests.hollowLamplighter.memory.eligibleMisses =
+      PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1;
+    const later = newRun(540 + i, { quests: laterQuests });
+    assert.equal(later.questScratch.hollowLamplighter.due, true,
+      spec.label + ' remains eligible for the same price in a later run');
+    assert.equal(later.quests.hollowLamplighter.progress, before.progress,
+      spec.label + ' later eligibility does not imply payment');
+    assert.equal(run.questScratch.hollowLamplighter.met, true,
+      spec.label + ' leave keeps the one-meeting-per-run latch');
+  }
+  if (previousLocalStorage) globalThis.localStorage = previousLocalStorage;
+  else delete globalThis.localStorage;
+
+  const combatMeeting = makeHollowMeeting(533, 2, 'monster');
+  combatMeeting.run.pendingHollow.paid = true;
+  combatMeeting.run.pendingHollow.answer = QUESTS.hollowLamplighter.meetings[1].paid;
+  const combatRoute = stageHollowExit(combatMeeting.run);
+  assert.equal(combatRoute.kind, 'combat');
+  assert.deepEqual(combatRoute.enemyIds, combatMeeting.run.pendingEnemyIds);
+  assert.equal(combatMeeting.run.pendingHollow, null);
+  assert.equal(combatMeeting.run.pendingHollowRoute, null);
+  assert.equal(combatMeeting.run.pendingCombat, 'monster');
+  assert.ok(combatMeeting.run.pendingEnemyIds.length > 0, 'combat route journals exact enemies before save');
+
+  _setStore(null);
+  const vigil = loadVigil();
+  vigil.quests.hollowLamplighter = { state: 'revealed', progress: 1, memory: {} };
+  saveVigil(vigil);
+  const left = makeHollowMeeting(534, 1, 'rest').run;
+  left.quests = questSnapshot(vigil);
+  left.questScratch.hollowLamplighter = { due: true, met: true, debtActive: false };
+  stageHollowExit(left);
+  left.pendingHollowRoute = null;
+  let out = commitRunEnd(left, 'death');
+  assert.equal(out.vigil.quests.hollowLamplighter.memory.eligibleMisses, 0,
+    'returning later ends only this run meeting');
+  const laterEligible = newRun(535, { quests: questSnapshot(out.vigil) });
+  assert.ok(laterEligible.questScratch.hollowLamplighter,
+    'an unpaid price remains eligible in a later run');
+  laterEligible.questScratch.hollowLamplighter = { due: false, met: false, debtActive: false };
+  out = commitRunEnd(laterEligible, 'death');
+  assert.equal(out.vigil.quests.hollowLamplighter.memory.eligibleMisses, 1);
+  const pityRetry = newRun(536, { quests: questSnapshot(out.vigil) });
+  assert.equal(pityRetry.questScratch.hollowLamplighter.due, true,
+    'an unpaid price returns under the normal pity guarantee');
   _setStore(null);
 }
 {
