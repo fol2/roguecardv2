@@ -332,6 +332,89 @@ a review-repair regression.
 The immutable original release artefacts remain historical evidence. Current
 repair source, test, workflow, documentation, and bundle hashes are in
 [`emberglass-phase2-review-sha256.txt`](artifacts/emberglass-phase2-review-sha256.txt),
-SHA-256 `e1b5510fa62678fdfb9b52ff0925b9a4e7d80637080290384b1ca60169dadd36`.
+SHA-256 `fb3b3d37290235fa00928cbd2c69d23e0d05c65462cea89b0d71b9cee4aaaebc`.
 The deleted `terminal-outbox.js`, `shade-duel-transaction.js`, and
 `shop-session.js` are intentionally absent from this current manifest.
+
+## Linux stability repair and parallel CI addendum (10 July 2026)
+
+The first GitHub run of the review repair (`29118017866`) passed `unit` but its
+serial `e2e` job failed after 24 minutes 28 seconds. Six failures were
+short-lived-banner, moving-projection, ceremony-wait, reload-capture, or
+repeated-navigation races. The seventh exposed a real product defect: the
+Vigil entrance's `scale(1.015)` animation could put content outside the safe
+area before settling.
+
+The product fix gives the Vigil panel an opacity-only entrance. The tests now
+observe transient story copy from before the triggering action, wait for both
+the Dawn DOM and durable cursor to complete, capture the reload checkpoint in
+one page task, freeze the moving 3D projection before the real door click, and
+seed each Rose shape before its single navigation. The maximum-profile test
+holds the entrance open for ten seconds, so the safe-area assertion runs while
+the animation is active rather than after it has hidden the overflow.
+
+Focused proof for the seven Linux failures passed 7/7 in 25.9 seconds. The
+complete non-visual matrix then passed 153 tests with 150 intentional project
+skips in 4.4 minutes. No product assertion was removed or weakened.
+
+The owner-approved CI redesign is specified in
+[`2026-07-10-e2e-ci-feedback-design.md`](../specs/2026-07-10-e2e-ci-feedback-design.md)
+and implemented through the accompanying
+[`plan`](../plans/2026-07-10-e2e-ci-feedback.md). Draft PRs run unit, build, and
+four critical browser smokes in parallel. Ready PRs and `main` fan out one
+disk job, three independent random-agent shards, four main shards, and one
+visual job per canonical project. Required check names remain exactly `unit`
+and `e2e`; their dependency-free aggregator rejects failed, cancelled,
+skipped, or missing required lanes.
+
+Fresh local verification of the final topology:
+
+~~~text
+npm run test:ci
+ci contract checks passed
+
+npm test
+unit checks passed; monte-carlo: 300 runs, 1 random-agent wins, 299 deaths
+
+npm run build (twice)
+PASS; 520 modules; deterministic dist aggregate SHA-256
+764f9f7e441e580121f1049f73c433e08acfa80bde0e2503e5fa2031e5ea6efd
+
+test:e2e:smoke
+4 passed (6.0s)
+
+test:e2e:disk
+1 passed (4.6s)
+
+test:e2e:random-agent
+3 passed (1.5m serial); individual cases 25.3s, 32.4s, 34.2s
+
+test:e2e:main --shard=N/4
+1/4: 70 passed, 6 skipped (1.7m)
+2/4: 24 passed, 52 skipped (37.1s)
+3/4: 31 passed, 45 skipped (54.0s)
+4/4: 28 passed, 47 skipped (48.6s)
+aggregate: 153 passed, 150 intentional project skips
+
+test:e2e:visual:project
+desktop: 16 passed (58.9s)
+portrait: 16 passed (54.2s)
+landscape: 16 passed (54.5s)
+aggregate: 48 passed
+
+yq eval '.' .github/workflows/ci.yml
+PASS
+
+git diff --check
+PASS; no output
+~~~
+
+On the local machine the projected full browser critical path is therefore
+approximately 1.7 minutes before runner checkout/install overhead, compared
+with more than 24 minutes for the previous serial GitHub job. This is a
+projection only: the real Ready/full wall-clock result must be recorded from
+the first green GitHub run. The eight-minute target and ten-minute warning
+threshold remain timing references, not correctness gates.
+
+PR #14 remains **NO-GO until that pushed Ready/full run reports green**. A
+timing miss alone will not block it; any failed required child lane will.

@@ -58,6 +58,13 @@ npm run test:e2e   # Playwright visual-QA kit (needs dev server on 5174 + Chromi
 
 `npm run test:e2e:update` refreshes screenshot baselines; `npm run test:e2e:perf` records the standalone FPS/frame-time reference and warns on target misses. See `docs/superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md` §3 for the full harness contract. Documentation index: [`docs/README.md`](docs/README.md).
 
+CI uses two pull-request modes. Draft pushes run `npm test`, `npm run build`,
+and `npm run test:e2e:smoke` in parallel. Marking a PR Ready for review runs
+the complete Playwright gate across isolated random-agent, main, visual, and
+disk-writing jobs; later Ready pushes rerun that full gate. `npm run test:e2e`
+remains the complete serial local equivalent. CI wall-clock targets are
+warnings, not correctness gates.
+
 Audio inventory and preview: `?audio=1`. In development the same page edits the
 runtime Music/SFX versions and individual file overrides. See
 [`docs/audio-packs.md`](docs/audio-packs.md).
