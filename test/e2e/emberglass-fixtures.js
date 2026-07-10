@@ -79,6 +79,15 @@ export async function seed(page, vigil, url = '/') {
   await page.waitForFunction(() => window.spirebound && window.__probe);
 }
 
+export async function waitForDawnComplete(page, timeout = 30_000) {
+  await page.waitForFunction(() => {
+    const ceremony = document.querySelector('.dawn-ceremony');
+    const raw = localStorage.getItem('spirebound_save_v2');
+    const pending = raw ? JSON.parse(raw).pendingDawn : null;
+    return ceremony?.classList.contains('complete') && pending == null;
+  }, null, { timeout });
+}
+
 export async function stagePendingRunEnd(page, outcome) {
   await seed(page, pendingTerminalLedger());
   return page.evaluate(({ outcome: pendingOutcome, eighthText, shadeText }) => {

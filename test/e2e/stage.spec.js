@@ -3,7 +3,7 @@
 // letterboxed. A bigger window gets bigger pixels, never more world.
 import { test, expect } from '@playwright/test';
 import { boot, startFight, stable } from './helpers.js';
-import { completeLedger, seed } from './emberglass-fixtures.js';
+import { completeLedger, seed, waitForDawnComplete } from './emberglass-fixtures.js';
 
 const EXPECT_SHAPE = {
   desktop: { shape: 'desktop-landscape', w: 1458, h: 820 },
@@ -151,7 +151,7 @@ test('a 4:3-ish desktop window keeps the pad-landscape stage', async ({ page }) 
   expect(st.w).toBe(1180);
 });
 
-test('title and embark screens fit their stage: no scrollable overflow anywhere', async ({ page }) => {
+test('title and embark screens fit their stage: no scrollable overflow anywhere', { tag: '@smoke' }, async ({ page }) => {
   await boot(page);
   // the fullest profile a veteran can produce: saved run (Continue button),
   // both aspects, vow stepper at V with the five-line vow ledger, and the
@@ -183,7 +183,8 @@ test('maximum Emberglass profile and ceremonies fit every stage', async ({ page 
   v.deeds.bestVow = 5;
   await seed(page, v);
   await page.addStyleTag({
-    content: ':root{--sat:32px;--sab:24px;--sal:12px;--sar:12px}',
+    content: `:root{--sat:32px;--sab:24px;--sal:12px;--sar:12px}
+      .center-panel.screen-enter:has(.vigil-panel){animation-duration:10s!important}`,
   });
   await page.evaluate(() => {
     const sp = window.spirebound;
@@ -308,7 +309,7 @@ test('maximum Emberglass profile and ceremonies fit every stage', async ({ page 
     sp.S.run = run;
     sp.show('end', { won: true });
   });
-  await expect(page.locator('.dawn-ceremony')).toHaveClass(/complete/);
+  await waitForDawnComplete(page);
   await expect(page.locator('.dawn-ceremony')).toBeVisible();
   await expect(page.locator('.dawn-event')).toHaveCount(8);
   await expectNoOverflow(page, 'dawn ceremony', [

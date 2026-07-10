@@ -44,6 +44,35 @@ export function settle(page) {
   return page.evaluate(() => window.__probe.settle());
 }
 
+// Record short-lived UI copy in the page so a loaded CI driver cannot miss an
+// otherwise-correct banner between Playwright polling turns.
+export async function recordTransientText(page, selector = '.turn-banner') {
+  await page.evaluate((transientSelector) => {
+    window.__transientTextObserver?.disconnect();
+    window.__seenTransientText = [];
+    const capture = (root) => {
+      if (!(root instanceof Element)) return;
+      const nodes = root.matches(transientSelector)
+        ? [root, ...root.querySelectorAll(transientSelector)]
+        : [...root.querySelectorAll(transientSelector)];
+      for (const node of nodes) window.__seenTransientText.push(node.textContent || '');
+    };
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) capture(node);
+      }
+    });
+    capture(document.documentElement);
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    window.__transientTextObserver = observer;
+  }, selector);
+}
+
+export function waitForTransientText(page, expected, timeout = 30_000) {
+  return page.waitForFunction((text) =>
+    window.__seenTransientText?.some((seen) => seen.includes(text)), expected, { timeout });
+}
+
 export function probeState(page) {
   return page.evaluate(() => window.__probe.state());
 }

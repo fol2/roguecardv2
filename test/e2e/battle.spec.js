@@ -13,7 +13,7 @@
 import { test, expect } from '@playwright/test';
 import {
   boot, startFight, settle, probeState, collectErrors,
-  expectInvariants, expectNoErrors,
+  expectInvariants, expectNoErrors, recordTransientText, waitForTransientText,
 } from './helpers.js';
 
 // correctness is viewport-independent; run the heavy scenarios once
@@ -24,7 +24,7 @@ test.beforeEach(() => {
 // dying → gone happens on a 830ms timer after the death beat; give it room
 const DEATH_LINGER = 1400;
 
-test('opening state is coherent', async ({ page }) => {
+test('opening state is coherent', { tag: '@smoke' }, async ({ page }) => {
   const errors = collectErrors(page);
   await boot(page);
   await startFight(page, ['sporeling', 'sporeling']);
@@ -112,19 +112,21 @@ test('variant CSS fallback matches mesh-off identity and stats', async ({ page }
 test('Shade story fragment waits for defeat', async ({ page }) => {
   const errors = collectErrors(page);
   await boot(page, { query: 'mesh=0' });
+  await recordTransientText(page);
   const dialogue = page.locator('.variant-dialogue');
   await page.evaluate(() => window.spirebound.startCombatUI(['ownShade1'], 'monster'));
   await settle(page);
   await expect(dialogue).toHaveCount(0);
+  expect(await page.evaluate(() => window.__seenTransientText
+    .some((text) => text.includes('I remember the stone')))).toBe(false);
 
   const uid = await page.evaluate(() => {
     window.__probe.setEnemyHp(0, 1);
     window.__probe.setEnergy(3);
     return window.__probe.forceHand(['strike'])[0];
   });
-  const fragment = expect(dialogue).toContainText('I remember the stone', { timeout: 7000 });
-  const played = page.evaluate((cardUid) => window.__probe.play(cardUid, 0), uid);
-  await Promise.all([fragment, played]);
+  await page.evaluate((cardUid) => window.__probe.play(cardUid, 0), uid);
+  await waitForTransientText(page, 'I remember the stone');
   await settle(page);
   expectNoErrors(errors, 'Shade death fragment');
 });
@@ -132,6 +134,7 @@ test('Shade story fragment waits for defeat', async ({ page }) => {
 test('Pale combat banners disclose the 0/3 hunt before the Lens', async ({ page }) => {
   const errors = collectErrors(page);
   await boot(page, { query: 'mesh=0' });
+  await recordTransientText(page);
   await page.evaluate(async () => {
     const { QUEST_IDS } = await import('/src/data.js');
     const quests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
@@ -141,7 +144,7 @@ test('Pale combat banners disclose the 0/3 hunt before the Lens', async ({ page 
     sp.S.run = sp.E.newRun(20260710, { quests, unlocks: [] });
     sp.startCombatUI(['paleDuskfang'], 'monster');
   });
-  await expect(page.locator('.turn-banner')).toContainText('Hunt the Pale Ones (0/3)', { timeout: 7000 });
+  await waitForTransientText(page, 'Hunt the Pale Ones (0/3)');
   await settle(page);
 
   const uid = await page.evaluate(() => {
@@ -149,9 +152,8 @@ test('Pale combat banners disclose the 0/3 hunt before the Lens', async ({ page 
     window.__probe.setEnergy(3);
     return window.__probe.forceHand(['strike'])[0];
   });
-  const progress = expect(page.locator('.turn-banner')).toContainText('Hunt the Pale Ones — 1/3', { timeout: 7000 });
-  const played = page.evaluate((cardUid) => window.__probe.play(cardUid, 0), uid);
-  await Promise.all([progress, played]);
+  await page.evaluate((cardUid) => window.__probe.play(cardUid, 0), uid);
+  await waitForTransientText(page, 'Hunt the Pale Ones — 1/3');
   await settle(page);
   expectNoErrors(errors, 'Pale hunt disclosure');
 });
@@ -243,13 +245,18 @@ test('potion quaffed clean', async ({ page }) => {
   expectNoErrors(errors, 'after potion kill');
 });
 
-test('random-agent mini-run: three fights, zero playback errors', async ({ page }) => {
-  test.setTimeout(240_000); // whole fights at real animation pacing
-  const errors = collectErrors(page);
-  await boot(page);
-  const fights = [['sporeling', 'sporeling'], ['duskfang', 'sporeling'], ['gloomslime']];
-  for (const ids of fights) {
-    await startFight(page, ids);
+const RANDOM_AGENT_FIGHTS = [
+  { name: 'sporeling pair', ids: ['sporeling', 'sporeling'] },
+  { name: 'duskfang and sporeling', ids: ['duskfang', 'sporeling'] },
+  { name: 'gloomslime', ids: ['gloomslime'] },
+];
+
+for (const scenario of RANDOM_AGENT_FIGHTS) {
+  test(`random-agent mini-run: ${scenario.name}`, async ({ page }) => {
+    test.setTimeout(240_000); // a whole fight at real animation pacing
+    const errors = collectErrors(page);
+    await boot(page);
+    await startFight(page, scenario.ids);
     const outcome = await page.evaluate(async () => {
       const p = window.__probe;
       for (let turn = 0; turn < 40; turn++) {
@@ -261,9 +268,12 @@ test('random-agent mini-run: three fights, zero playback errors', async ({ page 
           st = p.state();
           if (st.screen !== 'combat' || st.over) break;
           played = false;
-          const target = st.enemies.findIndex((e) => e.hp > 0);
-          for (const c of st.hand) {
-            if (await p.play(c.uid, target)) { played = true; break; }
+          const target = st.enemies.findIndex((enemy) => enemy.hp > 0);
+          for (const card of st.hand) {
+            if (await p.play(card.uid, target)) {
+              played = true;
+              break;
+            }
           }
         }
         st = p.state();
@@ -272,11 +282,12 @@ test('random-agent mini-run: three fights, zero playback errors', async ({ page 
       }
       return p.state();
     });
-    // seeded, so the outcome is stable; the assertion that matters is that the
-    // fight *ended* and nothing during playback threw
-    expect(outcome.screen === 'combat' && !outcome.over, 'fight must reach a terminal state').toBe(false);
-    expectNoErrors(errors, `mini-run fight vs ${ids.join('+')}`);
-    if (outcome.result === 'loss' || outcome.screen === 'end') break; // the bot died honestly — errors were the point
-    await page.evaluate(() => window.spirebound.show('map'));
-  }
-});
+    // Seeded, so the outcome is stable; the contract is terminal playback with
+    // no swallowed queue or page errors.
+    expect(
+      outcome.screen === 'combat' && !outcome.over,
+      'fight must reach a terminal state',
+    ).toBe(false);
+    expectNoErrors(errors, `mini-run fight vs ${scenario.ids.join('+')}`);
+  });
+}

@@ -52,7 +52,7 @@ test('an explicit E2E port cannot reuse or hide an occupied server', async () =>
   }
 });
 
-test('the default E2E server remains compatible with local development', () => {
+test('the default E2E server remains compatible with local development', { tag: '@smoke' }, () => {
   expect(e2eServerSettings(undefined)).toEqual({
     port: 5174,
     isolated: false,

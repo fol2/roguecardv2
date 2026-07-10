@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   freshLedger, mixedLedger, completeLedger, seed, QIDS, stagePendingRunEnd,
-  PERSISTED_EIGHTH_TEXT, PERSISTED_SHADE_TEXT,
+  PERSISTED_EIGHTH_TEXT, PERSISTED_SHADE_TEXT, waitForDawnComplete,
 } from './emberglass-fixtures.js';
 
 test.describe('desktop Emberglass behaviour', () => {
@@ -20,7 +20,7 @@ test('fresh profile exposes no Rose tab or medallion', async ({ page }) => {
   await expect(page.locator('.title-rose-medallion')).toHaveCount(0);
 });
 
-test('one shard adds a title medallion that opens the Rose', async ({ page }) => {
+test('one shard adds a title medallion that opens the Rose', { tag: '@smoke' }, async ({ page }) => {
   const v = mixedLedger();
   await seed(page, v);
   const medallion = page.locator('.title-rose-medallion[data-a="rose"]');
@@ -137,6 +137,7 @@ test('six shards expose a promise, never Act 4 gameplay', async ({ page }) => {
     sp.S.run.map = sp.E.genMap(sp.S.run);
     sp.show('map');
   });
+  await page.evaluate(() => window.__probe.freeze());
   await expect(page.locator('[data-a="sealed-door"]')).toHaveCount(1);
   const before = await page.evaluate(() => ({
     run: JSON.stringify(window.spirebound.S.run),
@@ -180,7 +181,7 @@ test('dawn ceremony drains in canonical order and signals completion', async ({ 
     sp.show('end', { won: true });
   }, { questIds: QIDS });
 
-  await expect(page.locator('.dawn-ceremony')).toHaveClass(/complete/);
+  await waitForDawnComplete(page);
   await expect(page.locator('.dawn-event')).toHaveCount(5);
   await expect(page.locator('.dawn-event').evaluateAll((nodes) => nodes.map((node) => node.dataset.event)))
     .resolves.toEqual(['whisper', 'questReveal', 'questProgress', 'shardGrant', 'act4Reveal']);
@@ -206,7 +207,7 @@ test('pending win recovers once through the production terminal outbox', async (
     expect(await page.evaluate(() => window.__probe.state().screen)).toBe('end');
   }
 
-  await expect(page.locator('.dawn-ceremony')).toHaveClass(/complete/);
+  await waitForDawnComplete(page);
   expect(await endButtons.evaluateAll((buttons) => buttons.map((button) => button.disabled)))
     .toEqual([false, false]);
   await expect(page.locator('.dawn-event').evaluateAll((nodes) => nodes.map((node) => node.dataset.event)))
@@ -290,25 +291,32 @@ test('normal-motion reload resumes only unacknowledged dawn panels', async ({ pa
   const staged = await stagePendingRunEnd(page, 'win');
   await page.reload();
   await page.waitForFunction(() => window.spirebound && window.__probe?.state().screen === 'end');
-  await page.waitForFunction(() => {
-    const run = JSON.parse(localStorage.getItem('spirebound_save_v2'));
-    return run?.pendingDawn?.cursor === 2 && run.pendingDawn.cursor < run.pendingDawn.events.length;
-  });
-  const checkpoint = await page.evaluate(() => {
-    const run = JSON.parse(localStorage.getItem('spirebound_save_v2'));
-    return {
-      cursor: run.pendingDawn.cursor,
-      acknowledged: run.pendingDawn.events.slice(0, run.pendingDawn.cursor),
-      remaining: run.pendingDawn.events.slice(run.pendingDawn.cursor),
-      vigilRaw: localStorage.getItem('spirebound_vigil_v2'),
-      statsRaw: localStorage.getItem('spirebound_stats_v1'),
+  const reloaded = page.waitForEvent('load');
+  await page.evaluate(() => {
+    const captureAtCursorTwo = () => {
+      const run = JSON.parse(localStorage.getItem('spirebound_save_v2'));
+      if (run?.pendingDawn?.cursor !== 2 || run.pendingDawn.cursor >= run.pendingDawn.events.length) {
+        setTimeout(captureAtCursorTwo, 10);
+        return;
+      }
+      sessionStorage.setItem('spirebound_dawn_checkpoint', JSON.stringify({
+        cursor: run.pendingDawn.cursor,
+        acknowledged: run.pendingDawn.events.slice(0, run.pendingDawn.cursor),
+        remaining: run.pendingDawn.events.slice(run.pendingDawn.cursor),
+        vigilRaw: localStorage.getItem('spirebound_vigil_v2'),
+        statsRaw: localStorage.getItem('spirebound_stats_v1'),
+      }));
+      location.reload();
     };
+    captureAtCursorTwo();
   });
+  await reloaded;
+  const checkpoint = await page.evaluate(() =>
+    JSON.parse(sessionStorage.getItem('spirebound_dawn_checkpoint')));
   expect(checkpoint.cursor).toBe(2);
 
-  await page.reload();
   await page.waitForFunction(() => window.spirebound && window.__probe?.state().screen === 'end');
-  await expect(page.locator('.dawn-ceremony')).toHaveClass(/complete/);
+  await waitForDawnComplete(page);
   const shownTypes = await page.locator('.dawn-event').evaluateAll((nodes) =>
     nodes.map((node) => node.dataset.event));
   expect(shownTypes).toEqual(checkpoint.remaining.map((event) => event.t));
@@ -365,7 +373,7 @@ test('a rejected dawn cursor save stays locked and retries the same panel', asyn
     .toEqual([true, true]);
   await page.evaluate(() => { window.__rejectDawnSet = false; });
   await page.click('[data-a="retry-dawn"]');
-  await expect(page.locator('.dawn-ceremony')).toHaveClass(/complete/);
+  await waitForDawnComplete(page);
   await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
   await expect(page.locator('[data-event="eighthResolved"]')).toContainText('CURSOR FAILURE COPY');
   expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBeNull();
@@ -401,7 +409,7 @@ test('a rejected final dawn clear stays locked and retryable', async ({ page }) 
     .toEqual([true, true]);
   await page.evaluate(() => { window.__rejectDawnClear = false; });
   await page.click('[data-a="retry-dawn"]');
-  await expect(page.locator('.dawn-ceremony')).toHaveClass(/complete/);
+  await waitForDawnComplete(page);
   await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
   expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBeNull();
   await page.evaluate(() => { Storage.prototype.removeItem = window.__dawnRemoveItem; });
@@ -500,16 +508,24 @@ test('Rose pane details disclose safely through click and keyboard', async ({ pa
 
 test('Rose pane detail stays legible and bounded in every canonical shape', async ({ page }) => {
   test.skip(test.info().project.name !== 'desktop', 'one project forces all five stage shapes');
+  await page.addInitScript((vigil) => {
+    localStorage.removeItem('spirebound_save_v2');
+    localStorage.setItem('spirebound_vigil_v2', JSON.stringify(vigil));
+  }, mixedLedger());
   const shapes = [
     'phone-portrait', 'pad-portrait', 'phone-landscape', 'pad-landscape', 'desktop-landscape',
   ];
   for (const shape of shapes) {
+    await page.goto(`/?shape=${shape}`);
+    await page.waitForFunction(() => window.spirebound && window.__probe);
     for (const fallback of [false, true]) {
       const context = `${shape} ${fallback ? 'fallback' : 'assets'}`;
-      await seed(page, mixedLedger(), `/?shape=${shape}`);
-      await page.evaluate((on) => window.__probe.forceRoseFallback(on), fallback);
-      await page.click('[data-a="vigil"]');
-      await page.click('[data-a="tab-rose"]');
+      if (fallback) {
+        await page.evaluate(() => window.__probe.forceRoseFallback(true));
+      } else {
+        await page.click('[data-a="vigil"]');
+        await page.click('[data-a="tab-rose"]');
+      }
       if (fallback) await expect(page.locator('.rose-window.rose-fallback')).toHaveCount(1);
       else await expect(page.locator('.rose-window.rose-assets')).toHaveClass(/ready/);
       expect((await page.evaluate(() => window.__probe.stage())).shape, context).toBe(shape);

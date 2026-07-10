@@ -2350,6 +2350,7 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
   max-height: var(--vigil-safe-max); overflow: hidden;
   display: flex; flex-direction: column;
 }
+.center-panel.screen-enter:has(.vigil-panel) { animation-name: fadein; }
 #screen .center-panel .vigil-panel:not(.rose-tab-open) {
   max-height: var(--vigil-safe-max);
 }
