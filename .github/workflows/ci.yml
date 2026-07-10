@@ -27,6 +27,19 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # apt's ffmpeg (6.1.1 on ubuntu-24.04) measures MP3 durations and renders
+      # crossfades differently from the dev machine's ffmpeg 8.1.2 -- install
+      # the same major.minor branch from BtbN's static-build releases instead.
+      - name: Install ffmpeg 8.1 (matches the dev machine)
+        run: |
+          curl -fsSL -o /tmp/ffmpeg.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz
+          curl -fsSL https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/checksums.sha256 \
+            | grep 'ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz$' > /tmp/ffmpeg.sha256
+          (cd /tmp && sha256sum -c ffmpeg.sha256)
+          tar -xJf /tmp/ffmpeg.tar.xz -C /tmp
+          sudo install -m 755 /tmp/ffmpeg-n8.1-latest-linux64-gpl-8.1/bin/ffmpeg /usr/local/bin/ffmpeg
+          sudo install -m 755 /tmp/ffmpeg-n8.1-latest-linux64-gpl-8.1/bin/ffprobe /usr/local/bin/ffprobe
+          rm -rf /tmp/ffmpeg.tar.xz /tmp/ffmpeg.sha256 /tmp/ffmpeg-n8.1-latest-linux64-gpl-8.1
       - name: Verify audio inspection tools
         run: ffmpeg -version && ffprobe -version
       # engine unit checks + asset manifest + 300-run monte-carlo
