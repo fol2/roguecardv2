@@ -439,9 +439,27 @@ passes locally in 8.2 seconds. The three desktop-heavy 8-way shards also
 exceeded the eight-minute run target, so the final topology uses ten equal
 30-test main shards.
 
-The next pushed Ready/full run must provide the real final wall-clock result.
-The eight-minute target and ten-minute warning threshold remain timing
-references, not correctness gates.
+Final Ready/full run
+[29124111872](https://github.com/fol2/roguecardv2/actions/runs/29124111872)
+passed at head `2412b17f5cd196ecaefa7b61e57bb4d926569767`:
 
-PR #14 remains **NO-GO until that pushed Ready/full run reports green**. A
-timing miss alone will not block it; any failed required child lane will.
+~~~text
+overall wall-clock: 9m28s
+changes: 46s
+unit tests / build dist / unit aggregator: 1m19s / 59s / 44s
+disk / serial-heavy: 1m59s / 3m04s
+random 1–3: 2m46s / 3m03s / 3m16s
+main 1–10: 7m47s / 7m01s / 6m48s / 3m26s / 1m18s /
+           2m51s / 2m06s / 4m29s / 2m41s / 2m21s
+visual desktop / portrait / landscape: 6m13s / 2m39s / 2m38s
+e2e aggregator: 47s
+required unit: success
+required e2e: success
+~~~
+
+The eight-minute target was missed by 1m28s, but the run stayed below the
+ten-minute warning threshold. Per the owner-approved contract this is timing
+reference, not a correctness failure.
+
+PR #14 is **GO for review/merge**: the latest application head passed every
+required full-gate child and both exact-name aggregators.

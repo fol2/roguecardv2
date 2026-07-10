@@ -791,7 +791,7 @@ git commit -m "Document and verify fast-feedback CI"
 
 Never stage `scratch/emberglass-phase2-manual-journey.mjs`.
 
-- [ ] **Step 6: Push PR #14 and measure the Ready/full run**
+- [x] **Step 6: Push PR #14 and measure the Ready/full run**
 
 ```bash
 git push origin codex/emberglass-phase2
@@ -802,6 +802,10 @@ Expected: required `unit` and `e2e` aggregators pass on the pushed head. Record
 each child lane duration, total wall-clock duration, and whether the 8-minute
 target was met. A duration miss is a warning; any failed child lane is a hard
 blocker to diagnose and fix.
+
+Actual: Ready/full run `29124111872` passed at head `2412b17` in 9m28s.
+The eight-minute target was missed by 1m28s, below the ten-minute warning
+threshold and therefore recorded as timing reference rather than a blocker.
 
 ## Self-review record
 
