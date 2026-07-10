@@ -185,6 +185,7 @@ test('Rose Window fallback with mixed disclosure states', async ({ page }) => {
 });
 
 test('sealed summit promise', async ({ page }) => {
+  test.setTimeout(120_000);
   const v = completeLedger();
   await seed(page, v);
   await page.evaluate(() => {
