@@ -3782,7 +3782,7 @@ Move terminal ownership, Shade transaction ordering, reward/bequest decisions, a
 
 Shade variants carry deathDialogue and speak only after `die`. An armed Shade reveals on contact. Pale contact projects Hunt the Pale Ones at 0/3, the third kill emits 3/3 and unlocks the Lens, and subsequent progress uses the same cumulative ledger against 9. Restore the unwaived v1 invariant wording and remove the out-of-scope failed-audio-reference cache plus its SFX test.
 
-- [ ] **Step 4: Rebuild, run the complete release gate and performance reference, refresh evidence, and update PR #14**
+- [x] **Step 4: Rebuild, run the complete release gate and performance reference, refresh evidence, and update PR #14**
 
 Run the Task 14 full gate plus focused persistence/story Playwright tests. Rebuild tracked dist, refresh source/evidence hashes for the new head, and record performance target misses as warnings while still requiring valid metrics. Run `git diff --check`, commit exact paths, push, and report live GitHub checks without treating queued/running jobs as green.
 
