@@ -1,9 +1,10 @@
-Captured: 2026-07-10T14:19:28Z
+Captured: 2026-07-10
 Branch: codex/emberglass-phase2
-Application source commit: 0829fed8aeb8425f5c93eb596ab7048c0457e676
-Application source tree: 9f43cba94a04f630779fddcc0f5aa991f97966d5
-Integrated main: fb54325d744e601ef705aa4fe447eab56f7eb334
-HEAD...main at source checkpoint: 38 ahead, 0 behind
+Final application/test checkpoint: 42757814480e84c1ab02b0857683054c6fe0b378
+Final checkpoint tree: 41c24f32583de6e64976d3f7f228f9b812863979
+Integrated main: d048640b962ccd17663e37bc0d1c8c5c692567b5
+main...checkpoint: 39 ahead, 0 behind
+merge-base(main, checkpoint): d048640b962ccd17663e37bc0d1c8c5c692567b5
 
 ProductName: macOS
 ProductVersion: 26.5.2
@@ -13,18 +14,32 @@ Kernel: 25.5.0
 Node: v22.23.1
 npm: 10.9.8
 Playwright: 1.61.1
+Chromium: Google Chrome for Testing 149.0.7827.55
+Power: AC Power
+Primary display: 2560x1440 at 144 Hz
 
-The captured application allow-list was clean relative to the source commit:
-.gitattributes, index.html, package files, Vite/Playwright configuration,
-playwright-server.js, src/, public/, test/, and tools/. Only release evidence,
-documentation corrections, and the unstaged scratch recorder existed outside
-that allow-list while final evidence was captured.
+Final local verification at the checkpoint:
+- npm test: PASS; 300 Monte Carlo runs
+- npm run test:progression twice: PASS; identical percentile output
+- npm run build: PASS; 523 modules; tracked dist unchanged
+- SPIREBOUND_E2E_PORT=5343 npm run test:e2e: PASS
+- SPIREBOUND_E2E_PORT=5344 npm run test:e2e:perf: PASS
+- SPIREBOUND_E2E_PORT=5345 npm run test:e2e:perf: PASS
 
-The isolated manual and Linux runners used the committed allow-list archive:
-/private/tmp/emberglass-phase2-0829fed-source.tar.gz
+The final full E2E partition was disk 1/1, random-agent 1/1, main 151 passed
+with 146 project skips, and visual 48/48.
 
-Archive SHA-256:
-ac38ab2bb0c1b7950940ae54fd2417f7ae27e602a631f7e1b01309b6c82285b3  emberglass-phase2-0829fed-source.tar.gz
+Manual, Darwin, and canonical Linux capture checkpoint:
+- commit: 0829fed8aeb8425f5c93eb596ab7048c0457e676
+- tree: 9f43cba94a04f630779fddcc0f5aa991f97966d5
+- source archive SHA-256: ac38ab2bb0c1b7950940ae54fd2417f7ae27e602a631f7e1b01309b6c82285b3
+
+The final checkpoint has the same src tree, visual-spec blob, Vite/Playwright
+configuration, index.html, and dist tree as 0829fed. The only differences in
+those capture surfaces are the six reviewed canonical Linux Rose baseline
+outputs committed from that exact capture. test/e2e/perf.spec.js changed later
+to correct the non-lethal performance fixture; it does not affect visual or
+manual product behaviour.
 
 Manual origins:
 http://127.0.0.1:5329  complete committed source

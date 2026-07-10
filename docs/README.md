@@ -40,8 +40,8 @@ Quick map for agents and humans. Operational truth for running the game lives in
 
 ## Visual QA kit
 
-- Config: [`../playwright.config.js`](../playwright.config.js) — desktop 1600×900, portrait 375×812, landscape 812×375; dev server **5174** by default. Set `SPIREBOUND_E2E_PORT=<free-port>` for a strict isolated launch that refuses to reuse an existing server.
-- Suites: [`../test/e2e/`](../test/e2e/) — `stage.spec` (fixed viewport), `geometry.spec` (ground-line feet and combat chrome), `battle.spec`, `visual.spec` (Vigil/meta art plus Emberglass medallion, Rose, fallback, and sealed-door baselines), `perf.spec`
+- Config: [`../playwright.config.js`](../playwright.config.js) with strict-port resolution in [`../playwright-server.js`](../playwright-server.js) — desktop 1600×900, portrait 375×812, landscape 812×375; dev server **5174** by default. Set `SPIREBOUND_E2E_PORT=<free-port>` for an isolated launch that refuses to reuse an existing server.
+- Suites: [`../test/e2e/`](../test/e2e/) — config/runner contracts, battlefield-editor disk writes, stage and combat geometry, battle/reward flows, Emberglass progression and persistence transactions, Hollow routing, versioned audio selection, visual baselines, random-agent coverage, and performance.
 - In-page API: `window.__probe` in `src/ui.js` — geometry in **stage px**
 
 ## Fixed virtual stage (summary)
