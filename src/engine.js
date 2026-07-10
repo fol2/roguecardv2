@@ -529,6 +529,19 @@ export function rollCardReward(run, kind = 'normal') {
     guard.add(id + Math.floor(rng() * 4));
     if (!out.includes(id)) out.push(id);
   }
+  const pageQuest = questRecord(run, 'unreadablePage');
+  const isFinalBossReward = kind === 'boss' && run.act >= 2;
+  if (!isFinalBossReward && pageQuest && ['armed', 'revealed'].includes(pageQuest.state) &&
+      pageQuest.progress < QUESTS.unreadablePage.target) {
+    const scratch = (run.questScratch.unreadablePage ||= {});
+    scratch.rewardOrdinal = (scratch.rewardOrdinal || 0) + 1;
+    if (!scratch.offered &&
+        scratch.rewardOrdinal === PROGRESSION.emberglass.unreadablePage.offerRewardOrdinal && out.length) {
+      out[out.length - 1] = 'unreadablePage';
+      scratch.offered = true;
+      revealQuest(run, 'unreadablePage', run.endQueue);
+    }
+  }
   return out;
 }
 // events that offer cards draw from the same unlock-aware pools
@@ -1392,6 +1405,19 @@ function winCombat(run, cb) {
       run.endQueue.push({ t: 'eighthResolved', text: QUESTS.eighthOmen.resolved });
     }
   }
+  const pageQuest = questRecord(run, 'unreadablePage');
+  if (cb.kind === 'boss' && run.act === 2 &&
+      run.player.deck.some((card) => card.id === 'unreadablePage') &&
+      pageQuest && ['armed', 'revealed'].includes(pageQuest.state) &&
+      pageQuest.progress < QUESTS.unreadablePage.target &&
+      !run.endQueue.some((event) => event.t === 'pageRead')) {
+    const q = advanceQuest(run, 'unreadablePage', 1, run.endQueue);
+    run.endQueue.push({
+      t: 'pageRead',
+      index: q.progress,
+      text: QUESTS.unreadablePage.pages[q.progress - 1],
+    });
+  }
   // write back
   run.player.hp = clamp(cb.player.hp, 1, run.player.maxHp);
   if (hasRelic(run, 'emberHeart')) { healPlayer(run, 6); proc(cb, 'emberHeart'); }
@@ -1490,9 +1516,12 @@ export function addCardToDeck(run, id, up = false) {
   run.player.deck.push(c);
   return c;
 }
+export const removableCards = (run) => run.player.deck.filter((c) => !cardData(c).unremovable);
 export function removeCardFromDeck(run, uid) {
   const i = run.player.deck.findIndex((c) => c.uid === uid);
-  if (i >= 0) run.player.deck.splice(i, 1);
+  if (i < 0 || cardData(run.player.deck[i]).unremovable) return false;
+  run.player.deck.splice(i, 1);
+  return true;
 }
 export function upgradeCardInDeck(run, uid) {
   const c = run.player.deck.find((c) => c.uid === uid);

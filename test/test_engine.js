@@ -6,7 +6,7 @@ import { createServer as createViteServer } from 'vite';
 import {
   newRun, startCombat, playCard, endTurn, drawCards, makeCard, makeVariant, cardData, availableNodes, genMap,
   rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, finalizeNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, nodeEventInFlight, saveRun, loadRun, genCombatRewards, genShop, buyQuestItem, gainRelic, randomRelic,
-  rollBossRelics, addCardToDeck, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
+  rollBossRelics, addCardToDeck, removableCards, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
   MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, grantBequest, markShadeFall, resolveCombatant, cardPool, relicPool,
   gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
   previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
@@ -1019,6 +1019,25 @@ function forceHand(run, cb, ids) {
     assert.equal(rewardReload.player.gold, rewardGold0 + 25);
     assert.equal(takePendingReward(rewardReload, 'gold'), false, 'reloaded taken reward stays idempotent');
 
+    const pageQuests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'unreadablePage' ? 'armed' : 'dormant', progress: 0, memory: {},
+    }]));
+    const pageRewardRun = newRun(419, { quests: pageQuests });
+    const firstPageRewards = genCombatRewards(pageRewardRun, 'monster');
+    setPendingReward(pageRewardRun, 'monster', firstPageRewards);
+    assert.ok(!pageRewardRun.pendingReward.rewards.cards.includes('unreadablePage'));
+    clearPendingReward(pageRewardRun);
+    const exactPageRewards = genCombatRewards(pageRewardRun, 'monster');
+    setPendingReward(pageRewardRun, 'monster', exactPageRewards);
+    const exactPageOutbox = structuredClone(pageRewardRun.pendingReward);
+    assert.ok(exactPageOutbox.rewards.cards.includes('unreadablePage'));
+    assert.equal(saveRun(pageRewardRun), true);
+    const pageRewardReload = loadRun();
+    assert.deepEqual(pageRewardReload.pendingReward, exactPageOutbox,
+      'reload resumes the exact generated Page choice and taken state');
+    assert.deepEqual(pageRewardReload.questScratch.unreadablePage, { rewardOrdinal: 2, offered: true },
+      'reload does not regenerate or re-advance the Page offer');
+
     for (const outcome of ['win', 'death', 'abandon']) {
       const finalPending = newRun(417, { quests: saveQuests });
       finalPending.pendingRunEnd = { outcome };
@@ -1699,6 +1718,104 @@ function forceHand(run, cb, ids) {
 
   EngineApi._setQuestRng(null);
   _setStore(null);
+}
+{
+  const q = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+    state: id === 'unreadablePage' ? 'armed' : 'dormant', progress: 0, memory: {},
+  }]));
+  const run = newRun(470, { quests: q });
+  assert.equal(CARDS.unreadablePage?.unplayable, true, 'the Page is an unplayable special card');
+  assert.equal(CARDS.unreadablePage?.unremovable, true, 'the Page cannot be removed');
+  assert.ok(!Object.values(CARD_POOLS).flat().includes('unreadablePage'), 'the Page stays out of normal pools');
+
+  const first = rollCardReward(run);
+  assert.ok(!first.includes('unreadablePage'));
+  const second = rollCardReward(run);
+  assert.ok(second.includes('unreadablePage'));
+  assert.ok(!rollCardReward(run).includes('unreadablePage'), 'offered once per run');
+  assert.equal(run.quests.unreadablePage.state, 'revealed');
+  assert.deepEqual(run.questScratch.unreadablePage, { rewardOrdinal: 3, offered: true });
+
+  const page = addCardToDeck(run, 'unreadablePage');
+  assert.equal(removeCardFromDeck(run, page.uid), false);
+  assert.ok(run.player.deck.some((c) => c.uid === page.uid));
+  assert.ok(!removableCards(run).some((c) => c.id === 'unreadablePage'));
+  const ordinaryCard = removableCards(run)[0];
+  assert.equal(removeCardFromDeck(run, ordinaryCard.uid), true, 'ordinary cards remain removable');
+  assert.equal(removeCardFromDeck(run, ordinaryCard.uid), false, 'a missing card is not removed twice');
+
+  const onlyPage = newRun(471, { quests: q });
+  onlyPage.player.deck = [];
+  addCardToDeck(onlyPage, 'unreadablePage');
+  assert.deepEqual(removableCards(onlyPage), [], 'an all-Page deck has no impossible removal choice');
+
+  run.act = 2;
+  const cb = startCombat(run, ['sovereign'], 'boss');
+  cb.enemies[0].hp = 1;
+  forceHand(run, cb, ['strike']);
+  cb.player.energy = 3;
+  playCard(run, cb, cb.hand[0].uid, 0);
+  assert.equal(run.quests.unreadablePage.progress, 1);
+  assert.deepEqual(run.endQueue.filter((e) => e.t === 'pageRead'), [{
+    t: 'pageRead', index: 1, text: QUESTS.unreadablePage.pages[0],
+  }]);
+
+  const twoPages = newRun(472, { quests: q });
+  addCardToDeck(twoPages, 'unreadablePage');
+  addCardToDeck(twoPages, 'unreadablePage');
+  twoPages.act = 2;
+  const twoPageBoss = startCombat(twoPages, ['sovereign'], 'boss');
+  twoPageBoss.enemies[0].hp = 1;
+  forceHand(twoPages, twoPageBoss, ['strike']);
+  twoPageBoss.player.energy = 3;
+  playCard(twoPages, twoPageBoss, twoPageBoss.hand[0].uid, 0);
+  assert.equal(twoPages.quests.unreadablePage.progress, 1, 'one page-reading per winning run');
+  assert.equal(twoPages.endQueue.filter((e) => e.t === 'pageRead').length, 1);
+
+  const finalPageQ = structuredClone(q);
+  finalPageQ.unreadablePage = { state: 'revealed', progress: 4, memory: {} };
+  const finalPage = newRun(473, { quests: finalPageQ });
+  addCardToDeck(finalPage, 'unreadablePage');
+  finalPage.act = 2;
+  const finalPageBoss = startCombat(finalPage, ['sovereign'], 'boss');
+  finalPageBoss.enemies[0].hp = 1;
+  forceHand(finalPage, finalPageBoss, ['strike']);
+  finalPageBoss.player.energy = 3;
+  playCard(finalPage, finalPageBoss, finalPageBoss.hand[0].uid, 0);
+  assert.equal(finalPage.quests.unreadablePage.state, 'complete');
+  const finalPageRead = finalPage.endQueue.find((e) => e.t === 'pageRead');
+  assert.deepEqual(finalPageRead, { t: 'pageRead', index: 5, text: QUESTS.unreadablePage.pages[4] });
+  journalTerminalOutcome(finalPage, 'win');
+  assert.deepEqual(finalPage.pendingRunEnd, { outcome: 'win' });
+  assert.deepEqual(finalPage.endQueue.find((e) => e.t === 'pageRead'), finalPageRead,
+    'the exact authored reading remains in the terminal outbox');
+
+  const ordinary = newRun(474, { quests: q });
+  addCardToDeck(ordinary, 'unreadablePage');
+  ordinary.act = 2;
+  const ordinaryCombat = startCombat(ordinary, ['sporeling'], 'normal');
+  ordinaryCombat.enemies[0].hp = 1;
+  forceHand(ordinary, ordinaryCombat, ['strike']);
+  ordinaryCombat.player.energy = 3;
+  playCard(ordinary, ordinaryCombat, ordinaryCombat.hand[0].uid, 0);
+  assert.equal(ordinary.quests.unreadablePage.progress, 0, 'ordinary victories do not read the Page');
+
+  const midBoss = newRun(475, { quests: q });
+  addCardToDeck(midBoss, 'unreadablePage');
+  midBoss.act = 1;
+  const midBossCombat = startCombat(midBoss, ['leviathan'], 'boss');
+  midBossCombat.enemies[0].hp = 1;
+  forceHand(midBoss, midBossCombat, ['strike']);
+  midBossCombat.player.energy = 3;
+  playCard(midBoss, midBossCombat, midBossCombat.hand[0].uid, 0);
+  assert.equal(midBoss.quests.unreadablePage.progress, 0, 'mid-act boss victories do not read the Page');
+
+  const finalReward = newRun(476, { quests: q });
+  finalReward.act = 2;
+  rollCardReward(finalReward);
+  assert.ok(!rollCardReward(finalReward, 'boss').includes('unreadablePage'), 'the final boss has no Page reward');
+  assert.deepEqual(finalReward.questScratch.unreadablePage, { rewardOrdinal: 1 },
+    'a non-existent final reward does not advance the offer ordinal');
 }
 {
   const q = Object.fromEntries(QUEST_IDS.map((id) => [id, { state: id === 'paleOnes' ? 'armed' : 'dormant', progress: 0, memory: {} }]));
@@ -2702,7 +2819,7 @@ function randomAgentRun(seed) {
     for (const id of required) assert.ok(have.has(id), `asset missing: src/assets/${cat}/${id} (data id has no art)`);
     for (const id of have) assert.ok(known.has(id), `orphan asset: src/assets/${cat}/${id} (art has no data id)`);
   };
-  checkManifest('cards', Object.keys(CARDS));
+  checkManifest('cards', Object.keys(CARDS).filter((id) => id !== 'unreadablePage'), ['unreadablePage']);
   checkManifest('enemies', Object.keys(ENEMIES));
   checkManifest('relics', Object.keys(RELICS));
   checkManifest('potions', Object.keys(POTIONS));

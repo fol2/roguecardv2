@@ -484,6 +484,12 @@ export const CARDS = {
   },
 
   // ---- statuses / curses
+  unreadablePage: {
+    name: 'The Unreadable Page', type: 'curse', rarity: 'special', cost: 0,
+    target: 'self', vfx: 'void', unplayable: true, unremovable: true,
+    text: 'It cannot be played or removed. Carry it to dawn and it may read itself.',
+    effects: [],
+  },
   wound: {
     name: 'Shard', type: 'status', rarity: 'special', cost: null, target: 'none',
     vfx: 'pierce',

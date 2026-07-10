@@ -4157,15 +4157,15 @@ function renderShop() {
       miscRow.appendChild(wrap);
     }
     // card removal service
-    const wrap = el('div', `shop-item ${st.removed ? 'sold' : ''} ${gold() < st.removeCost ? 'cant' : ''}`);
+    const removable = E.removableCards(run);
+    const wrap = el('div', `shop-item ${st.removed ? 'sold' : ''} ${gold() < st.removeCost || !removable.length ? 'cant' : ''}`);
     const b = el('button', 'shop-relic', `<span style="width:34px;display:inline-flex;justify-content:center">${iconSvg('scissors', 26)}</span><b>Card Removal</b>Remove a card from your deck forever.`);
     b.onclick = () => {
-      if (st.removed || gold() < st.removeCost) return sfx.debuff();
-      showCardGrid('Remove a Card', run.player.deck, {
+      if (st.removed || gold() < st.removeCost || !removable.length) return sfx.debuff();
+      showCardGrid('Remove a Card', removable, {
         sub: 'Cut the dead weight.',
         pick: (inst) => {
-          if (!inst) return;
-          E.removeCardFromDeck(run, inst.uid);
+          if (!inst || !E.removeCardFromDeck(run, inst.uid)) return;
           st.removed = true;
           run.player.gold -= st.removeCost;
           sfx.card();
@@ -4259,7 +4259,9 @@ function renderEvent(eventId) {
   function handlePending(p) {
     return new Promise((resolve) => {
       if (p === 'remove') {
-        showCardGrid('Remove a Card', run.player.deck, { sub: 'Let it go.', pick: (inst) => { if (inst) { E.removeCardFromDeck(run, inst.uid); sfx.card(); } resolve(); }, canSkip: false });
+        const removable = E.removableCards(run);
+        if (!removable.length) return resolve();
+        showCardGrid('Remove a Card', removable, { sub: 'Let it go.', pick: (inst) => { if (inst && E.removeCardFromDeck(run, inst.uid)) sfx.card(); resolve(); }, canSkip: false });
       } else if (p === 'upgrade') {
         const ups = run.player.deck.filter((c) => !c.up && CARDS[c.id].up);
         if (!ups.length) return resolve();

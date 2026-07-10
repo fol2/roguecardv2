@@ -361,6 +361,7 @@ const CARD_GLYPHS = {
   frenzy: '※', virulence: '☣', wound: '✂', burn: '✹', hex: '♄',
   chisel: '◬', firstSpark: '✧', ashBite: '☄', smother: '☁', quakeblow: '⬲', resonantLance: '↟', tithe: '⚖', pyreheart: '♥',
   ashenChoir: '♬', flawlessForm: '❖', nightSight: '☾', novaflare: '✺', emberdance: '❂', shardstorm: '❉',
+  unreadablePage: '▤',
 };
 const hash = (s) => { let h = 9; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 387420489); return (h ^ (h >>> 9)) >>> 0; };
 
