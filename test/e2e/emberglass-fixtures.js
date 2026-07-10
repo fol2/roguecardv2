@@ -3,6 +3,9 @@ export const QIDS = [
   'eighthOmen', 'unreadablePage', 'hollowLamplighter',
 ];
 
+export const PERSISTED_EIGHTH_TEXT = 'PERSISTED EIGHTH SENTINEL — KEEP THIS COPY';
+export const PERSISTED_SHADE_TEXT = 'PERSISTED SHADE SENTINEL — KEEP THIS COPY';
+
 const TARGET = {
   paleOnes: 9, ownShade: 3, usurper: 1,
   eighthOmen: 1, unreadablePage: 5, hollowLamplighter: 5,
@@ -49,6 +52,22 @@ export function completeLedger() {
   return v;
 }
 
+export function pendingTerminalLedger() {
+  const v = freshLedger();
+  v.deeds = deeds(5);
+  v.deeds.perfects = 2;
+  v.unlocks = ['aspect2'];
+  v.vowUnlocked = 1;
+  v.runsPlayed = 5;
+  for (const id of QIDS.slice(0, 5)) {
+    v.quests[id] = quest('complete', TARGET[id]);
+  }
+  v.quests.hollowLamplighter = quest('revealed', 4);
+  v.shards = QIDS.slice(0, 5);
+  v.whispers = 23;
+  return v;
+}
+
 export async function seed(page, vigil) {
   await page.goto('/');
   await page.waitForFunction(() => window.spirebound && window.__probe);
@@ -58,4 +77,43 @@ export async function seed(page, vigil) {
   }, vigil);
   await page.reload();
   await page.waitForFunction(() => window.spirebound && window.__probe);
+}
+
+export async function stagePendingRunEnd(page, outcome) {
+  await seed(page, pendingTerminalLedger());
+  return page.evaluate(({ outcome: pendingOutcome, eighthText, shadeText }) => {
+    const sp = window.spirebound;
+    const vigil = JSON.parse(localStorage.getItem('spirebound_vigil_v2'));
+    localStorage.setItem('spirebound_stats_v1', JSON.stringify({
+      runs: 5, wins: 5, best: 0, lastRunId: null,
+    }));
+    const run = sp.E.newRun(9200 + ['win', 'death', 'abandon'].indexOf(pendingOutcome), {
+      reveals: ['omens', 'phials', 'poolWave2', 'poolWave3', 'poolFull', 'emberglass'],
+      quests: vigil.quests,
+      shards: vigil.shards,
+      unlocks: vigil.unlocks,
+    });
+    run.act = 2;
+    run.floorsClimbed = 15;
+    run.map = sp.E.genMap(run);
+    if (pendingOutcome === 'win') {
+      run.quests.hollowLamplighter = { state: 'complete', progress: 5, memory: {} };
+      run.questCompletions = ['hollowLamplighter'];
+      run.stats.perfects = 1;
+      run.endQueue = [
+        { t: 'questReveal', id: 'hollowLamplighter' },
+        { t: 'questProgress', id: 'hollowLamplighter', progress: 5, target: 5 },
+        { t: 'questComplete', id: 'hollowLamplighter' },
+        { t: 'eighthResolved', text: eighthText },
+        { t: 'shadeResolved', text: shadeText },
+      ];
+    }
+    run.pendingRunEnd = { outcome: pendingOutcome };
+    if (!sp.E.saveRun(run) || !sp.E.loadRun()) throw new Error('pending terminal run did not round-trip');
+    return { runId: run.runId };
+  }, {
+    outcome,
+    eighthText: PERSISTED_EIGHTH_TEXT,
+    shadeText: PERSISTED_SHADE_TEXT,
+  });
 }

@@ -2626,6 +2626,7 @@ test('Rose panes disclose only their current state', async ({ page }) => {
   await expect(page.locator('.rose-pane[data-quest="paleOnes"]')).toContainText('???');
   await expect(page.locator('.rose-pane[data-quest="ownShade"]')).toContainText('1/3');
   await expect(page.locator('.rose-pane[data-quest="usurper"]')).toHaveClass(/complete/);
+  await expect(page.locator('.rose-pane[data-quest="usurper"]')).toHaveClass(/lit/);
   await expect(page.locator('.rose-pane.dormant').filter({ hasText: 'Hollow' })).toHaveCount(0);
   await expect(page.locator('.rose-pane.dormant[data-quest]')).toHaveCount(0);
   await expect(page.locator('.whisper-row')).toHaveCount(v.whispers);
@@ -2728,14 +2729,25 @@ Implement one async drainEndQueue(events,host):
 - questProgress: quest name and exact `progress/target`.
 - questUnlock: the Witchlight Lens title and “Pale paths will now be marked.”
 - pageRead: Page number and exact text.
-- eighthResolved: broken glyphs resolve to exact text.
-- shadeResolved: the exact QUESTS.ownShade.final text.
+- eighthResolved: broken glyphs resolve to the escaped durable `event.text` exactly.
+- shadeResolved: render the escaped durable `event.text` exactly.
 - questComplete: no separate card when the same event has a following shardGrant.
 - shardGrant: iconSvg('emberglassShard'), quest name, “One pane answers.”
 - act4Reveal: iconSvg('sealedDoor'), “Six panes burn. Something waits above the crown.”
 - REDUCED uses 40 ms between panels; normal uses 550 ms opacity/translate transitions.
 
 After the last panel is appended, drainEndQueue adds `.complete` to the `.dawn-ceremony` host; tests wait on that class rather than racing the first panel.
+
+The engine producer tests continue to pin `eighthResolved.text` and
+`shadeResolved.text` to the current authored `QUESTS` copy. Playback must still
+use the durable event text so a terminal save created by an older content
+version is not silently rewritten after reload.
+
+While the dawn queue is draining, both end-screen navigation buttons are
+disabled. Enable them only after `.complete`; delayed unlock toasts must verify
+the same end screen/run is still current, and leaving the end screen clears any
+existing toast host. This makes every one-shot disclosure observable before the
+terminal save is removed.
 
 No event mutates engine or Vigil state.
 
@@ -2788,7 +2800,9 @@ When `run.act===2`, `E.runRevealed(run,'act4')`, and `run.shards.length >= PROGR
 </div>
 ~~~
 
-Opening/closing must not alter act, map, nodeId, or save.
+Opening/closing must not alter act, map, nodeId, or save. The door click handler
+must honour the same `panEaten` guard as map nodes, so a phone-landscape drag
+cannot open it; a later clean tap can.
 
 Keep the optional omen/Page calls from Tasks 8-9. Replace the meta call with:
 
@@ -2801,6 +2815,15 @@ checkManifest('meta', ['fallen', 'ascended', 'monument-node'], ROSE_OPTIONAL);
 ~~~
 
 Existing asset IDs remain required and orphan checking remains exact.
+
+Permanent Playwright coverage must recover fully valid persisted
+`pendingRunEnd` saves through the real boot path (`renderTitle` → `startRun` →
+`finaliseTerminalOutbox` → `commitPendingRunEnd`). The win case asserts durable
+sentinel playback, canonical ceremony order, disabled-then-enabled navigation,
+Vigil and stats receipts exactly once, sixth-shard/whisper state, save removal,
+and no delayed UI leakage or duplication after another reload. Death and
+abandon cases assert no dawn ceremony, correct receipts/cleanup, and no
+duplication. Add a phone-landscape synthetic-touch drag/tap door regression.
 
 Run:
 

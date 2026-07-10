@@ -1888,7 +1888,9 @@ function forceHand(run, cb, ids) {
   playCard(forced, boss, boss.hand[0].uid, 0);
   assert.equal(forced.quests.eighthOmen.state, 'complete');
   assert.equal(forced.questCompletions.filter((id) => id === 'eighthOmen').length, 1);
-  assert.equal(forced.endQueue.filter((event) => event.t === 'eighthResolved').length, 1);
+  assert.deepEqual(forced.endQueue.filter((event) => event.t === 'eighthResolved'), [{
+    t: 'eighthResolved', text: QUESTS.eighthOmen.resolved,
+  }], 'the Eighth producer persists the canonical authored copy once');
   const forcedReceiptSnapshot = JSON.stringify(forced);
   commitRunToVigil(forced, true);
   out = commitRunEnd(forced, 'win');

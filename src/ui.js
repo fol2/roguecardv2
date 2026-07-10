@@ -716,6 +716,7 @@ async function transition(kind, opts = {}) {
 export function show(name, data) {
   if (S.screen !== name && S.run) wipe(); // travel is lit; in-place rerenders aren't
   S.screen = name;
+  if (name !== 'end') $('#toasts')?.remove();
   closeMenus();
   $('#tooltip').style.display = 'none'; // a parked cursor shouldn't strand a tip across screens
   if (name !== 'map') { exitMapMode(); clearOverlay(); }
@@ -771,17 +772,18 @@ function rosePaneCopy(id, record) {
 function rosePaneHtml(v, assets, id, index) {
   const record = v.quests[id] || { state: 'dormant', progress: 0, memory: {} };
   const state = ['armed', 'revealed', 'complete'].includes(record.state) ? record.state : 'dormant';
+  const stateClasses = state === 'complete' ? 'complete lit' : state;
   const identity = state === 'dormant' ? '' : ` data-quest="${id}"`;
   const copy = rosePaneCopy(id, { ...record, state });
   if (!assets) {
     const mark = state === 'complete' ? 'emberglassShard' : 'roseWindow';
-    return `<div class="rose-pane rose-slot ${state}" data-index="${index}"${identity}>
+    return `<div class="rose-pane rose-slot ${stateClasses}" data-index="${index}"${identity}>
       <span class="rose-slot-mark">${iconSvg(mark, 34)}</span>
       <div class="rose-pane-copy">${copy}</div>
     </div>`;
   }
   const [x, y] = ROSE_LABEL_POSITIONS[index];
-  return `<div class="rose-pane ${state}" data-index="${index}"${identity} style="--rose-x:${x}%;--rose-y:${y}%">
+  return `<div class="rose-pane ${stateClasses}" data-index="${index}"${identity} style="--rose-x:${x}%;--rose-y:${y}%">
     <div class="rose-pane-art" style="--rose-mural:url('${escHtml(assets.mural)}');--rose-mask:url('${escHtml(assets.masks[id])}')"></div>
     <div class="rose-pane-copy">${copy}</div>
   </div>`;
@@ -1366,6 +1368,7 @@ function renderMap() {
   const sealedDoor = $('.sealed-door');
   if (sealedDoor) {
     sealedDoor.onclick = (event) => {
+      if (panEaten) return;
       event.stopPropagation();
       unlock();
       sfx.click();
@@ -4678,13 +4681,16 @@ function unlockToastInfo(u) {
   if (k === 'card') return { kind: 'Card Unlocked', name: CARDS[id]?.name || id };
   return { kind: 'Relic Unlocked', name: RELICS[id]?.name || id };
 }
-function showUnlockToasts(list = []) {
+function showUnlockToasts(list = [], runId = S.run?.runId) {
   if (!list.length) return;
+  const stillOnEnd = () => S.screen === 'end' && S.run?.runId === runId;
+  if (!stillOnEnd()) return;
   let host = $('#toasts');
   if (!host) { host = el('div'); host.id = 'toasts'; stageEl().appendChild(host); }
   list.forEach((u, i) => {
     const info = unlockToastInfo(u);
     setTimeout(() => {
+      if (!stillOnEnd()) return;
       const t = el('div', 'unlock-toast', `<div class="ut-kind">✦ ${info.kind}</div><div class="ut-name">${info.name}</div>`);
       host.appendChild(t);
       requestAnimationFrame(() => t.classList.add('in'));
@@ -4727,9 +4733,9 @@ function dawnEventHtml(event) {
   if (event.t === 'pageRead') return `<div class="dawn-kicker">Page ${event.index}</div>
     <div class="dawn-copy">${escHtml(event.text)}</div>`;
   if (event.t === 'eighthResolved') return `<div class="dawn-kicker broken-omen">The broken glyphs resolve</div>
-    <div class="dawn-copy">${escHtml(QUESTS.eighthOmen.resolved)}</div>`;
+    <div class="dawn-copy">${escHtml(event.text)}</div>`;
   if (event.t === 'shadeResolved') return `<div class="dawn-kicker">The shade speaks plainly</div>
-    <div class="dawn-copy">${escHtml(QUESTS.ownShade.final)}</div>`;
+    <div class="dawn-copy">${escHtml(event.text)}</div>`;
   if (event.t === 'questComplete') return `<div class="dawn-kicker">${escHtml(QUESTS[event.id].mode)} complete</div>
     <div class="dawn-name">${escHtml(QUESTS[event.id].name)}</div>`;
   if (event.t === 'shardGrant') return `<div class="dawn-icon">${iconSvg('emberglassShard', 42)}</div>
@@ -4779,8 +4785,8 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
       <div class="stat-cell"><div class="v">${mins}m</div><div class="k">Run Time</div></div>
     </div>`;
   const btns = `<div class="end-btns">
-      <button class="btn" data-a="deck">View Final Deck</button>
-      <button class="btn" data-a="title">Return to the Vigil</button>
+      <button class="btn" data-a="deck"${won ? ' disabled' : ''}>View Final Deck</button>
+      <button class="btn" data-a="title"${won ? ' disabled' : ''}>Return to the Vigil</button>
     </div>`;
   let ceremony = Promise.resolve();
   if (won) {
@@ -4825,7 +4831,7 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
   }
   screenEl().onclick = (e) => {
     const t = e.target.closest('[data-a]');
-    if (!t) return;
+    if (!t || t.disabled) return;
     const a = t.dataset.a;
     if (a === 'bequest') {
       sfx.relic();
@@ -4839,7 +4845,11 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
     if (a === 'deck') showCardGrid('Final Deck', run.player.deck, {});
     if (a === 'title') { S.run = null; S.lamp = null; show('title'); }
   };
-  ceremony.finally(() => showUnlockToasts(newUnlocks));
+  ceremony.then(() => {
+    if (S.screen !== 'end' || S.run?.runId !== run.runId) return;
+    $$('.end-btns button', screenEl()).forEach((button) => { button.disabled = false; });
+    showUnlockToasts(newUnlocks, run.runId);
+  });
 }
 
 // ------------------------------------------------------------ dev asset gallery (?gallery=1)
