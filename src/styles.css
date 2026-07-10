@@ -1126,6 +1126,39 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   font-family: 'Crimson Pro', serif; font-size: 16.5px; font-weight: 500; letter-spacing: 0.02em;
   color: var(--text-dim); max-width: 620px; margin: 6px auto 0; text-transform: none;
 }
+.broken-omen .broken-lead {
+  --jx: 0.35px; --jy: -0.25px;
+  transform-box: fill-box; transform-origin: center;
+  animation: brokenLeadJitter 0.52s steps(2, end) infinite alternate;
+}
+.broken-omen .broken-lead:nth-child(2), .broken-omen .broken-lead:nth-child(5) { --jx: -0.4px; --jy: 0.3px; animation-delay: -0.17s; }
+.broken-omen .broken-lead:nth-child(3), .broken-omen .broken-lead:nth-child(6) { --jx: 0.25px; --jy: 0.4px; animation-delay: -0.33s; }
+@keyframes brokenLeadJitter {
+  0%, 100% { opacity: 0.96; transform: translate(0, 0); }
+  50% { opacity: 0.68; transform: translate(var(--jx), var(--jy)); }
+}
+.turn-banner.eighth-floor-echo {
+  top: 23%; display: flex; align-items: center; justify-content: center; gap: 12px;
+  width: min(680px, 88cqw); padding: 11px 24px;
+  color: #e8e0ff; border-color: rgba(232, 224, 255, 0.38);
+  background: rgba(8, 7, 17, 0.9); font-size: clamp(15px, 2.1cqw, 20px);
+  line-height: 1.25; letter-spacing: 0.15em; text-align: center;
+  animation: eighthEcho 2.1s ease-in-out forwards;
+}
+.eighth-floor-echo .efe-icon { display: inline-flex; flex: 0 0 auto; filter: drop-shadow(0 0 9px rgba(200, 183, 255, 0.6)); }
+.eighth-floor-echo .efe-text { display: inline-block; animation: brokenTextJitter 0.68s steps(2, end) infinite alternate; }
+@keyframes brokenTextJitter { to { opacity: 0.76; transform: translate(0.45px, -0.25px); } }
+@keyframes eighthEcho {
+  0% { opacity: 0; transform: translate(-50%, -48%); }
+  16%, 78% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, -54%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .broken-omen .broken-lead, .eighth-floor-echo .efe-text { animation: none; opacity: 1; transform: none; }
+  .turn-banner.omen-banner.broken-omen, .turn-banner.eighth-floor-echo {
+    animation: none; opacity: 1; transform: translate(-50%, -50%);
+  }
+}
 .map-title .mt-omen {
   cursor: help;
   display: inline-flex; align-items: center; justify-content: center;

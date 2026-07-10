@@ -13,6 +13,7 @@ import {
   revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter,
   setPendingReward, takePendingReward, clearPendingReward, hasPendingBossRelic, recordRunEnd, loadStats, paleVariantForAct,
 } from '../src/engine.js';
+import * as EngineApi from '../src/engine.js';
 import { shopSessionKey, shopStockForSession } from '../src/shop-session.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS } from '../src/data.js';
 import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, commitPendingRunEnd, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
@@ -1625,6 +1626,81 @@ function forceHand(run, cb, ids) {
   assert.equal(nextStock.questItems[0].sold, false, 'a new run cannot inherit the prior shop row state');
 }
 {
+  assert.ok(OMENS.eighthOmen, 'the Eighth Omen is registered as a real omen');
+  assert.deepEqual(OMENS.eighthOmen.mods, { allCombatsAffixed: true });
+  assert.equal(QUESTS.eighthOmen.floorEchoes.length, 4);
+  _setStore(null);
+  let v = loadVigil();
+  v.quests.eighthOmen = { state: 'armed', progress: 0, memory: { dueIn: 2 } };
+  saveVigil(v);
+
+  EngineApi._setQuestRng(() => 0.9); // first post-arm run misses its 1/3 chance
+  const first = newRun(460, { quests: questSnapshot(v), reveals: [] });
+  assert.equal(first.omens[0], null, 'a missed special roll does not leak generic omens early');
+  assert.deepEqual(first.questScratch.eighthOmen, { active: false });
+  assert.equal(first.quests.eighthOmen.memory.dueIn, 1);
+  let out = commitRunEnd(first, 'abandon');
+  assert.equal(out.vigil.quests.eighthOmen.memory.dueIn, 1, 'miss persists the guarantee countdown');
+
+  EngineApi._setQuestRng(() => 0.9); // chance no longer matters: second run is forced
+  const forced = newRun(461, { quests: questSnapshot(out.vigil), reveals: [] });
+  assert.equal(forced.omens[0], 'eighthOmen');
+  assert.deepEqual(forced.questScratch.eighthOmen, { active: true });
+  assert.equal(forced.quests.eighthOmen.memory.seen, true);
+  assert.equal('dueIn' in forced.quests.eighthOmen.memory, false);
+  for (const act of [1, 2]) {
+    forced.act = act;
+    forced.omens.push(EngineApi.omenEnabled(forced) ? rollOmen(forced) : null);
+    assert.equal(forced.omens[act], 'eighthOmen', 'live act transition keeps Eighth in act ' + (act + 1));
+  }
+  forced.act = 1;
+  const cb = startCombat(forced, ['duskfang'], 'normal');
+  assert.ok(cb.affix, 'non-boss combat receives one affix');
+
+  forced.act = 2;
+  forced.player.deck = forced.player.deck.filter((c) => c.id !== 'unreadablePage');
+  const boss = startCombat(forced, ['sovereign'], 'boss');
+  assert.equal(boss.affix, null, 'the final boss remains un-affixed');
+  boss.enemies[0].hp = 1;
+  forceHand(forced, boss, ['strike']);
+  boss.player.energy = 3;
+  playCard(forced, boss, boss.hand[0].uid, 0);
+  assert.equal(forced.quests.eighthOmen.state, 'complete');
+  assert.equal(forced.questCompletions.filter((id) => id === 'eighthOmen').length, 1);
+  assert.equal(forced.endQueue.filter((event) => event.t === 'eighthResolved').length, 1);
+  const forcedReceiptSnapshot = JSON.stringify(forced);
+  commitRunToVigil(forced, true);
+  out = commitRunEnd(forced, 'win');
+  assert.equal('dueIn' in out.vigil.quests.eighthOmen.memory, false, 'forced-run deletion persists');
+  const committedWhispers = out.vigil.whispers;
+  const receiptRetry = commitRunEnd(JSON.parse(forcedReceiptSnapshot), 'win');
+  assert.equal('dueIn' in receiptRetry.vigil.quests.eighthOmen.memory, false,
+    'fresh-object receipt retry preserves the authoritative dueIn deletion');
+  assert.equal(receiptRetry.vigil.whispers, committedWhispers,
+    'fresh-object receipt retry cannot consume another global whisper');
+  assert.deepEqual(receiptRetry.completed, ['eighthOmen']);
+
+  const firstHitQ = questSnapshot(out.vigil);
+  firstHitQ.eighthOmen = { state: 'armed', progress: 0, memory: { dueIn: 2 } };
+  EngineApi._setQuestRng(() => 0.1);
+  const firstHit = newRun(462, { quests: firstHitQ, reveals: [] });
+  assert.equal(firstHit.omens[0], 'eighthOmen', 'first post-arm run may hit the 1/3 roll');
+  assert.equal('dueIn' in firstHit.quests.eighthOmen.memory, false);
+
+  const recurrenceQ = questSnapshot(out.vigil);
+  recurrenceQ.eighthOmen = { state: 'revealed', progress: 0, memory: { seen: true } };
+  EngineApi._setQuestRng(() => 0.2);
+  assert.equal(newRun(463, { quests: recurrenceQ, reveals: [] }).omens[0], 'eighthOmen');
+  EngineApi._setQuestRng(() => 0.9);
+  assert.equal(newRun(464, { quests: recurrenceQ, reveals: [] }).omens[0], null);
+
+  const ordinary = newRun(465, { reveals: ['omens'] });
+  assert.notEqual(ordinary.omens[0], 'eighthOmen', 'an unarmed generic omen roll cannot leak the special omen');
+
+  EngineApi._setQuestRng(null);
+  _setStore(null);
+}
+{
   const q = Object.fromEntries(QUEST_IDS.map((id) => [id, { state: id === 'paleOnes' ? 'armed' : 'dormant', progress: 0, memory: {} }]));
   const run = newRun(410, { quests: q, shards: ['paleOnes'] });
   q.paleOnes.state = 'complete';
@@ -2619,18 +2695,19 @@ function randomAgentRun(seed) {
       .filter((f) => /\.(png|jpg)$/i.test(f))
       .map((f) => f.replace(/\.(png|jpg)$/i, '')),
   );
-  const checkManifest = (cat, expectedIds) => {
+  const checkManifest = (cat, requiredIds, optionalIds = []) => {
     const have = assetIds(cat);
-    const want = new Set(expectedIds);
-    for (const id of want) assert.ok(have.has(id), `asset missing: src/assets/${cat}/${id} (data id has no art)`);
-    for (const id of have) assert.ok(want.has(id), `orphan asset: src/assets/${cat}/${id} (art has no data id)`);
+    const required = new Set(requiredIds);
+    const known = new Set([...requiredIds, ...optionalIds]);
+    for (const id of required) assert.ok(have.has(id), `asset missing: src/assets/${cat}/${id} (data id has no art)`);
+    for (const id of have) assert.ok(known.has(id), `orphan asset: src/assets/${cat}/${id} (art has no data id)`);
   };
   checkManifest('cards', Object.keys(CARDS));
   checkManifest('enemies', Object.keys(ENEMIES));
   checkManifest('relics', Object.keys(RELICS));
   checkManifest('potions', Object.keys(POTIONS));
   checkManifest('events', Object.keys(EVENTS));
-  checkManifest('omens', Object.keys(OMENS));
+  checkManifest('omens', Object.keys(OMENS).filter((id) => id !== 'eighthOmen'), ['eighthOmen']);
   checkManifest('boons', Object.keys(BOONS));
   checkManifest('arts', Object.keys(ARTS));
   checkManifest('heroes', ASPECTS.map((a) => a.id));
@@ -2714,11 +2791,12 @@ function randomAgentRun(seed) {
 // iconSvg output used by the browser, not merely the structural registry source.
 {
   const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
-  let paleMote, emptyLantern;
+  let paleMote, emptyLantern, eighthOmen;
   try {
     const { iconSvg } = await vite.ssrLoadModule('/src/art.js');
     paleMote = iconSvg('paleMote', 18);
     emptyLantern = iconSvg('emptyLantern', 18);
+    eighthOmen = iconSvg('eighthOmen', 18);
   } finally {
     await vite.close();
   }
@@ -2726,6 +2804,12 @@ function randomAgentRun(seed) {
     'paleMote iconSvg output contains a non-empty path d');
   assert.match(emptyLantern, /<path\b[^>]*\bd="[^"]+"[^>]*>/,
     'emptyLantern iconSvg output contains a non-empty path d');
+  const brokenLeads = [...eighthOmen.matchAll(/<path(?=[^>]*class="broken-lead")(?=[^>]*\bd="([^"]+)")[^>]*>/g)];
+  assert.equal(brokenLeads.length, 6, 'the broken omen icon has six disconnected structural strokes');
+  assert.ok(brokenLeads.every((match) => match[1].trim().length > 0),
+    'every broken omen stroke has real non-empty path output');
+  assert.equal(eighthOmen.replace(/<[^>]+>/g, '').trim(), '',
+    'the broken omen icon contains no font glyph');
 }
 
 // ---- battlefield layout schema (spec 2026-07-06-battlefield-editor-design) ----

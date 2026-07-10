@@ -69,9 +69,10 @@ const hudRelic = (rid) => {
   const u = assetUrl('relics', rid);
   return u ? `<img class="relic-art hud-relic-art" src="${u}" alt="">` : `<span class="hud-relic-fallback">${RELICS[rid]?.glyph || '◈'}</span>`;
 };
+const omenIconName = (oid) => oid === 'eighthOmen' ? 'eighthOmen' : `omen-${oid}`;
 const omenMark = (oid, imgClass, fallbackClass, size = 22) => {
   const u = assetUrl('omens', oid);
-  return u ? `<img class="${imgClass}" src="${u}" alt="">` : `<span class="${fallbackClass}">${iconSvg(`omen-${oid}`, size)}</span>`;
+  return u ? `<img class="${imgClass}" src="${u}" alt="">` : `<span class="${fallbackClass}">${iconSvg(omenIconName(oid), size)}</span>`;
 };
 // silhouette outline ring — SVG feMorphology fallback when mesh is off.
 // Mesh-off: SVG ring is always solid. Fancy spin/chase need WebGL (meshAim).
@@ -677,7 +678,7 @@ async function transition(kind, opts = {}) {
   if (kind === 'act-change') {
     const omen = OMENS[S.run.omens?.[S.run.act]];
     return run(`<div class="tr-plate"><div class="tp-act">ACT ${S.run.act + 1} - ${ACTS[S.run.act].name.toUpperCase()}</div>
-      ${omen ? `<div class="tp-omen" style="color:${omen.tone}">${iconSvg(`omen-${S.run.omens[S.run.act]}`, 16)} OMEN - ${omen.name.toUpperCase()}</div>` : ''}</div>`,
+      ${omen ? `<div class="tp-omen" style="color:${omen.tone}">${iconSvg(omenIconName(S.run.omens[S.run.act]), 16)} OMEN - ${omen.name.toUpperCase()}</div>` : ''}</div>`,
       [{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }], 2200);
   }
 }
@@ -1171,6 +1172,7 @@ function enterNode(node) {
   sfx.map();
   setAltitude(run.act, node.row);
   const { type, bounty } = E.visitNode(run, node);
+  showEighthFloorEcho(run);
   const isCombat = type === 'monster' || type === 'elite' || type === 'boss';
   if (!isCombat && type !== 'monument') E.saveRun(run);
   if (bounty) {
@@ -1196,6 +1198,18 @@ function enterNode(node) {
   else if (type === 'treasure') show('treasure');
   else if (type === 'event') show('event', E.rollEvent(run));
   else if (type === 'monument') claimMonumentNode(node);
+}
+function showEighthFloorEcho(run) {
+  if (run.omens?.[run.act] !== 'eighthOmen') return;
+  const echoes = QUESTS.eighthOmen.floorEchoes;
+  const text = echoes[run.floorsClimbed % echoes.length];
+  setTimeout(() => {
+    if (S.run?.runId !== run.runId || !text) return;
+    const b = el('div', 'turn-banner eighth-floor-echo broken-omen',
+      `<span class="efe-icon">${iconSvg('eighthOmen', 24)}</span><span class="efe-text">${escHtml(text)}</span>`);
+    screenEl().appendChild(b);
+    setTimeout(() => b.remove(), 2200);
+  }, REDUCED ? 0 : 180);
 }
 // stepping onto the stone a past self left behind
 function claimMonumentNode(node) {
@@ -3926,7 +3940,7 @@ function renderBossRelic() {
 function advanceAct() {
   const run = S.run;
   run.act++;
-  run.omens.push(E.runRevealed(run, 'omens') ? E.rollOmen(run) : null); // each act climbs under its own sky
+  run.omens.push(E.omenEnabled(run) ? E.rollOmen(run) : null); // each act climbs under its own sky
   run.nodeId = null;
   run.map = E.genMap(run);
   E.healPlayer(run, Math.round(run.player.maxHp * 0.35));
@@ -3942,9 +3956,10 @@ function omenBanner(run) {
   const omen = OMENS[run.omens?.[run.act]];
   if (!omen || S.screen !== 'map') return;
   const oid = run.omens[run.act];
-  const ou = assetUrl('omens', oid);
-  const glyph = ou ? `<img class="ob-art" src="${ou}" alt="">` : `<span class="ob-glyph" style="color:${omen.tone}">${iconSvg(`omen-${oid}`, 22)}</span>`;
-  const b = el('div', 'turn-banner omen-banner', `${glyph} OMEN — ${omen.name.toUpperCase()}<div class="ob-sub">${omen.text}</div>`);
+  const broken = oid === 'eighthOmen';
+  const ou = broken ? null : assetUrl('omens', oid);
+  const glyph = ou ? `<img class="ob-art" src="${ou}" alt="">` : `<span class="ob-glyph" style="color:${omen.tone}">${iconSvg(omenIconName(oid), 22)}</span>`;
+  const b = el('div', `turn-banner omen-banner${broken ? ' broken-omen' : ''}`, `${glyph} OMEN — ${omen.name.toUpperCase()}<div class="ob-sub">${omen.text}</div>`);
   screenEl().appendChild(b);
   sfx.omen();
   setTimeout(() => b.remove(), 4200);
@@ -4412,7 +4427,7 @@ function renderGallery() {
     return `<a class="${set === gallerySet ? 'active' : ''}" href="?${q.toString()}">${assetSetLabel(set)}</a>`;
   }).join('');
   const cats = {
-    omens: Object.keys(OMENS).map((k) => [k, () => iconSvg(`omen-${k}`, 64)]),
+    omens: Object.keys(OMENS).map((k) => [k, () => iconSvg(omenIconName(k), 64)]),
     boons: Object.keys(BOONS).map((k) => [k, () => iconSvg(`boon-${k}`, 64)]),
     arts: Object.keys(ARTS).map((k) => [k, () => iconSvg(`art-${k}`, 64)]),
     statuses: Object.keys(STATUS_INFO).map((k) => [k, () => iconSvg(`st-${k}`, 64)]),

@@ -548,6 +548,7 @@ const ICONS = {
   'boon-pilgrimsCache': `<rect x="4.5" y="8" width="15" height="11" rx="2" fill="none" stroke-width="2.2"/><path d="M4.5 12.5 h15 M9 8 q3 -5 6 0" fill="none" stroke-width="1.8"/><rect x="10.6" y="11" width="2.8" height="3.6" rx="0.8" fill="currentColor" stroke="none"/>`,
   'boon-venomPouch': `<path d="M7.5 6.5 q4.5 -3.4 9 0 l1.6 9.1 a3 3 0 0 1 -3 3.5 H8.9 a3 3 0 0 1 -3 -3.5 Z" fill="none" stroke-width="2.1"/><path d="M12 9.6 c-1.5 2-1.5 3.4 0 4.8 1.5-1.4 1.5-2.8 0-4.8 Z" fill="currentColor" stroke="none"/><circle cx="12" cy="17.4" r="1" fill="currentColor" stroke="none"/>`,
   // --- omens (omen-*) ---
+  eighthOmen: `<path class="broken-lead" d="M11.2 3.2 C7.8 3.7 6.2 5.3 6.7 7.3" fill="none" stroke-width="1.9"/><path class="broken-lead" d="M12.8 3.2 C16.2 3.7 17.8 5.3 17.3 7.3" fill="none" stroke-width="1.9"/><path class="broken-lead" d="M9.4 9.2 C6.5 10.2 5.5 12.3 7.2 14.2" fill="none" stroke-width="1.9"/><path class="broken-lead" d="M14.6 9.2 C17.5 10.2 18.5 12.3 16.8 14.2" fill="none" stroke-width="1.9"/><path class="broken-lead" d="M9.1 15.7 C6.3 17.2 7.6 20.6 11.1 20.8" fill="none" stroke-width="1.9"/><path class="broken-lead" d="M14.9 15.7 C17.7 17.2 16.4 20.6 12.9 20.8" fill="none" stroke-width="1.9"/>`,
   'omen-ashfall': `<path d="M7.2 12.5 a3.9 3.9 0 1 1 .7-7.7 A4.9 4.9 0 0 1 17.4 5.6 a3.4 3.4 0 0 1 -.6 6.9 Z" fill="currentColor" stroke="none"/><circle cx="8" cy="16.4" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="18.8" r="1.3" fill="currentColor" stroke="none"/><circle cx="16" cy="16.4" r="1.1" fill="currentColor" stroke="none"/>`,
   'omen-heavyAir': `<path d="M4 6.5 h16 M6 10.5 h12 M8 14.5 h8" stroke-width="2.2"/><path d="M12 21 L8.5 16.8 h7 Z" fill="currentColor" stroke="none"/>`,
   'omen-thinGlass': `<path d="M12 3.4 L20 12 L12 20.6 L4 12 Z" fill="none" stroke-width="1.4"/><path d="M12 3.4 L11 8.5 L13.5 11 L10.5 14 L12 20.6 M4 12 L8.5 11 M20 12 L15 13.5" fill="none" stroke-width="1.2"/>`,
@@ -556,6 +557,7 @@ const ICONS = {
   'omen-longNight': `<path d="M12 2.8 L13.7 8 L19 8.1 L14.8 11.3 L16.3 16.5 L12 13.4 L7.7 16.5 L9.2 11.3 L5 8.1 L10.3 8 Z" fill="currentColor" stroke="none"/><path d="M5 20.6 h14" stroke-width="1.8" opacity=".7"/>`,
   'omen-waningMoon': `<circle cx="12" cy="12" r="8" fill="none" stroke-width="2"/><path d="M12 4 a8 8 0 0 1 0 16 a11 11 0 0 0 0 -16 Z" fill="currentColor" stroke="none"/>`,
 };
+ICONS['omen-eighthOmen'] = ICONS.eighthOmen;
 export const hasIcon = (name) => !!ICONS[name];
 const iconBody = (name) => `<g fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</g>`;
 export function iconSvg(name, size = 18) {

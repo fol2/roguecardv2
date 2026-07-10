@@ -16,6 +16,8 @@ const pick = (rng, arr) => arr[Math.floor(rng() * arr.length)];
 const irange = (rng, [a, b]) => a + Math.floor(rng() * (b - a + 1));
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 let runSequence = 0;
+let questRngOverride = null;
+export function _setQuestRng(fn) { questRngOverride = typeof fn === 'function' ? fn : null; }
 const freshRunId = (seed, startedAt) =>
   `run-${startedAt.toString(36)}-${(seed >>> 0).toString(36)}-${(++runSequence).toString(36)}`;
 const legacyRunId = (run) =>
@@ -65,7 +67,8 @@ export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
   if (opts.lamplighter) run.pendingLamplighter = true;
   for (const id of A.startDeck) run.player.deck.push(makeCard(run, id));
   if (vowMods(run).startHex) run.player.deck.push(makeCard(run, 'hex'));
-  run.omens.push(runRevealed(run, 'omens') ? rollOmen(run) : null);
+  prepareEighthOmen(run);
+  run.omens.push(omenEnabled(run) ? rollOmen(run) : null);
   preparePaleRun(run);
   run.map = genMap(run);
   return run;
@@ -95,6 +98,28 @@ export function advanceQuest(run, id, n = 1, queue = run.endQueue) {
     queue?.push({ t: 'questComplete', id });
   }
   return q;
+}
+
+const questRoll = (run) => questRngOverride ? questRngOverride() : runRng(run)();
+function prepareEighthOmen(run) {
+  const q = questRecord(run, 'eighthOmen');
+  if (!q || !['armed', 'revealed'].includes(q.state)) return;
+  const due = q.memory.dueIn;
+  let active = false;
+  if (due === 2) {
+    active = questRoll(run) < PROGRESSION.emberglass.eighthOmen.recurrenceChance;
+    if (!active) q.memory.dueIn = 1;
+  } else if (due === 1) {
+    active = true;
+  } else if (q.memory.seen) {
+    active = questRoll(run) < PROGRESSION.emberglass.eighthOmen.recurrenceChance;
+  }
+  run.questScratch.eighthOmen = { active };
+  if (active) {
+    q.memory.seen = true;
+    delete q.memory.dueIn;
+    revealQuest(run, 'eighthOmen', run.endQueue);
+  }
 }
 
 export function markShadeFall(run, act, row) {
@@ -172,7 +197,11 @@ export function vowMods(run) {
   return m;
 }
 // omens: one rule per act, imposed on everyone
-export function rollOmen(run) { return pick(runRng(run), Object.keys(OMENS)); }
+export const omenEnabled = (run) => runRevealed(run, 'omens') || !!run.questScratch.eighthOmen?.active;
+export function rollOmen(run) {
+  if (run.questScratch.eighthOmen?.active) return 'eighthOmen';
+  return pick(runRng(run), Object.keys(OMENS).filter((id) => id !== 'eighthOmen'));
+}
 export function omenMods(run) { return OMENS[run.omens?.[run.act]]?.mods || {}; }
 export function restHealFrac(run) { return Math.min(0.3, omenMods(run).restHealFrac ?? 0.3, vowMods(run).restHealFrac ?? 0.3); }
 export function makeCard(run, id, up = false) {
@@ -680,7 +709,8 @@ export function startCombat(run, enemyIds, kind = 'normal', opts = {}) {
   const om = omenMods(run);
   const vm = vowMods(run);
   // every elite arrives wearing a title; the title is a promise
-  const affix = kind === 'elite' ? (opts.affix || pick(rng, Object.keys(AFFIXES))) : null;
+  const affixed = kind === 'elite' || (om.allCombatsAffixed && kind !== 'boss');
+  const affix = affixed ? (opts.affix || pick(rng, Object.keys(AFFIXES))) : null;
   const af = affix ? AFFIXES[affix].mods : {};
   const cb = {
     kind, affix, turn: 0, over: false, result: null, queue: [],
@@ -1354,6 +1384,14 @@ export function endTurn(run, cb) {
 function winCombat(run, cb) {
   cb.over = true;
   cb.result = 'win';
+  if (cb.kind === 'boss' && run.act === 2 && run.questScratch?.eighthOmen?.active) {
+    const wasComplete = questRecord(run, 'eighthOmen')?.state === 'complete';
+    const q = advanceQuest(run, 'eighthOmen', 1, run.endQueue);
+    if (!wasComplete && q?.state === 'complete' &&
+        !run.endQueue.some((event) => event.t === 'eighthResolved')) {
+      run.endQueue.push({ t: 'eighthResolved', text: QUESTS.eighthOmen.resolved });
+    }
+  }
   // write back
   run.player.hp = clamp(cb.player.hp, 1, run.player.maxHp);
   if (hasRelic(run, 'emberHeart')) { healPlayer(run, 6); proc(cb, 'emberHeart'); }
@@ -1610,7 +1648,7 @@ export function loadRun() {
     if (!run.map.nodes.every((n) =>
       (n.questVariantId == null || hasOwn(VARIANTS, n.questVariantId)) &&
       (n.questMarked == null || typeof n.questMarked === 'boolean'))) return null;
-    while (run.omens.length <= run.act) run.omens.push(runRevealed(run, 'omens') ? rollOmen(run) : null);
+    while (run.omens.length <= run.act) run.omens.push(omenEnabled(run) ? rollOmen(run) : null);
     for (const k of ['shatters', 'kindles', 'perfects', 'smolderKills', 'unlitVisited', 'embersSpent']) run.stats[k] ??= 0;
     return run;
   } catch { return null; }

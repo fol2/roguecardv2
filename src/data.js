@@ -1019,6 +1019,11 @@ export const SHOP = {
 // One rolled per act: a rule the night imposes on everyone. Every omen gives
 // with one hand and takes with the other. The engine reads only `mods`.
 export const OMENS = {
+  eighthOmen: {
+    name: 'The Eighth Omen', glyph: null, tone: '#e8e0ff',
+    text: 'Every lesser battle bears a title. The broken words follow every floor.',
+    mods: { allCombatsAffixed: true },
+  },
   ashfall: {
     name: 'Ashfall', glyph: '☁', tone: '#d3f2a1',
     text: 'Ash chokes every fire: enemies begin combat with 2 Smolder, but their blows leave 1 Smolder on you.',
