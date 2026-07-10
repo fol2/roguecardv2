@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { test } from '@playwright/test';
 import { boot, startFight, stable, freeze, settle } from './helpers.js';
+import { mixedLedger, completeLedger, seed } from './emberglass-fixtures.js';
 
 const SNAP_DIR = fileURLToPath(new URL('./visual.spec.js-snapshots', import.meta.url));
 test.beforeEach(({}, testInfo) => {
@@ -154,4 +155,51 @@ test('event screen', async ({ page }) => {
     sp.show('event', sp.E.rollEvent(sp.S.run));
   });
   await shoot(page, 'event');
+});
+
+test('title with Emberglass medallion', async ({ page }) => {
+  await seed(page, mixedLedger());
+  await page.waitForSelector('.title-rose-medallion[data-a="rose"]');
+  await shoot(page, 'title-emberglass');
+});
+
+test('Rose Window with mixed disclosure states', async ({ page }) => {
+  const v = mixedLedger();
+  v.whispers = 12;
+  await seed(page, v);
+  await page.click('[data-a="vigil"]');
+  await page.click('[data-a="tab-rose"]');
+  await page.waitForSelector('.rose-window.ready');
+  await shoot(page, 'rose-window');
+});
+
+test('Rose Window fallback with mixed disclosure states', async ({ page }) => {
+  const v = mixedLedger();
+  v.whispers = 12;
+  await seed(page, v);
+  await page.evaluate(() => { window.__probe.forceRoseFallback(true); });
+  await page.click('[data-a="vigil"]');
+  await page.click('[data-a="tab-rose"]');
+  await page.waitForSelector('.rose-window.rose-fallback');
+  await shoot(page, 'rose-window-fallback');
+});
+
+test('sealed summit promise', async ({ page }) => {
+  const v = completeLedger();
+  await seed(page, v);
+  await page.evaluate(() => {
+    const sp = window.spirebound;
+    const vigil = JSON.parse(localStorage.getItem('spirebound_vigil_v2'));
+    sp.S.run = sp.E.newRun(7100, {
+      reveals: ['omens', 'phials', 'poolWave2', 'poolWave3', 'poolFull', 'emberglass', 'act4'],
+      quests: vigil.quests, shards: vigil.shards,
+    });
+    sp.S.run.act = 2;
+    sp.S.run.map = sp.E.genMap(sp.S.run);
+    sp.show('map');
+  });
+  await waitMapSettled(page);
+  await page.click('[data-a="sealed-door"]');
+  await page.waitForSelector('.sealed-door-panel');
+  await shoot(page, 'sealed-door');
 });

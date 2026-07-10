@@ -20,7 +20,7 @@ import * as EngineApi from '../src/engine.js';
 import { shopSessionKey, shopStockForSession } from '../src/shop-session.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS } from '../src/data.js';
 import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, commitPendingRunEnd, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
-import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
+import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFrame, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
 import { uicResolve, _setUIC, uicRaw } from '../src/uic.js';
 import { serializeUIC, validateUIC } from '../src/dev/bfui-serialize.js';
@@ -3744,12 +3744,49 @@ function randomAgentRun(seed) {
   _setBF({ ...bfRaw(), shared: { ...bfRaw().shared, sizes: { normal: 99999, elite: 99999, boss: 99999 } } });
   assert.equal(bfEnemySize(bfResolve('pad-landscape'), 'duskfang', 'normal', { x: 0, s: 1 }, 1180, 820),
     Math.round(99999 * bfActor('enemies', 'duskfang').scale), 'bf: no stage size clamp');
+  _setBF(null);
   // depth: lower slot lift draws in front
   assert.deepEqual(bfEnemyZOrder([{ y: 40 }, { y: 0 }], ['a', 'b']), [1, 2], 'bf: enemy z-order by bottom');
   assert.equal(bfEnemyFootY({ footY: 5 }, 'duskfang'), 5, 'bf: slot footY override');
   assert.equal(bfEnemyFootY({}, 'duskfang'), bfActor('enemies', 'duskfang').footY, 'bf: shared footY fallback');
   assert.equal(bfEnemyFootX({ footX: 12 }, 'duskfang'), 12, 'bf: slot footX override');
   assert.equal(bfEnemyFootX({}, 'duskfang'), 0, 'bf: shared footX default');
+  const portrait = bfResolve('phone-portrait', 2);
+  const [portraitSingle] = bfSlots(portrait, 1);
+  assert.deepEqual(
+    bfEnemyFrame(portrait, 'sovereign', 'boss', portraitSingle, 390, 844,
+      VARIANTS.usurpedSovereign.scale),
+    { size: 233, left: 84, bottom: 0 },
+    'bf: portrait Usurper frame keeps sovereign footX, slot footY, and presentation scale',
+  );
+  assert.deepEqual(
+    bfEnemyFrame(bfResolve('phone-portrait', 0), 'leviathan', 'boss',
+      bfSlots(bfResolve('phone-portrait', 0), 1)[0], 390, 844),
+    { size: 374, left: 8, bottom: 0 },
+    'bf: oversized portrait actor frame clamps inside the stage while keeping the slot footY override',
+  );
+  const stageShapes = {
+    'phone-portrait': [390, 844],
+    'phone-landscape': [844, 390],
+    'pad-portrait': [820, 1180],
+    'pad-landscape': [1180, 820],
+    'desktop-landscape': [1458, 820],
+  };
+  for (const [shape, [stageWidth, stageHeight]] of Object.entries(stageShapes)) {
+    for (const act of [0, 1, 2]) {
+      const layout = bfResolve(shape, act);
+      const [slot] = bfSlots(layout, 1);
+      for (const [key, enemy] of Object.entries(ENEMIES)) {
+        const tier = enemy.boss ? 'boss' : enemy.elite ? 'elite' : 'normal';
+        const frame = bfEnemyFrame(layout, key, tier, slot, stageWidth, stageHeight);
+        const top = stageHeight - layout.groundY - frame.bottom - frame.size;
+        assert.ok(top >= 8,
+          `bf: ${shape} act ${act} single ${key} root stays below the 8px stage crown (top ${top})`);
+        assert.ok(frame.left >= 8 && frame.left + frame.size <= stageWidth - 8,
+          `bf: ${shape} act ${act} single ${key} root stays inside horizontal stage margins`);
+      }
+    }
+  }
   _setBF({ ...bfRaw(), shapes: { 'pad-landscape': { hero: { y: 12 } } } });
   assert.equal(bfHeroY(bfResolve('pad-landscape', 0)), 12, 'bf: hero.y pad-landscape shape override');
   _setBF({ ...bfRaw(), shapes: { 'desktop-landscape': { hero: { y: 24 } } } });

@@ -136,3 +136,24 @@ export function bfEnemySize(layout, key, tier, slot, stgW, stgH) {
   void stgW; void stgH; // kept for call-site stability; no stage-frame clamp
   return Math.round(Math.max(8, raw));
 }
+
+/** Final on-stage enemy frame after variant presentation scale and mobile bounds. */
+export function bfEnemyFrame(layout, key, tier, slot, stgW, stgH, presentationScale = 1) {
+  const scale = Number.isFinite(presentationScale) && presentationScale > 0 ? presentationScale : 1;
+  const rawSize = bfEnemySize(layout, key, tier, slot, stgW, stgH) * scale;
+  const bottom = (slot?.y ?? 0) + bfEnemyFootY(slot, key);
+  const maxW = Number.isFinite(stgW) ? Math.max(8, stgW - 16) : rawSize;
+  const maxH = Number.isFinite(stgH)
+    ? Math.max(8, stgH - (layout?.groundY ?? 0) - bottom - 8)
+    : rawSize;
+  const size = Math.round(Math.max(8, Math.min(rawSize, maxW, maxH)));
+  const intendedLeft = Math.round((slot?.x ?? stgW / 2) - size / 2 + bfEnemyFootX(slot, key));
+  const left = Number.isFinite(stgW)
+    ? Math.max(8, Math.min(stgW - size - 8, intendedLeft))
+    : intendedLeft;
+  return {
+    size,
+    left,
+    bottom,
+  };
+}

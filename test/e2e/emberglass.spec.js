@@ -20,6 +20,20 @@ test('fresh profile exposes no Rose tab or medallion', async ({ page }) => {
   await expect(page.locator('.title-rose-medallion')).toHaveCount(0);
 });
 
+test('one shard adds a title medallion that opens the Rose', async ({ page }) => {
+  const v = mixedLedger();
+  await seed(page, v);
+  const medallion = page.locator('.title-rose-medallion[data-a="rose"]');
+  await expect(medallion).toHaveClass(/ready/);
+  await page.evaluate(() => { window.__probe.forceRoseFallback(true); });
+  await expect(medallion).toHaveCount(0);
+  await page.evaluate(() => { window.__probe.forceRoseFallback(false); });
+  await expect(medallion).toHaveClass(/ready/);
+  await page.click('[data-a="rose"]');
+  await expect(page.locator('[data-a="tab-rose"]')).toHaveClass(/on/);
+  await expect(page.locator('.rose-window.ready')).toHaveCount(1);
+});
+
 test('Rose panes disclose only their current state', async ({ page }) => {
   const v = mixedLedger(); // dormant, armed, revealed, complete in fixed quest order
   await seed(page, v);

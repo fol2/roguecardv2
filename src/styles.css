@@ -40,7 +40,7 @@ html, body { height: 100%; overflow: clip; }
    size container: the old media breakpoints live on as @container queries,
    and cq units replace vw/vh so lengths are stage-relative. */
 html { background: #000; }
-#stage { position: fixed; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; overflow: hidden; background: var(--ink); container-type: size; container-name: stage; }
+#stage { position: fixed; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; overflow: clip; background: var(--ink); container-type: size; container-name: stage; }
 body {
   background: #000;
   color: var(--text);
@@ -706,13 +706,13 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
    --chrome-dy nudges them when tall sprites would push chrome off-stage. */
 .cplate {
   position: absolute; top: 100%; left: 50%;
-  translate: -50% var(--chrome-dy, 0px);
+  translate: calc(-50% + var(--chrome-dx, 0px)) var(--chrome-dy, 0px);
   display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 3;
   padding-top: 6px; width: max-content; max-width: 260px;
 }
 .top-chrome {
   position: absolute; bottom: calc(100% + 8px); left: 50%;
-  translate: -50% var(--chrome-dy, 0px); z-index: 3;
+  translate: calc(-50% + var(--chrome-dx, 0px)) var(--chrome-dy, 0px); z-index: 3;
   display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none;
 }
 /* hero has no name row — sit status closer to the art crown */
@@ -2339,8 +2339,23 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
 }
 
 /* ---- Emberglass: the Vigil's six-pane Rose Window */
-.center-panel .vigil-panel.rose-tab-open { width: min(720px, 92cqw); max-width: 720px; }
+.center-panel .vigil-panel {
+  --vigil-safe-max: min(90cqh, calc(100cqh - 76px - var(--sab) - var(--sab)));
+  max-height: var(--vigil-safe-max); overflow: hidden;
+  display: flex; flex-direction: column;
+}
+#screen .center-panel .vigil-panel:not(.rose-tab-open) {
+  max-height: var(--vigil-safe-max);
+}
+#screen .center-panel .vigil-panel.rose-tab-open { max-height: var(--vigil-safe-max); }
+.center-panel .vigil-panel.rose-tab-open { width: min(720px, 92cqw); max-width: 720px; height: 100%; }
+.vigil-panel .deed-list { flex: 0 1 auto; min-height: 0; }
 .rose-view { display: flex; flex-direction: column; align-items: center; gap: 12px; min-height: 0; }
+.rose-tab-open .rose-view {
+  flex: 1 1 0; display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(0, clamp(58px, 18cqh, 150px));
+  justify-items: center; width: 100%;
+}
 .rose-view .rose-window {
   position: relative; inset: auto; top: auto; left: auto; z-index: auto;
   width: min(430px, 76cqw, 50cqh); aspect-ratio: 1; flex: 0 0 auto;
@@ -2348,6 +2363,9 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
   border-radius: 50%; overflow: hidden; isolation: isolate;
   background: radial-gradient(circle, rgba(29, 31, 48, 0.96), rgba(5, 7, 14, 0.98) 72%);
   box-shadow: inset 0 0 42px rgba(0, 0, 0, 0.9), 0 0 28px rgba(124, 98, 177, 0.18);
+}
+.rose-tab-open .rose-view .rose-window {
+  width: auto; height: 100%; max-width: min(430px, 76cqw); max-height: 100%;
 }
 .rose-assets { opacity: 0.72; transition: opacity 0.35s ease; }
 .rose-assets.ready { opacity: 1; }
@@ -2396,7 +2414,14 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
 .rose-fallback .rose-pane-name { font-size: 11px; }
 .rose-fallback .rose-pane-inscription { font-size: 9px; }
 
+.rose-tab-open .rose-fallback {
+  width: min(620px, 84cqw) !important; height: 100%;
+  grid-auto-rows: minmax(0, 1fr);
+}
+.rose-tab-open .rose-fallback .rose-slot { min-height: 0; }
+
 .whisper-log { width: min(620px, 84cqw); max-height: 21cqh; overflow-y: auto; padding: 7px 10px; border-top: 1px solid rgba(242, 193, 78, 0.18); }
+.rose-tab-open .whisper-log { height: 100%; min-height: 0; max-height: none; }
 .whisper-log-title { margin-bottom: 5px; font: 700 10px/1 'Cinzel', serif; letter-spacing: 0.13em; text-transform: uppercase; color: var(--gold-dim); }
 .whisper-row { display: grid; grid-template-columns: 22px 1fr; gap: 7px; padding: 3px 0; text-align: left; font-size: 10px; line-height: 1.35; color: #b9bbca; }
 .whisper-row span { color: #666c83; text-align: right; }
@@ -2433,13 +2458,36 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
 .sealed-door span { line-height: 0; }
 .sealed-door small { font: 700 8px/1.1 'Cinzel', serif; letter-spacing: 0.1em; }
 .sealed-door-panel { width: min(440px, 90cqw); text-align: center; }
+#overlay:has(.sealed-door-panel) { align-items: center; }
+#overlay .sealed-door-panel {
+  height: auto;
+  max-height: calc(100% - var(--sat) - var(--sab) - 24px);
+  overflow-y: auto;
+}
 .sealed-door-mark { margin: 16px auto; color: var(--gold); filter: drop-shadow(0 0 18px rgba(242, 193, 78, 0.3)); }
 .door-inscription { margin: 18px 0 8px; font: italic 18px/1.3 'Cinzel', serif; letter-spacing: 0.08em; color: #fff3d6; }
 
+@container stage (max-height: 480px) and (min-width: 500px) {
+  #overlay .sealed-door-panel { padding: 8px calc(16px + var(--sar)) 8px calc(16px + var(--sal)); }
+  .sealed-door-panel .ov-title { font-size: 17px; }
+  .sealed-door-panel .ov-title::after { margin-top: 3px; }
+  .sealed-door-panel .sealed-door-mark { margin: 6px auto; }
+  .sealed-door-panel .sealed-door-mark svg { width: 72px; height: 72px; }
+  .sealed-door-panel .ov-sub { margin-bottom: 4px; font-size: 11.5px; }
+  .sealed-door-panel .door-inscription { margin: 7px 0 4px; font-size: 15px; }
+  .sealed-door-panel .ov-actions { margin-top: 6px; }
+  .sealed-door-panel .btn { padding: 7px 22px; font-size: 13px; }
+}
+
 /* queue-driven dawn disclosures; every persisted event is presentation-only */
-.end-screen:has(.dawn-ceremony) { gap: 10px; padding: 18px; overflow-y: auto; justify-content: safe center; }
+.end-screen:has(.dawn-ceremony) {
+  gap: 10px;
+  padding: calc(18px + var(--sat)) calc(18px + var(--sar)) calc(18px + var(--sab)) calc(18px + var(--sal));
+  overflow: hidden; justify-content: safe center;
+}
 .dawn-ceremony {
-  width: min(780px, 94cqw); max-height: 27cqh; overflow-y: auto;
+  width: min(780px, 100%); max-height: 27cqh; overflow-y: auto;
+  flex: 0 0 auto;
   display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 8px;
 }
 .dawn-event {
@@ -2456,6 +2504,9 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
 .dawn-icon { color: var(--gold); line-height: 0; }
 
 @container stage (max-width: 740px) {
+  .center-panel .vigil-panel {
+    --vigil-safe-max: min(90cqh, calc(100cqh - 58px - var(--sat) - var(--sab)));
+  }
   .rose-fallback { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rose-fallback .rose-slot { min-height: 102px; }
   .rose-view .rose-window { width: min(86cqw, 44cqh); }
@@ -2464,4 +2515,65 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html
   .rose-pane-inscription { font-size: 5.5px; }
   .title-screen > .title-rose-medallion { width: 58px; height: 58px; }
   .dawn-ceremony { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 24cqh; }
+  .end-screen:has(.dawn-ceremony) { gap: 6px; }
+  .end-screen:has(.dawn-ceremony) > .end-title { font-size: 36px; }
+  .end-screen:has(.dawn-ceremony) > .ov-sub { font-size: 12px !important; }
+  .end-screen:has(.dawn-ceremony) > .stats-grid {
+    width: 100%; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px;
+  }
+  .end-screen:has(.dawn-ceremony) .stat-cell { padding: 5px 3px; border-radius: 7px; }
+  .end-screen:has(.dawn-ceremony) .stat-cell .v { font-size: 17px; }
+  .end-screen:has(.dawn-ceremony) .stat-cell .k { font-size: 7px; letter-spacing: 0.08em; }
+  .end-screen:has(.dawn-ceremony) > .end-btns { width: 100%; gap: 6px; flex-wrap: nowrap; }
+  .end-screen:has(.dawn-ceremony) > .end-btns .btn { flex: 1 1 0; padding: 7px 6px; font-size: 11px; }
+}
+
+@container stage (max-height: 480px) and (min-width: 500px) {
+  .center-panel .vigil-panel {
+    --vigil-safe-max: min(90cqh, calc(100cqh - 38px - var(--sat) - var(--sab)));
+  }
+  .center-panel:has(.rose-tab-open) {
+    padding: calc(8px + var(--sat)) 8px calc(8px + var(--sab));
+  }
+  .center-panel:has(.rose-tab-open) .vigil-panel {
+    --vigil-safe-max: min(90cqh, calc(100cqh - 16px - var(--sat) - var(--sab)));
+  }
+  .rose-tab-open .rose-fallback .rose-slot { padding: 4px; }
+  .center-panel .vigil-panel.rose-tab-open { padding: 8px 14px; }
+  .rose-tab-open > .ov-title { font-size: 20px; margin-bottom: 1px; }
+  .rose-tab-open > .ov-title::after { margin-top: 3px; }
+  .rose-tab-open > .ov-sub { margin-bottom: 3px; font-size: 10px; }
+  .rose-tab-open > .vigil-tabs { margin: 1px 0 4px; }
+  .rose-tab-open > .vigil-tabs .vtab { padding: 2px 10px; font-size: 11px; }
+  .rose-tab-open > .ov-actions { margin-top: 4px; }
+  .rose-tab-open > .ov-actions .btn { padding: 6px 18px; font-size: 13px; }
+  .rose-tab-open .rose-view {
+    grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr);
+    grid-template-rows: minmax(0, 1fr); gap: 8px;
+  }
+  .rose-tab-open .rose-view .rose-window { grid-column: 1; grid-row: 1; }
+  .rose-tab-open .rose-assets .rose-pane-copy { width: 36%; }
+  .rose-tab-open .rose-view .rose-fallback { width: 100% !important; }
+  .rose-tab-open .rose-view .whisper-log { grid-column: 2; grid-row: 1; width: 100%; }
+  .end-screen:has(.dawn-ceremony) {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(330px, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    gap: 5px 12px;
+    padding: calc(48px + var(--sat)) calc(12px + var(--sar)) calc(8px + var(--sab)) calc(12px + var(--sal));
+  }
+  .end-screen:has(.dawn-ceremony) > .end-title { grid-column: 1; grid-row: 1; font-size: 30px; }
+  .end-screen:has(.dawn-ceremony) > .ov-sub { grid-column: 1; grid-row: 2; font-size: 11px !important; }
+  .end-screen:has(.dawn-ceremony) > .dawn-ceremony {
+    grid-column: 1; grid-row: 3; width: 100%; height: 100%; min-height: 0; max-height: none;
+  }
+  .end-screen:has(.dawn-ceremony) > .stats-grid {
+    grid-column: 2; grid-row: 1 / 4; align-self: center;
+    grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px;
+  }
+  .end-screen:has(.dawn-ceremony) .stat-cell { padding: 4px 5px; border-radius: 6px; }
+  .end-screen:has(.dawn-ceremony) .stat-cell .v { font-size: 16px; }
+  .end-screen:has(.dawn-ceremony) .stat-cell .k { font-size: 8px; }
+  .end-screen:has(.dawn-ceremony) > .end-btns { grid-column: 1 / -1; grid-row: 4; margin: 0; }
+  .end-screen:has(.dawn-ceremony) > .end-btns .btn { padding: 6px 16px; font-size: 12px; }
 }

@@ -17,7 +17,7 @@ import { charShadowLive, charCssFloat, charAim, onCharMetaChange } from './char-
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
-import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, onBFChange } from './battlefield.js';
+import { bfResolve, bfActor, bfSlots, bfEnemyFrame, bfEnemyFootY, bfEnemyZOrder, bfHeroY, onBFChange } from './battlefield.js';
 import { uicResolve, onUICChange } from './uic.js';
 import { createChoiceLatch } from './choice-latch.js';
 import { finaliseTerminalOutbox, journalTerminalOutcome, savedRunRequiresFinalisation } from './terminal-outbox.js';
@@ -759,8 +759,10 @@ const ROSE_ASSET_IDS = {
 const ROSE_LABEL_POSITIONS = [
   [50, 15], [78, 34], [78, 69], [50, 84], [22, 69], [22, 34],
 ];
+let forceRoseFallback = false;
 
 function roseAssets() {
+  if (forceRoseFallback) return null;
   const mural = assetUrl('meta', ROSE_ASSET_IDS.mural);
   const frame = assetUrl('meta', ROSE_ASSET_IDS.frame);
   const masks = Object.fromEntries(QUEST_IDS.map((id) => [id, assetUrl('meta', ROSE_ASSET_IDS.masks[id])]));
@@ -1701,7 +1703,8 @@ function renderCombat() {
   cb.enemies.forEach((en, i) => {
     const d = en.def || ENEMIES[en.key];
     const view = combatantView(en);
-    const size = bfEnemySize(L, view.layoutKey, d.boss ? 'boss' : d.elite ? 'elite' : 'normal', slots[i], stageW(), stageH()) * view.scale;
+    const { size } = bfEnemyFrame(L, view.layoutKey,
+      d.boss ? 'boss' : d.elite ? 'elite' : 'normal', slots[i], stageW(), stageH(), view.scale);
     const artUrl = assetUrl(view.artCategory, view.artId);
     const box = el('div', `enemy${d.elite ? ' elite-e' : ''}${d.boss ? ' boss-e' : ''}${afx ? ' affixed' : ''}`);
     if (afx) box.style.setProperty('--affix-tone', afx.tone);
@@ -1839,10 +1842,11 @@ function applyBattlefieldLayout(resolved) {
     const d = en.def || ENEMIES[en.key];
     const view = combatantView(en);
     const tier = d.boss ? 'boss' : d.elite ? 'elite' : 'normal';
-    const size = bfEnemySize(L, view.layoutKey, tier, slots[i], stageW(), stageH()) * view.scale;
+    const frame = bfEnemyFrame(L, view.layoutKey, tier, slots[i], stageW(), stageH(), view.scale);
+    const { size } = frame;
     const box = ce.enemies[i].root;
-    box.style.left = `${Math.round(slots[i].x - size / 2 + bfEnemyFootX(slots[i], view.layoutKey))}px`;
-    box.style.bottom = `${(slots[i].y ?? 0) + bfEnemyFootY(slots[i], view.layoutKey)}px`;
+    box.style.left = `${frame.left}px`;
+    box.style.bottom = `${frame.bottom}px`;
     box.style.width = box.style.height = `${size}px`;
     box.style.zIndex = String(zOrder[i]);
     ce.enemies[i].art.style.width = ce.enemies[i].art.style.height = `${size}px`;
@@ -1955,6 +1959,16 @@ function clampCombatChrome() {
   const hudBottom = hudBar ? stageRect(hudBar).bottom : 0;
   const marginTop = Math.max(6, Math.round(hudBottom) + 4);
   const maxBottom = handChromeCeiling() - 4;
+  const minLeft = 6;
+  const maxRight = stageW() - 6;
+  const clampHorizontal = (el) => {
+    if (!el) return;
+    el.style.setProperty('--chrome-dx', '0px');
+    const r = stageRect(el);
+    if (r.width <= 1) return;
+    const dx = r.left < minLeft ? minLeft - r.left : r.right > maxRight ? maxRight - r.right : 0;
+    if (dx) el.style.setProperty('--chrome-dx', `${Math.round(dx)}px`);
+  };
   const clampOne = (topEl, plateEl) => {
     if (topEl) {
       topEl.style.setProperty('--chrome-dy', '0px');
@@ -1962,6 +1976,7 @@ function clampCombatChrome() {
       if (r.height > 1 && r.top < marginTop) {
         topEl.style.setProperty('--chrome-dy', `${Math.round(marginTop - r.top)}px`);
       }
+      clampHorizontal(topEl);
     }
     if (plateEl) {
       plateEl.style.setProperty('--chrome-dy', '0px');
@@ -1969,6 +1984,7 @@ function clampCombatChrome() {
       if (r.height > 1 && r.bottom > maxBottom) {
         plateEl.style.setProperty('--chrome-dy', `${Math.round(maxBottom - r.bottom)}px`);
       }
+      clampHorizontal(plateEl);
     }
   };
   for (const x of ce.enemies) clampOne(x.topChrome, x.cplate);
@@ -5268,6 +5284,12 @@ function installProbe() {
     setEnergy(n) { S.cb.player.energy = n; syncCombat(); },
     setEmbers(n) { S.cb.embers = n; syncCombat(); },
     setEnemyHp(i, hp) { S.cb.enemies[i].hp = hp; syncCombat(); },
+    forceRoseFallback(on) {
+      forceRoseFallback = !!on;
+      if (S.screen === 'vigil') renderVigil({ tab: 'rose' });
+      if (S.screen === 'title') renderTitle();
+      return forceRoseFallback;
+    },
     // -- determinism switch -----------------------------------------------
     freeze() {
       document.documentElement.classList.add('freeze');

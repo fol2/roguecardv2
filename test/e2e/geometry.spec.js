@@ -10,8 +10,8 @@
 // lip sits mid-air). Green means §1 is actually implemented.
 import { test, expect } from '@playwright/test';
 import { ASPECTS } from '../../src/data.js';
-import { bfResolve, bfActor, bfSlots, bfEnemyFootY, bfHeroY } from '../../src/battlefield.js';
-import { boot, startFight, stable, collectErrors, expectNoErrors } from './helpers.js';
+import { bfResolve, bfActor, bfSlots, bfEnemyFootX, bfEnemyFootY, bfHeroY } from '../../src/battlefield.js';
+import { boot, startFight, stable, settle, collectErrors, expectNoErrors } from './helpers.js';
 
 const FEET_TOL = 2; // ±stage px around the fully resolved authored art-box bottom
 const LEDGE_LIP_MIN = 4, LEDGE_LIP_MAX = 64; // authored logical lip, not the alpha PNG box edge
@@ -85,6 +85,20 @@ function assertGrounded(g, label) {
   }
 }
 
+async function outsideStage(page, selector) {
+  return page.evaluate((query) => {
+    const stage = document.getElementById('stage').getBoundingClientRect();
+    return [...document.querySelectorAll(query)]
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width < 1 || r.height < 1) return false;
+        return r.left < stage.left - 2 || r.right > stage.right + 2 ||
+          r.top < stage.top - 2 || r.bottom > stage.bottom + 2;
+      })
+      .map((el) => `${el.tagName.toLowerCase()}.${String(el.className).trim().split(/\s+/).join('.')}`);
+  }, selector);
+}
+
 for (const fight of FIGHTS) {
   test(`combatant art boxes honour authored ground positions — ${fight.name}`, async ({ page }) => {
     const errors = collectErrors(page);
@@ -107,3 +121,61 @@ test('authored ground positions survive a live resize', async ({ page }) => {
   await page.waitForTimeout(400);
   assertGrounded(await measure(page), 'after resize to 1440x900');
 });
+
+for (const variant of [
+  { id: 'paleDuskfang', act: 0 },
+  { id: 'usurpedSovereign', act: 2 },
+]) {
+  test(`scaled variant keeps its feet and chrome inside the stage — ${variant.id}`, async ({ page }) => {
+    const errors = collectErrors(page);
+    await boot(page, { query: 'mesh=0' });
+    await page.evaluate((act) => { window.spirebound.S.run.act = act; }, variant.act);
+    if (variant.id === 'usurpedSovereign') {
+      await page.evaluate(([id, kind]) => window.spirebound.startCombatUI([id], kind),
+        [variant.id, 'boss']);
+      await page.waitForSelector('.variant-dialogue', { state: 'visible' });
+      expect(await outsideStage(page, '.variant-dialogue'),
+        'variant dialogue stays visible and bounded during its real playback window').toEqual([]);
+      await settle(page);
+    } else {
+      await startFight(page, [variant.id], 'monster');
+    }
+    await stable(page);
+    const geometry = await measure(page);
+    assertGrounded(geometry, variant.id);
+    if (variant.id === 'usurpedSovereign' && test.info().project.name === 'portrait') {
+      const layout = bfResolve(geometry.stage.shape, geometry.act);
+      const [slot] = bfSlots(layout, 1);
+      expect(bfEnemyFootX(slot, geometry.enemyLayoutKeys[0]),
+        'portrait Usurper retains sovereign CHAR_META footX instead of a slot-wide zero override')
+        .toBe(-100);
+    }
+    const outside = await outsideStage(page,
+      '.hero-wrap,.enemy,.cplate,.top-chrome,.energy-orb,.lantern-btn,.end-turn,.pile-btn');
+    expect(outside).toEqual([]);
+    expectNoErrors(errors, variant.id);
+  });
+}
+
+for (const actor of [
+  { id: 'alphaFang', act: 0, kind: 'elite' },
+  { id: 'gravewarden', act: 0, kind: 'elite' },
+  { id: 'rootheart', act: 0, kind: 'boss' },
+  { id: 'siren', act: 1, kind: 'elite' },
+  { id: 'leviathan', act: 1, kind: 'boss' },
+  { id: 'heraldOfEnd', act: 2, kind: 'elite' },
+  { id: 'voidColossus', act: 2, kind: 'elite' },
+  { id: 'sovereign', act: 2, kind: 'boss' },
+]) {
+  test(`canonical single-enemy frame stays grounded and stage-bounded — ${actor.id}`, async ({ page }) => {
+    const errors = collectErrors(page);
+    await boot(page, { query: 'mesh=0' });
+    await page.evaluate((act) => { window.spirebound.S.run.act = act; }, actor.act);
+    await startFight(page, [actor.id], actor.kind);
+    await stable(page);
+    const geometry = await measure(page);
+    assertGrounded(geometry, actor.id);
+    expect(await outsideStage(page, '.enemy,.enemy .cplate,.enemy .top-chrome')).toEqual([]);
+    expectNoErrors(errors, actor.id);
+  });
+}
