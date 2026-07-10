@@ -15,6 +15,13 @@ Quick map for agents and humans. Operational truth for running the game lives in
 |---|---|
 | [`glass-crack-rendering.md`](glass-crack-rendering.md) | **Current** — transmission-glass crack/death rite (shipped), approved measures, superseded shader for the record, playground tuning workflow |
 
+## Round 5 preparation
+
+| Doc | Status |
+|---|---|
+| [`superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md`](superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md) | **Golden design** — PE-led commercial-grade production engineering with a small, isolated FE presentation lane; content registries, Semantic UI Behaviour Trace, Pixi combat UI, screen hardening, and ship-front. Progressive Delivery Phase 2 must merge before runtime execution |
+| [`research/2026-07-10-ui-behaviour-trace-ios-simulator.md`](research/2026-07-10-ui-behaviour-trace-ios-simulator.md) | Primary-source research: structured AI-readable behaviour traces, Playwright/WebDriver consumption, Simulator evidence limits, and the owner decision to defer physical-device proof |
+
 ## Active implementation specs
 
 | Doc | Status |

@@ -4,6 +4,57 @@ Browser roguelite deckbuilder: glass creatures, lantern light, The Vigil, and a 
 
 ## Language
 
+### Delivery architecture
+
+**Production Engineering Lane (PE)**:
+The primary Round 5 workstream, called “back-end” in owner shorthand. It owns the browser game's engine-adjacent substrate, refactoring, registries, Content Lab/Manager, renderer mechanics, diagnostics, tests, CI and integration; it is not a server back end.
+_Avoid_: server back end, infrastructure-only lane, Front-end Experience
+
+**Front-end Experience Lane (FE)**:
+The small, design-led Round 5 workstream for player-facing presentation: the experience contract, dedicated screen stylesheet, visual assets, motion/state matrices and contact-sheet critique. It does not own product JavaScript or tooling simply because those surfaces render in a browser.
+_Avoid_: all UI code, Content Manager, Pixi runtime, screen refactor
+
+**Verification Lane (QA)**:
+A fresh reviewer agent that independently issues both spec-compliance and code-quality verdicts from diff and test evidence. The task implementer cannot certify its own work, and QA cannot grant owner taste approval.
+_Avoid_: implementer self-review, visual owner sign-off
+
+**Cross-lane Handoff**:
+A checked-in PE/FE integration contract naming the exact commit, frozen interfaces/selectors, exclusive write set, visual/state matrix, required evidence and rollback commit. Shared-file edits are sequential; parallel work requires disjoint write sets and separate worktrees.
+_Avoid_: informal hand-off, concurrent shared-file editing
+
+### Content architecture
+
+**Content Data Drop**:
+A compiled-in content-pack addition for content that fits existing mechanics and schemas, registered through the content substrate rather than integrated across engine, UI, VFX, music, and styling call sites. It ships in an app update; new mechanics may still require engine work.
+_Avoid_: runtime DLC, zero-code feature, complete Act 4 implementation
+
+**Content Manager**:
+The dev-only, schema-driven CRUD editor for cards, relics, potions and themes. It is a Production Engineering authoring tool; behaviour-valued fields are read-only or excluded, and every write validates before touching a pack module.
+_Avoid_: CMS, runtime content service, Front-end Experience screen
+
+### Production diagnostics
+
+**Semantic UI Behaviour Trace**:
+A local, versioned stream of structured semantic interaction and presentation records used for AI diagnosis and regression tests. It observes behaviour without driving game state; timestamped text and NDJSON are projections of the records.
+Its incremental cursor is `{ segment, seq }`; a reload starts a new segment and cannot be resumed by sequence alone.
+_Avoid_: console log, analytics, pixel trace, second game state, sequence-only cursor
+
+**Behaviour Transcript**:
+The timestamped human/AI-readable text projection of a Semantic UI Behaviour Trace. Sequence numbers define order; elapsed timestamps are diagnostic and not golden-test truth.
+_Avoid_: canonical log strings, screenshot narration
+
+**Replay Descriptor**:
+A small, versioned, immutable presentation fixture published by a replayable UI owner and referenced by a trace span. When its span settles, Content Lab writes it to `replay=`; reload hydrates but does not auto-run the isolated visual preview. It never re-runs engine commands, restores game state, or writes a save.
+_Avoid_: command journal, save snapshot, persistent trace, gameplay replay
+
+**Playwright WebKit Device Emulation**:
+Playwright's patched WebKit browser running with an iPhone or iPad descriptor for viewport, user-agent, and touch emulation. It is not Safari running inside an Apple Simulator.
+_Avoid_: iOS Simulator Safari, physical Mobile Safari
+
+**Simulator Safari Lane**:
+Actual Safari from an iOS/iPadOS Simulator runtime, automated serially through Apple `safaridriver`; it proves functional compatibility, not physical-device performance or touch feel.
+_Avoid_: Playwright Mobile Safari, hardware performance gate
+
 ### Audio
 
 **Music Cue**:
