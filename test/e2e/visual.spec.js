@@ -22,7 +22,7 @@ test.beforeEach(({}, testInfo) => {
 
 const MAP_SETTLE_QUIET_MS = 800;
 const MAP_SETTLE_QUIET_FRAMES = 20;
-const MAP_SETTLE_TIMEOUT_MS = 60_000;
+const MAP_SETTLE_TIMEOUT_MS = 90_000;
 
 /** Wait for the map dolly's roll-invariant distance/focus signal to settle. */
 async function showMapAndWaitSettled(page) {
@@ -112,6 +112,7 @@ test('title screen', async ({ page }) => {
 });
 
 test('map screen', async ({ page }) => {
+  test.setTimeout(120_000);
   await boot(page, { query: 'mesh=0' });
   await showMapAndWaitSettled(page);
   await shoot(page, 'map');

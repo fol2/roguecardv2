@@ -271,8 +271,9 @@ Suites (`test/e2e/`):
    constants (omens legitimately bend opening rules — e.g. seed 20260706
    rolls Ember Wind, draw 4).
 3. `visual.spec` — screenshot regression: title, map (observed scale/opacity
-   motion, then 800ms and 20 animation frames quiet; 60s timeout), combat acts
-   1–3, reward, shop, rest, treasure, event; `?mesh=0` + explicit
+   motion, then 800ms and 20 animation frames quiet; 90s condition timeout
+   inside a 120s map-test budget), combat acts 1–3, reward, shop, rest,
+   treasure, event; `?mesh=0` + explicit
    `freeze()`; `maxDiffPixelRatio: 0.01`. **Baselines are deliberately not
    committed yet** — capturing them now would enshrine the broken geometry;
    the suite auto-skips until `visual.spec.js-snapshots/` exists. Capture with
@@ -283,18 +284,21 @@ Suites (`test/e2e/`):
    signal because the scene's camera roll continues indefinitely. The helper
    arms before `show('map')`, observes a change in projected node scale/opacity
    (camera distance/focus), then requires the sustained quiet period above.
-   Reference runs settled in about 5.7s; the 60s upper guard accommodates the
-   observed 5–8x Ubuntu runner slowdown and is not a fixed wait. This changes
-   harness timing only; retry count, pixels, and tolerance stay unchanged.
+   Reference runs settled in about 5.7s. The original 60s upper guard covered
+   the observed 5–8x Ubuntu runner slowdown; the constrained-runner amendment
+   below supersedes that ceiling. These are condition timeouts, not fixed
+   waits. Retry count, pixels, and tolerance stay unchanged.
 
    **2026-07-10 constrained-runner amendment:** the complete visual suite runs
    last in one Playwright invocation with one worker; baseline refresh uses the
    same contract. `scene3d.js` caps render-frame `dt` at 50ms, so a full-size
-   desktop map competing with another WebGL-heavy desktop page can remain
-   genuinely in-flight past the 60s guard. The non-visual matrix keeps two
-   workers. Timeout diagnostics record settle samples, changes, quiet frames,
-   and live node/edge counts without changing the predicate or screenshot
-   contract.
+   desktop map advances by delivered frames on a constrained runner. The final
+   one-worker Ubuntu proof recorded 112 samples, 80 changes, more than ten
+   seconds quiet, and 18/20 required quiet frames at the old 60s boundary.
+   The condition guard is therefore 90s inside a map-only 120s test budget;
+   all 20 frames remain required. The non-visual matrix keeps two workers.
+   Timeout diagnostics record settle samples, changes, quiet frames, and live
+   node/edge counts without changing the predicate or screenshot contract.
 4. `perf.spec` — the previously unmeasured gate, now measured: portrait
    project, 3s shader warm-up, CDP `Emulation.setCPUThrottlingRate(4)`, rAF
    sampler across a double-annihilate burst into three enemies; assert avg
