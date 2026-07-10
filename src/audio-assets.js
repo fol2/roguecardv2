@@ -12,12 +12,18 @@ import {
 } from './audio-packs.js';
 import { fetchAudioSelectionJson } from './audio-selection-fetch.js';
 
-const MUSIC_MODULES = import.meta.glob('./assets/musics/**/*.mp3', {
+const MUSIC_MODULES = import.meta.glob([
+  './assets/musics/**/*.mp3',
+  '!./assets/musics/_raw/**',
+], {
   eager: true,
   query: '?url',
   import: 'default',
 });
-const SFX_MODULES = import.meta.glob('./assets/sfx/**/*.mp3', {
+const SFX_MODULES = import.meta.glob([
+  './assets/sfx/**/*.mp3',
+  '!./assets/sfx/_raw/**',
+], {
   eager: true,
   query: '?url',
   import: 'default',
