@@ -4,7 +4,7 @@ Guidance for AI coding agents (Claude Code, Cursor, Codex, …) working in this 
 
 ## What this is
 
-**Spirebound** — a complete browser roguelite deckbuilder (Vite + vanilla JS + three.js, no UI framework). Combat art, cards, relics, enemies, events, and stage plates are raster assets in `src/assets/` (resolved through `assetUrl()` with SVG fallbacks); structural UI icons and status chips are hand-drawn SVG in `src/art.js`; SFX are sample-backed with synth fallback (`src/audio.js`); BGM is a Music Cue layer (`src/music.js`, assets in `src/assets/musics/`). Deeper design/lore context lives in `README.md`.
+**Spirebound** — a complete browser roguelite deckbuilder (Vite + vanilla JS + three.js, no UI framework). Combat art, cards, relics, enemies, events, and stage plates are raster assets in `src/assets/` (resolved through `assetUrl()` with SVG fallbacks); structural UI icons and status chips are hand-drawn SVG in `src/art.js`; SFX are sample-backed with synth fallback (`src/audio.js`); BGM is a Music Cue layer (`src/music.js`). Music/SFX assets are versioned and selected through `public/audio-selection.json`; see `docs/audio-packs.md`. Deeper design/lore context lives in `README.md`.
 
 ## Agent skills
 
@@ -63,8 +63,12 @@ Consequence: **every damage/block calculation has a pure preview mirror** (`prev
 data.js   ← pure content tables + constants, imports nothing
 art.js    ← pure procedural SVG + assetUrl(); imports nothing
 stage.js  ← fixed virtual viewport; imports nothing
-audio.js  ← WebAudio SFX + shared AudioContext; UNGUARDED top-level localStorage (browser-only)
-music.js  ← Music Cue registry + BGM playback; imports audio.js only (browser-only)
+audio-catalog.js        ← pure Music/SFX id catalogue, imports nothing
+audio-packs.js          ← pure version/override validation + resolution; imports audio-catalog.js
+audio-selection-fetch.js ← pure bounded host-config fetch helper, imports nothing
+audio-assets.js         ← Vite asset glob + runtime selection bridge (browser-only)
+audio.js  ← WebAudio SFX + shared AudioContext; imports audio-packs/assets/catalog (browser-only)
+music.js  ← Music Cue playback; imports audio.js + audio-packs/assets/catalog (browser-only)
 engine.js ← imports data.js only         (game logic; localStorage save/load is try/catch-guarded → no-ops in Node)
 vigil.js  ← imports data.js only         (meta-progression; Node-safe storage adapter + _setStore() test hook)
 scene3d.js← imports three + data.js + stage.js  (the 3D tower / camera)
@@ -98,7 +102,7 @@ SHATTER (facets/chips/shatter/embers/kindle + Lantern Arts), Omens & the Unlit W
 - **Structural UI icons must come from `art.js`** (`iconSvg`/`iconInline`) — never font glyphs like ⚔/♛ for map nodes, intents, shields, or piles. Font glyphs render as tofu on non-Mac platforms. Decorative relic/status sigils are the deliberate exception.
 - **`window.spirebound = { S, E, startCombatUI, show }`** and **`window.__probe`** (ui.js) are console/test hooks — god-mode bots, geometry readers, battle drivers. The probe reports coordinates in **stage px**.
 - **Combat-stage geometry lives in `src/battlefield-layout.js`**, not CSS — hero/enemy positions & sizes, formations, the 3 background plates and the ground line, per stage shape. Edit it by hand or with the dev-only editor at `http://localhost:5174/?bfedit=1` (drag/resize, per-shape overrides, Save writes the file). `src/battlefield.js` is the resolver; both must stay Node-importable and import nothing.
-- **Audio gallery:** `http://localhost:5174/?audio=1` lists every SFX and Music Cue with where-used notes; click to preview (`src/audio-catalog.js`). Art gallery remains `?gallery=1`.
+- **Audio gallery/backend:** `http://localhost:5174/?audio=1` lists every SFX and Music Cue, previews the effective file, and in development persists independent pack versions or per-id overrides through `POST /__audio-save`. The current root assets are immutable `stained-glass-v1` / `ashglass-v1`; later versions use subdirectories. Art gallery remains `?gallery=1`.
 - **Combat chrome geometry lives in `src/ui-chrome-layout.js`**, not CSS — energy / lantern / end-turn / piles / top HUD unit, per stage shape. Dev editor: `http://localhost:5174/?bfuiedit=1` (Save → `POST /__bfui-save`). Resolver is `src/uic.js` (not `src/ui-chrome.js`, which is asset helpers). Safe-area is baked into the numbers.
 - **Mobile is first-class**: three layout regimes inside the fixed stage (`@container stage` max-width 1100 / 740, and max-height 480 landscape) with drag-to-play, safe-area insets, and a lower-perf `LITE` render tier on coarse pointers.
 

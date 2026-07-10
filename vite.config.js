@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import { writeFileSync, renameSync } from "node:fs";
+import { readdirSync, writeFileSync, renameSync } from "node:fs";
 import { resolve } from "node:path";
 
 const BF_SAVE_PORT = 5174;
@@ -16,6 +16,30 @@ const CHAR_META_PATH = resolve("src/char-meta.js");
 const CHAR_META_TMP = `${CHAR_META_PATH}.tmp`;
 const WARD_PARAMS_PATH = resolve("src/ward-params.js");
 const WARD_PARAMS_TMP = `${WARD_PARAMS_PATH}.tmp`;
+const AUDIO_SELECTION_PATH = resolve("public/audio-selection.json");
+const AUDIO_SELECTION_TMP = `${AUDIO_SELECTION_PATH}.tmp`;
+
+function readAudioInventory(baseVersions) {
+  const roots = {
+    music: resolve("src/assets/musics"),
+    sfx: resolve("src/assets/sfx"),
+  };
+  const isAudioFile = (name) => /^[A-Za-z0-9][A-Za-z0-9._-]*\.mp3$/.test(name);
+  return Object.fromEntries(Object.entries(roots).map(([kind, root]) => {
+    const refs = [];
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (entry.isFile() && isAudioFile(entry.name)) {
+        refs.push(`${baseVersions[kind]}/${entry.name}`);
+      } else if (entry.isDirectory() && /^[a-z0-9][a-z0-9-]*$/.test(entry.name)) {
+        if (entry.name === baseVersions[kind]) throw new Error(`${kind}: base version id is reserved for root files`);
+        for (const file of readdirSync(resolve(root, entry.name), { withFileTypes: true })) {
+          if (file.isFile() && isAudioFile(file.name)) refs.push(`${entry.name}/${file.name}`);
+        }
+      }
+    }
+    return [kind, refs.sort()];
+  }));
+}
 
 /**
  * DEV save endpoints: allow any host that can already reach this server, but
@@ -60,6 +84,40 @@ function bfSavePlugin() {
     name: "bf-save",
     apply: "serve",
     configureServer(server) {
+      server.middlewares.use("/audio-selection.json", (req, res, next) => {
+        res.setHeader("cache-control", "no-store");
+        next();
+      });
+
+      // ?audio=1 backend controls → runtime JSON. Production remains read-only.
+      server.middlewares.use("/__audio-save", async (req, res) => {
+        if (req.method !== "POST") { res.statusCode = 405; return res.end(); }
+        if (!bfSaveOriginOk(req)) {
+          res.statusCode = 403;
+          res.setHeader("content-type", "application/json");
+          return res.end(JSON.stringify({ ok: false, problems: ["forbidden origin"] }));
+        }
+        const body = await readJsonBody(req, res);
+        if (body == null) return;
+        res.setHeader("content-type", "application/json");
+        try {
+          const [{ BASE_AUDIO_VERSIONS, validateAudioSelection }, { serializeAudioSelection }] = await Promise.all([
+            import("./src/audio-packs.js"),
+            import("./src/dev/audio-selection-serialize.js"),
+          ]);
+          const selection = JSON.parse(body);
+          const inventory = readAudioInventory(BASE_AUDIO_VERSIONS);
+          const problems = validateAudioSelection(selection, inventory);
+          if (problems.length) { res.statusCode = 400; return res.end(JSON.stringify({ ok: false, problems })); }
+          writeFileSync(AUDIO_SELECTION_TMP, serializeAudioSelection(selection));
+          renameSync(AUDIO_SELECTION_TMP, AUDIO_SELECTION_PATH);
+          res.end(JSON.stringify({ ok: true, reload: true }));
+        } catch (e) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ ok: false, problems: [String(e?.message ?? e)] }));
+        }
+      });
+
       server.middlewares.use("/__bf-save", async (req, res) => {
         if (req.method !== "POST") { res.statusCode = 405; return res.end(); }
         if (!bfSaveOriginOk(req)) {

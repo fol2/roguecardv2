@@ -1,5 +1,5 @@
-// Dev audio gallery catalog (?audio=1) — ids, where used, notes.
-// Playback still goes through audio.js / music.js; this file is documentation only.
+// Node-safe logical audio-id contract plus ?audio=1 gallery copy.
+// Version/file resolution lives in audio-packs.js; playback stays in audio/music.
 
 /** @type {{ id: string, group: string, use: string, note?: string, play?: 'sample'|'attack', attack?: { who: string, amount: number } }[]} */
 export const SFX_CATALOG = [

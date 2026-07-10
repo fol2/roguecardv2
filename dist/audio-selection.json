@@ -1,0 +1,10 @@
+{
+  "music": {
+    "version": "stained-glass-v2",
+    "overrides": {}
+  },
+  "sfx": {
+    "version": "ashglass-v2",
+    "overrides": {}
+  }
+}

@@ -27,6 +27,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Verify audio inspection tools
+        run: ffmpeg -version && ffprobe -version
       # engine unit checks + asset manifest + 300-run monte-carlo
       - run: npm test
       # production bundle must build clean

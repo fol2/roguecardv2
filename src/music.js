@@ -1,28 +1,8 @@
 // Music Cue layer — flat registry, lazy load, short crossfade, independent bus.
 import { ensureAudio, getAudioContext } from './audio.js';
-
-import titleUrl from './assets/musics/title.mp3';
-import embarkUrl from './assets/musics/embark.mp3';
-import vigilUrl from './assets/musics/vigil.mp3';
-import roseWindowUrl from './assets/musics/rose-window.mp3';
-import mapUrl from './assets/musics/map.mp3';
-import safeNodesUrl from './assets/musics/safe-nodes.mp3';
-import act1CombatUrl from './assets/musics/act1-combat.mp3';
-import act1BossUrl from './assets/musics/act1-boss.mp3';
-import act2CombatUrl from './assets/musics/act2-combat.mp3';
-import act2BossUrl from './assets/musics/act2-boss.mp3';
-import act3CombatUrl from './assets/musics/act3-combat.mp3';
-import act3BossUrl from './assets/musics/act3-boss.mp3';
-import eliteUrl from './assets/musics/elite.mp3';
-import paleOnesUrl from './assets/musics/pale-ones.mp3';
-import shadeDuelUrl from './assets/musics/shade-duel.mp3';
-import usurperUrl from './assets/musics/usurper.mp3';
-import eighthOmenUrl from './assets/musics/eighth-omen.mp3';
-import unreadablePageUrl from './assets/musics/unreadable-page.mp3';
-import hollowLamplighterUrl from './assets/musics/hollow-lamplighter.mp3';
-import sealedDoorUrl from './assets/musics/sealed-door.mp3';
-import victoryUrl from './assets/musics/victory.mp3';
-import defeatUrl from './assets/musics/defeat.mp3';
+import { DEFAULT_AUDIO_SELECTION } from './audio-packs.js';
+import { getAudioSource } from './audio-assets.js';
+import { MUSIC_CATALOG } from './audio-catalog.js';
 
 const CROSSFADE = 0.8;
 const DEFAULT_VOL = 0.35;
@@ -43,37 +23,30 @@ let volume = readVol();
 let muted = readMute();
 let musicBus = null;
 let activeId = null;
+let activeRef = null;
+let activeRequestedRef = null;
 let activeSrc = null;
 let activeGain = null;
 let playGen = 0;
 const buffers = Object.create(null);
 const loading = Object.create(null);
+const failedRefs = new Set();
 
-/** @type {Record<string, { url: string, title: string, wired: boolean, warmWith?: string[] }>} */
-export const REGISTRY = {
-  title: { url: titleUrl, title: 'Stained Glass Inscription', wired: true, warmWith: ['embark', 'vigil'] },
-  embark: { url: embarkUrl, title: 'Light Your Lantern', wired: true, warmWith: ['map'] },
-  vigil: { url: vigilUrl, title: 'Monuments in the Dark', wired: true, warmWith: ['title'] },
-  roseWindow: { url: roseWindowUrl, title: 'Six Dark Panes', wired: false },
-  map: { url: mapUrl, title: 'Lanterns on the Face of the Spire', wired: true, warmWith: ['act1Combat', 'safeNodes', 'elite'] },
-  safeNodes: { url: safeNodesUrl, title: 'Cold Goods, Warm Price', wired: true, warmWith: ['map'] },
-  act1Combat: { url: act1CombatUrl, title: 'Ashen Woods Scherzo', wired: true, warmWith: ['act1Boss', 'map', 'elite'] },
-  act1Boss: { url: act1BossUrl, title: 'The Rootheart Awakens', wired: true, warmWith: ['map', 'victory'] },
-  act2Combat: { url: act2CombatUrl, title: 'Sunken City Waltz', wired: true, warmWith: ['act2Boss', 'map', 'elite'] },
-  act2Boss: { url: act2BossUrl, title: "Leviathan's Maw", wired: true, warmWith: ['map', 'victory'] },
-  act3Combat: { url: act3CombatUrl, title: 'The Cracked Astral Court', wired: true, warmWith: ['act3Boss', 'map', 'elite'] },
-  act3Boss: { url: act3BossUrl, title: 'The Eternal Sovereign', wired: true, warmWith: ['victory', 'defeat'] },
-  elite: { url: eliteUrl, title: 'Named Afflictions', wired: true, warmWith: ['map'] },
-  paleOnes: { url: paleOnesUrl, title: 'Witchlight Motes', wired: false },
-  shadeDuel: { url: shadeDuelUrl, title: 'The Duel That Remembers', wired: false },
-  usurper: { url: usurperUrl, title: 'Lantern With No Flame', wired: false },
-  eighthOmen: { url: eighthOmenUrl, title: 'Broken Glyph Run', wired: false },
-  unreadablePage: { url: unreadablePageUrl, title: 'It Reads Itself', wired: false },
-  hollowLamplighter: { url: hollowLamplighterUrl, title: 'The Unlit Way', wired: false },
-  sealedDoor: { url: sealedDoorUrl, title: 'The Climb Continues', wired: false },
-  victory: { url: victoryUrl, title: 'The Only Sunrise', wired: true, warmWith: ['title', 'vigil'] },
-  defeat: { url: defeatUrl, title: 'A Mark in the Dark', wired: true, warmWith: ['title', 'vigil'] },
+const WARM_WITH = {
+  title: ['embark', 'vigil'], embark: ['map'], vigil: ['title'],
+  map: ['act1Combat', 'safeNodes', 'elite'], safeNodes: ['map'],
+  act1Combat: ['act1Boss', 'map', 'elite'], act1Boss: ['map', 'victory'],
+  act2Combat: ['act2Boss', 'map', 'elite'], act2Boss: ['map', 'victory'],
+  act3Combat: ['act3Boss', 'map', 'elite'], act3Boss: ['victory', 'defeat'],
+  elite: ['map'], victory: ['title', 'vigil'], defeat: ['title', 'vigil'],
 };
+
+/** @type {Record<string, { title: string, wired: boolean, warmWith?: string[] }>} */
+export const REGISTRY = Object.fromEntries(MUSIC_CATALOG.map((row) => [row.id, {
+  title: row.title,
+  wired: row.wired,
+  ...(WARM_WITH[row.id] ? { warmWith: WARM_WITH[row.id] } : {}),
+}]));
 
 function ensureBus() {
   if (!ensureAudio()) return null;
@@ -109,26 +82,40 @@ export function setMusicMuted(on) {
 }
 export function toggleMusicMute() { return setMusicMuted(!muted); }
 
-async function loadCue(id) {
-  const entry = REGISTRY[id];
-  if (!entry) return null;
-  if (buffers[id]) return buffers[id];
-  if (loading[id]) return loading[id];
-  loading[id] = (async () => {
+async function loadSource(source) {
+  if (!source?.ref || !source.url) return null;
+  if (failedRefs.has(source.ref)) return null;
+  if (buffers[source.ref]) return buffers[source.ref];
+  if (loading[source.ref]) return loading[source.ref];
+  loading[source.ref] = (async () => {
     if (!ensureAudio()) return null;
     try {
-      const res = await fetch(entry.url);
+      const res = await fetch(source.url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const arr = await res.arrayBuffer();
-      buffers[id] = await getAudioContext().decodeAudioData(arr.slice(0));
-      return buffers[id];
+      buffers[source.ref] = await getAudioContext().decodeAudioData(arr.slice(0));
+      return buffers[source.ref];
     } catch {
-      buffers[id] = null;
+      failedRefs.add(source.ref);
+      buffers[source.ref] = null;
       return null;
     } finally {
-      delete loading[id];
+      delete loading[source.ref];
     }
   })();
-  return loading[id];
+  return loading[source.ref];
+}
+
+async function loadCue(id) {
+  if (!REGISTRY[id]) return null;
+  const selected = getAudioSource('music', id);
+  const base = getAudioSource('music', id, DEFAULT_AUDIO_SELECTION);
+  for (const source of [selected, base]) {
+    if (!source || (source !== selected && source.ref === selected?.ref)) continue;
+    const buffer = await loadSource(source);
+    if (buffer) return { buffer, source };
+  }
+  return null;
 }
 
 export function warm(...ids) {
@@ -141,6 +128,8 @@ function fadeOutCurrent() {
   const src = activeSrc, g = activeGain;
   activeSrc = null;
   activeGain = null;
+  activeRef = null;
+  activeRequestedRef = null;
   try {
     g.gain.cancelScheduledValues(ctx.currentTime);
     g.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + CROSSFADE);
@@ -152,26 +141,30 @@ function fadeOutCurrent() {
 async function playInternal(cueId, { force = false } = {}) {
   const entry = REGISTRY[cueId];
   if (!entry || (!entry.wired && !force)) return;
-  if (cueId === activeId && activeSrc) {
+  const requestedSource = getAudioSource('music', cueId);
+  if (!requestedSource) return;
+  if (cueId === activeId && activeRequestedRef === requestedSource.ref && activeSrc) {
     if (entry.warmWith) warm(entry.warmWith);
     return;
   }
   if (!ensureBus()) return;
   const gen = ++playGen;
-  activeId = cueId;
-  const buf = await loadCue(cueId);
-  if (gen !== playGen || activeId !== cueId) return; // superseded
-  if (!buf) return;
+  const loaded = await loadCue(cueId);
+  if (gen !== playGen) return; // superseded
+  if (!loaded) return;
   const ctx = getAudioContext();
   fadeOutCurrent();
   const src = ctx.createBufferSource();
-  src.buffer = buf;
+  src.buffer = loaded.buffer;
   src.loop = true;
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, ctx.currentTime);
   g.gain.linearRampToValueAtTime(1, ctx.currentTime + CROSSFADE);
   src.connect(g).connect(musicBus);
   src.start();
+  activeId = cueId;
+  activeRef = loaded.source.ref;
+  activeRequestedRef = requestedSource.ref;
   activeSrc = src;
   activeGain = g;
   if (entry.warmWith) warm(entry.warmWith);
@@ -186,10 +179,14 @@ export function preview(cueId) { return playInternal(cueId, { force: true }); }
 export function stop() {
   playGen++;
   activeId = null;
+  activeRef = null;
+  activeRequestedRef = null;
   fadeOutCurrent();
 }
 
 export function currentCue() { return activeId; }
+export function currentAudioRef() { return activeRef; }
+export function currentRequestedAudioRef() { return activeRequestedRef; }
 
 /** Screen → cue. Combat / run-end / Act 1–2 boss victory resolve elsewhere.
  *  reward / bossRelic omit on purpose: normal/elite keep the combat cue;

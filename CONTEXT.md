@@ -11,8 +11,20 @@ A named BGM track identity (e.g. `title`, `act1Combat`) that the UI requests via
 _Avoid_: scene, soundtrack id, song, BGM key (prefer Cue / Music Cue)
 
 **Music Registry**:
-The flat table of Music Cues → asset + loop/volume/readiness. Future content wires by adding a caller; cues may exist before their content is live.
+The flat table of Music Cues → title/readiness/playback policy. The Audio Selection resolves each Cue to a versioned asset. Future content wires by adding a caller; cues may exist before their content is live.
 _Avoid_: playlist, soundtrack catalog
+
+**Audio Pack Version**:
+A complete, installed set for one audio kind. Music and SFX versions are selected independently. The immutable roots are `stained-glass-v1` and `ashglass-v1`; installed replacements such as `stained-glass-v2` and `ashglass-v2` live one directory lower.
+_Avoid_: playlist version, theme toggle, downloadable DLC (the pack is compiled in)
+
+**Audio Selection**:
+The runtime `audio-selection.json`: one whole-pack version and an override map for each of Music and SFX. A host may replace this data without rebuilding JavaScript, but every referenced MP3 must already be compiled into that deployment.
+_Avoid_: player setting (this is project/deployment content, not personal volume)
+
+**Audio Asset Override**:
+A per-Cue or per-SFX mapping to an installed `<version>/<filename>` ref. It wins over the whole-pack choice and never crosses from Music to SFX or vice versa.
+_Avoid_: arbitrary URL, filesystem path, renaming the logical Cue/SFX id
 
 **Ambience Drone**:
 The old WebAudio act-root drone under `setAmbience` / `stopAmbience`. Retired once Music Cues play; not a parallel bed under BGM.
@@ -43,7 +55,7 @@ Only shop, rest, and treasure play the safe-node Music Cue. Event keeps the map 
 _Avoid_: one BGM for every non-combat screen
 
 **Run-End Cue**:
-Final victory end screen plays the victory Music Cue; defeat end screen plays the defeat Music Cue. Per-fight reward screens do not.
+Act 1/2 boss-victory transitions and the final victory end screen play the victory Music Cue; the defeat end screen plays the defeat Cue. Normal-fight and elite reward screens keep their combat cue.
 _Avoid_: victory sting after every combat
 
 **Music Module**:
@@ -55,7 +67,7 @@ camelCase Music Cue identity used at call sites (`act1Combat`, `safeNodes`). Dis
 _Avoid_: cue numbers, filename slugs as call-site ids
 
 **Music Asset Filename**:
-kebab-case file under `src/assets/musics/` aligned to the Cue Id (e.g. `act1-combat.mp3`). Ledger keeps the human title.
+Kebab-case file aligned to the Cue Id (e.g. `act1-combat.mp3`). The base lives directly under `src/assets/musics/`; later versions live under `src/assets/musics/<version>/`. Ledger keeps the human title.
 _Avoid_: display-title filenames with spaces or curly apostrophes
 
 **Music Loop**:

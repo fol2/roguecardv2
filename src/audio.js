@@ -1,41 +1,8 @@
 // Ashglass Vigil SFX (ElevenLabs samples) + WebAudio synth fallback.
 // Music lives in music.js; both share this AudioContext.
-import clickUrl from './assets/sfx/click.mp3';
-import hoverUrl from './assets/sfx/hover.mp3';
-import cardUrl from './assets/sfx/card.mp3';
-import drawUrl from './assets/sfx/draw.mp3';
-import slashUrl from './assets/sfx/slash.mp3';
-import hitUrl from './assets/sfx/hit.mp3';
-import atkHeroLightUrl from './assets/sfx/atkHeroLight.mp3';
-import atkHeroMedUrl from './assets/sfx/atkHeroMed.mp3';
-import atkHeroHeavyUrl from './assets/sfx/atkHeroHeavy.mp3';
-import atkEnemyLightUrl from './assets/sfx/atkEnemyLight.mp3';
-import atkEnemyMedUrl from './assets/sfx/atkEnemyMed.mp3';
-import atkEnemyHeavyUrl from './assets/sfx/atkEnemyHeavy.mp3';
-import blockedUrl from './assets/sfx/blocked.mp3';
-import blockUrl from './assets/sfx/block.mp3';
-import poisonUrl from './assets/sfx/poison.mp3';
-import debuffUrl from './assets/sfx/debuff.mp3';
-import buffUrl from './assets/sfx/buff.mp3';
-import healUrl from './assets/sfx/heal.mp3';
-import energyUrl from './assets/sfx/energy.mp3';
-import coinUrl from './assets/sfx/coin.mp3';
-import potionUrl from './assets/sfx/potion.mp3';
-import deathUrl from './assets/sfx/death.mp3';
-import bigDeathUrl from './assets/sfx/bigDeath.mp3';
-import turnUrl from './assets/sfx/turn.mp3';
-import victoryUrl from './assets/sfx/victory.mp3';
-import defeatUrl from './assets/sfx/defeat.mp3';
-import relicUrl from './assets/sfx/relic.mp3';
-import upgradeUrl from './assets/sfx/upgrade.mp3';
-import mapUrl from './assets/sfx/map.mp3';
-import chipUrl from './assets/sfx/chip.mp3';
-import shatterUrl from './assets/sfx/shatter.mp3';
-import emberUrl from './assets/sfx/ember.mp3';
-import kindleUrl from './assets/sfx/kindle.mp3';
-import staggerUrl from './assets/sfx/stagger.mp3';
-import artUrl from './assets/sfx/art.mp3';
-import omenUrl from './assets/sfx/omen.mp3';
+import { DEFAULT_AUDIO_SELECTION } from './audio-packs.js';
+import { getAudioSource } from './audio-assets.js';
+import { SFX_CATALOG } from './audio-catalog.js';
 
 const DEFAULT_VOL = 0.55;
 const VOL_KEY = 'spirebound_vol_sfx';
@@ -56,20 +23,9 @@ let volume = readVol();
 let muted = readMute();
 const buffers = Object.create(null);
 const loading = Object.create(null);
+const loadedSampleRefs = Object.create(null);
 
-const SAMPLE_URLS = {
-  click: clickUrl, hover: hoverUrl, card: cardUrl, draw: drawUrl,
-  slash: slashUrl, hit: hitUrl,
-  atkHeroLight: atkHeroLightUrl, atkHeroMed: atkHeroMedUrl, atkHeroHeavy: atkHeroHeavyUrl,
-  atkEnemyLight: atkEnemyLightUrl, atkEnemyMed: atkEnemyMedUrl, atkEnemyHeavy: atkEnemyHeavyUrl,
-  blocked: blockedUrl, block: blockUrl,
-  poison: poisonUrl, debuff: debuffUrl, buff: buffUrl, heal: healUrl,
-  energy: energyUrl, coin: coinUrl, potion: potionUrl, death: deathUrl,
-  bigDeath: bigDeathUrl, turn: turnUrl, victory: victoryUrl, defeat: defeatUrl,
-  relic: relicUrl, upgrade: upgradeUrl, map: mapUrl, chip: chipUrl,
-  shatter: shatterUrl, ember: emberUrl, kindle: kindleUrl, stagger: staggerUrl,
-  art: artUrl, omen: omenUrl,
-};
+export const SFX_IDS = Object.freeze(SFX_CATALOG.map((row) => row.id));
 
 export function ensureAudio() {
   if (ctx) return true;
@@ -149,29 +105,45 @@ function noise({ a = 0.002, d = 0.15, peak = 0.25, f0 = 800, f1 = 300, q = 1, ty
   src.start(t0); src.stop(t0 + a + d + 0.05);
 }
 
-async function loadSample(name) {
-  if (buffers[name] || !SAMPLE_URLS[name]) return buffers[name] || null;
-  if (loading[name]) return loading[name];
-  loading[name] = (async () => {
+async function loadSource(source) {
+  if (!source?.ref || !source.url) return null;
+  if (buffers[source.ref]) return buffers[source.ref];
+  if (loading[source.ref]) return loading[source.ref];
+  loading[source.ref] = (async () => {
     if (!ensureAudio()) return null;
     try {
-      const res = await fetch(SAMPLE_URLS[name]);
+      const res = await fetch(source.url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const arr = await res.arrayBuffer();
-      buffers[name] = await ctx.decodeAudioData(arr.slice(0));
-      return buffers[name];
+      buffers[source.ref] = await ctx.decodeAudioData(arr.slice(0));
+      return buffers[source.ref];
     } catch {
-      buffers[name] = null;
+      buffers[source.ref] = null;
       return null;
     } finally {
-      delete loading[name];
+      delete loading[source.ref];
     }
   })();
-  return loading[name];
+  return loading[source.ref];
+}
+
+async function loadSample(name) {
+  const selected = getAudioSource('sfx', name);
+  const base = getAudioSource('sfx', name, DEFAULT_AUDIO_SELECTION);
+  for (const source of [selected, base]) {
+    if (!source || (source !== selected && source.ref === selected?.ref)) continue;
+    const buffer = await loadSource(source);
+    if (buffer) {
+      loadedSampleRefs[name] = source.ref;
+      return buffer;
+    }
+  }
+  return null;
 }
 
 function playSample(name, { gain = 0.85 } = {}) {
   if (!ensureAudio()) return false;
-  const buf = buffers[name];
+  const buf = buffers[loadedSampleRefs[name]];
   if (!buf) {
     loadSample(name);
     return false;
@@ -193,7 +165,7 @@ function play(name, fallback, opts) {
 
 export function preloadSfx() {
   if (!ensureAudio()) return;
-  Object.keys(SAMPLE_URLS).forEach((k) => { loadSample(k); });
+  SFX_IDS.forEach((id) => { loadSample(id); });
 }
 
 const synth = {

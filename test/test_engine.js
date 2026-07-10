@@ -1,6 +1,7 @@
 // Engine self-check: unit math + asset manifest + monte-carlo random-agent full runs.
 import assert from 'node:assert';
-import { readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import {
   newRun, startCombat, playCard, endTurn, drawCards, makeCard, cardData, availableNodes, genMap,
   rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, finalizeNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, nodeEventInFlight, saveRun, loadRun, genCombatRewards, genShop, gainRelic, randomRelic,
@@ -19,6 +20,9 @@ import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, drawBatchSche
 import {
   UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyphId,
 } from '../src/ui-chrome.js';
+import { BASE_AUDIO_VERSIONS, DEFAULT_AUDIO_SELECTION, audioRefFromPath, canonicalAudioFilename, normaliseAudioSelection, resolveAudioRef, validateAudioSelection } from '../src/audio-packs.js';
+import { serializeAudioSelection } from '../src/dev/audio-selection-serialize.js';
+import { fetchAudioSelectionJson } from '../src/audio-selection-fetch.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -30,6 +34,226 @@ function forceHand(run, cb, ids) {
 }
 
 // ---- unit checks -----------------------------------------------------------
+{
+  let aborted = false;
+  const neverResolves = (_url, { signal }) => new Promise((_resolve, reject) => {
+    signal.addEventListener('abort', () => {
+      aborted = true;
+      reject(new Error('aborted'));
+    }, { once: true });
+  });
+  await assert.rejects(
+    fetchAudioSelectionJson('/audio-selection.json', { fetchImpl: neverResolves, timeoutMs: 5 }),
+    /timed out after 5 ms/,
+    'audio selection: a stalled host response cannot block boot indefinitely',
+  );
+  assert.equal(aborted, true, 'audio selection: timeout aborts the stalled request');
+  await assert.rejects(
+    fetchAudioSelectionJson('/audio-selection.json', {
+      fetchImpl: () => { throw new Error('synchronous fetch failure'); },
+      timeoutMs: 5,
+    }),
+    /synchronous fetch failure/,
+    'audio selection: a synchronous fetch failure still clears its timeout',
+  );
+}
+{
+  const inventory = {
+    music: ['stained-glass-v1/title.mp3'],
+    sfx: ['ashglass-v1/click.mp3'],
+  };
+  const selection = {
+    music: { version: BASE_AUDIO_VERSIONS.music, overrides: {} },
+    sfx: { version: BASE_AUDIO_VERSIONS.sfx, overrides: {} },
+  };
+  assert.equal(
+    resolveAudioRef('music', 'title', inventory, selection),
+    'stained-glass-v1/title.mp3',
+    'audio packs: base Music Cue resolves by canonical filename',
+  );
+  inventory.music.push('draft/title-alt.mp3');
+  selection.music.overrides.title = 'draft/title-alt.mp3';
+  assert.equal(
+    resolveAudioRef('music', 'title', inventory, selection),
+    'draft/title-alt.mp3',
+    'audio packs: a per-Cue file override wins over the selected pack',
+  );
+  inventory.music.push('stained-glass-v2/title.mp3');
+  selection.music = { version: 'stained-glass-v2', overrides: { title: 'missing/nope.mp3' } };
+  assert.equal(
+    resolveAudioRef('music', 'title', inventory, selection),
+    'stained-glass-v2/title.mp3',
+    'audio packs: an unavailable override falls through to the selected pack',
+  );
+  const invalid = validateAudioSelection(selection, inventory);
+  assert.ok(
+    invalid.some((problem) => problem.includes('music.overrides.title')),
+    'audio packs: selection validation rejects an unavailable override',
+  );
+  assert.ok(
+    invalid.some((problem) => problem.includes('music.version') && problem.includes('incomplete')),
+    'audio packs: whole-pack selection rejects an incomplete version',
+  );
+  const defaults = {
+    music: { version: BASE_AUDIO_VERSIONS.music, overrides: {} },
+    sfx: { version: BASE_AUDIO_VERSIONS.sfx, overrides: {} },
+  };
+  assert.deepEqual(DEFAULT_AUDIO_SELECTION, defaults, 'audio packs: runtime fallback selects both immutable base packs');
+  assert.deepEqual(
+    JSON.parse(serializeAudioSelection(defaults)),
+    defaults,
+    'audio packs: persisted selection serialises as deterministic JSON',
+  );
+  assert.equal(
+    audioRefFromPath('music', './assets/musics/title.mp3'),
+    'stained-glass-v1/title.mp3',
+    'audio packs: current root Music files belong to the immutable base version',
+  );
+  assert.equal(
+    audioRefFromPath('sfx', './assets/sfx/ashglass-v2/click-soft.mp3'),
+    'ashglass-v2/click-soft.mp3',
+    'audio packs: version directory becomes the stable selectable asset ref',
+  );
+  assert.equal(
+    audioRefFromPath('music', './assets/musics/stained-glass-v1/title.mp3'),
+    null,
+    'audio packs: the base version id is reserved for root files',
+  );
+  const currentFiles = (kind, dir) => readdirSync(new URL(dir, import.meta.url), { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.mp3'))
+    .map((entry) => `${BASE_AUDIO_VERSIONS[kind]}/${entry.name}`)
+    .sort();
+  const currentInventory = {
+    music: currentFiles('music', '../src/assets/musics/'),
+    sfx: currentFiles('sfx', '../src/assets/sfx/'),
+  };
+  assert.equal(currentInventory.music.length, 22, 'audio packs: base music version keeps all 22 Music Cues');
+  assert.equal(currentInventory.sfx.length, 36, 'audio packs: base SFX version keeps all 36 physical samples');
+  assert.deepEqual(
+    validateAudioSelection(DEFAULT_AUDIO_SELECTION, currentInventory),
+    [],
+    'audio packs: both immutable base versions are complete and selectable',
+  );
+  const musicManifest = JSON.parse(readFileSync(new URL('../src/assets/musics/manifest.json', import.meta.url), 'utf8'));
+  const sfxManifest = JSON.parse(readFileSync(new URL('../src/assets/sfx/manifest.json', import.meta.url), 'utf8'));
+  assert.equal(musicManifest.pack_id, BASE_AUDIO_VERSIONS.music, 'audio packs: base Music manifest has a stable version id');
+  assert.equal(Object.keys(musicManifest.items).length, 22, 'audio packs: base Music manifest covers every Cue');
+  assert.equal(Object.values(musicManifest.items).filter((item) => item.wired).length, 14, 'audio packs: exactly 14 Music Cues are live');
+  assert.equal(Object.values(musicManifest.items).filter((item) => !item.wired).length, 8, 'audio packs: exactly 8 Music Cues are hidden/future');
+  for (const [id, item] of Object.entries(musicManifest.items)) {
+    assert.equal(item.file, canonicalAudioFilename('music', id), `audio packs: ${id} keeps its canonical Music filename`);
+    assert.ok(currentInventory.music.includes(`${BASE_AUDIO_VERSIONS.music}/${item.file}`), `audio packs: ${id} Music file exists`);
+  }
+  assert.equal(sfxManifest.pack_id, BASE_AUDIO_VERSIONS.sfx, 'audio packs: base SFX manifest has a stable version id');
+  assert.equal(Object.keys(sfxManifest.items).length, 36, 'audio packs: base SFX manifest covers every physical sample');
+  for (const [id, item] of Object.entries(sfxManifest.items)) {
+    assert.ok(item.requested_duration_seconds >= 0.5, `audio packs: ${id} records ElevenLabs request duration`);
+    assert.ok(item.prompt_influence >= 0 && item.prompt_influence <= 1, `audio packs: ${id} records prompt influence`);
+  }
+  const completeV2Inventory = {
+    music: [
+      ...currentInventory.music,
+      ...Object.keys(musicManifest.items).map((id) => `stained-glass-v2/${canonicalAudioFilename('music', id)}`),
+    ],
+    sfx: [
+      ...currentInventory.sfx,
+      ...Object.keys(sfxManifest.items).map((id) => `ashglass-v2/${canonicalAudioFilename('sfx', id)}`),
+    ],
+  };
+  const independentV2Selection = {
+    music: { version: 'stained-glass-v2', overrides: {} },
+    sfx: { version: BASE_AUDIO_VERSIONS.sfx, overrides: {} },
+  };
+  assert.deepEqual(
+    validateAudioSelection(independentV2Selection, completeV2Inventory),
+    [],
+    'audio packs: a complete Music v2 can switch independently of SFX',
+  );
+  assert.equal(
+    resolveAudioRef('music', 'title', completeV2Inventory, independentV2Selection),
+    'stained-glass-v2/title.mp3',
+    'audio packs: complete Music v2 resolves its canonical Cue file',
+  );
+  const bothV2Selection = {
+    ...independentV2Selection,
+    sfx: { version: 'ashglass-v2', overrides: {} },
+  };
+  assert.deepEqual(
+    validateAudioSelection(bothV2Selection, completeV2Inventory),
+    [],
+    'audio packs: a complete SFX v2 can switch without changing the Music contract',
+  );
+  assert.equal(
+    resolveAudioRef('sfx', 'atkHeroMed', completeV2Inventory, bothV2Selection),
+    'ashglass-v2/atkHeroMed.mp3',
+    'audio packs: complete SFX v2 resolves its canonical gameplay file',
+  );
+  const persistedSelection = JSON.parse(readFileSync(new URL('../public/audio-selection.json', import.meta.url), 'utf8'));
+  assert.deepEqual(
+    persistedSelection,
+    bothV2Selection,
+    'audio packs: committed runtime selection activates both installed v2 packs without overrides',
+  );
+  assert.deepEqual(
+    validateAudioSelection(persistedSelection, completeV2Inventory),
+    [],
+    'audio packs: committed runtime selection is valid for the compiled installed inventory',
+  );
+  const rejected = normaliseAudioSelection({
+    music: { version: 'missing', overrides: {} },
+    sfx: { version: BASE_AUDIO_VERSIONS.sfx, overrides: {} },
+  }, currentInventory);
+  assert.deepEqual(rejected.selection, DEFAULT_AUDIO_SELECTION, 'audio packs: invalid runtime data falls back to both base packs');
+  assert.ok(rejected.problems.length > 0, 'audio packs: invalid runtime data retains diagnostics');
+  assert.ok(
+    validateAudioSelection({ ...defaults, extra: true }, currentInventory).some((problem) => problem.includes('unknown key')),
+    'audio packs: selection schema rejects unknown root keys',
+  );
+  const generatorCheck = spawnSync(
+    'python3',
+    ['tools/gen-sfx-from-ledger.py', '--check-ledger'],
+    { encoding: 'utf8' },
+  );
+  assert.equal(generatorCheck.status, 0, `SFX ledger generator contract: ${generatorCheck.stderr}`);
+  const generatorReport = JSON.parse(generatorCheck.stdout);
+  assert.equal(generatorReport.count, 36, 'SFX ledger: generation parameters cover all physical ids');
+  assert.ok(generatorReport.min_requested_duration_seconds >= 0.5, 'SFX ledger: API request duration honours the 0.5s minimum');
+  assert.ok(generatorReport.distinct_prompt_influences.length > 1, 'SFX ledger: prompt influence is tuned per id');
+  assert.deepEqual(generatorReport.loop, [false], 'SFX ledger: every generated request is a one-shot');
+  assert.deepEqual(generatorReport.model_id, ['eleven_text_to_sound_v2'], 'SFX ledger: generator pins the accepted model');
+  assert.ok(generatorReport.target_ranges > 1, 'SFX ledger: post-trim targets remain distinct from request duration');
+  assert.equal(generatorReport.exact_targets, true, 'SFX ledger: downloaded v2 trim targets stay exact');
+  assert.equal(generatorReport.global_suffix_applied, true, 'SFX ledger: every API prompt receives the anti-musical suffix');
+  assert.equal(generatorReport.target_fit_enforced, true, 'SFX ledger: exact post-trim targets are enforced');
+  assert.match(generatorReport.target_fit_example, /atempo=.*atrim=duration=0\.080/, 'SFX ledger: short micro-sounds are stretched without silence padding');
+  assert.equal(generatorReport.silence_padding, false, 'SFX ledger: target fitting never manufactures silent tails');
+  assert.equal(generatorReport.mono_compatible_mix, true, 'SFX ledger: generated one-shots are centred for mono playback');
+  assert.equal(generatorReport.output_sample_rate_hz, 48000, 'SFX ledger: generated one-shots use a stable 48 kHz delivery rate');
+  assert.deepEqual(generatorReport.parameters.hover, { target: 0.08, request: 0.5, influence: 0.5 }, 'SFX ledger: v2 hover contract is exact');
+  assert.deepEqual(generatorReport.parameters.atkHeroMed, { target: 0.38, request: 0.5, influence: 0.62 }, 'SFX ledger: v2 main attack contract is exact');
+  assert.deepEqual(generatorReport.parameters.bigDeath, { target: 1.3, request: 1.3, influence: 0.68 }, 'SFX ledger: v2 boss-death contract is exact');
+  assert.deepEqual(generatorReport.parameters.slash, { target: 0.3, request: 0.5, influence: 0.45 }, 'SFX ledger: v2 legacy compatibility contract remains generatable');
+  assert.deepEqual(generatorReport.parameters.hit, { target: 0.22, request: 0.5, influence: 0.45 }, 'SFX ledger: v2 legacy hit contract remains generatable');
+  const musicLedger = readFileSync(new URL('../docs/music-ledger.md', import.meta.url), 'utf8');
+  const musicPrompts = musicLedger.split('SUNO prompt:').slice(1).map((section) => section.split('\n').find((line) => line.trim()));
+  assert.equal(musicPrompts.length, 22, 'Music ledger: all 22 Cue prompts remain present');
+  assert.ok(musicPrompts.every((prompt) => /seamless/i.test(prompt)), 'Music ledger: every v2 prompt asks for seamless playback');
+  assert.ok(musicPrompts.every((prompt) => /90–120 seconds/i.test(prompt)), 'Music ledger: every v2 prompt requests 90–120 seconds');
+  assert.ok(musicPrompts.every((prompt) => /no hard ending/i.test(prompt)), 'Music ledger: every v2 prompt rejects hard endings');
+  assert.ok(musicPrompts.every((prompt) => /no fadeout/i.test(prompt)), 'Music ledger: every v2 prompt rejects fadeouts');
+  assert.match(musicLedger, /fragile four-note minor-key idea/, 'Music ledger: downloaded v2 lantern motif law is preserved');
+  const installedAudioGates = [
+    ['Music v2 media/provenance manifest', ['tools/validate-audio-pack.mjs', '--kind', 'music', '--version', 'stained-glass-v2', '--verify-manifest']],
+    ['SFX v2 media/provenance manifest', ['tools/validate-audio-pack.mjs', '--kind', 'sfx', '--version', 'ashglass-v2', '--verify-manifest']],
+    ['Suno provenance forgery regression', ['test/test_validate_audio_pack_provenance.mjs']],
+    ['Suno deterministic renderer regression', ['test/test_render_suno_music_pack.mjs']],
+    ['Music v2 exact queue regression', ['test/test_music_v2_queue.mjs']],
+  ];
+  for (const [label, args] of installedAudioGates) {
+    const result = spawnSync('node', args, { encoding: 'utf8' });
+    assert.equal(result.status, 0, `${label}: ${result.stderr || result.stdout}`);
+  }
+}
 {
   const run = newRun(1);
   assert.equal(run.player.deck.length, 10, 'starter deck');
