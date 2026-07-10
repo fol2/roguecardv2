@@ -1158,6 +1158,16 @@ function forceHand(run, cb, ids) {
       act: 1, row: 6, bequest: { kind: 'gold', amount: 40 }, standing: false, claimed: false,
     }, 'a Phase 2 normal monument keeps its explicit non-standing marker');
 
+    const legacyHollowComplete = newRun(429, { quests: saveQuests });
+    legacyHollowComplete.quests.hollowLamplighter = {
+      state: 'complete', progress: QUESTS.hollowLamplighter.target,
+      memory: { eligibleMisses: 0 },
+    };
+    assert.equal(saveRun(legacyHollowComplete), true);
+    assert.deepEqual(loadRun().quests.hollowLamplighter, {
+      state: 'complete', progress: QUESTS.hollowLamplighter.target, memory: {},
+    }, 'the preceding build\'s completed Hollow pity residue self-heals on load');
+
     const rejectSaved = (label, mutate) => {
       const bad = newRun(412, { quests: saveQuests });
       mutate(bad);
@@ -2186,6 +2196,26 @@ function forceHand(run, cb, ids) {
       'maxMeetingsPerRun caps later eligible nodes');
     assert.equal(hollow.questScratch.hollowLamplighter.meetings, 2);
 
+    const debtHollow = newRun(473, {
+      quests: questSet('hollowLamplighter', {
+        eligibleMisses: PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1,
+      }),
+      reveals: [],
+    });
+    const debtNodes = debtHollow.map.nodes.slice(0, 2);
+    debtNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
+    assert.equal(visitNode(debtHollow, debtNodes[0]).hollow, true);
+    assert.equal(payHollowPrice(debtHollow).deferred, true);
+    const debtCombat = startCombat(debtHollow, ['sporeling']);
+    gainEmbers(debtHollow, debtCombat, PROGRESSION.emberglass.hollowLamplighter.emberDebt - 1);
+    assert.equal(debtHollow.quests.hollowLamplighter.memory.emberDebt, 1);
+    debtHollow.pendingHollow = null;
+    assert.equal(visitNode(debtHollow, debtNodes[1]).hollow, undefined,
+      'an outstanding deferred ember price blocks a repeated meeting');
+    assert.equal(debtHollow.quests.hollowLamplighter.memory.emberDebt, 1,
+      'a later unlit node cannot reset an outstanding ember debt');
+    assert.equal(debtHollow.questScratch.hollowLamplighter.meetings, 1);
+
     const shadeTierIds = Object.keys(VARIANTS)
       .filter((id) => /^ownShade[1-9]\d*$/.test(id))
       .sort((a, b) => Number(a.slice('ownShade'.length)) - Number(b.slice('ownShade'.length)));
@@ -2240,6 +2270,12 @@ function forceHand(run, cb, ids) {
     dynamicSave.endQueue = [{ t: 'pageRead', index: 6, text: 'A sixth configured page.' }];
     assert.equal(saveRun(dynamicSave), true);
     assert.ok(loadRun(), 'configured guarantee, ember debt, and Page target pass save validation');
+    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = 1;
+    PROGRESSION.emberglass.hollowLamplighter.emberDebt = 2;
+    const lowerTuningReload = loadRun();
+    assert.ok(lowerTuningReload, 'lower memory tunables do not invalidate an existing run contract');
+    assert.equal(lowerTuningReload.quests.eighthOmen.memory.dueIn, 4);
+    assert.equal(lowerTuningReload.quests.hollowLamplighter.memory.emberDebt, 4);
   } finally {
     EngineApi._setQuestRng(null);
     PROGRESSION.emberglass.eighthOmen.guaranteeRuns = oldGuaranteeRuns;

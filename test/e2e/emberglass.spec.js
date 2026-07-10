@@ -228,6 +228,33 @@ test('pending win recovers once through the production terminal outbox', async (
   expect(twice).toEqual(once);
 });
 
+test('run-end persistence failure owns input until finalisation retries', async ({ page }) => {
+  await stagePendingRunEnd(page, 'death');
+  await page.addInitScript(() => {
+    const original = Storage.prototype.setItem;
+    window.__rejectRunEndVigil = true;
+    Storage.prototype.setItem = function rejectRunEnd(key, value) {
+      if (key === 'spirebound_vigil_v2' && window.__rejectRunEndVigil) {
+        throw new Error('injected run-end Vigil failure');
+      }
+      return original.call(this, key, value);
+    };
+  });
+  await page.reload();
+
+  await expect(page.locator('.ov-title')).toHaveText('The Vigil Could Not Hold');
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
+  await expect(page.locator('[data-a="retry-end"]')).toBeFocused();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2'))?.pendingRunEnd))
+    .toEqual({ outcome: 'death' });
+
+  await page.evaluate(() => { window.__rejectRunEndVigil = false; });
+  await page.click('[data-a="retry-end"]');
+  await page.waitForFunction(() => window.spirebound?.S.screen === 'end');
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
+  expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBeNull();
+});
+
 test('normal-motion reload resumes only unacknowledged dawn panels', async ({ page }) => {
   test.skip(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches),
     'the checkpoint timing contract is specifically normal motion');
@@ -302,12 +329,15 @@ test('a rejected dawn cursor save stays locked and retries the same panel', asyn
 
   await expect(page.locator('.ov-title')).toHaveText('The Dawn Could Not Hold');
   await expect(page.locator('#overlay .ov-sub')).toContainText('This panel was shown');
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
+  await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2')).pendingDawn.cursor)).toBe(0);
   expect(await page.locator('.end-btns button').evaluateAll((buttons) => buttons.map((button) => button.disabled)))
     .toEqual([true, true]);
   await page.evaluate(() => { window.__rejectDawnSet = false; });
   await page.click('[data-a="retry-dawn"]');
   await expect(page.locator('.dawn-ceremony')).toHaveClass(/complete/);
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
   await expect(page.locator('[data-event="eighthResolved"]')).toContainText('CURSOR FAILURE COPY');
   expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBeNull();
   await page.evaluate(() => { Storage.prototype.setItem = window.__dawnSetItem; });
@@ -334,6 +364,8 @@ test('a rejected final dawn clear stays locked and retryable', async ({ page }) 
 
   await expect(page.locator('.ov-title')).toHaveText('The Dawn Could Not Hold');
   await expect(page.locator('#overlay .ov-sub')).toContainText('Every panel has been seen');
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
+  await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused();
   const pending = await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2')).pendingDawn);
   expect(pending).toEqual({ events: [], cursor: 0, newUnlocks: [] });
   expect(await page.locator('.end-btns button').evaluateAll((buttons) => buttons.map((button) => button.disabled)))
@@ -341,6 +373,7 @@ test('a rejected final dawn clear stays locked and retryable', async ({ page }) 
   await page.evaluate(() => { window.__rejectDawnClear = false; });
   await page.click('[data-a="retry-dawn"]');
   await expect(page.locator('.dawn-ceremony')).toHaveClass(/complete/);
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
   expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBeNull();
   await page.evaluate(() => { Storage.prototype.removeItem = window.__dawnRemoveItem; });
 });
@@ -486,12 +519,25 @@ test('Rose pane detail stays legible and bounded in every canonical shape', asyn
         });
         const inside = (inner, outer) => inner.left >= outer.left - 1 && inner.right <= outer.right + 1 &&
           inner.top >= outer.top - 1 && inner.bottom <= outer.bottom + 1;
+        const labelContainment = [...document.querySelectorAll('.rose-pane')].map((pane, index) => {
+          const copy = pane.querySelector('.rose-pane-copy');
+          const control = pane.querySelector('.rose-pane-select');
+          if (!copy || !control || getComputedStyle(copy).display === 'none') return { index, inside: true };
+          const copyRect = copy.getBoundingClientRect();
+          const controlRect = control.getBoundingClientRect();
+          return {
+            index, inside: inside(copyRect, controlRect),
+            copy: { width: copyRect.width / scale, height: copyRect.height / scale },
+            control: { width: controlRect.width / scale, height: controlRect.height / scale },
+          };
+        });
         return {
           detailVisible: box.width > 0 && box.height > 0,
           detailInsideStage: inside(box, stage),
           detailInsidePanel: inside(box, panelBox),
           detailOverflow: [detail.scrollWidth - detail.clientWidth, detail.scrollHeight - detail.clientHeight],
           panelOverflow: [panel.scrollWidth - panel.clientWidth, panel.scrollHeight - panel.clientHeight],
+          labelContainment,
           controls,
         };
       });
@@ -501,6 +547,8 @@ test('Rose pane detail stays legible and bounded in every canonical shape', asyn
       expect(geometry.detailInsidePanel, context).toBe(true);
       expect(geometry.detailOverflow.every((amount) => amount <= 1), context).toBe(true);
       expect(geometry.panelOverflow.every((amount) => amount <= 1), context).toBe(true);
+      const missedLabels = geometry.labelContainment.filter((label) => !label.inside);
+      expect(missedLabels, `${context}: visible pane labels must be clickable`).toEqual([]);
       expect(stateFontMins.every((fontPx) => fontPx >= 12), context).toBe(true);
       expect(geometry.controls.every(({ width, height }) => width >= 44 && height >= 44), context).toBe(true);
       for (let i = 0; i < geometry.controls.length; i++) {

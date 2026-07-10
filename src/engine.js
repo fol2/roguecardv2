@@ -367,11 +367,13 @@ export function visitNode(run, node) {
   }
   const hollow = run.questScratch?.hollowLamplighter;
   const maxMeetings = Math.max(0, Math.floor(PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun));
-  const meetings = Number.isInteger(hollow?.meetings)
+  const storedMeetings = Number.isInteger(hollow?.meetings)
     ? hollow.meetings
     : hollow?.met ? maxMeetings : 0;
-  if (wasUnlit && hollow?.due && meetings < maxMeetings) {
-    hollow.meetings = meetings + 1;
+  const meetings = Math.min(storedMeetings, maxMeetings);
+  const hollowDebt = questRecord(run, 'hollowLamplighter')?.memory?.emberDebt || 0;
+  if (wasUnlit && hollow?.due && !hollowDebt && meetings < maxMeetings) {
+    hollow.meetings = storedMeetings + 1;
     hollow.met = true;
     revealQuest(run, 'hollowLamplighter', run.endQueue);
     run.pendingHollow = {
@@ -1734,18 +1736,18 @@ export function loadRun() {
       if (id === 'eighthOmen') {
         if (q.state === 'dormant') return onlyKeys(m, []);
         if (q.state === 'complete') return onlyKeys(m, ['seen']) && (m.seen == null || m.seen === true);
-        const dueValid = Number.isInteger(m.dueIn) && m.dueIn >= 1 &&
-          m.dueIn <= Math.max(1, Math.floor(PROGRESSION.emberglass.eighthOmen.guaranteeRuns));
+        const dueValid = Number.isInteger(m.dueIn) && m.dueIn >= 1;
         return onlyKeys(m, ['dueIn', 'seen']) && optionalBool(m, 'seen') &&
           (m.seen === true ? m.dueIn == null : dueValid);
       }
       if (id === 'hollowLamplighter') {
-        if (q.state === 'dormant' || q.state === 'complete') return onlyKeys(m, []);
+        if (q.state === 'dormant') return onlyKeys(m, []);
+        if (q.state === 'complete') return onlyKeys(m, ['eligibleMisses']) &&
+          (m.eligibleMisses == null || (Number.isInteger(m.eligibleMisses) && m.eligibleMisses >= 0));
         return onlyKeys(m, ['eligibleMisses', 'emberDebt']) &&
           (m.eligibleMisses == null || (Number.isInteger(m.eligibleMisses) && m.eligibleMisses >= 0)) &&
           (m.emberDebt == null || (q.state === 'revealed' && q.progress === 0 &&
-            Number.isInteger(m.emberDebt) && m.emberDebt >= 1 &&
-            m.emberDebt <= Math.max(1, Math.floor(PROGRESSION.emberglass.hollowLamplighter.emberDebt))));
+            Number.isInteger(m.emberDebt) && m.emberDebt >= 1));
       }
       return onlyKeys(m, []);
     };
@@ -1885,6 +1887,13 @@ export function loadRun() {
     if (!run.map.nodes.every((n) =>
       (n.questVariantId == null || hasOwn(VARIANTS, n.questVariantId)) &&
       (n.questMarked == null || typeof n.questMarked === 'boolean'))) return null;
+    // The immediately preceding Phase 2 build could persist the final
+    // Hollow completion before run-end reconciliation removed its pity
+    // counter. Accept that exact legacy residue and return the canonical
+    // completed shape so an in-flight dawn remains resumable.
+    if (run.quests.hollowLamplighter?.state === 'complete') {
+      run.quests.hollowLamplighter.memory = {};
+    }
     while (run.omens.length <= run.act) run.omens.push(omenEnabled(run) ? rollOmen(run) : null);
     for (const k of ['shatters', 'kindles', 'perfects', 'smolderKills', 'unlitVisited', 'embersSpent']) run.stats[k] ??= 0;
     return run;

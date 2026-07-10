@@ -502,9 +502,9 @@ function confirmAbandon() {
 }
 
 // ------------------------------------------------------------ overlay helpers
-let runSaveTransaction = null;
+let persistenceDialogTransaction = null;
 function openOverlay(html, wire = null, closable = false) {
-  if (runSaveTransaction) return false;
+  if (persistenceDialogTransaction) return false;
   const ov = $('#overlay');
   ov.innerHTML = html;
   ov.classList.add('open');
@@ -513,28 +513,49 @@ function openOverlay(html, wire = null, closable = false) {
   return true;
 }
 function closeOverlay() {
-  if (runSaveTransaction) return false;
+  if (persistenceDialogTransaction) return false;
   const ov = $('#overlay');
   ov.classList.remove('open', 'run-save-lock');
   ov.innerHTML = '';
   return true;
 }
-function showRunSaveFailure(run, onSaved) {
-  if (runSaveTransaction) return;
+function persistenceFailureHtml(id, title, description, retryAction, retryLabel, reloadAction, reloadLabel) {
+  return `<div class="panel ov-panel" role="alertdialog" aria-modal="true" aria-labelledby="${id}-title" aria-describedby="${id}-description" style="text-align:center">
+    <div class="ov-title" id="${id}-title">${title}</div>
+    <div class="ov-sub" id="${id}-description" role="status" aria-live="assertive" aria-atomic="true">${description}</div>
+    <div class="ov-actions"><button class="btn btn-primary" data-a="${retryAction}">${retryLabel}</button><button class="btn ghost" data-a="${reloadAction}">${reloadLabel}</button></div>
+  </div>`;
+}
+function openPersistenceDialog(html, focusSelector, wire) {
+  if (persistenceDialogTransaction) return null;
   closeMenus();
   const background = $('#shake');
   const blockBackground = (event) => {
     event.preventDefault();
     event.stopImmediatePropagation();
   };
-  const transaction = {
-    run, onSaved, background, wasInert: !!background?.inert, blockBackground, settled: false,
+  const transaction = { background, wasInert: !!background?.inert, blockBackground, settled: false, root: null };
+  transaction.active = () => persistenceDialogTransaction === transaction && !transaction.settled;
+  transaction.settle = (continuation = null) => {
+    if (!transaction.active()) return false;
+    transaction.settled = true;
+    if (transaction.root) {
+      transaction.root.onclick = null;
+      transaction.root.onkeydown = null;
+    }
+    if (background) {
+      background.inert = transaction.wasInert;
+      for (const type of ['click', 'pointerdown', 'pointerup', 'keydown']) {
+        background.removeEventListener(type, blockBackground, true);
+      }
+    }
+    persistenceDialogTransaction = null;
+    closeOverlay();
+    continuation?.();
+    return true;
   };
-  const opened = openOverlay(`<div class="panel ov-panel" role="alertdialog" aria-modal="true" aria-labelledby="run-save-failure-title" aria-describedby="run-save-failure-description" style="text-align:center">
-    <div class="ov-title" id="run-save-failure-title">Save Failed</div>
-    <div class="ov-sub" id="run-save-failure-description" role="status" aria-live="assertive" aria-atomic="true">The climb could not be secured. Free storage and retry, or reload the last durable climb state.</div>
-    <div class="ov-actions"><button class="btn btn-primary" data-a="retry-save">Retry Save</button><button class="btn ghost" data-a="reload-save">Reload Saved Climb</button></div>
-  </div>`, (root) => {
+  const opened = openOverlay(html, (root) => {
+    transaction.root = root;
     root.onkeydown = (event) => {
       // Keep global combat shortcuts from reaching the document while this
       // transaction owns input. Background controls are inert, but the
@@ -552,8 +573,29 @@ function showRunSaveFailure(run, onSaved) {
         first.focus();
       }
     };
+    wire(root, transaction);
+  });
+  if (!opened) return null;
+  $('#overlay').classList.add('run-save-lock');
+  persistenceDialogTransaction = transaction;
+  if (background) {
+    background.inert = true;
+    for (const type of ['click', 'pointerdown', 'pointerup', 'keydown']) {
+      background.addEventListener(type, blockBackground, true);
+    }
+  }
+  requestAnimationFrame(() => $(focusSelector, $('#overlay'))?.focus());
+  return transaction;
+}
+function showRunSaveFailure(run, onSaved) {
+  const html = persistenceFailureHtml(
+    'run-save-failure', 'Save Failed',
+    'The climb could not be secured. Free storage and retry, or reload the last durable climb state.',
+    'retry-save', 'Retry Save', 'reload-save', 'Reload Saved Climb',
+  );
+  openPersistenceDialog(html, '[data-a="retry-save"]', (root, transaction) => {
     root.onclick = (e) => {
-      if (runSaveTransaction !== transaction || transaction.settled) return;
+      if (!transaction.active()) return;
       const a = e.target.closest('[data-a]')?.dataset.a;
       if (a === 'reload-save') { location.reload(); return; }
       if (a !== 'retry-save') return;
@@ -569,33 +611,12 @@ function showRunSaveFailure(run, onSaved) {
         retry.focus();
         return;
       }
-      transaction.settled = true;
-      root.onclick = null;
-      root.onkeydown = null;
-      if (background) {
-        background.inert = transaction.wasInert;
-        for (const type of ['click', 'pointerdown', 'pointerup', 'keydown']) {
-          background.removeEventListener(type, blockBackground, true);
-        }
-      }
-      runSaveTransaction = null;
-      closeOverlay();
-      onSaved();
+      transaction.settle(onSaved);
     };
   });
-  if (!opened) return;
-  $('#overlay').classList.add('run-save-lock');
-  runSaveTransaction = transaction;
-  if (background) {
-    background.inert = true;
-    for (const type of ['click', 'pointerdown', 'pointerup', 'keydown']) {
-      background.addEventListener(type, blockBackground, true);
-    }
-  }
-  requestAnimationFrame(() => $('[data-a="retry-save"]', $('#overlay'))?.focus());
 }
 function requireRunSave(run, onSaved) {
-  if (runSaveTransaction) return false;
+  if (persistenceDialogTransaction) return false;
   if (E.saveRun(run)) return true;
   showRunSaveFailure(run, onSaved);
   return false;
@@ -606,19 +627,21 @@ function requireHollowRouteClear(run, onCleared) {
   run.pendingHollowRoute = null;
   if (E.saveRun(run)) return true;
   run.pendingHollowRoute = held;
-  openOverlay(`<div class="panel ov-panel" style="text-align:center">
-    <div class="ov-title">Save Failed</div>
-    <div class="ov-sub">This destination is still pending. Free storage and retry, or reload the exact saved destination.</div>
-    <div class="ov-actions"><button class="btn btn-primary" data-a="retry-hollow-route">Retry Save</button><button class="btn ghost" data-a="reload-hollow-route">Reload Saved Destination</button></div>
-  </div>`, (root) => {
+  const html = persistenceFailureHtml(
+    'hollow-route-save-failure', 'Save Failed',
+    'This destination is still pending. Free storage and retry, or reload the exact saved destination.',
+    'retry-hollow-route', 'Retry Save', 'reload-hollow-route', 'Reload Saved Destination',
+  );
+  openPersistenceDialog(html, '[data-a="retry-hollow-route"]', (root, transaction) => {
     root.onclick = (e) => {
+      if (!transaction.active()) return;
       const action = e.target.closest('[data-a]')?.dataset.a;
       if (action === 'reload-hollow-route') { location.reload(); return; }
       if (action !== 'retry-hollow-route') return;
       sfx.click();
-      root.onclick = null;
-      closeOverlay();
-      if (requireHollowRouteClear(run, onCleared)) onCleared();
+      transaction.settle(() => {
+        if (requireHollowRouteClear(run, onCleared)) onCleared();
+      });
     };
   });
   return false;
@@ -629,19 +652,19 @@ function leaveHollowDestination(run, onCleared) {
   onCleared();
 }
 function showStonePersistenceFailure(onRetry, retryLabel = 'Retry') {
-  openOverlay(`<div class="panel ov-panel" style="text-align:center">
-    <div class="ov-title">The Stone Could Not Hold</div>
-    <div class="ov-sub">The stone could not hold this duel. Free storage and try again.</div>
-    <div class="ov-actions"><button class="btn btn-primary" data-a="retry-stone">${retryLabel}</button><button class="btn ghost" data-a="reload-stone">Reload Saved Climb</button></div>
-  </div>`, (root) => {
+  const html = persistenceFailureHtml(
+    'stone-save-failure', 'The Stone Could Not Hold',
+    'The stone could not hold this duel. Free storage and try again.',
+    'retry-stone', retryLabel, 'reload-stone', 'Reload Saved Climb',
+  );
+  openPersistenceDialog(html, '[data-a="retry-stone"]', (root, transaction) => {
     root.onclick = (e) => {
+      if (!transaction.active()) return;
       const a = e.target.closest('[data-a]')?.dataset.a;
       if (a === 'reload-stone') { location.reload(); return; }
       if (a !== 'retry-stone') return;
       sfx.click();
-      root.onclick = null;
-      closeOverlay();
-      onRetry();
+      transaction.settle(onRetry);
     };
   });
 }
@@ -667,19 +690,19 @@ function resumeSavedCombat(run, onReady) {
   return true;
 }
 function showRunEndPersistenceFailure(run, onFinalised = null) {
-  openOverlay(`<div class="panel ov-panel" style="text-align:center">
-    <div class="ov-title">The Vigil Could Not Hold</div>
-    <div class="ov-sub">This run end is safely journalled, but its ledgers or final dawn could not be secured. Free storage and retry, or reload this saved finalisation.</div>
-    <div class="ov-actions"><button class="btn btn-primary" data-a="retry-end">Retry Finalisation</button><button class="btn ghost" data-a="reload-end">Reload Saved Finalisation</button></div>
-  </div>`, (root) => {
+  const html = persistenceFailureHtml(
+    'run-end-save-failure', 'The Vigil Could Not Hold',
+    'This run end is safely journalled, but its ledgers or final dawn could not be secured. Free storage and retry, or reload this saved finalisation.',
+    'retry-end', 'Retry Finalisation', 'reload-end', 'Reload Saved Finalisation',
+  );
+  openPersistenceDialog(html, '[data-a="retry-end"]', (root, transaction) => {
     root.onclick = (e) => {
+      if (!transaction.active()) return;
       const a = e.target.closest('[data-a]')?.dataset.a;
       if (a === 'reload-end') { location.reload(); return; }
       if (a !== 'retry-end') return;
       sfx.click();
-      root.onclick = null;
-      closeOverlay();
-      finalisePendingRunEnd(run, onFinalised);
+      transaction.settle(() => finalisePendingRunEnd(run, onFinalised));
     };
   });
 }
@@ -1191,7 +1214,7 @@ function resumePendingHollowRoute(run) {
   return true;
 }
 function startRun(run, resumed = false) {
-  if (!resumed && runSaveTransaction) return;
+  if (!resumed && persistenceDialogTransaction) return;
   S.run = run;
   S.cb = null;
   setTheme(run.act);
@@ -5026,21 +5049,21 @@ function dawnEventHtml(event) {
 
 function showDawnPersistenceFailure(onRetry, phase) {
   const finishing = phase === 'clear';
-  openOverlay(`<div class="panel ov-panel" style="text-align:center">
-    <div class="ov-title">The Dawn Could Not Hold</div>
-    <div class="ov-sub">${finishing
-      ? 'Every panel has been seen, but the saved dawn could not be released. Retry before leaving this screen.'
-      : 'This panel was shown, but its place in the dawn could not be secured. Retry before the ceremony continues.'}</div>
-    <div class="ov-actions"><button class="btn btn-primary" data-a="retry-dawn">Retry Save</button><button class="btn ghost" data-a="reload-dawn">Reload Saved Dawn</button></div>
-  </div>`, (root) => {
+  const description = finishing
+    ? 'Every panel has been seen, but the saved dawn could not be released. Retry before leaving this screen.'
+    : 'This panel was shown, but its place in the dawn could not be secured. Retry before the ceremony continues.';
+  const html = persistenceFailureHtml(
+    'dawn-save-failure', 'The Dawn Could Not Hold', description,
+    'retry-dawn', 'Retry Save', 'reload-dawn', 'Reload Saved Dawn',
+  );
+  openPersistenceDialog(html, '[data-a="retry-dawn"]', (root, transaction) => {
     root.onclick = (event) => {
+      if (!transaction.active()) return;
       const action = event.target.closest('[data-a]')?.dataset.a;
       if (action === 'reload-dawn') { location.reload(); return; }
       if (action !== 'retry-dawn') return;
       sfx.click();
-      root.onclick = null;
-      closeOverlay();
-      onRetry();
+      transaction.settle(onRetry);
     };
   });
 }

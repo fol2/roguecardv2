@@ -303,3 +303,46 @@ test('Reload Saved Climb discards a failed live mutation and restores the durabl
     bought: Boolean(window.spirebound.S.run.questScratch.usurper?.bought),
   }))).toEqual({ gold: 650, bought: false });
 });
+
+test('Shade cross-store failure keeps the saved duel behind an exclusive retry dialog', async ({ page }) => {
+  const vigil = freshLedger();
+  vigil.quests.ownShade = { state: 'revealed', progress: 0, memory: {} };
+  vigil.lastFall = {
+    act: 1, row: 4, bequest: null, standing: true, shadeAspect: 0,
+  };
+  await seed(page, vigil);
+  await page.evaluate(() => {
+    const sp = window.spirebound;
+    const stored = JSON.parse(localStorage.getItem('spirebound_vigil_v2'));
+    const run = sp.E.newRun(9502, { quests: stored.quests, monument: stored.lastFall });
+    run.act = 1;
+    run.map = sp.E.genMap(run);
+    run.monument.claimed = true;
+    run.questScratch.ownShade = { pendingBequest: null };
+    sp.E.setPendingEncounter(run, 'monster', ['ownShade1'], 'ownShade');
+    if (!sp.E.saveRun(run)) throw new Error('Shade retry fixture did not persist');
+    sp.show('title');
+
+    const original = Storage.prototype.setItem;
+    window.__rejectShadeClear = true;
+    Storage.prototype.setItem = function rejectShadeClear(key, value) {
+      if (key === 'spirebound_vigil_v2' && window.__rejectShadeClear) {
+        throw new Error('injected Shade bequest-clear failure');
+      }
+      return original.call(this, key, value);
+    };
+  });
+
+  await page.click('[data-a="continue"]');
+  await expect(page.locator('.ov-title')).toHaveText('The Stone Could Not Hold');
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
+  await expect(page.locator('[data-a="retry-stone"]')).toBeFocused();
+  expect(await page.evaluate(() => window.spirebound.S.screen)).not.toBe('combat');
+
+  await page.evaluate(() => { window.__rejectShadeClear = false; });
+  await page.click('[data-a="retry-stone"]');
+  await page.waitForFunction(() => window.spirebound?.S.screen === 'combat');
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_vigil_v2')).lastFall))
+    .toBeNull();
+});

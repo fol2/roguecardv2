@@ -201,6 +201,9 @@ test('Hollow destination cannot return to the map until marker clear is acknowle
   await page.click('[data-a="hollow-leave"]');
   await page.waitForFunction(() => window.spirebound.S.screen === 'shop');
   const route = await page.evaluate(() => structuredClone(window.spirebound.S.run.pendingHollowRoute));
+  await page.locator('[data-act="menu"]').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.pop-menu')).toHaveCount(1);
 
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
@@ -213,8 +216,12 @@ test('Hollow destination cannot return to the map until marker clear is acknowle
       return original.call(this, key, value);
     };
   });
-  await page.click('[data-a="leave"]');
+  await page.locator('[data-a="leave"]').focus();
+  await page.keyboard.press('Enter');
   await expect(page.getByText('Save Failed', { exact: true })).toBeVisible();
+  await expect(page.locator('.pop-menu, .audio-panel, .settings-panel')).toHaveCount(0);
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
+  await expect(page.locator('[data-a="retry-hollow-route"]')).toBeFocused();
   const failed = await page.evaluate(() => ({
     screen: window.spirebound.S.screen,
     live: window.spirebound.S.run.pendingHollowRoute,
@@ -226,5 +233,6 @@ test('Hollow destination cannot return to the map until marker clear is acknowle
 
   await page.click('[data-a="retry-hollow-route"]');
   await page.waitForFunction(() => window.spirebound.S.screen === 'map');
+  await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2')).pendingHollowRoute)).toBeNull();
 });
