@@ -1,0 +1,1468 @@
+{
+  "schema_version": 1,
+  "pack_id": "stained-glass-v2",
+  "kind": "music",
+  "source": "docs/music-ledger.md",
+  "selection_sha256": "179642465d4e38fe5c9bf29949452bcf346c6a850827ed4c7aa1921b49b4ec55",
+  "provenance": {
+    "provider": "Suno",
+    "generated_at": "2026-07-10T09:05:07Z",
+    "licence_or_plan": "Suno Pro Plan",
+    "notes": "Source tracks were generated in the logged-in fol2hk Pro workspace on 9 July 2026. The timestamp records final candidate selection and local pack rendering; unselected candidates remain identified by the production audit, not installed as runtime assets."
+  },
+  "renderer": {
+    "tool": "tools/render-suno-music-pack.mjs",
+    "minimum_duration_seconds": 90,
+    "maximum_duration_seconds": 120,
+    "crossfade_seconds": 3,
+    "tail_exclusion_seconds": 4,
+    "minimum_tempo_factor": 0.935,
+    "integrated_loudness_lufs": -20,
+    "true_peak_dbtp": -3,
+    "loudness_range_lu": 11,
+    "sample_rate_hz": 48000,
+    "channels": 2,
+    "bitrate_kbps": 192,
+    "crossfade_curve": "qua",
+    "edge_window_seconds": 0.25,
+    "minimum_edge_rms_dbfs": -55,
+    "maximum_edge_rms_delta_db": 15,
+    "minimum_seam_energy_delta_db": -9,
+    "maximum_seam_energy_delta_db": 3.5,
+    "maximum_boundary_jump": 0.08,
+    "maximum_boundary_jump_ratio": 8,
+    "loop_method": "middle followed by a quadratic tail-to-head crossfade; the end returns to the rotated start"
+  },
+  "items": {
+    "title": {
+      "file": "title.mp3",
+      "bytes": 2881152,
+      "sha256": "56492efc1a1eb2250e0052e78286d409ad5c03041929110addea9778013af378",
+      "candidate_file": "title--a--e13e69cc-1a3b-4133-91da-f3005429e699.mp3",
+      "candidate_sha256": "b9d0c136f8729f1b3b6911252f3070d0980584b2db72afad2d21df3f8c02640b",
+      "selected_variant": "a",
+      "source_id": "e13e69cc-1a3b-4133-91da-f3005429e699",
+      "source_url": "https://suno.com/song/e13e69cc-1a3b-4133-91da-f3005429e699",
+      "source_media": {
+        "duration_seconds": 154.239979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 31.239979,
+        "source_window_seconds": 123,
+        "pre_tempo_duration_seconds": 120,
+        "output_duration_seconds": 120,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 120,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.26,
+        "true_peak_dbtp": -7.75
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 120,
+        "first_edge_rms_dbfs": -34.23,
+        "last_edge_rms_dbfs": -36.65,
+        "edge_rms_delta_db": 7.94,
+        "seam_rms_dbfs": -28.95,
+        "seam_energy_delta_db": -5.73,
+        "minimum_seam_energy_delta_db": -6.29,
+        "maximum_seam_energy_delta_db": -5.18,
+        "boundary_jump": 0.002228,
+        "boundary_jump_ratio": 1.89,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -34.23,
+            "last_edge_rms_dbfs": -35.87,
+            "edge_rms_delta_db": 1.64,
+            "seam_rms_dbfs": -29.18,
+            "seam_energy_delta_db": -5.18,
+            "boundary_jump": 0.002228,
+            "boundary_jump_ratio": 1.89
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -28.71,
+            "last_edge_rms_dbfs": -36.65,
+            "edge_rms_delta_db": 7.94,
+            "seam_rms_dbfs": -28.95,
+            "seam_energy_delta_db": -6.29,
+            "boundary_jump": 0.000523,
+            "boundary_jump_ratio": 0.51
+          }
+        ]
+      }
+    },
+    "embark": {
+      "file": "embark.mp3",
+      "bytes": 2161152,
+      "sha256": "c1e8a2aec72ae49e7e7bde2049d1996928995182f5f17921e94e7addc9a62c5b",
+      "candidate_file": "embark--a--d5feec6a-456f-4f11-baf5-5c1f3270fa04.mp3",
+      "candidate_sha256": "26179f145335f806059874e32b01cb54d310def664e6555967e7dd44459ff213",
+      "selected_variant": "a",
+      "source_id": "d5feec6a-456f-4f11-baf5-5c1f3270fa04",
+      "source_url": "https://suno.com/song/d5feec6a-456f-4f11-baf5-5c1f3270fa04",
+      "source_media": {
+        "duration_seconds": 93.359979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 4,
+        "source_window_seconds": 89.359979,
+        "pre_tempo_duration_seconds": 86.359979,
+        "output_duration_seconds": 90,
+        "tempo_factor": 0.959555322
+      },
+      "output_media": {
+        "duration_seconds": 89.994125,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.26,
+        "true_peak_dbtp": -6.76
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 89.994125,
+        "first_edge_rms_dbfs": -32.95,
+        "last_edge_rms_dbfs": -29.42,
+        "edge_rms_delta_db": 3.53,
+        "seam_rms_dbfs": -31.51,
+        "seam_energy_delta_db": -6.54,
+        "minimum_seam_energy_delta_db": -7.23,
+        "maximum_seam_energy_delta_db": -5.86,
+        "boundary_jump": 0.002689,
+        "boundary_jump_ratio": 1.07,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -30.54,
+            "last_edge_rms_dbfs": -28.69,
+            "edge_rms_delta_db": 1.85,
+            "seam_rms_dbfs": -31.51,
+            "seam_energy_delta_db": -7.23,
+            "boundary_jump": 0.002689,
+            "boundary_jump_ratio": 1.07
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -32.95,
+            "last_edge_rms_dbfs": -29.42,
+            "edge_rms_delta_db": 3.53,
+            "seam_rms_dbfs": -31.96,
+            "seam_energy_delta_db": -5.86,
+            "boundary_jump": 0.001074,
+            "boundary_jump_ratio": 0.42
+          }
+        ]
+      }
+    },
+    "vigil": {
+      "file": "vigil.mp3",
+      "bytes": 2881152,
+      "sha256": "72e1cf00179a3c5404bf09d548477565c7709dc04d8b4f3181499136b3158d92",
+      "candidate_file": "vigil--b--49e369d1-a17c-419e-b73d-709813f3ddbb.mp3",
+      "candidate_sha256": "e3fc5e1aa10ad21a339d92e30f0287c3dbfd2ef757021e7738f4e1d21cbb13f7",
+      "selected_variant": "b",
+      "source_id": "49e369d1-a17c-419e-b73d-709813f3ddbb",
+      "source_url": "https://suno.com/song/49e369d1-a17c-419e-b73d-709813f3ddbb",
+      "source_media": {
+        "duration_seconds": 139.199979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 16.199979,
+        "source_window_seconds": 123,
+        "pre_tempo_duration_seconds": 120,
+        "output_duration_seconds": 120,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 120,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.27,
+        "true_peak_dbtp": -6.59
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 120,
+        "first_edge_rms_dbfs": -33.73,
+        "last_edge_rms_dbfs": -30.6,
+        "edge_rms_delta_db": 4.7,
+        "seam_rms_dbfs": -25.92,
+        "seam_energy_delta_db": 2.24,
+        "minimum_seam_energy_delta_db": 1.27,
+        "maximum_seam_energy_delta_db": 3.21,
+        "boundary_jump": 0.001597,
+        "boundary_jump_ratio": 0.56,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -31.76,
+            "last_edge_rms_dbfs": -30.6,
+            "edge_rms_delta_db": 1.16,
+            "seam_rms_dbfs": -27.96,
+            "seam_energy_delta_db": 3.21,
+            "boundary_jump": 0.001597,
+            "boundary_jump_ratio": 0.56
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -33.73,
+            "last_edge_rms_dbfs": -29.03,
+            "edge_rms_delta_db": 4.7,
+            "seam_rms_dbfs": -25.92,
+            "seam_energy_delta_db": 1.27,
+            "boundary_jump": 0.000709,
+            "boundary_jump_ratio": 0.41
+          }
+        ]
+      }
+    },
+    "roseWindow": {
+      "file": "rose-window.mp3",
+      "bytes": 2881152,
+      "sha256": "3dbcd6ddda83fbbc0f3630b217527e7cee745905ff8ad129ba8462ee336a99d0",
+      "candidate_file": "roseWindow--b--e025829b-94f8-4a91-8bd0-bf006fc983f7.mp3",
+      "candidate_sha256": "51a2260a782b0692e3fe5bdc431a8fe1af95ebc93b9fb39ce145457225777d5b",
+      "selected_variant": "b",
+      "source_id": "e025829b-94f8-4a91-8bd0-bf006fc983f7",
+      "source_url": "https://suno.com/song/e025829b-94f8-4a91-8bd0-bf006fc983f7",
+      "source_media": {
+        "duration_seconds": 147.719979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 24.719979,
+        "source_window_seconds": 123,
+        "pre_tempo_duration_seconds": 120,
+        "output_duration_seconds": 120,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 120,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.26,
+        "true_peak_dbtp": -7.28
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 120,
+        "first_edge_rms_dbfs": -26.71,
+        "last_edge_rms_dbfs": -24.18,
+        "edge_rms_delta_db": 2.53,
+        "seam_rms_dbfs": -25.49,
+        "seam_energy_delta_db": -2.76,
+        "minimum_seam_energy_delta_db": -5.01,
+        "maximum_seam_energy_delta_db": -0.51,
+        "boundary_jump": 0.008247,
+        "boundary_jump_ratio": 1.56,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -26.71,
+            "last_edge_rms_dbfs": -24.18,
+            "edge_rms_delta_db": 2.53,
+            "seam_rms_dbfs": -25.49,
+            "seam_energy_delta_db": -0.51,
+            "boundary_jump": 0.00036,
+            "boundary_jump_ratio": 0.12
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -23.16,
+            "last_edge_rms_dbfs": -22.5,
+            "edge_rms_delta_db": 0.66,
+            "seam_rms_dbfs": -26.9,
+            "seam_energy_delta_db": -5.01,
+            "boundary_jump": 0.008247,
+            "boundary_jump_ratio": 1.56
+          }
+        ]
+      }
+    },
+    "map": {
+      "file": "map.mp3",
+      "bytes": 2161152,
+      "sha256": "b50d733683f764118e0ed35c9d746d22e2e7cdd56617f21d2f01b828ecf14e00",
+      "candidate_file": "map--b--1b7d9375-23dc-4207-acb5-4fd200d98b21.mp3",
+      "candidate_sha256": "720a26ae3f864c409334e26dbc4752d25ae0897d237f720bf2c715b65962eb7d",
+      "selected_variant": "b",
+      "source_id": "1b7d9375-23dc-4207-acb5-4fd200d98b21",
+      "source_url": "https://suno.com/song/1b7d9375-23dc-4207-acb5-4fd200d98b21",
+      "source_media": {
+        "duration_seconds": 91.559979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 4,
+        "source_window_seconds": 87.559979,
+        "pre_tempo_duration_seconds": 84.559979,
+        "output_duration_seconds": 90,
+        "tempo_factor": 0.939555322
+      },
+      "output_media": {
+        "duration_seconds": 89.993938,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.26,
+        "true_peak_dbtp": -6.36
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 89.993938,
+        "first_edge_rms_dbfs": -32.54,
+        "last_edge_rms_dbfs": -35.64,
+        "edge_rms_delta_db": 3.11,
+        "seam_rms_dbfs": -29.07,
+        "seam_energy_delta_db": -5.63,
+        "minimum_seam_energy_delta_db": -6.1,
+        "maximum_seam_energy_delta_db": -5.16,
+        "boundary_jump": 0.001331,
+        "boundary_jump_ratio": 0.45,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -28.78,
+            "last_edge_rms_dbfs": -29.27,
+            "edge_rms_delta_db": 0.48,
+            "seam_rms_dbfs": -29.07,
+            "seam_energy_delta_db": -5.16,
+            "boundary_jump": 0.001331,
+            "boundary_jump_ratio": 0.45
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -32.54,
+            "last_edge_rms_dbfs": -35.64,
+            "edge_rms_delta_db": 3.11,
+            "seam_rms_dbfs": -30.73,
+            "seam_energy_delta_db": -6.1,
+            "boundary_jump": 0.000579,
+            "boundary_jump_ratio": 0.35
+          }
+        ]
+      }
+    },
+    "safeNodes": {
+      "file": "safe-nodes.mp3",
+      "bytes": 2438784,
+      "sha256": "554aa01c131cbd4ee694feb52cff00ddcc38522194e1d4b3b0c1c15bad1b9225",
+      "candidate_file": "safeNodes--a--9082b858-32e0-448b-8fe6-9640f0bb832d.mp3",
+      "candidate_sha256": "2a5e64fe9301638a15810a10e81ce2d4573dd19b2733ba06e5a1c5851f570f60",
+      "selected_variant": "a",
+      "source_id": "9082b858-32e0-448b-8fe6-9640f0bb832d",
+      "source_url": "https://suno.com/song/9082b858-32e0-448b-8fe6-9640f0bb832d",
+      "source_media": {
+        "duration_seconds": 108.559979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 4,
+        "source_window_seconds": 104.559979,
+        "pre_tempo_duration_seconds": 101.559979,
+        "output_duration_seconds": 101.559979,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 101.559979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.27,
+        "true_peak_dbtp": -6.83
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 101.559979,
+        "first_edge_rms_dbfs": -33.47,
+        "last_edge_rms_dbfs": -31.32,
+        "edge_rms_delta_db": 2.15,
+        "seam_rms_dbfs": -32.42,
+        "seam_energy_delta_db": -5.94,
+        "minimum_seam_energy_delta_db": -6.5,
+        "maximum_seam_energy_delta_db": -5.38,
+        "boundary_jump": 0.006478,
+        "boundary_jump_ratio": 0.82,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -33.47,
+            "last_edge_rms_dbfs": -31.32,
+            "edge_rms_delta_db": 2.15,
+            "seam_rms_dbfs": -33.04,
+            "seam_energy_delta_db": -5.38,
+            "boundary_jump": 0.002926,
+            "boundary_jump_ratio": 0.55
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -29.7,
+            "last_edge_rms_dbfs": -30.85,
+            "edge_rms_delta_db": 1.15,
+            "seam_rms_dbfs": -32.42,
+            "seam_energy_delta_db": -6.5,
+            "boundary_jump": 0.006478,
+            "boundary_jump_ratio": 0.82
+          }
+        ]
+      }
+    },
+    "act1Combat": {
+      "file": "act1-combat.mp3",
+      "bytes": 2742912,
+      "sha256": "34cf25ef3cd3226b74445aef416ebb0f954d3815ae3e38890f597f43ecfc2b91",
+      "candidate_file": "act1Combat--b--80b17c49-30bb-4b80-9e16-65912ee16b66.mp3",
+      "candidate_sha256": "0aeddce1c160266652e653232754a0995ea9ee2378ef3d2662d348491dfb5454",
+      "selected_variant": "b",
+      "source_id": "80b17c49-30bb-4b80-9e16-65912ee16b66",
+      "source_url": "https://suno.com/song/80b17c49-30bb-4b80-9e16-65912ee16b66",
+      "source_media": {
+        "duration_seconds": 121.239979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 4,
+        "source_window_seconds": 117.239979,
+        "pre_tempo_duration_seconds": 114.239979,
+        "output_duration_seconds": 114.239979,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 114.239979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.26,
+        "true_peak_dbtp": -7.22
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 114.239979,
+        "first_edge_rms_dbfs": -29.41,
+        "last_edge_rms_dbfs": -26.35,
+        "edge_rms_delta_db": 3.42,
+        "seam_rms_dbfs": -30.51,
+        "seam_energy_delta_db": -4.61,
+        "minimum_seam_energy_delta_db": -5.53,
+        "maximum_seam_energy_delta_db": -3.68,
+        "boundary_jump": 0.00243,
+        "boundary_jump_ratio": 0.81,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -27.65,
+            "last_edge_rms_dbfs": -24.23,
+            "edge_rms_delta_db": 3.42,
+            "seam_rms_dbfs": -30.51,
+            "seam_energy_delta_db": -3.68,
+            "boundary_jump": 0.00243,
+            "boundary_jump_ratio": 0.81
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -29.41,
+            "last_edge_rms_dbfs": -26.35,
+            "edge_rms_delta_db": 3.06,
+            "seam_rms_dbfs": -31.33,
+            "seam_energy_delta_db": -5.53,
+            "boundary_jump": 0.001008,
+            "boundary_jump_ratio": 0.45
+          }
+        ]
+      }
+    },
+    "act1Boss": {
+      "file": "act1-boss.mp3",
+      "bytes": 2881152,
+      "sha256": "d51537a00b97ff09bc8f2cb7ebadb43b945d1fa822673c1594f26baf0e33bb5f",
+      "candidate_file": "act1Boss--b--9dbccdee-b0ce-466c-8b30-9ccfa902ecc2.mp3",
+      "candidate_sha256": "de6ad23d29551a10c975eb50019f54c27451732d2eef8ccc1bf14e631573e2cb",
+      "selected_variant": "b",
+      "source_id": "9dbccdee-b0ce-466c-8b30-9ccfa902ecc2",
+      "source_url": "https://suno.com/song/9dbccdee-b0ce-466c-8b30-9ccfa902ecc2",
+      "source_media": {
+        "duration_seconds": 139.679979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 16.679979,
+        "source_window_seconds": 123,
+        "pre_tempo_duration_seconds": 120,
+        "output_duration_seconds": 120,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 120,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.26,
+        "true_peak_dbtp": -8.86
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 120,
+        "first_edge_rms_dbfs": -33.16,
+        "last_edge_rms_dbfs": -33.52,
+        "edge_rms_delta_db": 2.37,
+        "seam_rms_dbfs": -25.76,
+        "seam_energy_delta_db": 2.72,
+        "minimum_seam_energy_delta_db": 2.69,
+        "maximum_seam_energy_delta_db": 2.75,
+        "boundary_jump": 0.001608,
+        "boundary_jump_ratio": 1.14,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -32.33,
+            "last_edge_rms_dbfs": -33.52,
+            "edge_rms_delta_db": 1.18,
+            "seam_rms_dbfs": -26.72,
+            "seam_energy_delta_db": 2.69,
+            "boundary_jump": 0.001608,
+            "boundary_jump_ratio": 1.14
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -33.16,
+            "last_edge_rms_dbfs": -30.79,
+            "edge_rms_delta_db": 2.37,
+            "seam_rms_dbfs": -25.76,
+            "seam_energy_delta_db": 2.75,
+            "boundary_jump": 0.000447,
+            "boundary_jump_ratio": 0.25
+          }
+        ]
+      }
+    },
+    "act2Combat": {
+      "file": "act2-combat.mp3",
+      "bytes": 2326464,
+      "sha256": "eed9ab8e80caf0f1f82d403106a12fc85b9ac4fc46489e5882bc63325c3def37",
+      "candidate_file": "act2Combat--a--9e0e91e8-ecc4-4f34-acdf-a110185bd860.mp3",
+      "candidate_sha256": "0e6836c5d2ed473925733794fdac73348d4791ce80822c4da683c6fb4b625b3c",
+      "selected_variant": "a",
+      "source_id": "9e0e91e8-ecc4-4f34-acdf-a110185bd860",
+      "source_url": "https://suno.com/song/9e0e91e8-ecc4-4f34-acdf-a110185bd860",
+      "source_media": {
+        "duration_seconds": 103.879979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 4,
+        "source_window_seconds": 99.879979,
+        "pre_tempo_duration_seconds": 96.879979,
+        "output_duration_seconds": 96.879979,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 96.879979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.26,
+        "true_peak_dbtp": -7.7
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 96.879979,
+        "first_edge_rms_dbfs": -33.6,
+        "last_edge_rms_dbfs": -34.87,
+        "edge_rms_delta_db": 1.27,
+        "seam_rms_dbfs": -26.63,
+        "seam_energy_delta_db": -3.93,
+        "minimum_seam_energy_delta_db": -4.8,
+        "maximum_seam_energy_delta_db": -3.06,
+        "boundary_jump": 0.004923,
+        "boundary_jump_ratio": 1.53,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -29.21,
+            "last_edge_rms_dbfs": -29.15,
+            "edge_rms_delta_db": 0.06,
+            "seam_rms_dbfs": -26.63,
+            "seam_energy_delta_db": -4.8,
+            "boundary_jump": 0.004923,
+            "boundary_jump_ratio": 1.53
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -33.6,
+            "last_edge_rms_dbfs": -34.87,
+            "edge_rms_delta_db": 1.27,
+            "seam_rms_dbfs": -27.58,
+            "seam_energy_delta_db": -3.06,
+            "boundary_jump": 0.000413,
+            "boundary_jump_ratio": 0.27
+          }
+        ]
+      }
+    },
+    "act2Boss": {
+      "file": "act2-boss.mp3",
+      "bytes": 2881152,
+      "sha256": "0b6a878c1cc1d11f3c073d084a671457696835af096fb208dc5132c653875cf5",
+      "candidate_file": "act2Boss--b--808bc422-321a-470c-92a4-da51be73451b.mp3",
+      "candidate_sha256": "77a9945de66893ffd3f791f42e1827cff4ed38d68a36442f859ae0aad2088fa1",
+      "selected_variant": "b",
+      "source_id": "808bc422-321a-470c-92a4-da51be73451b",
+      "source_url": "https://suno.com/song/808bc422-321a-470c-92a4-da51be73451b",
+      "source_media": {
+        "duration_seconds": 137.519979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 14.519979,
+        "source_window_seconds": 123,
+        "pre_tempo_duration_seconds": 120,
+        "output_duration_seconds": 120,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 120,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.26,
+        "true_peak_dbtp": -6.54
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 120,
+        "first_edge_rms_dbfs": -21.26,
+        "last_edge_rms_dbfs": -23.26,
+        "edge_rms_delta_db": 1.99,
+        "seam_rms_dbfs": -23.52,
+        "seam_energy_delta_db": -1.3,
+        "minimum_seam_energy_delta_db": -1.92,
+        "maximum_seam_energy_delta_db": -0.69,
+        "boundary_jump": 0.015611,
+        "boundary_jump_ratio": 3.76,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -20.53,
+            "last_edge_rms_dbfs": -18.84,
+            "edge_rms_delta_db": 1.7,
+            "seam_rms_dbfs": -23.52,
+            "seam_energy_delta_db": -0.69,
+            "boundary_jump": 0.015611,
+            "boundary_jump_ratio": 3.76
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -21.26,
+            "last_edge_rms_dbfs": -23.26,
+            "edge_rms_delta_db": 1.99,
+            "seam_rms_dbfs": -24.56,
+            "seam_energy_delta_db": -1.92,
+            "boundary_jump": 0.004826,
+            "boundary_jump_ratio": 1.21
+          }
+        ]
+      }
+    },
+    "act3Combat": {
+      "file": "act3-combat.mp3",
+      "bytes": 2630016,
+      "sha256": "0f5af17925c710a377f4f62b203679b4434d9c99ae7ee7d99edb693f4aab8f13",
+      "candidate_file": "act3Combat--a--b6458738-dcd7-46ef-a5fc-3a6722006278.mp3",
+      "candidate_sha256": "55a9cf89edd9f3ec595ad503c82048780fecef317e7b04b4194ddebd8d34a2c5",
+      "selected_variant": "a",
+      "source_id": "b6458738-dcd7-46ef-a5fc-3a6722006278",
+      "source_url": "https://suno.com/song/b6458738-dcd7-46ef-a5fc-3a6722006278",
+      "source_media": {
+        "duration_seconds": 116.519979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 4,
+        "source_window_seconds": 112.519979,
+        "pre_tempo_duration_seconds": 109.519979,
+        "output_duration_seconds": 109.519979,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 109.519979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.25,
+        "true_peak_dbtp": -7.18
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 109.519979,
+        "first_edge_rms_dbfs": -28.83,
+        "last_edge_rms_dbfs": -29.34,
+        "edge_rms_delta_db": 1.68,
+        "seam_rms_dbfs": -25.93,
+        "seam_energy_delta_db": -3.3,
+        "minimum_seam_energy_delta_db": -4.09,
+        "maximum_seam_energy_delta_db": -2.52,
+        "boundary_jump": 0.000892,
+        "boundary_jump_ratio": 0.46,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -28.83,
+            "last_edge_rms_dbfs": -28.97,
+            "edge_rms_delta_db": 0.15,
+            "seam_rms_dbfs": -26.36,
+            "seam_energy_delta_db": -4.09,
+            "boundary_jump": 0.000436,
+            "boundary_jump_ratio": 0.24
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -27.67,
+            "last_edge_rms_dbfs": -29.34,
+            "edge_rms_delta_db": 1.68,
+            "seam_rms_dbfs": -25.93,
+            "seam_energy_delta_db": -2.52,
+            "boundary_jump": 0.000892,
+            "boundary_jump_ratio": 0.46
+          }
+        ]
+      }
+    },
+    "act3Boss": {
+      "file": "act3-boss.mp3",
+      "bytes": 2881152,
+      "sha256": "69611cf287dccfa0f5bbae02d8603da32b1981d6ecc0ade5b49f0b1f0b464bc0",
+      "candidate_file": "act3Boss--b--bf82f446-67dc-4632-abe9-e048958e16fc.mp3",
+      "candidate_sha256": "5c2d4eee1881a3d3c38b69db2d4284d53ae79777dc39dc35f28f07ed431a61f0",
+      "selected_variant": "b",
+      "source_id": "bf82f446-67dc-4632-abe9-e048958e16fc",
+      "source_url": "https://suno.com/song/bf82f446-67dc-4632-abe9-e048958e16fc",
+      "source_media": {
+        "duration_seconds": 139.719979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 16.719979,
+        "source_window_seconds": 123,
+        "pre_tempo_duration_seconds": 120,
+        "output_duration_seconds": 120,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 120,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.26,
+        "true_peak_dbtp": -8.3
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 120,
+        "first_edge_rms_dbfs": -23.27,
+        "last_edge_rms_dbfs": -23.84,
+        "edge_rms_delta_db": 1.72,
+        "seam_rms_dbfs": -25.61,
+        "seam_energy_delta_db": -2.15,
+        "minimum_seam_energy_delta_db": -2.4,
+        "maximum_seam_energy_delta_db": -1.89,
+        "boundary_jump": 0.001403,
+        "boundary_jump_ratio": 0.12,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -23.27,
+            "last_edge_rms_dbfs": -23.84,
+            "edge_rms_delta_db": 0.57,
+            "seam_rms_dbfs": -26.41,
+            "seam_energy_delta_db": -1.89,
+            "boundary_jump": 0.000547,
+            "boundary_jump_ratio": 0.06
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -20.12,
+            "last_edge_rms_dbfs": -21.84,
+            "edge_rms_delta_db": 1.72,
+            "seam_rms_dbfs": -25.61,
+            "seam_energy_delta_db": -2.4,
+            "boundary_jump": 0.001403,
+            "boundary_jump_ratio": 0.12
+          }
+        ]
+      }
+    },
+    "elite": {
+      "file": "elite.mp3",
+      "bytes": 2881152,
+      "sha256": "db5984f7f51373d84d62b9cb1778c708858ce9ad9463cfa9831910f99a8853d7",
+      "candidate_file": "elite--b--0ee85aef-a914-4afc-a4e0-8e6ffad714f7.mp3",
+      "candidate_sha256": "3447c0e080dd14e1054043a41a408d17dcd5c20b47a248723ecf53cdf0562c71",
+      "selected_variant": "b",
+      "source_id": "0ee85aef-a914-4afc-a4e0-8e6ffad714f7",
+      "source_url": "https://suno.com/song/0ee85aef-a914-4afc-a4e0-8e6ffad714f7",
+      "source_media": {
+        "duration_seconds": 169.999979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 46.999979,
+        "source_window_seconds": 123,
+        "pre_tempo_duration_seconds": 120,
+        "output_duration_seconds": 120,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 120,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.27,
+        "true_peak_dbtp": -7.02
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 120,
+        "first_edge_rms_dbfs": -28.04,
+        "last_edge_rms_dbfs": -37.23,
+        "edge_rms_delta_db": 9.18,
+        "seam_rms_dbfs": -31.64,
+        "seam_energy_delta_db": -7.92,
+        "minimum_seam_energy_delta_db": -8.03,
+        "maximum_seam_energy_delta_db": -7.81,
+        "boundary_jump": 0.002403,
+        "boundary_jump_ratio": 0.84,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -28.04,
+            "last_edge_rms_dbfs": -37.23,
+            "edge_rms_delta_db": 9.18,
+            "seam_rms_dbfs": -32.73,
+            "seam_energy_delta_db": -8.03,
+            "boundary_jump": 0.002403,
+            "boundary_jump_ratio": 0.84
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -27.54,
+            "last_edge_rms_dbfs": -34.24,
+            "edge_rms_delta_db": 6.7,
+            "seam_rms_dbfs": -31.64,
+            "seam_energy_delta_db": -7.81,
+            "boundary_jump": 0.000064,
+            "boundary_jump_ratio": 0.02
+          }
+        ]
+      }
+    },
+    "paleOnes": {
+      "file": "pale-ones.mp3",
+      "bytes": 2881152,
+      "sha256": "018e6f29a80fa0e6f6b5869d5d4c293b746d58d139360b30d26f0e2002977ec2",
+      "candidate_file": "paleOnes--a--64080dc6-c68f-434c-bf22-fc77c3e46b60.mp3",
+      "candidate_sha256": "e1faafca94dd54569e00cc2aed6adeba88ae40c680962102e015a03e6d80f740",
+      "selected_variant": "a",
+      "source_id": "64080dc6-c68f-434c-bf22-fc77c3e46b60",
+      "source_url": "https://suno.com/song/64080dc6-c68f-434c-bf22-fc77c3e46b60",
+      "source_media": {
+        "duration_seconds": 129.799979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 6.799979,
+        "source_window_seconds": 123,
+        "pre_tempo_duration_seconds": 120,
+        "output_duration_seconds": 120,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 120,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.27,
+        "true_peak_dbtp": -5.56
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 120,
+        "first_edge_rms_dbfs": -42.29,
+        "last_edge_rms_dbfs": -34.74,
+        "edge_rms_delta_db": 11.64,
+        "seam_rms_dbfs": -26.88,
+        "seam_energy_delta_db": -3.55,
+        "minimum_seam_energy_delta_db": -4.17,
+        "maximum_seam_energy_delta_db": -2.93,
+        "boundary_jump": 0.002034,
+        "boundary_jump_ratio": 1.52,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -42.29,
+            "last_edge_rms_dbfs": -30.65,
+            "edge_rms_delta_db": 11.64,
+            "seam_rms_dbfs": -27.49,
+            "seam_energy_delta_db": -2.93,
+            "boundary_jump": 0.000003,
+            "boundary_jump_ratio": 0.01
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -33.45,
+            "last_edge_rms_dbfs": -34.74,
+            "edge_rms_delta_db": 1.29,
+            "seam_rms_dbfs": -26.88,
+            "seam_energy_delta_db": -4.17,
+            "boundary_jump": 0.002034,
+            "boundary_jump_ratio": 1.52
+          }
+        ]
+      }
+    },
+    "shadeDuel": {
+      "file": "shade-duel.mp3",
+      "bytes": 2813184,
+      "sha256": "faa5b30e5428447262a9079c741ce84aaf38a1678698171e27b85d8318358eec",
+      "candidate_file": "shadeDuel--b--7a47f931-7deb-4149-bc42-ef1e8d328145.mp3",
+      "candidate_sha256": "79d6bd768c017313170e212d680806d71e9bcf01587483931b863919a4d19e6e",
+      "selected_variant": "b",
+      "source_id": "7a47f931-7deb-4149-bc42-ef1e8d328145",
+      "source_url": "https://suno.com/song/7a47f931-7deb-4149-bc42-ef1e8d328145",
+      "source_media": {
+        "duration_seconds": 124.159979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 4,
+        "source_window_seconds": 120.159979,
+        "pre_tempo_duration_seconds": 117.159979,
+        "output_duration_seconds": 117.159979,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 117.159979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.26,
+        "true_peak_dbtp": -8.01
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 117.159979,
+        "first_edge_rms_dbfs": -33.62,
+        "last_edge_rms_dbfs": -41.73,
+        "edge_rms_delta_db": 8.11,
+        "seam_rms_dbfs": -31.64,
+        "seam_energy_delta_db": -1.02,
+        "minimum_seam_energy_delta_db": -1.62,
+        "maximum_seam_energy_delta_db": -0.42,
+        "boundary_jump": 0.001404,
+        "boundary_jump_ratio": 0.91,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -30.32,
+            "last_edge_rms_dbfs": -35.76,
+            "edge_rms_delta_db": 5.44,
+            "seam_rms_dbfs": -31.64,
+            "seam_energy_delta_db": -1.62,
+            "boundary_jump": 0.001404,
+            "boundary_jump_ratio": 0.91
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -33.62,
+            "last_edge_rms_dbfs": -41.73,
+            "edge_rms_delta_db": 8.11,
+            "seam_rms_dbfs": -33.85,
+            "seam_energy_delta_db": -0.42,
+            "boundary_jump": 0.00057,
+            "boundary_jump_ratio": 0.79
+          }
+        ]
+      }
+    },
+    "usurper": {
+      "file": "usurper.mp3",
+      "bytes": 2169216,
+      "sha256": "0ed12248cae83d17cecd109779379cf2dd62b07e346995d1916d797f4cbc9707",
+      "candidate_file": "usurper--a--1b365451-9cdb-4077-9195-38137336f09c.mp3",
+      "candidate_sha256": "d9c8eb229f2dd63a8a9e537c2e939f12aa5ae98c81ed96965985492b46dd4d3d",
+      "selected_variant": "a",
+      "source_id": "1b365451-9cdb-4077-9195-38137336f09c",
+      "source_url": "https://suno.com/song/1b365451-9cdb-4077-9195-38137336f09c",
+      "source_media": {
+        "duration_seconds": 97.319979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 4,
+        "source_window_seconds": 93.319979,
+        "pre_tempo_duration_seconds": 90.319979,
+        "output_duration_seconds": 90.319979,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 90.319979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.27,
+        "true_peak_dbtp": -6.57
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 90.319979,
+        "first_edge_rms_dbfs": -30.07,
+        "last_edge_rms_dbfs": -26.08,
+        "edge_rms_delta_db": 5.25,
+        "seam_rms_dbfs": -24.23,
+        "seam_energy_delta_db": -1.57,
+        "minimum_seam_energy_delta_db": -1.98,
+        "maximum_seam_energy_delta_db": -1.17,
+        "boundary_jump": 0.001321,
+        "boundary_jump_ratio": 1.41,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -29.06,
+            "last_edge_rms_dbfs": -23.81,
+            "edge_rms_delta_db": 5.25,
+            "seam_rms_dbfs": -24.23,
+            "seam_energy_delta_db": -1.17,
+            "boundary_jump": 0.001321,
+            "boundary_jump_ratio": 1.41
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -30.07,
+            "last_edge_rms_dbfs": -26.08,
+            "edge_rms_delta_db": 3.98,
+            "seam_rms_dbfs": -24.66,
+            "seam_energy_delta_db": -1.98,
+            "boundary_jump": 0.000003,
+            "boundary_jump_ratio": 0
+          }
+        ]
+      }
+    },
+    "eighthOmen": {
+      "file": "eighth-omen.mp3",
+      "bytes": 2301696,
+      "sha256": "8e5dc715bfa8735ae337b3253a0843c4c7a6a5fb654aa9727ca6ceb1412aeb6c",
+      "candidate_file": "eighthOmen--b--b0c35536-11eb-423f-9dee-57ef9a642b70.mp3",
+      "candidate_sha256": "06fd755aab16c6c1e8055be3b0d954e7c9710490512c5fcccd13a4c4705e68dc",
+      "selected_variant": "b",
+      "source_id": "b0c35536-11eb-423f-9dee-57ef9a642b70",
+      "source_url": "https://suno.com/song/b0c35536-11eb-423f-9dee-57ef9a642b70",
+      "source_media": {
+        "duration_seconds": 102.839979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 4,
+        "source_window_seconds": 98.839979,
+        "pre_tempo_duration_seconds": 95.839979,
+        "output_duration_seconds": 95.839979,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 95.839979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.27,
+        "true_peak_dbtp": -7.03
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 95.839979,
+        "first_edge_rms_dbfs": -35.18,
+        "last_edge_rms_dbfs": -35.47,
+        "edge_rms_delta_db": 1.62,
+        "seam_rms_dbfs": -26.77,
+        "seam_energy_delta_db": -3.09,
+        "minimum_seam_energy_delta_db": -3.39,
+        "maximum_seam_energy_delta_db": -2.8,
+        "boundary_jump": 0.001055,
+        "boundary_jump_ratio": 0.37,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -35.18,
+            "last_edge_rms_dbfs": -35.47,
+            "edge_rms_delta_db": 0.29,
+            "seam_rms_dbfs": -26.77,
+            "seam_energy_delta_db": -2.8,
+            "boundary_jump": 0.000458,
+            "boundary_jump_ratio": 0.17
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -32.77,
+            "last_edge_rms_dbfs": -34.39,
+            "edge_rms_delta_db": 1.62,
+            "seam_rms_dbfs": -27.73,
+            "seam_energy_delta_db": -3.39,
+            "boundary_jump": 0.001055,
+            "boundary_jump_ratio": 0.37
+          }
+        ]
+      }
+    },
+    "unreadablePage": {
+      "file": "unreadable-page.mp3",
+      "bytes": 2881152,
+      "sha256": "ddfb3e663bf13b0bb3ae796cefb122f58a1af5b0371f39a56e8719dc911a0675",
+      "candidate_file": "unreadablePage--b--c9c08557-966d-4fd3-ab97-eedb3d5dc6ab.mp3",
+      "candidate_sha256": "cc2b31892568f9c1f4a699cf3c0d23248e70a045e6ebf8cb059b81a4c4dc97e8",
+      "selected_variant": "b",
+      "source_id": "c9c08557-966d-4fd3-ab97-eedb3d5dc6ab",
+      "source_url": "https://suno.com/song/c9c08557-966d-4fd3-ab97-eedb3d5dc6ab",
+      "source_media": {
+        "duration_seconds": 179.759979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 56.759979,
+        "source_window_seconds": 123,
+        "pre_tempo_duration_seconds": 120,
+        "output_duration_seconds": 120,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 120,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.26,
+        "true_peak_dbtp": -7.87
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 120,
+        "first_edge_rms_dbfs": -31.03,
+        "last_edge_rms_dbfs": -29.45,
+        "edge_rms_delta_db": 1.58,
+        "seam_rms_dbfs": -27.57,
+        "seam_energy_delta_db": -1.91,
+        "minimum_seam_energy_delta_db": -2.04,
+        "maximum_seam_energy_delta_db": -1.78,
+        "boundary_jump": 0.00106,
+        "boundary_jump_ratio": 0.33,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -31.03,
+            "last_edge_rms_dbfs": -29.45,
+            "edge_rms_delta_db": 1.58,
+            "seam_rms_dbfs": -28.59,
+            "seam_energy_delta_db": -1.78,
+            "boundary_jump": 0.000204,
+            "boundary_jump_ratio": 0.09
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -29.22,
+            "last_edge_rms_dbfs": -27.89,
+            "edge_rms_delta_db": 1.33,
+            "seam_rms_dbfs": -27.57,
+            "seam_energy_delta_db": -2.04,
+            "boundary_jump": 0.00106,
+            "boundary_jump_ratio": 0.33
+          }
+        ]
+      }
+    },
+    "hollowLamplighter": {
+      "file": "hollow-lamplighter.mp3",
+      "bytes": 2692224,
+      "sha256": "14d250eb50a2bfff83dd6e983082c9c91025c9b60e609e41ea34b2c7f2b5c895",
+      "candidate_file": "hollowLamplighter--a--48f85b92-be56-42a3-a504-508622148a53.mp3",
+      "candidate_sha256": "cdb3fe78e9bfd1936b9733adc7b38331f2e4c75791340d65ae77e778d17c8698",
+      "selected_variant": "a",
+      "source_id": "48f85b92-be56-42a3-a504-508622148a53",
+      "source_url": "https://suno.com/song/48f85b92-be56-42a3-a504-508622148a53",
+      "source_media": {
+        "duration_seconds": 119.119979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 4,
+        "source_window_seconds": 115.119979,
+        "pre_tempo_duration_seconds": 112.119979,
+        "output_duration_seconds": 112.119979,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 112.119979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.26,
+        "true_peak_dbtp": -6.28
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 112.119979,
+        "first_edge_rms_dbfs": -22.71,
+        "last_edge_rms_dbfs": -31.24,
+        "edge_rms_delta_db": 9.41,
+        "seam_rms_dbfs": -32.51,
+        "seam_energy_delta_db": -6.21,
+        "minimum_seam_energy_delta_db": -6.25,
+        "maximum_seam_energy_delta_db": -6.17,
+        "boundary_jump": 0.013317,
+        "boundary_jump_ratio": 2.33,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -22.71,
+            "last_edge_rms_dbfs": -30.92,
+            "edge_rms_delta_db": 8.22,
+            "seam_rms_dbfs": -32.51,
+            "seam_energy_delta_db": -6.17,
+            "boundary_jump": 0.013317,
+            "boundary_jump_ratio": 2.33
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -21.83,
+            "last_edge_rms_dbfs": -31.24,
+            "edge_rms_delta_db": 9.41,
+            "seam_rms_dbfs": -33.08,
+            "seam_energy_delta_db": -6.25,
+            "boundary_jump": 0.00208,
+            "boundary_jump_ratio": 0.31
+          }
+        ]
+      }
+    },
+    "sealedDoor": {
+      "file": "sealed-door.mp3",
+      "bytes": 2881152,
+      "sha256": "9e50d628ead2490b3f882c613314ee6c013208e1f49cc66196cb16a2a7a328f8",
+      "candidate_file": "sealedDoor--a--579463a7-32cf-4af2-b22d-b0723332b0c8.mp3",
+      "candidate_sha256": "b888ca7822b2ceb95544f729e48c4177c0a5038e2fa5aacf7cf0da7dbb1514b5",
+      "selected_variant": "a",
+      "source_id": "579463a7-32cf-4af2-b22d-b0723332b0c8",
+      "source_url": "https://suno.com/song/579463a7-32cf-4af2-b22d-b0723332b0c8",
+      "source_media": {
+        "duration_seconds": 149.759979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 26.759979,
+        "source_window_seconds": 123,
+        "pre_tempo_duration_seconds": 120,
+        "output_duration_seconds": 120,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 120,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.27,
+        "true_peak_dbtp": -7.79
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 120,
+        "first_edge_rms_dbfs": -32.89,
+        "last_edge_rms_dbfs": -32.05,
+        "edge_rms_delta_db": 0.89,
+        "seam_rms_dbfs": -26.64,
+        "seam_energy_delta_db": -2.33,
+        "minimum_seam_energy_delta_db": -2.7,
+        "maximum_seam_energy_delta_db": -1.96,
+        "boundary_jump": 0.002783,
+        "boundary_jump_ratio": 0.69,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -27.4,
+            "last_edge_rms_dbfs": -26.51,
+            "edge_rms_delta_db": 0.89,
+            "seam_rms_dbfs": -27,
+            "seam_energy_delta_db": -2.7,
+            "boundary_jump": 0.002783,
+            "boundary_jump_ratio": 0.69
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -32.89,
+            "last_edge_rms_dbfs": -32.05,
+            "edge_rms_delta_db": 0.84,
+            "seam_rms_dbfs": -26.64,
+            "seam_energy_delta_db": -1.96,
+            "boundary_jump": 0.001176,
+            "boundary_jump_ratio": 0.54
+          }
+        ]
+      }
+    },
+    "victory": {
+      "file": "victory.mp3",
+      "bytes": 2393856,
+      "sha256": "817a57cd8071d7b3efbf54b6bb7c51fe6a46dd8c73fa5ef3e8bcdf6bfe36cefd",
+      "candidate_file": "victory--b--fd945905-f892-47cc-9397-1cd549cd2666.mp3",
+      "candidate_sha256": "b44b53e8cbf72866b03023b110062fffe688ed7141e550a8c491f2ca81018b82",
+      "selected_variant": "b",
+      "source_id": "fd945905-f892-47cc-9397-1cd549cd2666",
+      "source_url": "https://suno.com/song/fd945905-f892-47cc-9397-1cd549cd2666",
+      "source_media": {
+        "duration_seconds": 106.679979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 4,
+        "source_window_seconds": 102.679979,
+        "pre_tempo_duration_seconds": 99.679979,
+        "output_duration_seconds": 99.679979,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 99.679979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.26,
+        "true_peak_dbtp": -7.59
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 99.679979,
+        "first_edge_rms_dbfs": -39.21,
+        "last_edge_rms_dbfs": -33.76,
+        "edge_rms_delta_db": 5.45,
+        "seam_rms_dbfs": -26.95,
+        "seam_energy_delta_db": -1.08,
+        "minimum_seam_energy_delta_db": -1.96,
+        "maximum_seam_energy_delta_db": -0.2,
+        "boundary_jump": 0.002056,
+        "boundary_jump_ratio": 1.08,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -37.55,
+            "last_edge_rms_dbfs": -32.97,
+            "edge_rms_delta_db": 4.58,
+            "seam_rms_dbfs": -26.95,
+            "seam_energy_delta_db": -0.2,
+            "boundary_jump": 0.000805,
+            "boundary_jump_ratio": 0.39
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -39.21,
+            "last_edge_rms_dbfs": -33.76,
+            "edge_rms_delta_db": 5.45,
+            "seam_rms_dbfs": -28.9,
+            "seam_energy_delta_db": -1.96,
+            "boundary_jump": 0.002056,
+            "boundary_jump_ratio": 1.08
+          }
+        ]
+      }
+    },
+    "defeat": {
+      "file": "defeat.mp3",
+      "bytes": 2881152,
+      "sha256": "d95caf08e23e359f845cedb2721a8a11ff9dfbcc8fa30d05a5d28633564b7ba1",
+      "candidate_file": "defeat--b--1026d82c-0285-478e-becf-486a1e1c5cdc.mp3",
+      "candidate_sha256": "be104740fb03524c0893e0d411cdbfb72713f7be0a312ee03cec8ccf2251278b",
+      "selected_variant": "b",
+      "source_id": "1026d82c-0285-478e-becf-486a1e1c5cdc",
+      "source_url": "https://suno.com/song/1026d82c-0285-478e-becf-486a1e1c5cdc",
+      "source_media": {
+        "duration_seconds": 157.199979,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2
+      },
+      "render_plan": {
+        "tail_exclusion_seconds": 34.199979,
+        "source_window_seconds": 123,
+        "pre_tempo_duration_seconds": 120,
+        "output_duration_seconds": 120,
+        "tempo_factor": 1
+      },
+      "output_media": {
+        "duration_seconds": 120,
+        "codec": "mp3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "integrated_loudness_lufs": -20.26,
+        "true_peak_dbtp": -6.34
+      },
+      "loop_seam": {
+        "decoded_duration_seconds": 120,
+        "first_edge_rms_dbfs": -32.99,
+        "last_edge_rms_dbfs": -35.26,
+        "edge_rms_delta_db": 2.27,
+        "seam_rms_dbfs": -27.26,
+        "seam_energy_delta_db": -4.28,
+        "minimum_seam_energy_delta_db": -4.91,
+        "maximum_seam_energy_delta_db": -3.65,
+        "boundary_jump": 0.001041,
+        "boundary_jump_ratio": 0.63,
+        "channels": [
+          {
+            "channel": 1,
+            "first_edge_rms_dbfs": -31.68,
+            "last_edge_rms_dbfs": -31.13,
+            "edge_rms_delta_db": 0.55,
+            "seam_rms_dbfs": -27.26,
+            "seam_energy_delta_db": -3.65,
+            "boundary_jump": 0.001041,
+            "boundary_jump_ratio": 0.54
+          },
+          {
+            "channel": 2,
+            "first_edge_rms_dbfs": -32.99,
+            "last_edge_rms_dbfs": -35.26,
+            "edge_rms_delta_db": 2.27,
+            "seam_rms_dbfs": -28.2,
+            "seam_energy_delta_db": -4.91,
+            "boundary_jump": 0.000924,
+            "boundary_jump_ratio": 0.63
+          }
+        ]
+      }
+    }
+  }
+}

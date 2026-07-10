@@ -1,6 +1,6 @@
 # SPIREBOUND
 
-A complete roguelite deckbuilder for the browser: a tower of glass creatures with fire inside, climbed by lantern light. Three acts, three bosses, 60 cards, 31 relics, 27 enemy species, 2 playable aspects, and a meta-progression vigil that remembers every fall — combat art, card faces, relics, enemies, events, and stage plates are painted raster PNGs (with procedural SVG fallbacks); structural UI icons and status chips stay hand-drawn SVG in `src/art.js`; all audio is WebAudio-synthesized. No UI framework.
+A complete roguelite deckbuilder for the browser: a tower of glass creatures with fire inside, climbed by lantern light. Three acts, three bosses, 60 cards, 31 relics, 27 enemy species, 2 playable aspects, and a meta-progression vigil that remembers every fall — combat art, card faces, relics, enemies, events, and stage plates are painted raster PNGs (with procedural SVG fallbacks); structural UI icons and status chips stay hand-drawn SVG in `src/art.js`; SFX are sample-backed with WebAudio synth fallback, and BGM is a versioned Music Cue layer. No UI framework.
 
 ## Play
 
@@ -45,7 +45,7 @@ Keyboard: `E` ends the turn, `Esc` cancels targeting / closes panels. Right-clic
 | Viewport | Fixed virtual stage (`src/stage.js`): five canonical shapes (phone/pad portrait & landscape + desktop 16:9), uniform `transform: scale()` letterbox; layout breakpoints are `@container stage` queries, lengths use `cqw`/`cqh` |
 | Rendering | DOM + CSS 3D for cards/UI (mouse-tracked tilt + holographic foil), `three.js` with bloom post-processing for the world (one continuous climbable Spire, cloud decks, altitude-tracking camera — map nodes are DOM elements projected onto the 3D tower every frame), 2D canvas for combat VFX, WebGL mesh warp for character sprites, film grain overlay |
 | Art | Raster PNG/JPG in `src/assets/` (cards, enemies, heroes, relics, events, stage plates, props, title) via `assetUrl()`; procedural SVG fallbacks + all structural UI icons in `src/art.js` |
-| Audio | WebAudio-synthesized SFX + ambient drone per act (`src/audio.js`), mute persists |
+| Audio | Versioned, lazy-loaded Music Cue and SFX packs with per-file overrides; Suno `stained-glass-v2` Music and ElevenLabs `ashglass-v2` SFX ship beside immutable v1 rollback packs; independent buses (`src/music.js`, `src/audio.js`, `public/audio-selection.json`) |
 | Engine | Pure DOM-free game logic in `src/engine.js` + `src/data.js`, animated via an event queue the UI plays back; meta-progression in `src/vigil.js` (Node-safe storage adapter) |
 | Build | Vite, vanilla JS, zero UI frameworks |
 
@@ -57,6 +57,10 @@ npm run test:e2e   # Playwright visual-QA kit (needs dev server on 5174 + Chromi
 ```
 
 `npm run test:e2e:update` refreshes screenshot baselines; `npm run test:e2e:perf` runs the fps gate alone. See `docs/superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md` §3 for the full harness contract. Documentation index: [`docs/README.md`](docs/README.md).
+
+Audio inventory and preview: `?audio=1`. In development the same page edits the
+runtime Music/SFX versions and individual file overrides. See
+[`docs/audio-packs.md`](docs/audio-packs.md).
 
 ### Engine tests (`npm test`)
 

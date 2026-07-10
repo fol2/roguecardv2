@@ -1,4 +1,6 @@
 {
+  "schema_version": 1,
+  "pack_id": "ashglass-v1",
   "theme": "Ashglass Vigil",
   "source": "docs/sfx-ledger.md",
   "items": {
@@ -226,7 +228,11 @@
       "file": "hit.mp3",
       "bytes": 13836,
       "duration_seconds": 0.8,
-      "prompt": "Heavy dull body impact thud with a short low punch, fleshy and solid, no scream."
+      "requested_duration_seconds": 0.8,
+      "prompt_influence": 0.5,
+      "prompt": "Heavy dull body impact thud with a short low punch, fleshy and solid, no scream.",
+      "usage": "legacy; sfx.hit() is a no-op",
+      "review_note": "Compatibility file only; do not regenerate for the live attack family."
     },
     "hover": {
       "file": "hover.mp3",
@@ -312,8 +318,11 @@
       "file": "slash.mp3",
       "bytes": 9657,
       "duration_seconds": 0.545,
+      "requested_duration_seconds": 0.6,
+      "prompt_influence": 0.6,
       "prompt": "(legacy backup of atkHeroMed \u2014 not a live attack path)",
-      "usage": "legacy; sfx.slash() routes to medium hero attack"
+      "usage": "legacy; sfx.slash() routes to medium hero attack",
+      "review_note": "Compatibility file only; do not regenerate for the live attack family."
     },
     "stagger": {
       "file": "stagger.mp3",

@@ -19,6 +19,7 @@ Quick map for agents and humans. Operational truth for running the game lives in
 
 | Doc | Status |
 |---|---|
+| [`superpowers/plans/2026-07-10-versioned-audio-packs.md`](superpowers/plans/2026-07-10-versioned-audio-packs.md) | **Current** — versioned Music/SFX selection, individual overrides, backend/runtime boundary |
 | [`superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md`](superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md) | **Current** — progressive delivery engine, entrance redesign, Emberglass chain (Phase 2 pending) |
 | [`superpowers/plans/2026-07-09-entrance-progressive-delivery-phase1.md`](superpowers/plans/2026-07-09-entrance-progressive-delivery-phase1.md) | Executor plan, Phase 1 (delivery engine + entrances — **shipped**) |
 | [`superpowers/specs/2026-07-08-vigil-surfaces-status-art-design.md`](superpowers/specs/2026-07-08-vigil-surfaces-status-art-design.md) | **Current** — status strip rasters, Vigil/meta emblems, defeat/victory plates, gallery + manifest gates |
@@ -58,6 +59,17 @@ Override: `?shape=<name>`.
 | [`../src/assets/README.md`](../src/assets/README.md) | Live asset inventory + promotion notes |
 | [`card-production/`](card-production/) | 60-card production pipeline (complete) |
 | [`relic-art-bible.md`](relic-art-bible.md), [`prop-art-bible.md`](prop-art-bible.md), [`card-art-bible.md`](card-art-bible.md), [`potion-art-bible.md`](potion-art-bible.md) | Per-category art bibles |
+
+## Audio authoring and runtime
+
+| Doc | Purpose |
+|---|---|
+| [`audio-packs.md`](audio-packs.md) | Version directories, runtime JSON, individual overrides, dev backend, rollback |
+| [`audio-strategy-review-v2.md`](audio-strategy-review-v2.md) | Downloaded v2 authoring review reconciled with the versioned runtime |
+| [`music-ledger.md`](music-ledger.md) | 22 Music Cue briefs and generation direction |
+| [`sfx-ledger.md`](sfx-ledger.md) | SFX id contract, ElevenLabs prompts, trim and mix guidance |
+| [`adr/0001-music-cue-layer.md`](adr/0001-music-cue-layer.md) | Music Cue layer and independent buses |
+| [`adr/0002-versioned-audio-selection.md`](adr/0002-versioned-audio-selection.md) | Immutable base packs and runtime-selected versions/files |
 
 ## Older polish (reference)
 

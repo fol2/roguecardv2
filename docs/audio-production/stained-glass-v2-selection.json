@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "pack_id": "stained-glass-v2",
+  "provenance": {
+    "provider": "Suno",
+    "generated_at": "2026-07-10T09:05:07Z",
+    "licence_or_plan": "Suno Pro Plan",
+    "notes": "Source tracks were generated in the logged-in fol2hk Pro workspace on 9 July 2026. The timestamp records final candidate selection and local pack rendering; unselected candidates remain identified by the production audit, not installed as runtime assets."
+  },
+  "items": {
+    "title": {
+      "file": "title--a--e13e69cc-1a3b-4133-91da-f3005429e699.mp3",
+      "source_url": "https://suno.com/song/e13e69cc-1a3b-4133-91da-f3005429e699"
+    },
+    "embark": {
+      "file": "embark--a--d5feec6a-456f-4f11-baf5-5c1f3270fa04.mp3",
+      "source_url": "https://suno.com/song/d5feec6a-456f-4f11-baf5-5c1f3270fa04"
+    },
+    "vigil": {
+      "file": "vigil--b--49e369d1-a17c-419e-b73d-709813f3ddbb.mp3",
+      "source_url": "https://suno.com/song/49e369d1-a17c-419e-b73d-709813f3ddbb"
+    },
+    "roseWindow": {
+      "file": "roseWindow--b--e025829b-94f8-4a91-8bd0-bf006fc983f7.mp3",
+      "source_url": "https://suno.com/song/e025829b-94f8-4a91-8bd0-bf006fc983f7"
+    },
+    "map": {
+      "file": "map--b--1b7d9375-23dc-4207-acb5-4fd200d98b21.mp3",
+      "source_url": "https://suno.com/song/1b7d9375-23dc-4207-acb5-4fd200d98b21"
+    },
+    "safeNodes": {
+      "file": "safeNodes--a--9082b858-32e0-448b-8fe6-9640f0bb832d.mp3",
+      "source_url": "https://suno.com/song/9082b858-32e0-448b-8fe6-9640f0bb832d"
+    },
+    "act1Combat": {
+      "file": "act1Combat--b--80b17c49-30bb-4b80-9e16-65912ee16b66.mp3",
+      "source_url": "https://suno.com/song/80b17c49-30bb-4b80-9e16-65912ee16b66"
+    },
+    "act1Boss": {
+      "file": "act1Boss--b--9dbccdee-b0ce-466c-8b30-9ccfa902ecc2.mp3",
+      "source_url": "https://suno.com/song/9dbccdee-b0ce-466c-8b30-9ccfa902ecc2"
+    },
+    "act2Combat": {
+      "file": "act2Combat--a--9e0e91e8-ecc4-4f34-acdf-a110185bd860.mp3",
+      "source_url": "https://suno.com/song/9e0e91e8-ecc4-4f34-acdf-a110185bd860"
+    },
+    "act2Boss": {
+      "file": "act2Boss--b--808bc422-321a-470c-92a4-da51be73451b.mp3",
+      "source_url": "https://suno.com/song/808bc422-321a-470c-92a4-da51be73451b"
+    },
+    "act3Combat": {
+      "file": "act3Combat--a--b6458738-dcd7-46ef-a5fc-3a6722006278.mp3",
+      "source_url": "https://suno.com/song/b6458738-dcd7-46ef-a5fc-3a6722006278"
+    },
+    "act3Boss": {
+      "file": "act3Boss--b--bf82f446-67dc-4632-abe9-e048958e16fc.mp3",
+      "source_url": "https://suno.com/song/bf82f446-67dc-4632-abe9-e048958e16fc"
+    },
+    "elite": {
+      "file": "elite--b--0ee85aef-a914-4afc-a4e0-8e6ffad714f7.mp3",
+      "source_url": "https://suno.com/song/0ee85aef-a914-4afc-a4e0-8e6ffad714f7"
+    },
+    "paleOnes": {
+      "file": "paleOnes--a--64080dc6-c68f-434c-bf22-fc77c3e46b60.mp3",
+      "source_url": "https://suno.com/song/64080dc6-c68f-434c-bf22-fc77c3e46b60"
+    },
+    "shadeDuel": {
+      "file": "shadeDuel--b--7a47f931-7deb-4149-bc42-ef1e8d328145.mp3",
+      "source_url": "https://suno.com/song/7a47f931-7deb-4149-bc42-ef1e8d328145"
+    },
+    "usurper": {
+      "file": "usurper--a--1b365451-9cdb-4077-9195-38137336f09c.mp3",
+      "source_url": "https://suno.com/song/1b365451-9cdb-4077-9195-38137336f09c"
+    },
+    "eighthOmen": {
+      "file": "eighthOmen--b--b0c35536-11eb-423f-9dee-57ef9a642b70.mp3",
+      "source_url": "https://suno.com/song/b0c35536-11eb-423f-9dee-57ef9a642b70"
+    },
+    "unreadablePage": {
+      "file": "unreadablePage--b--c9c08557-966d-4fd3-ab97-eedb3d5dc6ab.mp3",
+      "source_url": "https://suno.com/song/c9c08557-966d-4fd3-ab97-eedb3d5dc6ab"
+    },
+    "hollowLamplighter": {
+      "file": "hollowLamplighter--a--48f85b92-be56-42a3-a504-508622148a53.mp3",
+      "source_url": "https://suno.com/song/48f85b92-be56-42a3-a504-508622148a53"
+    },
+    "sealedDoor": {
+      "file": "sealedDoor--a--579463a7-32cf-4af2-b22d-b0723332b0c8.mp3",
+      "source_url": "https://suno.com/song/579463a7-32cf-4af2-b22d-b0723332b0c8"
+    },
+    "victory": {
+      "file": "victory--b--fd945905-f892-47cc-9397-1cd549cd2666.mp3",
+      "source_url": "https://suno.com/song/fd945905-f892-47cc-9397-1cd549cd2666"
+    },
+    "defeat": {
+      "file": "defeat--b--1026d82c-0285-478e-becf-486a1e1c5cdc.mp3",
+      "source_url": "https://suno.com/song/1026d82c-0285-478e-becf-486a1e1c5cdc"
+    }
+  }
+}
