@@ -32,6 +32,22 @@ neither touches combat geometry.) The rest of that plan is untouched;
 | Future-proofing | Extensible schema: open id-keyed maps for heroes/enemies; reserved optional `parts: {}` per actor for the parked rigging spike. No attachment implementation this pass |
 | Architecture | Approach A: runtime layout module + dev-only in-game editor overlay + Vite write-back endpoint |
 
+### 2026-07-09 supersession — per-formation lift
+
+The later battlefield/character editor round deliberately added `hero.y` and
+`slot.y` as authored vertical lift, and moved per-actor layout corrections into
+`src/char-meta.js`. That supersedes the decisions above saying
+`geometry.spec` was unchanged and forbidding per-slot `y`.
+
+The current geometry contract is: logical ground plus resolved
+`hero.y`/`slot.y` plus actor/slot `footY` determines the DOM art-box bottom,
+which `geometry.spec.js` checks at ±2 stage px. `footY` remains the
+alpha-padding correction; `y` expresses intentional formation depth/lift.
+Ledge `h`/`y`/`zoom` can intentionally make an alpha-transparent plate box
+taller than the below-ground band, so the runtime clamps its CSS bottom to the
+stage. Geometry validates that resolved box and ground coverage; visual
+baselines validate where the painted stone inside the PNG actually appears.
+
 ## Invariants (violating any fails review)
 
 - The layout lives in two files: `src/battlefield-layout.js` (pure data,

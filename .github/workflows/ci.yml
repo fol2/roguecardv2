@@ -1,0 +1,68 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Supersede stale PR runs, but never erase the required proof for a main push.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  unit:
+    name: unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # engine unit checks + asset manifest + 300-run monte-carlo
+      - run: npm test
+      # production bundle must build clean
+      - run: npm run build
+      # dist is shipped from git: changed/deleted/untracked output is a failure
+      - name: Verify committed dist is current
+        run: |
+          git status --short -- dist/
+          test -z "$(git status --porcelain --untracked-files=all -- dist/)"
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # full kit: stage/geometry/battle/visual/rewards/bfeditor.
+      # perf.spec self-skips (PERF env unset). Baselines compare *-linux.png.
+      - run: npm run test:e2e
+      - name: Verify e2e restored the checkout
+        if: always()
+        run: |
+          git status --short
+          test -z "$(git status --porcelain --untracked-files=all)"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-failures
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore

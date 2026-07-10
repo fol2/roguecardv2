@@ -71,6 +71,24 @@ invisible under mesh (planes ignore CSS filters).
   orientation reports bit-identical probe geometry (stage px). Enforced by
   `stage.spec`.
 
+### 2026-07-09 supersession — authored actor feet
+
+The battlefield and character editors subsequently made two authored offsets
+part of the runtime contract: `hero.y` / `slot.y` intentionally lift an actor
+from the logical ground, while `footY` corrects transparent raster padding
+between the DOM art-box bottom and the visible foot. Those later decisions
+supersede this document's literal “raw art bottom equals ground” wording.
+
+`geometry.spec.js` still gates the resolved position at ±2 stage px, but now
+compares each DOM art-box bottom with the value implied by the logical ground,
+the resolved formation lift, and the actor/slot `footY`. The single ground
+line, ledge-lip, seam, fixed-stage, and resize invariants remain unchanged.
+The same editor pass introduced oversized/zoomed alpha-transparent ledge
+plates whose CSS box may begin far above the painted stone. Geometry therefore
+checks the resolved `h`/`y`/`zoom`/clamped-bottom box and its coverage of the
+ground line; screenshot baselines gate the actual painted pixels rather than
+pretending the transparent PNG box edge is the lip.
+
 ## 1b. Fixed virtual stage (implemented 2026-07-06, same commit as the kit)
 
 The game is a game, not a responsive page. `src/stage.js` (imports nothing;
@@ -252,13 +270,35 @@ Suites (`test/e2e/`):
    3-fight random-agent mini-run through the real UI pipeline. No content
    constants (omens legitimately bend opening rules — e.g. seed 20260706
    rolls Ember Wind, draw 4).
-3. `visual.spec` — screenshot regression: title, map (2.8s camera settle),
-   combat acts 1–3, reward, shop, rest, treasure, event; `?mesh=0` + explicit
+3. `visual.spec` — screenshot regression: title, map (observed scale/opacity
+   motion, then 800ms and 20 animation frames quiet; 90s condition timeout
+   inside a 120s map-test budget), combat acts 1–3, reward, shop, rest,
+   treasure, event; `?mesh=0` + explicit
    `freeze()`; `maxDiffPixelRatio: 0.01`. **Baselines are deliberately not
    committed yet** — capturing them now would enshrine the broken geometry;
    the suite auto-skips until `visual.spec.js-snapshots/` exists. Capture with
    `npm run test:e2e:update` once geometry.spec and battle.spec are green,
    then commit the snapshots (this machine is the reference).
+
+   **2026-07-09 map-settle amendment:** projected translation is not a settle
+   signal because the scene's camera roll continues indefinitely. The helper
+   arms before `show('map')`, observes a change in projected node scale/opacity
+   (camera distance/focus), then requires the sustained quiet period above.
+   Reference runs settled in about 5.7s. The original 60s upper guard covered
+   the observed 5–8x Ubuntu runner slowdown; the constrained-runner amendment
+   below supersedes that ceiling. These are condition timeouts, not fixed
+   waits. Retry count, pixels, and tolerance stay unchanged.
+
+   **2026-07-10 constrained-runner amendment:** the complete visual suite runs
+   last in one Playwright invocation with one worker; baseline refresh uses the
+   same contract. `scene3d.js` caps render-frame `dt` at 50ms, so a full-size
+   desktop map advances by delivered frames on a constrained runner. The final
+   one-worker Ubuntu proof recorded 112 samples, 80 changes, more than ten
+   seconds quiet, and 18/20 required quiet frames at the old 60s boundary.
+   The condition guard is therefore 90s inside a map-only 120s test budget;
+   all 20 frames remain required. The non-visual matrix keeps two workers.
+   Timeout diagnostics record settle samples, changes, quiet frames, and live
+   node/edge counts without changing the predicate or screenshot contract.
 4. `perf.spec` — the previously unmeasured gate, now measured: portrait
    project, 3s shader warm-up, CDP `Emulation.setCPUThrottlingRate(4)`, rAF
    sampler across a double-annihilate burst into three enemies; assert avg
