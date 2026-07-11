@@ -1883,7 +1883,7 @@ git commit -m "feat: trace real UI behaviour boundaries"
   `src/ui/tooltip.js`, `src/ui/overlay.js`, `src/ui/navigation.js`,
   `src/ui/run-effects.js`
 - Modify: `src/ui.js`
-- Modify/Test: `test/test_engine.js`
+- Modify/Test: `test/test_engine.js`, `test/test_module_boundaries.mjs`
 - Test: `test/e2e/stage.spec.js`, `test/e2e/rewards.spec.js`,
   `test/e2e/trace.spec.js`, `test/e2e/emberglass.spec.js`,
   `test/e2e/emberglass-persistence.spec.js`,
@@ -1953,7 +1953,12 @@ expect(boundary).toEqual({ show: 'function', state: 'object', trace: 'function' 
 ```
 
 Also keep the reward stale-title-click regression green. Run the focused files
-before moving code; they pass as characterisation. In Node, dynamically import
+before moving code; they pass as characterisation. Run `npm run test:ci` so the
+Task 6 traced-handler failure-span source guard is part of that baseline. When
+`usePotionOn` moves, migrate that guard to inspect `overlay.js`, keep every
+other traced handler pointed at its real owner, and assert the monolith has no
+duplicate `usePotionOn` binding; do not weaken or delete the catch/failed-span
+checks. In Node, dynamically import
 only the genuinely pure not-yet-created `format.js` and `commands.js` and assert
 their exact export sets. For browser-owned `context.js`, `policy.js` and
 `rose.js`, make `test_engine.js` parse their source exports without evaluating
@@ -2029,6 +2034,7 @@ trace span and reject unknown route names with `error.ui` plus a thrown error.
 
 ```bash
 set -euo pipefail
+npm run test:ci
 npm test
 node tools/run-with-strict-e2e-port.mjs -- npx playwright test stage rewards emberglass hollow-transaction audio trace --project=desktop --workers=1
 ```
@@ -2039,10 +2045,11 @@ Expected: green and no screenshot changes.
 
 ```bash
 set -euo pipefail
+npm run test:ci
 git add src/ui.js src/ui/context.js src/ui/policy.js src/ui/format.js \
   src/ui/rose.js src/ui/commands.js src/ui/assets.js \
   src/ui/tooltip.js src/ui/overlay.js src/ui/navigation.js \
-  test/test_engine.js \
+  test/test_engine.js test/test_module_boundaries.mjs \
   test/e2e/stage.spec.js test/e2e/rewards.spec.js \
   test/e2e/emberglass.spec.js test/e2e/hollow-transaction.spec.js \
   test/e2e/audio.spec.js test/e2e/trace.spec.js
