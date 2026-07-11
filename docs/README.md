@@ -27,6 +27,8 @@ Quick map for agents and humans. Operational truth for running the game lives in
 
 | Doc | Status |
 |---|---|
+| [`superpowers/specs/2026-07-09-i18n-locale-extraction-design.md`](superpowers/specs/2026-07-09-i18n-locale-extraction-design.md) | **Current / brainstorm** — multi-language readiness: extract English into `src/i18n/en/` + `t()` plumbing; no translations yet |
+| [`superpowers/plans/2026-07-09-i18n-locale-extraction.md`](superpowers/plans/2026-07-09-i18n-locale-extraction.md) | Executor plan — rebased onto Emberglass Phase 2; content + core UI extracted; composers deferred |
 | [`superpowers/specs/2026-07-11-app-versioning-design.md`](superpowers/specs/2026-07-11-app-versioning-design.md) | **Current** — package.json-sourced app version, title-screen label, release build convention |
 | [`superpowers/plans/2026-07-11-app-versioning.md`](superpowers/plans/2026-07-11-app-versioning.md) | Executor plan — Vite define, title UI, `npm run release` |
 | [`app-versioning.md`](app-versioning.md) | Operator note — display rules, bump policy, release flow |

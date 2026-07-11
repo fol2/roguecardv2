@@ -20,7 +20,7 @@ import {
   SHADE_DUEL_TX, shadeVictorySkipsRewards, shadeLossBequestState,
 } from '../src/engine.js';
 import * as EngineApi from '../src/engine.js';
-import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS } from '../src/data.js';
+import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS, ACTS, PLAYER } from '../src/data.js';
 import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, commitPendingRunEnd, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFrame, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
@@ -39,6 +39,7 @@ import { MUSIC_CATALOG } from '../src/audio-catalog.js';
 import {
   resolveCombatCue, resolveScreenCue, dawnEventCue, SCREEN_CUES,
 } from '../src/music-resolve.js';
+import { t, getLocale, setLocale, getContent } from '../src/i18n/index.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -3855,6 +3856,99 @@ function forceHand(run, cb, ids) {
   c3.queue.length = 0;
   assert.ok(playCard(r3, c3, playUid), 'defend plays');
   assert.ok(c3.queue.some((e) => e.t === 'toDiscard' && e.uid === playUid), 'non-exhaust skill emits toDiscard');
+}
+
+// ---- i18n: locale catalogue + hydrate parity --------------------------------
+{
+  assert.equal(getLocale(), 'en');
+  assert.equal(t('cards.strike.name'), 'Edge');
+  assert.equal(t('cards.unreadablePage.name'), 'The Unreadable Page');
+  assert.equal(t('status.poison.name'), 'Smolder');
+  assert.equal(t('relics.emberHeart.name'), 'Emberheart');
+  assert.equal(t('omens.eighthOmen.name'), 'The Eighth Omen');
+  assert.equal(t('enemies.sporeling.moves.spit.name'), 'Spore Spit');
+  assert.equal(t('quests.paleOnes.name'), 'The Pale Ones');
+  assert.equal(t('ui.menu.beginClimb'), 'Begin the Climb');
+  assert.equal(t('ui.vigil.roseWindow'), 'Rose Window');
+  assert.equal(t('ui.help.title'), 'How to Play');
+  assert.equal(t('missing.key.zzz'), 'missing.key.zzz');
+  assert.equal(t('ui.smoke.hello', { name: 'Spire' }), 'Hello, Spire');
+  assert.equal(setLocale('nope'), false, 'unknown locale ignored');
+  assert.equal(getLocale(), 'en');
+
+  const content = getContent();
+  const tables = [
+    ['cards', CARDS, ['name', 'text']],
+    ['status', STATUS_INFO, ['name', 'desc']],
+    ['relics', RELICS, ['name', 'text']],
+    ['potions', POTIONS, ['name', 'text']],
+    ['arts', ARTS, ['name', 'text']],
+    ['boons', BOONS, ['name', 'text']],
+    ['omens', OMENS, ['name', 'text']],
+    ['affixes', AFFIXES, ['name', 'text']],
+    ['deeds', DEEDS, ['name', 'desc']],
+  ];
+  for (const [key, table, fields] of tables) {
+    for (const id of Object.keys(table)) {
+      assert.ok(content[key][id], `locale has ${key}.${id}`);
+      for (const f of fields) {
+        assert.equal(table[id][f], content[key][id][f], `${key}.${id}.${f} hydrated`);
+      }
+    }
+  }
+  for (const id of Object.keys(CARDS)) {
+    if (content.cards[id].textUp != null) {
+      assert.equal(CARDS[id].up.text, content.cards[id].textUp, `card ${id} textUp`);
+    }
+  }
+  for (const [id, e] of Object.entries(ENEMIES)) {
+    assert.equal(e.name, content.enemies[id].name, `enemy ${id}.name`);
+    for (const mk of Object.keys(e.moves)) {
+      assert.equal(e.moves[mk].name, content.enemies[id].moves[mk].name, `enemy ${id}.${mk}`);
+    }
+  }
+  for (const [id, ev] of Object.entries(EVENTS)) {
+    assert.equal(ev.name, content.events[id].name, `event ${id}.name`);
+    assert.equal(ev.text, content.events[id].text, `event ${id}.text`);
+    (ev.choices || []).forEach((ch, i) => {
+      assert.equal(ch.label, content.events[id].choices[i].label, `event ${id} choice ${i} label`);
+      assert.equal(ch.sub, content.events[id].choices[i].sub, `event ${id} choice ${i} sub`);
+    });
+  }
+  for (const id of Object.keys(QUESTS)) {
+    assert.equal(QUESTS[id].name, content.quests[id].name, `quest ${id}.name`);
+    assert.equal(QUESTS[id].mode, content.quests[id].mode, `quest ${id}.mode`);
+    assert.equal(typeof QUESTS[id].target, 'number', `quest ${id}.target stays mechanic`);
+  }
+  ACTS.forEach((a, i) => {
+    assert.equal(a.name, content.acts[i].name, `act ${i}.name`);
+    assert.equal(a.bossName, content.acts[i].bossName, `act ${i}.bossName`);
+  });
+  VOWS.forEach((v, i) => {
+    assert.equal(v.name, content.vows[i].name, `vow ${i}.name`);
+    assert.equal(v.desc, content.vows[i].desc, `vow ${i}.desc`);
+  });
+  for (const a of ASPECTS) {
+    assert.equal(a.name, content.aspects[a.id].name, `aspect ${a.id}.name`);
+    assert.equal(a.blurb, content.aspects[a.id].blurb, `aspect ${a.id}.blurb`);
+  }
+  assert.equal(ASPECTS[0], PLAYER, 'ASPECTS[0] shares PLAYER identity after hydrate');
+  assert.equal(PLAYER.name, content.aspects.duskblade.name);
+  for (const [id, v] of Object.entries(VARIANTS)) {
+    assert.ok(Array.isArray(v.dialogue), `variant ${id}.dialogue is array`);
+    assert.equal(v.name, content.variants[id].name, `variant ${id}.name`);
+  }
+  assert.equal(t('ui.rose.finalWhisper'), 'The final whisper returns at every dawn.');
+  assert.equal(t('ui.rose.dormantPane', { n: 2 }), 'Dormant Emberglass pane 2');
+  assert.equal(WHISPERS.length, 24);
+  assert.equal(WHISPERS.at(-1), 'The climb continues.');
+  assert.deepEqual(WHISPERS, content.whispers);
+  assert.equal(VARIANTS.ownShade1.name, content.variants.ownShade1.name);
+  assert.equal(VARIANTS.ownShade1.deathDialogue, content.variants.ownShade1.deathDialogue);
+  assert.equal(SHADE_KITS.duskblade.moves.eclipse.name, content.shadeKits.duskblade.moves.eclipse.name);
+  assert.equal(QUESTS.hollowLamplighter.meetings.length, 5);
+  assert.equal(QUESTS.hollowLamplighter.meetings[0].ask, content.quests.hollowLamplighter.meetings[0].ask);
+  assert.equal(cardData(makeCard(newRun(2), 'strike', true)).name, 'Edge+');
 }
 
 // ---- monte-carlo: random agent plays full runs -----------------------------

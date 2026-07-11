@@ -14,6 +14,7 @@ import { applyAudioSelection, getAudioOverrideRefs, getAudioPackDefaultRef, getA
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
 import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift, meshAim, meshAimClear, meshWard } from './mesh.js';
 import { charShadowLive, charCssFloat, charAim, onCharMetaChange } from './char-meta.js';
+import { t as tr } from './i18n/index.js';
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
@@ -110,23 +111,23 @@ function warmAssets() { // pre-decode combat art so fights never pop in
   for (const u of [...assetList('enemies'), ...assetList('heroes')]) new Image().src = u;
 }
 
-const FACET_DESC = 'Every creature is glass with a Facet gauge. Fill it and the glass Shatters — the creature loses its next action, is Cracked, and spills Embers into your lantern.';
-const KEYWORDS = {
+const FACET_DESC = () => tr('ui.keywords.facetDesc');
+const KEYWORDS = () => ({
   Cracked: STATUS_INFO.vulnerable.desc, Dimmed: STATUS_INFO.weak.desc, Brittle: STATUS_INFO.frail.desc,
   Smolder: STATUS_INFO.poison.desc, Fervor: STATUS_INFO.str.desc, Poise: STATUS_INFO.dex.desc,
-  Kindle: 'Burned away for the rest of this combat — and the lantern gains 1 Ember.',
-  Ward: 'Held light that prevents damage. Expires at the start of your turn.',
-  Energy: 'Spent to play cards. Refreshes each turn.',
-  Ember: 'Fuel for your Lantern Art. Spilled by shatters, deaths and kindling; held in the lantern.',
-  Embers: 'Fuel for your Lantern Art. Spilled by shatters, deaths and kindling; held in the lantern.',
-  Chip: 'Strike at the glass itself: adds toward a Shatter, no blood required.',
-  Facet: FACET_DESC, Facets: FACET_DESC, Shatter: FACET_DESC, Shatters: FACET_DESC,
-  Staggered: 'Shattered glass loses its next action while it reseams.',
-  Unplayable: 'This card cannot be played.',
-  Shard: 'Unplayable junk glass. It can still be kindled.',
-  Hex: 'Curse: lose 1 HP at end of turn while in hand. Cannot be kindled.',
-  Cinder: 'Take 2 damage at end of turn while in hand.',
-};
+  Kindle: tr('ui.keywords.kindle'),
+  Ward: tr('ui.keywords.ward'),
+  Energy: tr('ui.keywords.energy'),
+  Ember: tr('ui.keywords.ember'),
+  Embers: tr('ui.keywords.ember'),
+  Chip: tr('ui.keywords.chip'),
+  Facet: FACET_DESC(), Facets: FACET_DESC(), Shatter: FACET_DESC(), Shatters: FACET_DESC(),
+  Staggered: tr('ui.keywords.staggered'),
+  Unplayable: tr('ui.keywords.unplayable'),
+  Shard: tr('ui.keywords.shard'),
+  Hex: tr('ui.keywords.hex'),
+  Cinder: tr('ui.keywords.cinder'),
+});
 
 // ------------------------------------------------------------ tooltip
 // mouse: hover, as ever. touch: press and hold anything to ask what it is.
@@ -224,7 +225,8 @@ function cardEl(inst, { inCombat = false, size = null } = {}) {
     <div class="card-text"><span class="ct-inner">${txt}</span></div>
     <div class="card-rarity"></div>
   </div></div>`;
-  $$('.kw', c).forEach((k) => (k._tip = { title: k.textContent, body: KEYWORDS[k.textContent] || '' }));
+  const kw = KEYWORDS();
+  $$('.kw', c).forEach((k) => (k._tip = { title: k.textContent, body: kw[k.textContent] || '' }));
   // 3D tilt + mouse-tracked glare/foil (a hovering pointer only)
   if (FINE) c.addEventListener('mousemove', (e) => {
     const r = c.getBoundingClientRect();
@@ -340,7 +342,7 @@ function openMenu(cx, cy) {
   const { x, y } = toStage(cx, cy);
   const m = el('div', 'pop-menu');
   const terminalLocked = terminalNavigationLocked();
-  m.innerHTML = `<button data-m="help">How to Play</button><button data-m="settings">Settings</button>${terminalLocked ? '' : '<button data-m="abandon" style="color:#ff8d8d">Abandon Run</button>'}`;
+  m.innerHTML = `<button data-m="help">${tr('ui.menu.howToPlay')}</button><button data-m="settings">Settings</button>${terminalLocked ? '' : `<button data-m="abandon" style="color:#ff8d8d">${tr('ui.menu.abandonRun')}</button>`}`;
   stageEl().appendChild(m); // inside the stage so it scales with the game
   m.style.left = `${Math.min(x, stageW() - 200)}px`;
   m.style.top = `${y + 8}px`;
@@ -476,9 +478,9 @@ async function usePotionOn(slot, targetIdx) {
 function confirmAbandon() {
   if (terminalNavigationLocked()) return;
   openOverlay(`<div class="panel ov-panel" style="text-align:center">
-    <div class="ov-title">Abandon Run?</div>
-    <div class="ov-sub">Your climb will be lost to the void.</div>
-    <div class="ov-actions"><button class="btn danger" data-a="yes">Abandon</button><button class="btn ghost" data-a="no">Keep Climbing</button></div>
+    <div class="ov-title">${tr('ui.menu.abandonConfirmTitle')}</div>
+    <div class="ov-sub">${tr('ui.menu.abandonConfirmBody')}</div>
+    <div class="ov-actions"><button class="btn danger" data-a="yes">${tr('ui.menu.abandon')}</button><button class="btn ghost" data-a="no">${tr('ui.menu.keepClimbing')}</button></div>
   </div>`, (root) => {
     root.onclick = (e) => {
       const a = e.target.dataset.a;
@@ -751,15 +753,15 @@ function showCardGrid(title, instances, { sub = '', pick = null, canSkip = false
 }
 function showHelp() {
   openOverlay(`<div class="panel ov-panel howto">
-    <div class="ov-title">How to Play</div>
-    <h3>The Climb</h3>Choose a path of lanterns up the Spire. Fight monsters, gather cards, relics and phials, and defeat the boss of each of the <b>3 acts</b>. Unlit lanterns hide what they hold — but pay a bounty for the walking.
-    <h3>Combat</h3>Each turn you draw <b>5 cards</b> and gain <b>3 Energy</b> (⬤). Play a card by clicking or dragging — attacks need a target when several enemies remain. Enemies telegraph their <b>intent</b> above their heads.
-    <h3>The Glass</h3>Every creature is glass with a row of <b>Facets</b> under its lifebar. Attacks that draw unblocked blood chip a facet (heavy cards chip more). Fill the gauge and the glass <b>SHATTERS</b>: it loses its next action, is Cracked, and spills <b>Embers</b> into your lantern. Time a shatter to deny the blow you can't survive.
-    <h3>The Lantern</h3>Embers fuel your <b>Lantern Art</b> — one signature power, always available, once a turn (press <b>A</b>). Drag any card onto the lantern to <b>kindle</b> it: the card burns away and feeds the lantern 1 ember. Once a turn; curses refuse the fire.
-    <h3>Ward & Statuses</h3><b>Ward</b> is held light that absorbs damage but expires each turn. <b>Cracked</b> ×1.5 damage taken · <b>Dimmed</b> −25% damage dealt · <b>Brittle</b> −25% Ward · <b>Smolder</b> burns each turn, and leaps to another enemy when its host dies or shatters.
-    <h3>The Fires & The Merchant</h3>Rest sites heal <b>30%</b> or upgrade a card. Shops sell cards, relics, phials — and can <b>remove</b> a card from your deck. Keep your deck lean; every reward is optional.
-    <h3>The Vigil — What Death Leaves Behind</h3>Nothing is wasted. At the foot of each climb the <b>Lamplighter</b> offers a boon and lets you choose your Lantern Art. When you fall, carve one thing into the stone — a <b>monument</b> your next climb can recover in that same act. Every shatter, kindle and slaying feeds lifetime <b>Deeds</b> that unlock new cards, relics, and a second aspect, the <b>Ashwarden</b>. Reach the dawn once and the <b>Vows</b> open: an optional difficulty ladder for those who'd climb a crueler Spire.
-    <div class="ov-actions"><button class="btn" data-a="ok">Fight On</button></div>
+    <div class="ov-title">${tr('ui.help.title')}</div>
+    <h3>${tr('ui.help.climbTitle')}</h3>${tr('ui.help.climbBody')}
+    <h3>${tr('ui.help.combatTitle')}</h3>${tr('ui.help.combatBody')}
+    <h3>${tr('ui.help.glassTitle')}</h3>${tr('ui.help.glassBody')}
+    <h3>${tr('ui.help.lanternTitle')}</h3>${tr('ui.help.lanternBody')}
+    <h3>${tr('ui.help.wardTitle')}</h3>${tr('ui.help.wardBody')}
+    <h3>${tr('ui.help.firesTitle')}</h3>${tr('ui.help.firesBody')}
+    <h3>${tr('ui.help.vigilTitle')}</h3>${tr('ui.help.vigilBody')}
+    <div class="ov-actions"><button class="btn" data-a="ok">${tr('ui.menu.fightOn')}</button></div>
   </div>`, (root) => { $('[data-a="ok"]', root).onclick = () => { sfx.click(); closeOverlay(); }; }, true);
 }
 
@@ -870,7 +872,7 @@ function rosePaneCopy(vigil, id, record) {
     <div class="rose-pane-inscription">${escHtml(disclosure.inscription)}</div>
     <div class="rose-pane-progress">${disclosure.progress}/${disclosure.target}</div>`;
   if (record.state === 'complete') return `<div class="rose-pane-name">${escHtml(quest.name)}</div>
-    <div class="rose-pane-progress">Shard recovered</div>`;
+    <div class="rose-pane-progress">${escHtml(tr('ui.rose.shardRecoveredShort'))}</div>`;
   return '';
 }
 
@@ -878,12 +880,12 @@ function rosePaneControl(vigil, id, record, index, selected, assets) {
   const state = record.state;
   const disclosure = E.questDisclosure(vigil, id);
   const name = state === 'dormant'
-    ? `Dormant Emberglass pane ${index + 1}`
+    ? tr('ui.rose.dormantPane', { n: index + 1 })
     : state === 'armed'
-      ? `Unknown Emberglass pane ${index + 1}`
+      ? tr('ui.rose.unknownPane', { n: index + 1 })
       : state === 'revealed'
         ? `${disclosure.name}, ${disclosure.progress} of ${disclosure.target}`
-        : `${QUESTS[id].name}, Shard recovered`;
+        : tr('ui.rose.shardRecovered', { name: QUESTS[id].name });
   const [x, y] = ROSE_LABEL_POSITIONS[index];
   const style = assets ? ` style="--rose-x:${x}%;--rose-y:${y}%"` : '';
   return `<button type="button" class="rose-pane-select${assets ? '' : ' slot-control'}" data-a="rose-pane" data-index="${index}"
@@ -898,8 +900,8 @@ function roseDetailCopy(vigil, id, record) {
     <div class="rose-detail-inscription">${escHtml(disclosure.inscription)}</div>
     <div class="rose-detail-progress">${disclosure.progress}/${disclosure.target}</div>`;
   if (record.state === 'complete') return `<div class="rose-detail-name">${escHtml(quest.name)}</div>
-    <div class="rose-detail-progress">Shard recovered</div>`;
-  return '<div class="rose-detail-dormant">This pane is dark.</div>';
+    <div class="rose-detail-progress">${escHtml(tr('ui.rose.shardRecoveredShort'))}</div>`;
+  return `<div class="rose-detail-dormant">${escHtml(tr('ui.rose.paneDark'))}</div>`;
 }
 
 function rosePaneDetailHtml(v, index) {
@@ -907,7 +909,7 @@ function rosePaneDetailHtml(v, index) {
   const record = v.quests[id] || { state: 'dormant', progress: 0, memory: {} };
   const state = ['armed', 'revealed', 'complete'].includes(record.state) ? record.state : 'dormant';
   return `<section id="rose-pane-detail" class="rose-pane-detail ${state}" role="region"
-    aria-label="Selected Emberglass pane" aria-live="polite" data-index="${index}">${roseDetailCopy(v, id, { ...record, state })}</section>`;
+    aria-label="${escHtml(tr('ui.rose.selectedPane'))}" aria-live="polite" data-index="${index}">${roseDetailCopy(v, id, { ...record, state })}</section>`;
 }
 
 function initialRosePaneIndex(v) {
@@ -944,10 +946,10 @@ function whisperLogHtml(v) {
   const heard = WHISPERS.slice(0, Math.min(v.whispers, WHISPERS.length));
   const rows = heard.map((line, i) => `<div class="whisper-row"><span>${i + 1}</span><i>${escHtml(line)}</i></div>`);
   if (v.whispers > WHISPERS.length) {
-    rows.push('<div class="whisper-row final"><span>∞</span><i>The final whisper returns at every dawn.</i></div>');
+    rows.push(`<div class="whisper-row final"><span>∞</span><i>${escHtml(tr('ui.rose.finalWhisper'))}</i></div>`);
   }
   return `<div class="whisper-log">
-    <div class="whisper-log-title">Whispers heard at dawn</div>
+    <div class="whisper-log-title">${tr('ui.rose.whisperLogTitle')}</div>
     ${rows.join('')}
   </div>`;
 }
@@ -1004,7 +1006,7 @@ function titleRoseMedallion(v, assets) {
   const panes = QUEST_IDS.filter((id) => v.shards.includes(id)).map((id) =>
     `<span class="title-rose-pane" style="--rose-mural:url('${escHtml(assets.mural)}');--rose-mask:url('${escHtml(assets.masks[id])}')"></span>`).join('');
   const urls = [assets.mural, assets.frame, ...QUEST_IDS.map((id) => assets.masks[id])];
-  return `<button class="title-rose-medallion" data-a="rose" aria-label="Open the Rose Window" disabled>
+  return `<button class="title-rose-medallion" data-a="rose" aria-label="${tr('ui.rose.openLabel')}" disabled>
     <span class="title-rose-composite">${panes}<img src="${escHtml(assets.frame)}" alt=""></span>
     <span class="title-rose-preload" aria-hidden="true">${urls.map((url) => `<img src="${escHtml(url)}" alt="">`).join('')}</span>
   </button>`;
@@ -1044,14 +1046,14 @@ function renderTitle() {
   const sc = screenEl();
   sc.innerHTML = `<div class="title-screen screen-enter">
     ${banner ? `<div class="title-banner"><div class="title-banner-frame"><img class="raster-art" src="${banner}" alt=""></div></div>` : ''}
-    <div class="logo${titleText ? ' logo-raster' : ''}" data-version-logo>${titleText ? `<img class="title-wordmark" src="${titleText}" alt="SPIREBOUND">` : 'SPIREBOUND'}</div>
-    <div class="tagline">A Roguelite Deckbuilder · The Vigil Remembers</div>
+    <div class="logo${titleText ? ' logo-raster' : ''}" data-version-logo>${titleText ? `<img class="title-wordmark" src="${titleText}" alt="${tr('ui.brand.title')}">` : tr('ui.brand.title')}</div>
+    <div class="tagline">${tr('ui.brand.tagline')}</div>
     ${titleRoseMedallion(vigil, rose)}
     <div class="title-btns">
-      ${saved ? '<button class="btn" data-a="continue">Continue Climb</button>' : ''}
-      <button class="btn" data-a="embark">Begin the Climb</button>
-      <button class="btn ghost${vigil.news && !REDUCED ? ' news' : ''}" data-a="vigil">The Vigil</button>
-      <button class="btn ghost" data-a="help">How to Play</button>
+      ${saved ? `<button class="btn" data-a="continue">${tr('ui.menu.continueClimb')}</button>` : ''}
+      <button class="btn" data-a="embark">${tr('ui.menu.beginClimb')}</button>
+      <button class="btn ghost${vigil.news && !REDUCED ? ' news' : ''}" data-a="vigil">${tr('ui.menu.theVigil')}</button>
+      <button class="btn ghost" data-a="help">${tr('ui.menu.howToPlay')}</button>
       <button class="btn ghost" data-a="settings">Settings</button>
     </div>
     <div class="title-stats">${d.runs} climbs · ${d.wins} dawns · ${d.slain} slain${vigil.unlocks.length ? ` · ${vigil.unlocks.length} secrets unearthed` : ''}</div>
@@ -1112,7 +1114,7 @@ function renderEmbark() {
   const hasAspects = vigil.unlocks.includes('aspect2');
   if (!hasAspects) sel.aspect = 0;
   sel.vow = Math.max(0, Math.min(sel.vow | 0, vigil.vowUnlocked));
-  const aspectRow = hasAspects ? `<div class="embark-label">Who carries the lantern</div>
+  const aspectRow = hasAspects ? `<div class="embark-label">${tr('ui.embark.aspectLabel')}</div>
     <div class="aspect-row">${ASPECTS.map((a, i) => `
       <button class="aspect-card${sel.aspect === i ? ' on' : ''}" data-a="asp" data-i="${i}">
         <div class="asp-hero">${heroArt(i)}</div>
@@ -1120,7 +1122,7 @@ function renderEmbark() {
         <div class="asp-blurb">${a.blurb}</div>
       </button>`).join('')}</div>` : '';
   const vowLine = sel.vow === 0
-    ? 'The Spire as it is. No vows sworn.'
+    ? tr('ui.embark.noVows')
     : VOWS.slice(0, sel.vow).map((v) => `<b style="color:#ff9a4d">${v.name}</b> — ${v.desc}`).join('<br>');
   const vowBlock = vigil.vowUnlocked > 0 ? `<div class="vow-block">
       <div class="vow-stepper">
@@ -1132,14 +1134,14 @@ function renderEmbark() {
     </div>` : '';
   const sc = screenEl();
   sc.innerHTML = `<div class="embark-screen screen-enter">
-    <div class="embark-title">THE CLIMB BEGINS</div>
-    <div class="embark-sub">${hasAspects || vigil.vowUnlocked > 0 ? 'Choose how you meet the Spire.' : 'The lantern is lit. The Spire waits.'}</div>
+    <div class="embark-title">${tr('ui.embark.title')}</div>
+    <div class="embark-sub">${hasAspects || vigil.vowUnlocked > 0 ? tr('ui.embark.subChoose') : tr('ui.embark.subWait')}</div>
     ${aspectRow}
     ${vowBlock}
-    ${saved ? '<div class="embark-warn">Beginning anew abandons your saved climb.</div>' : ''}
+    ${saved ? `<div class="embark-warn">${tr('ui.embark.warnSaved')}</div>` : ''}
     <div class="title-btns">
-      <button class="btn btn-primary" data-a="begin">${saved ? 'Begin Anew' : 'Begin the Climb'}</button>
-      <button class="btn ghost" data-a="back">Back</button>
+      <button class="btn btn-primary" data-a="begin">${saved ? tr('ui.menu.beginAnew') : tr('ui.menu.beginClimb')}</button>
+      <button class="btn ghost" data-a="back">${tr('ui.menu.back')}</button>
     </div>
   </div>`;
   const beginClimb = () => {
@@ -1169,9 +1171,9 @@ function renderEmbark() {
       // on Embark. Abandon advances runsPlayed like confirmAbandon.
       if (!saved) { beginClimb(); return; }
       openOverlay(`<div class="panel ov-panel" style="text-align:center">
-        <div class="ov-title">Begin Anew?</div>
-        <div class="ov-sub">Your saved climb will be lost to the void.</div>
-        <div class="ov-actions"><button class="btn danger" data-a="yes">Begin Anew</button><button class="btn ghost" data-a="no">Keep Climbing</button></div>
+        <div class="ov-title">${tr('ui.menu.beginAnewTitle')}</div>
+        <div class="ov-sub">${tr('ui.menu.beginAnewBody')}</div>
+        <div class="ov-actions"><button class="btn danger" data-a="yes">${tr('ui.menu.beginAnew')}</button><button class="btn ghost" data-a="no">${tr('ui.menu.keepClimbing')}</button></div>
       </div>`, (root) => {
         root.onclick = (ev) => {
           const ans = ev.target.dataset.a;
@@ -1225,14 +1227,14 @@ function renderVigil({ tab = 'deeds' } = {}) {
   const draw = (requested) => {
     const active = requested === 'rose' && hasRose ? 'rose' : 'deeds';
     sc.innerHTML = `<div class="center-panel screen-enter"><div class="panel vigil-panel${active === 'rose' ? ' rose-tab-open' : ''}">
-      <div class="ov-title">The Vigil</div>
+      <div class="ov-title">${tr('ui.menu.theVigil')}</div>
       <div class="ov-sub">${v.deeds.runs} climbs · ${v.deeds.wins} dawns · deepest Vow: ${ROMAN[v.deeds.bestVow] || '—'}</div>
       <div class="vigil-tabs">
-        <button class="vtab${active === 'deeds' ? ' on' : ''}" data-a="tab-deeds">Deeds</button>
-        ${hasRose ? `<button class="vtab${active === 'rose' ? ' on' : ''}" data-a="tab-rose">Rose Window</button>` : ''}
+        <button class="vtab${active === 'deeds' ? ' on' : ''}" data-a="tab-deeds">${tr('ui.vigil.deeds')}</button>
+        ${hasRose ? `<button class="vtab${active === 'rose' ? ' on' : ''}" data-a="tab-rose">${tr('ui.vigil.roseWindow')}</button>` : ''}
       </div>
       ${active === 'rose' ? roseSurfaceHtml(v, assets) : `<div class="deed-list">${deedRows}</div>`}
-      <div class="ov-actions"><button class="btn" data-a="back">Return</button></div>
+      <div class="ov-actions"><button class="btn" data-a="back">${tr('ui.menu.return')}</button></div>
     </div></div>`;
     if (active === 'rose') decodeRoseAssets(sc);
   };
@@ -1345,14 +1347,14 @@ function renderLamplighter() {
   sc.innerHTML = `<div class="lamp-screen screen-enter">
     ${sceneBg()}
     <div class="lamp-hero">${heroArt(run.aspect)}</div>
-    <div class="lamp-title">THE LAMPLIGHTER</div>
-    <div class="lamp-sub">${asp.name} stands at the foot of the Spire. Take one parting gift — and choose the fire your lantern will carry.</div>
-    <div class="lamp-label">A Boon for the Road</div>
+    <div class="lamp-title">${tr('ui.lamp.title')}</div>
+    <div class="lamp-sub">${tr('ui.lamp.sub', { aspect: asp.name })}</div>
+    <div class="lamp-label">${tr('ui.lamp.boonLabel')}</div>
     <div class="lamp-boons">${boonCards}</div>
-    <div class="lamp-label">Your Lantern Art <span class="lamp-hint">(press A in combat)</span></div>
+    <div class="lamp-label">${tr('ui.lamp.artLabel')} <span class="lamp-hint">${tr('ui.lamp.artHint')}</span></div>
     <div class="lamp-arts">${artChips}</div>
     <div class="lamp-art-desc">${chosen ? `<b style="color:${chosen.tone}">${iconSvg(`art-${L.art}`, 15)} ${chosen.name}</b> · ${fmtText(chosen.text)}` : ''}</div>
-    <div class="lamp-actions"><button class="btn btn-primary" data-a="begin"${L.boon ? '' : ' disabled'}>${L.boon ? 'Light the Way' : 'Choose a boon'}</button></div>
+    <div class="lamp-actions"><button class="btn btn-primary" data-a="begin"${L.boon ? '' : ' disabled'}>${L.boon ? tr('ui.menu.lightTheWay') : tr('ui.menu.chooseBoon')}</button></div>
   </div>`;
   renderHud();
   sc.onclick = (e) => {
@@ -1635,13 +1637,22 @@ function renderMap() {
   // tooltips on nodes
   $$('.mnode', svg).forEach((g) => {
     const n = nodes.find((x) => x.id === g.dataset.node);
-    const names = { monster: 'Monster', elite: 'Elite — beware', event: 'Unknown event', rest: 'Rest site', shop: 'Merchant', treasure: 'Treasure', boss: ACTS[run.act].bossName };
-    const hints = { monster: 'A fight. Embers and gold for the swift.', elite: 'A titled foe - greater risk, a relic-grade purse.', event: 'Fate unwritten. Could be anything.', rest: 'Heal, or forge a card into its + form.', shop: 'Gold for cards, relics, phials.', treasure: 'A chest with no fight attached.', boss: 'The act ends here. Ready your deck.' };
+    const names = {
+      monster: tr('ui.map.node.monster'), elite: tr('ui.map.node.elite'), event: tr('ui.map.node.event'),
+      rest: tr('ui.map.node.rest'), shop: tr('ui.map.node.shop'), treasure: tr('ui.map.node.treasure'),
+      boss: ACTS[run.act].bossName,
+    };
+    const hints = {
+      monster: tr('ui.map.hint.monster'), elite: tr('ui.map.hint.elite'), event: tr('ui.map.hint.event'),
+      rest: tr('ui.map.hint.rest'), shop: tr('ui.map.hint.shop'), treasure: tr('ui.map.hint.treasure'),
+      boss: tr('ui.map.hint.boss'),
+    };
+    const travel = tr('ui.map.travelHere', { action: COARSE ? tr('ui.map.tap') : tr('ui.map.click') });
     g._tip = n.questMarked
       ? { title: 'Witchlight trembles', body: 'Pale glass waits here.' }
       : n.unlit && !visited.has(n.id)
-        ? { title: 'An unlit lantern', body: `What waits here is unknown — but first light pays a bounty of gold.${avail.has(n.id) ? ` ${COARSE ? 'Tap' : 'Click'} to travel here.` : ''}` }
-        : { title: names[n.type], body: avail.has(n.id) ? `${COARSE ? 'Tap' : 'Click'} to travel here.` : '', sub: hints[n.type] };
+        ? { title: tr('ui.map.unlitTitle'), body: `${tr('ui.map.unlitBody')}${avail.has(n.id) ? ` ${travel}` : ''}` }
+        : { title: names[n.type], body: avail.has(n.id) ? travel : '', sub: hints[n.type] };
   });
   // 3D wiring: anchors on the tower, camera dollies to the current row
   const anchors = nodes.map((n) => ({ id: n.id, pos: mapNodePos(run.act, n) }));
@@ -1814,7 +1825,7 @@ function claimMonumentNode(node) {
     const from = g ? V.centerOf(g) : { x: stageW() / 2, y: stageH() / 2 };
     V.floatText(from.x, from.y - 34, `✦ ${label}`, 'goldf');
     flyTo(from.x, from.y, stageW() / 2, stageH() * 0.5, { n: 8, color: '#ffe9ac', size: 8, dur: 720 });
-    banner('THE STONE REMEMBERS');
+    banner(tr('ui.combat.stoneRemembers'));
     show('map');
   };
   const clearThenFinish = () => {
@@ -1872,21 +1883,21 @@ function renderCombat() {
     </div>
     <div class="energy-orb" aria-label="Energy"><div class="num">0</div><div class="candles"></div></div>
     <button class="lantern-btn"><span class="lb-ic"></span><span class="lb-count">0</span><div class="lb-pips"></div></button>
-    <button class="end-turn" type="button"><span class="et-ic">${uiIcon('end-turn', 120)}</span><span class="et-lbl">End</span></button>
+    <button class="end-turn" type="button"><span class="et-ic">${uiIcon('end-turn', 120)}</span><span class="et-lbl">${tr('ui.combat.end')}</span></button>
     <button class="pile-btn pile-draw" type="button" aria-label="Draw pile">
       <span class="pile-stack" data-pile="draw" data-count="-1" data-tier="-1"></span>
       <span class="cnt">0</span>
-      <span class="lbl">DRAW</span>
+      <span class="lbl">${tr('ui.combat.draw')}</span>
     </button>
     <button class="pile-btn pile-discard" type="button" aria-label="Discard pile">
       <span class="pile-stack" data-pile="discard" data-count="-1" data-tier="-1"></span>
       <span class="cnt">0</span>
-      <span class="lbl">DISCARD</span>
+      <span class="lbl">${tr('ui.combat.discard')}</span>
     </button>
     <button class="pile-btn pile-exhaust" type="button" aria-label="Ashes pile">
       <span class="pile-stack" data-pile="ashes" data-count="-1" data-tier="-1"></span>
       <span class="cnt">0</span>
-      <span class="lbl">ASHES</span>
+      <span class="lbl">${tr('ui.combat.ashes')}</span>
     </button>
     <div class="hand-zone"></div>
   </div>`;
@@ -2370,7 +2381,7 @@ function syncCombat() {
     if (en.hp <= 0 && x.reaped) x.root.classList.add('gone');
     if (en.hp > 0 && en.flags.staggered) {
       x.intent.className = 'intent i-staggered';
-      x.intent.innerHTML = `<span class="ic">${iconSvg('stagger', 38)}</span><span class="num">STAGGERED</span>`;
+      x.intent.innerHTML = `<span class="ic">${iconSvg('stagger', 38)}</span><span class="num">${tr('ui.combat.staggered')}</span>`;
       x.intent._tip = { title: 'Staggered', body: 'The glass has shattered — this creature loses its next action while it reseams.' };
     } else if (en.hp > 0 && en.moveKey) {
       const it = intentFor(en);
@@ -3559,7 +3570,7 @@ async function playReshuffleCeremony(ev) {
     releasePileVisual('draw', n);
   }
   bumpPile(ce.draw);
-  V.floatText(V.centerOf(ce.draw).x, V.centerOf(ce.draw).y - 46, 'Reshuffle', 'notice');
+  V.floatText(V.centerOf(ce.draw).x, V.centerOf(ce.draw).y - 46, tr('ui.combat.reshuffle'), 'notice');
   syncPileWidgets(cb);
 }
 
@@ -3711,7 +3722,7 @@ async function handleEvent(ev, targetIdx) {
       V.hitstop(90);
       V.ring(ex, ey, '#dfeaff', 10, 700, 5);
       V.burst(ex, ey, { color: '#dfeaff', n: 26, speed: 430, size: 2.4, grav: 300, kind: 'spark' });
-      V.floatText(ex, ey - 58, `${iconSvg('stagger', 20)} SHATTER`, 'shatterf');
+      V.floatText(ex, ey - 58, `${iconSvg('stagger', 20)} ${tr('ui.combat.shatter')}`, 'shatterf');
       V.shake(10);
       kick(0.9);
       addCrack(x.art, true);
@@ -3724,7 +3735,7 @@ async function handleEvent(ev, targetIdx) {
     case 'adamantHold': {
       const { x: ex, y: ey } = enemyCenter(ev.idx);
       sfx.blocked();
-      V.floatText(ex, ey - 52, 'THE GLASS HOLDS', 'blockedf');
+      V.floatText(ex, ey - 52, tr('ui.combat.glassHolds'), 'blockedf');
       V.ring(ex, ey, '#d8c27a', 8, 480, 4);
       syncCombat();
       await sleep(260);
@@ -3834,7 +3845,7 @@ async function handleEvent(ev, targetIdx) {
       const x = ce.enemies[ev.idx];
       const { x: ex, y: ey } = enemyCenter(ev.idx);
       sfx.stagger();
-      V.floatText(ex, ey - 76, 'STAGGERED', 'staggerf');
+      V.floatText(ex, ey - 76, tr('ui.combat.staggered'), 'staggerf');
       x.root.classList.add('reseaming');
       setTimeout(() => x.root.classList.remove('reseaming'), 720);
       syncCombat();
@@ -3849,12 +3860,12 @@ async function handleEvent(ev, targetIdx) {
       break;
     }
     case 'turn': {
-      if (ev.n > 1) { banner('YOUR TURN'); sfx.turn(); }
+      if (ev.n > 1) { banner(tr('ui.combat.yourTurn')); sfx.turn(); }
       syncCombat();
       await sleep(ev.n > 1 ? 500 : 120);
       break;
     }
-    case 'endTurn': heroActing = false; banner('ENEMY TURN'); await sleep(480); break;
+    case 'endTurn': heroActing = false; banner(tr('ui.combat.enemyTurn')); await sleep(480); break;
     case 'draw': {
       await handleDrawWave([ev]);
       break;
@@ -3930,7 +3941,7 @@ async function handleEvent(ev, targetIdx) {
           V.floatText(ex, ey + 26, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf');
           V.burst(ex, ey + 8, { color: '#9fd4ff', n: 9, speed: 210, size: 2, grav: 260, kind: 'spark' }); // ward chips off
           if (cb.enemies[ev.idx].block === 0 && ev.amount === 0) {
-            V.floatText(ex, ey - 2, 'GUARD SHATTERED', 'shatterf');
+            V.floatText(ex, ey - 2, tr('ui.combat.guardShattered'), 'shatterf');
             V.shardSpray(ex, ey, '#9fd4ff', 14);
           }
         }
@@ -4015,7 +4026,7 @@ async function handleEvent(ev, targetIdx) {
         V.floatText(hx, hy + 30, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf');
         V.burst(hx, hy + 8, { color: '#9fd4ff', n: 9, speed: 210, size: 2, grav: 260, kind: 'spark' });
         if (cb.player.block === 0 && ev.amount === 0) {
-          V.floatText(hx, hy - 2, 'GUARD SHATTERED', 'shatterf');
+          V.floatText(hx, hy - 2, tr('ui.combat.guardShattered'), 'shatterf');
           V.shardSpray(hx, hy, '#9fd4ff', 14);
         }
       }
@@ -4507,7 +4518,7 @@ function renderReward() {
   if (!pending) { show('map'); return; }
   const { kind, rewards, taken, perfect } = pending;
   const sc = screenEl();
-  const title = kind === 'boss' ? 'BOSS VANQUISHED' : kind === 'elite' ? 'ELITE SLAIN' : 'VICTORY';
+  const title = kind === 'boss' ? tr('ui.reward.bossVanquished') : kind === 'elite' ? tr('ui.reward.eliteSlain') : tr('ui.reward.victory');
   const seal = perfect ? '<div class="perfect-seal">✦ PERFECT — the glass untouched ✦</div>' : '<div class="ornament">✦ ✦ ✦</div>';
   S.lastPerfect = false;
   sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
@@ -5163,25 +5174,25 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
   const mins = Math.max(1, Math.round((Date.now() - st.start) / 60000));
   const totalFloor = run.act * E.MAP_ROWS + run.floorsClimbed;
   const stats = `<div class="stats-grid">
-      <div class="stat-cell"><div class="v">${totalFloor}</div><div class="k">Floors</div></div>
-      <div class="stat-cell"><div class="v">${st.slain}</div><div class="k">Slain</div></div>
-      <div class="stat-cell"><div class="v">${st.elites + st.bosses}</div><div class="k">Elites & Bosses</div></div>
-      <div class="stat-cell"><div class="v">${run.player.deck.length}</div><div class="k">Deck Size</div></div>
-      <div class="stat-cell"><div class="v">${st.dmgDealt}</div><div class="k">Damage Dealt</div></div>
-      <div class="stat-cell"><div class="v">${st.dmgTaken}</div><div class="k">Damage Taken</div></div>
-      <div class="stat-cell"><div class="v">${st.cardsPlayed}</div><div class="k">Cards Played</div></div>
-      <div class="stat-cell"><div class="v">${mins}m</div><div class="k">Run Time</div></div>
+      <div class="stat-cell"><div class="v">${totalFloor}</div><div class="k">${tr('ui.end.floors')}</div></div>
+      <div class="stat-cell"><div class="v">${st.slain}</div><div class="k">${tr('ui.end.slain')}</div></div>
+      <div class="stat-cell"><div class="v">${st.elites + st.bosses}</div><div class="k">${tr('ui.end.elitesBosses')}</div></div>
+      <div class="stat-cell"><div class="v">${run.player.deck.length}</div><div class="k">${tr('ui.end.deckSize')}</div></div>
+      <div class="stat-cell"><div class="v">${st.dmgDealt}</div><div class="k">${tr('ui.end.dmgDealt')}</div></div>
+      <div class="stat-cell"><div class="v">${st.dmgTaken}</div><div class="k">${tr('ui.end.dmgTaken')}</div></div>
+      <div class="stat-cell"><div class="v">${st.cardsPlayed}</div><div class="k">${tr('ui.end.cardsPlayed')}</div></div>
+      <div class="stat-cell"><div class="v">${mins}m</div><div class="k">${tr('ui.end.runTime')}</div></div>
     </div>`;
   const btns = `<div class="end-btns">
-      <button class="btn" data-a="deck"${won ? ' disabled' : ''}>View Final Deck</button>
-      <button class="btn" data-a="title"${won ? ' disabled' : ''}>Return to the Vigil</button>
+      <button class="btn" data-a="deck"${won ? ' disabled' : ''}>${tr('ui.end.viewDeck')}</button>
+      <button class="btn" data-a="title"${won ? ' disabled' : ''}>${tr('ui.end.returnVigil')}</button>
     </div>`;
   let ceremony = Promise.resolve();
   if (won) {
     screenEl().innerHTML = `<div class="end-screen screen-enter">
       ${metaBg('ascended')}
-      <div class="end-title win">ASCENDED</div>
-      <div class="ov-sub" style="font-size:17px">The Eternal Sovereign is dust. Dawn breaks over the Spire — the first in an age.</div>
+      <div class="end-title win">${tr('ui.end.ascended')}</div>
+      <div class="ov-sub" style="font-size:17px">${tr('ui.end.ascendedSub')}</div>
       <div class="dawn-ceremony" aria-live="polite"></div>
       ${stats}${btns}
     </div>`;
@@ -5209,7 +5220,7 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
       ${metaBg('fallen')}
       <div class="monument">
         <div class="mon-flame"></div>
-        <div class="end-title lose">FALLEN</div>
+        <div class="end-title lose">${tr('ui.end.fallen')}</div>
         <div class="ov-sub" style="font-size:16px">Here ended a climb, on floor ${totalFloor}.<br>The Spire keeps what it takes — but the Vigil remembers.</div>
         ${stats}${bequestHtml}${btns}
       </div>
