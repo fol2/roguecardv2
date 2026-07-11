@@ -4,7 +4,7 @@
 
 **Goal:** Extract player-facing English into `src/i18n/en/`, add a Node-safe `t()` API, hydrate `data.js` display fields, leave behaviour and English copy identical. No second language.
 
-**Architecture:** Locale catalogues own display strings. `data.js` keeps mechanics (`effects`, costs, ids) and is hydrated at module init from the default `'en'` bundle so `engine.js` / tests still read `CARDS.strike.name`. `ui.js` chrome migrates to `t('ui…')` in later tasks. `i18n` imports nothing from `data`/`engine`/`ui`/`audio`/`stage`.
+**Architecture:** Locale catalogues own display strings. `data.js` keeps mechanics (`effects`, costs, ids, quest `target`) and is hydrated at module init from the default `'en'` bundle so `engine.js` / tests still read `CARDS.strike.name`. `ui.js` chrome migrates to `tr('ui…')`. `i18n` imports nothing from `data`/`engine`/`ui`/`audio`/`stage`.
 
 **Tech Stack:** Vite + vanilla JS; `npm test` (`node test/test_engine.js`). No new npm deps.
 
@@ -12,136 +12,51 @@
 
 **Branch:** `cursor/i18n-locale-extraction-brainstorm-dd15`
 
+**Rebase note (2026-07-11):** Rebased onto `origin/main` after Emberglass Phase 2, versioned audio, CI gates, and app versioning. Old bulk-extract commits were skipped; content + UI were re-extracted against the current tables (including `QUESTS` / `WHISPERS` / `VARIANTS` / `SHADE_KITS` / `unreadablePage` / `eighthOmen`).
+
 ## File map
 
 | File | Responsibility |
 |---|---|
 | `src/i18n/index.js` | `t`, `setLocale`, `getLocale`, `hydrateContent`, active bundle |
-| `src/i18n/en/content.js` | cards, status, (later) relics, enemies, events, … |
-| `src/i18n/en/ui.js` | chrome / help / keywords (later tasks) |
+| `src/i18n/en/content.js` | cards, status, relics, enemies, events, quests, whispers, variants, … |
+| `src/i18n/en/ui.js` | chrome / help / keywords / rose / vigil |
 | `src/i18n/en/index.js` | `{ content, ui }` bundle |
-| `src/data.js` | mechanics + call `hydrateContent` at end of module |
-| `src/ui.js` | later: `t('ui…')` for chrome |
+| `src/data.js` | mechanics + `hydrateContent(...)` at module end |
+| `src/ui.js` | `tr()` for core chrome |
 | `test/test_engine.js` | i18n + hydrate parity checks |
 
 ## Global constraints
 
-- `npm test` green at every task boundary.
-- Internal ids immutable. Locale keys = those ids (`cards.strike.name`).
+- `npm test` green at every task boundary (note: main currently fails a Suno renderer duration gate in this environment — unrelated to i18n).
+- Internal ids immutable. Locale keys = those ids (`cards.strike.name`, `quests.paleOnes.name`).
 - `i18n` is Node-safe (no DOM / localStorage / audio / stage).
-- `engine.js` / `vigil.js` keep importing `data.js` only (not `i18n` directly).
-- Status `desc` keeps `N` placeholder in slice 1 (ui.js `\bN\b` replace unchanged).
-- Card `@n@` / `#n#` markup unchanged.
+- `engine.js` / `vigil.js` keep importing `data.js` only (boundary test).
+- Card `@n@` / `#n#` markup and status `N` placeholders unchanged in slice 1.
 - Do not commit `dist/` unless a final rebuild task says so.
-- Commit after every task; never `--no-verify`, never amend.
 
 ---
 
-### Task 1: i18n scaffold + smoke `t()`
+### Task 1: i18n scaffold + smoke `t()` — DONE
 
-**Files:**
-- Create: `src/i18n/index.js`, `src/i18n/en/index.js`, `src/i18n/en/content.js`, `src/i18n/en/ui.js`
-- Test: `test/test_engine.js`
+### Task 2: Extract STATUS_INFO + CARDS; hydrate data.js — DONE
 
-- [ ] **Step 1: Write failing test**
+### Task 3: RELICS + POTIONS + ARTS + BOONS — DONE (re-extracted post-rebase)
 
-Import `{ t, getLocale, setLocale }` from `../src/i18n/index.js`. Assert:
+### Task 4: ENEMIES names + move names — DONE (re-extracted post-rebase)
 
-```js
-{
-  assert.equal(getLocale(), 'en');
-  assert.equal(t('cards.strike.name'), 'Edge');
-  assert.equal(t('missing.key.zzz'), 'missing.key.zzz');
-  assert.equal(t('ui.smoke.hello', { name: 'Spire' }), 'Hello, Spire');
-}
-```
+### Task 5: EVENTS + OMENS + AFFIXES + ACTS + ASPECTS + VOWS + DEEDS + PLAYER — DONE
 
-(Smoke ui key lives in `en/ui.js` temporarily; cards key lands in Task 2 — for Task 1 put a stub `cards: { strike: { name: 'Edge' } }` in `en/content.js`.)
+### Task 5b: Emberglass tables — DONE
 
-- [ ] **Step 2: Run test — expect FAIL** (module missing)
-
-- [ ] **Step 3: Implement API**
-
-`t(key, params?)`: walk dot path in active bundle (flatten `content` + `ui` under one lookup, or support `cards.*` from `bundle.content` and `ui.*` from `bundle.ui`). `{param}` replace. Missing → return key.
-
-`setLocale(code)`: swap bundle if registered; default only `'en'`. Fixture locale optional for tests.
-
-- [ ] **Step 4: `npm test` green**
-
-- [ ] **Step 5: Commit** — `Add i18n scaffold with t() and en bundle.`
-
----
-
-### Task 2: Extract STATUS_INFO + CARDS; hydrate data.js
-
-**Files:**
-- Modify: `src/i18n/en/content.js`, `src/data.js`
-- Test: `test/test_engine.js`
-
-- [ ] **Step 1: Parity test**
-
-```js
-{
-  for (const id of Object.keys(CARDS)) {
-    assert.ok(CARDS[id].name, `card ${id} has name`);
-    assert.ok(typeof CARDS[id].text === 'string', `card ${id} has text`);
-  }
-  for (const id of Object.keys(STATUS_INFO)) {
-    assert.ok(STATUS_INFO[id].name, `status ${id} has name`);
-    assert.ok(STATUS_INFO[id].desc, `status ${id} has desc`);
-  }
-  assert.equal(t('cards.strike.name'), 'Edge');
-  assert.equal(t('status.poison.name'), 'Smolder');
-  assert.equal(cardData(makeCard(newRun(2), 'strike', true)).name, 'Edge+');
-}
-```
-
-- [ ] **Step 2: Move all card `name`/`text`/`up.text` → `content.cards[id]` as `name`/`text`/`textUp`**
-
-- [ ] **Step 3: Move STATUS_INFO `name`/`desc` → `content.status[id]`** (keep `icon`/`kind` in data.js)
-
-- [ ] **Step 4: Strip those fields from data.js; call `hydrateContent({ CARDS, STATUS_INFO }, content)` at module end (before or after CARD_POOLS — pools don't need display fields)**
-
-- [ ] **Step 5: `npm test` green**
-
-- [ ] **Step 6: Commit** — `Hydrate card and status display strings from en locale.`
-
----
-
-### Task 3: RELICS + POTIONS + ARTS + BOONS — DONE
-
-Same pattern: locale keys `relics.*`, `potions.*`, `arts.*`, `boons.*` with `name`/`text`. Hydrate. Parity loop. Commit.
-
----
-
-### Task 4: ENEMIES names + move names — DONE
-
-`enemies.{id}.name`, `enemies.{id}.moves.{moveKey}.name`. Hydrate onto `ENEMIES`. Parity. Commit.
-
----
-
-### Task 5: EVENTS + OMENS + AFFIXES + ACTS + ASPECTS + VOWS + DEEDS + PLAYER blurb — DONE
-
-Narrative tables. Event choices: `choices.{i}.label` / `.sub`. Commit.
-
----
+`quests.*` (incl. hollow `meetings`), `whispers[]`, `variants.*`, `shadeKits.*.moves.*.name`, new omen `eighthOmen`, card `unreadablePage`.
 
 ### Task 6: UI chrome maps in ui.js — DONE (core surfaces)
 
-Title / embark / map node labels / combat piles / end-turn / common buttons / vigil / lamplighter / end-screen → `en/ui.js` + `tr()`. Remaining shop/rest/reward microcopy can follow the same pattern.
-
----
+Title / embark / map / combat piles / banners / vigil / rose / lamplighter / end-screen / help / keywords. Remaining shop/rest/hollow/dawn microcopy deferred.
 
 ### Task 7: KEYWORDS + FACET_DESC + help essay — DONE
 
-Moved into `en/ui.js`. `fmtText` still uses English word list (slice 3 later).
+### Task 8: Final parity sweep — DONE (content + Emberglass)
 
----
-
-### Task 8: Final parity sweep — DONE (content)
-
-- Content-id parity covered in `test/test_engine.js`.
-- "Add a language" recipe remains in the design spec §10.
-- `npm test` green.
-
-**Deferred (later slices):** intent/event composers, remaining shop/rest chrome literals, `fmtText` keyword redesign, second locale, language picker, shell/PWA, `dist/` rebuild.
+**Deferred (later slices):** intent/event composers, remaining shop/rest/hollow/dawn chrome literals, `fmtText` keyword redesign, second locale, language picker, shell/PWA, `dist/` rebuild.

@@ -1,6 +1,6 @@
 # Spirebound — Multi-language (i18n) locale extraction (design / brainstorm)
 
-**Date:** 2026-07-09
+**Date:** 2026-07-09 (rebased / re-assessed 2026-07-11)
 **Goal:** Make every player-facing string loadable from a locale catalogue so the
 game can later swap languages — **without shipping any non-English translation
 in this pass**. First slice = extract English into locale files + a tiny
@@ -14,6 +14,9 @@ may rely on executor taste or judgement.
 `2026-07-09-entrance-progressive-delivery-design.md`. Localisation was
 explicitly **out of scope** there; this spec opens that workstream at the
 smallest useful cut.
+**Rebase (2026-07-11):** re-extracted against Emberglass Phase 2 content
+(`QUESTS`, `WHISPERS`, `VARIANTS`, `SHADE_KITS`, `unreadablePage`, `eighthOmen`)
+plus app-versioning / audio / CI surfaces on `main`.
 
 ## Decisions record (owner-facing — locked for slice 1)
 
@@ -21,7 +24,7 @@ smallest useful cut.
 |---|---|
 | Scope of this pass | **English extraction + plumbing only.** No second language, no language picker UI, no RTL, no font packing |
 | What "ready for other languages" means | A second locale is adding a parallel catalogue under `src/i18n/<locale>/` and calling `setLocale(code)` — not rewriting call sites again |
-| Where strings live today | ~550–650 semantic units: mostly `src/data.js` (content) + `src/ui.js` (chrome / composers); shell in `index.html` + `manifest.webmanifest` |
+| Where strings live today | Content in `src/data.js` (incl. Emberglass `QUESTS`/`WHISPERS`/`VARIANTS`/`SHADE_KITS`) + chrome in `src/ui.js`; shell in `index.html` + `manifest.webmanifest` |
 | Internal ids | **Immutable.** `strike`, `poison`, `vulnerable`, rarity keys, move keys stay English machine ids forever (saves + tests) |
 | Display vs mechanics | Mechanics (`effects`, costs, `mods`, AI) stay in `data.js`. Display fields (`name`, `text`, `desc`, `blurb`, choice labels, …) move into the locale catalogue |
 | File format | **ES modules exporting plain nested objects** (`src/i18n/en/*.js`). Not JSON (comments + co-location with JS tooling matter; Vite already eats ESM) |

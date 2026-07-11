@@ -3862,31 +3862,72 @@ function forceHand(run, cb, ids) {
 {
   assert.equal(getLocale(), 'en');
   assert.equal(t('cards.strike.name'), 'Edge');
+  assert.equal(t('cards.unreadablePage.name'), 'The Unreadable Page');
   assert.equal(t('status.poison.name'), 'Smolder');
+  assert.equal(t('relics.emberHeart.name'), 'Emberheart');
+  assert.equal(t('omens.eighthOmen.name'), 'The Eighth Omen');
+  assert.equal(t('enemies.sporeling.moves.spit.name'), 'Spore Spit');
+  assert.equal(t('quests.paleOnes.name'), 'The Pale Ones');
+  assert.equal(t('ui.menu.beginClimb'), 'Begin the Climb');
+  assert.equal(t('ui.vigil.roseWindow'), 'Rose Window');
+  assert.equal(t('ui.help.title'), 'How to Play');
   assert.equal(t('missing.key.zzz'), 'missing.key.zzz');
   assert.equal(t('ui.smoke.hello', { name: 'Spire' }), 'Hello, Spire');
   assert.equal(setLocale('nope'), false, 'unknown locale ignored');
   assert.equal(getLocale(), 'en');
 
   const content = getContent();
-  for (const id of Object.keys(CARDS)) {
-    assert.ok(content.cards[id], `locale has cards.${id}`);
-    assert.ok(CARDS[id].name, `hydrated card ${id}.name`);
-    assert.equal(typeof CARDS[id].text, 'string', `hydrated card ${id}.text`);
-    assert.equal(CARDS[id].name, content.cards[id].name, `card ${id} name matches locale`);
-    assert.equal(CARDS[id].text, content.cards[id].text, `card ${id} text matches locale`);
-    if (content.cards[id].textUp != null) {
-      assert.ok(CARDS[id].up, `card ${id} has up for textUp`);
-      assert.equal(CARDS[id].up.text, content.cards[id].textUp, `card ${id} textUp hydrated`);
+  const tables = [
+    ['cards', CARDS, ['name', 'text']],
+    ['status', STATUS_INFO, ['name', 'desc']],
+    ['relics', RELICS, ['name', 'text']],
+    ['potions', POTIONS, ['name', 'text']],
+    ['arts', ARTS, ['name', 'text']],
+    ['boons', BOONS, ['name', 'text']],
+    ['omens', OMENS, ['name', 'text']],
+    ['affixes', AFFIXES, ['name', 'text']],
+    ['deeds', DEEDS, ['name', 'desc']],
+  ];
+  for (const [key, table, fields] of tables) {
+    for (const id of Object.keys(table)) {
+      assert.ok(content[key][id], `locale has ${key}.${id}`);
+      for (const f of fields) {
+        assert.equal(table[id][f], content[key][id][f], `${key}.${id}.${f} hydrated`);
+      }
     }
   }
-  for (const id of Object.keys(STATUS_INFO)) {
-    assert.ok(content.status[id], `locale has status.${id}`);
-    assert.ok(STATUS_INFO[id].name, `hydrated status ${id}.name`);
-    assert.ok(STATUS_INFO[id].desc, `hydrated status ${id}.desc`);
-    assert.equal(STATUS_INFO[id].name, content.status[id].name);
-    assert.equal(STATUS_INFO[id].desc, content.status[id].desc);
+  for (const id of Object.keys(CARDS)) {
+    if (content.cards[id].textUp != null) {
+      assert.equal(CARDS[id].up.text, content.cards[id].textUp, `card ${id} textUp`);
+    }
   }
+  for (const [id, e] of Object.entries(ENEMIES)) {
+    assert.equal(e.name, content.enemies[id].name, `enemy ${id}.name`);
+    for (const mk of Object.keys(e.moves)) {
+      assert.equal(e.moves[mk].name, content.enemies[id].moves[mk].name, `enemy ${id}.${mk}`);
+    }
+  }
+  for (const [id, ev] of Object.entries(EVENTS)) {
+    assert.equal(ev.name, content.events[id].name, `event ${id}.name`);
+    assert.equal(ev.text, content.events[id].text, `event ${id}.text`);
+    (ev.choices || []).forEach((ch, i) => {
+      assert.equal(ch.label, content.events[id].choices[i].label, `event ${id} choice ${i} label`);
+      assert.equal(ch.sub, content.events[id].choices[i].sub, `event ${id} choice ${i} sub`);
+    });
+  }
+  for (const id of Object.keys(QUESTS)) {
+    assert.equal(QUESTS[id].name, content.quests[id].name, `quest ${id}.name`);
+    assert.equal(QUESTS[id].mode, content.quests[id].mode, `quest ${id}.mode`);
+    assert.equal(typeof QUESTS[id].target, 'number', `quest ${id}.target stays mechanic`);
+  }
+  assert.equal(WHISPERS.length, 24);
+  assert.equal(WHISPERS.at(-1), 'The climb continues.');
+  assert.deepEqual(WHISPERS, content.whispers);
+  assert.equal(VARIANTS.ownShade1.name, content.variants.ownShade1.name);
+  assert.equal(VARIANTS.ownShade1.deathDialogue, content.variants.ownShade1.deathDialogue);
+  assert.equal(SHADE_KITS.duskblade.moves.eclipse.name, content.shadeKits.duskblade.moves.eclipse.name);
+  assert.equal(QUESTS.hollowLamplighter.meetings.length, 5);
+  assert.equal(QUESTS.hollowLamplighter.meetings[0].ask, content.quests.hollowLamplighter.meetings[0].ask);
   assert.equal(cardData(makeCard(newRun(2), 'strike', true)).name, 'Edge+');
 }
 
