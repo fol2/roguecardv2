@@ -5,12 +5,18 @@ import { pathToFileURL } from "node:url";
 import { execSync, spawn } from "node:child_process";
 import { cycleWorkProblem, runnerMetadata } from "./tools/sim/runner.mjs";
 
-const BF_SAVE_PORT = 5174;
+const BF_SAVE_PORT = process.env.SPIRE_PORT ? Number(process.env.SPIRE_PORT) : 5174;
 // Vite Host header gate for loading the page over Tailscale / LAN.
 // localhost + 127.0.0.1 are always allowed by Vite. `.ts.net` is a suffix
 // match (any MagicDNS name on the tailnet). Prefer MagicDNS over raw 100.x
 // IPs — IPs are not covered. Save itself uses same-origin checks below.
-const DEV_ALLOWED_HOSTS = [".ts.net"];
+// macm4.eugnel.com is only reachable through Cloudflare Access, see
+// mini-hub's INTERNET_INGRESS_SECURITY_PLAN.md.
+const DEV_ALLOWED_HOSTS = [".ts.net", "macm4.eugnel.com"];
+// Set only when this instance is reverse-proxied under a path prefix
+// (e.g. SPIRE_PUBLIC_BASE=/game/ for the macm4.eugnel.com trusted-entrance
+// route). Unset in normal local dev, so the default base ("/") is unchanged.
+const SPIRE_PUBLIC_BASE = process.env.SPIRE_PUBLIC_BASE || "/";
 const BF_LAYOUT_PATH = resolve("src/battlefield-layout.js");
 const BF_LAYOUT_TMP = `${BF_LAYOUT_PATH}.tmp`;
 const UIC_LAYOUT_PATH = resolve("src/ui-chrome-layout.js");
@@ -607,6 +613,7 @@ export default defineConfig(({ command }) => {
   const embedSha = command === "serve" || process.env.SPIRE_EMBED_SHA === "1";
   const SPIRE_GIT_SHA = embedSha ? spireGitSha() : "unknown";
   return {
+    base: SPIRE_PUBLIC_BASE,
     plugins: [bfSavePlugin()],
     define: {
       __SPIRE_VERSION__: JSON.stringify(SPIRE_VERSION),
