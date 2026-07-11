@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
-import { readdirSync, writeFileSync, renameSync } from "node:fs";
+import { readdirSync, writeFileSync, renameSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { execSync } from "node:child_process";
 
 const BF_SAVE_PORT = 5174;
 // Vite Host header gate for loading the page over Tailscale / LAN.
@@ -269,8 +270,37 @@ function bfSavePlugin() {
   };
 }
 
+function spirePackageVersion() {
+  try {
+    return JSON.parse(readFileSync(resolve("package.json"), "utf8")).version || "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+function spireGitSha() {
+  try {
+    return execSync("git rev-parse --short HEAD", {
+      cwd: resolve("."),
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+    }).trim() || "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+const SPIRE_VERSION = spirePackageVersion();
+const SPIRE_GIT_SHA = spireGitSha();
+const SPIRE_RELEASE = process.env.SPIRE_RELEASE === "1";
+
 export default defineConfig({
   plugins: [bfSavePlugin()],
+  define: {
+    __SPIRE_VERSION__: JSON.stringify(SPIRE_VERSION),
+    __SPIRE_GIT_SHA__: JSON.stringify(SPIRE_GIT_SHA),
+    __SPIRE_RELEASE__: JSON.stringify(SPIRE_RELEASE),
+  },
   server: {
     host: "0.0.0.0",
     port: BF_SAVE_PORT,
