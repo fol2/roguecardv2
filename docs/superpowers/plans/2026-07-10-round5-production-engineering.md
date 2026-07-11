@@ -1560,14 +1560,19 @@ Task 4 rejects a spike whose parent chain names any earlier amended-plan head.
 ### Task 4: `[PE]` Automate and record the Simulator Safari P0.5 gate
 
 **Files (PE worktree):**
-- Create: `test/simulator/matrix.mjs`, `matrix.test.mjs`, `dom-profile.test.mjs`, `preflight.mjs`, `orientation.mjs`, `server.mjs`, `webdriver.mjs`, `assertions.mjs`, `run.mjs`, `README.md`
+- Create: `test/simulator/matrix.mjs`, `matrix.test.mjs`, `source.mjs`, `source.test.mjs`, `dom-profile.test.mjs`, `preflight.mjs`, `orientation.mjs`, `server.mjs`, `webdriver.mjs`, `assertions.mjs`, `run.mjs`, `README.md`
 - Modify: `package.json`, `package-lock.json`
 - Modify: `docs/README.md`, relevant `CONTEXT.md`
 - Create: `docs/superpowers/reports/2026-07-10-round5-p0.5-simulator-safari.md`
 - Create: `docs/superpowers/artifacts/round5-p0.5-simulator/**`
 
 **Interfaces:**
-- Consumes the immutable Task 3 spike hash through `SPIREBOUND_BASE_URL`; the reusable runner never imports spike code.
+- Consumes the immutable Task 3 spike hash through explicit source provenance:
+  for `--surface spike`, an owned `SPIREBOUND_SERVER_CWD` must be clean and
+  have that exact `HEAD`; an external `SPIREBOUND_BASE_URL` additionally
+  requires a matching `SPIREBOUND_SOURCE_SHA`. DOM/production profiles retain
+  their later task-specific source gates. The reusable runner never imports
+  spike code.
 - Produces serial eight-cell JSON/screenshot evidence plus a PE-authored GO/NO-GO report; evidence claims functional compatibility only.
 
 - [ ] **Step 1: Write the pure runner contract tests first**
@@ -1579,9 +1584,23 @@ validation, plus spawned-server readiness/owned-child cleanup with a fake child.
 Freeze `smoke` to exactly two cells: iPhone 17 Pro portrait and iPad mini
 (A17 Pro) landscape; `full` is all eight cells. No profile may reinterpret
 those names.
-`dom-profile.test.mjs` freezes a reusable profile that waits for
-`window.__probe.state()`, `queueIdle()` and `settle()`, with optional trace
-assertions when P1 has installed them; it contains no Pixi/spike assumption. Run:
+`dom-profile.test.mjs` freezes a reusable profile that always waits for
+`window.__probe.state()` and `settle()`. Loaded Phase 2 does not expose
+`queueIdle()` yet: before Task 6 the profile therefore requires
+`state().busy === false` and records `queueIdleAvailable:false`. Once Task 6
+installs `queueIdle()`, the same profile requires it to return `true` and records
+`queueIdleAvailable:true`; it may never silently fall back when the function is
+present but false or throws. Trace assertions remain optional until P1 installs
+them. The profile contains no Pixi/spike assumption.
+
+`source.test.mjs` freezes spike-source provenance. For `--surface spike`, an
+owned server requires a clean worktree and exact equality between
+`git rev-parse HEAD` and the mandatory `--source-sha`; an external base URL
+requires `SPIREBOUND_SOURCE_SHA === --source-sha`. Missing, dirty, malformed or
+mismatched spike provenance fails before any Simulator mutation. A URL or
+branch name alone can never satisfy this contract. DOM/production surfaces do
+not inherit the P0.5 spike-cleanliness rule; their later tasks declare their
+own immutable capture gates. Run:
 
 ```bash
 set -euo pipefail
@@ -1622,20 +1641,33 @@ exits non-zero.
 
 The same preflight requires a real console user (not `loginwindow`, root or a
 background-only session), a live `launchctl gui/<uid>` domain, an unlocked GUI
-session and a launchable Simulator process. It records the console uid, GUI
-session check and lock/power observations without recording usernames. A
-sleeping/locked/headless Mac fails fast with the instruction to wake, unlock and
-log in locally; the runner never tries to wake the Mac or requests credentials.
+session and a resolvable Simulator application. It records the console uid, GUI
+session check and lock/power observations without recording usernames. The
+on-console `CGSSessionScreenIsLocked` fact is authoritative when it disagrees
+with a root `IOConsoleLocked` field. Preflight resolves Simulator without
+launching it. It also requires System Events UI scripting to report
+`UI elements enabled`; a missing Accessibility/Apple Events grant is
+`SETUP BLOCKED` before any managed-device mutation and prints the one visible
+System Settings action. A sleeping/locked/headless Mac fails fast with the
+instruction to wake, unlock and log in locally; the runner never tries to wake
+the Mac or requests credentials.
 Once launched, `run.mjs` may own a `caffeinate` child for the duration and must
-terminate only that child in `finally`; this prevents new sleep but cannot wake
-an already sleeping host. Pure tests cover console-user, locked-session and
-owned-caffeinate cleanup cases with fakes.
+terminate only that child in `finally`; it must never pass `-u`, and therefore
+prevents new sleep without turning on a display or waking an already sleeping
+host. Pure tests cover console-user, contradictory lock observations,
+locked-session and owned-caffeinate cleanup cases with fakes.
 
 Only devices named `Spirebound R5 - <model>` may be created, booted, rotated or
 shut down by the runner. Never erase/delete a Simulator and never shut down an
 unrelated device. `orientation.mjs` uses a visible Simulator menu action through
 `osascript`, then verifies `screen.orientation.type`, viewport and selected
-stage shape; it does not invent an unsupported `simctl` rotation command.
+stage shape; it does not invent an unsupported `simctl` rotation command. Before
+each menu click it receives the resolved managed name and UDID, activates that
+exact Simulator target using argv (never interpolated shell text), selects its
+exact Window-menu row and proves the front window title/target still matches.
+Zero, multiple or unprovable matches fail as `SETUP BLOCKED` without clicking.
+Pure tests prove no rotation action can execute before this ownership check and
+that an unrelated active Simulator window is never accepted.
 
 `run.mjs` owns an isolated Vite server by default: choose a free localhost port,
 spawn `npm run dev -- --host 127.0.0.1 --port <port> --strictPort` in the current worktree (or
@@ -1644,6 +1676,13 @@ process tree in `finally`. If an explicit `SPIREBOUND_BASE_URL` is supplied it
 uses but never stops that external server. It never reuses the developer's 5174
 process. Pure tests assert `--strictPort`, a bind-race failure, readiness timeout
 and owned-child cleanup; the runner never falls back to another port or server.
+Before a spike server starts, `source.mjs` validates the mandatory
+`--source-sha` against the owned clean `HEAD`; an external URL has no derivable
+Git identity and is therefore rejected unless `SPIREBOUND_SOURCE_SHA` is
+present and equal. The normalised spike result records expected SHA,
+observed/declared SHA, provenance mode and server cwd/origin without treating
+the URL itself as source proof. This Task 3-specific requirement is not applied
+implicitly to later DOM/production commands.
 
 - [ ] **Step 3: Implement the WebDriver assertion contract**
 
@@ -1662,6 +1701,14 @@ capabilities with this exact requested map and pure-test every key:
   'safari:deviceUDID': managedUdid,
 }
 ```
+
+Selenium 4.45's local `Builder` routes native Safari only when
+`browserName === 'safari'`, but the requested map above deliberately preserves
+the SafariDriver-facing `browserName:'Safari'`. Do not lowercase or otherwise
+rewrite that map. `webdriver.mjs` must construct `new Capabilities(exactMap)`
+and call `safari.Driver.createSession(capabilities)` directly; pure tests reject
+the generic local `Builder` path and prove the exact map reaches session
+creation unchanged.
 
 Per the installed primary `safaridriver` manpage, `safari:deviceType` is only
 the family value `iPhone` or `iPad`; it never contains a model. `managedName`
@@ -1707,6 +1754,12 @@ After the full run, copy the eight JSON files and eight screenshots into
 `manifest.json` containing source/spike SHA, relative path, media type, byte
 size and SHA-256 for every file. The report links only these committed paths;
 ignored `test-results/` paths are never durable evidence.
+Promotion is never an implicit side effect of a reusable full run. It requires
+the tested `--promote-p0.5` flag, which is accepted only for the combination of
+`--matrix full`, `--surface spike`, exact source provenance and eight successful
+cells from an owned clean-head server. An external URL may exercise the runner
+with its explicit declared SHA but can never promote the P0.5 golden evidence;
+otherwise the command leaves `docs/**` untouched.
 
 - [ ] **Step 4: Add stable entry points and prove the runner tests green**
 
@@ -1746,8 +1799,11 @@ Let the runner spawn the Task 3 worktree server on an isolated localhost port:
 
 ```bash
 set -euo pipefail
+SPIKE_HEAD=$(git -C ../round5-pixi-spike rev-parse HEAD)
+test -z "$(git -C ../round5-pixi-spike status --short)"
 SPIREBOUND_SERVER_CWD=../round5-pixi-spike \
-  npm run test:simulator:full -- --surface spike
+  npm run test:simulator:full -- --surface spike \
+  --source-sha "$SPIKE_HEAD" --promote-p0.5
 ```
 
 Expected: eight serial results, each proving ready, drag committed,
@@ -1784,7 +1840,8 @@ node --test test/simulator/*.test.mjs
 npm test
 git diff --check
 git add package.json package-lock.json test/simulator/matrix.mjs \
-  test/simulator/matrix.test.mjs test/simulator/preflight.mjs \
+  test/simulator/matrix.test.mjs test/simulator/source.mjs \
+  test/simulator/source.test.mjs test/simulator/preflight.mjs \
   test/simulator/dom-profile.test.mjs \
   test/simulator/orientation.mjs test/simulator/server.mjs \
   test/simulator/webdriver.mjs \
