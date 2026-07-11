@@ -20,6 +20,7 @@ import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.
 import { bfResolve, bfActor, bfSlots, bfEnemyFrame, bfEnemyFootY, bfEnemyZOrder, bfHeroY, onBFChange } from './battlefield.js';
 import { uicResolve, onUICChange } from './uic.js';
 import { createChoiceLatch } from './choice-latch.js';
+import { getVersionInfo } from './version.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
@@ -1031,10 +1032,11 @@ function renderTitle() {
   const banner = assetUrl('title-background', 'background');
   const titleText = assetUrl('title', 'title');
   const rose = roseAssets();
+  const ver = getVersionInfo();
   const sc = screenEl();
   sc.innerHTML = `<div class="title-screen screen-enter">
     ${banner ? `<div class="title-banner"><div class="title-banner-frame"><img class="raster-art" src="${banner}" alt=""></div></div>` : ''}
-    <div class="logo${titleText ? ' logo-raster' : ''}">${titleText ? `<img class="title-wordmark" src="${titleText}" alt="SPIREBOUND">` : 'SPIREBOUND'}</div>
+    <div class="logo${titleText ? ' logo-raster' : ''}" data-version-logo>${titleText ? `<img class="title-wordmark" src="${titleText}" alt="SPIREBOUND">` : 'SPIREBOUND'}</div>
     <div class="tagline">A Roguelite Deckbuilder · The Vigil Remembers</div>
     ${titleRoseMedallion(vigil, rose)}
     <div class="title-btns">
@@ -1045,8 +1047,37 @@ function renderTitle() {
       <button class="btn ghost" data-a="settings">Settings</button>
     </div>
     <div class="title-stats">${d.runs} climbs · ${d.wins} dawns · ${d.slain} slain${vigil.unlocks.length ? ` · ${vigil.unlocks.length} secrets unearthed` : ''}</div>
+    <div class="title-version" data-version-display aria-label="App version">${escHtml(ver.display)}</div>
+    <div class="title-version-debug" data-version-debug aria-live="polite" hidden></div>
   </div>`;
   decodeTitleRoseAssets(sc);
+  const logo = sc.querySelector('[data-version-logo]');
+  const debugEl = sc.querySelector('[data-version-debug]');
+  let taps = [];
+  let debugTimer = 0;
+  const hideDebug = () => {
+    if (!debugEl) return;
+    debugEl.hidden = true;
+    debugEl.textContent = '';
+  };
+  const showDebug = () => {
+    if (!debugEl) return;
+    debugEl.hidden = false;
+    debugEl.textContent = `${ver.gitSha} · ${ver.release ? 'release' : 'dev'}`;
+    clearTimeout(debugTimer);
+    debugTimer = setTimeout(hideDebug, 3000);
+  };
+  logo?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const now = performance.now();
+    taps = taps.filter((t) => now - t < 2000);
+    taps.push(now);
+    if (taps.length >= 5) {
+      taps = [];
+      if (debugEl && !debugEl.hidden) hideDebug();
+      else showDebug();
+    }
+  });
   sc.onclick = (e) => {
     const t = e.target.closest('[data-a]');
     if (!t || t.disabled) return;
