@@ -3877,6 +3877,18 @@ function forceHand(run, cb, ids) {
   assert.equal(t('ui.menu.beginClimb'), 'Begin the Climb');
   assert.equal(t('ui.vigil.roseWindow'), 'Rose Window');
   assert.equal(t('ui.help.title'), 'How to Play');
+  assert.equal(t('ui.shop.title'), 'THE MERCHANT');
+  assert.equal(t('ui.rest.title'), 'REST SITE');
+  assert.equal(t('ui.hollow.title'), 'THE HOLLOW LAMPLIGHTER');
+  assert.equal(t('ui.dawn.whisperKicker'), 'A whisper reaches the dawn');
+  assert.equal(t('ui.settings.resetConfirmTitle'), 'Reset Save?');
+  assert.equal(t('ui.common.continue'), 'Continue');
+  assert.equal(t('ui.treasure.openBtn'), 'Open the Chest');
+  assert.equal(t('ui.persistence.retrySave'), 'Retry Save');
+  assert.equal(t('ui.reward.bossRelicTitle'), 'A BOSS RELIC CALLS');
+  assert.equal(t('ui.map.sealedDoor.title'), 'THE SEALED DOOR');
+  assert.equal(t('ui.hollow.kicker', { current: 2, total: 5 }), 'THE UNLIT WAY · PRICE 2 OF 5');
+  assert.equal(t('ui.end.fallenSub', { floor: 12 }), 'Here ended a climb, on floor <b>12</b>.<br>The Spire keeps what it takes — but the Vigil remembers.');
   assert.equal(t('missing.key.zzz'), 'missing.key.zzz');
   assert.equal(t('ui.smoke.hello', { name: 'Spire' }), 'Hello, Spire');
   assert.equal(setLocale('nope'), false, 'unknown locale ignored');
