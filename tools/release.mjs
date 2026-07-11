@@ -34,10 +34,19 @@ function askBump() {
 }
 
 const argBump = String(process.argv[2] || '').toLowerCase();
-const bump = BUMPS.has(argBump) ? argBump : await askBump();
-if (!BUMPS.has(bump)) {
-  console.error(`Invalid bump: ${bump}`);
-  process.exit(1);
+let bump;
+if (process.argv[2]) {
+  if (!BUMPS.has(argBump)) {
+    console.error(`Invalid bump: ${argBump}`);
+    process.exit(1);
+  }
+  bump = argBump;
+} else {
+  bump = await askBump();
+  if (!BUMPS.has(bump)) {
+    console.error(`Invalid bump: ${bump}`);
+    process.exit(1);
+  }
 }
 
 const before = readVersion();
