@@ -1602,6 +1602,21 @@ Pure route-builder tests freeze the spike URL to exactly
 the normalised JSON evidence fields `inputProfile:'touch'`,
 `nativePointerCoarse:<boolean>` from the native `(pointer: coarse)` result, and
 `shapeOverride:null`.
+Pure orientation tests derive the expected AX title only after the exact
+managed name, UDID and validated runtime name are present, then freeze it as
+`managedName + ' – ' + runtime.name`. They reject zero or multiple exact-title
+windows, substring/title-prefix/model-only matches, an unrelated front window,
+missing runtime name or UDID, any click before exact front-window proof and any
+ownership loss after the click. Sequencing tests require one rotation
+AppleScript invocation in this exact order: exact-title window recount,
+front-window exact-title proof, exactly one `Rotate Left` item proof, click that
+item, exact-title window recount, front-window exact-title proof, then return
+success. A pre-click failure performs no click; a post-click failure performs
+no subsequent action and suppresses all browser evidence acceptance. Add a
+no-boot live-fixture regression for Simulator 26.6's generic Window menu and the
+observed exact AX title
+`Spirebound R5 - iPhone SE (3rd generation) – iOS 26.5`; the fixture must prove
+that no Window-menu device row is required or accepted as ownership evidence.
 `dom-profile.test.mjs` freezes a reusable profile that always waits for
 `window.__probe.state()` and `settle()`. Loaded Phase 2 does not expose
 `queueIdle()` yet: before Task 6 the profile therefore requires
@@ -1689,12 +1704,32 @@ shut down by the runner. Never erase/delete a Simulator and never shut down an
 unrelated device. `orientation.mjs` uses a visible Simulator menu action through
 `osascript`, then verifies `screen.orientation.type`, viewport and selected
 stage shape; it does not invent an unsupported `simctl` rotation command. Before
-each menu click it receives the resolved managed name and UDID, activates that
-exact Simulator target using argv (never interpolated shell text), selects its
-exact Window-menu row and proves the front window title/target still matches.
-Zero, multiple or unprovable matches fail as `SETUP BLOCKED` without clicking.
-Pure tests prove no rotation action can execute before this ownership check and
-that an unrelated active Simulator window is never accepted.
+each menu click it receives the validated runtime name plus the resolved managed
+name and UDID, derives the expected AX title exactly as
+`managedName + ' – ' + runtime.name`, and opens Simulator with argv
+`open -a Simulator --args -CurrentDeviceUDID <UDID>` (never interpolated shell
+text). System Events captures its UI-authorisation value outside every
+`tell process` scope, finds exactly one AX window with that exact title,
+performs only that window's `AXRaise`, and requires the front window title to
+equal the expected title. One rotation AppleScript invocation performs exactly:
+exact-title window recount; front-window exact-title proof; exactly one
+Device-menu `Rotate Left` item proof; click that item; exact-title window
+recount; front-window exact-title proof; return success. Only after that success
+may the runner accept browser `screen.orientation`, viewport or natural
+stage-shape evidence. A generic front window, Window-menu device row,
+substring/title-prefix/model-only match or zero/multiple exact-title windows
+before the click fails `SETUP BLOCKED` with no click. Ownership loss after the
+click fails `SETUP BLOCKED`, performs no subsequent action or click, and
+suppresses browser evidence acceptance. Pure tests prove the exact invocation
+order plus every pre-click and post-click rejection case; a no-boot fixture
+freezes the observed Simulator 26.6 generic Window menu and exact managed AX
+title.
+
+This is a runner-only ownership repair. It changes no Task 3 source, does not
+invalidate the frozen Task 3 SHA or its completed reviews, and does not weaken
+the first live iPhone SE portrait row: a `375x549` Safari content viewport
+selecting `pad-portrait` remains a written functional failure. The repair must
+not add `shape=`, alter stage thresholds or modify the immutable spike.
 
 `run.mjs` owns an isolated Vite server by default: choose a free localhost port,
 spawn `npm run dev -- --host 127.0.0.1 --port <port> --strictPort` in the current worktree (or

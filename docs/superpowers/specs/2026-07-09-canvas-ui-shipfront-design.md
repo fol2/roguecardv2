@@ -18,7 +18,10 @@ English display ownership; revised again after PR #17 merged at `40eb357`:
 its combat-chrome grounding, fixed energy-candle frame and geometry regression
 proof are inherited production behaviour, not styling to rediscover; revised
 again after the first live P0.5 Safari row to make the Simulator input profile,
-host-safety boundary and complete-matrix GO/NO-GO evidence contract explicit)
+host-safety boundary and complete-matrix GO/NO-GO evidence contract explicit;
+revised again after the live orientation diagnostic to bind every visible
+Simulator action to one exact managed AX window rather than an obsolete
+Window-menu device row)
 **Goal:** The commercial-grade production-engineering and final visual-hardening
 round. Replace the fragile CSS-composited
 combat UI with a **game-rendered PixiJS layer** (chrome *and* hand cards),
@@ -1235,6 +1238,20 @@ workflow dispatch, PE combines every paginated repository-runner response and
 requires exactly one online runner carrying `self-hosted`, `macOS` and
 `spirebound-simulator`; zero records `AWAITING OWNER-PROVISIONED RUNNER`
 without dispatch, while more than one is an ambiguous-runner failure.
+
+Every visible Simulator orientation action is bound to the exact validated
+managed `deviceName`, its resolved UDID and the validated runtime name. The
+runner opens Simulator through argv with
+`-CurrentDeviceUDID <managed-UDID>`, then requires exactly one AX window whose
+title equals `<deviceName> – <runtime name>` (Unicode en dash), raises only that
+window and proves the same exact title is still the front window immediately
+before and after the Device-menu click. A substring or title-prefix match, the
+requested model alone, a generic front window or a Window-menu device row is
+never ownership proof. If exact ownership is missing or ambiguous before the
+click, the runner stops `SETUP BLOCKED` without clicking. If ownership is lost
+after the click, it stops `SETUP BLOCKED`, performs no further action or click,
+and accepts no browser orientation, viewport or stage-shape evidence. This
+remains a no-wake, no-physical-device, functional-compatibility-only gate.
 
 The runtime is an environment prerequisite, not a product result. The
 2026-07-11 live toolchain exposes iOS 26.5 build `23F73`; if that exact
