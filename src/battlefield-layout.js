@@ -173,7 +173,8 @@ export const BF = {
       hero: { x: 212 },
       slots: {
         1: [{ x: 1164, y: -16, s: 1 }],
-        2: [{ x: 1066, y: 5, s: 1 }, { x: 1197, y: -39, s: 1 }],
+        // ≥ hpbar (150) + gap so dual chrome stays centred under each foe
+        2: [{ x: 1000, y: 5, s: 1 }, { x: 1197, y: -39, s: 1 }],
         3: [{ x: 940, y: 17, s: 1 }, { x: 1095, y: -50, s: 1 }, { x: 1260, y: 22, s: 1 }],
       },
       layers: {

@@ -123,8 +123,10 @@ async function combatChromeRects(page) {
         bottom: Math.max(...rs.map((r) => r.bottom)),
       };
     };
+    const centreX = (r) => (r.left + r.right) / 2;
     const hp = [...document.querySelectorAll('.enemy')].map((enemy) => {
       const plate = enemy.querySelector('.cplate');
+      const art = enemy.querySelector('.enemy-art');
       const wrap = enemy.querySelector('.hpbar-wrap');
       const block = enemy.querySelector('.block-chip');
       const icon = block?.querySelector('.ui-icon,.gicon');
@@ -140,6 +142,8 @@ async function combatChromeRects(page) {
         label,
         enemy.querySelector('.facet-row'),
       ];
+      const artR = rect(art);
+      const plateR = rect(plate);
       return {
         visible: union(nodes),
         wrap: rect(wrap),
@@ -147,6 +151,10 @@ async function combatChromeRects(page) {
         icon: rect(icon),
         vial: rect(vial),
         label: rect(label),
+        art: artR,
+        plate: plateR,
+        artCentreX: centreX(artR),
+        plateCentreX: centreX(plateR),
         clientWidth: wrap.clientWidth,
         scrollWidth: wrap.scrollWidth,
       };
@@ -223,6 +231,18 @@ function assertEnemyHpChrome(rects, label) {
   }
 }
 
+/** HP / name plate must stay under its foe — not slid onto a neighbour. */
+function assertEnemyHpUnderFoe(rects, label, maxDrift = 90) {
+  rects.hp.forEach((hp, i) => {
+    const drift = Math.abs(hp.plateCentreX - hp.artCentreX);
+    expect(drift, `${label}: enemy ${i} cplate stays under its art (drift ${drift.toFixed(1)}px)`)
+      .toBeLessThanOrEqual(maxDrift);
+    // Plate must horizontally overlap its own art box (not sit wholly under another foe).
+    expect(hp.plate.left < hp.art.right && hp.art.left < hp.plate.right,
+      `${label}: enemy ${i} cplate overlaps its own art horizontally`).toBe(true);
+  });
+}
+
 function assertEnemyTopChrome(rects, label) {
   rects.topVisible.forEach((r, i) => {
     expect(r.left, `${label}: enemy top visible chrome ${i} left edge`).toBeGreaterThanOrEqual(4);
@@ -282,6 +302,7 @@ for (const formation of [
     assertGrounded(await measure(page), formation.name);
     const beforeDeath = await combatChromeRects(page);
     assertCombatChrome(beforeDeath, formation.name);
+    assertEnemyHpUnderFoe(beforeDeath, formation.name);
     if (formation.ids.length === 3) {
       const killed = await page.evaluate(async () => {
         window.__probe.setEnemyHp(0, 1);
@@ -324,8 +345,11 @@ test('reduced-motion portrait chrome is stable after the entrance class clears',
   assertGrounded(await measure(page), 'reduced-motion entrance settled');
   assertCombatChrome(settled, 'reduced-motion entrance settled');
   assertEnemyHpChrome(settled, 'reduced-motion entrance settled');
-  expect(Math.abs(settled.enemyVisible.at(-1).right - (settled.stage.w - 6)),
-    'right-packed group ends at the authored stage margin').toBeLessThanOrEqual(1);
+  assertEnemyHpUnderFoe(settled, 'reduced-motion entrance settled');
+  // Separated chrome stays on-stage; the row is not forced flush to the right
+  // margin (that used to yank landscape HP bars off their foes).
+  expect(settled.enemyVisible.at(-1).right, 'rightmost chrome stays inside stage margin')
+    .toBeLessThanOrEqual(settled.stage.w - 4);
 
   await page.evaluate(() => window.spirebound.refitCombat());
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -338,6 +362,7 @@ test('reduced-motion portrait chrome is stable after the entrance class clears',
   expectChromeRectsNear(secondRefit, settled, 'second explicit refit');
   assertCombatChrome(secondRefit, 'second explicit refit');
   assertEnemyHpChrome(secondRefit, 'second explicit refit');
+  assertEnemyHpUnderFoe(secondRefit, 'second explicit refit');
   expectNoErrors(errors, 'reduced-motion entrance clamp');
 });
 
@@ -400,6 +425,104 @@ test('authored ground positions survive a live resize', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.waitForTimeout(400);
   assertGrounded(await measure(page), 'after resize to 1440x900');
+});
+
+test('desktop pair keeps each HP plate under its own foe', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'desktop dual-foe HP anchor regression');
+  const errors = collectErrors(page);
+  await boot(page, { query: 'mesh=0' });
+  await page.evaluate(() => { window.spirebound.S.run.act = 0; });
+  await startFight(page, ['duskfang', 'duskfang']);
+  await page.evaluate(() => {
+    const { S } = window.spirebound;
+    S.cb.enemies.forEach((enemy) => { enemy.block = 5; });
+    window.__probe.setEnemyHp(0, S.cb.enemies[0].hp);
+  });
+  await stable(page);
+  const rects = await combatChromeRects(page);
+  assertGrounded(await measure(page), 'desktop duskfang pair');
+  assertCombatChrome(rects, 'desktop duskfang pair');
+  assertEnemyHpChrome(rects, 'desktop duskfang pair');
+  assertEnemyHpUnderFoe(rects, 'desktop duskfang pair', 80);
+  expectNoErrors(errors, 'desktop duskfang pair');
+});
+
+test('foe HP floor stays put when a hand card lifts', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'hand-hover chrome floor regression');
+  const errors = collectErrors(page);
+  await boot(page, { query: 'mesh=0' });
+  await startFight(page, ['duskfang', 'sporeling']);
+  await page.evaluate(() => window.__probe.forceHand(['strike', 'defend', 'strike', 'defend']));
+  await page.waitForSelector('.hand-zone .card');
+  await stable(page);
+  const before = await combatChromeRects(page);
+  // mouse.move — locator.hover() scrollIntoView can shift stage measurements
+  const box = await page.locator('.hand-zone .card').first().boundingBox();
+  expect(box, 'hand card is on-screen').toBeTruthy();
+  await page.mouse.move(box.x + box.width / 2, box.y + 8);
+  await page.waitForFunction(() => document.querySelectorAll('.hand-zone .card.lifted').length === 1);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const hovered = await combatChromeRects(page);
+  expect(hovered.enemy.length, 'hover keeps the same enemy plate count').toBe(before.enemy.length);
+  before.enemy.forEach((r, i) => {
+    expect(Math.abs(hovered.enemy[i].top - r.top),
+      `enemy cplate ${i} top does not jump on hand hover`).toBeLessThanOrEqual(1);
+    expect(Math.abs(hovered.enemy[i].bottom - r.bottom),
+      `enemy cplate ${i} bottom does not jump on hand hover`).toBeLessThanOrEqual(1);
+  });
+  expectNoErrors(errors, 'hand-hover chrome floor');
+});
+
+test('energy candles stay in a fixed frame as slot count grows', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'energy candle frame regression');
+  const errors = collectErrors(page);
+  await boot(page, { query: 'mesh=0' });
+  await startFight(page, ['duskfang']);
+  await stable(page);
+
+  const measure = () => page.evaluate(() => {
+    const info = window.__probe.stage();
+    const stage = document.getElementById('stage').getBoundingClientRect();
+    const row = document.querySelector('.energy-orb .candles');
+    const rr = row.getBoundingClientRect();
+    // clientWidth is pre-transform stage px — stable vs shadow/overflow on getBoundingClientRect
+    const kids = [...row.querySelectorAll('.candle')].map((c) => {
+      const r = c.getBoundingClientRect();
+      return ((r.left + r.right) / 2 - stage.left) / info.scale;
+    });
+    const pitches = kids.slice(1).map((cx, i) => cx - kids[i]);
+    return {
+      frameW: row.clientWidth,
+      frameLeft: (rr.left - stage.left) / info.scale,
+      n: kids.length,
+      avgPitch: pitches.length
+        ? pitches.reduce((a, b) => a + b, 0) / pitches.length
+        : 0,
+    };
+  });
+
+  await page.evaluate(() => {
+    const P = window.spirebound.S.cb.player;
+    P.energyMax = 3;
+    window.__probe.setEnergy(3);
+  });
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const at3 = await measure();
+  await page.evaluate(() => {
+    const P = window.spirebound.S.cb.player;
+    P.energyMax = 5;
+    window.__probe.setEnergy(5);
+  });
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const at5 = await measure();
+
+  expect(at3.n, '3 energy slots').toBe(3);
+  expect(at5.n, '5 energy slots').toBe(5);
+  expect(at3.frameW, '3-slot frame uses the authored candle box').toBe(120);
+  expect(at5.frameW, '5-slot frame stays the authored candle box').toBe(120);
+  expect(Math.abs(at5.frameLeft - at3.frameLeft), 'candle frame left edge stays fixed').toBeLessThanOrEqual(1);
+  expect(at5.avgPitch, 'more candles compress pitch inside the frame').toBeLessThan(at3.avgPitch - 1);
+  expectNoErrors(errors, 'energy candle frame');
 });
 
 for (const variant of [
