@@ -123,8 +123,10 @@ async function combatChromeRects(page) {
         bottom: Math.max(...rs.map((r) => r.bottom)),
       };
     };
+    const centreX = (r) => (r.left + r.right) / 2;
     const hp = [...document.querySelectorAll('.enemy')].map((enemy) => {
       const plate = enemy.querySelector('.cplate');
+      const art = enemy.querySelector('.enemy-art');
       const wrap = enemy.querySelector('.hpbar-wrap');
       const block = enemy.querySelector('.block-chip');
       const icon = block?.querySelector('.ui-icon,.gicon');
@@ -140,6 +142,8 @@ async function combatChromeRects(page) {
         label,
         enemy.querySelector('.facet-row'),
       ];
+      const artR = rect(art);
+      const plateR = rect(plate);
       return {
         visible: union(nodes),
         wrap: rect(wrap),
@@ -147,6 +151,10 @@ async function combatChromeRects(page) {
         icon: rect(icon),
         vial: rect(vial),
         label: rect(label),
+        art: artR,
+        plate: plateR,
+        artCentreX: centreX(artR),
+        plateCentreX: centreX(plateR),
         clientWidth: wrap.clientWidth,
         scrollWidth: wrap.scrollWidth,
       };
@@ -223,6 +231,18 @@ function assertEnemyHpChrome(rects, label) {
   }
 }
 
+/** HP / name plate must stay under its foe — not slid onto a neighbour. */
+function assertEnemyHpUnderFoe(rects, label, maxDrift = 90) {
+  rects.hp.forEach((hp, i) => {
+    const drift = Math.abs(hp.plateCentreX - hp.artCentreX);
+    expect(drift, `${label}: enemy ${i} cplate stays under its art (drift ${drift.toFixed(1)}px)`)
+      .toBeLessThanOrEqual(maxDrift);
+    // Plate must horizontally overlap its own art box (not sit wholly under another foe).
+    expect(hp.plate.left < hp.art.right && hp.art.left < hp.plate.right,
+      `${label}: enemy ${i} cplate overlaps its own art horizontally`).toBe(true);
+  });
+}
+
 function assertEnemyTopChrome(rects, label) {
   rects.topVisible.forEach((r, i) => {
     expect(r.left, `${label}: enemy top visible chrome ${i} left edge`).toBeGreaterThanOrEqual(4);
@@ -282,6 +302,7 @@ for (const formation of [
     assertGrounded(await measure(page), formation.name);
     const beforeDeath = await combatChromeRects(page);
     assertCombatChrome(beforeDeath, formation.name);
+    assertEnemyHpUnderFoe(beforeDeath, formation.name);
     if (formation.ids.length === 3) {
       const killed = await page.evaluate(async () => {
         window.__probe.setEnemyHp(0, 1);
@@ -324,8 +345,11 @@ test('reduced-motion portrait chrome is stable after the entrance class clears',
   assertGrounded(await measure(page), 'reduced-motion entrance settled');
   assertCombatChrome(settled, 'reduced-motion entrance settled');
   assertEnemyHpChrome(settled, 'reduced-motion entrance settled');
-  expect(Math.abs(settled.enemyVisible.at(-1).right - (settled.stage.w - 6)),
-    'right-packed group ends at the authored stage margin').toBeLessThanOrEqual(1);
+  assertEnemyHpUnderFoe(settled, 'reduced-motion entrance settled');
+  // Separated chrome stays on-stage; the row is not forced flush to the right
+  // margin (that used to yank landscape HP bars off their foes).
+  expect(settled.enemyVisible.at(-1).right, 'rightmost chrome stays inside stage margin')
+    .toBeLessThanOrEqual(settled.stage.w - 4);
 
   await page.evaluate(() => window.spirebound.refitCombat());
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -338,6 +362,7 @@ test('reduced-motion portrait chrome is stable after the entrance class clears',
   expectChromeRectsNear(secondRefit, settled, 'second explicit refit');
   assertCombatChrome(secondRefit, 'second explicit refit');
   assertEnemyHpChrome(secondRefit, 'second explicit refit');
+  assertEnemyHpUnderFoe(secondRefit, 'second explicit refit');
   expectNoErrors(errors, 'reduced-motion entrance clamp');
 });
 
@@ -400,6 +425,21 @@ test('authored ground positions survive a live resize', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.waitForTimeout(400);
   assertGrounded(await measure(page), 'after resize to 1440x900');
+});
+
+test('desktop pair keeps each HP plate under its own foe', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'desktop dual-foe HP anchor regression');
+  const errors = collectErrors(page);
+  await boot(page, { query: 'mesh=0' });
+  await page.evaluate(() => { window.spirebound.S.run.act = 0; });
+  await startFight(page, ['duskfang', 'duskfang']);
+  await stable(page);
+  const rects = await combatChromeRects(page);
+  assertGrounded(await measure(page), 'desktop duskfang pair');
+  assertCombatChrome(rects, 'desktop duskfang pair');
+  assertEnemyHpChrome(rects, 'desktop duskfang pair');
+  assertEnemyHpUnderFoe(rects, 'desktop duskfang pair', 80);
+  expectNoErrors(errors, 'desktop duskfang pair');
 });
 
 for (const variant of [

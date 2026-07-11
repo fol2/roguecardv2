@@ -2159,11 +2159,13 @@ function clampCombatChrome() {
   for (const x of ce.enemies) clampOne(x.topChrome, x.cplate);
   clampOne(ce.pTopChrome, ce.pCplate);
 
-  // Portrait formations can put independently edge-clamped chrome on top of
-  // one another. Keep the authored actors in place and pack enemy chrome, in
-  // DOM order, against the right edge. Top and bottom chrome are independent
-  // rows: their visible descendants have different widths and vertical spans.
-  // Dead members stay in each set so killing one foe cannot move survivors.
+  // Cramped formations can put independently edge-clamped chrome on top of
+  // one another. Keep authored actors in place and separate enemy chrome in
+  // DOM order with minimal displacement from each plate's natural (under-foe)
+  // left — only shift the whole row to clear the hero / stage edges. Never
+  // slam the row to the right margin: that detaches HP bars from foes on
+  // wide stages. Dead members stay in each set so killing one cannot move
+  // survivors. Top and bottom chrome are independent rows.
   const gap = 6;
   const bottomVisible =
     '.name,.hpbar-wrap,.block-chip,.block-chip .ic,.block-chip .ui-icon,' +
@@ -2218,17 +2220,31 @@ function clampCombatChrome() {
     const hitsHero = heroRect && rects.some((r) => overlaps2D(heroRect, r));
     if (!elements.length || (!hasCollision && !hitsHero)) return;
     const packedWidth = rects.reduce((sum, r) => sum + r.width, 0) + gap * (rects.length - 1);
-    const packedLeft = maxRight - packedWidth;
     const heroSharesRows = heroRect && rects.some((r) => overlapsVertically(heroRect, r));
     const packedMinLeft = heroSharesRows ? Math.max(minLeft, heroRect.right + gap) : minLeft;
-    if (packedLeft >= packedMinLeft) {
-      let targetLeft = packedLeft;
-      elements.forEach((el, i) => {
-        const currentDx = Number.parseFloat(el.style.getPropertyValue('--chrome-dx')) || 0;
-        el.style.setProperty('--chrome-dx', `${currentDx + targetLeft - rects[i].left}px`);
-        targetLeft += rects[i].width + gap;
-      });
+    if (packedMinLeft + packedWidth > maxRight) return; // cannot resolve without overlap
+    // Separate L→R from natural lefts (already edge-clamped), then slide the
+    // whole row only as far as needed to clear hero / right margin.
+    const targets = [];
+    let cursor = -Infinity;
+    for (let i = 0; i < rects.length; i++) {
+      const left = Math.max(rects[i].left, cursor);
+      targets.push(left);
+      cursor = left + rects[i].width + gap;
     }
+    if (targets[0] < packedMinLeft) {
+      const shift = packedMinLeft - targets[0];
+      for (let i = 0; i < targets.length; i++) targets[i] += shift;
+    }
+    const overflow = targets[targets.length - 1] + rects[rects.length - 1].width - maxRight;
+    if (overflow > 0) {
+      for (let i = 0; i < targets.length; i++) targets[i] -= overflow;
+    }
+    if (targets[0] < packedMinLeft) return; // still cannot fit after right pull-back
+    elements.forEach((el, i) => {
+      const currentDx = Number.parseFloat(el.style.getPropertyValue('--chrome-dx')) || 0;
+      el.style.setProperty('--chrome-dx', `${Math.round(currentDx + targets[i] - rects[i].left)}px`);
+    });
   };
   pack(ce.enemies.map((x) => x.cplate).filter(Boolean), bottomVisible, ce.pCplate);
   pack(ce.enemies.map((x) => x.topChrome).filter(Boolean), topVisible, ce.pTopChrome, true);
