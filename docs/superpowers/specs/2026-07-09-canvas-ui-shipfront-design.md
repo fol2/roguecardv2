@@ -14,7 +14,9 @@ Phase 2 call sites are predecessor behaviour rather than Round 5 intent;
 revised again after PR #18 and PR #7 merged: app versioning/release semantics
 and the English i18n overlay are loaded predecessor contracts, and the registry
 design now composes mechanics packs with locale overlays instead of reclaiming
-English display ownership)
+English display ownership; revised again after PR #17 merged at `40eb357`:
+its combat-chrome grounding, fixed energy-candle frame and geometry regression
+proof are inherited production behaviour, not styling to rediscover)
 **Goal:** The commercial-grade production-engineering and final visual-hardening
 round. Replace the fragile CSS-composited
 combat UI with a **game-rendered PixiJS layer** (chrome *and* hand cards),
@@ -43,9 +45,11 @@ hot audio-gallery preview/apply at `4dc1af7`; PR #16 then wired the complete
 22-cue Music catalogue into the live Phase 2 surfaces at `7b8e01a`; PR #18
 established package-sourced app versioning and the manual release convention at
 `de84c30`; PR #7 extracted the default English catalogue and Node-pure i18n API
-at `b285b81`. Every Round 5 execution branch must contain all five merges before
+at `b285b81`; PR #17 then landed combat-chrome geometry and fixed candle-frame
+behaviour from base `b285b81`, reviewed head `5cd1c55`, at merge/current minimum
+baseline `40eb357`. Every Round 5 execution branch must contain all six merges before
 runtime work. The merged surfaces and contracts are inputs, never work for
-Round 5 to reimplement. Open/red PR #17 is not a predecessor.)
+Round 5 to reimplement.)
 
 ## Decisions record (owner-approved)
 
@@ -56,8 +60,8 @@ Round 5 to reimplement. Open/red PR #17 is not a predecessor.)
 | UI end-state | **Canvas/WebGL chrome**, not data-driven DOM and not a framework migration |
 | Canvas migration depth | **Full combat UI including hand cards** — but gated: the **P0.5 Simulator Safari compatibility spike** must pass before P1 begins, and a **P4→P5 Simulator/Playwright checkpoint** must pass before the hand migrates. "Pixi chrome + DOM hand" is a declared-acceptable shipped state if P5 stops |
 | Engine | **PixiJS v8**, strictly WebGL with `preference: ['webgl']` (never the fall-through string form and never WebGPU) |
-| Ordering vs content line | **Progressive Delivery Phase 2, PR #15/#16, PR #18 app versioning and PR #7 English i18n are loaded** at the `b285b81` minimum baseline. A later `main` change triggers a fresh drift audit before execution. During Round 5 P2 (re-homing) the mechanics and English-catalogue lines observe a **content-table freeze** (assets/plans only) |
-| Delivery lanes | **Production Engineering (PE) is the primary lane; Front-end Experience (FE) is a small, design-led lane.** PE owns all substrate, refactoring, Content Lab/manager, renderer mechanics, tooling, tests and integration. FE owns only authored player-facing presentation. Independent QA verifies both; owner taste checkpoints stay with the owner |
+| Ordering vs content line | **Progressive Delivery Phase 2, PR #15/#16, PR #18 app versioning, PR #7 English i18n and PR #17 combat geometry are loaded** at the `40eb357` minimum baseline. A later `main` change triggers a fresh drift audit before execution. During Round 5 P2 (re-homing) the mechanics and English-catalogue lines observe a **content-table freeze** (assets/plans only) |
+| Delivery lanes | **Production Engineering (PE) is the primary lane; Front-end Experience (FE) is a small, design-led lane.** PE owns all substrate, refactoring, Content Lab/manager, renderer mechanics, tooling, tests and integration. FE owns only authored player-facing presentation. Separate fresh spec-compliance and code-quality review cycles verify each unit; owner taste checkpoints stay with the owner |
 | Parallel execution | PE and FE may run concurrently only from separate worktrees on a written disjoint-file manifest. A shared file is a sequential hand-off, never a concurrent edit. Every implementation-plan task has exactly one `[PE]`, `[FE]`, `[QA]`, or `[OWNER]` lead |
 | Content substrate | **Full paired content architecture**: per-domain schemas join mechanics/behaviour from the `core` pack to English display data retained in the PR #7 locale overlay; `data.js` aliases the resulting hydrated frozen context. Registry work lands **before any production Pixi migration**; the disposable P0.5 compatibility spike is the sole exception. Enemy `ai` stays code; the legacy Hollow target getter is materialised from merged progression rather than copied with a global closure; an AI-DSL is explicitly out of scope |
 | Pack delivery | **Compiled-in** (static imports; an expansion ships as an app update). Runtime/downloadable DLC out of scope — the pack *format* is the future-proofing, not a download pipeline. No save-shape change for packs (unknown-id validation already rejects a save whose content is absent) |
@@ -69,6 +73,7 @@ Round 5 to reimplement. Open/red PR #17 is not a predecessor.)
 | Phase 2 music baseline | PR #16 makes **all 22 existing Music Cues live**. `src/music-resolve.js` is the Node-pure resolution truth; quest overrides beat Eighth Omen, Eighth Omen beats ordinary non-boss act music, and bosses retain their boss cue. Rose/Vigil, Hollow, sealed-door and Dawn exceptions are protected live call sites, not FE wiring requests |
 | App-version baseline | PR #18 makes `package.json` version `0.5.0` the authored source; DEV embeds a live short SHA, ordinary builds show `0.5.0+unknown`, and only explicit release builds show clean semver. The safe-area Title label and hidden debug gesture are protected behaviour. Release scripts remain manual preparation and never commit, tag or push |
 | English i18n baseline | PR #7 keeps the default locale `en`, exposes exactly seven Node-pure i18n APIs, owns English display strings in 18 content domains plus the UI catalogue, and hydrates the compatibility graph once at module initialisation without changing saves. Round 5 completes/preserves English coverage; it does not ship a second locale or runtime language switch |
+| Combat-geometry baseline | PR #17 is PE-owned behaviour: foe chrome remains naturally under its own foe with stable dead-member packing, the resting-hand floor is static across hover, and energy slots compress inside shape-specific fixed frames. FE owns treatment only and may not move, relax or reinterpret these bounds |
 | Store kit | Keep the **capture script + shot list** (rerunnable assets); the captured set is labelled **provisional/marketing-only**; trailer capture is raw reference footage only; device-framed store matrices and store-grade capture re-run in the Capacitor round |
 | Screens in scope | All four sets: Fall/Dawn, title + Embark, non-combat panels (rewards/shop/event/rest/lamplighter/vigil), map re-upgrade (light) |
 | Catch-up status | CI wiring is already complete at P0. Remaining items are per-boss unique stage sets, store visual assets, and unlock-toast art; later phases extend the existing CI gate rather than redoing it |
@@ -88,7 +93,7 @@ refactor from being misrouted merely because it renders a browser screen.
 |---|---|---|---|
 | **Production Engineering (PE)** | Primary/root agent | P0.5–P5 leadership; engine/data/registry/i18n/version contracts; all locale keys, English values, accessibility copy and runtime fallback behaviour; `ui.js` decomposition; all product JavaScript; stable markup/selectors; Semantic UI Behaviour Trace; Content Lab, doctor and editor; Pixi bootstrap and widget/card mechanics; input, probe, geometry, recovery, audio wiring, performance, capture, tests, CI, release/dev endpoints, docs and final integration | Player-facing taste, art direction or owner sign-off |
 | **Front-end Experience (FE)** | One separate FE agent | One exact experience contract for P4–P6; the dedicated Round 5 screen stylesheet; approved visual token values; supplied-copy fit, hierarchy, wrapping, placement and motion; P7 visual assets, contact-sheet critique and provisional store compositions. FE may reference locale keys but cannot author or alter copy | Content architecture or management; localisation keys/values/fallbacks/accessibility wording; refactoring; any product JavaScript; trace; renderer/input infrastructure; dev tooling; probe; engine/audio wiring; test harnesses; capture automation; CI/perf; changing ids, schemas or save shape |
-| **Verification (QA)** | A fresh reviewer agent, independent of the task implementer | Independent diff/evidence review; spec-compliance and code-quality verdicts; read-only re-runs where useful; confirmation that PE has closed findings | Producing or modifying product/test-harness code, owning gate evidence, fixing findings, or making taste decisions |
+| **Verification (QA)** | Two fresh reviewer agents, each independent of the task implementer and of the other review role | Spec-compliance review first; fixes and re-review; then code-quality review; fixes and re-review. Read-only re-runs and closure confirmation are allowed | Producing or modifying product/test-harness code, owning gate evidence, fixing findings, combining the two reviewer roles, or making taste decisions |
 | **Owner checkpoint** | Owner | Art direction, ceremony feel, asset promotion and per-screen contact-sheet approval | Routine engineering execution |
 
 This is a **lead boundary**, not a claim that PE code is invisible. Content
@@ -137,10 +142,14 @@ or its evidence directory. It names: the exact commit, frozen interfaces,
 allowed write set, visual/state matrix, motion and reduced-motion outcomes,
 required evidence, and the rollback commit. An agent may not expand its lane to
 fix a dependency; it reports the dependency to the owning lane. The task's
-implementer may self-review, but a different QA agent must issue both the
-spec-compliance and code-quality verdicts before integration. PE produces the
-gate evidence and implements fixes; QA may re-run commands read-only and
-confirms closure without editing product or test-harness files.
+implementation unit follows one exact Superpowers 6.1.1 sequence: a fresh
+implementer, then a fresh spec-compliance reviewer; the implementer fixes every
+finding and the same spec reviewer re-reviews; only then a fresh code-quality
+reviewer reviews, followed by implementer fixes and that reviewer's re-review.
+No combined QA agent or single combined verdict substitutes for the two review
+roles. PE produces gate evidence and implements fixes; reviewers may re-run
+commands read-only and confirm closure without editing product or test-harness
+files. An additional fresh closure reviewer may still audit a phase gate.
 
 ### Round-level topology
 
@@ -198,7 +207,10 @@ choreography to a high bar. What remains fragile is the *substrate*:
 - **The predecessor gate is a hard runtime stop.** Before P0.5, PE verifies
   from the execution branch itself that PR #14 merge `4698906`, PR #15 merge
   `4dc1af7`, PR #16 merge `7b8e01a`, PR #18 merge `de84c30`, and PR #7 merge
-  `b285b81` are in its ancestry. The branch must
+  `b285b81`, followed by PR #17 merge/current baseline `40eb357` (base
+  `b285b81`, reviewed head `5cd1c55`), are in its ancestry. PR #17's final
+  required roll-up is 24 `SUCCESS` checks plus only the expected skipped
+  `e2e smoke`. The branch must
   expose all 32 current
   `src/data.js` exports: 28 content views plus `QUEST_STATES`,
   `QUEST_ACTIVE_STATES`, `TERMINAL_OUTCOMES` and `RUN_ID_RE`; the Emberglass,
@@ -210,9 +222,29 @@ choreography to a high bar. What remains fragile is the *substrate*:
   domains, and module-init hydration with no save-shape change. A later `main`
   change reopens the drift audit. A local dirty predecessor worktree never
   satisfies this gate.
+- **PR #17 geometry is inherited PE behaviour.** Desktop dual-foe authored x
+  positions remain exactly `1000` and `1197`. The combat-chrome hand floor is
+  computed from the resting hand with `50` stage-px slack and clamped at
+  `maxBottom - 4`; it never follows a live hover/cast card. Enemy top and bottom
+  rows pack independently in DOM order with `6` stage-px gaps, remain naturally
+  under their own foe with the minimum displacement needed for hero/stage
+  clearance, retain dead members so survivors do not drift, and each bottom
+  plate horizontally overlaps its own art. Centre drift is at most `90` stage
+  px generally and `80` for the desktop pair; hover moves a foe plate's top and
+  bottom by at most `1` stage px. Candle frames are fixed at `120` stage px for
+  `pad-landscape` and `desktop-landscape`, `102` for `pad-portrait`, `84` for
+  `phone-portrait`, and `72` for `phone-landscape`; more slots compress pitch
+  inside the frame instead of widening it. P1 extraction, P4
+  Pixi `readUI()` geometry, P5 hover/hand migration and the DOM-removal gate
+  preserve these exact semantics. Only the three PR #17 Linux visual baselines
+  (`combat-act1-landscape`, `combat-act2-landscape`, and
+  `combat-act2-portrait`) are inherited changed baseline files; Round 5 may not
+  normalise unrelated snapshots or rebuild `dist/` before its final/prefix gate.
 - **Engine purity is untouched.** `engine.js`, `vigil.js`, `data.js`,
   `battlefield*.js`, `uic.js`, `ui-chrome-layout.js`, and the new
-  `src/content-protocol.js` / `src/registry.js` / `src/packs/**` /
+  `src/content-protocol.js` / `src/registry.js` /
+  `src/content-registration.js` / `src/i18n/hydrate-content.js` /
+  `src/packs/**` /
   `src/ui/tokens.js` / `src/ui/behaviour-trace.js` /
   `src/ui/presentation-barrier.js` / `src/ui/run-effects.js` and the existing
   `src/music-resolve.js`, `src/version.js`, and `src/i18n/**` stay
@@ -222,7 +254,12 @@ choreography to a high bar. What remains fragile is the *substrate*:
   The trace observes presentation and never enters the engine import graph.
   `npm run test:ci` and `npm test` stay green at every task boundary.
 - **The import graph is preserved.** `engine.js` and `vigil.js` import
-  `data.js`, never i18n/version/UI. The P2 assembler calls
+  `data.js`, never i18n/version/UI. Core registration imports only the
+  content-domain namespace from `src/i18n/en/content.js`, never
+  `src/i18n/en/index.js` or `src/i18n/en/ui.js`; registry hydration uses the
+  content-only `src/i18n/hydrate-content.js`, while `src/i18n/index.js`
+  re-exports the unchanged PR #7 API. The P2 assembler consumes a generated
+  target manifest and calls
   `createContentContext(packs, { id, resources, localeContent, localeToken })`;
   that function descriptor-validates, copies and derives a fresh mutable
   compatibility graph, invokes the existing `hydrateContent` before locale
@@ -230,6 +267,15 @@ choreography to a high bar. What remains fragile is the *substrate*:
   `data.js` aliases the already-hydrated frozen context's 28 content views and
   re-exports four protocol constants; it performs no post-freeze mutation.
   Protocol constants are not pack-merge content.
+- **Registration is compiled, paired and central-switch-free.** Every content
+  unit is one Node-pure `{id, mechanics, locales, targets}` registration with
+  required `locales.en`. An import-safe deterministic compiler discovers only
+  `src/packs/*/registration.js` and generates committed production/development
+  manifests. Production imports no development/sample registration; stale
+  generated bytes fail `--check`. Runtime validates unique registration/pack
+  ids, selects the generated target plus requested fixtures, joins locale
+  fragments, then invokes the one context assembler. Generated manifests are
+  never hand-written pack switches.
 - **Registry refactor is behaviour-neutral, proven three ways.** Content
   tables contain functions (enemy `ai`), the pre-registry Hollow target is a
   getter closing over global progression, and the compatibility surface
@@ -422,8 +468,9 @@ choreography to a high bar. What remains fragile is the *substrate*:
   behind a dev flag; it never registers in production builds.
 - **Docs move with their contracts.** The same rule as Playwright: any phase
   that changes a documented contract (module graph, icon policy, tool list)
-  updates `AGENTS.md`, the affected domain docs, and `docs/README.md` in the
-  same phase. Stale agent docs are an active hazard in an LLM-executed repo.
+  updates `docs/README.md`, the relevant `CONTEXT.md`/domain docs and the Round
+  5 report in the same phase. The existing repository `AGENTS.md` is not edited
+  by Round 5. Stale contract docs are an active hazard in an LLM-executed repo.
 - **Agent ownership is enforceable, not advisory.** Every task has one lane
   label and one write-set owner. PE and FE may not modify a shared file
   concurrently; shared files cross the sequential hand-off in the ownership
@@ -452,14 +499,22 @@ pointer input and dispatches to Pixi or DOM explicitly.
 
 ```
 src/packs/core/**              src/i18n/en/content.js
-(mechanics + behaviour)        (English display overlay: 18 domains)
-           ↓ definePack()       ↓ locale catalogue
+(mechanics + behaviour)        (content-only English overlay: 18 domains)
+           ↓ definePack()       ↓ named-domain namespace
            └────────────┬───────┘
-                        ↓
+                        ↓ defineContentRegistration()
+src/packs/core/registration.js  {id, mechanics, locales, targets}
+                        ↓ convention discovery
+tools/compile-content-registrations.mjs
+                        ↓ deterministic committed manifests
+src/packs/compiled/{production,development}.js
+                        ↓ target/fixture selection + locale-fragment join
+src/content-registration.js  compileContentRegistrations(manifest, ...)
+                        ↓ exactly one call
 src/registry.js  createContentContext(packs,
                  { id, resources, localeContent, localeToken })
                  validate descriptors → copy/derive mutable graph →
-                 hydrateContent → validate joined locale coverage → freeze
+                 content-only hydrateContent → validate coverage → freeze
                         ↓
 src/content-protocol.js (four immutable validation/protocol exports)
                         ↓
@@ -494,7 +549,12 @@ installs `window.spirebound` / `window.__probe`.
 | `src/ui/screens/*.js` | title, embark, map, rewards, shop, event, rest, lamplighter, end, vigil | P1, P6 | PE owns all JavaScript; FE contract + dedicated CSS provide presentation |
 | `src/content-protocol.js` | `QUEST_STATES`, `QUEST_ACTIVE_STATES`, `TERMINAL_OUTCOMES`, `RUN_ID_RE`; never pack-merge content | P2 | PE |
 | `src/registry.js` | pack registration, schemas, merge, content doctor | P2 | PE |
+| `src/content-registration.js` | paired registration validation, compiled target/fixture selection, locale join, one context assembly and provenance | P2 | PE |
+| `src/i18n/hydrate-content.js` | content-only hydration implementation; `i18n/index.js` re-exports the unchanged API without putting `en/ui.js` in the engine graph | P2 | PE |
+| `tools/compile-content-registrations.mjs` | import-safe convention discovery and deterministic `--check`-able target-manifest generation | P2 | PE |
+| `src/packs/compiled/{production,development}.js` | generated registration manifests; no hand-written switch, production excludes dev/sample | P2 | PE |
 | `src/packs/core/**` | existing mechanics and declared behaviour, re-homed without English display fields | P2 | PE |
+| `src/packs/{core,_sample}/registration.js` | mechanics/English pairing and target metadata; sample is development/fixture only | P2 | PE |
 | `src/i18n/en/content.js` | existing English display ownership retained as the compiled-in locale overlay | predecessor/P2 validation | PE; FE may consume keys but not edit copy |
 | `src/packs/_sample/**` + `locale-en.js` | dev/test-only mechanics fixture plus matching English overlay (a card, an enemy, a mini theme) | P2 | PE |
 | `src/ui/tokens.js` | easing / palette / type scale; injected into CSS vars at boot | P2, P4–P6 | PE owns code/API and transcribes owner-approved FE values |
@@ -646,6 +706,25 @@ the merged Phase 2 mechanics for `VARIANTS`/`WHISPERS`/`QUESTS` into the core
 pack while English names, prose and dialogue remain in
 `src/i18n/en/content.js`.
 
+Assembly is driven only by generated registration manifests. Node-pure
+`defineContentRegistration({id,mechanics,locales,targets})` pairs each pack with
+required English locale data and target order. The import-safe compiler
+discovers convention-based `src/packs/*/registration.js`, then deterministically
+generates committed `src/packs/compiled/production.js` and `development.js`;
+`--check` rejects stale output. Production contains no development/sample
+import. Core registration imports the named-domain namespace directly from
+`src/i18n/en/content.js`, not the combined English bundle, so UI copy remains
+outside the engine/data dependency graph.
+
+`compileContentRegistrations()` validates unique registration and mechanics-
+pack ids, selects the generated target plus explicit fixtures, joins locale
+fragments, and calls `createContentContext()` exactly once. `src/content.js`
+consumes only the generated production manifest. `src/packs/dev.js` consumes
+only the generated development manifest through generic fixture selection.
+Neither file names packs, joins a locale manually or owns an act/target switch.
+Doctor, Lab and Content Manager consume the same compiled provenance and schema
+field ownership rather than reconstructing a pack list.
+
 The live cut-over has two reviewed halves. First PE assembles and validates the
 complete core candidate while `data.js` remains authoritative. The full
 factory signature is
@@ -661,13 +740,23 @@ post-freeze hydration or mutation. Public `loadRun()` stays core-
 only and zero-argument; no content id enters the save shape. This ordering makes
 the `_sample` engine proof real before the Lab UI exists.
 
-Before moving the first table, PE commits the **before oracle**: the complete
-post-PR7 hydrated 32-export stable observable-value projection (including
+Before moving the first table, PE commits the **before oracle** from a clean,
+detached exact `40eb357` post-PR17 production worktree. The later capture tool
+accepts that explicit source root and output path; data/engine/i18n imports
+resolve from the detached root. Source SHA/tree and capture-parent HEAD/tree are
+recorded separately as source and capture-parent provenance; exact working
+SHA-256 values for the still-dirty capture tool and its test prevent the parent
+tree being misreported as the implementation. The oracle contains the complete hydrated 32-export stable
+observable-value projection (including
 RegExp `source`/`flags`), a separate raw-mechanics ownership projection, the
 English catalogue digest/provenance, the exact seven-API inventory, and a
 property-descriptor inventory which identifies the legacy Hollow getter,
 the seeded full-context enemy-AI trace
-digest and the fixed-seed monte-carlo digest. The same tests then run against
+digest, the fixed-seed monte-carlo digest, and provenance for the inherited
+PR #17 layout/UI/tests plus its exact three Linux baseline paths. The content
+oracle does not serialise pixels or claim ownership of geometry, but its source
+SHA and clean-tree manifest prove that no pre-PR17 monolith was captured. The
+same tests then run against
 the assembled registries after each move. Capturing an oracle after deleting
 the old table is invalid evidence.
 
@@ -699,6 +788,13 @@ allowed for isolated mechanics validation, but only a full joined context may
 back `data.js`, production UI or a climb.
 Converting `ai` to a declarative DSL is an engine-mechanics change and
 explicitly out of scope.
+
+The paired registration is the only full-context admission seam. Mechanics may
+still be tested alone, but production/dev/Lab/doctor/Manager assembly starts
+from a generated manifest, preserves its registration provenance, requires an
+English fragment per registration and joins fragments in deterministic target
+order. A pack array or locale join authored in `content.js`, `packs/dev.js` or
+dev tooling is a spec failure even if its values happen to match.
 
 ### Registry domains
 
@@ -765,13 +861,20 @@ rather than implied absent.
   shape stay unchanged; `loadRun` validation reads the merged registries;
   **no new save fields** — unknown-id rejection already yields the right
   failure for a save whose pack is absent.
-- **`_sample` fixture pair:** a mechanics pack plus `_sample/locale-en.js`,
-  imported by `test_engine.js` for joined contract tests and loadable in the Lab
-  behind a dev flag; zero production surface.
-- **Act 4/data-drop boundary:** a future content-only Act 4 is one paired,
-  compiled registration — mechanics pack plus English locale overlay. New
-  mechanics still require engine work, but registration itself touches no
-  central switch.
+- **`_sample` fixture pair:** a mechanics pack plus `_sample/locale-en.js` and
+  `_sample/registration.js`, generated into development only at reserved high
+  fixture order `9000`, selected by a generic Lab fixture id and absent byte-
+  for-byte from production output. Real production content orders remain below
+  that sentinel.
+- **Act 4/data-drop boundary:** a future content-only Act 4 adds only its
+  mechanics modules, English locale fragment and paired production/development
+  registration, then reruns the deterministic compiler. A Node-pure temporary
+  production/development-manifest test begins with real core+sample, adds and
+  removes such a synthetic order-`3` fourth-theme drop, and proves production
+  finality, deterministic sample selection and joined locale fields without changing hand-written
+  `content.js`, central i18n indexes, engine or an act switch. No playable Act 4
+  is added now. New mechanics still require engine work, but registration
+  itself touches no central switch.
 - **Localisation boundary:** the card-face texture cache key uses the real
   `getLocale()` token and invalidates baked text when it changes; no fictional
   constant is introduced. Round 5 preserves/completes English coverage only.
@@ -851,6 +954,10 @@ trace, probe, tests and integration remain PE.
 - **Geometry:** consumed from `ui-chrome-layout.js` via `uic.js` — the
   hand-tuned values are inherited, not re-derived. bfuiedit keeps editing
   them; the Pixi renderer subscribes to the existing `onUICChange()` hook.
+  `combat-gl.js` and Probe `readUI()` reproduce PR #17's under-own-foe,
+  minimal-displacement/dead-member-stability, static resting-hand floor,
+  own-art overlap, drift and fixed candle-frame contracts exactly. The
+  migration tests compare DOM and Pixi readings before removing either source.
 - **Data:** widgets read registries and `src/ui/tokens.js` from day one.
 - **Textures:** the existing 27 `src/assets/ui/*.png` load as Pixi textures;
   no regeneration needed. **Preload contract:** the plan names which
@@ -890,7 +997,8 @@ probe, performance and integration remain PE.
   its seat and plays nothing**; desktop hover lift + tilt + foil sheen
   shader (LITE: flat sheen replacement); touch long-press inspect.
   Ghost/lethal preview numbers render as Pixi text from the untouched pure
-  previews.
+  previews. Hover must not alter the inherited static resting-hand chrome
+  floor: every foe plate top and bottom remains within `1` stage px.
 - **Keyboard path:** cycle hand / play / end turn, wired through the same
   handlers the probe drivers use (the a11y invariant's deliverable).
 - **Floaters:** the 4-tier damage hierarchy as Pixi BitmapText with archetype
@@ -915,7 +1023,11 @@ probe, performance and integration remain PE.
 - **P5 → P6 production hand-off:** trace parity, the DOM allowed-list, the
   single card-face renderer, keyboard path, context recovery, leak/perf budgets
   and all standing gates must pass before PE freezes P6 selectors/interfaces or
-  imports FE's screen stylesheet.
+  imports FE's screen stylesheet. Removing DOM chrome is gated on Pixi/Probe
+  proof of the entire PR #17 geometry contract, including candle-frame widths
+  `120` for `pad-landscape`/`desktop-landscape`, `102` for `pad-portrait`, `84`
+  for `phone-portrait`, and `72` for `phone-landscape`, plus the desktop pair x
+  positions; visual similarity alone cannot close it.
 
 ## 6. Phase 6 — screens (DOM, restyled to the award bar)
 
@@ -1106,6 +1218,14 @@ at spec time) is driven serially through Apple `safaridriver`, never labelled
 as Playwright Mobile Safari. The representative matrix is iPhone SE (3rd
 generation), iPhone 17 Pro, iPad mini (A17 Pro), and iPad Pro 13-inch (M5),
 portrait and landscape.
+The installed primary `safaridriver` contract is literal: requested
+`safari:deviceType` is only `iPhone` or `iPad`, the exact managed Simulator
+name is `safari:deviceName`, and its resolved UDID is
+`safari:deviceUDID`. Evidence records all three separately. Before any manual
+workflow dispatch, PE combines every paginated repository-runner response and
+requires exactly one online runner carrying `self-hosted`, `macOS` and
+`spirebound-simulator`; zero records `AWAITING OWNER-PROVISIONED RUNNER`
+without dispatch, while more than one is an ambiguous-runner failure.
 
 The runtime is an environment prerequisite, not a product result. The
 2026-07-11 live toolchain exposes iOS 26.5 build `23F73`; if that exact
@@ -1149,6 +1269,12 @@ valuable regardless).
   id-collision throw, cross-reference checks, per-table merge semantics,
   content-doctor joined locale report shape, `_sample` fixture pair registering without
   polluting core pools.
+- Registration compiler `--check`: deterministic production/development
+  manifests, unique registration/pack ids, required English overlays,
+  production exclusion of `_sample`, and one temporary production fourth-theme
+  drop/import/remove cycle starting from the real core+sample manifests, with
+  deterministic development sample selection, both manifest hashes restored
+  after removal and no protected central-file hash change.
 - Act-coupling sweep gate: literals + indices + clamps, with the enumerated
   allowlist; the climbable `_sample`-theme Lab smoke.
 - Lab e2e smoke: boot a URL-addressed scenario → play a card → zero page
@@ -1206,7 +1332,9 @@ satisfy a presentation task.
 10. **P4 onward:** Gzipped main-chunk bundle budget measured in CI.
 11. Agent-ownership gate: the task has one lane label and disjoint write set;
     any PE/FE shared-file hand-off names its commits and frozen interfaces; a
-    fresh QA agent records both spec-compliance and code-quality verdicts.
+    fresh spec-compliance reviewer records a verdict, the implementer fixes and
+    obtains re-review, then a separate fresh code-quality reviewer records a
+    verdict and the implementer fixes and obtains re-review.
 
 ### Award-bar acceptance checklist (mechanical pre-filter; the owner
 contact-sheet sign-off in §6 is the gate)
@@ -1264,11 +1392,14 @@ reduced-scope exit and does not satisfy Full-Round success.
 | Functions/accessors/RegExp break the P2 gates | Stable 32-export projection encodes RegExp and evaluated values; a descriptor inventory records the one legacy getter; pack schemas reject accessors and declare behaviour functions; assembly derives Hollow target from the active context; protocol constants stay outside packs |
 | Recursive registry freeze breaks authored-tunable compatibility tests | The implementation plan establishes an explicit derived content-context/snapshot-validation seam before the immutable cut-over; tests never mutate frozen production content |
 | `data.js` re-homing drifts behaviour | Golden-equivalence (three legs) + monte-carlo + full Playwright; P2 is its own phase, never mixed with Pixi work |
+| Round 5 silently regresses PR #17 chrome grounding or candle pitch | Carry the exact x/floor/gap/overlap/drift/hover/frame contracts into P1 ownership, P4 `readUI()`, P5 hover and DOM-removal gates; preserve exactly its three changed Linux baselines and review Darwin reconciliation separately |
+| PR #17's three intended Linux baseline changes trigger a broad Darwin refresh | Inspect actual/diff for only inherited chrome/candle motion, update exactly the matching three Darwin files after reviewer approval, rerun the complete visual suite, and reject any fourth baseline change |
 | Registry work reclaims or duplicates PR #7 English copy | Exact `source` metadata, raw-mechanics/locale oracle legs, hydrate-before-freeze, joined doctor/Manager forms and locale-only byte tests |
+| Generated registration manifest goes stale or a central pack/locale switch returns | Convention discovery, deterministic committed production/development output, `--check` in standing/CI, production `_sample` exclusion, shared Lab/doctor/Manager provenance and the temporary production data-drop hash test |
 | English copy silently changes during visual work | PE owns keys/values and requires owner approval for new wording; FE owns fit/hierarchy/wrapping/placement only; copy-invariance and unresolved-key gates stand |
 | App version becomes volatile or a mid-round build looks released | Keep `0.5.0` package source, ordinary build `+unknown`, DEV-only live SHA, and never invoke release scripts during Round 5 closure |
 | Refactor collides with parallel content commits | Mechanics/English-catalogue freeze during P2; named owner re-homes `VARIANTS` mechanics while `WHISPERS` and all display/dialogue remain locale-owned |
-| PE/FE agents collide or silently cross ownership | Separate worktrees, task-level disjoint write manifests, one lead per task, sequential shared-file hand-offs, exact commit/interface records and independent QA before integration |
+| PE/FE agents collide or silently cross ownership | Separate worktrees, task-level disjoint write manifests, one lead per task, sequential shared-file hand-offs, exact commit/interface records and separate fresh spec/code-quality review cycles before integration |
 | Pointer/drag regressions on the canvas boundary | Single stage-level router specified up front; real-pointer router + pointercancel e2e |
 | Migrated chrome stops shaking / motion regressions | Shake-mirror invariant; named trace span plus Simulator Safari motion review, not just static pixels |
 | Content Manager writes a corrupt pack file | Schema validation before write + stable serialiser + `npm test` gate; endpoint dev-only; manager droppable |
@@ -1280,7 +1411,7 @@ reduced-scope exit and does not satisfy Full-Round success.
 | DOM/Pixi card-face drift | Single composer + texture export; DOM grids consume exports |
 | `ui.js` decomposition regressions | State-ownership map in the plan; zero-visual-change acceptance with the full kit |
 | Executor "self-certifies" taste | Owner contact-sheet sign-off gates; beats specified in plans; art tasks marked owner-checkpoint |
-| Docs go stale and mislead future agents | Docs-same-phase standing gate |
+| Docs go stale and mislead future agents | Docs-same-phase standing gate through `docs/README.md`, relevant `CONTEXT.md` files and Round 5 reports; existing `AGENTS.md` remains untouched |
 | Scope pressure ("last round") | Every phase shippable; named droppable items |
 
 ## Out of scope (this pass)
@@ -1356,9 +1487,16 @@ one occurred rather than blending them into one definition of “done”.
    (combatants + stage plates, which stay DOM) is unaffected and still works.
 5. **Registry proof:** the three-leg golden equivalence and raw-mechanics/
    English-catalogue oracle legs hold; the `_sample` mechanics/locale pair boots
-   a **climbable** mini theme in the Lab with zero code changes outside its own
-   directory; the act-coupling sweep passes with its enumerated residue; the
-   content doctor reports the joined core 100% complete.
+   a **climbable** mini theme in the Lab through the compiled development
+   manifest; production compiler output contains no sample import and remains
+   byte-identical when `_sample` is added. Starting from the real core+sample
+   manifests, a temporary paired production fourth-theme drop compiles as the
+   fourth/final production theme, orders before the high-sentinel sample in
+   development, and removes cleanly with both manifest hashes restored while
+   hand-written assembler/i18n/engine/act-switch hashes do not
+   change. The compiler `--check` and act-coupling sweep pass with enumerated
+   residue; Lab, doctor and Manager share compiled provenance/field ownership;
+   the content doctor reports the joined core 100% complete.
 6. **Tooling proof:** the Lab stages any registered encounter (including
    variants) from a pasted URL and can replay a correlated trace beat; if the
    Content Manager shipped, it round-trips an edit through `/__content-save` with
@@ -1381,5 +1519,6 @@ one occurred rather than blending them into one definition of “done”.
    Safari across the representative iPhone/iPad Simulator matrix.
 11. Every implementation task has one `[PE]`, `[FE]`, `[QA]`, or `[OWNER]`
     lead; PE/FE parallel work has disjoint write sets; every shared-file change
-    has a named sequential hand-off; and a fresh QA agent approves both spec
-    compliance and code quality before integration.
+    has a named sequential hand-off; and each implementation unit completes the
+    fresh implementer → fresh spec reviewer → fixes/re-review → fresh
+    code-quality reviewer → fixes/re-review sequence before integration.
