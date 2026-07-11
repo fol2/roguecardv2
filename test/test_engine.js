@@ -40,6 +40,16 @@ import {
   resolveCombatCue, resolveScreenCue, dawnEventCue, SCREEN_CUES,
 } from '../src/music-resolve.js';
 import { t, getLocale, setLocale, getContent } from '../src/i18n/index.js';
+import {
+  createBehaviourTrace, FORBIDDEN_TRACE_KEYS, TRACE_END_OUTCOMES,
+  TRACE_POINT_OUTCOMES, TRACE_VERSION,
+} from '../src/ui/behaviour-trace.js';
+import {
+  allocateStrictE2EPort, runWithStrictE2EPort,
+} from '../tools/run-with-strict-e2e-port.mjs';
+import {
+  STANDING_GATE_PROFILES, runStandingGates,
+} from '../tools/run-round5-standing-gates.mjs';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -48,6 +58,604 @@ function freshCombat(enemyIds = ['sporeling']) {
 }
 function forceHand(run, cb, ids) {
   cb.hand = ids.map((id) => makeCard(run, id));
+}
+
+// ---- Round 5 semantic UI behaviour trace and standing gates ----------------
+{
+  assert.equal(TRACE_VERSION, 1);
+  assert.deepEqual([...TRACE_END_OUTCOMES], [
+    'completed', 'settled', 'cancelled', 'skipped', 'failed',
+  ]);
+  assert.deepEqual([...TRACE_POINT_OUTCOMES], [
+    'accepted', 'rejected', 'completed', 'cancelled', 'failed',
+  ]);
+  assert.equal(Object.isFrozen(FORBIDDEN_TRACE_KEYS), true);
+  assert.deepEqual([...FORBIDDEN_TRACE_KEYS], [
+    'text', 'copy', 'html', 'label', 'run', 'cb', 'save', 'snapshot',
+    'dom', 'pixi', 'pointerX', 'pointerY', 'frame', 'tick',
+  ]);
+  for (const [set, member, invented] of [
+    [FORBIDDEN_TRACE_KEYS, 'html', 'invented-private-field'],
+    [TRACE_END_OUTCOMES, 'settled', 'invented-end'],
+    [TRACE_POINT_OUTCOMES, 'accepted', 'invented-point'],
+  ]) {
+    assert.throws(() => set.add(invented), /immutable/i);
+    assert.throws(() => set.delete(member), /immutable/i);
+    assert.throws(() => set.clear(), /immutable/i);
+    assert.equal(set.has(member), true);
+    assert.equal(set.has(invented), false);
+    const owners = [];
+    set.forEach((_value, _key, owner) => owners.push(owner));
+    assert.ok(owners.length > 0);
+    assert.ok(owners.every((owner) => owner === set), 'forEach exposes only the read-only facade');
+    assert.equal(set.valueOf(), set, 'valueOf cannot expose mutable backing storage');
+    assert.throws(() => Set.prototype.add.call(set, invented), TypeError);
+    assert.throws(() => Set.prototype.delete.call(set, member), TypeError);
+    assert.throws(() => Set.prototype.clear.call(set), TypeError);
+    assert.equal(set.has(member), true);
+    assert.equal(set.has(invented), false);
+  }
+  assert.equal(TRACE_END_OUTCOMES.size, 5);
+  assert.deepEqual([...TRACE_END_OUTCOMES.keys()], [...TRACE_END_OUTCOMES]);
+  assert.deepEqual([...TRACE_END_OUTCOMES.values()], [...TRACE_END_OUTCOMES]);
+  assert.deepEqual([...TRACE_END_OUTCOMES.entries()], [...TRACE_END_OUTCOMES].map((value) => [value, value]));
+  assert.equal(Object.prototype.toString.call(TRACE_END_OUTCOMES), '[object Set]');
+
+  let now = 10;
+  const trace = createBehaviourTrace({
+    enabled: true, strict: true, capacity: 8, segment: 'page-a', now: () => now++,
+    policy: () => ({ screen: 'combat', renderer: 'dom', motion: 'full', tier: 'full' }),
+  });
+  const input = trace.emit('input.card-drag', {
+    phase: 'point', outcome: 'accepted', attributes: { uid: 7 },
+  });
+  const span = trace.begin('presentation.card-flight', {
+    causeSeq: input.seq, correlationId: 'play-7', attributes: { uid: 7 },
+  });
+  span.finish('settled', { checkpoint: { queueDepth: 0 } });
+  assert.deepEqual(trace.read({ format: 'contract' }).records.map((r) =>
+    [r.seq, r.eventName, r.phase, r.outcome ?? null]), [
+    [1, 'input.card-drag', 'point', 'accepted'],
+    [2, 'presentation.card-flight', 'start', null],
+    [3, 'presentation.card-flight', 'end', 'settled'],
+  ]);
+  const reset = trace.read({ after: { segment: 'page-old', seq: 99 }, format: 'records' });
+  assert.equal(reset.reset, true);
+  assert.equal(reset.records[0].seq, 1);
+  assert.deepEqual(trace.assertIntegrity(), { ok: true, errors: [] });
+  assert.throws(() => span.finish('settled'), /already finished/);
+}
+{
+  const trace = createBehaviourTrace({ enabled: true, strict: true, segment: 'validation', now: () => 1 });
+  const cycle = {};
+  cycle.self = cycle;
+  const malformed = [
+    [{ attributes: { fn: () => {} } }, /function|JSON-safe/],
+    [{ attributes: { cycle } }, /cycle|cyclic/],
+    [{ attributes: { amount: Infinity } }, /finite/],
+    [{ attributes: { semanticId: 'x'.repeat(129) } }, /128 bytes/],
+    [{ attributes: { nested: { html: '<b>no</b>' } } }, /forbidden.*html/i],
+    [{ attributes: { clientX: 12, clientY: 15 } }, /pointer/i],
+    [{ attributes: { nested: { x: 12 } } }, /pointer/i],
+    [{ attributes: { pointerType: 'touch' } }, /pointer/i],
+    [{ attributes: { pressure: 0.5 } }, /pointer/i],
+    [{ attributes: { tiltX: 12, tiltY: 15, twist: 2 } }, /pointer/i],
+    [{ attributes: { altitudeAngle: 0.2, azimuthAngle: 0.4, persistentDeviceId: 9 } }, /pointer/i],
+    [{ attributes: { altKey: false, ctrlKey: false, shiftKey: false, metaKey: false } }, /pointer/i],
+    [{ attributes: { width: 20, height: 30, isPrimary: true, buttons: 1 } }, /pointer/i],
+    [{ attributes: { seed: 1, act: 2, hp: 30, deck: ['strike'] } }, /save-shaped/i],
+  ];
+  for (const [details, pattern] of malformed) {
+    assert.throws(() => trace.emit('input.invalid', { phase: 'point', ...details }), pattern);
+  }
+  for (const key of ['__proto__', 'Prototype', 'CONSTRUCTOR', '__pro-to__', 'pro.to.type', 'con struc-tor']) {
+    const polluted = JSON.parse(`{"${key}":{"polluted":true}}`);
+    assert.throws(() => trace.emit('input.invalid', { attributes: polluted }), /meta|prototype|forbidden/i);
+  }
+  for (const key of ['HtMl', 'html.', 'NAME', 'Value', 'Title', 'Description', 'Body', 'Message', 'Content', 'Tooltip', 'ariaLabel', 'ARIA-LABEL', 'aria label']) {
+    assert.throws(() => trace.emit('input.invalid', {
+      attributes: { [key]: 'edge' },
+    }), /forbidden|privacy/i);
+  }
+  assert.throws(() => trace.emit('input.invalid', { attributes: { semanticId: 'Edge' } }), /lower-case-initial semantic token/i);
+  assert.throws(() => trace.emit('input.invalid', { checkpoint: { state: 'Edge' } }), /lower-case-initial semantic token/i);
+  assert.throws(() => trace.begin('presentation.invalid', {
+    replay: { v: 1, presentationId: 'flight', fixtureId: 'card-7', params: { state: 'Edge' } },
+  }), /lower-case-initial semantic token/i);
+  assert.throws(() => trace.emit('', { attributes: { id: 'edge' } }), /non-empty|stable semantic token/i);
+  assert.throws(() => trace.emit('input.invalid', { reason: '' }), /non-empty|stable semantic token/i);
+  assert.throws(() => trace.emit('input.invalid', { correlationId: '' }), /non-empty|stable semantic token/i);
+  assert.throws(() => trace.emit('input.invalid', { attributes: { id: '' } }), /non-empty|lower-case-initial semantic token/i);
+  assert.throws(() => createBehaviourTrace({ enabled: true, strict: true, segment: '' }), /non-empty|stable semantic token/i);
+  const emptyPolicy = createBehaviourTrace({
+    enabled: true, strict: true, segment: 'empty-policy', now: () => 1,
+    policy: () => ({ screen: '' }),
+  });
+  assert.throws(() => emptyPolicy.emit('checkpoint.policy'), /non-empty|stable semantic token/i);
+  const safePayload = trace.emit('checkpoint.safe-payload', {
+    attributes: {
+      semanticId: 'unreadablePage',
+      localeKey: 'ui.menu.beginClimb',
+      actionId: 'beginClimb',
+    },
+  });
+  assert.equal(Object.getPrototypeOf(safePayload.attributes), null);
+  assert.equal(Object.hasOwn(safePayload.attributes, 'polluted'), false);
+  assert.deepEqual(Object.keys(safePayload.attributes), ['semanticId', 'localeKey', 'actionId']);
+  assert.deepEqual({ ...safePayload.attributes }, {
+    semanticId: 'unreadablePage', localeKey: 'ui.menu.beginClimb', actionId: 'beginClimb',
+  });
+  assert.doesNotThrow(() => trace.emit('checkpoint.semantic-layout', {
+    attributes: {
+      type: 'damage', target: 'enemy-1', width: 2, height: 3,
+      detail: 'compact', view: 'combat',
+    },
+  }));
+  assert.throws(() => trace.emit('input.invalid', { phase: 'end' }), /point/);
+  assert.throws(() => trace.emit('input.invalid', { outcome: 'settled' }), /point outcome/);
+  assert.throws(() => trace.begin('presentation.invalid', { outcome: 'settled' }), /start|outcome/);
+  assert.throws(() => trace.begin('presentation.invalid', {
+    replay: { v: 1, presentationId: 'flight', fixtureId: 'card-7', unexpected: true },
+  }), /Replay Descriptor.*unexpected/i);
+  assert.throws(() => trace.begin('presentation.invalid', {
+    attributes: { replay: { v: 1, presentationId: 'flight', fixtureId: 'card-7' } },
+  }), /Replay Descriptor.*top-level/i);
+  const replaySpan = trace.begin('presentation.valid', {
+    replay: {
+      v: 1, presentationId: 'card-flight', fixtureId: 'card-7', locale: 'en-GB',
+      params: { cardId: 'strike', upgraded: false, count: 1 },
+    },
+  });
+  replaySpan.finish('settled');
+  assert.equal(trace.read({ format: 'records' }).records.at(-2).replay.presentationId, 'card-flight');
+
+  const replay = (params) => trace.begin('presentation.bounded', {
+    replay: { v: 1, presentationId: 'bounded', fixtureId: 'fixture', params },
+  });
+  let tooDeep = { value: 1 };
+  for (let index = 0; index < 7; index += 1) tooDeep = { nested: tooDeep };
+  assert.throws(() => replay(tooDeep), /Replay Descriptor.*depth/i);
+  assert.throws(() => replay(Object.fromEntries(
+    Array.from({ length: 33 }, (_, index) => [`key${index}`, index]),
+  )), /Replay Descriptor.*key/i);
+  assert.throws(() => replay(Array.from({ length: 33 }, (_, index) => index)), /Replay Descriptor.*array/i);
+  const guardedOversizedArray = Array(33);
+  Object.defineProperty(guardedOversizedArray, 0, {
+    enumerable: true,
+    get() { throw new Error('Replay Descriptor copied before checking its array bound'); },
+  });
+  assert.throws(() => replay(guardedOversizedArray), /Replay Descriptor.*array limit/i);
+  assert.throws(() => replay(Array.from({ length: 32 }, () => ({ a: 1, b: 2 }))), /Replay Descriptor.*node/i);
+  assert.throws(() => replay(Array.from({ length: 32 }, (_, index) => `v${index}${'x'.repeat(124)}`)), /Replay Descriptor.*serialised bytes/i);
+}
+{
+  let identityCalls = 0;
+  const trace = createBehaviourTrace({
+    enabled: true,
+    strict: true,
+    segment: 'resettable',
+    now: () => 1,
+    identity: () => {
+      identityCalls += 1;
+      return { appVersion: '0.5.0' };
+    },
+  });
+  trace.emit('checkpoint.before-reset');
+  const oldCursor = trace.read({ format: 'records' }).cursor;
+  trace.reset();
+  trace.emit('checkpoint.after-reset');
+  const resetRead = trace.read({ after: oldCursor, format: 'records' });
+  assert.equal(resetRead.reset, true);
+  assert.notEqual(resetRead.segment, oldCursor.segment);
+  assert.equal(resetRead.records[0].seq, 1);
+  assert.equal(resetRead.records[0].eventName, 'checkpoint.after-reset');
+  assert.equal(identityCalls, 2, 'identity is injected exactly once for each segment generation');
+}
+{
+  let now = 100;
+  const trace = createBehaviourTrace({
+    enabled: true,
+    strict: true,
+    capacity: 3,
+    segment: 'overflow',
+    now: () => now++,
+  });
+  for (let index = 0; index < 5; index += 1) {
+    trace.emit('checkpoint.counter', { attributes: { index } });
+  }
+  const read = trace.read({ format: 'records' });
+  assert.ok(read.dropped > 0);
+  assert.ok(read.records.length <= 3);
+  assert.equal(read.records.filter((record) => record.eventName === 'error.trace-overflow').length, 1);
+  assert.equal(read.records.find((record) => record.eventName === 'error.trace-overflow').attributes.dropped, read.dropped);
+  assert.equal(trace.assertIntegrity().ok, false);
+}
+{
+  let now = 1;
+  const trace = createBehaviourTrace({
+    enabled: true, strict: true, capacity: 1, segment: 'capacity-one', now: () => now++,
+  });
+  trace.emit('checkpoint.first');
+  const oldCursor = trace.read({ format: 'records' }).cursor;
+  trace.emit('checkpoint.second');
+  const reset = trace.read({ after: oldCursor, format: 'records' });
+  assert.equal(reset.reset, true);
+  assert.equal(reset.records.length, 1);
+  assert.equal(reset.records[0].eventName, 'error.trace-overflow');
+  assert.equal(reset.firstSeq, reset.lastSeq);
+  assert.equal(reset.cursor.seq, reset.lastSeq);
+  assert.equal(reset.dropped, 2);
+  assert.equal(reset.records[0].attributes.dropped, 2);
+  const caughtUp = trace.read({ after: reset.cursor, format: 'records' });
+  assert.equal(caughtUp.reset, false);
+  assert.deepEqual(caughtUp.records, []);
+}
+{
+  const trace = createBehaviourTrace({ enabled: true, strict: true, segment: 'orphan', now: () => 1 });
+  const span = trace.begin('presentation.orphan');
+  assert.deepEqual(trace.activeSpans(), [{ seq: 1, eventName: 'presentation.orphan', correlationId: null }]);
+  assert.equal(trace.assertIntegrity().ok, false);
+  span.finish('cancelled');
+  assert.deepEqual(trace.activeSpans(), []);
+  assert.equal(trace.assertIntegrity().ok, true);
+}
+{
+  const trace = createBehaviourTrace({ enabled: false, strict: true, segment: 'disabled' });
+  assert.equal(trace.enabled, false);
+  assert.equal(trace.emit('input.noop'), null);
+  assert.equal(trace.begin('presentation.noop').finish('settled'), null);
+  assert.deepEqual(trace.activeSpans(), []);
+  const read = trace.read({ format: 'records' });
+  assert.equal(Object.isFrozen(read), true);
+  assert.deepEqual(read, {
+    v: 1,
+    enabled: false,
+    format: 'records',
+    segment: 'disabled',
+    firstSeq: 0,
+    lastSeq: 0,
+    dropped: 0,
+    reset: false,
+    header: {
+      v: 1, enabled: false, segment: 'disabled', firstSeq: 0, lastSeq: 0,
+      dropped: 0, reset: false, identity: {},
+    },
+    cursor: { segment: 'disabled', seq: 0 },
+    records: [],
+    text: null,
+    ndjson: null,
+  });
+}
+{
+  let now = 20;
+  const trace = createBehaviourTrace({
+    enabled: true,
+    strict: true,
+    segment: 'projection',
+    now: () => now += 1.25,
+    identity: () => ({ appVersion: '0.5.0', buildKind: 'dev', gitSha: 'abc1234', locale: 'en-GB' }),
+    policy: () => ({ screen: 'combat', renderer: 'dom', motion: 'reduced', tier: 'lite' }),
+  });
+  const point = trace.emit('input.card-drag', {
+    outcome: 'cancelled', reason: 'pointercancel', correlationId: 'drag-1',
+    attributes: { uid: 7, stable: true },
+  });
+  trace.emit('checkpoint.queue', { outcome: 'completed', causeSeq: point.seq, attributes: { depth: 0 } });
+
+  const initial = trace.read({ format: 'contract' });
+  assert.equal(initial.reset, false);
+  assert.equal(initial.header.identity.gitSha, undefined);
+  assert.equal(JSON.stringify(initial).includes('atMs'), false);
+  assert.equal(JSON.stringify(initial).includes('abc1234'), false);
+  assert.equal(Object.isFrozen(initial.records[0]), true);
+
+  const incremental = trace.read({ after: { segment: 'projection', seq: 1 }, format: 'records' });
+  assert.equal(incremental.reset, false);
+  assert.equal(incremental.header, null);
+  assert.deepEqual(incremental.records.map((record) => record.seq), [2]);
+  const caughtUp = trace.read({ after: incremental.cursor, format: 'text' });
+  assert.equal(caughtUp.header, null);
+  assert.equal(caughtUp.text, '');
+
+  const foreign = trace.read({ after: { segment: 'other-page', seq: 1 }, format: 'text' });
+  assert.equal(foreign.reset, true);
+  assert.ok(foreign.text.startsWith('# trace '));
+  const textLines = foreign.text.split('\n');
+  assert.equal(textLines.length, 3);
+  assert.match(textLines[1], /^\+000000\.0ms \[projection:1\] input\.card-drag phase=point outcome=cancelled screen=combat renderer=dom reason=pointercancel cause=- correlation=drag-1 attrs=\{"stable":true,"uid":7\}$/);
+  assert.match(textLines[2], /\[projection:2\].*reason=- cause=1 correlation=- attrs=\{"depth":0\}$/);
+
+  const ndjson = trace.read({ after: { segment: 'stale', seq: 999 }, format: 'ndjson' });
+  assert.equal(ndjson.records.length, 0);
+  assert.equal(ndjson.text, null);
+  const rows = ndjson.ndjson.split('\n').map((line) => JSON.parse(line));
+  assert.equal(rows[0].kind, 'trace-header');
+  assert.deepEqual(rows.slice(1).map((row) => row.seq), [1, 2]);
+  assert.equal(rows[0].identity.gitSha, 'abc1234');
+
+  assert.throws(() => createBehaviourTrace({ enabled: true, strict: true, identity: () => ({ appVersion: 'v0.5' }) }), /appVersion/);
+  assert.throws(() => createBehaviourTrace({ enabled: true, strict: true, identity: () => ({ buildKind: 'beta' }) }), /buildKind/);
+  assert.throws(() => createBehaviourTrace({ enabled: true, strict: true, identity: () => ({ gitSha: 'long-and-invalid' }) }), /gitSha/);
+  assert.throws(() => createBehaviourTrace({ enabled: true, strict: true, identity: () => ({ locale: '<script>' }) }), /locale/);
+}
+{
+  let now = 1;
+  const trace = createBehaviourTrace({ enabled: true, strict: false, segment: 'runtime', now: () => now++ });
+  assert.equal(trace.emit('input.bad', { attributes: { html: '<b>bad</b>' } }), null);
+  const span = trace.begin('presentation.good');
+  assert.equal(span.finish('not-an-outcome'), null);
+  assert.equal(span.finish('settled'), null);
+  const errors = trace.read({ format: 'records' }).records.filter((record) => record.eventName === 'error.trace-integrity');
+  assert.equal(errors.length, 3);
+  assert.equal(trace.assertIntegrity().ok, false);
+}
+{
+  let nowCalls = 0;
+  const brokenNow = createBehaviourTrace({
+    enabled: true,
+    strict: false,
+    capacity: 1,
+    segment: 'broken-now',
+    now: () => {
+      nowCalls += 1;
+      throw new Error('clock unavailable');
+    },
+  });
+  assert.doesNotThrow(() => brokenNow.emit('checkpoint.clock'));
+  assert.equal(nowCalls, 1, 'integrity fallback never retries a broken clock');
+  assert.doesNotThrow(() => brokenNow.emit('checkpoint.clock'));
+  assert.equal(nowCalls, 2);
+  const overflow = brokenNow.read({ format: 'records' });
+  assert.ok(overflow.records.length <= 1);
+  assert.equal(overflow.records.filter((record) => record.eventName === 'error.trace-overflow').length, 1);
+
+  let policyCalls = 0;
+  const brokenPolicy = createBehaviourTrace({
+    enabled: true,
+    strict: false,
+    segment: 'broken-policy',
+    now: () => 1,
+    policy: () => {
+      policyCalls += 1;
+      throw new Error('policy unavailable');
+    },
+  });
+  assert.doesNotThrow(() => brokenPolicy.emit('checkpoint.policy'));
+  assert.equal(policyCalls, 1, 'integrity fallback never retries a broken policy');
+  assert.equal(brokenPolicy.read({ format: 'records' }).records[0].eventName, 'error.trace-integrity');
+
+  let brokenIdentity;
+  assert.doesNotThrow(() => {
+    brokenIdentity = createBehaviourTrace({
+      enabled: true,
+      strict: false,
+      segment: 'broken-identity',
+      identity: () => { throw new Error('identity unavailable'); },
+    });
+  });
+  assert.equal(brokenIdentity.read({ format: 'records' }).records[0].eventName, 'error.trace-integrity');
+  assert.doesNotThrow(() => createBehaviourTrace({
+    enabled: true,
+    strict: false,
+    segment: 'malformed-identity',
+    identity: () => ({ buildKind: 'preview' }),
+  }));
+  let malformedDependencies;
+  assert.doesNotThrow(() => {
+    malformedDependencies = createBehaviourTrace({
+      enabled: true,
+      strict: false,
+      segment: 'malformed-dependencies',
+      now: null,
+      policy: 'not-a-function',
+      identity: 7,
+    });
+  });
+  assert.equal(
+    malformedDependencies.read({ format: 'records' }).records
+      .filter((record) => record.eventName === 'error.trace-integrity').length,
+    3,
+  );
+}
+{
+  const malformed = createBehaviourTrace({
+    enabled: true, strict: false, capacity: 4, segment: 'bounded-diagnostics', now: () => 1,
+  });
+  for (let index = 0; index < 10_000; index += 1) {
+    malformed.emit('checkpoint.invalid', { attributes: { title: 'edge' } });
+  }
+  assert.ok(malformed.read({ format: 'records' }).records.length <= 4);
+  const malformedIntegrity = malformed.assertIntegrity();
+  assert.match(malformedIntegrity.errors.join('\n'), /dropped 9996 integrity diagnostic/i);
+  assert.ok(malformedIntegrity.errors.length <= 6);
+
+  const spans = createBehaviourTrace({
+    enabled: true, strict: false, capacity: 3, segment: 'bounded-spans', now: () => 1,
+  });
+  for (let index = 0; index < 10_000; index += 1) spans.begin('presentation.open');
+  assert.equal(spans.activeSpans().length, 3);
+  const spanIntegrity = spans.assertIntegrity();
+  assert.match(spanIntegrity.errors.join('\n'), /dropped 9994 integrity diagnostic/i);
+  assert.ok(spanIntegrity.errors.length <= 8);
+
+  const strictSpans = createBehaviourTrace({
+    enabled: true, strict: true, capacity: 2, segment: 'strict-span-cap', now: () => 1,
+  });
+  strictSpans.begin('presentation.first');
+  strictSpans.begin('presentation.second');
+  const beforeRejectedSpan = strictSpans.read({ format: 'records' }).lastSeq;
+  assert.throws(() => strictSpans.begin('presentation.third'), /active span capacity/i);
+  assert.equal(strictSpans.activeSpans().length, 2);
+  assert.equal(strictSpans.read({ format: 'records' }).lastSeq, beforeRejectedSpan);
+}
+{
+  const importProbe = spawnSync(process.execPath, ['--input-type=commonjs', '--eval', `
+    const childProcess = require('node:child_process');
+    const net = require('node:net');
+    const { syncBuiltinESMExports } = require('node:module');
+    childProcess.spawnSync = () => { throw new Error('spawn during import'); };
+    net.createServer = () => { throw new Error('allocation during import'); };
+    syncBuiltinESMExports();
+    (async () => {
+      await import(${JSON.stringify(new URL('../tools/run-with-strict-e2e-port.mjs', import.meta.url).href)});
+      await import(${JSON.stringify(new URL('../tools/run-round5-standing-gates.mjs', import.meta.url).href)});
+      process.stdout.write('import-only');
+    })().catch((error) => { console.error(error); process.exitCode = 1; });
+  `], { encoding: 'utf8' });
+  assert.equal(importProbe.status, 0, importProbe.stderr);
+  assert.equal(importProbe.stdout, 'import-only');
+
+  let allocationCalls = 0;
+  let spawnCalls = 0;
+  assert.equal(typeof allocateStrictE2EPort, 'function');
+  assert.equal(allocationCalls, 0, 'strict-port import performs no allocation');
+  assert.equal(spawnCalls, 0, 'strict-port import performs no spawn');
+  await assert.rejects(
+    runWithStrictE2EPort({ argv: [], allocatePort: async () => { allocationCalls += 1; return 60001; } }),
+    /non-empty argv/,
+  );
+  assert.equal(allocationCalls, 0, 'invalid argv is rejected before allocation');
+  await assert.rejects(
+    runWithStrictE2EPort({ argv: ['npm', 'test'], allocatePort: async () => 5174 }),
+    /5174/,
+  );
+  const calls = [];
+  const result = await runWithStrictE2EPort({
+    argv: ['npm', 'run', 'test:e2e:main'],
+    env: { HOME: '/tmp/home', SPIREBOUND_E2E_PORT: '49999' },
+    allocatePort: async () => 60002,
+    spawn: (command, args, options) => {
+      spawnCalls += 1;
+      calls.push({ command, args, options });
+      return { status: 0, signal: null };
+    },
+  });
+  assert.equal(result.port, 60002);
+  assert.deepEqual(calls[0].command, 'npm');
+  assert.deepEqual(calls[0].args, ['run', 'test:e2e:main']);
+  assert.equal(calls[0].options.shell, false);
+  assert.equal(calls[0].options.stdio, 'inherit');
+  assert.equal(calls[0].options.env.HOME, '/tmp/home');
+  assert.equal(calls[0].options.env.SPIREBOUND_E2E_PORT, '60002');
+
+  const fakeServer = {
+    unref() {},
+    once() {},
+    listen(_options, listener) { listener(); },
+    address() { return { port: 5174 }; },
+    close(listener) { listener(); },
+  };
+  await assert.rejects(
+    allocateStrictE2EPort({ createServer: () => fakeServer }),
+    /5174/,
+  );
+}
+{
+  const commands = {
+    'p1-node': [
+      ['npm', 'run', 'test:ci'],
+      ['npm', 'test'],
+    ],
+    'p1-dom': [
+      ['npm', 'run', 'test:ci'],
+      ['npm', 'test'],
+      ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'],
+      ['npm', 'run', 'test:e2e:trace-production'],
+    ],
+    'p1-complete': [['npm', 'run', 'test:ci'], ['npm', 'test'], ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'], ['npm', 'run', 'test:e2e:trace-production'], ['npm', 'run', 'test:e2e:nonvisual']],
+    'p2-base': [['npm', 'run', 'test:ci'], ['npm', 'test'], ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'], ['npm', 'run', 'test:e2e:trace-production'], ['npm', 'run', 'test:e2e:nonvisual'], ['npm', 'run', 'test:progression']],
+    p2: [['npm', 'run', 'test:ci'], ['npm', 'test'], ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'], ['npm', 'run', 'test:e2e:trace-production'], ['npm', 'run', 'test:e2e:nonvisual'], ['npm', 'run', 'test:progression'], ['npm', 'run', 'test:content-registrations'], ['npm', 'run', 'test:act-coupling']],
+    p3: [['npm', 'run', 'test:ci'], ['npm', 'test'], ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'], ['npm', 'run', 'test:e2e:trace-production'], ['npm', 'run', 'test:e2e:nonvisual'], ['npm', 'run', 'test:progression'], ['npm', 'run', 'test:content-registrations'], ['npm', 'run', 'test:act-coupling'], ['node', 'tools/verify-production-surface.mjs'], ['npm', 'run', 'test:e2e:content-disk']],
+    p4: [['npm', 'run', 'test:ci'], ['npm', 'test'], ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'], ['npm', 'run', 'test:e2e:trace-production'], ['npm', 'run', 'test:e2e:nonvisual'], ['npm', 'run', 'test:progression'], ['npm', 'run', 'test:content-registrations'], ['npm', 'run', 'test:act-coupling'], ['node', 'tools/verify-production-surface.mjs'], ['npm', 'run', 'test:e2e:content-disk'], ['npm', 'run', 'test:e2e:webkit'], ['npm', 'run', 'test:e2e:perf'], ['node', 'tools/check-bundle-budget.mjs']],
+    p5: [['npm', 'run', 'test:ci'], ['npm', 'test'], ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'], ['npm', 'run', 'test:e2e:trace-production'], ['npm', 'run', 'test:e2e:nonvisual'], ['npm', 'run', 'test:progression'], ['npm', 'run', 'test:content-registrations'], ['npm', 'run', 'test:act-coupling'], ['node', 'tools/verify-production-surface.mjs'], ['npm', 'run', 'test:e2e:content-disk'], ['npm', 'run', 'test:e2e:webkit'], ['npm', 'run', 'test:e2e:perf'], ['node', 'tools/check-bundle-budget.mjs'], ['npm', 'run', 'test:e2e:leak']],
+    p6: [['npm', 'run', 'test:ci'], ['npm', 'test'], ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'], ['npm', 'run', 'test:e2e:trace-production'], ['npm', 'run', 'test:e2e:nonvisual'], ['npm', 'run', 'test:progression'], ['npm', 'run', 'test:content-registrations'], ['npm', 'run', 'test:act-coupling'], ['node', 'tools/verify-production-surface.mjs'], ['npm', 'run', 'test:e2e:content-disk'], ['npm', 'run', 'test:e2e:webkit'], ['npm', 'run', 'test:e2e:perf'], ['node', 'tools/check-bundle-budget.mjs'], ['npm', 'run', 'test:e2e:leak'], ['npx', 'playwright', 'test', 'p6-screens', 'end-ceremony', 'contrast', 'stage', 'trace', '--project=desktop', '--project=portrait', '--project=landscape', '--workers=1', '--no-deps']],
+    full: [['npm', 'run', 'test:ci'], ['npm', 'test'], ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'], ['npm', 'run', 'test:e2e:trace-production'], ['npm', 'run', 'test:e2e:nonvisual'], ['npm', 'run', 'test:progression'], ['npm', 'run', 'test:content-registrations'], ['npm', 'run', 'test:act-coupling'], ['node', 'tools/verify-production-surface.mjs'], ['npm', 'run', 'test:e2e:content-disk'], ['npm', 'run', 'test:e2e:webkit'], ['npm', 'run', 'test:e2e:perf'], ['node', 'tools/check-bundle-budget.mjs'], ['npm', 'run', 'test:e2e:leak'], ['npx', 'playwright', 'test', 'p6-screens', 'end-ceremony', 'contrast', 'stage', 'trace', '--project=desktop', '--project=portrait', '--project=landscape', '--workers=1', '--no-deps'], ['npm', 'run', 'test:e2e:visual']],
+  };
+  assert.equal(Object.isFrozen(STANDING_GATE_PROFILES), true);
+  for (const [profile, expected] of Object.entries(commands)) {
+    assert.deepEqual(STANDING_GATE_PROFILES[profile].map((row) => row.argv), expected, `standing gates: ${profile} literal cumulative commands`);
+    assert.equal(Object.isFrozen(STANDING_GATE_PROFILES[profile]), true);
+  }
+  const optionalRows = Object.values(STANDING_GATE_PROFILES).flat().filter((row) => row.optional);
+  assert.ok(optionalRows.length > 0);
+  assert.ok(optionalRows.every((row) => row.argv.join(' ') === 'npm run test:e2e:content-disk'));
+
+  let nextPort = 61000;
+  const spawned = [];
+  const recorded = [];
+  const result = await runStandingGates({
+    profile: 'p1-dom',
+    allocatePort: async () => ++nextPort,
+    spawn: (command, args, options) => {
+      spawned.push({ command, args, options });
+      return { status: 0, signal: null };
+    },
+    record: (row) => recorded.push(row),
+  });
+  assert.equal(result.status, 0);
+  assert.deepEqual(spawned.map((call) => [call.command, ...call.args]), commands['p1-dom']);
+  assert.deepEqual(spawned.filter((call) => call.options.env.SPIREBOUND_E2E_PORT).map((call) => Number(call.options.env.SPIREBOUND_E2E_PORT)), [61001, 61002]);
+  assert.ok(spawned.every((call) => call.options.shell === false));
+  assert.deepEqual(recorded.map((row) => row.status), [0, 0, 0, 0]);
+
+  let fullPort = 62000;
+  const fullSpawned = [];
+  const fullResult = await runStandingGates({
+    profile: 'full',
+    allocatePort: async () => ++fullPort,
+    isOptionalAvailable: () => false,
+    spawn: (executable, args, options) => {
+      fullSpawned.push({ executable, args, options });
+      return { status: 0, signal: null };
+    },
+    record: () => {},
+  });
+  assert.equal(fullResult.status, 0);
+  assert.deepEqual(
+    fullSpawned.map(({ executable, args }) => [executable, ...args]),
+    commands.full.filter((argv) => argv.join(' ') !== 'npm run test:e2e:content-disk'),
+  );
+  const fullPorts = fullSpawned
+    .map((call) => Number(call.options.env.SPIREBOUND_E2E_PORT))
+    .filter(Number.isInteger);
+  assert.equal(fullPorts.length, 8);
+  assert.equal(new Set(fullPorts).size, fullPorts.length);
+  assert.ok(fullPorts.every((port) => port !== 5174));
+
+  let fullPresentPort = 63000;
+  const fullPresentSpawned = [];
+  const fullPresentResult = await runStandingGates({
+    profile: 'full',
+    allocatePort: async () => ++fullPresentPort,
+    isOptionalAvailable: () => true,
+    spawn: (executable, args, options) => {
+      fullPresentSpawned.push({ executable, args, options });
+      return { status: 0, signal: null };
+    },
+    record: () => {},
+  });
+  assert.equal(fullPresentResult.status, 0);
+  assert.deepEqual(
+    fullPresentSpawned.map(({ executable, args }) => [executable, ...args]),
+    commands.full,
+  );
+  const fullPresentPorts = fullPresentSpawned
+    .map((call) => Number(call.options.env.SPIREBOUND_E2E_PORT))
+    .filter(Number.isInteger);
+  assert.equal(fullPresentPorts.length, 9);
+  assert.equal(new Set(fullPresentPorts).size, fullPresentPorts.length);
+  assert.ok(fullPresentPorts.every((port) => port !== 5174));
+
+  let failures = 0;
+  const failFast = await runStandingGates({
+    profile: 'p1-node',
+    spawn: () => ({ status: ++failures === 1 ? 7 : 0, signal: null }),
+    allocatePort: async () => { throw new Error('Node-only profile allocated a port'); },
+    record: () => {},
+  });
+  assert.equal(failFast.status, 7);
+  assert.equal(failures, 1);
+  await assert.rejects(runStandingGates({ profile: 'not-a-profile' }), /Unknown standing-gate profile/);
 }
 
 // ---- unit checks -----------------------------------------------------------

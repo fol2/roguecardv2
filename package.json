@@ -12,6 +12,7 @@
     "release:build": "SPIRE_RELEASE=1 vite build",
     "preview": "vite preview",
     "test": "node test/test_engine.js",
+    "test:round5:standing": "node tools/run-round5-standing-gates.mjs",
     "test:progression": "node tools/emberglass-pacing.mjs",
     "test:e2e": "npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:main && npm run test:e2e:serial && npm run test:e2e:visual",
     "test:e2e:smoke": "playwright test --project=desktop --no-deps --grep @smoke --workers=2",
