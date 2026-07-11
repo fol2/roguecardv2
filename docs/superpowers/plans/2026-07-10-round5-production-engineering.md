@@ -1454,7 +1454,8 @@ git commit -m "feat: add the semantic UI behaviour trace"
 - Modify: `src/audio-assets.js` only if the selected/draft observation sink must
   be placed at the selection-resolution boundary
 - Create: `src/ui/presentation-barrier.js`
-- Modify/Test: `test/test_engine.js`, `test/test_module_boundaries.mjs`
+- Modify/Test: `test/test_engine.js`, `test/test_module_boundaries.mjs`,
+  `test/test_ci_contract.mjs`
 - Modify: `test/e2e/helpers.js`, `test/e2e/battle.spec.js`,
   `test/e2e/audio.spec.js`, `test/e2e/emberglass.spec.js`,
   `test/e2e/emberglass-persistence.spec.js`,
@@ -1844,7 +1845,8 @@ Then:
 ```bash
 set -euo pipefail
 git add src/ui.js src/ui/presentation-barrier.js src/audio-assets.js src/audio.js src/music.js \
-  test/test_engine.js test/test_module_boundaries.mjs test/e2e/helpers.js \
+  test/test_engine.js test/test_module_boundaries.mjs test/test_ci_contract.mjs \
+  test/e2e/helpers.js \
   test/e2e/trace-fixture.js test/e2e/battle.spec.js test/e2e/audio.spec.js \
   test/e2e/emberglass.spec.js test/e2e/emberglass-persistence.spec.js \
   test/e2e/hollow-transaction.spec.js test/e2e/trace.spec.js \
