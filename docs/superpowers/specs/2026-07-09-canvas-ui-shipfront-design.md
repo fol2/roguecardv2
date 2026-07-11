@@ -330,8 +330,10 @@ choreography to a high bar. What remains fragile is the *substrate*:
   `hollow` resolves to `hollowLamplighter`; Vigil Rose tab, sealed-door
   open/close restore, and Dawn `pageRead`/`act4Reveal` own their named ceremony
   cues. Reward and boss-relic screens make no screen-cue request and preserve
-  the active combat/victory cue. P1 extraction and P2 theme work preserve these
-  call sites, precedence, warm-neighbour edges and tests. `music-resolve.js`
+  whatever cue is currently active (combat/victory in the nominal uninterrupted
+  flow; another active cue is possible after pending-state recovery). P1
+  extraction and P2 theme work preserve these call sites, precedence,
+  warm-neighbour edges and tests. `music-resolve.js`
   imports neither browser audio nor trace; the trace observes the resolved
   logical id/result only at the real `music.js` playback sink. A forced gallery
   preview remains preview evidence only; it never substitutes for a real
