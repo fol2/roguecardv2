@@ -2098,27 +2098,25 @@ function applyHandZoneLayout(h) {
   if (h.bottom !== undefined) zone.style.bottom = `${h.bottom}px`;
 }
 
-/** Top edge of resting hand cards — bottom chrome must stay above this. */
+/** Resting hand-fan top (stage Y). Static on purpose: live card tops jump when
+ *  a pane lifts on hover or flies toward cast, and that used to yank foe/hero
+ *  HP plates up and down. Slack lets chrome sit ~50px into the upper hand band
+ *  — resting cards leave empty stage there. */
 function handChromeCeiling() {
   const hand = S.ce?.hand;
-  if (!hand) return stageH() - 8;
-  let top = Infinity;
-  for (const c of hand.querySelectorAll('.card:not(.draw-pending)')) {
-    const r = stageRect(c);
-    if (r.height > 2) top = Math.min(top, r.top);
-  }
-  if (top < Infinity) return top;
-  // no seats yet — estimate from zone + resting card bottom inset
-  const zr = stageRect(hand);
   const sz = handFaceSize();
   const inset = handCardBottomInset();
-  if (zr.height > 2) return zr.bottom - inset - sz.h;
-  return stageH() - inset - sz.h;
+  const slack = 50;
+  if (hand) {
+    const zr = stageRect(hand);
+    if (zr.height > 2) return zr.bottom - inset - sz.h + slack;
+  }
+  return stageH() - inset - sz.h + slack;
 }
 
 /**
  * Keep combat chrome on-stage: tall sprites push top chrome down into the art;
- * bottom plate (name/HP/facets) cannot sit under the hand.
+ * bottom plate (name/HP/facets) stays above a fixed resting-hand floor.
  * Top clearance sits under the HUD menu bar (not the stage edge).
  */
 function clampCombatChrome() {

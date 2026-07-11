@@ -447,6 +447,32 @@ test('desktop pair keeps each HP plate under its own foe', async ({ page }) => {
   expectNoErrors(errors, 'desktop duskfang pair');
 });
 
+test('foe HP floor stays put when a hand card lifts', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'hand-hover chrome floor regression');
+  const errors = collectErrors(page);
+  await boot(page, { query: 'mesh=0' });
+  await startFight(page, ['duskfang', 'sporeling']);
+  await page.evaluate(() => window.__probe.forceHand(['strike', 'defend', 'strike', 'defend']));
+  await page.waitForSelector('.hand-zone .card');
+  await stable(page);
+  const before = await combatChromeRects(page);
+  // mouse.move — locator.hover() scrollIntoView can shift stage measurements
+  const box = await page.locator('.hand-zone .card').first().boundingBox();
+  expect(box, 'hand card is on-screen').toBeTruthy();
+  await page.mouse.move(box.x + box.width / 2, box.y + 8);
+  await page.waitForFunction(() => document.querySelectorAll('.hand-zone .card.lifted').length === 1);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const hovered = await combatChromeRects(page);
+  expect(hovered.enemy.length, 'hover keeps the same enemy plate count').toBe(before.enemy.length);
+  before.enemy.forEach((r, i) => {
+    expect(Math.abs(hovered.enemy[i].top - r.top),
+      `enemy cplate ${i} top does not jump on hand hover`).toBeLessThanOrEqual(1);
+    expect(Math.abs(hovered.enemy[i].bottom - r.bottom),
+      `enemy cplate ${i} bottom does not jump on hand hover`).toBeLessThanOrEqual(1);
+  });
+  expectNoErrors(errors, 'hand-hover chrome floor');
+});
+
 for (const variant of [
   { id: 'paleDuskfang', act: 0 },
   { id: 'usurpedSovereign', act: 2 },
