@@ -1268,6 +1268,32 @@ is already awake, unlocked and logged into a usable GUI session. Only after
 that preflight passes may an owned `caffeinate -d -i -w <runner-pid>` child
 prevent new sleep; the runner terminates that child itself.
 
+An exact managed Simulator booted by this runner must establish bounded
+MobileSafari readiness before WebDriver New Session. This is setup
+infrastructure, not a product criterion: it uses no credentials and never
+invokes `safaridriver --enable`, a physical device, a generic `booted` alias or
+an unrelated device. An initially booted managed Simulator is never mutated by
+this readiness step. A Safari session is established only after the New Session
+promise and session id resolve. Rejection is `SETUP BLOCKED`; no screenshot or
+`quit()` is attempted on a never-established session.
+
+After initial navigation, the caller first observes the current browser
+orientation. If it already matches, the caller skips the AX rotation invocation
+and records `clicked:false` with current-document evidence. Only a mismatch
+invokes the exact AX rotation transaction: it clicks exactly once or fails
+`SETUP BLOCKED`; a successful invocation records `clicked:true`, reloads the
+identical exact surface route, still
+`/?pixispike=1&tier=full&input=touch` and never `shape=`, then re-proves the
+input profile and browser orientation, live viewport, safe areas and natural
+stage shape on the new document before exercising the surface. Evidence must
+describe that post-rotation document, never a boot-time cached viewport.
+
+These are runner/harness repairs only. They do not reopen or change immutable
+Task 3 source, change stage thresholds or reclassify the genuine iPhone SE
+portrait failure: live Safari content viewport `375x549` still naturally
+selects `pad-portrait`. The clean-publication gate, no-wake/no-physical limits
+and deferred physical-device claims remain unchanged.
+
 The artifact records Xcode, runtime/build, Safari, model/UDID, orientation, and
 host architecture. Written pass/fail criteria gate boot/API support,
 stage/safe-area selection, font and texture readiness/fallback, automated

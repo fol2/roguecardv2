@@ -1590,8 +1590,8 @@ if a future repair changes the spike source itself.
 
 - [ ] **Step 1: Write the pure runner contract tests first**
 
-Create `matrix.test.mjs` before `matrix.mjs`; import the missing module and assert
-the exact four-device, two-orientation matrix. Add pure tests for managed-device
+Extend the existing `matrix.test.mjs` and assert the exact four-device,
+two-orientation matrix. Add pure tests for managed-device
 name generation, capability construction, result normalisation and orientation
 validation, plus spawned-server readiness/owned-child cleanup with a fake child.
 Freeze `smoke` to exactly two cells: iPhone 17 Pro portrait and iPad mini
@@ -1602,7 +1602,31 @@ Pure route-builder tests freeze the spike URL to exactly
 the normalised JSON evidence fields `inputProfile:'touch'`,
 `nativePointerCoarse:<boolean>` from the native `(pointer: coarse)` result, and
 `shapeOverride:null`.
-Pure orientation tests derive the expected AX title only after the exact
+Pure managed-MobileSafari-readiness tests freeze this exact order for a device
+that the runner booted: exact-UDID `boot`, exact-UDID `bootstatus -b`, then
+bounded polling through argv with
+`xcrun simctl launch <exact-UDID> com.apple.mobilesafari` until the successful
+result identifies a live PID. The total deadline is 90 seconds and every
+command timeout is bounded by the remaining deadline. Freeze transient launch
+failure followed by success, deadline failure, exact argv/UDID, `shell:false`,
+retaining MobileSafari after success, and cleanup of only the exact
+runner-booted UDID. An initially booted managed device has
+`runnerBooted:false` and receives no boot, readiness launch, rotation, shutdown
+or other mutation. Tests reject generic `booted`, unrelated devices, physical
+devices, `safaridriver --enable`, credentials and every other forbidden alias
+or action.
+Pure WebDriver tests freeze true session establishment: construct the native
+Safari driver, await `driver.getSession()`, and return only after its session id
+resolves. A rejected New Session stays in the `session-create` setup phase,
+preserves that original error, returns no established driver and triggers no
+screenshot or `quit()`.
+Pure orientation tests first observe the current browser orientation. When it
+already matches, they require no AX raise/rotation invocation, no click and no
+reload, and return `clicked:false` with validated current-document evidence.
+Only a mismatch may raise the exact managed window and invoke the exact AX
+rotation transaction. That invocation clicks exactly once or fails
+`SETUP BLOCKED`; after its post-click ownership proof it returns `clicked:true`.
+The tests derive the expected AX title only after the exact
 managed name, UDID and validated runtime name are present, then freeze it as
 `managedName + ' – ' + runtime.name`. They reject zero or multiple exact-title
 windows, substring/title-prefix/model-only matches, an unrelated front window,
@@ -1611,12 +1635,25 @@ ownership loss after the click. Sequencing tests require one rotation
 AppleScript invocation in this exact order: exact-title window recount,
 front-window exact-title proof, exactly one `Rotate Left` item proof, click that
 item, exact-title window recount, front-window exact-title proof, then return
-success. A pre-click failure performs no click; a post-click failure performs
-no subsequent action and suppresses all browser evidence acceptance. Add a
-no-boot live-fixture regression for Simulator 26.6's generic Window menu and the
-observed exact AX title
+`clicked:true`. A pre-click failure performs no click; a post-click
+failure performs no subsequent action and suppresses all browser evidence
+acceptance. Add a no-boot live-fixture regression for Simulator 26.6's generic
+Window menu and the observed exact AX title
 `Spirebound R5 - iPhone SE (3rd generation) – iOS 26.5`; the fixture must prove
 that no Window-menu device row is required or accepted as ownership evidence.
+Post-rotation-document fixtures freeze the exact successful sequence: observe
+mismatch, rotate with `clicked:true`,
+identical-route reload through the one route builder, re-read and prove
+`inputProfile`, `nativePointerCoarse` and `shapeOverride`, wait for spike/DOM
+readiness, re-observe and validate orientation, live viewport, semantic safe
+areas and natural stage shape, then exercise. No exercise or old-document
+evidence is accepted earlier. An already-matched fixture records
+`clicked:false`, never invokes the AX transaction, requires no reload and still
+samples the current document. RED fixtures use the real
+numeric safe-area keys `sat/sar/sab/sal`, equivalent objects with different
+insertion order, and distinct initial and pre-loss snapshots. They require
+structural deep equality and require context recovery to match the exact
+pre-loss `afterInput.snapshot`, never the pre-input initial snapshot.
 `dom-profile.test.mjs` freezes a reusable profile that always waits for
 `window.__probe.state()` and `settle()`. Loaded Phase 2 does not expose
 `queueIdle()` yet: before Task 6 the profile therefore requires
@@ -1633,21 +1670,44 @@ requires `SPIREBOUND_SOURCE_SHA === --source-sha`. Missing, dirty, malformed or
 mismatched spike provenance fails before any Simulator mutation. A URL or
 branch name alone can never satisfy this contract. DOM/production surfaces do
 not inherit the P0.5 spike-cleanliness rule; their later tasks declare their
-own immutable capture gates. Run:
+own immutable capture gates. Add the following exact test names and assertion
+messages before running RED:
+
+- `runner-booted MobileSafari readiness uses exact UDID until live PID` →
+  `MOBILESAFARI_READINESS_ORDER: expected exact-UDID launch polling to produce a live MobileSafari PID`
+- `Safari session is returned only after getSession resolves` →
+  `SAFARI_SESSION_NOT_ESTABLISHED: expected getSession to resolve before createSafariSession returned`
+- `orientation records clicked false or reloads after clicked true` →
+  `POST_ROTATION_DOCUMENT_NOT_RELOADED: expected clicked:true to reload and re-prove the identical route`
+
+Run:
 
 ```bash
 set -euo pipefail
 RED_LOG=$(mktemp)
-if node --test test/simulator/*.test.mjs >"$RED_LOG" 2>&1; then
+PATTERN='runner-booted MobileSafari readiness uses exact UDID until live PID|Safari session is returned only after getSession resolves|orientation records clicked false or reloads after clicked true'
+if node --test --test-name-pattern="$PATTERN" \
+    test/simulator/matrix.test.mjs >"$RED_LOG" 2>&1; then
   rm -f "$RED_LOG"
-  echo 'expected missing matrix module' >&2
+  echo 'expected live-readiness contract RED' >&2
   exit 1
 fi
-rg 'ERR_MODULE_NOT_FOUND.*matrix\.mjs|matrix\.mjs.*ERR_MODULE_NOT_FOUND' "$RED_LOG"
+rg 'runner-booted MobileSafari readiness uses exact UDID until live PID' "$RED_LOG"
+rg -F 'MOBILESAFARI_READINESS_ORDER: expected exact-UDID launch polling to produce a live MobileSafari PID' "$RED_LOG"
+rg 'Safari session is returned only after getSession resolves' "$RED_LOG"
+rg -F 'SAFARI_SESSION_NOT_ESTABLISHED: expected getSession to resolve before createSafariSession returned' "$RED_LOG"
+rg 'orientation records clicked false or reloads after clicked true' "$RED_LOG"
+rg -F 'POST_ROTATION_DOCUMENT_NOT_RELOADED: expected clicked:true to reload and re-prove the identical route' "$RED_LOG"
 rm -f "$RED_LOG"
 ```
 
-Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `matrix.mjs`.
+Before running this command, add those three exact named tests with the exact
+assertion messages shown above. Where a new readiness export is not yet present,
+use a dynamic module lookup so the first contract reaches
+`MOBILESAFARI_READINESS_ORDER` rather than failing during static module linking.
+Expected: all three named tests fail for the new contract, the log contains all
+six exact test-name/message anchors above, and no assertion expects an existing
+runner module to be absent.
 
 - [ ] **Step 2: Implement the reusable serial modules**
 
@@ -1701,11 +1761,14 @@ owned-guard cleanup without Simulator mutation.
 
 Only devices named `Spirebound R5 - <model>` may be created, booted, rotated or
 shut down by the runner. Never erase/delete a Simulator and never shut down an
-unrelated device. `orientation.mjs` uses a visible Simulator menu action through
-`osascript`, then verifies `screen.orientation.type`, viewport and selected
-stage shape; it does not invent an unsupported `simctl` rotation command. Before
-each menu click it receives the validated runtime name plus the resolved managed
-name and UDID, derives the expected AX title exactly as
+unrelated device. `orientation.mjs` first observes the current browser
+orientation. If it already matches the requested orientation, it skips every AX
+raise/rotation invocation and returns `clicked:false` with validated
+current-document orientation, viewport and natural stage-shape evidence. Only
+a mismatch uses a visible Simulator menu action through `osascript`; it does
+not invent an unsupported `simctl` rotation command. Before that one rotation
+it receives the validated runtime name plus the resolved managed name and UDID,
+derives the expected AX title exactly as
 `managedName + ' – ' + runtime.name`, and opens Simulator with argv
 `open -a Simulator --args -CurrentDeviceUDID <UDID>` (never interpolated shell
 text). System Events captures its UI-authorisation value outside every
@@ -1714,14 +1777,15 @@ performs only that window's `AXRaise`, and requires the front window title to
 equal the expected title. One rotation AppleScript invocation performs exactly:
 exact-title window recount; front-window exact-title proof; exactly one
 Device-menu `Rotate Left` item proof; click that item; exact-title window
-recount; front-window exact-title proof; return success. Only after that success
-may the runner accept browser `screen.orientation`, viewport or natural
-stage-shape evidence. A generic front window, Window-menu device row,
+recount; front-window exact-title proof; return `clicked:true`. The transaction
+clicks exactly once or fails `SETUP BLOCKED`. A generic front window,
+Window-menu device row,
 substring/title-prefix/model-only match or zero/multiple exact-title windows
 before the click fails `SETUP BLOCKED` with no click. Ownership loss after the
 click fails `SETUP BLOCKED`, performs no subsequent action or click, and
 suppresses browser evidence acceptance. Pure tests prove the exact invocation
-order plus every pre-click and post-click rejection case; a no-boot fixture
+order, the already-matched no-invocation `clicked:false` case and every
+pre-click and post-click rejection case; a no-boot fixture
 freezes the observed Simulator 26.6 generic Window menu and exact managed AX
 title.
 
@@ -1730,6 +1794,19 @@ invalidate the frozen Task 3 SHA or its completed reviews, and does not weaken
 the first live iPhone SE portrait row: a `375x549` Safari content viewport
 selecting `pad-portrait` remains a written functional failure. The repair must
 not add `shape=`, alter stage thresholds or modify the immutable spike.
+
+After exact `boot` and `bootstatus -b`, and only when this runner booted the
+exact managed UDID (`runnerBooted:true`), poll MobileSafari readiness through
+argv with `xcrun simctl launch <exact-UDID> com.apple.mobilesafari`. Use one
+bounded total deadline of 90 seconds; each command timeout is bounded by the
+remaining deadline. Transient launch failures retry until that deadline, and a
+successful result must identify a live PID for `com.apple.mobilesafari`. Keep
+that exact app running for SafariDriver attachment; do not terminate or
+relaunch it for cleanliness. Deadline expiry is `SETUP BLOCKED`, retains the
+exact cleanup target, executes no cell and finally shuts down only that
+runner-booted exact UDID. Never run this readiness mutation for an initially
+booted device, use a generic `booted` alias or touch an unrelated or physical
+device.
 
 `run.mjs` owns an isolated Vite server by default: choose a free localhost port,
 spawn `npm run dev -- --host 127.0.0.1 --port <port> --strictPort` in the current worktree (or
@@ -1772,6 +1849,15 @@ and call `safari.Driver.createSession(capabilities)` directly; pure tests reject
 the generic local `Builder` path and prove the exact map reaches session
 creation unchanged.
 
+`createSafariSession()` constructs that native Safari driver, then awaits
+`driver.getSession()` before returning it. Selenium 4.45
+`Driver.createSession()` can return a Driver around a pending session promise;
+therefore a New Session rejection remains in the `session-create` setup phase,
+is `SETUP BLOCKED`, preserves the original setup error and returns no
+established driver. The
+caller attempts neither screenshot nor `quit()` when no established driver was
+returned.
+
 Per the installed primary `safaridriver` manpage, `safari:deviceType` is only
 the family value `iPhone` or `iPad`; it never contains a model. `managedName`
 is exactly `Spirebound R5 - <model>` and is sent as `safari:deviceName`; the
@@ -1784,8 +1870,8 @@ the Task 3 state/drag/cancel/fallback/shake/loss/rebuild contract, including
 strict WebGL preference, observed-and-lost Pixi test context, all-context live
 maximum three, exact named owners and no live unowned steady-state context;
 DOM uses a
-normal deterministic game URL and semantic Probe facts. `driver.quit()` runs in
-`finally`.
+normal deterministic game URL and semantic Probe facts. For an established
+session only, `driver.quit()` runs in `finally`.
 
 Immediately after each session is established, call
 `await driver.getCapabilities()` and serialise the **observed** capability map.
@@ -1808,6 +1894,24 @@ It also records `inputProfile:'touch'`,
 `matchMedia('(pointer: coarse)').matches` result, and `shapeOverride:null`;
 `input=touch` declares automation input only, so shape still comes naturally
 from the Simulator viewport.
+
+After initial navigation, the caller first observes the current browser
+orientation. An already-matched result must be `clicked:false`; it invokes no
+AX rotation transaction, performs no reload and validates evidence from that
+current document. A mismatch invokes the exact AX rotation transaction. It
+either fails `SETUP BLOCKED` or returns `clicked:true` after exactly one click
+and complete post-click ownership proof. On `clicked:true`, reload the exact
+same URL produced by the one route builder. On that new document re-read
+`inputProfile`, `nativePointerCoarse` and
+`shapeOverride`, wait for spike/DOM readiness, then re-observe and validate
+screen orientation, live viewport, safe-area values and natural stage shape
+before exercising the surface. No old-document evidence or exercise is
+accepted before that sequence completes. Normalise numeric spike keys
+`sat/sar/sab/sal` to semantic top/right/bottom/left assertions (or sample
+equivalent live values) without changing spike source. Compare equivalent
+objects with structural deep equality, not key-order-sensitive JSON strings;
+after context loss compare the rebuilt snapshot with the exact pre-loss
+`afterInput.snapshot`, not the pre-input initial state.
 
 Every cell fails unless its phone/pad + orientation selects the expected
 canonical stage shape, all four safe-area inputs are finite/non-negative,
@@ -1947,6 +2051,11 @@ pass. Preflight may otherwise stop with the documented visible setup action,
 never a hidden prompt.
 `run.mjs` requires an explicit `--surface spike|dom|production`; Task 4
 implements/tests `spike` and `dom`, and reserves `production` for Task 24.
+The green runner-test proof must include bounded managed-MobileSafari readiness,
+true WebDriver session establishment and the post-rotation-document ordering.
+These repairs are runner/harness-only: they do not reopen Task 3, alter stage
+thresholds, modify immutable spike source or reclassify the real `375x549` to
+`pad-portrait` failure.
 
 - [ ] **Step 5: Run the immutable spike through all eight real-Safari cells**
 
@@ -1961,6 +2070,23 @@ SPIREBOUND_SERVER_CWD=../round5-pixi-spike \
   npm run test:simulator:full -- --surface spike \
   --source-sha "$SPIKE_HEAD"
 ```
+
+The second post-review unflagged matrix is presently incomplete and
+inconclusive. Preserve the genuine iPhone SE portrait functional failure on
+the exact touch route with no shape override: live Safari content viewport
+`375x549`, natural `pad-portrait`. The iPhone SE landscape rotation did succeed
+and proved live outer geometry `667x311`, `landscape-primary` and
+`phone-landscape`; its ten apparent failures were harness defects (a stale
+pre-rotation recorder viewport, safe-area key mismatch, key-order-sensitive
+JSON equality and the wrong context-recovery baseline), not Task 3 failures.
+The immutable Task 3 spike values themselves satisfy Task 3.
+A fresh runner-created iPhone 17 Pro then stopped `SETUP BLOCKED`: logs proved
+exact UDID selection and SafariDriver readiness, followed by a MobileSafari
+launch request but no `RWIApplication` during the 30-second first-boot migration
+window. Cleanup was exact and both managed devices are `Shutdown`; nothing was
+published. Implement and prove the Step 1–4 readiness/session/rotation repairs
+before another unflagged full matrix. Do not change or rerun Task 3 source to
+repair this harness evidence.
 
 Inspect the ignored results and require all eight rows to be present, decisive
 `passed|failed` and paired with valid matching JSON/PNG evidence. A
