@@ -10,3 +10,6 @@ playwright-report/
 
 # ElevenLabs SFX raw pre-trim intermediates
 src/assets/sfx/_raw/
+
+# Local art authoring workspace (large; not for VCS)
+scratch/
