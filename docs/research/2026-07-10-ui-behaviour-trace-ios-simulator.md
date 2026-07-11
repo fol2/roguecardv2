@@ -1,11 +1,11 @@
 # Round 5 research: semantic UI behaviour trace and iOS Simulator
 
-**Date:** 2026-07-10; live toolchain snapshot refreshed 2026-07-11
+**Date:** 2026-07-10; dated toolchain snapshot captured 2026-07-11
 
-**Status:** Accepted research basis; the Round 5 design specification is the canonical contract, not this note
+**Status:** Historical research; superseded as Round 5 execution authority by the 2026-07-11 owner retirement decision
 
 **Scope:** iOS Simulator evidence limits, browser-automation boundaries, and a deterministic UI/UX behaviour trace for AI diagnosis and regression testing
-**Owner decision after research:** Round 5 uses a Simulator-only mobile gate and makes no physical-device performance/feel claim; hardware evidence is deferred to the future Capacitor/hardware round.
+**Current owner decision:** Round 5 has no Phase 0.5 or actual Safari/iOS Simulator gate. It uses Playwright Chromium/WebKit browser journeys and WebKit-safe API review; future actual-Safari tooling belongs only to the [deferred mobile-migration design](../superpowers/specs/2026-07-11-mobile-migration-simulator-tooling-design.md).
 
 ## Executive conclusion
 
@@ -13,7 +13,8 @@ The proposed behaviour broadcast is sound production engineering. It should be a
 **versioned structured semantic trace** with a text projection, not a stream of
 ad-hoc `console.log()` messages. Tests consume the structured records; people and
 AI agents read the timestamped text projection. This creates a runner-neutral
-behaviour contract that Playwright and an iOS Safari WebDriver lane can both use.
+behaviour contract that Playwright consumes now and a future, separately
+activated mobile tool may consume later.
 
 iOS Simulator is valuable and can cover several representative iPhones and
 iPads, but it cannot provide the evidence that an earlier P0.5 draft assigned
@@ -30,10 +31,11 @@ to a physical-device gate:
   accurate performance or memory test. Apple advises hardware for processing,
   graphics, networking, interaction and final verification.
 
-Therefore Round 5 uses Simulator-only P0.5 as a **functional compatibility
-GO/NO-GO** and makes no real-device performance/feel claim. The owner has
-explicitly deferred those claims to the future Capacitor/hardware round; they
-are not a hidden Round 5 blocker.
+The earlier recommendation for a Simulator-only Phase 0.5 functional gate is
+superseded. Round 5 now proceeds directly from loaded-predecessor/drift
+validation to P1 under Playwright Chromium/WebKit gates. The evidence boundary
+below remains useful historical research, but it authorises no current command,
+gate, support claim or toolchain dependency.
 
 ## 1. What iOS Simulator can and cannot prove
 
@@ -123,9 +125,9 @@ apps on both connected devices and simulators. Web Inspector is always enabled
 for simulators. This is useful for diagnosing a failed Simulator lane, but it is
 not itself a test runner. See [Inspecting iOS and iPadOS](https://developer.apple.com/documentation/safari-developer-tools/inspecting-ios).
 
-### Local toolchain snapshot
+### Dated local toolchain snapshot (non-current)
 
-The workstation inspected for this note currently has:
+The workstation inspected on 2026-07-11 had:
 
 - macOS 26.5.2;
 - Xcode 26.6 (build 17F113);
@@ -134,9 +136,9 @@ The workstation inspected for this note currently has:
 
 `xcrun simctl list devicetypes` confirms current definitions for iPhone 17,
 iPhone 17 Pro/Pro Max, iPhone SE (3rd generation), iPad mini (A17 Pro), and
-iPad Pro 13-inch (M5), among others. The exact CI matrix must be selected from
-the runtime installed on the CI Mac and recorded in the test artefact; a device
-name alone is not a reproducible environment.
+iPad Pro 13-inch (M5), among others. These values are not current prerequisites
+or Round 5 authority. A future mobile activation must perform a fresh drift
+audit; a device name alone is not a reproducible environment.
 
 A compact representative compatibility matrix for the four mobile stage-shape
 families is:
@@ -294,10 +296,9 @@ call for every event should be avoided because asynchronous cross-process calls
 can perturb the behaviour being measured. Keep synchronous records in the page,
 then pull them in batches or at checkpoints.
 
-The equivalent Simulator-Safari WebDriver test retrieves the same export using
-execute-script, applies the same normaliser and assertions, and emits the same
-NDJSON/text artefacts. This avoids maintaining a second definition of correct UI
-behaviour merely because the runner differs.
+A future mobile tool may retrieve the same export through its own reviewed
+adapter and apply the shared pure normaliser. That adapter belongs to the
+deferred design and is not a Round 5 executable requirement.
 
 ### Appropriate regression assertions
 
@@ -318,7 +319,7 @@ felt*. A commercial-grade gate needs both, but most behavioural regressions can
 be diagnosed from compact text and structured state without asking an AI agent
 to interpret a video or sequence of screenshots.
 
-## Recommended specification-level position
+## Superseded recommendation and current position
 
 1. Treat the UI behaviour trace as a first-class, schema-versioned observability
    contract shared by DOM and Pixi code, with structured records as truth and a
@@ -326,11 +327,10 @@ to interpret a video or sequence of screenshots.
 2. Make functional Playwright tests assert semantic events and state checkpoints;
    preserve visual tests for visual claims and a separate performance lane for
    timing budgets.
-3. Use Playwright WebKit emulation for fast cross-browser coverage and Apple
-   `safaridriver` for the representative iOS/iPadOS Simulator Safari matrix. Do
-   not describe either one as the other.
-4. Reframe a Simulator-only P0.5 as a compatibility gate. It may green-light
-   architecture work if its written criteria are limited to functional claims,
-   but it must not close FPS, input-feel, GPU-memory or background-eviction
-   claims. Those remain explicitly outstanding until physical hardware evidence
-   exists.
+3. Use Playwright Chromium and Playwright WebKit device emulation for current
+   Round 5 browser coverage, always through the strict-port wrapper and without
+   describing WebKit artefacts as branded Safari, Simulator or mobile support.
+4. Build actual Safari/iOS Simulator automation only after future owner
+   activation, a fresh drift audit, a separate tool-first plan and proved tool
+   maturity under the deferred design. Physical-device and packaging claims
+   remain separate future evidence contracts.

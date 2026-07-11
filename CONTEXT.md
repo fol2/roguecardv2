@@ -48,12 +48,12 @@ A small, versioned, immutable presentation fixture published by a replayable UI 
 _Avoid_: command journal, save snapshot, persistent trace, gameplay replay
 
 **Playwright WebKit Device Emulation**:
-Playwright's patched WebKit browser running with an iPhone or iPad descriptor for viewport, user-agent, and touch emulation. It is not Safari running inside an Apple Simulator.
-_Avoid_: iOS Simulator Safari, physical Mobile Safari
+The active Round 5 mobile-shaped browser lane: Playwright's patched WebKit browser running with an iPhone or iPad descriptor for viewport, user-agent and touch emulation, combined with per-task WebKit-safe API review. It is not branded Safari, an iOS/iPadOS Simulator, WKWebView, physical Mobile Safari, hardware evidence, packaging proof or a mobile-support claim.
+_Avoid_: Mobile Safari test, Simulator proof, WKWebView proof, physical-device gate
 
-**Simulator Safari Lane**:
-Actual Safari from an iOS/iPadOS Simulator runtime, automated serially through Apple `safaridriver`; it proves functional compatibility, not physical-device performance or touch feel.
-_Avoid_: Playwright Mobile Safari, hardware performance gate
+**Deferred Mobile-Migration Tooling**:
+The non-executable future design at `docs/superpowers/specs/2026-07-11-mobile-migration-simulator-tooling-design.md`. Round 5 has no actual Safari/iOS Simulator lane; future work requires explicit owner activation, fresh drift audit, a separate implementation plan and proved tool maturity before any compatibility matrix.
+_Avoid_: active Round 5 gate, reviving retired Tasks 3–4, treating Playwright artefacts as Safari evidence
 
 ### Audio
 

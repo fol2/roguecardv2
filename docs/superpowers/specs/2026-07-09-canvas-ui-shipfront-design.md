@@ -4,7 +4,7 @@
 revised again after three independent reviews — gstack four-lens, ponytail
 over-engineering, ask-matt grilling — with owner decisions recorded below;
 revised 2026-07-10: commercial-grade production framing, semantic UI behaviour
-trace, iOS Simulator Safari coverage, and explicit Production Engineering /
+trace, browser compatibility coverage, and explicit Production Engineering /
 Front-end Experience agent ownership; revised 2026-07-11 after PR #14 and
 PR #15 merged: the 32-export data contract, transactional Dawn recovery,
 parallel-CI/performance policy, Phase 2 presentation states, and hot-applied
@@ -17,11 +17,9 @@ design now composes mechanics packs with locale overlays instead of reclaiming
 English display ownership; revised again after PR #17 merged at `40eb357`:
 its combat-chrome grounding, fixed energy-candle frame and geometry regression
 proof are inherited production behaviour, not styling to rediscover; revised
-again after the first live P0.5 Safari row to make the Simulator input profile,
-host-safety boundary and complete-matrix GO/NO-GO evidence contract explicit;
-revised again after the live orientation diagnostic to bind every visible
-Simulator action to one exact managed AX window rather than an obsolete
-Window-menu device row)
+again on 2026-07-11 after the owner officially retired Round 5 Phase 0.5 and
+moved all actual Safari/iOS Simulator automation to the
+[deferred mobile-migration design](./2026-07-11-mobile-migration-simulator-tooling-design.md))
 **Goal:** The commercial-grade production-engineering and final visual-hardening
 round. Replace the fragile CSS-composited
 combat UI with a **game-rendered PixiJS layer** (chrome *and* hand cards),
@@ -60,20 +58,20 @@ Round 5 to reimplement.)
 
 | Question | Decision |
 |---|---|
-| Commercial-grade target | **Production quality, not appearance alone** — presentation, content integration, observability, deterministic regression evidence, recovery, and mobile compatibility all move together |
-| Capacitor packaging | **Out of scope** — this is production engineering and presentation, not packaging. Capacitor *compatibility* is protected by WebKit-safe APIs, the GPU context budget, and Simulator Safari coverage; physical-device performance/feel evidence is deliberately deferred to the Capacitor/hardware round |
+| Commercial-grade target | **Production quality, not appearance alone** — presentation, content integration, observability, deterministic regression evidence, recovery, browser portability and mobile-shaped Playwright WebKit emulation all move together; no mobile-support claim is made |
+| Capacitor packaging | **Out of scope** — this is production engineering and presentation, not packaging. Round 5 protects browser portability through WebKit-safe APIs, the GPU context budget and Playwright WebKit device emulation; branded Safari, iOS/iPadOS Simulator, WKWebView, physical-device and packaging proof are deferred |
 | UI end-state | **Canvas/WebGL chrome**, not data-driven DOM and not a framework migration |
-| Canvas migration depth | **Full combat UI including hand cards** — but gated: the **P0.5 Simulator Safari compatibility spike** must pass before P1 begins, and a **P4→P5 Simulator/Playwright checkpoint** must pass before the hand migrates. "Pixi chrome + DOM hand" is a declared-acceptable shipped state if P5 stops |
+| Canvas migration depth | **Full combat UI including hand cards** — P1 begins after the loaded-predecessor/drift gate, and the cumulative P4 Playwright Chromium/WebKit browser gate must pass before the hand migrates. "Pixi chrome + DOM hand" is a declared-acceptable shipped state if P5 stops |
 | Engine | **PixiJS v8**, strictly WebGL with `preference: ['webgl']` (never the fall-through string form and never WebGPU) |
 | Ordering vs content line | **Progressive Delivery Phase 2, PR #15/#16, PR #18 app versioning, PR #7 English i18n and PR #17 combat geometry are loaded** at the `40eb357` minimum baseline. A later `main` change triggers a fresh drift audit before execution. During Round 5 P2 (re-homing) the mechanics and English-catalogue lines observe a **content-table freeze** (assets/plans only) |
 | Delivery lanes | **Production Engineering (PE) is the primary lane; Front-end Experience (FE) is a small, design-led lane.** PE owns all substrate, refactoring, Content Lab/manager, renderer mechanics, tooling, tests and integration. FE owns only authored player-facing presentation. Separate fresh spec-compliance and code-quality review cycles verify each unit; owner taste checkpoints stay with the owner |
 | Parallel execution | PE and FE may run concurrently only from separate worktrees on a written disjoint-file manifest. A shared file is a sequential hand-off, never a concurrent edit. Every implementation-plan task has exactly one `[PE]`, `[FE]`, `[QA]`, or `[OWNER]` lead |
-| Content substrate | **Full paired content architecture**: per-domain schemas join mechanics/behaviour from the `core` pack to English display data retained in the PR #7 locale overlay; `data.js` aliases the resulting hydrated frozen context. Registry work lands **before any production Pixi migration**; the disposable P0.5 compatibility spike is the sole exception. Enemy `ai` stays code; the legacy Hollow target getter is materialised from merged progression rather than copied with a global closure; an AI-DSL is explicitly out of scope |
+| Content substrate | **Full paired content architecture**: per-domain schemas join mechanics/behaviour from the `core` pack to English display data retained in the PR #7 locale overlay; `data.js` aliases the resulting hydrated frozen context. Registry work lands **before any production Pixi migration**. Enemy `ai` stays code; the legacy Hollow target getter is materialised from merged progression rather than copied with a global closure; an AI-DSL is explicitly out of scope |
 | Pack delivery | **Compiled-in** (static imports; an expansion ships as an app update). Runtime/downloadable DLC out of scope — the pack *format* is the future-proofing, not a download pipeline. No save-shape change for packs (unknown-id validation already rejects a save whose content is absent) |
 | Dev tooling | Dev shell, Content Lab, completeness reporting ("content doctor"), and **Content Manager** (the schema-driven CRUD editor). Content Manager and the dev shell are **droppable pressure-valve items**; Content Manager covers cards/relics/potions/themes only and never touches behaviour fields. All are PE, not FE |
 | UI behaviour observability | **Semantic UI Behaviour Trace** — a renderer-neutral, versioned structured event stream is canonical; timestamped text and NDJSON are derived AI/human views. It lands at the start of P1 before decomposition, is local and bounded, and is not analytics or a second source of game truth |
-| Mobile browser matrix | Playwright WebKit device emulation and actual Safari in representative iOS/iPadOS Simulators are separate lanes. Simulator Safari is driven serially through Apple `safaridriver`; Round 5 deliberately has no physical-device gate and makes no physical FPS, memory, thermal, background-eviction, latency, or touch-feel claim |
-| Performance policy | The merged Phase 2 policy remains authoritative: **a missing, invalid or crashed measurement fails; a valid 55fps/22ms target miss is a recorded warning/reference, not a merge failure**. Round 5 records portrait/LITE and desktop/Full Pixi measurements without claiming Simulator or physical-device performance |
+| Mobile browser boundary | Round 5 uses Playwright WebKit device emulation plus per-task WebKit-safe API review. Playwright WebKit is patched WebKit, not branded Safari, an iOS/iPadOS Simulator, WKWebView, physical Mobile Safari, hardware evidence, packaging proof or a mobile-support claim |
+| Performance policy | The merged Phase 2 policy remains authoritative: **a missing, invalid or crashed measurement fails; a valid 55fps/22ms target miss is a recorded warning/reference, not a merge failure**. Round 5 records portrait/LITE and desktop/Full Pixi browser measurements without claiming physical-device performance |
 | Phase 2 domain language | A successful Climb ends at **Dawn** and a death is a **Fall**. Internal compatibility values (`win`, `death`), route names and Music Cue ids (`victory`, `defeat`) stay unchanged |
 | Phase 2 music baseline | PR #16 makes **all 22 existing Music Cues live**. `src/music-resolve.js` is the Node-pure resolution truth; quest overrides beat Eighth Omen, Eighth Omen beats ordinary non-boss act music, and bosses retain their boss cue. Rose/Vigil, Hollow, sealed-door and Dawn exceptions are protected live call sites, not FE wiring requests |
 | App-version baseline | PR #18 makes `package.json` version `0.5.0` the authored source; DEV embeds a live short SHA, ordinary builds show `0.5.0+unknown`, and only explicit release builds show clean semver. The safe-area Title label and hidden debug gesture are protected behaviour. Release scripts remain manual preparation and never commit, tag or push |
@@ -96,7 +94,7 @@ refactor from being misrouted merely because it renders a browser screen.
 
 | Lane | Accountable agent | Owns | Explicitly does not own |
 |---|---|---|---|
-| **Production Engineering (PE)** | Primary/root agent | P0.5–P5 leadership; engine/data/registry/i18n/version contracts; all locale keys, English values, accessibility copy and runtime fallback behaviour; `ui.js` decomposition; all product JavaScript; stable markup/selectors; Semantic UI Behaviour Trace; Content Lab, doctor and editor; Pixi bootstrap and widget/card mechanics; input, probe, geometry, recovery, audio wiring, performance, capture, tests, CI, release/dev endpoints, docs and final integration | Player-facing taste, art direction or owner sign-off |
+| **Production Engineering (PE)** | Primary/root agent | P1–P5 leadership; engine/data/registry/i18n/version contracts; all locale keys, English values, accessibility copy and runtime fallback behaviour; `ui.js` decomposition; all product JavaScript; stable markup/selectors; Semantic UI Behaviour Trace; Content Lab, doctor and editor; Pixi bootstrap and widget/card mechanics; input, probe, geometry, recovery, audio wiring, performance, capture, tests, CI, release/dev endpoints, docs and final integration | Player-facing taste, art direction or owner sign-off |
 | **Front-end Experience (FE)** | One separate FE agent | One exact experience contract for P4–P6; the dedicated Round 5 screen stylesheet; approved visual token values; supplied-copy fit, hierarchy, wrapping, placement and motion; P7 visual assets, contact-sheet critique and provisional store compositions. FE may reference locale keys but cannot author or alter copy | Content architecture or management; localisation keys/values/fallbacks/accessibility wording; refactoring; any product JavaScript; trace; renderer/input infrastructure; dev tooling; probe; engine/audio wiring; test harnesses; capture automation; CI/perf; changing ids, schemas or save shape |
 | **Verification (QA)** | Two fresh reviewer agents, each independent of the task implementer and of the other review role | Spec-compliance review first; fixes and re-review; then code-quality review; fixes and re-review. Read-only re-runs and closure confirmation are allowed | Producing or modifying product/test-harness code, owning gate evidence, fixing findings, combining the two reviewer roles, or making taste decisions |
 | **Owner checkpoint** | Owner | Art direction, ceremony feel, asset promotion and per-screen contact-sheet approval | Routine engineering execution |
@@ -159,18 +157,18 @@ files. An additional fresh closure reviewer may still audit a phase gate.
 ### Round-level topology
 
 FE can author the locked P4/P5 presentation contracts and P6/P7 visual packages
-while PE builds P0.5–P3, because those outputs touch no PE production files.
+while PE builds P1–P3, because those outputs touch no PE production files.
 After P3, each production integration crosses a named hand-off:
 
 ```text
-PE: P0.5 → P1 → P2 → P3 → P4 mechanics → P5 mechanics → P6/P7 integration
-FE:             P4/P5 design contracts ───────→ P6 presentation → P7 visuals
+PE: P1 → P2 → P3 → P4 mechanics → P5 mechanics → P6/P7 integration
+FE:       P4/P5 design contracts ───────→ P6 presentation → P7 visuals
                                       hand-off ↑        hand-off ↑
 QA:                         independent task gates and combined-lane gates
 Owner:                                      visual checkpoints only
 ```
 
-P0.5–P5 are therefore PE-led even where the output is visual. In P6, FE owns
+P1–P5 are therefore PE-led even where the output is visual. In P6, FE owns
 the experience contract and dedicated stylesheet while PE owns all markup,
 behaviour and integration. P7 is split into disjoint FE visual tasks and PE
 capture/registration tasks. This is the intended meaning of “Round 5 is mostly
@@ -209,7 +207,7 @@ choreography to a high bar. What remains fragile is the *substrate*:
 
 ## Invariants (violating any fails review)
 
-- **The predecessor gate is a hard runtime stop.** Before P0.5, PE verifies
+- **The predecessor gate is a hard runtime stop.** Before P1, PE verifies
   from the execution branch itself that PR #14 merge `4698906`, PR #15 merge
   `4dc1af7`, PR #16 merge `7b8e01a`, PR #18 merge `de84c30`, and PR #7 merge
   `b285b81`, followed by PR #17 merge/current baseline `40eb357` (base
@@ -358,8 +356,9 @@ choreography to a high bar. What remains fragile is the *substrate*:
 - **World coherence includes shake.** The Pixi root container mirrors the
   `#shake` transform every frame (or `#uigl` mounts inside `#shake` with
   tooltip compensation) so migrated chrome/floaters shake with the world.
-  Verified through a named trace span plus motion review in Simulator Safari,
-  since static baselines cannot catch motion.
+  Verified through named trace assertions, real Playwright pointer motion and
+  reviewed Chromium/WebKit capture or video evidence, since static baselines
+  cannot catch motion.
 - **Accessibility does not regress silently.** Combat keeps a keyboard path
   (cycle hand / play / end turn — the probe drivers already prove the handler
   plumbing) as a P5 deliverable. Screen-reader support is a **declared
@@ -385,10 +384,10 @@ choreography to a high bar. What remains fragile is the *substrate*:
   before that point is "stop at P4"; a dev-only `?uigl=0` escape valve may
   exist during P4/P5 development but carries a mandatory removal task at
   phase close.)
-- **WebKit-safe API rule.** Every new API must work in current iOS WKWebView:
-  WebGL only (no WebGPU), no SharedArrayBuffer dependence, OffscreenCanvas
-  only within Safari 16.4+ coverage, fonts bundled locally. Enforced as a
-  review checklist item on every task.
+- **WebKit-safe API rule.** Every new API stays inside the agreed conservative
+  WebKit subset: WebGL only (no WebGPU), no SharedArrayBuffer dependence,
+  guarded OffscreenCanvas use and locally bundled fonts. Enforced as a review
+  checklist item on every task; this is not branded-Safari or WKWebView proof.
 - **GPU context budget.** The renderer option is exactly
   `preference: ['webgl']`; Pixi 8.19's scalar preference form is forbidden
   because it falls through to WebGPU/canvas. **All** WebGL contexts count,
@@ -571,7 +570,7 @@ installs `window.spirebound` / `window.__probe`.
 | `src/ui/cardface.js` | the single card-face composer + texture export | P5 | PE; consumes the FE card hierarchy contract |
 
 Phase 1 produces **zero visual change** — the full Playwright kit passing
-unchanged is its acceptance proof. It lands after the P0.5 gate and before
+unchanged is its acceptance proof. It lands after the loaded-predecessor/drift gate and before
 P2–P7 production work.
 
 ### Probe v2
@@ -678,11 +677,11 @@ Normal game URLs are never mutated. Replay URLs contain ids and an optional
 locale code, never resolved copy. Non-replayable spans expose a stable disabled
 reason instead of pretending they can be replayed.
 
-Playwright enables tracing before boot, waits on semantic predicates instead of
-guessed sleeps where a named event exists, checks schema/order/no-overflow/no-
-orphan invariants, and attaches both normalised NDJSON and timestamped text on
-failure. Simulator Safari retrieves the same projection through WebDriver
-execute-script. Playwright's heavyweight browser trace remains independently
+Playwright Chromium and WebKit projects enable tracing before boot, wait on
+semantic predicates instead of guessed sleeps where a named event exists,
+check schema/order/no-overflow/no-orphan invariants, and attach both normalised
+NDJSON and timestamped text on failure. A future mobile tool may consume the
+same pure classifier only under the deferred design. Playwright's heavyweight browser trace remains independently
 configurable; this facility neither depends on it nor replaces screenshot,
 geometry, accessibility, performance, or device evidence.
 
@@ -971,12 +970,13 @@ trace, probe, tests and integration remain PE.
   an accident).
 - **Tooltip bridge:** sprite hover / long-press forwards to the existing DOM
   tooltip, positioned from sprite bounds (stage px → client px).
-- **P4 exit checkpoint (gates P5):** the full Simulator Safari matrix proves
-  interaction semantics, motion coherence (including shake), layout, and
-  renderer recovery at parity or better; Playwright produces a valid
-  host-relative portrait/LITE measurement and records target warnings without
-  turning a valid miss into a merge failure. This checkpoint makes no physical
-  touch-feel or device-performance claim. A functional compatibility failure
+- **P4 exit checkpoint (gates P5):** the cumulative P4 browser gate proves
+  trace parity, real pointer and `pointercancel` semantics, motion coherence
+  including shake, renderer context recovery, Playwright Chromium/WebKit
+  journeys, reviewed visuals and valid host-relative portrait/LITE performance
+  evidence. Valid target misses retain the independent `PERF_WARNING` policy.
+  This checkpoint makes no branded-Safari, Simulator, WKWebView, physical-device,
+  packaging or mobile-support claim. A browser-contract failure
   stops the migration: ship the declared-
   acceptable mixed state, keep the DOM hand, and re-plan P5.
 
@@ -994,8 +994,8 @@ probe, performance and integration remain PE.
   shrink steps and a max-lines cap, upgrade-diff emphasis) and a **texture
   budget**: a static calculated cap for uncompressed RGBA allocation per card ×
   state × DPR, with a documented overhead factor, plus host-relative heap/
-  texture-growth regression evidence. It makes no Simulator or physical-iOS
-  memory-headroom claim. Per-frame preview tints are applied live, never
+  texture-growth regression evidence. It makes no physical-device memory-
+  headroom claim. Per-frame preview tints are applied live, never
   cached; the cache key includes the locale token.
 - **Hand:** fan/arc seat layout ported from the CSS seat logic; drag-to-play
   with unchanged client-px thresholds; **pointercancel returns the card to
@@ -1209,153 +1209,9 @@ phases extend the tested lane/result map rather than rebuilding or weakening it.
 “P0 complete” does not pre-complete Round 5's later CI work. PE extends the
 gate in the phase that introduces each contract: Playwright WebKit device
 emulation, serial disk-writing Content Manager tests, the bundle budget,
-desktop full-tier performance recording, Pixi context-loss proof, texture-leak
-evidence and the separately labelled local/self-hosted Simulator Safari lane.
-The Simulator lane is never represented as an ordinary Linux GitHub runner.
+desktop full-tier performance recording, Pixi context-loss proof and
+texture-leak evidence.
 
-### Phase 0.5 — the Simulator Safari Pixi compatibility spike (gates P1)
-
-Timeboxed (order of days, not weeks). A throwaway branch renders, via Pixi
-v8 over the live scene3d + mesh contexts: one nine-slice plate, ~ten card
-sprites with one composed card face (text + icons), the foil shader, and a
-synthesised drag. Actual Safari in the pinned iOS Simulator runtime (iOS 26.5
-at spec time) is driven serially through Apple `safaridriver`, never labelled
-as Playwright Mobile Safari. The representative matrix is iPhone SE (3rd
-generation), iPhone 17 Pro, iPad mini (A17 Pro), and iPad Pro 13-inch (M5),
-portrait and landscape.
-The canonical spike URL is exactly
-`/?pixispike=1&tier=full&input=touch`; `shape=` is forbidden. `input=touch`
-declares the Simulator automation input profile only: the actual viewport must
-still select the natural phone/pad portrait/landscape canonical shape. Every
-cell records `inputProfile:'touch'`,
-`nativePointerCoarse:<boolean>` from the native
-`matchMedia('(pointer: coarse)').matches` result, and `shapeOverride:null`.
-The installed primary `safaridriver` contract is literal: requested
-`safari:deviceType` is only `iPhone` or `iPad`, the exact managed Simulator
-name is `safari:deviceName`, and its resolved UDID is
-`safari:deviceUDID`. Evidence records all three separately. Before any manual
-workflow dispatch, PE combines every paginated repository-runner response and
-requires exactly one online runner carrying `self-hosted`, `macOS` and
-`spirebound-simulator`; zero records `AWAITING OWNER-PROVISIONED RUNNER`
-without dispatch, while more than one is an ambiguous-runner failure.
-
-Every visible Simulator orientation action is bound to the exact validated
-managed `deviceName`, its resolved UDID and the validated runtime name. The
-runner opens Simulator through argv with
-`-CurrentDeviceUDID <managed-UDID>`, then requires exactly one AX window whose
-title equals `<deviceName> – <runtime name>` (Unicode en dash), raises only that
-window and proves the same exact title is still the front window immediately
-before and after the Device-menu click. A substring or title-prefix match, the
-requested model alone, a generic front window or a Window-menu device row is
-never ownership proof. If exact ownership is missing or ambiguous before the
-click, the runner stops `SETUP BLOCKED` without clicking. If ownership is lost
-after the click, it stops `SETUP BLOCKED`, performs no further action or click,
-and accepts no browser orientation, viewport or stage-shape evidence. This
-remains a no-wake, no-physical-device, functional-compatibility-only gate.
-
-The runtime is an environment prerequisite, not a product result. The
-2026-07-11 live toolchain exposes iOS 26.5 build `23F73`; if that exact
-Simulator runtime is absent, PE records
-`SETUP BLOCKED`, installs that exact runtime through the supported visible
-Xcode/`xcodebuild -downloadPlatform` path without requesting credentials, and
-reruns preflight. Only a cell that actually boots and exercises the spike may
-produce a decisive `passed|failed` row; an absent runtime is never misreported
-as a Pixi failure. No physical device is required.
-
-The runner never wakes the host or a display, unlocks a GUI or requests
-credentials. It fails setup before any managed-device mutation unless the Mac
-is already awake, unlocked and logged into a usable GUI session. Only after
-that preflight passes may an owned `caffeinate -d -i -w <runner-pid>` child
-prevent new sleep; the runner terminates that child itself.
-
-An exact managed Simulator booted by this runner must establish bounded
-MobileSafari readiness before WebDriver New Session. This is setup
-infrastructure, not a product criterion: it uses no credentials and never
-invokes `safaridriver --enable`, a physical device, a generic `booted` alias or
-an unrelated device. An initially booted managed Simulator is never mutated by
-this readiness step. A Safari session is established only after the New Session
-promise and session id resolve. Rejection is `SETUP BLOCKED`; no screenshot or
-`quit()` is attempted on a never-established session.
-
-After initial navigation, the caller first observes the current browser
-orientation. If it already matches, the caller skips the AX rotation invocation
-and records `clicked:false` with current-document evidence. Only a mismatch
-invokes the exact AX rotation transaction: it clicks exactly once or fails
-`SETUP BLOCKED`; a successful invocation records `clicked:true`, reloads the
-identical exact surface route, still
-`/?pixispike=1&tier=full&input=touch` and never `shape=`, then re-proves the
-input profile and browser orientation, live viewport, safe areas and natural
-stage shape on the new document before exercising the surface. Evidence must
-describe that post-rotation document, never a boot-time cached viewport.
-
-These are runner/harness repairs only. They do not reopen or change immutable
-Task 3 source, change stage thresholds or reclassify the genuine iPhone SE
-portrait failure: live Safari content viewport `375x549` still naturally
-selects `pad-portrait`. The clean-publication gate, no-wake/no-physical limits
-and deferred physical-device claims remain unchanged.
-
-The artifact records Xcode, runtime/build, Safari, model/UDID, orientation, and
-host architecture. Written pass/fail criteria gate boot/API support,
-stage/safe-area selection, font and texture readiness/fallback, automated
-pointer and pointer-cancel semantics, motion coherence, all-context maximum
-three plus exact named owners/no steady unowned context, and deliberately
-induced **Pixi context** loss → rebuild → ready. The disposable proof includes
-the deliberately observed-and-lost Pixi support-test context; counting only
-canvas ids is invalid evidence.
-Scene3d/mesh context restoration remains out of scope. Playwright
-records host-relative performance separately, but neither lane claims physical
-device FPS, GPU/texture-memory headroom, input latency/feel, thermal behaviour,
-or real background eviction; those are explicitly deferred to the future
-Capacitor/hardware round. More Simulator model names do not add hardware proof
-because they still use the host Mac's CPU, memory, and GPU.
-
-A formal product decision requires all eight cells to be decisive
-`passed|failed` and every corresponding JSON/screenshot pair to pass the
-clean-publication contract. The publication commit boundary is the successful
-installation of the fully validated staging directory at the canonical
-destination followed by passage of the explicit post-swap fault point. Before
-that boundary, a recoverable failure restores the complete prior destination
-(or its prior absence) and removes the publisher-owned transaction workspace.
-If that rollback or cleanup itself fails, the publisher preserves and records
-the exact owned debt paths, exits non-zero with a cleanup-debt error whose
-publication operation result has `clean:false`, and treats the gate as
-cleanup-blocked/inconclusive; it makes no absolute no-residue claim.
-
-After the commit boundary, a backup, workspace or publication-lock disposal
-failure must never restore a possibly partial old backup over the complete,
-hash-verifiable new destination. The publisher preserves that new destination,
-exits non-zero with a cleanup-debt error whose publication operation result has
-`clean:false`, and records exact publisher-owned debt paths plus
-`PUBLICATION_CLEANUP_DEBT` or `PUBLICATION_LOCK_CLEANUP_DEBT`. `clean` belongs
-only to the publication operation result, never to the manifest or archive. A
-successful operation returns `{ clean:true, decision, destination, manifest }`.
-A cleanup-debt error carries
-`error.publication={ clean:false, decision, destination, manifest? }` and
-`error.cleanupDebt={ code, ownedPaths, errors }`; `manifest` is present only
-when one was actually installed. The manifest retains only candidate
-decision/source/file metadata. Its `decision:'GO'|'NO-GO'` remains a candidate
-until the matching explicit publication operation returns `clean:true`. Formal
-GO/NO-GO reporting, an artifact commit and P1 continuation additionally require
-exact durable manifest/hash/source re-verification and an empty matching
-workspace/backup/lock debt scan at the canonical destination.
-
-Any matching prior debt blocks a later publication before source or artifact
-mutation. An unowned or contended lock/workspace is never removed, stolen or
-automatically reconciled. Exact recorded owned debt may be reconciled only by
-a deliberate audited cleanup, followed by re-verification of the surviving
-durable archive when one exists or proof that the canonical destination remains
-absent otherwise, then a fresh complete unflagged-plus-flagged run.
-Cleanup-blocked publication is a technical inconclusive state, not another
-product outcome. When the matching explicit publication operation returns
-`clean:true` and the subsequent durable archive verification and empty matching
-debt gates pass, eight passes produce GO and P1 proceeds; one or more exercised
-functional failures produce NO-GO and reopen the canvas decision before any
-sunk cost (the registries, behaviour trace, and tooling phases remain valuable
-regardless). A setup-blocked row, incomplete matrix, missing artifact or
-non-clean publication remains `SETUP BLOCKED`/inconclusive and must not be
-reported or committed as either GO or NO-GO.
-This gate remains functional-compatibility-only: it requires no physical device
-and makes none of the deferred physical-device claims above.
 
 ### Registry & tooling gates (P2–P3)
 
@@ -1424,12 +1280,13 @@ satisfy a presentation task.
    Pixi-context-loss smoke (simulated loss → restore) and a heap/texture-leak check across the long
    random-agent run from P5 onward (per-combat texture leaks are the expected
    leak class); a REDUCED-motion e2e runs against the Pixi scene.
-7. **P0.5 and every later browser-contract-moving phase:** Simulator Safari
-   compatibility lane
-   phase, using Apple `safaridriver` and the same normalised semantic assertions
-   as Playwright; the full four-device/two-orientation matrix runs at P0.5,
-   P4, P5, and the final gate, with narrower representative smokes in between.
-8. WebKit-safe API rule reviewed per task.
+7. **Every browser-contract-moving phase:** cumulative Playwright Chromium and
+   WebKit journeys assert the same normalised semantic contracts through the
+   strict-port wrapper. P4/P5/P6 and Full-Round closure retain all previously
+   introduced browser journeys.
+8. WebKit-safe API rule reviewed per task. This review and Playwright WebKit
+   device emulation make no branded-Safari, Simulator, WKWebView, hardware,
+   packaging or mobile-support claim.
 9. **Docs-same-phase gate** (see invariants).
 10. **P4 onward:** Gzipped main-chunk bundle budget measured in CI.
 11. Agent-ownership gate: the task has one lane label and disjoint write set;
@@ -1459,7 +1316,6 @@ contact-sheet sign-off in §6 is the gate)
 | Phase | Content | Lead / FE boundary | Nature |
 |---|---|---|---|
 | P0 | CI wiring | PE — complete | Later phases extend the merged gate |
-| P0.5 | Simulator Safari Pixi compatibility spike | PE; FE may review captured presentation only | Timeboxed functional matrix; no physical-device claim; gates P1 |
 | P1 | Semantic UI Behaviour Trace, then `ui.js` → `src/ui/` decomposition | PE only; FE production-code write set is empty | Trace the monolith first; preserve normalised behavioural contracts; zero visual change; plan carries the state-ownership map |
 | P2 | Content registries & packs | PE only | Node-pure production substrate; three-leg golden equivalence; content-table freeze window |
 | P3 | Dev tooling (Lab + doctor + trace view core; shell + Content Manager droppable) | PE only, including all tooling UI | Dev-only surfaces; the Lab becomes the P4/P5 acceptance harness |
@@ -1484,10 +1340,8 @@ reduced-scope exit and does not satisfy Full-Round success.
 
 | Risk | Mitigation |
 |---|---|
-| Pixi incompatible with mobile WebKit | **P0.5 Simulator Safari spike before any sunk cost**; P4 exit checkpoint before the hand migrates; WebKit-safe review and declared-acceptable fallback states at each gate; actual Capacitor WKWebView remains for its own round |
+| Pixi incompatible with mobile WebKit | Per-task WebKit-safe review and cumulative Playwright WebKit gates; P4 exit checkpoint before the hand migrates; declared-acceptable fallback states at each gate; branded Safari and Capacitor WKWebView remain deferred |
 | Pixi's support probe briefly creates an unowned fourth context | Observe every `getContext`, prewarm while only two named owners exist, explicitly lose `getTestContext()`, and gate the all-context live maximum separately from named ownership |
-| Required Simulator runtime is absent | Treat as environment setup, install the pinned runtime through supported Xcode tooling without credentials, and rerun preflight; never call absence a Pixi NO-GO |
-| Simulator success is misreported as device performance proof | Record the exact runtime/host, label the gate functional compatibility, forbid Simulator FPS, memory, touch-feel, thermal, and background-eviction claims, and defer those claims explicitly |
 | Behaviour trace becomes a second game truth or a noisy logger | Observe only semantic owners; structured versioned records are canonical; no engine imports, DOM inference, frame/pointer-move spam, or console-first transport |
 | Trace snapshots become timing-flaky | `seq` and explicit causality define contract order; normal projections strip timestamps; only named budget tests assert elapsed time with tolerances |
 | Missing instrumentation makes a trace look complete when it is not | P1 event inventory covers routing bypasses, batched queue consumption, detached ceremonies, dawn queue, error and overflow; schema integrity and orphan-span tests are mandatory |
@@ -1503,13 +1357,13 @@ reduced-scope exit and does not satisfy Full-Round success.
 | Refactor collides with parallel content commits | Mechanics/English-catalogue freeze during P2; named owner re-homes `VARIANTS` mechanics while `WHISPERS` and all display/dialogue remain locale-owned |
 | PE/FE agents collide or silently cross ownership | Separate worktrees, task-level disjoint write manifests, one lead per task, sequential shared-file hand-offs, exact commit/interface records and separate fresh spec/code-quality review cycles before integration |
 | Pointer/drag regressions on the canvas boundary | Single stage-level router specified up front; real-pointer router + pointercancel e2e |
-| Migrated chrome stops shaking / motion regressions | Shake-mirror invariant; named trace span plus Simulator Safari motion review, not just static pixels |
+| Migrated chrome stops shaking / motion regressions | Shake-mirror invariant; named trace span plus real-pointer Chromium/WebKit motion assertions and reviewed capture/video, not just static pixels |
 | Content Manager writes a corrupt pack file | Schema validation before write + stable serialiser + `npm test` gate; endpoint dev-only; manager droppable |
 | Theme extraction misses hardcoded act logic | Sweep covers literals + indices + clamps; climbable `_sample` Lab smoke; honest enumerated residue |
 | Schema too strict, chokes content flexibility | Required core fields only; unknown extension keys warn, never fail |
 | Baseline churn / canvas nondeterminism on CI | Per-phase re-baseline in the contract-moving PR; deterministic renderer settings; pre-authorised diff ratio |
 | Card text fidelity (font timing) | Font-ready gate before the first Pixi text bake; fonts bundled |
-| Card-face texture growth | Static calculated allocation cap plus host-relative leak check on the random-agent run; Simulator/device memory-headroom claims remain deferred |
+| Card-face texture growth | Static calculated allocation cap plus host-relative leak check on the random-agent run; physical-device memory-headroom claims remain deferred |
 | DOM/Pixi card-face drift | Single composer + texture export; DOM grids consume exports |
 | `ui.js` decomposition regressions | State-ownership map in the plan; zero-visual-change acceptance with the full kit |
 | Executor "self-certifies" taste | Owner contact-sheet sign-off gates; beats specified in plans; art tasks marked owner-checkpoint |
@@ -1521,7 +1375,9 @@ reduced-scope exit and does not satisfy Full-Round success.
 Capacitor packaging (compatibility protected by invariants only); remote UI
 telemetry collection, automatic trace upload/persistence, raw pointer/frame/DOM
 mutation logging, or treating semantic trace as a replacement for visual,
-accessibility, performance, or Simulator proof; physical-device FPS, memory,
+accessibility or performance proof; actual Safari/iOS Simulator automation,
+branded-Safari, WKWebView and mobile-support proof (all moved to the
+[deferred mobile-migration design](./2026-07-11-mobile-migration-simulator-tooling-design.md)); physical-device FPS, memory,
 thermal, latency/touch-feel, and real background-eviction testing (all deferred
 to the Capacitor/hardware round); runtime /
 downloadable DLC (pack *format* only — delivery stays compiled-in); an
@@ -1541,30 +1397,14 @@ scene3d/mesh (Capacitor round).
 
 ## Exit contracts
 
-There are three distinct outcomes; the implementation record must name which
+There are exactly two distinct outcomes; the implementation record must name which
 one occurred rather than blending them into one definition of “done”.
-Publication cleanup debt is a technical `SETUP BLOCKED`/inconclusive state,
-not a fourth outcome. It blocks formal reporting, an artifact commit, a later
-publication and every downstream exit until deliberately reconciled and
-the surviving durable archive has been re-verified when one exists or the
-canonical destination has been proven absent otherwise, followed by a fresh
-complete unflagged-plus-flagged run.
+Each outcome depends only on the loaded-predecessor/drift gate and the
+cumulative browser gates introduced by its completed phases.
 
-1. **Compatibility NO-GO / re-scope:** the complete P0.5 matrix has eight
-   decisive cells, at least one booted/exercised cell fails a written
-   functional criterion, the matching explicit NO-GO publication operation
-   returned `clean:true`, and the archive passed exact manifest/hash/source
-   verification with no matching workspace/backup/lock debt. The spike has
-   succeeded as a decision gate, but Round 5 has not shipped or completed.
-   Production migration stops and this design must be revised before execution
-   resumes. Missing toolchain/runtime/GUI prerequisites, a setup-blocked row, a
-   partial matrix, missing artifacts or any non-clean publication are
-   `SETUP BLOCKED`/inconclusive, not this outcome.
-2. **Supported reduced-scope prefix stop:** P0.5 passes its clean-publication
-   gate and a contiguous phase prefix ending at P4, P5, or P6 passes every
-   applicable standing gate. A candidate GO manifest or cleanup-blocked
-   publication cannot support this outcome. The execution record names the
-   last completed phase and the explicitly deferred tail:
+1. **Supported reduced-scope prefix stop:** a contiguous phase prefix ending at
+   P4, P5, or P6 passes every applicable standing gate. The execution record
+   names the last completed phase and the explicitly deferred tail:
    - **P4 PE-core:** combat chrome is Pixi while the hand remains DOM under the
      P4 allowed-list; P5–P7 are deferred. It may claim the commercial-engine
      substrate, but not fully game-rendered combat.
@@ -1575,21 +1415,26 @@ complete unflagged-plus-flagged run.
    Every prefix stop is supported and shippable, but none may claim “Round 5
    Full-Round complete”. Partially completed phases are preparation, not an
    additional exit state.
-3. **Full-Round target:** the complete success criteria below pass. P5, all P6
+2. **Full-Round target:** the complete success criteria below pass. P5, all P6
    screen sets and P7 ship-front outputs are present. Content Manager and the
    dev shell remain the only optional feature deliverables.
 
+Neither outcome claims branded Safari, actual Safari/iOS Simulator, WKWebView,
+physical-device performance or feel, packaging, App Store readiness or mobile
+support. Those proof contracts belong only to the non-executable
+[deferred mobile-migration design](./2026-07-11-mobile-migration-simulator-tooling-design.md).
+
 ## Full-Round success criteria
 
-1. **P0.5 Simulator Safari compatibility spike passed its written functional
-   criteria and clean-publication gate.** The matching explicit GO publication
-   operation returned `clean:true`, and the archive passed exact
-   manifest/hash/source verification with no matching workspace/backup/lock
-   debt. The evidence makes no physical-device claim.
+1. **Browser compatibility proof:** every applicable Playwright Chromium and
+   WebKit project, visual gate, bundle gate, valid performance measurement and
+   per-task WebKit-safe API review passes. Playwright WebKit remains patched
+   WebKit with device emulation and is not branded Safari or mobile-support
+   evidence. The independent `PERF_WARNING` policy remains unchanged.
 2. **Semantic behaviour proof:** an AI can diagnose representative screen,
    card-drag/cancel, combat queue, ceremony, persistence-recovery, and renderer-
-   recovery journeys from the timestamped text alone; Playwright and Simulator
-   Safari assert the same structured contract; every **trace-enabled functional
+   recovery journeys from the timestamped text alone; Playwright Chromium and
+   WebKit assert the same structured contract; every **trace-enabled functional
    test** reports valid order, no drops, no orphaned spans, and no unexpected
    trace errors; its failure artifacts contain both NDJSON and text. Timing/perf
    tests deliberately run with recording disabled. Probe state and visual
@@ -1631,9 +1476,10 @@ complete unflagged-plus-flagged run.
    measured and held.
 9. The store kit's script + shot list + listing content doc exist; the
    provisional capture set is produced from one scripted run.
-10. Fresh-profile and veteran-profile manual smokes (with the Progressive
-   Delivery reveal ladder active) both read coherently on desktop and in actual
-   Safari across the representative iPhone/iPad Simulator matrix.
+10. Automated Playwright Chromium/WebKit fresh-profile and veteran-profile
+   phone/pad-shaped journeys (with the Progressive Delivery reveal ladder
+   active) pass, and both profiles read coherently in the visible desktop
+   manual smoke. These journeys make no actual-Safari or mobile-support claim.
 11. Every implementation task has one `[PE]`, `[FE]`, `[QA]`, or `[OWNER]`
     lead; PE/FE parallel work has disjoint write sets; every shared-file change
     has a named sequential hand-off; and each implementation unit completes the

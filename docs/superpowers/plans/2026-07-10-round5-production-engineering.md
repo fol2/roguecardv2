@@ -17,7 +17,7 @@
 
 **Architecture:** Production Engineering (PE) remains the primary lane and owns every product JavaScript file, state transition, renderer/input seam, locale/version contract, authoring tool, probe, test, workflow and integration commit. Mechanics/behaviour live in `src/packs/**`; English display ownership remains the parallel compiled-in `src/i18n/en/content.js` overlay. Each pack and its locale fragments meet only in a Node-pure content registration; a deterministic compiler discovers those registrations and generates production/development target manifests before one joined content context hydrates and freezes. A separate Front-end Experience (FE) worktree owns only the checked-in experience contract, one dedicated stylesheet, named visual assets and review reports. PE and FE run concurrently only on the disjoint write sets below; PE consumes FE outputs through named commit hand-offs after interfaces are frozen.
 
-**Tech Stack:** Vite 8.1 + vanilla ES modules; Node 24; Three.js 0.185; PixiJS **8.19.0** pinned to WebGL; Selenium WebDriver **4.45.0** for serial Simulator Safari automation; plain `node:assert` checks in `test/test_engine.js`; Playwright 1.61.1; GitHub Actions; Apple `safaridriver` against the live iOS 26.5 (`23F73`) Simulator runtime prerequisite.
+**Tech Stack:** Vite 8.1 + vanilla ES modules; Node 24; Three.js 0.185; PixiJS **8.19.0** pinned to WebGL; plain `node:assert` checks in `test/test_engine.js`; Playwright 1.61.1 with Chromium/WebKit projects; GitHub Actions.
 
 ## Global Constraints
 
@@ -98,7 +98,15 @@
   short SHA, ordinary build uses `+unknown`, and only explicit release build is
   clean semver. Round 5 never invokes `npm run release`, `release:build` or
   `tools/release.mjs`; those scripts remain manual-only and never commit/tag/push.
-- Simulator Safari proves functional compatibility only. It makes no physical-device FPS, memory, thermal, background-eviction, input-latency or touch-feel claim.
+- Playwright WebKit is patched WebKit with device emulation. It is not branded
+  Safari, an iOS/iPadOS Simulator, WKWebView, physical Mobile Safari, hardware
+  performance evidence, packaging proof or a mobile-support claim.
+- **WebKit-safe review invariant:** every Task 5–40 change to browser-facing
+  runtime, API or configuration must carry this exact fresh-reviewer report
+  line: `WebKit-safe API review: PASS`. The reviewer verifies that the change
+  introduces no unsupported Web API and no missing fallback. This is a browser-
+  portability review, not branded-Safari, WKWebView, Simulator, hardware,
+  packaging or mobile-support proof.
 - Preserve the merged Phase 2 performance policy: missing/invalid metrics or a
   crashed journey fail; valid portrait/LITE or desktop/Full target misses emit
   `PERF_WARNING` and remain non-gating reference evidence. Do not silently turn
@@ -125,8 +133,8 @@
   fabricate a red by breaking production source.
 - Every Playwright-backed top-level command/package script runs against its own
   isolated strict-port server. Shell environment is never assumed to persist
-  across tool calls or fresh subagents. Tasks 1 and 3 precede the durable
-  wrapper, so each of their browser blocks allocates and exports a fresh port in
+  across tool calls or fresh subagents. Task 1 precedes the durable wrapper, so
+  each of its browser blocks allocates and exports a fresh port in
   the same fenced shell invocation as the browser command. Task 5 creates the
   import-safe `tools/run-with-strict-e2e-port.mjs`; every later executable
   browser line in this plan and CI invokes that wrapper in the same shell
@@ -150,6 +158,9 @@
   code-quality reviewer → implementer fixes and quality re-review. No combined
   QA agent or single verdict substitutes for either reviewer. An extra closure
   reviewer may audit a phase gate. Owner checkpoints remain owner-only.
+  The applicable task review cannot close until its reviewer records the exact
+  `WebKit-safe API review: PASS` line; Task 40 audits all applicable Task 5–40
+  lines and records the same line for the final closure package.
 - The existing repository `AGENTS.md` is never edited, staged or committed in
   Round 5. Architecture and operational guidance move through `docs/README.md`,
   the relevant `CONTEXT.md` files and Round 5 reports.
@@ -182,7 +193,7 @@ list and exit codes.
 | 24–28 | `p4` | all `p3`; `npm run test:e2e:webkit`; `npm run test:e2e:perf`; `node tools/check-bundle-budget.mjs` |
 | 29–34 | `p5` | all `p4`; `npm run test:e2e:leak` |
 | 35–39 | `p6` | all `p5`; `npx playwright test p6-screens end-ceremony contrast stage trace --project=desktop --project=portrait --project=landscape --workers=1 --no-deps` |
-| 40 | `full` | all `p6`; `npm run test:e2e:visual`; `npm run test:simulator:full -- --surface production`; `npm run test:simulator:profiles -- --surface production` |
+| 40 | `full` | all `p6`; `npm run test:e2e:webkit`; `npm run test:e2e:visual` |
 
 The cumulative relation is literal, expands each named command once in first-
 occurrence order and is unit-tested: `p2-base` preserves the merged guided/
@@ -192,8 +203,9 @@ later P2+ task; `p3` makes the production-surface verifier stand
 in every P3+ task, including Pixi, P5, P6 and ship-front source commits, and
 makes the Manager disk gate stand from the first commit that defines it. A task
 may repeat a command for a narrower proof, but may not replace or omit its
-profile invocation. Tasks 0–4 precede the runner and retain their exact
-declared preflight/gates.
+profile invocation. Tasks 0–2 precede the runner and retain their exact
+declared preflight/gates. Retired Tasks 3–4 have no command and no standing
+profile.
 
 Task 6 defines `test:e2e:nonvisual` exactly as
 `npm run test:e2e:disk && npm run test:e2e:random-agent && npm run
@@ -204,6 +216,9 @@ authorised phase baseline commit, so stale visual baselines cannot be a
 pre-commit gate. Visual comparison remains mandatory in P1 zero-drift tasks and
 at P4/P5/P6/P7 baseline capture plus every prefix/full closure; only those
 reviewed steps may update snapshots.
+Task 34 extends the existing `test:e2e:webkit` script cumulatively with
+`p6-screens`; from that task onwards the `p5`, `p6` and `full` profiles resolve
+the extended script, and the existing CI WebKit job invokes that same script.
 
 ---
 
@@ -301,7 +316,6 @@ before the Task 37 owner gate and the per-file P7 approval in Task 38.
 | `src/ui/pointer.js` | Sole stage-level combat pointer router | P4 |
 | `src/ui/tween.js` | Ticker tweens on shared tokens; named REDUCED end states | P4 |
 | `src/ui/cardface.js` | Single card composer, texture cache/export and static allocation accounting | P5 |
-| `test/simulator/*.mjs` | Serial `safaridriver` runner and normalised semantic assertions | P0.5+ |
 | `tools/check-act-coupling.mjs` | Static act-literal/index/clamp sweep with enumerated allowlist | P2 |
 
 ## P1 state-ownership map
@@ -367,9 +381,7 @@ terminal arrays preserve order and values.
 ```text
 Task 0 PE/FE worktrees + ledger ─┬─ Task 2 FE contract (allowed preparation)
                                   └─ Task 1 predecessor gate
-                                       → Task 3 disposable P0.5 spike branch
-                                       → Task 4 reusable Safari matrix + formal GO/NO-GO
-                                       → Tasks 5–9 P1 trace + decomposition
+                                       → Task 5–9 P1 trace + decomposition
                                        → Tasks 10–15 P2 registries/packs/themes/sample
                                        → Tasks 16–20 P3 Lab/doctor/Manager/CI
                                        → Tasks 21–24 P4 Pixi chrome/router
@@ -385,13 +397,12 @@ Task 0 PE/FE worktrees + ledger ─┬─ Task 2 FE contract (allowed preparatio
 
 ## Supported prefix exit closure
 
-This protocol applies only after a green P4, P5 or P6 gate explicitly selects
-its supported prefix. It never applies to a P0.5 NO-GO or a partially completed
-phase. The matching explicit P0.5 GO publication operation must have returned
-`{ clean:true, decision, destination, manifest }`, followed by exact durable
-manifest/hash/source re-verification and an empty matching debt scan; a
-candidate GO manifest or cleanup-blocked publication cannot support a prefix
-exit.
+This protocol applies only after a green cumulative P4, P5 or P6 browser gate
+explicitly selects its supported prefix; it never applies to a partially
+completed phase. Prefix validity depends on that phase's trace, real-pointer/
+cancel, recovery, Playwright Chromium/WebKit, visual, bundle and valid
+performance gates plus all earlier standing invariants. It makes no actual
+Safari, Simulator, physical-device, packaging or mobile-support claim.
 
 1. Before locking the prefix source SHA, run `git fetch origin --prune` and
    record it as `Base SHA: <hash>` in the gate report. Require
@@ -451,153 +462,93 @@ title; no executor invents them.
 
 ---
 
-### Task 0: `[PE]` Re-enter and publish the documentation topology — final correction pending
+### Task 0: `[PE]` Publish the reviewed Round 5 retirement amendment
 
 **Existing state:**
-- Git-ignored ledger: `.superpowers/sdd/progress.md`
-- PE worktree/branch: `.worktrees/round5-production-engineering` /
-  `codex/round5-production-engineering`
-- FE worktree/branch: `.worktrees/round5-front-end` /
-  `codex/round5-front-end`
-- The worktrees and local branches exist. PE remote still points to
-  `ca85c34163b556812d2f188bf6c80967c6eae296`; FE remote still points to
-  `d2b827792d41cb78b813dc916cc72130c4927117`. The six reviewed pre-rebase FE
-  commits are `2476a6e`, `6193c3f`, `d2b8277`, `85e2840`, `e878488`, and
-  `b1f1c518`. Their patch-equal rebased forms are `888e7504`, `5adf9948`,
-  `16ac8c9d`, `f3a057fe`, `d1cf9959`, and `3048266d`; review closure then added
-  `bee269e3` as a seventh FE-only checklist commit.
-  Re-running `git worktree add -b`, recreating the ledger, or assuming equal
-  PE/FE heads is forbidden.
+- Git-ignored ledger: `.superpowers/sdd/progress.md`.
+- PE worktree/branch: `.worktrees/round5-production-engineering` / `codex/round5-production-engineering`.
+- FE worktree/branch: `.worktrees/round5-front-end` / `codex/round5-front-end`.
+- The exact PE remote lease is `5c349a59055a5aa31850a8531c373ea97905e6cc`.
+- FE is clean and published at `5aa7c2d852fa017377bdf8a155248a8e85f2f34b`.
+  Its contract has no Phase 0.5 dependency, so this retirement performs no FE
+  rebase, commit or push.
+- The deferred mobile-migration design has an independent spec review PASS. It
+  is intentionally one of the six tracked publication documents; its content is
+  not amended by this retirement implementation.
 
 **Interfaces:**
-- Produces: one review-triggered final local FE rebase, atomic publication and
-  exact remote-lease evidence before runtime work.
-- Runtime execution resumes only after that final correction, publication,
-  Task 1's gates and Darwin reconciliation, and the amended PE/FE heads are
-  recorded.
+- Publishes exactly six reviewed documents: both golden documents, the deferred
+  design, `docs/README.md`, `CONTEXT.md` and the historical research note.
+- Produces one ordinary retirement commit and exact remote-lease/remote-head
+  evidence. It creates no runtime, test, package, FE or generated-file change.
+- Task 5 may start only after the commit is pushed, `ls-remote` verifies the
+  published head and the ledger records closure.
 
-- [ ] **Step 1: Verify the existing topology read-only**
+- [ ] **Step 1: Verify the current topology and lease read-only**
 
 ```bash
 set -euo pipefail
+PE_REF=refs/heads/codex/round5-production-engineering
+FE_REF=refs/heads/codex/round5-front-end
+PE_LEASE=5c349a59055a5aa31850a8531c373ea97905e6cc
+FE_PUBLISHED=5aa7c2d852fa017377bdf8a155248a8e85f2f34b
 git worktree list --porcelain
-git rev-parse --verify codex/round5-production-engineering
-git rev-parse --verify codex/round5-front-end
 test -f .superpowers/sdd/progress.md
+test "$(git ls-remote origin "$PE_REF" | awk '{print $1}')" = "$PE_LEASE"
+test "$(git ls-remote origin "$FE_REF" | awk '{print $1}')" = "$FE_PUBLISHED"
+test "$(git -C ../round5-front-end rev-parse HEAD)" = "$FE_PUBLISHED"
+test -z "$(git -C ../round5-front-end status --short)"
 ```
 
-Expected: each branch occurs in exactly one worktree and the ledger retains the
-Phase-2/PR16 re-entry rows. Do not edit, truncate or recreate historical
-evidence.
+Do not recreate a worktree, rewrite FE history or revive any historical Task 3
+or Task 4 execution command.
 
-- [ ] **Step 2: Perform and verify the review-triggered final correction**
+- [ ] **Step 2: Close the six-document review package**
 
-The first local rebase completed before publication, then fresh FE review found
-the missing binding-checklist row and correctly re-entered this plan. The code
-below moves the seven FE commits from the superseded reviewed PE head onto the
-new amended PE head exactly once. The first five PE commits remain patch-equal
-and the final PE range has exactly two additional loaded-predecessor amendments.
-The first six FE commits remain patch-equal; the seventh FE-only commit closes
-the review finding. No further `rebase --onto` is authorised after this block:
+The package is exactly:
+
+```text
+CONTEXT.md
+docs/README.md
+docs/research/2026-07-10-ui-behaviour-trace-ios-simulator.md
+docs/superpowers/plans/2026-07-10-round5-production-engineering.md
+docs/superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md
+docs/superpowers/specs/2026-07-11-mobile-migration-simulator-tooling-design.md
+```
+
+Require the retirement spec-compliance and documentation-quality reviews to
+PASS, with every finding fixed and re-reviewed. Record the already independent
+deferred-design spec review as PASS; do not edit that design merely to make the
+publication package dirty.
+
+- [ ] **Step 3: Publish exactly the six reviewed documents**
+
+Run only after Step 2 is fully green:
 
 ```bash
 set -euo pipefail
-PE_REMOTE_OLD=ca85c34163b556812d2f188bf6c80967c6eae296
-FE_REMOTE_OLD=d2b827792d41cb78b813dc916cc72130c4927117
-PHASE2_BASE=7b8e01ab5ab5f7be0a3a8cbd3c61b3b41549a419
-LOADED_BASE=40eb3576870f2a94b50e1a616ec40d4c37075018
-FE_SOURCE_HEAD=b1f1c518fcca838e72bd15a00bf1babd9cd791c7
-FE_REENTRY_OLD_PE=6033a1598fe139ea525ad2e5e0ff52b4093b4b50
-FE_REENTRY_OLD_HEAD=bee269e3a98d1ba4cb3e09f23d8d28b5d50005d3
 PE_REF=refs/heads/codex/round5-production-engineering
-FE_REF=refs/heads/codex/round5-front-end
-FE_WT=../round5-front-end
-
-git fetch origin "+${PE_REF}:refs/remotes/origin/round5-production-engineering" \
-  "+${FE_REF}:refs/remotes/origin/round5-front-end"
-test "$(git rev-parse refs/remotes/origin/round5-production-engineering)" = "$PE_REMOTE_OLD"
-test "$(git rev-parse refs/remotes/origin/round5-front-end)" = "$FE_REMOTE_OLD"
+PE_LEASE=5c349a59055a5aa31850a8531c373ea97905e6cc
+EXPECTED=$(printf "%s\n" CONTEXT.md docs/README.md docs/research/2026-07-10-ui-behaviour-trace-ios-simulator.md docs/superpowers/plans/2026-07-10-round5-production-engineering.md docs/superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md docs/superpowers/specs/2026-07-11-mobile-migration-simulator-tooling-design.md | sort)
+test "$(git ls-remote origin "$PE_REF" | awk '{print $1}')" = "$PE_LEASE"
+test "$(git rev-parse HEAD)" = "$PE_LEASE"
+git add CONTEXT.md docs/README.md docs/research/2026-07-10-ui-behaviour-trace-ios-simulator.md docs/superpowers/plans/2026-07-10-round5-production-engineering.md docs/superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md docs/superpowers/specs/2026-07-11-mobile-migration-simulator-tooling-design.md
+ACTUAL=$(git diff --cached --name-only | sort)
+test "$ACTUAL" = "$EXPECTED"
+git diff --cached --check
+git commit -m "docs: retire Round 5 Simulator phase"
+PUBLISHED_PE=$(git rev-parse HEAD)
+git push origin "HEAD:$PE_REF"
+test "$(git ls-remote origin "$PE_REF" | awk '{print $1}')" = "$PUBLISHED_PE"
 test -z "$(git status --short)"
-test -z "$(git -C "$FE_WT" status --short)"
-test "$(git -C "$FE_WT" rev-parse HEAD)" = "$FE_REENTRY_OLD_HEAD"
-git merge-base --is-ancestor "$FE_REENTRY_OLD_PE" "$FE_REENTRY_OLD_HEAD"
-test "$(git rev-list --count "$FE_REENTRY_OLD_PE".."$FE_REENTRY_OLD_HEAD")" = 7
-
-FINAL_PE=$(git rev-parse HEAD)
-PE_RANGE_DIFF=$(git range-diff "$PHASE2_BASE".."$PE_REMOTE_OLD" \
-  "$LOADED_BASE".."$FINAL_PE")
-test "$(printf '%s\n' "$PE_RANGE_DIFF" | wc -l | tr -d ' ')" = 7
-test "$(printf '%s\n' "$PE_RANGE_DIFF" | rg -c '^[1-5]:.* = [1-5]:')" = 5
-test "$(printf '%s\n' "$PE_RANGE_DIFF" | rg -c '^-:[[:space:]]+-------- > [67]:')" = 2
-test -z "$(printf '%s\n' "$PE_RANGE_DIFF" | rg '^[1-5]:.* [!<>] ' || true)"
-
-git -C "$FE_WT" rebase --onto "$FINAL_PE" "$FE_REENTRY_OLD_PE"
-FINAL_FE=$(git -C "$FE_WT" rev-parse HEAD)
-test "$(git rev-parse HEAD)" = "$FINAL_PE"
-git merge-base --is-ancestor "$FINAL_PE" "$FINAL_FE"
-test "$(git rev-list --count "$FINAL_PE".."$FINAL_FE")" = 7
-FE_REENTRY_RANGE_DIFF=$(git range-diff "$FE_REENTRY_OLD_PE".."$FE_REENTRY_OLD_HEAD" \
-  "$FINAL_PE".."$FINAL_FE")
-test "$(printf '%s\n' "$FE_REENTRY_RANGE_DIFF" | wc -l | tr -d ' ')" = 7
-test "$(printf '%s\n' "$FE_REENTRY_RANGE_DIFF" | rg -c '^[1-7]:.* = [1-7]:')" = 7
-FE_PROVENANCE_RANGE_DIFF=$(git range-diff "$PE_REMOTE_OLD".."$FE_SOURCE_HEAD" \
-  "$FINAL_PE".."$FINAL_FE")
-test "$(printf '%s\n' "$FE_PROVENANCE_RANGE_DIFF" | wc -l | tr -d ' ')" = 7
-test "$(printf '%s\n' "$FE_PROVENANCE_RANGE_DIFF" | rg -c '^[1-6]:.* = [1-6]:')" = 6
-test "$(printf '%s\n' "$FE_PROVENANCE_RANGE_DIFF" | rg -c '^-:[[:space:]]+-------- > 7:')" = 1
-test -z "$(printf '%s\n' "$FE_PROVENANCE_RANGE_DIFF" | rg '^[1-6]:.* [!<>] ' || true)"
-
-git fetch origin "+${PE_REF}:refs/remotes/origin/round5-production-engineering" \
-  "+${FE_REF}:refs/remotes/origin/round5-front-end"
-test "$(git rev-parse refs/remotes/origin/round5-production-engineering)" = "$PE_REMOTE_OLD"
-test "$(git rev-parse refs/remotes/origin/round5-front-end)" = "$FE_REMOTE_OLD"
-test -z "$(git status --short)"
-test -z "$(git -C "$FE_WT" status --short)"
 ```
 
-Stop here for fresh PE semantic/executable review and fresh FE
-spec-compliance/code-quality review. Any finding re-enters the plan; no remote
-publication is allowed merely because the local range-diffs pass.
+Append the publication commit, prior lease, exact six-path set, review verdicts
+and successful `ls-remote` result to the ignored ledger using `apply_patch`.
+Task 5 remains blocked until those ledger rows exist. This documentation-only
+publication uses an ordinary push only after exact local/remote lease equality;
+the global Git rules remain unchanged.
 
-- [ ] **Step 3: Publish both reviewed heads atomically**
-
-Run only after all four final review verdicts are PASS:
-
-```bash
-set -euo pipefail
-PE_REMOTE_OLD=ca85c34163b556812d2f188bf6c80967c6eae296
-FE_REMOTE_OLD=d2b827792d41cb78b813dc916cc72130c4927117
-PE_REF=refs/heads/codex/round5-production-engineering
-FE_REF=refs/heads/codex/round5-front-end
-FE_WT=../round5-front-end
-FINAL_PE=$(git rev-parse HEAD)
-FINAL_FE=$(git -C "$FE_WT" rev-parse HEAD)
-git merge-base --is-ancestor "$FINAL_PE" "$FINAL_FE"
-test "$(git rev-list --count "$FINAL_PE".."$FINAL_FE")" = 7
-test -z "$(git status --short)"
-test -z "$(git -C "$FE_WT" status --short)"
-git fetch origin "+${PE_REF}:refs/remotes/origin/round5-production-engineering" \
-  "+${FE_REF}:refs/remotes/origin/round5-front-end"
-test "$(git rev-parse refs/remotes/origin/round5-production-engineering)" = "$PE_REMOTE_OLD"
-test "$(git rev-parse refs/remotes/origin/round5-front-end)" = "$FE_REMOTE_OLD"
-
-git push --atomic \
-  --force-with-lease="${PE_REF}:${PE_REMOTE_OLD}" \
-  --force-with-lease="${FE_REF}:${FE_REMOTE_OLD}" \
-  origin "${FINAL_PE}:${PE_REF}" "${FINAL_FE}:${FE_REF}"
-git fetch origin "+${PE_REF}:refs/remotes/origin/round5-production-engineering" \
-  "+${FE_REF}:refs/remotes/origin/round5-front-end"
-test "$(git rev-parse refs/remotes/origin/round5-production-engineering)" = "$FINAL_PE"
-test "$(git rev-parse refs/remotes/origin/round5-front-end)" = "$FINAL_FE"
-```
-
-Use `apply_patch` to append exactly `Loaded predecessor final PE head:
-<FINAL_PE>` and `Loaded predecessor final FE head: <FINAL_FE>` to the ignored
-ledger. Then reload both values, require PE `HEAD` equality, FE `HEAD` equality,
-PE ancestry and exactly seven FE commits. Record both old remote heads, both
-leases, the seven-row re-entry range-diff and the six-equal-plus-one-added
-provenance range-diff. This exception expires immediately; never rebase, amend
-or force-push either lane after the first runtime publication.
 
 ### Task 1: `[PE]` Loaded Phase 2 + version + i18n + PR17 geometry re-entry
 
@@ -621,7 +572,7 @@ or force-push either lane after the first runtime publication.
 **Interfaces:**
 - Produces: clean PR #14 + PR #15 + PR #16 + PR #18 + PR #7 + PR #17 ancestry and the
   semantic baseline consumed by every runtime task.
-- Status: Task 0's review-triggered final correction/publication and this
+- Status: Task 0's retirement publication and this
   final-head ancestry/semantic rerun are pending. The exact `40eb357` browser
   baseline exposed three expected Darwin snapshot mismatches and remains
   blocked only on their reviewed reconciliation. Do not replay Task 0 after it
@@ -631,7 +582,7 @@ or force-push either lane after the first runtime publication.
 
 Task 0 records the final PE/FE heads. They are evidence, never arguments for a
 further `rebase --onto`. Run these read-only provenance commands after the
-review-triggered final correction:
+reviewed retirement publication:
 
 ```bash
 set -euo pipefail
@@ -1055,7 +1006,7 @@ git commit -m "test: reconcile PR17 Darwin visual baselines"
 test -z "$(git status --short)"
 ```
 
-Only after this commit and the recorded `48/48` result may Task 3 resume.
+Only after this commit and the recorded `48/48` result may Task 5 begin.
 
 ### Task 2: `[FE]` Bounded Round 5 experience contract — completed proposal
 
@@ -1255,979 +1206,14 @@ added only that row in `bee269e3a98d1ba4cb3e09f23d8d28b5d50005d3`
 `3048266de2dd3757b0c098c22bbd20b453f8206b`. The seventh commit changes only the
 FE experience contract and leaves all `70 + 43` composition rows unchanged.
 
-### Task 3: `[PE]` Finish the preserved Pixi/WebKit compatibility branch
-
-**Files (disposable spike worktree only):**
-- Modify: `package.json`, `package-lock.json`, `src/main.js`, `index.html`, `src/styles.css`
-- Create: `src/dev/pixi-safari-spike.js`, `test/e2e/pixi-spike.spec.js`, `test/e2e/pixi-spike-perf.spec.js`
-- Existing worktree: `.worktrees/round5-pixi-spike`
-
-**Interfaces:**
-- Produces only a throwaway `codex/round5-pixi-spike` commit and `window.__pixiSpike` with `state()`, `drag(from, to)`, `cancelDrag()`, `loseContext()` and `restoreContext()`.
-- Consumes live scene3d/mesh contexts, the 2D VFX canvas, fixed-stage geometry and the current VFX shake transform.
-- No spike source, route, canvas markup, Pixi dependency or test is merged into the PE branch.
-- The existing `ca85c34163b556812d2f188bf6c80967c6eae296`-based worktree has
-  eight declared dirty spike paths. That work is preserved, never discarded.
-  The only Task 4-consumable immutable hash must descend from both the final
-  amended PE head and `40eb3576870f2a94b50e1a616ec40d4c37075018`.
-
-- [ ] **Step 1: Rebase the preserved dirty spike onto the post-gate PE head**
-
-From the main repository root, after Task 1 Step 4 is green, preserve the
-existing dirty worktree with one named untracked-inclusive stash. Do not remove
-the worktree and do not delete/recreate its branch:
-
-```bash
-set -euo pipefail
-SPIKE=.worktrees/round5-pixi-spike
-OLD_BASE=ca85c34163b556812d2f188bf6c80967c6eae296
-FINAL_PE=$(git -C .worktrees/round5-production-engineering rev-parse HEAD)
-git -C .worktrees/round5-production-engineering merge-base --is-ancestor \
-  40eb3576870f2a94b50e1a616ec40d4c37075018 "$FINAL_PE"
-test "$(git -C "$SPIKE" branch --show-current)" = codex/round5-pixi-spike
-test "$(git -C "$SPIKE" rev-parse HEAD)" = "$OLD_BASE"
-test "$(git -C "$SPIKE" rev-list --count "$OLD_BASE"..HEAD)" = 0
-
-EXPECTED=$(printf '%s\n' index.html package-lock.json package.json src/main.js \
-  src/styles.css src/dev/pixi-safari-spike.js \
-  test/e2e/pixi-spike-perf.spec.js test/e2e/pixi-spike.spec.js | sort)
-ACTUAL=$({ git -C "$SPIKE" diff --name-only; \
-  git -C "$SPIKE" ls-files --others --exclude-standard; } | sort -u)
-test "$ACTUAL" = "$EXPECTED"
-
-git -C "$SPIKE" stash push -u -m round5-task3-pr17-rebase
-test -z "$(git -C "$SPIKE" status --short)"
-STASH_REF=stash@{0}
-STASH_OID=$(git -C "$SPIKE" rev-parse "$STASH_REF")
-test "$(git -C "$SPIKE" stash list --format='%gd %s' | \
-  rg -c '^stash@\{0\} On codex/round5-pixi-spike: round5-task3-pr17-rebase$')" = 1
-STASH_PATHS=$(git -C "$SPIKE" stash show --name-only --include-untracked \
-  "$STASH_REF" | sort -u)
-test "$STASH_PATHS" = "$EXPECTED"
-
-git -C "$SPIKE" rebase --onto "$FINAL_PE" "$OLD_BASE"
-test "$(git -C "$SPIKE" rev-parse HEAD)" = "$FINAL_PE"
-rm -f /tmp/round5-task3-unmerged.txt
-set +e
-git -C "$SPIKE" stash apply "$STASH_OID"
-APPLY_STATUS=$?
-set -e
-if test "$APPLY_STATUS" -ne 0; then
-  UNMERGED=$(git -C "$SPIKE" diff --name-only --diff-filter=U | sort -u)
-  test -n "$UNMERGED"
-  test -z "$(comm -23 <(printf '%s\n' "$UNMERGED") <(printf '%s\n' "$EXPECTED"))"
-  CACHED_FILE=/tmp/round5-task3-cached-after-apply.txt
-  git -C "$SPIKE" diff --cached --name-only | sort -u > "$CACHED_FILE"
-  CACHED_AFTER_APPLY=$(cat "$CACHED_FILE")
-  if test -n "$CACHED_AFTER_APPLY"; then
-    test -z "$(comm -23 <(printf '%s\n' "$CACHED_AFTER_APPLY") \
-      <(printf '%s\n' "$EXPECTED"))"
-    while IFS= read -r PATHNAME; do
-      test -n "$PATHNAME"
-      git -C "$SPIKE" restore --staged -- "$PATHNAME"
-    done < "$CACHED_FILE"
-  fi
-  test -z "$(git -C "$SPIKE" diff --cached --name-only)"
-  rm -f "$CACHED_FILE"
-  printf '%s\n' "$UNMERGED" > /tmp/round5-task3-unmerged.txt
-  test "$(git -C "$SPIKE" stash list --format='%H' | rg -c "^$STASH_OID$")" = 1
-  echo 'Resolve only the recorded unmerged subset, then run the guarded post-apply block.' >&2
-  exit 1
-fi
-test "$(git -C "$SPIKE" stash list --format='%H' | rg -c "^$STASH_OID$")" = 1
-```
-
-If the apply reports a conflict, resolve it without widening the eight-path set,
-use `apply_patch` only on the recorded unmerged subset, then stage exactly that
-subset to mark it resolved. The named stash OID remains until every guard below
-passes. Require the
-`src/styles.css` delta to be one additive `#uigl` rule, and require zero delta in
-PR17 geometry/UI/tests/snapshots or tracked `dist/`:
-
-```bash
-set -euo pipefail
-SPIKE=.worktrees/round5-pixi-spike
-FINAL_PE=$(git -C .worktrees/round5-production-engineering rev-parse HEAD)
-STASH_OID=$(git -C "$SPIKE" stash list --format='%H %s' | \
-  awk '$0 ~ /round5-task3-pr17-rebase$/ {print $1}')
-test -n "$STASH_OID"
-test "$(git -C "$SPIKE" stash list --format='%H' | rg -c "^$STASH_OID$")" = 1
-EXPECTED=$(printf '%s\n' index.html package-lock.json package.json src/main.js \
-  src/styles.css src/dev/pixi-safari-spike.js \
-  test/e2e/pixi-spike-perf.spec.js test/e2e/pixi-spike.spec.js | sort)
-
-if test -f /tmp/round5-task3-unmerged.txt; then
-  RESOLVED=$(sed '/^$/d' /tmp/round5-task3-unmerged.txt | sort -u)
-  test -n "$RESOLVED"
-  test -z "$(comm -23 <(printf '%s\n' "$RESOLVED") \
-    <(printf '%s\n' "$EXPECTED"))"
-  while IFS= read -r PATHNAME; do
-    test -n "$PATHNAME"
-    git -C "$SPIKE" add -- "$PATHNAME"
-  done < /tmp/round5-task3-unmerged.txt
-  test -z "$(git -C "$SPIKE" diff --name-only --diff-filter=U)"
-  STAGED=$(git -C "$SPIKE" diff --cached --name-only | sort -u)
-  test "$STAGED" = "$RESOLVED"
-  while IFS= read -r PATHNAME; do
-    test -n "$PATHNAME"
-    git -C "$SPIKE" restore --staged -- "$PATHNAME"
-  done < /tmp/round5-task3-unmerged.txt
-  test -z "$(git -C "$SPIKE" diff --cached --name-only)"
-  rm -f /tmp/round5-task3-unmerged.txt
-else
-  test -z "$(git -C "$SPIKE" diff --name-only --diff-filter=U)"
-  test -z "$(git -C "$SPIKE" diff --cached --name-only)"
-fi
-
-ACTUAL=$({ git -C "$SPIKE" diff --name-only; \
-  git -C "$SPIKE" ls-files --others --exclude-standard; } | sort -u)
-test "$ACTUAL" = "$EXPECTED"
-
-STYLE_DIFF=$(git -C "$SPIKE" diff --unified=0 "$FINAL_PE" -- src/styles.css)
-test "$(printf '%s\n' "$STYLE_DIFF" | rg -c '^@@')" = 1
-test -z "$(printf '%s\n' "$STYLE_DIFF" | rg '^-' | rg -v '^---' || true)"
-test "$(printf '%s\n' "$STYLE_DIFF" | sed -n 's/^+\([^+].*{.*\)$/\1/p')" = '#uigl {'
-printf '%s\n' "$STYLE_DIFF" | rg '^\+.*pointer-events:[[:space:]]*none'
-
-git -C "$SPIKE" diff --quiet "$FINAL_PE" -- src/battlefield-layout.js src/ui.js \
-  test/e2e/geometry.spec.js test/e2e/visual.spec.js-snapshots dist
-
-STASH_REF_NOW=$(git -C "$SPIKE" stash list --format='%gd %H' | \
-  awk -v oid="$STASH_OID" '$2==oid {print $1}')
-test -n "$STASH_REF_NOW"
-test "$(printf '%s\n' "$STASH_REF_NOW" | wc -l | tr -d ' ')" = 1
-STASH_PATHS=$(git -C "$SPIKE" stash show --name-only --include-untracked \
-  "$STASH_REF_NOW" | sort -u)
-test "$STASH_PATHS" = "$EXPECTED"
-git -C "$SPIKE" stash drop "$STASH_REF_NOW"
-test -z "$(git -C "$SPIKE" stash list --format='%H' | rg "^$STASH_OID$" || true)"
-npm --prefix "$SPIKE" install
-```
-
-Record `FINAL_PE`, `OLD_BASE`, the stash OID/path proof and resolved path set in
-the execution ledger.
-
-- [x] **Step 2: Preserve the recorded compatibility RED — do not rerun**
-
-The existing dirty spike worktree already contains
-`test/e2e/pixi-spike.spec.js`; its historical missing-route RED is recorded
-evidence. Do not rerun a missing-route assertion against the implemented dirty
-surface. The preserved test asserts:
-
-```text
-Pixi renderer = WebGL from exact preference:['webgl']; exact named live owners before/after recovery are #bg3d,#mesh,#uigl; #vfx remains 2D
-all WebGL contexts, including detached/id-less support contexts, use !gl.isContextLost(); max total live = 3; no live unowned context at steady state
-ColorMatrixFilter/GlProgram prewarm observes Pixi getTestContext while only bg3d+mesh exist, then explicitly loses it before #uigl
-one NineSliceSprite; ten sprite-backed objects; one composed card face
-observed canonical shape/viewport and finite --sat/--sar/--sab/--sal inputs
-document.fonts.status = loaded; end-turn blocking texture ready with non-zero size
-foil filter active in Full; a separate missing texture forces vector fallback
-26 client-px upward drag commits; explicit pointercancel returns to rest
-Pixi root follows the same shake offset as VFX
-ready -> lost -> rebuilding -> ready; snapshot state survives rebuild
-```
-
-The disposable spike module exports `installSpikeContextObserver()` and the
-`?pixispike=1` branch installs it before `initScene`, `initVfx`, `initMesh` or
-Pixi initialisation. Both Playwright and actual Safari WebDriver read this same
-runtime recorder through `state()`; no test-only init-script monkeypatch is the
-evidence source. The observer wraps every WebGL `getContext` before any renderer
-starts and retains context+canvas records even when the canvas is detached or
-has no id. It calculates the all-context live total from
-`!gl.isContextLost()` and named ownership separately. Before loss and after
-rebuild, the sorted named live owner set must equal exactly
-`['bg3d','mesh','uigl']`; during Pixi loss it may temporarily be
-`['bg3d','mesh']`.
-
-Before `uigl`, prewarm a real `ColorMatrixFilter`/`GlProgram` while bg3d+mesh
-are the only named owners; observe Pixi 8.19 `isWebGLSupported()` creating its
-detached `getTestContext()`, obtain `WEBGL_lose_context`, lose it explicitly and
-assert `isContextLost() === true`. Only then create `uigl`. The recorded
-all-context maximum is three before, after and throughout recovery, with no
-transient fourth, duplicate Pixi owner, or live unowned steady-state context.
-An absent scene3d/mesh context cannot pass merely because the total is below
-the cap.
-
-The separate preserved perf spec warms for 2 seconds, samples `requestAnimationFrame` for
-10 seconds under the same host Chromium run and writes average fps/p95 frame ms
-plus host/runtime metadata. It records evidence only; it is not Simulator or
-physical-iOS performance.
-
-The historical ledger records the expected missing-route failure before the
-implementation was written. Filenames or source markers are never accepted as
-a substitute for that recorded exit status. Current execution resumes at Step
-1 and then Step 5.
-
-- [x] **Step 3: Preserve the existing pinned query-only route — do not reimplement**
-
-Historical implementation pinned `pixi.js@8.19.0` and added a DEV-only
-`?pixispike=1` branch that dynamically imports the spike module, calls
-`installSpikeContextObserver()`, then initialises stage, scene3d, VFX, mesh and
-the spike in that order. Never import the spike from a production-reachable
-static module.
-
-It places `<canvas id="uigl" aria-hidden="true"></canvas>` immediately after
-`#vfx`, outside `#shake`, before DOM overlays, styled transparent, stage-sized
-and `pointer-events:none`. It mirrors the current VFX shake offset onto the Pixi
-root instead of nesting the canvas inside the DOM shake container.
-
-- [x] **Step 4: Preserve the implemented disposable surface — do not reimplement**
-
-The existing dirty implementation initialises one Pixi `Application` with
-`preference: ['webgl']`, DPR capped at 2,
-transparent background and the fixed virtual stage size. It exercises a real
-`NineSliceSprite`, ten sprite-backed objects, composed card face, foil filter,
-forced missing-raster fallback, W3C pointer drag/cancel and
-`WEBGL_lose_context`. Recovery destroys and rebuilds the sole Pixi application,
-restores a serialisable snapshot, and exposes its `lost/rebuilding/ready` state.
-It waits for `document.fonts.ready` and resolves every input coordinate through
-`toStage()`.
-
-`state()` exposes `stageInfo()`, observed viewport, the four parsed root safe-
-area custom properties, `document.fonts.status`, and both real/fallback texture
-records. It also exposes `webglOwnersBefore`, `webglOwnersDuringLoss`,
-`webglOwnersAfter`, all-context live counts, unowned-live counts and
-`maxConcurrentWebglContexts` from the observer. The real
-texture is existing `ui/end-turn.png` and must have non-zero
-dimensions; the forced-missing id remains a separate fallback assertion.
-
-- [ ] **Step 5: Prove green and production exclusion without touching tracked `dist/`**
-
-Steps 5–6 run only inside the preserved spike worktree; every bare `npm`,
-Playwright, Vite and Git command below therefore targets that worktree.
-
-```bash
-set -euo pipefail
-SPIKE_ROOT=/Users/jamesto/Coding/roguecardv2/.worktrees/round5-pixi-spike
-cd "$SPIKE_ROOT"
-test "$PWD" = "$SPIKE_ROOT"
-test "$(git branch --show-current)" = codex/round5-pixi-spike
-FINAL_PE=$(git -C ../round5-production-engineering rev-parse HEAD)
-export SPIREBOUND_E2E_PORT=$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")
-test "$SPIREBOUND_E2E_PORT" != 5174
-npx playwright test test/e2e/pixi-spike.spec.js test/e2e/pixi-spike-perf.spec.js --project=portrait --workers=1 --no-deps
-
-export SPIREBOUND_E2E_PORT=$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")
-test "$SPIREBOUND_E2E_PORT" != 5174
-npx playwright test test/e2e/geometry.spec.js --workers=1 --no-deps
-
-export SPIREBOUND_E2E_PORT=$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")
-test "$SPIREBOUND_E2E_PORT" != 5174
-npx playwright test test/e2e/visual.spec.js --workers=1 --no-deps
-npm test
-npx vite build --outDir /tmp/spirebound-round5-pixi-spike --emptyOutDir
-if rg -n "__pixiSpike|pixispike|installSpikeContextObserver" /tmp/spirebound-round5-pixi-spike/assets; then exit 1; fi
-git diff --check
-EXPECTED=$(printf '%s\n' index.html package-lock.json package.json src/main.js \
-  src/styles.css src/dev/pixi-safari-spike.js \
-  test/e2e/pixi-spike-perf.spec.js test/e2e/pixi-spike.spec.js | sort)
-ACTUAL=$({ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u)
-test "$ACTUAL" = "$EXPECTED"
-git diff --quiet "$FINAL_PE" -- src/battlefield-layout.js src/ui.js \
-  test/e2e/geometry.spec.js test/e2e/visual.spec.js-snapshots dist
-```
-
-Expected: the spike assertions pass, the temporary production bundle contains
-no spike marker, and the spike worktree has only the declared paths.
-Now run the exact SDD review order on the preserved/rebased dirty diff and this
-evidence: fresh spec reviewer, fixes and spec re-review, then fresh code-quality
-reviewer, fixes and quality re-review. Any fix reruns all Step 5 gates before
-commit.
-
-- [ ] **Step 6: Commit and freeze the disposable evidence surface**
-
-```bash
-set -euo pipefail
-SPIKE_ROOT=/Users/jamesto/Coding/roguecardv2/.worktrees/round5-pixi-spike
-cd "$SPIKE_ROOT"
-test "$PWD" = "$SPIKE_ROOT"
-test "$(git branch --show-current)" = codex/round5-pixi-spike
-FINAL_PE=$(git -C ../round5-production-engineering rev-parse HEAD)
-git add package.json package-lock.json src/main.js index.html src/styles.css \
-  src/dev/pixi-safari-spike.js test/e2e/pixi-spike.spec.js \
-  test/e2e/pixi-spike-perf.spec.js
-EXPECTED=$(printf '%s\n' index.html package-lock.json package.json src/main.js \
-  src/styles.css src/dev/pixi-safari-spike.js \
-  test/e2e/pixi-spike-perf.spec.js test/e2e/pixi-spike.spec.js | sort)
-ACTUAL=$(git diff --cached --name-only | sort)
-test "$ACTUAL" = "$EXPECTED"
-git commit -m "test: spike Pixi on Simulator Safari"
-SPIKE_HEAD=$(git rev-parse HEAD)
-git merge-base --is-ancestor "$FINAL_PE" "$SPIKE_HEAD"
-test -z "$(git status --short)"
-```
-
-Record the immutable spike hash. Do not push or merge this branch.
-Require `git merge-base --is-ancestor "$FINAL_PE" HEAD` and record both values;
-Task 4 rejects a spike whose parent chain names any earlier amended-plan head.
-The live-fixture clarification below requires no spike-source change and keeps
-this Task 3 review/freeze valid. Rerun Task 3 Step 5 and freeze a new hash only
-if a future repair changes the spike source itself.
-
-### Task 4: `[PE]` Automate and record the Simulator Safari P0.5 gate
-
-**Files (PE worktree):**
-- Create: `test/simulator/matrix.mjs`, `matrix.test.mjs`, `source.mjs`, `source.test.mjs`, `dom-profile.test.mjs`, `preflight.mjs`, `orientation.mjs`, `server.mjs`, `webdriver.mjs`, `assertions.mjs`, `run.mjs`, `README.md`
-- Modify: `package.json`, `package-lock.json`
-- Modify: `docs/README.md`, relevant `CONTEXT.md`
-- Create: `docs/superpowers/reports/2026-07-10-round5-p0.5-simulator-safari.md`
-- Create: `docs/superpowers/artifacts/round5-p0.5-simulator/**`
-
-**Interfaces:**
-- Consumes the immutable Task 3 spike hash through explicit source provenance:
-  for `--surface spike`, an owned `SPIREBOUND_SERVER_CWD` must be clean and
-  have that exact `HEAD`; an external `SPIREBOUND_BASE_URL` additionally
-  requires a matching `SPIREBOUND_SOURCE_SHA`. DOM/production profiles retain
-  their later task-specific source gates. The reusable runner never imports
-  spike code.
-- Produces serial eight-cell JSON/screenshot evidence. A complete decisive
-  durable archive is candidate evidence only; a PE-authored formal GO/NO-GO
-  report additionally requires the matching explicit publication operation to
-  return `{ clean:true, decision, destination, manifest }`, exact
-  manifest/hash/source re-verification and an empty matching debt scan. Evidence
-  claims functional compatibility only. Setup-blocked, partial or non-clean
-  diagnostics remain inconclusive and ignored.
-
-- [ ] **Step 1: Write the pure runner contract tests first**
-
-Extend the existing `matrix.test.mjs` and assert the exact four-device,
-two-orientation matrix. Add pure tests for managed-device
-name generation, capability construction, result normalisation and orientation
-validation, plus spawned-server readiness/owned-child cleanup with a fake child.
-Freeze `smoke` to exactly two cells: iPhone 17 Pro portrait and iPad mini
-(A17 Pro) landscape; `full` is all eight cells. No profile may reinterpret
-those names.
-Pure route-builder tests freeze the spike URL to exactly
-`/?pixispike=1&tier=full&input=touch`, reject any `shape=` parameter and require
-the normalised JSON evidence fields `inputProfile:'touch'`,
-`nativePointerCoarse:<boolean>` from the native `(pointer: coarse)` result, and
-`shapeOverride:null`.
-Pure managed-MobileSafari-readiness tests freeze this exact order for a device
-that the runner booted: exact-UDID `boot`, exact-UDID `bootstatus -b`, then
-bounded polling through argv with
-`xcrun simctl launch <exact-UDID> com.apple.mobilesafari` until the successful
-result identifies a live PID. The total deadline is 90 seconds and every
-command timeout is bounded by the remaining deadline. Freeze transient launch
-failure followed by success, deadline failure, exact argv/UDID, `shell:false`,
-retaining MobileSafari after success, and cleanup of only the exact
-runner-booted UDID. An initially booted managed device has
-`runnerBooted:false` and receives no boot, readiness launch, rotation, shutdown
-or other mutation. Tests reject generic `booted`, unrelated devices, physical
-devices, `safaridriver --enable`, credentials and every other forbidden alias
-or action.
-Pure WebDriver tests freeze true session establishment: construct the native
-Safari driver, await `driver.getSession()`, and return only after its session id
-resolves. A rejected New Session stays in the `session-create` setup phase,
-preserves that original error, returns no established driver and triggers no
-screenshot or `quit()`.
-Pure orientation tests first observe the current browser orientation. When it
-already matches, they require no AX raise/rotation invocation, no click and no
-reload, and return `clicked:false` with validated current-document evidence.
-Only a mismatch may raise the exact managed window and invoke the exact AX
-rotation transaction. That invocation clicks exactly once or fails
-`SETUP BLOCKED`; after its post-click ownership proof it returns `clicked:true`.
-The tests derive the expected AX title only after the exact
-managed name, UDID and validated runtime name are present, then freeze it as
-`managedName + ' – ' + runtime.name`. They reject zero or multiple exact-title
-windows, substring/title-prefix/model-only matches, an unrelated front window,
-missing runtime name or UDID, any click before exact front-window proof and any
-ownership loss after the click. Sequencing tests require one rotation
-AppleScript invocation in this exact order: exact-title window recount,
-front-window exact-title proof, exactly one `Rotate Left` item proof, click that
-item, exact-title window recount, front-window exact-title proof, then return
-`clicked:true`. A pre-click failure performs no click; a post-click
-failure performs no subsequent action and suppresses all browser evidence
-acceptance. Add a no-boot live-fixture regression for Simulator 26.6's generic
-Window menu and the observed exact AX title
-`Spirebound R5 - iPhone SE (3rd generation) – iOS 26.5`; the fixture must prove
-that no Window-menu device row is required or accepted as ownership evidence.
-Post-rotation-document fixtures freeze the exact successful sequence: observe
-mismatch, rotate with `clicked:true`,
-identical-route reload through the one route builder, re-read and prove
-`inputProfile`, `nativePointerCoarse` and `shapeOverride`, wait for spike/DOM
-readiness, re-observe and validate orientation, live viewport, semantic safe
-areas and natural stage shape, then exercise. No exercise or old-document
-evidence is accepted earlier. An already-matched fixture records
-`clicked:false`, never invokes the AX transaction, requires no reload and still
-samples the current document. RED fixtures use the real
-numeric safe-area keys `sat/sar/sab/sal`, equivalent objects with different
-insertion order, and distinct initial and pre-loss snapshots. They require
-structural deep equality and require context recovery to match the exact
-pre-loss `afterInput.snapshot`, never the pre-input initial snapshot.
-`dom-profile.test.mjs` freezes a reusable profile that always waits for
-`window.__probe.state()` and `settle()`. Loaded Phase 2 does not expose
-`queueIdle()` yet: before Task 6 the profile therefore requires
-`state().busy === false` and records `queueIdleAvailable:false`. Once Task 6
-installs `queueIdle()`, the same profile requires it to return `true` and records
-`queueIdleAvailable:true`; it may never silently fall back when the function is
-present but false or throws. Trace assertions remain optional until P1 installs
-them. The profile contains no Pixi/spike assumption.
-
-`source.test.mjs` freezes spike-source provenance. For `--surface spike`, an
-owned server requires a clean worktree and exact equality between
-`git rev-parse HEAD` and the mandatory `--source-sha`; an external base URL
-requires `SPIREBOUND_SOURCE_SHA === --source-sha`. Missing, dirty, malformed or
-mismatched spike provenance fails before any Simulator mutation. A URL or
-branch name alone can never satisfy this contract. DOM/production surfaces do
-not inherit the P0.5 spike-cleanliness rule; their later tasks declare their
-own immutable capture gates. Add the following exact test names and assertion
-messages before running RED:
-
-- `runner-booted MobileSafari readiness uses exact UDID until live PID` →
-  `MOBILESAFARI_READINESS_ORDER: expected exact-UDID launch polling to produce a live MobileSafari PID`
-- `Safari session is returned only after getSession resolves` →
-  `SAFARI_SESSION_NOT_ESTABLISHED: expected getSession to resolve before createSafariSession returned`
-- `orientation records clicked false or reloads after clicked true` →
-  `POST_ROTATION_DOCUMENT_NOT_RELOADED: expected clicked:true to reload and re-prove the identical route`
-
-Run:
-
-```bash
-set -euo pipefail
-RED_LOG=$(mktemp)
-PATTERN='runner-booted MobileSafari readiness uses exact UDID until live PID|Safari session is returned only after getSession resolves|orientation records clicked false or reloads after clicked true'
-if node --test --test-name-pattern="$PATTERN" \
-    test/simulator/matrix.test.mjs >"$RED_LOG" 2>&1; then
-  rm -f "$RED_LOG"
-  echo 'expected live-readiness contract RED' >&2
-  exit 1
-fi
-rg 'runner-booted MobileSafari readiness uses exact UDID until live PID' "$RED_LOG"
-rg -F 'MOBILESAFARI_READINESS_ORDER: expected exact-UDID launch polling to produce a live MobileSafari PID' "$RED_LOG"
-rg 'Safari session is returned only after getSession resolves' "$RED_LOG"
-rg -F 'SAFARI_SESSION_NOT_ESTABLISHED: expected getSession to resolve before createSafariSession returned' "$RED_LOG"
-rg 'orientation records clicked false or reloads after clicked true' "$RED_LOG"
-rg -F 'POST_ROTATION_DOCUMENT_NOT_RELOADED: expected clicked:true to reload and re-prove the identical route' "$RED_LOG"
-rm -f "$RED_LOG"
-```
-
-Before running this command, add those three exact named tests with the exact
-assertion messages shown above. Where a new readiness export is not yet present,
-use a dynamic module lookup so the first contract reaches
-`MOBILESAFARI_READINESS_ORDER` rather than failing during static module linking.
-Expected: all three named tests fail for the new contract, the log contains all
-six exact test-name/message anchors above, and no assertion expects an existing
-runner module to be absent.
-
-- [ ] **Step 2: Implement the reusable serial modules**
-
-`matrix.mjs` exports the exact device rows:
-
-```js
-export const SIMULATOR_MATRIX = [
-  { device: 'iPhone SE (3rd generation)', family: 'phone', orientations: ['portrait', 'landscape'] },
-  { device: 'iPhone 17 Pro', family: 'phone', orientations: ['portrait', 'landscape'] },
-  { device: 'iPad mini (A17 Pro)', family: 'pad', orientations: ['portrait', 'landscape'] },
-  { device: 'iPad Pro 13-inch (M5)', family: 'pad', orientations: ['portrait', 'landscape'] },
-];
-```
-
-`preflight.mjs` reads `xcrun simctl list -j`, Xcode/runtime versions and
-`safaridriver --help`; it must never invoke `safaridriver --enable`, request a
-password or treat a model name as UDID proof. Require the pinned iOS 26.5
-(`23F73`) runtime and record Xcode 26.6 (17F113). A missing runtime/tool is
-`SETUP BLOCKED`, never a Pixi compatibility NO-GO. `preflight.mjs` prints the
-exact non-credential setup action and exits non-zero; it never substitutes a
-different runtime. Only a booted and exercised cell may produce a decisive
-`passed|failed` row; the formal product decision still requires all eight rows.
-If WebDriver is unavailable it prints one visible manual setup instruction and
-exits non-zero.
-
-The same preflight requires a real console user (not `loginwindow`, root or a
-background-only session), a live `launchctl gui/<uid>` domain, an unlocked GUI
-session and a resolvable Simulator application. It records the console uid, GUI
-session check and lock/power observations without recording usernames. The
-on-console `CGSSessionScreenIsLocked` fact is authoritative when it disagrees
-with a root `IOConsoleLocked` field. On the live macOS host an unlocked,
-login-complete on-console dictionary omits that key rather than serialising
-`No`; absence is normalised to unlocked only when the on-console/login-complete
-and root-unlocked facts are all present. Preflight resolves Simulator without
-launching it. It also requires System Events UI scripting to report
-`UI elements enabled`; a missing Accessibility/Apple Events grant is
-`SETUP BLOCKED` before any managed-device mutation and prints the one visible
-System Settings action. The AppleScript captures System Events'
-`UI elements enabled` value outside every `tell process` scope; a pure
-structural test rejects process-scoped evaluation rather than accepting only a
-mocked successful output. A sleeping, inactive-display, locked or headless Mac
-fails setup before any managed-device mutation with the instruction to wake,
-unlock and log in locally. The runner never invokes `caffeinate -u`, wakes a
-display/host, unlocks a GUI or requests credentials. Only after the complete
-awake/unlocked/logged-in preflight succeeds may `run.mjs` start its owned
-`caffeinate -d -i -w <runner-pid>` child to prevent new sleep. It terminates
-only that child in `finally`. Pure tests cover the live omitted-unlocked-key
-shape, console-user and explicit-lock failures, AppleScript scope, asleep and
-inactive-display failures, no wake command, no guard before preflight, and
-owned-guard cleanup without Simulator mutation.
-
-Only devices named `Spirebound R5 - <model>` may be created, booted, rotated or
-shut down by the runner. Never erase/delete a Simulator and never shut down an
-unrelated device. `orientation.mjs` first observes the current browser
-orientation. If it already matches the requested orientation, it skips every AX
-raise/rotation invocation and returns `clicked:false` with validated
-current-document orientation, viewport and natural stage-shape evidence. Only
-a mismatch uses a visible Simulator menu action through `osascript`; it does
-not invent an unsupported `simctl` rotation command. Before that one rotation
-it receives the validated runtime name plus the resolved managed name and UDID,
-derives the expected AX title exactly as
-`managedName + ' – ' + runtime.name`, and opens Simulator with argv
-`open -a Simulator --args -CurrentDeviceUDID <UDID>` (never interpolated shell
-text). System Events captures its UI-authorisation value outside every
-`tell process` scope, finds exactly one AX window with that exact title,
-performs only that window's `AXRaise`, and requires the front window title to
-equal the expected title. One rotation AppleScript invocation performs exactly:
-exact-title window recount; front-window exact-title proof; exactly one
-Device-menu `Rotate Left` item proof; click that item; exact-title window
-recount; front-window exact-title proof; return `clicked:true`. The transaction
-clicks exactly once or fails `SETUP BLOCKED`. A generic front window,
-Window-menu device row,
-substring/title-prefix/model-only match or zero/multiple exact-title windows
-before the click fails `SETUP BLOCKED` with no click. Ownership loss after the
-click fails `SETUP BLOCKED`, performs no subsequent action or click, and
-suppresses browser evidence acceptance. Pure tests prove the exact invocation
-order, the already-matched no-invocation `clicked:false` case and every
-pre-click and post-click rejection case; a no-boot fixture
-freezes the observed Simulator 26.6 generic Window menu and exact managed AX
-title.
-
-This is a runner-only ownership repair. It changes no Task 3 source, does not
-invalidate the frozen Task 3 SHA or its completed reviews, and does not weaken
-the first live iPhone SE portrait row: a `375x549` Safari content viewport
-selecting `pad-portrait` remains a written functional failure. The repair must
-not add `shape=`, alter stage thresholds or modify the immutable spike.
-
-After exact `boot` and `bootstatus -b`, and only when this runner booted the
-exact managed UDID (`runnerBooted:true`), poll MobileSafari readiness through
-argv with `xcrun simctl launch <exact-UDID> com.apple.mobilesafari`. Use one
-bounded total deadline of 90 seconds; each command timeout is bounded by the
-remaining deadline. Transient launch failures retry until that deadline, and a
-successful result must identify a live PID for `com.apple.mobilesafari`. Keep
-that exact app running for SafariDriver attachment; do not terminate or
-relaunch it for cleanliness. Deadline expiry is `SETUP BLOCKED`, retains the
-exact cleanup target, executes no cell and finally shuts down only that
-runner-booted exact UDID. Never run this readiness mutation for an initially
-booted device, use a generic `booted` alias or touch an unrelated or physical
-device.
-
-`run.mjs` owns an isolated Vite server by default: choose a free localhost port,
-spawn `npm run dev -- --host 127.0.0.1 --port <port> --strictPort` in the current worktree (or
-`SPIREBOUND_SERVER_CWD`), wait for HTTP readiness, and terminate only that child
-process tree in `finally`. If an explicit `SPIREBOUND_BASE_URL` is supplied it
-uses but never stops that external server. It never reuses the developer's 5174
-process. Pure tests assert `--strictPort`, a bind-race failure, readiness timeout
-and owned-child cleanup; the runner never falls back to another port or server.
-Before a spike server starts, `source.mjs` validates the mandatory
-`--source-sha` against the owned clean `HEAD`; an external URL has no derivable
-Git identity and is therefore rejected unless `SPIREBOUND_SOURCE_SHA` is
-present and equal. The normalised spike result records expected SHA,
-observed/declared SHA, provenance mode and server cwd/origin without treating
-the URL itself as source proof. This Task 3-specific requirement is not applied
-implicitly to later DOM/production commands.
-
-- [ ] **Step 3: Implement the WebDriver assertion contract**
-
-Pin `selenium-webdriver@4.45.0` as an exact dev dependency. Build Safari
-capabilities with this exact requested map and pure-test every key:
-
-```js
-{
-  browserName: 'Safari',
-  platformName: 'iOS',
-  'safari:platformVersion': '26.5',
-  'safari:platformBuildVersion': '23F73',
-  'safari:useSimulator': true,
-  'safari:deviceType': family === 'phone' ? 'iPhone' : 'iPad',
-  'safari:deviceName': managedName,
-  'safari:deviceUDID': managedUdid,
-}
-```
-
-Selenium 4.45's local `Builder` routes native Safari only when
-`browserName === 'safari'`, but the requested map above deliberately preserves
-the SafariDriver-facing `browserName:'Safari'`. Do not lowercase or otherwise
-rewrite that map. `webdriver.mjs` must construct `new Capabilities(exactMap)`
-and call `safari.Driver.createSession(capabilities)` directly; pure tests reject
-the generic local `Builder` path and prove the exact map reaches session
-creation unchanged.
-
-`createSafariSession()` constructs that native Safari driver, then awaits
-`driver.getSession()` before returning it. Selenium 4.45
-`Driver.createSession()` can return a Driver around a pending session promise;
-therefore a New Session rejection remains in the `session-create` setup phase,
-is `SETUP BLOCKED`, preserves the original setup error and returns no
-established driver. The
-caller attempts neither screenshot nor `quit()` when no established driver was
-returned.
-
-Per the installed primary `safaridriver` manpage, `safari:deviceType` is only
-the family value `iPhone` or `iPad`; it never contains a model. `managedName`
-is exactly `Spirebound R5 - <model>` and is sent as `safari:deviceName`; the
-resolved managed UDID is separate. Pure tests reject a model in `deviceType`, a
-requested-only name, a family/name mismatch or a missing UDID. Dispatch
-assertions through the explicit
-`spike` or `dom` surface profile. Spike navigates to exactly
-`/?pixispike=1&tier=full&input=touch`, with no `shape=` override, and verifies
-the Task 3 state/drag/cancel/fallback/shake/loss/rebuild contract, including
-strict WebGL preference, observed-and-lost Pixi test context, all-context live
-maximum three, exact named owners and no live unowned steady-state context;
-DOM uses a
-normal deterministic game URL and semantic Probe facts. For an established
-session only, `driver.quit()` runs in `finally`.
-
-Immediately after each session is established, call
-`await driver.getCapabilities()` and serialise the **observed** capability map.
-Require non-empty observed `browserName` and `browserVersion`; record them as
-`observedSafari.browserName`/`browserVersion` in every cell. If WebDriver also
-exposes a Safari/WebKit build capability, record its exact key/value as
-`observedSafari.build`; otherwise record `build:null` plus the capability keys
-examined. Requested capabilities never satisfy this evidence field. Pure
-normalisation tests reject a result containing only the requested Safari
-version/model.
-
-Each cell writes JSON and a screenshot below `test-results/simulator/` with:
-toolchain/builds, host architecture, requested capabilities, complete observed
-capabilities, observed Safari name/version/build, requested model, exact
-managed `deviceName`, family-only `deviceType`, resolved `deviceUDID`, requested and
-observed orientation, viewport/stage shape, every semantic assertion, artifact
-paths and `claim:'functional-compatibility-only'`.
-It also records `inputProfile:'touch'`,
-`nativePointerCoarse:<boolean>` from the native
-`matchMedia('(pointer: coarse)').matches` result, and `shapeOverride:null`;
-`input=touch` declares automation input only, so shape still comes naturally
-from the Simulator viewport.
-
-After initial navigation, the caller first observes the current browser
-orientation. An already-matched result must be `clicked:false`; it invokes no
-AX rotation transaction, performs no reload and validates evidence from that
-current document. A mismatch invokes the exact AX rotation transaction. It
-either fails `SETUP BLOCKED` or returns `clicked:true` after exactly one click
-and complete post-click ownership proof. On `clicked:true`, reload the exact
-same URL produced by the one route builder. On that new document re-read
-`inputProfile`, `nativePointerCoarse` and
-`shapeOverride`, wait for spike/DOM readiness, then re-observe and validate
-screen orientation, live viewport, safe-area values and natural stage shape
-before exercising the surface. No old-document evidence or exercise is
-accepted before that sequence completes. Normalise numeric spike keys
-`sat/sar/sab/sal` to semantic top/right/bottom/left assertions (or sample
-equivalent live values) without changing spike source. Compare equivalent
-objects with structural deep equality, not key-order-sensitive JSON strings;
-after context loss compare the rebuilt snapshot with the exact pre-loss
-`afterInput.snapshot`, not the pre-input initial state.
-
-Every cell fails unless its phone/pad + orientation selects the expected
-canonical stage shape, all four safe-area inputs are finite/non-negative,
-`document.fonts.status === 'loaded'`, the real blocking texture is ready and
-non-zero, and the deliberately missing texture uses the labelled fallback.
-For spike rows it also requires before/after owners exactly
-`bg3d,mesh,uigl`, during-loss owners `bg3d,mesh`, and maximum concurrent owners
-three; normalised JSON/report rows retain all four owner-evidence fields.
-
-Durable publication is never an implicit side effect of a reusable full run.
-Two tested, mutually exclusive actions publish to
-`docs/superpowers/artifacts/round5-p0.5-simulator/` through the same
-clean-publication transaction:
-
-- `--promote-p0.5` accepts only `--matrix full`, `--surface spike`, an owned
-  clean-head server at the exact source SHA and eight `passed` cells. It writes
-  durable candidate GO evidence; the archive or manifest never carries `clean`,
-  and the candidate becomes formal only after the matching explicit publication
-  operation returns `{ clean:true, decision, destination, manifest }` and the
-  post-publication verification/debt gate passes.
-- `--archive-p0.5` requires the same matrix/surface/source contract, all eight
-  decisive `passed|failed` cells and at least one `failed` cell. It writes
-  durable candidate NO-GO evidence under the same operation-result and
-  post-publication gate.
-
-Both reject external URLs, partial rows, any setup-blocked row, missing or
-mismatched JSON/PNG pairs, unsafe paths, invalid declared media/signatures and
-any destination update outside the transaction below. The manifest records a
-candidate `decision:'GO'|'NO-GO'`, exact source SHA and, for every file, a safe
-relative path, media type, byte size and SHA-256. The manifest never stores
-`clean`; that field belongs only to the publication operation result. A
-successful operation returns exactly
-`{ clean:true, decision, destination, manifest }`. A cleanup-debt error carries
-`error.publication={ clean:false, decision, destination, manifest? }` and
-`error.cleanupDebt={ code, ownedPaths, errors }`; `manifest` is present only
-when one was actually installed, `ownedPaths` contains exact paths, and
-`errors` retains the underlying error records. A functional cell failure
-continues to later cells so the matrix can reach a candidate decision; setup,
-safety or cleanup failure stops the run.
-
-The canonical destination is
-`docs/superpowers/artifacts/round5-p0.5-simulator/`; its same artifacts parent
-owns the fixed atomic lock
-`docs/superpowers/artifacts/.round5-p0.5-simulator.lock`. Transaction
-workspaces have the exact direct-child layout
-`docs/superpowers/artifacts/.round5-p0.5-simulator-txn-<unique>/`; staging is
-exactly `<workspace>/staging/`, and backup is exactly
-`<workspace>/backup/`. A backup exists only inside that owned transaction
-workspace. Before final source revalidation, the runner atomically creates the
-fixed lock. `EEXIST` rejects with zero source/artifact/workspace/destination
-mutation; the runner never removes or steals that existing lock.
-
-Only after a module-private token proves current ownership of the newly
-acquired fixed lock does the runner scan known transaction-workspace/debt
-records. The current owned lock is not debt while held; it becomes exact owned
-debt only if its release fails and the cleanup-debt error records its path. The
-debt scan recognises only the fixed lock path and direct children matching the
-exact `.round5-p0.5-simulator-txn-` prefix. A nested backup is known only through
-an exactly recorded workspace path; the scanner never performs a recursive or
-prefix-heuristic backup search. Any known prior debt or unowned/unknown matching
-workspace blocks before candidate artifact reads, transaction-workspace
-creation, final source revalidation or destination mutation. Final exact source
-revalidation, artifact reads and publication then occur inside the critical
-section. Only exact paths recorded by an error or operation result may enter
-deliberate audited reconciliation; prefix-heuristic deletion is forbidden. The
-runner retains and returns the publication operation result from the lock
-callback so command-line and report diagnostics still contain the candidate
-decision, canonical destination and installed manifest if lock release creates
-cleanup debt.
-
-The publisher creates one unique transaction workspace using the frozen layout,
-fully validates every row, file, signature and hash in its staging directory,
-then swaps by rename. The publication commit boundary is successful
-installation of that fully validated staging directory at the canonical
-destination followed by passage of the explicit post-swap fault point. Before
-that boundary, a recoverable failure removes any newly installed destination,
-restores the complete prior destination (or its prior absence) and removes the
-owned workspace. If rollback or cleanup itself fails, publication exits
-non-zero with the cleanup-debt error shape above, preserves every exact owned
-debt path and underlying error, and is cleanup-blocked/inconclusive; it must not
-claim zero residue or fabricate an installed manifest when none exists.
-
-After the commit boundary, backup, workspace or lock disposal failure must
-never restore a possibly partial old backup over the verified new destination.
-The complete hash-verifiable new destination remains installed and the command
-exits non-zero with the same cleanup-debt error shape.
-`error.cleanupDebt.code` is `PUBLICATION_CLEANUP_DEBT` or
-`PUBLICATION_LOCK_CLEANUP_DEBT`; `error.publication.manifest` is present only
-when installed. Pre-commit cleanup debt retains whatever candidate operation
-metadata was actually established but never fabricates an installed manifest.
-
-Pure and real-filesystem tests cover both clean acceptance paths, mutual
-exclusion, every rejection class, prior matching debt blocking a later run,
-an untouched foreign lock, pre-commit rollback/cleanup debt paths, a complete
-post-commit destination plus cleanup debt, lock-cleanup debt metadata, and a
-clean path with exact final hashes and zero matching residue. Deterministic
-fault injection covers every destination-to-backup,
-staging-to-destination, post-swap, backup/workspace disposal and lock-release
-boundary. Tests freeze the exact fixed lock path, direct-child workspace prefix,
-backup nesting, atomic-acquire/token/debt-scan order, `EEXIST` zero-mutation
-behaviour, current-lock exclusion and recorded-exact-path-only reconciliation
-boundary. Exact recorded owned debt is reconciled only through a deliberate
-audited cleanup outside this task, followed by re-verification of the surviving
-durable archive when one exists or proof that the canonical destination remains
-absent otherwise, then a fresh complete unflagged-plus-flagged run. Without a
-valid explicit action the command leaves `docs/**` untouched, and reports may
-link only committed durable paths, never ignored `test-results/` diagnostics.
-
-- [ ] **Step 4: Add stable entry points and prove the runner tests green**
-
-Add scripts:
-
-```json
-"test:simulator:preflight": "node test/simulator/preflight.mjs",
-"test:simulator:smoke": "node test/simulator/run.mjs --matrix smoke",
-"test:simulator:full": "node test/simulator/run.mjs --matrix full"
-```
-
-Run `node --test test/simulator/*.test.mjs` and
-`npm run test:simulator:preflight`. On the refreshed 2026-07-11 host, Xcode,
-SafariDriver, all four device types and iOS 26.5 build `23F73` are present;
-there are no managed Spirebound devices yet, which is expected because the
-runner creates only its own names. If the exact runtime is absent on a later
-host, first observe `SETUP BLOCKED`, run the supported non-interactive download
-and rerun preflight:
-
-```bash
-set -euo pipefail
-xcodebuild -downloadPlatform iOS -buildVersion 26.5
-npm run test:simulator:preflight
-```
-
-No agent invokes a password prompt. If Xcode reports that a credential or GUI
-approval is required, stop as environment-blocked and report that visible
-action; do not work around it. Expected after setup: pure tests and preflight
-pass. Preflight may otherwise stop with the documented visible setup action,
-never a hidden prompt.
-`run.mjs` requires an explicit `--surface spike|dom|production`; Task 4
-implements/tests `spike` and `dom`, and reserves `production` for Task 24.
-The green runner-test proof must include bounded managed-MobileSafari readiness,
-true WebDriver session establishment and the post-rotation-document ordering.
-These repairs are runner/harness-only: they do not reopen Task 3, alter stage
-thresholds, modify immutable spike source or reclassify the real `375x549` to
-`pad-portrait` failure.
-
-- [ ] **Step 5: Run the immutable spike through all eight real-Safari cells**
-
-Let the runner spawn the Task 3 worktree server on an isolated localhost port.
-First run the normal full matrix without either durable flag:
-
-```bash
-set -euo pipefail
-SPIKE_HEAD=$(git -C ../round5-pixi-spike rev-parse HEAD)
-test -z "$(git -C ../round5-pixi-spike status --short)"
-SPIREBOUND_SERVER_CWD=../round5-pixi-spike \
-  npm run test:simulator:full -- --surface spike \
-  --source-sha "$SPIKE_HEAD"
-```
-
-The second post-review unflagged matrix is presently incomplete and
-inconclusive. Preserve the genuine iPhone SE portrait functional failure on
-the exact touch route with no shape override: live Safari content viewport
-`375x549`, natural `pad-portrait`. The iPhone SE landscape rotation did succeed
-and proved live outer geometry `667x311`, `landscape-primary` and
-`phone-landscape`; its ten apparent failures were harness defects (a stale
-pre-rotation recorder viewport, safe-area key mismatch, key-order-sensitive
-JSON equality and the wrong context-recovery baseline), not Task 3 failures.
-The immutable Task 3 spike values themselves satisfy Task 3.
-A fresh runner-created iPhone 17 Pro then stopped `SETUP BLOCKED`: logs proved
-exact UDID selection and SafariDriver readiness, followed by a MobileSafari
-launch request but no `RWIApplication` during the 30-second first-boot migration
-window. Cleanup was exact and both managed devices are `Shutdown`; nothing was
-published. Implement and prove the Step 1–4 readiness/session/rotation repairs
-before another unflagged full matrix. Do not change or rerun Task 3 source to
-repair this harness evidence.
-
-Inspect the ignored results and require all eight rows to be present, decisive
-`passed|failed` and paired with valid matching JSON/PNG evidence. A
-setup-blocked, partial, cleanup-failed or missing-artifact run is inconclusive:
-repair the runner/environment and repeat the unflagged full matrix; do not
-publish a product decision. Before the matching explicit flagged rerun, require
-no matching publication workspace/backup/lock debt. If exact recorded owned
-debt exists, stop for deliberate audited reconciliation, re-verify the
-surviving durable archive when one exists or prove the canonical destination
-remains absent otherwise, then perform a fresh complete
-unflagged-plus-flagged run; never auto-delete it.
-
-If and only if all eight inspected cells passed, rerun the same complete gate
-with the explicit GO action:
-
-```bash
-set -euo pipefail
-SPIKE_HEAD=$(git -C ../round5-pixi-spike rev-parse HEAD)
-test -z "$(git -C ../round5-pixi-spike status --short)"
-SPIREBOUND_SERVER_CWD=../round5-pixi-spike \
-  npm run test:simulator:full -- --surface spike \
-  --source-sha "$SPIKE_HEAD" --promote-p0.5
-```
-
-If the complete inspected matrix instead contains one or more exercised
-functional failures, rerun it with the explicit NO-GO action:
-
-```bash
-set -euo pipefail
-SPIKE_HEAD=$(git -C ../round5-pixi-spike rev-parse HEAD)
-test -z "$(git -C ../round5-pixi-spike status --short)"
-SPIREBOUND_SERVER_CWD=../round5-pixi-spike \
-  npm run test:simulator:full -- --surface spike \
-  --source-sha "$SPIKE_HEAD" --archive-p0.5
-```
-
-The durable action validates its own fresh eight-cell result. Eight passes are
-a candidate GO; a complete decisive matrix with at least one functional
-failure is a candidate NO-GO. If publication throws any error, including a
-cleanup-debt error, or returns anything other than
-`{ clean:true, decision, destination, manifest }`, stop
-cleanup-blocked/inconclusive: issue no formal report, commit no artifacts and do
-not continue to Task 5. Repair a non-debt error before retrying. For recorded
-cleanup debt, do not rerun publication until deliberate audited reconciliation,
-re-verification of the surviving durable archive when one exists or proof that
-the canonical destination remains absent otherwise. In either case, the next
-decision attempt is a fresh complete unflagged-plus-flagged run. Only the
-matching explicit publication operation's `clean:true` result plus the
-subsequent archive/debt gate makes the candidate a formal decision. A formal
-NO-GO blocks Task 5. The runner must not assume GO from command intent or
-manifest decision alone.
-
-- [ ] **Step 6: Write the report and complete both independent review cycles**
-
-The report records the loaded predecessor minimum `40eb357`, PR17
-base/head/merge and exact geometry contract, final amended PE
-head, spike hash, exact toolchain,
-each cell's observed Safari browser version/build, all eight rows,
-committed durable screenshot/JSON paths, manifest decision and hash, each
-functional criterion, Playwright
-host-relative numbers in a separate table, excluded physical-device claims and
-one final line exactly `Decision: GO` or `Decision: NO-GO`. A fresh spec
-reviewer reviews the report/raw artifacts, PE fixes and obtains re-review, then
-a fresh code-quality reviewer reviews the evidence/path discipline, followed by
-PE fixes and re-review. PE owns the decision evidence.
-
-Issue the formal report only after the matching explicit publication operation
-returns `{ clean:true, decision, destination, manifest }`, every durable
-manifest entry, hash and source SHA re-verifies, and a same-parent scan finds no
-matching debt. A setup-blocked/partial/non-clean run remains
-ignored diagnostics and is reported as `SETUP BLOCKED`/inconclusive without a
-product-decision report. A formal NO-GO report is permitted only after the
-complete `--archive-p0.5` candidate-evidence contract and those operation,
-verification and debt gates; the final report links no ignored paths. Cleanup
-debt blocks reporting and another publication until deliberate audited
-reconciliation, re-verification of the surviving durable archive when one
-exists or proof that the canonical destination remains absent otherwise, then
-a fresh complete unflagged-plus-flagged run. Step 7 commits the report and its
-exact durable artifact directory together, then verifies every report link
-resolves to a committed path.
-
-On GO only, verify the disposable worktree is clean and record its frozen hash.
-Keep `.worktrees/round5-pixi-spike` and `codex/round5-pixi-spike` intact as
-auditable evidence. No spike file is copied or merged.
-
-- [ ] **Step 7: Verify and commit only reusable infrastructure/evidence**
-
-Update the docs index, relevant `CONTEXT.md` and report with the runner-owned server, managed-
-Simulator rule, `spike`/`dom` surfaces, serial matrix commands, visible
-preflight and functional-compatibility-only claim before committing.
-
-```bash
-set -euo pipefail
-node --test test/simulator/*.test.mjs
-npm test
-git diff --check
-git add package.json package-lock.json test/simulator/matrix.mjs \
-  test/simulator/matrix.test.mjs test/simulator/source.mjs \
-  test/simulator/source.test.mjs test/simulator/preflight.mjs \
-  test/simulator/dom-profile.test.mjs \
-  test/simulator/orientation.mjs test/simulator/server.mjs \
-  test/simulator/webdriver.mjs \
-  test/simulator/assertions.mjs test/simulator/run.mjs \
-  test/simulator/README.md \
-  docs/superpowers/reports/2026-07-10-round5-p0.5-simulator-safari.md \
-  docs/superpowers/artifacts/round5-p0.5-simulator docs/README.md \
-  CONTEXT.md
-git commit -m "test: record the Simulator Safari Pixi gate"
-```
-
-Do not commit `test-results/` or any setup-blocked/partial/non-clean
-diagnostics. Stage a formal GO/NO-GO report and durable directory only after
-the matching explicit publication operation returned
-`{ clean:true, decision, destination, manifest }`, exact manifest/hash/source
-re-verification and an empty matching debt scan. A formal NO-GO report is
-committed only with a complete decisive `--archive-p0.5` candidate directory
-after those gates; execution then stops before Task 5 and the golden design is
-revised rather than bypassed. Cleanup debt blocks both this commit and another
-publication until deliberate audited reconciliation, re-verification of the
-surviving durable archive when one exists or proof that the canonical
-destination remains absent otherwise, then a fresh complete
-unflagged-plus-flagged run. After the commit, require every report artifact link
-to resolve through `git ls-files` at that commit.
-
----
-
-**Golden spec:** `docs/superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md`
-
-**Research basis:** `docs/research/2026-07-10-ui-behaviour-trace-ios-simulator.md`
-
-**Golden spec merge:** `d048640`, PR #13
-
-**Loaded PR #14/#15 golden amendment (rebased ancestry):** `a6bb171`
-
-**Loaded PR #16 golden amendment (rebased ancestry):** `bb4e82a`
-
-**Loaded PR #16 recovery clarification (rebased ancestry):** `4769481`
-
-**Loaded PR #17/final amendment provenance:** Task 0 records the final amended
-PE/FE heads. Resume the preserved Task 3 worktree only after Task 1 Step 4 is
-green; never recreate its worktree or branch.
+### Tasks 3 and 4: retired and reserved (non-executable)
+
+These numbers are retained only for historical continuity. The immutable disposable
+spike at 870489f559b829f7e8caefaa48a205aaab32b727 and the unfinished runner
+research close no Round 5 gate and are not prerequisites for Task 5. Any future
+actual Safari/iOS Simulator work belongs solely to the non-executable
+[deferred mobile-migration design](../specs/2026-07-11-mobile-migration-simulator-tooling-design.md)
+and requires fresh owner activation, drift audit, planning, review and evidence.
 
 ### Task 5: `[PE]` Implement the Node-pure Semantic UI Behaviour Trace
 
@@ -2240,7 +1226,7 @@ green; never recreate its worktree or branch.
 
 **Interfaces:**
 - Produces: `createBehaviourTrace(options)` returning `emit`, `begin`, `read`, `activeSpans`, `assertIntegrity`, `reset` and `enabled`.
-- Consumed by: `src/ui/context.js`, `src/ui/drain.js`, `src/ui/probe.js`, Content Lab and both browser runners.
+- Consumed by: `src/ui/context.js`, `src/ui/drain.js`, `src/ui/probe.js`, Content Lab and the Playwright Chromium/WebKit projects.
 
 - [ ] **Step 1: Write the failing trace contract block**
 
@@ -3191,9 +2177,7 @@ git commit -m "refactor: extract non-combat UI screens"
 - Replace: `src/ui.js` with thin re-exports
 - Modify: `CONTEXT.md`, `docs/README.md`, `test/e2e/helpers.js`
 - Modify/Test: `test/test_engine.js`
-- Modify: `test/simulator/assertions.mjs`, `test/simulator/run.mjs`
-- Create: `test/simulator/trace-artifacts.test.mjs`
-- Create: `docs/superpowers/artifacts/round5-p1-simulator-smoke/**`
+- Modify/Test: `test/e2e/trace.spec.js`, `test/e2e/trace-fixture.js`
 - Test: full Node and Playwright kits
 
 **Interfaces:**
@@ -3231,13 +2215,12 @@ rg 'thin re-export|src/ui\.js' "$RED_LOG"
 rm -f "$RED_LOG"
 ```
 
-Before changing the Simulator runner, add a failing pure test for trace failure
-artifacts. For any trace-enabled journey, `finally` must execute
+Add failing Playwright Chromium/WebKit journeys for trace failure attachments.
+For every trace-enabled journey the automatic fixture must read
 `behaviourTrace({format:'ndjson'})` and `behaviourTrace({format:'text'})` before
-driver quit, write the returned `.ndjson` and `.text` fields beside the cell
-JSON/screenshot, and record their paths/hashes even when a semantic assertion
-failed. Non-trace P0.5 spike cells are
-exempt. All Lab/production/screens profiles inherit this one implementation.
+page teardown and attach both projections even when a semantic assertion fails.
+The journeys cover representative screen, card-drag/cancel, queue, ceremony,
+persistence-recovery and renderer-recovery contracts through the same fixture.
 
 - [ ] **Step 2: Move combat and drain owners exactly once**
 
@@ -3291,31 +2274,28 @@ set -euo pipefail
 npm test
 npx vite build --outDir /tmp/spirebound-round5-p1 --emptyOutDir
 node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e
-npm run test:simulator:smoke -- --surface dom --journey trace
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test trace \
+  --project=desktop --project=iphone-webkit --project=ipad-webkit --workers=1
 EXPECTED=$({ printf '%s\n' src/ui.js src/ui/combat.js src/ui/drain.js \
   src/ui/probe.js src/ui/index.js CONTEXT.md docs/README.md \
-  test/e2e/helpers.js test/test_engine.js test/simulator/assertions.mjs \
-  test/simulator/run.mjs test/simulator/trace-artifacts.test.mjs; \
-  find docs/superpowers/artifacts/round5-p1-simulator-smoke -type f; } | sort -u)
+  test/e2e/helpers.js test/e2e/trace.spec.js test/e2e/trace-fixture.js \
+  test/test_engine.js; } | sort -u)
 ACTUAL=$({ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u)
 test "$ACTUAL" = "$EXPECTED"
 ```
 
-Expected: all tests pass, visual baselines remain byte-for-byte unchanged and
-the tracked worktree is clean apart from declared Task 9 files. The temporary
-build never writes `dist/`. Promote the representative iPhone 17 Pro portrait
-and iPad mini landscape JSON/screenshots plus a SHA-256 manifest into the
-declared P1 artifact directory before staging.
+Expected: all Chromium/WebKit trace journeys pass, the automatic fixture
+attaches both projections on a forced failure, visual baselines remain byte-for-
+byte unchanged and the tracked worktree is clean apart from declared Task 9
+files. The temporary build never writes `dist/`.
 
 - [ ] **Step 7: Commit source/tests/docs, excluding `dist/`**
 
 ```bash
 set -euo pipefail
 git add src/ui.js src/ui/combat.js src/ui/drain.js src/ui/probe.js \
-  src/ui/index.js CONTEXT.md docs/README.md test/e2e/helpers.js test/test_engine.js
-git add docs/superpowers/artifacts/round5-p1-simulator-smoke
-git add test/simulator/assertions.mjs test/simulator/run.mjs \
-  test/simulator/trace-artifacts.test.mjs
+  src/ui/index.js CONTEXT.md docs/README.md test/e2e/helpers.js \
+  test/e2e/trace.spec.js test/e2e/trace-fixture.js test/test_engine.js
 npm run test:round5:standing -- --profile p1-complete
 git commit -m "refactor: decompose the UI behind stable contracts"
 ```
@@ -4799,10 +3779,8 @@ git commit -m "test: add the isolated sample content pack"
 **Files:**
 - Modify: `test/test_engine.js`, `CONTEXT.md`, `docs/README.md`
 - Create: `docs/superpowers/reports/2026-07-10-round5-p2-registry-evidence.md`
-- Create: `test/simulator/theme-profile.test.mjs`
-- Modify: `test/simulator/assertions.mjs`, `test/simulator/run.mjs`
+- Create: `test/e2e/theme-profile.spec.js`
 - Modify: `src/ui/probe.js`
-- Create: `docs/superpowers/artifacts/round5-p2-simulator-smoke/**`
 - Read/check: `src/packs/compiled/production.js`,
   `src/packs/compiled/development.js`, `src/content-registration.js`
 
@@ -4873,119 +3851,71 @@ assertion that `src/data.js`, `src/registry.js`, `src/packs/core/**`,
 or locale edits deliberately fall through to Vite's full-page
 reload, so no live-run or exported-object identity is promised.
 
-Add a failing pure `theme-profile.test.mjs` for an exact three-theme result per
-cell and a browser test/source assertion for a not-yet-created
-`__probe.stageCoreTheme({ themeId, seed })` driver. Run the focused tests;
-expected: missing driver/profile support.
+Add a failing Playwright semantic theme journey in `test/e2e/theme-profile.spec.js`.
+Run it through the strict-port wrapper against desktop Chromium, `iphone-webkit`
+and `ipad-webkit`. The journey uses a not-yet-created
+`__probe.stageCoreTheme({ themeId, seed })` driver and requires the exact three
+production themes once per project. Expected: missing driver support.
 
-- [ ] **Step 2: Implement the bounded core-theme Probe/profile contract**
+- [ ] **Step 2: Implement the bounded core-theme Probe and browser journey**
 
 Extend `installProbe` with `stageCoreTheme({themeId,seed})`, available only on
 the existing QA Probe surface. It validates `themeId` against the injected
 `CORE_CONTENT.themeOrder`, creates a normal core run through real `newRun`, sets
-the validated numeric `run.act` as legal scenario setup before regenerating its
-map, selects the first registered normal encounter for that theme, and enters
-combat through the existing real `startCombatUI` handler. It returns only
-semantic theme/plate/weather/music/enemy ids. It cannot accept a dev/custom
-context, arbitrary enemy definitions or mutate content tables. This is an
-extension of the existing Probe battle setup, not a second engine path.
+the validated numeric act as legal scenario setup, regenerates the map, selects
+the first registered normal encounter and enters combat through the real
+handler. It returns only semantic theme, plate, weather, music and enemy ids.
 
-Add the `themes` journey to `test/simulator/run.mjs`; it calls that driver, then
-uses real card and End Turn handlers. The pure profile test requires the exact
-theme order from the runner result and rejects a missing/duplicate row.
+For every Chromium/WebKit project, visit all three themes, start one real normal
+encounter per theme and verify theme id/index, resolved plates or labelled
+fallback, weather snapshot, requested Music Cue/fallback, one real card play,
+End Turn, expected emulated stage shape, locale `en`, no unresolved locale key
+or `{param}`, and no trace drop/error/orphan. The Playwright report and ordinary
+attachments are browser evidence only.
 
-- [ ] **Step 3: Commit, review and push the immutable P2 capture source**
+- [ ] **Step 3: Run, review and commit the P2 browser source**
 
 ```bash
 set -euo pipefail
 npm test
 npm run test:content-registrations
 npm run test:act-coupling
-node tools/run-with-strict-e2e-port.mjs -- npx playwright test geometry stage audio --project=desktop --workers=1
-node --test test/simulator/theme-profile.test.mjs
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test \
+  theme-profile geometry stage audio --project=desktop \
+  --project=iphone-webkit --project=ipad-webkit --workers=1
 npm run test:round5:standing -- --profile p2
-git add src/ui/probe.js test/test_engine.js \
-  test/simulator/theme-profile.test.mjs test/simulator/assertions.mjs \
-  test/simulator/run.mjs
+git add src/ui/probe.js test/e2e/theme-profile.spec.js test/test_engine.js
 npm run test:round5:standing -- --profile p2
-git commit -m "test: add the P2 theme Simulator profile"
-git push -u origin codex/round5-production-engineering
-test -z "$(git status --short)"
+git commit -m "test: add the P2 browser theme journey"
 ```
 
 Complete fresh spec review, fixes/re-review, then fresh code-quality review and
-fixes/re-review for this source/harness commit. Use `apply_patch` to
-append `P2 Simulator capture source: <actual HEAD>` to the ignored ledger.
+fixes/re-review. No source-SHA capture ledger or separate browser-artefact commit
+is required.
 
-- [ ] **Step 4: Run the complete P2 gate and capture actual Safari**
-
-Reload `P2_SIM_SOURCE_SHA` from the ledger in the same shell and require it
-equals clean `HEAD`.
-Run:
-
-```bash
-set -euo pipefail
-P2_SIM_SOURCE_SHA=$(sed -n 's/^P2 Simulator capture source: //p' \
-  .superpowers/sdd/progress.md | tail -1)
-test -n "$P2_SIM_SOURCE_SHA"
-test "$(git rev-parse HEAD)" = "$P2_SIM_SOURCE_SHA"
-npx vite build --outDir /tmp/spirebound-round5-p2 --emptyOutDir
-npm run test:content-registrations
-npm run test:act-coupling
-node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e
-npm run test:simulator:smoke -- --surface dom --journey themes
-npm run test:round5:standing -- --profile p2
-```
-
-Expected: all pass; the committed oracle file remains unchanged.
-
-The Simulator journey runs exactly the smoke cells (iPhone 17 Pro portrait and
-iPad mini landscape). In each visible actual-Safari cell it uses legal Probe
-scenario setup to visit all three registered production themes, starts one real
-normal encounter per theme and verifies theme id/index, resolved backdrop/mid/
-ledge ids or labelled fallback, weather semantic snapshot, requested combat
-Music Cue/fallback, one real card play and End Turn, expected stage shape and
-active locale `en`, zero unresolved locale keys/`{param}`, and zero trace
-drops/errors/orphans. The pure profile test proves all three theme
-rows are mandatory and normalises only semantic ids; no screenshot inference
-or physical performance claim passes this gate.
-
-- [ ] **Step 5: Write evidence/current docs and release the freeze**
+- [ ] **Step 4: Write evidence/current docs and release the freeze**
 
 Record commit range, exact commands/output summaries, export inventory, doctor
 counts, generated-manifest hashes/provenance, compiler freshness, locale
-catalogue hashes/provenance, allowlisted act residue and paired sample
-mechanics/locale isolation/drop-removal proof. Update `CONTEXT.md` module
-graph and `docs/README.md` to mark P2 complete; explain deliberate page reload
-on pack or locale edits (no object-identity-preserving HMR in this round).
+catalogue hashes/provenance, allowlisted act residue, paired sample isolation
+and the Chromium/WebKit semantic-theme results. Update `CONTEXT.md` and
+`docs/README.md` to mark P2 complete and explain deliberate page reload on pack
+or locale edits.
 
-Promote both cells' JSON, screenshot, timestamped text and NDJSON plus a
-source-SHA/path/bytes/SHA-256 manifest into the declared P2 artifact directory.
-The report links those committed relative paths and records the observed Safari
-version/build and `functional-compatibility-only` claim. Require its `sourceSha`
-equals `P2_SIM_SOURCE_SHA`, not the subsequent evidence commit.
+Only after the complete P2 browser gate and ordered reviewer cycles pass, append
+the closing SHA and `P2 content-table freeze: RELEASED` to the execution ledger.
+If the gate is red, leave it ACTIVE and fix P2.
 
-Only after the full P2 gate, artifact inspection and the fresh spec-review
-fixes/re-review followed by fresh code-quality fixes/re-review pass,
-append the closing SHA and
-`P2 content-table freeze: RELEASED` to the execution ledger. If the gate is red,
-leave it ACTIVE and fix P2; do not let another content edit cross the boundary.
-
-- [ ] **Step 6: Commit the evidence-only closure**
+- [ ] **Step 5: Commit the documentation closure**
 
 ```bash
 set -euo pipefail
-P2_SIM_SOURCE_SHA=$(sed -n 's/^P2 Simulator capture source: //p' \
-  .superpowers/sdd/progress.md | tail -1)
-test -n "$P2_SIM_SOURCE_SHA"
-test "$(git rev-parse HEAD)" = "$P2_SIM_SOURCE_SHA"
 npm run test:round5:standing -- --profile p2
 git add CONTEXT.md docs/README.md \
-  docs/superpowers/reports/2026-07-10-round5-p2-registry-evidence.md \
-  docs/superpowers/artifacts/round5-p2-simulator-smoke
-npm run test:round5:standing -- --profile p2
+  docs/superpowers/reports/2026-07-10-round5-p2-registry-evidence.md
 git commit -m "test: close the content registry equivalence gate"
 ```
+
 
 ---
 
@@ -5184,8 +4114,7 @@ and 16B commits.
 **Files:**
 - Create: `src/ui/dev/lab.js`, `src/ui/dev/replay-preview.js`, `test/e2e/lab.spec.js`
 - Create: `tools/verify-production-surface.mjs`
-- Create: `test/simulator/lab-profile.test.mjs`, `docs/superpowers/artifacts/round5-p3-simulator-smoke/**`
-- Modify: `test/simulator/assertions.mjs`, `test/simulator/run.mjs`, `src/main.js`,
+- Modify: `src/main.js`,
   `src/ui/commands.js`, `src/ui/index.js`, `src/ui/probe.js`,
   `src/ui/behaviour-trace.js`, `test/test_engine.js`
 
@@ -5233,10 +4162,10 @@ semantic content summary
 it never exposes registry rows or behaviour functions. No production file may
 branch on `sampleTheme`, `sampleEnemy` or `sampleCard`.
 
-Add a pure failing Simulator profile test for `--surface dom --journey lab`:
-it opens the same encoded Lab URL, proves trace integrity/replay hydration and
-uses only public Probe drivers. It also requires inherited NDJSON/text failure
-artifact paths in the normalised cell result.
+Run the same Lab journey in Playwright Chromium, `iphone-webkit` and
+`ipad-webkit`. Each project opens the encoded URL, proves trace integrity,
+replay hydration and ordered content ids, uses only public Probe drivers, and
+inherits NDJSON/text failure attachments from `trace-fixture.js`.
 
 Key assertions:
 
@@ -5342,56 +4271,28 @@ resolves every emitted chunk from `index.html`/manifest and fails on
 never reads tracked `dist/`. Add a Node source test that requires all forbidden
 markers to remain in the verifier's list.
 
-- [ ] **Step 7: Commit and push the immutable Lab capture source**
+- [ ] **Step 7: Run the Chromium/WebKit Lab gate, review and commit**
 
 ```bash
 set -euo pipefail
 npm test
-node tools/run-with-strict-e2e-port.mjs -- npx playwright test lab trace --project=desktop --workers=1
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test lab trace \
+  --project=desktop --project=iphone-webkit --project=ipad-webkit --workers=1
 node tools/verify-production-surface.mjs
 npm run test:round5:standing -- --profile p3
 git add src/main.js src/ui/dev/lab.js src/ui/dev/replay-preview.js \
   src/ui/commands.js src/ui/index.js src/ui/probe.js src/ui/behaviour-trace.js \
-  tools/verify-production-surface.mjs test/e2e/lab.spec.js test/test_engine.js \
-  test/simulator/lab-profile.test.mjs test/simulator/assertions.mjs \
-  test/simulator/run.mjs
+  tools/verify-production-surface.mjs test/e2e/lab.spec.js test/test_engine.js
 npm run test:round5:standing -- --profile p3
 git commit -m "feat: add the trace-driven Content Lab"
-git push -u origin codex/round5-production-engineering
-test -z "$(git status --short)"
 ```
 
-Use `apply_patch` to append `P3 Lab capture source: <actual HEAD>` to the ignored
-ledger. This source commit contains the exact Lab runtime, editor, trace and
-Simulator profile; evidence may not point to Task 16 or an unstaged tree.
-
-- [ ] **Step 8: Capture and commit Simulator evidence only**
-
-Reload `LAB_CAPTURE_SOURCE_SHA` from the ledger, require it equals current
-`HEAD`, then run:
-
-```bash
-set -euo pipefail
-LAB_CAPTURE_SOURCE_SHA=$(sed -n 's/^P3 Lab capture source: //p' \
-  .superpowers/sdd/progress.md | tail -1)
-test -n "$LAB_CAPTURE_SOURCE_SHA"
-test "$(git rev-parse HEAD)" = "$LAB_CAPTURE_SOURCE_SHA"
-npm run test:simulator:smoke -- --surface dom --journey lab
-```
-
-Promote the two representative Simulator JSON/screenshots, timestamped text and
-NDJSON plus a manifest whose `sourceSha` equals `LAB_CAPTURE_SOURCE_SHA` and
-whose path/byte/SHA-256 rows cover every file. Run the `p3` standing profile
-again without modifying source, obtain fresh spec review with fixes/re-review,
-then fresh code-quality review with fixes/re-review of the raw/evidence package,
-then commit only:
-
-```bash
-set -euo pipefail
-git add docs/superpowers/artifacts/round5-p3-simulator-smoke
-npm run test:round5:standing -- --profile p3
-git commit -m "test: record the Content Lab Simulator smoke"
-```
+The Chromium/WebKit projects must each prove URL round-trip, real card play,
+trace integrity, replay hydration without auto-run, fresh/veteran fixture
+isolation and NDJSON/text failure attachments. Complete fresh spec review,
+fixes/re-review, then fresh code-quality review and fixes/re-review. Playwright
+reports and attachments are browser evidence and are not committed as actual
+Safari or Simulator artefacts.
 
 ### Task 18: `[PE]` Add the content doctor dashboard and dev launcher
 
@@ -5595,189 +4496,80 @@ npm run test:round5:standing -- --profile p3
 git commit -m "feat: add the schema-driven Content Manager"
 ```
 
-### Task 20: `[PE]` Extend CI for trace, registries, WebKit and Simulator labels
+### Task 20: `[PE]` Extend CI for trace, registries and Playwright WebKit
 
 **Files:**
 - Modify: `package.json`, `package-lock.json`, `playwright.config.js`,
   `.github/workflows/ci.yml`, `.github/workflows/perf.yml`,
-  `.github/workflows/update-baselines.yml`,
-  `tools/ci-contract.mjs`, `test/test_ci_contract.mjs`,
-  `test/test_module_boundaries.mjs`
-- Create: `.github/workflows/simulator-safari.yml`
+  `.github/workflows/update-baselines.yml`, `tools/ci-contract.mjs`,
+  `test/test_ci_contract.mjs`, `test/test_module_boundaries.mjs`
 - Modify: `CONTEXT.md`, `docs/README.md`
 
 **Interfaces:**
-- Produces: Playwright WebKit emulation on iPhone 17 Pro/iPad Mini; serial disk tools; manual self-hosted Simulator lane.
-- Does not claim Playwright WebKit is Simulator Safari.
+- Owns only the existing Playwright WebKit projects, package script and Linux CI lane.
+- Playwright WebKit is patched WebKit with device emulation; it is not branded
+  Safari, an iOS/iPadOS Simulator, WKWebView, hardware or mobile-support proof.
+- Every browser command continues through `tools/run-with-strict-e2e-port.mjs`.
 
-- [ ] **Step 1: Add failing config assertions to the existing CI contract**
+- [ ] **Step 1: Add failing config assertions**
 
-Extend `test/test_ci_contract.mjs`—not the engine self-check—to read the
-config/workflows and assert project
-names `iphone-webkit`, `ipad-webkit`, package script `test:e2e:webkit`, CI install
-contains `chromium webkit`, and Simulator workflow uses labels
-`[self-hosted, macOS, spirebound-simulator]`. Also require
-`test:e2e:update` to name exactly `desktop`, `portrait` and `landscape`; adding
-any WebKit/dev-tool project must never widen canonical snapshot generation.
-Import `e2eServerSettings` and assert an explicit port yields strictPort command,
-127.0.0.1 origin and `reuseExistingServer:false`.
-Also assert the package's exact registration-compiler mapping, the `p2`+
-standing row and Linux unit job all run
-`npm run test:content-registrations`; CI module-boundary tests reject stale
-generated bytes, a production `_sample`/development import, any generated
-manifest hand-edit marker, and an engine/data path to `i18n/en/ui.js`.
-Add paginated runner-fixture tests: combine every page before filtering; require
-all labels `self-hosted`, `macOS`, `spirebound-simulator` and online status;
-zero matches yields the exact awaiting-owner state, one passes, and more than
-one fails as ambiguous.
+Extend `test/test_ci_contract.mjs` to require project names `iphone-webkit` and
+`ipad-webkit`, package script `test:e2e:webkit`, CI browser installation
+`chromium webkit`, and the exact Chromium-only canonical snapshot projects
+`desktop`, `portrait` and `landscape`. Import `e2eServerSettings` and require an
+explicit strict port, loopback origin and `reuseExistingServer:false`.
 
-Scan every workflow shell line after Task 5: any executable `playwright test`,
-`npm run test:e2e*` or browser-backed capture command must use
-`tools/run-with-strict-e2e-port.mjs` in the same invocation, except the
-Simulator runner which owns its separate isolated server. This test initially
-fails on the existing bare Linux `update-baselines.yml` capture.
-
-Keep `tools/ci-contract.mjs` as the executable source of truth. Extend its
-`FULL_E2E_LANES` with `e2e-webkit` and assert the stable aggregate gates remain
-named exactly `unit` and `e2e`. Add module-boundary checks only to
-`test/test_module_boundaries.mjs`; do not duplicate CI topology in
-`test_engine.js`.
+Require the exact registration-compiler mapping, P2+ standing rows and Linux
+unit job to run `npm run test:content-registrations`. Extend
+`FULL_E2E_LANES` with `e2e-webkit`; stable required aggregators remain exactly
+`unit` and `e2e`. Scan every workflow browser command and require the strict-
+port wrapper in the same invocation. The test first fails on the existing bare
+Linux baseline capture.
 
 - [ ] **Step 2: Add WebKit projects and script**
 
-Use Playwright's exact descriptors:
+Use the exact Playwright device descriptors with `browserName: 'webkit'`:
 
 ```js
-import { defineConfig, devices } from '@playwright/test';
-// projects additions
 { name: 'iphone-webkit', use: { ...devices['iPhone 17 Pro'], browserName: 'webkit' } },
-{ name: 'ipad-webkit', use: { ...devices['iPad Mini'], browserName: 'webkit' } },
+{ name: 'ipad-webkit', use: { ...devices['iPad Mini landscape'], browserName: 'webkit' } },
 ```
 
-Add:
+Define:
 
 ```json
-"test:e2e:webkit": "playwright test trace stage lab --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps",
+"test:e2e:webkit": "playwright test trace stage lab theme-profile --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps",
 "test:e2e:update": "playwright test visual --update-snapshots --project=desktop --project=portrait --project=landscape --workers=1 --no-deps"
 ```
 
-Before the first local WebKit test, run `npx playwright install webkit` once
-and record the installed Playwright/browser revision. This is a visible local
-prerequisite, not a test and not a password flow. The Linux baseline workflow
-continues installing only the Chromium browser it captures because the update
-script is now project-locked.
+Before the first local WebKit run, install the browser once with
+`npx playwright install webkit`; record the Playwright/browser revision. This
+is a visible local prerequisite, not a test or password flow.
 
-- [ ] **Step 3: Extend the current parallel Linux topology without replacing it**
+- [ ] **Step 3: Extend the parallel Linux topology**
 
-Preserve the post-Phase-2 topology exactly: all relevant Draft/Ready/`main`
-changes run `unit-tests` and `build-dist` in parallel; Draft PR e2e mode runs
-Chromium smoke, while Ready PRs and `main` run `e2e-disk`, random agent (3
-shards), main (10 shards), `e2e-serial` and visual (desktop, portrait,
-landscape). Add one separate `e2e-webkit` job, one worker, running the two
-semantic projects. Add it to `FULL_E2E_LANES`, the aggregate `e2e` job's
-`needs`/result map and no other required check; `unit` and `e2e` stay the only
-stable required names.
+Preserve the post-Phase-2 topology. Add one `e2e-webkit` job, one worker, to
+`FULL_E2E_LANES` and the aggregate `e2e` result map. Install `chromium webkit`,
+keep the serial disk tooling lane, compiled-registration check, bundle/perf
+contracts and production-surface verifier. Upload behaviour NDJSON/text with
+ordinary failure artefacts. Change Linux baseline capture to exactly:
 
-Install `chromium webkit`; keep ffmpeg 8.1 in the npm/unit lane and retain all
-committed-dist/clean-checkout checks. The unit lane runs the compiled-
-registration `--check` before ordinary tests. If Task 19 shipped, run content-disk
-sequentially inside `e2e-disk` after the existing disk test, with its own fresh
-server; optionality must not create a dynamic aggregate lane. Add new
-source/config paths to `paths-filter`. Upload behaviour NDJSON/text with existing
-failure artifacts.
-
-Change `update-baselines.yml`'s local capture step to exactly
-`node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:update`. Task 24
-later adds its manifest writer around this already-isolated command; it must not
-be the first task to repair the port contract. Tasks 5–19 never dispatch the
-manual baseline workflow; Task 20 must land before Task 24 performs its first
-Round 5 dispatch.
-
-Invoke the shared strict-port wrapper immediately around **each** top-level
-Playwright command in the same step/command invocation:
-
-```bash
-set -euo pipefail
-node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit
+```text
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:update
 ```
 
-Never persist one `GITHUB_ENV` port across commands; the config's strict bind
-prevents a race from becoming stale-server reuse.
-After the production build, run `node tools/verify-production-surface.mjs` as a
-standing CI gate; archive its failure report with other diagnostics.
+Keep the valid-measurement policy unchanged: missing, invalid, crashed or empty
+measurements fail; a valid 55fps/22ms miss emits `PERF_WARNING` and remains
+non-gating.
 
-Keep `.github/workflows/perf.yml`'s existing valid-measurement verifier.
-`test_ci_contract.mjs` must reject any CI source that turns the 55fps/22ms
-reference thresholds into an assertion or non-zero exit. Missing/wrong-tier/
-non-finite/zero/no-frame/browser/application-error measurements still fail;
-valid misses emit `PERF_WARNING`. Deterministic bundle bytes, exact WebGL owner
-count and texture/cache allocation invariants remain hard gates.
+- [ ] **Step 4: Update operational docs**
 
-- [ ] **Step 4: Add the separately labelled manual Simulator workflow**
+Document Chromium and Playwright WebKit lanes, cumulative standing gates, the
+strict-port rule and the explicit no-actual-Safari/Simulator/mobile-support
+boundary. Mark P3 complete. No self-hosted runner, actual-Safari workflow, runner
+lookup, exit-75 path or manual dispatch remains in Round 5.
 
-`simulator-safari.yml` is `workflow_dispatch` only, runs on
-`[self-hosted, macOS, spirebound-simulator]`, uses one concurrency slot and
-invokes the runner-owned isolated server. Its validated workflow inputs are
-`surface` (`dom` initially; Task 24 adds/defaults `production`), `journey` and
-`matrix`; it runs serially, uploads `test-results/simulator/`, and names every
-artifact `functional-compatibility-only`. It is not a Linux required check and
-contains no physical-performance wording. Its first executable step runs the
-Task 4 GUI/awake/unlocked preflight and stops before device mutation on failure;
-workflow text says it never wakes a display/host, unlocks the self-hosted Mac or
-requests credentials. The already-awake preflight must pass before the workflow
-may start an owned `caffeinate -d -i -w` child to prevent new sleep.
-
-Provisioning/registration of that GitHub runner and repository label is an
-owner-controlled external prerequisite, not something this plan silently
-does. Before any dispatch, query the repository runner API and require exactly
-one online runner carrying all three labels:
-
-```bash
-set -euo pipefail
-RUNNER_PAGES=$(gh api --paginate --slurp \
-  'repos/fol2/roguecardv2/actions/runners?per_page=100')
-MATCHES=$(printf '%s\n' "$RUNNER_PAGES" | jq '[
-  .[].runners[]
-  | select(.status == "online")
-  | select((.labels | map(.name) | index("self-hosted")) != null)
-  | select((.labels | map(.name) | index("macOS")) != null)
-  | select((.labels | map(.name) | index("spirebound-simulator")) != null)
-] | sort_by(.id)')
-COUNT=$(printf '%s\n' "$MATCHES" | jq 'length')
-case "$COUNT" in
-  0)
-    echo 'Simulator workflow: CONFIGURED, AWAITING OWNER-PROVISIONED RUNNER'
-    exit 75
-    ;;
-  1)
-    printf '%s\n' "$MATCHES" | jq -e '.[0].id and .[0].name' >/dev/null
-    ;;
-  *)
-    echo "ambiguous Simulator runners: $COUNT" >&2
-    exit 76
-    ;;
-esac
-```
-
-Exit 75 is an environment prerequisite, not a test failure: use `apply_patch`
-to record `Simulator workflow: CONFIGURED, AWAITING OWNER-PROVISIONED RUNNER`
-in the ignored ledger and do not dispatch. More than one match is a hard
-ambiguous-runner failure. Exactly one online fully labelled runner is required
-before the owner explicitly authorises dispatch. Keep using the local Simulator
-full gate and make no CI-run claim while awaiting provisioning. No token,
-password or machine login is requested by an agent.
-
-- [ ] **Step 5: Update operational docs**
-
-Document the two browser lanes, serial rule, visible Safari Remote Automation
-preflight, no hidden password prompts, and phase-applicable gates. State
-explicitly that the self-hosted Mac must already be awake with its runner
-executing and an unlocked, logged-in usable GUI session. Neither Codex nor the
-workflow wakes a display/host, unlocks the GUI or requests credentials; the
-post-preflight owned caffeine guard only prevents new sleep. Mark P3 complete;
-Content Manager remains optional in the exit contract even if shipped.
-
-- [ ] **Step 6: Verify and commit**
+- [ ] **Step 5: Verify and commit**
 
 ```bash
 set -euo pipefail
@@ -5795,13 +4587,12 @@ npm run test:round5:standing -- --profile p3
 git diff --check
 git add package.json package-lock.json playwright.config.js \
   .github/workflows/ci.yml .github/workflows/perf.yml \
-  .github/workflows/simulator-safari.yml \
   .github/workflows/update-baselines.yml tools/ci-contract.mjs \
   test/test_ci_contract.mjs test/test_module_boundaries.mjs \
   CONTEXT.md docs/README.md
-npm run test:round5:standing -- --profile p3
 git commit -m "ci: extend Round 5 browser and tooling gates"
 ```
+
 
 ---
 
@@ -6276,18 +5067,16 @@ git commit -m "feat: centralise combat input and Probe v2"
   `playwright.config.js`, `package.json`
 - Modify/Test: `test/test_engine.js`
 - Read-only: `test/e2e/fixtures/trace/*.json`
-- Create: `test/simulator/production-profile.test.mjs`,
-  `test/simulator/profile-fixtures.mjs`,
-  `test/simulator/profile-fixtures.test.mjs`
-- Modify: `test/simulator/assertions.mjs`, `test/simulator/run.mjs`
+- Create: `test/e2e/production-profile.spec.js`,
+  `test/fixtures/round5-profile-fixtures.js`
 - Modify: `.github/workflows/ci.yml`, `.github/workflows/perf.yml`,
-  `.github/workflows/simulator-safari.yml`,
   `.github/workflows/update-baselines.yml`
 - Modify: `test/e2e/visual.spec.js-snapshots/**`
 - Modify: `CONTEXT.md`, `docs/README.md`
 
 **Interfaces:**
-- Proves frozen P1 semantic parity and produces P4 portrait/full-tier metric artifacts plus the reusable production-Simulator profile.
+- Proves frozen P1 semantic parity and produces P4 portrait/full-tier browser
+  metrics plus reusable Chromium/WebKit fresh/veteran production journeys.
 
 - [ ] **Step 1: Prove the frozen P1 fixture projections unchanged**
 
@@ -6336,22 +5125,21 @@ require byte-identical PNGs. Repeat after context recovery and require the
 frozen tick/state to survive. All visual helpers await this async Probe barrier;
 a live Pixi ticker/foil uniform fails determinism.
 
-Add a tested `production` Simulator profile that opens a deterministic Lab
-combat URL and reads `window.__probe.ui()`/behaviour trace. It drives the real
-stage router, pointer cancel, shake and
-`window.__probe.loseRendererContextForTest()` seam;
-it never references `window.__pixiSpike`. The P0.5 `spike` profile remains only
-for replaying the archived decision surface while its worktree exists. Its pure
-test requires the inherited NDJSON/text failure-artifact contract.
+Add `production-profile.spec.js`: a deterministic Lab combat journey that reads
+`window.__probe.ui()` and the behaviour trace, drives the real stage router,
+pointer cancel, shake and `loseRendererContextForTest()` seam, and runs in
+desktop Chromium plus phone/pad-shaped Playwright WebKit projects. The automatic
+trace fixture attaches NDJSON/text on failure.
 
 Add Node-pure fresh/veteran storage-fixture builders for the final commercial
 smoke. Fresh removes run/stats/Vigil keys. Veteran emits a save-compatible
 post-Phase2 Vigil/stats profile with every reveal, completed Rose Window shards,
 grown title/Vigil/sealed-door surfaces, unlocked second aspect and a non-zero
 Vow. Validate both through the real load/migration APIs in pure tests; never
-hand a browser an unvalidated arbitrary storage blob. Freeze the profile matrix
-to iPhone 17 Pro portrait and iPad mini (A17 Pro) landscape, each run once as
-fresh and veteran (four rows).
+hand a browser an unvalidated arbitrary storage blob. Freeze the browser matrix
+to Chromium desktop plus Playwright WebKit iPhone 17 Pro portrait and the exact
+`iPad Mini landscape` preset, with fresh and veteran journeys in each mobile-
+shaped project.
 
 - [ ] **Step 3: Extend performance outputs without changing Phase 2 policy**
 
@@ -6371,12 +5159,10 @@ gate; this FPS/frame-time policy does not silently redefine it.
 
 - [ ] **Step 4: Extend workflows phase-applicably**
 
-Run WebKit semantic projects, bundle checker and P4 recovery tests in CI. Nightly
-perf records both tiers. Manual Simulator workflow runs the narrow representative
-smoke on browser-contract changes and the full matrix at this gate; its validated
-surface default changes from `dom` to `production`. Update the
-agent module graph and docs index with the Pixi lifecycle, renderer/router seam,
-Probe v2, Simulator production profile and P4 standing gates in this same task.
+Run WebKit semantic projects, production-profile journeys, bundle checker and
+P4 recovery tests in CI. Nightly perf records both tiers. Update the agent
+module graph and docs index with the Pixi lifecycle, renderer/router seam,
+Probe v2 and cumulative P4 browser gates in this same task.
 
 Extend `update-baselines.yml` to run the Node-pure
 `tools/write-baseline-manifest.mjs` after Linux capture. Its uploaded artifact
@@ -6406,11 +5192,11 @@ manifest-listed Linux files and prints their sorted paths. Import-safe tests
 cover head mismatch, traversal, missing/extra/hash failure and all-or-nothing
 copy.
 
-Add package script `test:simulator:profiles` for that exact four-row matrix.
-Each row injects the validated profile on the app origin, reloads, drives real
-title/Vigil/Embark/map/combat controls through Probe/stage pointer paths, and
-writes JSON, screenshot, `.text` and `.ndjson`. It is functional evidence, not
-a performance claim.
+Extend `test:e2e:webkit` to include the production-profile journey. Each row
+injects the validated fixture on the app origin, reloads, drives real Title,
+Vigil, Embark, map and combat controls through Probe/stage pointer paths, and
+emits ordinary Playwright report/attachments. The journey makes no branded-
+Safari, Simulator, hardware or mobile-support claim.
 
 - [ ] **Step 5: Commit and push the exact P4 visual source head**
 
@@ -6424,15 +5210,13 @@ node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit
 node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
 PERF=1 PERF_TIER=full node tools/run-with-strict-e2e-port.mjs -- npx playwright test perf --project=desktop --workers=1 --no-deps
 node tools/check-bundle-budget.mjs
-node --test test/simulator/*.test.mjs
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test production-profile \
+  --project=desktop --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps
 git add test/e2e/trace.spec.js test/e2e/perf.spec.js playwright.config.js \
   test/e2e/visual-policy.js test/e2e/helpers.js test/e2e/pixi.spec.js \
-  test/e2e/visual.spec.js \
-  package.json package-lock.json test/simulator/production-profile.test.mjs \
-  test/simulator/profile-fixtures.mjs test/simulator/profile-fixtures.test.mjs \
-  test/simulator/assertions.mjs test/simulator/run.mjs \
+  test/e2e/visual.spec.js test/e2e/production-profile.spec.js \
+  test/fixtures/round5-profile-fixtures.js package.json package-lock.json \
   .github/workflows/ci.yml .github/workflows/perf.yml \
-  .github/workflows/simulator-safari.yml \
   .github/workflows/update-baselines.yml \
   tools/write-baseline-manifest.mjs tools/run-baseline-workflow.mjs \
   tools/install-baseline-artifact.mjs \
@@ -6523,20 +5307,23 @@ node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e
 node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit
 node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
 PERF=1 PERF_TIER=full node tools/run-with-strict-e2e-port.mjs -- npx playwright test perf --project=desktop --workers=1 --no-deps
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test \
+  trace input-router pixi production-profile --project=desktop \
+  --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps
 node tools/check-bundle-budget.mjs
 node tools/verify-production-surface.mjs
-npm run test:simulator:full -- --surface production
 git diff --check
 ```
 
 - [ ] **Step 2: Record non-command evidence**
 
-Record trace parity, pointer/cancel/lost-capture, context recovery, shake motion,
-bfuiedit/bfedit, all stage shapes, cold-preload fallback, Darwin/Linux baseline
-review and exact Simulator rows. Record portrait/LITE and desktop/Full values
-plus any `PERF_WARNING`; a valid target miss alone cannot select a prefix exit
-or block `GO TO P5`. Missing/invalid/crashed measurements remain blocking. Do
-not report hardware performance.
+Record cumulative trace parity, pointer/cancel/lost-capture, context recovery,
+shake motion, Chromium/WebKit production-profile journeys, bfuiedit/bfedit, all
+stage shapes, cold-preload fallback and Darwin/Linux baseline review. Record
+portrait/LITE and desktop/Full values plus any `PERF_WARNING`; a valid target
+miss alone cannot select a prefix exit or block `GO TO P5`. Missing, invalid or
+crashed measurements remain blocking. State explicitly that the gate makes no
+actual-Safari, Simulator, hardware, packaging or mobile-support claim.
 
 - [ ] **Step 3: Obtain independent review**
 
@@ -6814,9 +5601,9 @@ post-cycle heap samples. Fail rather than substituting an implicit/browser GC
 when CDP is unavailable. Managed entries ≤24; RGBA allocation within tier cap;
 identical post-warm cycles leave texture count/bytes unchanged; the median of
 three post-GC heap samples grows by at most `max(5 MiB, 15% of baseline)`.
-Label all numbers host-relative. WebKit and Simulator retain cache/count and
-functional checks but are explicitly excluded from the deterministic heap
-claim.
+Label all numbers host-relative. Playwright WebKit retains cache/count and
+functional checks but is explicitly excluded from the deterministic Chromium
+CDP heap claim.
 
 Sample pile counts, End Turn, lantern/energy and representative HUD/status text
 from the final P5 canvas and require measured local contrast ≥4.5:1; keep the
@@ -6831,9 +5618,9 @@ fixtures or mutate its three inherited Linux baselines as cleanup.
 
 - [ ] **Step 4: Extend scripts/workflows**
 
-Add `test:e2e:leak`; run it single-worker. P5 CI runs full Chromium, WebKit,
-bundle, context recovery and cache checks. Nightly records full-tier perf/leak;
-Simulator runs the full matrix at this gate.
+Add `test:e2e:leak`; run it single-worker. P5 CI runs cumulative Chromium,
+Playwright WebKit, production-profile, bundle, context recovery, cache and leak
+checks. Nightly records full-tier perf/leak.
 
 - [ ] **Step 5: Commit and push the exact P5 visual source head**
 
@@ -6848,11 +5635,12 @@ node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:leak
 node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
 node tools/check-bundle-budget.mjs
 node tools/verify-production-surface.mjs
-npm run test:simulator:full -- --surface production
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test production-profile \
+  --project=desktop --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps
 git add test/e2e/leak.spec.js test/e2e/battle.spec.js test/e2e/perf.spec.js \
   src/styles.css package.json package-lock.json \
   playwright.random-agent.config.js .github/workflows/ci.yml \
-  .github/workflows/perf.yml .github/workflows/simulator-safari.yml \
+  .github/workflows/perf.yml \
   test/test_engine.js CONTEXT.md docs/README.md
 npm run test:round5:standing -- --profile p5
 git commit -m "test: prepare the P5 combat gates"
@@ -6913,7 +5701,8 @@ node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:leak
 node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
 node tools/check-bundle-budget.mjs
 node tools/verify-production-surface.mjs
-npm run test:simulator:full -- --surface production
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test production-profile \
+  --project=desktop --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps
 node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual
 git add test/e2e/visual.spec.js-snapshots
 npm run test:round5:standing -- --profile p5
@@ -6949,17 +5738,19 @@ PERF=1 PERF_TIER=full node tools/run-with-strict-e2e-port.mjs -- npx playwright 
 node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:leak
 node tools/check-bundle-budget.mjs
 node tools/verify-production-surface.mjs
-npm run test:simulator:full -- --surface production
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test production-profile \
+  --project=desktop --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps
 npm run test:round5:standing -- --profile p5
 git diff --check
 ```
 
-Require P1/P4/P5 trace
-parity, exact DOM list, one composer, keyboard path, recovery, cache/heap/bundle/
-perf and Darwin/Linux visual approval. Record valid performance target misses
+Require P1/P4/P5 Chromium/WebKit trace parity, exact DOM list, one composer,
+keyboard path, real pointer/cancel, recovery, production-profile journeys,
+cache/heap/bundle/perf and Darwin/Linux visual approval. Record valid performance target misses
 as `PERF_WARNING`; they cannot by themselves select `P5 PREFIX EXIT` or block
 `GO TO P6`. The declared heap leak/cache/bundle invariants and invalid/crashed
-performance evidence remain blocking.
+performance evidence remain blocking. The decision makes no actual-Safari,
+Simulator, hardware, packaging or mobile-support claim.
 
 - [ ] **Step 2: Generate the cross-lane manifest**
 
@@ -7208,9 +5999,7 @@ git commit -m "feat: add Fall and Dawn ceremonies"
 - Modify: `src/ui/screens/reward.js`, `shop.js`, `event.js`, `rest.js`, `lamplighter.js`, `vigil.js`, `map.js`
 - Create: `test/e2e/p6-screens.spec.js`, `test/e2e/contrast.spec.js`, `tools/capture-round5-contact-sheets.mjs`
 - Modify: `test/e2e/visual.spec.js`
-- Create: `test/simulator/screens-profile.test.mjs`
-- Modify: `test/simulator/assertions.mjs`, `test/simulator/run.mjs`
-- Modify: `package.json`
+- Modify: `package.json`, `test/test_ci_contract.mjs`
 
 **Interfaces:**
 - Produces all P6 markup/state seams and deterministic fresh/grown capture URLs.
@@ -7246,10 +6035,29 @@ Vigil; and map. The table covers all five canonical shapes at least once and
 both profile states for each screen family. Add the cases now, but do not create
 their baselines until the Task 37 owner gate.
 
-Add a pure Simulator `production/screens` journey contract that visits the
-deterministic Title/Embark, reward-family, rest-family, lamplighter-family,
-Vigil and map scenarios, waits `settle()` and checks trace/overflow/viewport.
-It inherits and asserts the NDJSON/text failure-artifact paths.
+Extend `test/e2e/p6-screens.spec.js` with an explicit Chromium/WebKit journey
+covering deterministic Title/Embark, reward-family, rest-family, lamplighter-
+family, Vigil and map scenarios. Each project waits `settle()`, checks trace,
+overflow, viewport and safe-area facts, and inherits NDJSON/text failure
+attachments from the shared trace fixture.
+
+Extend `test/test_ci_contract.mjs` first to require the exact cumulative
+`test:e2e:webkit` script to contain `trace`, `stage`, `lab`, `theme-profile`,
+`production-profile` and `p6-screens`, retain both WebKit projects and one
+worker, and require the existing CI WebKit job to invoke that package script.
+Capture the focused RED before changing `package.json`:
+
+```bash
+set -euo pipefail
+RED_LOG=$(mktemp)
+if node test/test_ci_contract.mjs >"$RED_LOG" 2>&1; then
+  rm -f "$RED_LOG"
+  echo 'expected cumulative WebKit screens assertion to fail' >&2
+  exit 1
+fi
+rg 'p6-screens|test:e2e:webkit' "$RED_LOG"
+rm -f "$RED_LOG"
+```
 
 - [ ] **Step 2: Implement stable markup/wiring**
 
@@ -7263,6 +6071,15 @@ real state owners and the Task 6 audio/trace characterisation while applying
 screen presentation. The FE contract may align visual beats but cannot mark,
 wire, defer or replace a cue. A forced gallery preview cannot replace the
 gameplay evidence, and `sealedDoor` remains a non-path promise.
+
+Update `test:e2e:webkit` to:
+
+```json
+"test:e2e:webkit": "playwright test trace stage lab theme-profile production-profile p6-screens --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps"
+```
+
+Run `node test/test_ci_contract.mjs`; expected GREEN with the existing CI job
+still invoking the cumulative script.
 
 - [ ] **Step 3: Implement the capture script**
 
@@ -7281,17 +6098,17 @@ one sheet per screen with separate base and Phase-2-substate sections under
 
 ```bash
 set -euo pipefail
+node test/test_ci_contract.mjs
 npm test
 node tools/run-with-strict-e2e-port.mjs -- npx playwright test p6-screens contrast trace --project=desktop --workers=1 --no-deps
-node --test test/simulator/screens-profile.test.mjs
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test p6-screens \
+  --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps
 git add src/ui/screens/reward.js src/ui/screens/shop.js \
   src/ui/screens/event.js src/ui/screens/rest.js \
   src/ui/screens/lamplighter.js src/ui/screens/vigil.js \
   src/ui/screens/map.js test/e2e/p6-screens.spec.js test/e2e/contrast.spec.js \
-  test/e2e/visual.spec.js \
-  tools/capture-round5-contact-sheets.mjs package.json package-lock.json \
-  test/simulator/screens-profile.test.mjs test/simulator/assertions.mjs \
-  test/simulator/run.mjs
+  test/e2e/visual.spec.js tools/capture-round5-contact-sheets.mjs \
+  package.json test/test_ci_contract.mjs
 npm run test:round5:standing -- --profile p5
 git commit -m "feat: harden the remaining Round 5 screens"
 ```
@@ -7442,7 +6259,6 @@ git commit -m "docs: approve the P6 FE contact-sheet pre-filter"
 - Modify: `docs/superpowers/reports/2026-07-10-round5-p6-capture-evidence.md`, `docs/superpowers/artifacts/round5-p6-contact-sheets/**`
 - Modify: visual baselines only after sign-off, `CONTEXT.md`, `docs/README.md`
 - Prefix only: generated `dist/**`
-- Create: `docs/superpowers/artifacts/round5-p6-simulator-smoke/**`
 
 **Interfaces:**
 - Consumes the owner's non-delegable taste decision and produces the PE-owned
@@ -7523,8 +6339,8 @@ not accepted. Visual approval of `sealedDoor` never authorises an Act 4 route.
 
 First require the final FE merge/correction head to be committed and clean,
 push it, and use `apply_patch` to append `P6 baseline source: <actual HEAD>` to
-the ignored ledger. Then execute the complete local/remote install and
-Simulator flow; any correction creates a new source commit/SHA, appends a new
+the ignored ledger. Then execute the complete local/remote baseline and browser
+flow; any correction creates a new source commit/SHA, appends a new
 ledger row and repeats the block. Require suite key `p6Screens` and the
 unchanged fixed `0.01` policy before capture.
 
@@ -7547,15 +6363,16 @@ node tools/install-baseline-artifact.mjs \
   --expect-sha "$P6_SOURCE_SHA" \
   --destination test/e2e/visual.spec.js-snapshots
 node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual
-npm run test:simulator:smoke -- --surface production --journey screens
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test p6-screens \
+  --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps
 npm run test:round5:standing -- --profile p6
 ```
 
-Promote the two Simulator JSON/screenshots/text/NDJSON rows plus their
-source-SHA/path/bytes/SHA-256 manifest into the declared P6 artifact directory,
-and promote the final contact-sheet manifest/captures from Step 1. The baseline
-helper rejects a workflow `headSha` mismatch and the installer rejects all
-manifest/path/hash drift.
+Promote the final contact-sheet manifest/captures from Step 1. Playwright keeps
+its report and trace attachments under neutral browser evidence; none is
+renamed or promoted as actual-Safari/Simulator evidence. The baseline helper
+rejects a workflow `headSha` mismatch and the installer rejects all manifest/
+path/hash drift.
 
 Record any valid FPS/frame-time `PERF_WARNING` without changing the decision;
 it cannot by itself force `P6 PREFIX EXIT` or block `GO TO P7`. Invalid/crashed
@@ -7578,7 +6395,8 @@ node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:leak
 node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
 node tools/check-bundle-budget.mjs
 node tools/verify-production-surface.mjs
-npm run test:simulator:smoke -- --surface production --journey screens
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test p6-screens \
+  --project=desktop --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps
 npm run test:round5:standing -- --profile p6
 ```
 
@@ -7589,8 +6407,7 @@ set -euo pipefail
 git add docs/superpowers/reports/2026-07-10-round5-p6-owner-gate.md \
   docs/superpowers/reports/2026-07-10-round5-p6-capture-evidence.md \
   docs/superpowers/artifacts/round5-p6-contact-sheets \
-  test/e2e/visual.spec.js-snapshots CONTEXT.md docs/README.md \
-  docs/superpowers/artifacts/round5-p6-simulator-smoke
+  test/e2e/visual.spec.js-snapshots CONTEXT.md docs/README.md
 npm run test:round5:standing -- --profile p6
 git commit -m "docs: record the P6 owner gate"
 ```
@@ -7605,8 +6422,7 @@ git add dist CONTEXT.md docs/README.md \
   docs/superpowers/reports/2026-07-10-round5-p6-owner-gate.md \
   docs/superpowers/reports/2026-07-10-round5-p6-capture-evidence.md \
   docs/superpowers/artifacts/round5-p6-contact-sheets \
-  test/e2e/visual.spec.js-snapshots \
-  docs/superpowers/artifacts/round5-p6-simulator-smoke
+  test/e2e/visual.spec.js-snapshots
 git diff --cached --check
 npm run test:round5:standing -- --profile p6
 git commit -m "build: ship the Round 5 P6 presentation prefix"
@@ -7941,7 +6757,6 @@ git commit -m "feat: integrate the provisional Round 5 ship-front kit"
 **Files:**
 - Modify: `dist/**`, final visual baselines, `CONTEXT.md`, `docs/README.md`
 - Create: `docs/superpowers/reports/2026-07-10-round5-full-round-gate.md`
-- Create: `docs/superpowers/artifacts/round5-full-simulator-profiles/**`
 
 **Interfaces:**
 - Produces Full-Round completion evidence and a reviewable PR; no hidden claims.
@@ -8065,11 +6880,15 @@ new source SHA plus both platforms again.
 
 Set `BASE=$(git merge-base origin/main HEAD)` and generate the Superpowers final
 code-review package for the exact range `BASE..HEAD`, including every committed
-P0.5–P7 source, test, workflow, evidence and baseline path. A fresh most-capable broad
+P1–P7 source, test, workflow, evidence and baseline path plus the explicit
+retired Task 3/4 tombstone. A fresh most-capable broad
 reviewer performs the additional closure audit only after every unit's fresh
 spec-review/fixes/re-review and separate fresh code-quality-review/fixes/
 re-review cycles are closed. One fixer resolves the closure audit's complete
 Critical/Important list with TDD and exact commits, followed by closure re-review.
+The package includes every applicable Task 5–40 reviewer line
+`WebKit-safe API review: PASS`; the Task 40 closure reviewer independently
+records that same exact line before approval.
 
 Any source, test, config, workflow or baseline fix is committed/pushed and
 returns to Step 1: run its exact store-recapture block when capture inputs
@@ -8096,8 +6915,10 @@ node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:leak
 node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
 node tools/check-bundle-budget.mjs
 node tools/verify-production-surface.mjs
-npm run test:simulator:full -- --surface production
-npm run test:simulator:profiles -- --surface production
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test \
+  trace input-router pixi production-profile p6-screens \
+  --project=desktop --project=iphone-webkit --project=ipad-webkit \
+  --workers=1 --no-deps
 npm run test:round5:standing -- --profile full
 git diff --check
 test "$(node -p 'require("./package.json").version')" = 0.5.0
@@ -8137,23 +6958,24 @@ invalid, wrong-tier, zero/non-finite, no-frame or crashed measurements do fail,
 as do the deterministic bundle, WebGL-owner, texture/cache and declared leak
 gates. Do not rewrite policy or thresholds during closure.
 
-The profile command produces exactly four actual-Simulator Safari rows:
+The production-profile command produces exactly four Playwright WebKit
+browser-emulation rows:
 
 ```text
 iPhone 17 Pro / portrait / fresh
 iPhone 17 Pro / portrait / veteran
-iPad mini (A17 Pro) / landscape / fresh
-iPad mini (A17 Pro) / landscape / veteran
+iPad Mini landscape / fresh
+iPad Mini landscape / veteran
 ```
 
 Fresh clears all profile keys, proves fresh Title→Embark→map, starts a real
 normal encounter and plays one card. Veteran loads the validated grown
 Vigil/stats plus valid Act 3 saved run, proves grown title, completed six-pane
 Rose Window and sealed door, resumes map/combat and plays one card. Every row
-requires settle, zero trace errors/drops/orphans, expected stage shape and one
-real pointer path. PE then manually observes and drives the same checklist once
-on each visible Simulator row; no screenshot-only verdict substitutes for the
-interaction.
+requires settle, zero trace errors/drops/orphans, expected emulated stage shape
+and one real pointer path. The report labels each row Playwright WebKit browser
+evidence and makes no branded-Safari, Simulator, physical-device, packaging or
+mobile-support claim.
 
 After the tracked build, allocate `PREVIEW_PORT` with the standard Node
 ephemeral-port helper and start that exact `dist/` with:
@@ -8182,22 +7004,14 @@ map/combat, plays a card, checks a tooltip and completes one keyboard End Turn.
 For each row the human records browser name/version, preview origin, source SHA,
 `dist/index.html` SHA-256, profile fixture hash, stage shape, every action and
 observed result, plus one explicit `Manual desktop smoke: PASS|FAIL` field in
-the Full-Round report. These two desktop manual rows are separate from and do
-not replace the four actual-Simulator Safari rows.
-
-Promote each row's JSON, screenshot, timestamped text and NDJSON plus a manifest
-containing source SHA/path/media type/bytes/SHA-256 into
-`docs/superpowers/artifacts/round5-full-simulator-profiles/`. The full report has
-one automated and one manual PASS/FAIL field per row and lists the exact
-excluded hardware claims. Verify trace integrity, all owner sign-offs, P7
+the Full-Round report. These two desktop manual rows complement the four
+automated Playwright WebKit rows. The full report has one automated PASS/FAIL
+field per browser row and one manual PASS/FAIL field per desktop row, and lists
+the exact deferred mobile claims. Verify trace integrity, all owner sign-offs, P7
 rerunnable outputs, store-manifest source/input equivalence to final runtime,
 no physical claims and exact FE/PE write history. The normal
 tracked build is deliberately last so `dist/` is made
 from the exact already-tested source. Then run:
-
-Recompute `FULL_PROFILE_SOURCE_SHA=$(git rev-parse HEAD)` immediately before
-promotion and require every row/manifest to equal it; also append it to the SDD
-ledger so no subsequent shell relies on an earlier variable.
 
 ```bash
 set -euo pipefail
@@ -8215,20 +7029,20 @@ returns to this complete Step 3 after repair.
 - [ ] **Step 4: Stage and review the exact final closure tree**
 
 The report names exit contract `Full-Round`, commit ranges, every command and
-result, CI/Simulator environments, bundle/perf/leak numbers, owner gates,
-deferred physical/Capacitor claims and rollback commits.
+result, CI/browser environments, bundle/perf/leak numbers, owner gates, the
+deferred actual-Safari/Simulator/physical/packaging boundary and rollback commits.
+It contains the final exact line `WebKit-safe API review: PASS` and confirms
+that every applicable Task 5–40 review carried the same line.
 
 ```bash
 set -euo pipefail
 git add dist CONTEXT.md docs/README.md \
-  docs/superpowers/reports/2026-07-10-round5-full-round-gate.md \
-  docs/superpowers/artifacts/round5-full-simulator-profiles
+  docs/superpowers/reports/2026-07-10-round5-full-round-gate.md
 git diff --cached --check
 FINAL_CANDIDATE_TREE=$(git write-tree)
 EXPECTED=$({ cat /tmp/spirebound-round5-expected-dist.txt; \
   printf '%s\n' CONTEXT.md docs/README.md \
-    docs/superpowers/reports/2026-07-10-round5-full-round-gate.md; \
-  find docs/superpowers/artifacts/round5-full-simulator-profiles -type f; } | sort -u)
+    docs/superpowers/reports/2026-07-10-round5-full-round-gate.md; } | sort -u)
 ACTUAL=$(git diff --cached --name-only | sort -u)
 test "$ACTUAL" = "$EXPECTED"
 test -z "$(git diff --name-only)"
@@ -8240,8 +7054,7 @@ SDD ledger, reload it, and assert it equals the current `git write-tree` before
 building the closure review package. The reviewer verdict names this durable
 hash. Each repair-loop restage appends a new row; only the last row is active.
 
-The only staged paths are the declared `dist/**`, final Simulator profile
-artifacts and final status/report docs;
+The only staged paths are the declared `dist/**` and final status/report docs;
 P7 baselines are already committed in Step 1. Generate a second review package
 containing: `origin/main...HEAD`; the complete `git diff --cached`; every
 staged path/mode/blob id from `git ls-files -s`; SHA-256 for staged report and
@@ -8255,7 +7068,7 @@ Repair loop is binding:
 - A source/test/config/workflow/baseline finding is unstaged, fixed with TDD,
   committed and pushed, then returns to Step 1 for both baselines, FE review
   plus both ordered reviewer cycles,
-  the complete Step 3 gate/Simulator/build and both reviewers.
+  the complete Step 3 browser gate/build and both reviewers.
 - A generated-`dist` finding reruns the complete Step 3 and this staged review.
 - A report/status-doc-only finding is patched, restaged and re-reviewed; it
   cannot change a claim without matching recorded evidence.
@@ -8280,8 +7093,7 @@ test -z "$(git ls-files --others --exclude-standard)"
 git diff --cached --check
 EXPECTED=$({ cat /tmp/spirebound-round5-expected-dist.txt; \
   printf '%s\n' CONTEXT.md docs/README.md \
-    docs/superpowers/reports/2026-07-10-round5-full-round-gate.md; \
-  find docs/superpowers/artifacts/round5-full-simulator-profiles -type f; } | sort -u)
+    docs/superpowers/reports/2026-07-10-round5-full-round-gate.md; } | sort -u)
 ACTUAL=$(git diff --cached --name-only | sort -u)
 test "$ACTUAL" = "$EXPECTED"
 test "$(git write-tree)" = "$FINAL_CANDIDATE_TREE"
@@ -8319,12 +7131,13 @@ has merged and post-merge tests pass.
 - [ ] Every golden-spec requirement maps to a numbered task or explicit out-of-scope constraint.
 - [ ] Every product file has one PE owner; FE paths match the exact exclusive manifest.
 - [ ] No task contains an unresolved placeholder, hidden numeric choice or unspecified interface.
-- [ ] P0.5/P1/P2/P3/P4/P5/P6/P7 order and P4/P5/P6 prefix exits are explicit.
+- [ ] P1/P2/P3/P4/P5/P6/P7 order, the retired/reserved Task 3/4 tombstone and P4/P5/P6 prefix exits are explicit.
 - [ ] Trace event/lifecycle/cursor/replay names are identical across tasks.
 - [ ] P4/P5 renderer, router, probe and card-composer signatures are type-consistent.
 - [ ] Each runtime task has a RED command, a focused GREEN command, phase-applicable gates and an exact commit boundary.
 - [ ] Content Manager remains optional; its tests are conditional when omitted.
-- [ ] Simulator results are compatibility evidence only; no physical-device gate appears.
+- [ ] Round 5 makes no actual Safari/Simulator/mobile-support claim; the linked deferred design remains non-executable.
+- [ ] Every applicable Task 5–40 review and the final closure record the exact line `WebKit-safe API review: PASS`; it is browser-portability review, not Safari/WKWebView/mobile proof.
 - [ ] Phase 2 terminal/Dawn/Hollow/Shard/choice-latch, PR #15 hot apply and PR #16's 22-cue resolver/live call sites each retain one named owner and focused characterisation.
 - [ ] P2 exposes exactly 28 content views plus four non-pack protocol exports; recursive freeze has no closure-backed accessors.
 - [ ] P2 production/dev contexts consume generated paired-registration

@@ -20,8 +20,10 @@ Quick map for agents and humans. Operational truth for running the game lives in
 
 | Doc | Status |
 |---|---|
-| [`superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md`](superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md) | **Golden design** — PE-led commercial-grade production engineering with a small, isolated FE presentation lane; content registries, Semantic UI Behaviour Trace, Pixi combat UI, screen hardening, and ship-front. Progressive Delivery Phase 2 must merge before runtime execution |
-| [`research/2026-07-10-ui-behaviour-trace-ios-simulator.md`](research/2026-07-10-ui-behaviour-trace-ios-simulator.md) | Primary-source research: structured AI-readable behaviour traces, Playwright/WebDriver consumption, Simulator evidence limits, and the owner decision to defer physical-device proof |
+| [`superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md`](superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md) | **Golden design** — PE-led commercial-grade production engineering with a small, isolated FE presentation lane; execution begins at P1 after loaded-predecessor/drift validation and proceeds through cumulative Playwright Chromium/WebKit browser gates |
+| [`superpowers/plans/2026-07-10-round5-production-engineering.md`](superpowers/plans/2026-07-10-round5-production-engineering.md) | **Active executor** — P1-first Task 5–40 plan; retired Task 3/4 numbers are non-executable historical tombstones; semantic trace, registries, Pixi combat, screen hardening and ship-front use strict-port Chromium/WebKit journeys |
+| [`superpowers/specs/2026-07-11-mobile-migration-simulator-tooling-design.md`](superpowers/specs/2026-07-11-mobile-migration-simulator-tooling-design.md) | **Deferred / non-executable** — future actual Safari/iOS Simulator automation design; requires explicit owner activation, fresh drift audit, a separate tool plan and tool-maturity proof |
+| [`research/2026-07-10-ui-behaviour-trace-ios-simulator.md`](research/2026-07-10-ui-behaviour-trace-ios-simulator.md) | **Historical / superseded for Round 5 execution** — primary-source evidence boundaries and semantic-trace research; dated toolchain snapshot is non-current and any future mobile use flows through the deferred design |
 
 ## Active implementation specs
 
