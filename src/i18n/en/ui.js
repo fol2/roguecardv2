@@ -123,6 +123,8 @@ export const ui = {
     whisperLogTitle: 'Whispers heard at dawn',
     finalWhisper: 'The final whisper returns at every dawn.',
     shardRecovered: '{name}, Shard recovered',
+    shardRecoveredShort: 'Shard recovered',
+    paneDark: 'This pane is dark.',
   },
 
   lamp: {

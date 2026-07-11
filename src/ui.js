@@ -872,7 +872,7 @@ function rosePaneCopy(vigil, id, record) {
     <div class="rose-pane-inscription">${escHtml(disclosure.inscription)}</div>
     <div class="rose-pane-progress">${disclosure.progress}/${disclosure.target}</div>`;
   if (record.state === 'complete') return `<div class="rose-pane-name">${escHtml(quest.name)}</div>
-    <div class="rose-pane-progress">Shard recovered</div>`;
+    <div class="rose-pane-progress">${escHtml(tr('ui.rose.shardRecoveredShort'))}</div>`;
   return '';
 }
 
@@ -880,12 +880,12 @@ function rosePaneControl(vigil, id, record, index, selected, assets) {
   const state = record.state;
   const disclosure = E.questDisclosure(vigil, id);
   const name = state === 'dormant'
-    ? `Dormant Emberglass pane ${index + 1}`
+    ? tr('ui.rose.dormantPane', { n: index + 1 })
     : state === 'armed'
-      ? `Unknown Emberglass pane ${index + 1}`
+      ? tr('ui.rose.unknownPane', { n: index + 1 })
       : state === 'revealed'
         ? `${disclosure.name}, ${disclosure.progress} of ${disclosure.target}`
-        : `${QUESTS[id].name}, Shard recovered`;
+        : tr('ui.rose.shardRecovered', { name: QUESTS[id].name });
   const [x, y] = ROSE_LABEL_POSITIONS[index];
   const style = assets ? ` style="--rose-x:${x}%;--rose-y:${y}%"` : '';
   return `<button type="button" class="rose-pane-select${assets ? '' : ' slot-control'}" data-a="rose-pane" data-index="${index}"
@@ -900,8 +900,8 @@ function roseDetailCopy(vigil, id, record) {
     <div class="rose-detail-inscription">${escHtml(disclosure.inscription)}</div>
     <div class="rose-detail-progress">${disclosure.progress}/${disclosure.target}</div>`;
   if (record.state === 'complete') return `<div class="rose-detail-name">${escHtml(quest.name)}</div>
-    <div class="rose-detail-progress">Shard recovered</div>`;
-  return '<div class="rose-detail-dormant">This pane is dark.</div>';
+    <div class="rose-detail-progress">${escHtml(tr('ui.rose.shardRecoveredShort'))}</div>`;
+  return `<div class="rose-detail-dormant">${escHtml(tr('ui.rose.paneDark'))}</div>`;
 }
 
 function rosePaneDetailHtml(v, index) {
@@ -909,7 +909,7 @@ function rosePaneDetailHtml(v, index) {
   const record = v.quests[id] || { state: 'dormant', progress: 0, memory: {} };
   const state = ['armed', 'revealed', 'complete'].includes(record.state) ? record.state : 'dormant';
   return `<section id="rose-pane-detail" class="rose-pane-detail ${state}" role="region"
-    aria-label="Selected Emberglass pane" aria-live="polite" data-index="${index}">${roseDetailCopy(v, id, { ...record, state })}</section>`;
+    aria-label="${escHtml(tr('ui.rose.selectedPane'))}" aria-live="polite" data-index="${index}">${roseDetailCopy(v, id, { ...record, state })}</section>`;
 }
 
 function initialRosePaneIndex(v) {
@@ -946,7 +946,7 @@ function whisperLogHtml(v) {
   const heard = WHISPERS.slice(0, Math.min(v.whispers, WHISPERS.length));
   const rows = heard.map((line, i) => `<div class="whisper-row"><span>${i + 1}</span><i>${escHtml(line)}</i></div>`);
   if (v.whispers > WHISPERS.length) {
-    rows.push('<div class="whisper-row final"><span>∞</span><i>${tr('ui.rose.finalWhisper')}</i></div>');
+    rows.push(`<div class="whisper-row final"><span>∞</span><i>${escHtml(tr('ui.rose.finalWhisper'))}</i></div>`);
   }
   return `<div class="whisper-log">
     <div class="whisper-log-title">${tr('ui.rose.whisperLogTitle')}</div>
