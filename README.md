@@ -58,6 +58,8 @@ npm run test:e2e   # Playwright visual-QA kit (needs dev server on 5174 + Chromi
 
 `npm run test:e2e:update` refreshes screenshot baselines; `npm run test:e2e:perf` records the standalone FPS/frame-time reference and warns on target misses. See `docs/superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md` §3 for the full harness contract. Documentation index: [`docs/README.md`](docs/README.md).
 
+App version: `package.json` is the source of truth; the title screen shows it. See [`docs/app-versioning.md`](docs/app-versioning.md).
+
 CI uses two pull-request modes. Draft pushes run `npm test`, `npm run build`,
 and `npm run test:e2e:smoke` in parallel. Marking a PR Ready for review runs
 the complete Playwright gate across isolated random-agent, main, serial-heavy,
