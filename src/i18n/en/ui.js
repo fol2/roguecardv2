@@ -92,6 +92,10 @@ export const ui = {
     victory: 'VICTORY',
     eliteSlain: 'ELITE SLAIN',
     bossVanquished: 'BOSS VANQUISHED',
+    leaveConfirmTitle: 'Leave Rewards Behind?',
+    leaveConfirmBody: 'You still have unclaimed spoils on the glass. Move on without them?',
+    leaveConfirmYes: 'Leave Them',
+    leaveConfirmNo: 'Stay',
   },
 
   end: {

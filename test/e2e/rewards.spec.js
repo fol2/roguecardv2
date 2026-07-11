@@ -221,3 +221,56 @@ test.describe('reward tap guards', () => {
     expectNoErrors(errors, 'event reload during pending');
   });
 });
+
+test.describe('reward leave confirm', () => {
+  test('Continue with untaken spoils asks before leaving', async ({ page }) => {
+    const errors = collectErrors(page);
+    await boot(page, { query: 'mesh=0' });
+    await page.evaluate(() => {
+      const sp = window.spirebound;
+      sp.E.setPendingReward(sp.S.run, 'normal', {
+        gold: 25,
+        cards: ['strike', 'defend', 'chisel'],
+        potion: null,
+        relic: null,
+      });
+      sp.show('reward');
+    });
+    await expect(page.locator('.reward-row .ui-icon').first()).toBeVisible();
+    await page.locator('button.btn-primary', { hasText: 'Continue' }).click();
+    await expect(page.locator('#overlay.open .ov-title')).toHaveText('Leave Rewards Behind?');
+    await page.locator('#overlay [data-a="no"]').click();
+    await expect(page.locator('#overlay.open')).toHaveCount(0);
+    expect(await page.evaluate(() => window.spirebound.S.screen)).toBe('reward');
+    expect(await page.evaluate(() => !!window.spirebound.S.run.pendingReward)).toBe(true);
+
+    await page.locator('button.btn-primary', { hasText: 'Continue' }).click();
+    await page.locator('#overlay [data-a="yes"]').click();
+    await settle(page);
+    expect(await page.evaluate(() => window.spirebound.S.screen)).toBe('map');
+    expect(await page.evaluate(() => window.spirebound.S.run.pendingReward)).toBe(null);
+    expectNoErrors(errors, 'reward leave confirm');
+  });
+
+  test('Continue after claiming every row skips the confirm', async ({ page }) => {
+    const errors = collectErrors(page);
+    await boot(page, { query: 'mesh=0' });
+    await page.evaluate(() => {
+      const sp = window.spirebound;
+      sp.E.setPendingReward(sp.S.run, 'normal', {
+        gold: 12,
+        cards: ['strike', 'defend', 'chisel'],
+        potion: null,
+        relic: null,
+      });
+      sp.E.takePendingReward(sp.S.run, 'gold');
+      sp.E.takePendingReward(sp.S.run, 'card', null);
+      sp.show('reward');
+    });
+    await page.locator('button.btn-primary', { hasText: 'Continue' }).click();
+    await settle(page);
+    await expect(page.locator('#overlay.open')).toHaveCount(0);
+    expect(await page.evaluate(() => window.spirebound.S.screen)).toBe('map');
+    expectNoErrors(errors, 'reward leave after claim');
+  });
+});

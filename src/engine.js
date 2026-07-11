@@ -256,6 +256,17 @@ export function takePendingReward(run, key, cardId = null) {
 export function clearPendingReward(run) {
   run.pendingReward = null;
 }
+
+/** True when the victory panel still has an offered reward row left untaken. */
+export function pendingRewardHasUntaken(run) {
+  const pending = run.pendingReward;
+  if (!pending) return false;
+  const { rewards, taken } = pending;
+  if (!taken.gold || !taken.card) return true;
+  if (rewards.potion && !taken.potion) return true;
+  if (rewards.relic && !taken.relic) return true;
+  return false;
+}
 // vows stack: at Vow N, vows 1..N are all in force. Reads VOWS[i].mods.
 export function vowMods(run) {
   const m = { hpMult: 1, enemyDmgBonus: 0, bossFacetDelta: 0, startHex: false };

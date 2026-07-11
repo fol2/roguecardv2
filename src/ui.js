@@ -4562,7 +4562,7 @@ function renderReward() {
     list.appendChild(row);
     return row;
   };
-  addRow('gold', iconSvg('coin', 18), `<b class="gold-num">${rewards.gold}</b> gold`,
+  addRow('gold', uiIcon('coin', 28), `<b class="gold-num">${rewards.gold}</b> gold`,
     () => E.takePendingReward(run, 'gold'), () => {
       sfx.coin();
       // the coins travel to the purse only after their taken flag is durable
@@ -4600,16 +4600,37 @@ function renderReward() {
         });
       }, { title: r.name, body: r.text });
   }
-  const cardRow = addRow('card', iconSvg('cards', 26), 'Add a card to your deck');
+  const cardRow = addRow('card', uiIcon('deck', 28), 'Add a card to your deck');
   cardRow.dataset.cardrow = '1';
   if (!taken.card) cardRow.onclick = () => pickCardReward(rewards.cards);
 
-  $('[data-a="continue"]', sc).onclick = () => {
-    sfx.click();
+  const leaveReward = () => {
     E.clearPendingReward(run);
     const continueReward = () => { if (kind === 'boss') show('bossRelic'); else show('map'); };
     if (!requireRunSave(run, continueReward)) return;
     continueReward();
+  };
+  $('[data-a="continue"]', sc).onclick = () => {
+    sfx.click();
+    if (!E.pendingRewardHasUntaken(run)) {
+      leaveReward();
+      return;
+    }
+    openOverlay(`<div class="panel ov-panel" style="text-align:center">
+      <div class="ov-title">${tr('ui.reward.leaveConfirmTitle')}</div>
+      <div class="ov-sub">${tr('ui.reward.leaveConfirmBody')}</div>
+      <div class="ov-actions"><button class="btn danger" data-a="yes">${tr('ui.reward.leaveConfirmYes')}</button><button class="btn ghost" data-a="no">${tr('ui.reward.leaveConfirmNo')}</button></div>
+    </div>`, (root) => {
+      root.onclick = (e) => {
+        const a = e.target.dataset.a;
+        if (a === 'yes') {
+          root.onclick = null;
+          closeOverlay();
+          leaveReward();
+        }
+        if (a === 'no') closeOverlay();
+      };
+    });
   };
 
   function pickCardReward(ids) {

@@ -1656,9 +1656,15 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   transition: border-color 0.15s, transform 0.15s; text-align: left;
 }
 .reward-row:not(.taken):hover { border-color: var(--gold); transform: translateX(4px); }
-.reward-row .ric { font-size: 24px; width: 36px; text-align: center; }
+.reward-row .ric {
+  font-size: 24px; width: 36px; text-align: center;
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
 .reward-row.taken { opacity: 0.4; pointer-events: none; text-decoration: line-through; }
-.reward-row svg { width: 30px; height: 38px; }
+.reward-row .ric .ui-icon,
+.reward-row .ric .raster-art,
+.reward-row .ric .relic-art { width: 30px; height: 30px; object-fit: contain; }
+.reward-row .ric svg { width: 30px; height: 30px; }
 /* crafted cascade: list children arrive lit, row by row */
 @keyframes listIn { from { opacity: 0; transform: translateY(10px); filter: blur(6px); } }
 .reward-list .reward-row, .shop-row .shop-item, .deed-list .deed-row {
