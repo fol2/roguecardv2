@@ -1,13 +1,13 @@
 // SPIREBOUND UI — screens, combat playback, interactions.
 import * as E from './engine.js';
 import { CARDS, RELICS, POTIONS, ENEMIES, EVENTS, ACTS, STATUS_INFO, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, DEEDS, QUESTS, QUEST_IDS, TERMINAL_OUTCOMES, WHISPERS, PROGRESSION } from './data.js';
-import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, uiIcon, uiIconUrl, crackSvg, assetUrl, assetList, assetSetIds, assetSetLabel, hasIcon } from './art.js';
+import { enemySvg, heroSvg, cardArtSvg, potionSvg, chestSvg, campfireSvg, merchantSvg, eventArtSvg, iconSvg, iconInline, uiIcon, uiIconUrl, crackSvg, assetUrl, assetSetIds, assetSetLabel, hasIcon } from './art.js';
 import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule, drawBatchSchedule } from './pile-chrome.js';
 import { UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyphId } from './ui-chrome.js';
 // drawBatchSchedule also paces discardHand (same even-stagger clock)
 import * as V from './vfx.js';
 import * as Vigil from './vigil.js';
-import { sfx, unlock, getSfxVolume, setSfxVolume, isSfxMuted, setSfxMuted, previewSfx, invalidateSfxSelection, preloadSfx, setSfxObservationSink } from './audio.js';
+import { sfx, unlock, previewSfx, invalidateSfxSelection, preloadSfx, setSfxObservationSink } from './audio.js';
 import * as music from './music.js';
 import { SFX_CATALOG, MUSIC_CATALOG } from './audio-catalog.js';
 import { applyAudioSelection, getAudioOverrideRefs, getAudioPackDefaultRef, getAudioSelection, getAudioSelectionProblems, getAudioSource, getAudioVersions } from './audio-assets.js';
@@ -15,47 +15,24 @@ import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clea
 import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift, meshAim, meshAimClear, meshWard } from './mesh.js';
 import { charShadowLive, charCssFloat, charAim, onCharMetaChange } from './char-meta.js';
 import { t as lookupTr, getLocale } from './i18n/index.js';
-import { createBehaviourTrace } from './ui/behaviour-trace.js';
-import { createPresentationBarrier } from './ui/presentation-barrier.js';
 import { createRunEffects } from './ui/run-effects.js';
+import { $, $$, COARSE, FINE, S, el, escHtml, presentationBarrier, screenEl, sleep, trace } from './ui/context.js';
+import { REDUCED } from './ui/policy.js';
+import { ROMAN } from './ui/format.js';
+import { getRoseState, roseAssets, setDisclosedRoseStateIds, setForceRoseFallback, setRoseAssetsReady } from './ui/rose.js';
+import { aimRing, combatantView, heroArt, hudRelic, metaBg, omenIconName, omenMark, rasterOr, relicArt, sceneBg } from './ui/assets.js';
+import { createTooltip } from './ui/tooltip.js';
+import { createOverlay } from './ui/overlay.js';
+import { bindUICommands } from './ui/commands.js';
+import { createNavigator } from './ui/navigation.js';
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
 import { bfResolve, bfActor, bfSlots, bfEnemyFrame, bfEnemyFootY, bfEnemyZOrder, bfHeroY, onBFChange } from './battlefield.js';
-import { uicResolve, relicBarLayout, onUICChange } from './uic.js';
-import { createChoiceLatch } from './choice-latch.js';
+import { uicResolve, onUICChange } from './uic.js';
 import { getVersionInfo } from './version.js';
 
-const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
 const runEffects = createRunEffects({ engine: E, vigil: Vigil });
-// one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
-// ?input=touch|mouse overrides detection (simulators lie; debugging wants both)
-const FORCE_INPUT = new URLSearchParams(location.search).get('input');
-const COARSE = FORCE_INPUT ? FORCE_INPUT === 'touch' : matchMedia('(pointer: coarse)').matches;
-const FINE = FORCE_INPUT ? FORCE_INPUT === 'mouse' : matchMedia('(hover: hover) and (pointer: fine)').matches;
-const qs = new URLSearchParams(location.search);
-const TRACE_BUILD = import.meta.env.DEV
-  || import.meta.env.MODE === 'test'
-  || import.meta.env.VITE_QA_TRACE === '1';
-const presentationBarrier = createPresentationBarrier();
-const trace = createBehaviourTrace({
-  enabled: TRACE_BUILD && (qs.has('trace') || qs.has('lab')),
-  identity: () => {
-    const version = getVersionInfo();
-    return {
-      appVersion: version.version,
-      buildKind: version.release ? 'release' : version.gitSha === 'unknown' ? 'ordinary' : 'dev',
-      gitSha: version.gitSha,
-      locale: getLocale(),
-    };
-  },
-  policy: () => ({
-    screen: S.screen,
-    renderer: 'dom',
-    motion: REDUCED ? 'reduced' : 'full',
-    tier: COARSE ? 'lite' : 'full',
-  }),
-});
 function tr(key, params) {
   const value = lookupTr(key, params);
   if (value === key) {
@@ -65,56 +42,6 @@ function tr(key, params) {
   }
   return value;
 }
-const $ = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const screenEl = () => $('#screen');
-const terminalNavigationLocked = () => S.screen === 'end' ||
-  S.run?.pendingRunEnd != null || S.run?.pendingDawn != null;
-
-function el(tag, cls = '', html = '') {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (html) e.innerHTML = html;
-  return e;
-}
-const escHtml = (s) => String(s).replace(/[&<>"']/g, (ch) => ({
-  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-}[ch]));
-
-// generated raster asset if it exists, procedural SVG otherwise
-const rasterOr = (cat, id, svg) => {
-  const u = assetUrl(cat, id);
-  return u ? `<img class="raster-art" src="${u}" alt="">` : svg;
-};
-function sceneBg() {
-  const u = assetUrl('stage', `act${(S.run?.act ?? 0) + 1}-backdrop`);
-  return u ? `<div class="scene-bg" style="background-image:url('${u}')"></div>` : '';
-}
-function metaBg(id) {
-  const u = assetUrl('meta', id);
-  return u ? `<div class="meta-bg" style="background-image:url('${u}')"></div>` : '';
-}
-const relicArt = (rid, size = 22) => {
-  const u = assetUrl('relics', rid);
-  return u ? `<img class="raster-art relic-art" src="${u}" alt="" style="width:${size}px;height:${size}px">` : (RELICS[rid]?.glyph || '◈');
-};
-// HUD relic bar: painted prop only — no glass chip frame (the PNG carries the read)
-const hudRelic = (rid) => {
-  const u = assetUrl('relics', rid);
-  return u ? `<img class="relic-art hud-relic-art" src="${u}" alt="">` : `<span class="hud-relic-fallback">${RELICS[rid]?.glyph || '◈'}</span>`;
-};
-const omenIconName = (oid) => oid === 'eighthOmen' ? 'eighthOmen' : `omen-${oid}`;
-const omenMark = (oid, imgClass, fallbackClass, size = 22) => {
-  const u = assetUrl('omens', oid);
-  return u ? `<img class="${imgClass}" src="${u}" alt="">` : `<span class="${fallbackClass}">${iconSvg(omenIconName(oid), size)}</span>`;
-};
-// silhouette outline ring — SVG feMorphology fallback when mesh is off.
-// Mesh-off: SVG ring is always solid. Fancy spin/chase need WebGL (meshAim).
-// With mesh on, meshAim() paints the ring on the warped plane instead.
-const aimRing = (url, kind) => url
-  ? `<svg class="aim-ring" aria-hidden="true"><image href="${escHtml(url)}" x="0" y="0" width="100%" height="100%" preserveAspectRatio="xMidYMax meet" filter="url(#aim-outline-${kind})"/></svg>`
-  : '';
 function syncWardMesh(el, on, grow = false) {
   if (!el) return;
   const sprite = el.classList?.contains('hero-sprite') || el.classList?.contains('enemy-sprite')
@@ -122,28 +49,10 @@ function syncWardMesh(el, on, grow = false) {
     : ($('.hero-sprite, .enemy-sprite', el) || el);
   meshWard(sprite, !!on, { grow });
 }
-const heroArt = (i) => {
-  const u = assetUrl('heroes', ASPECTS[i].id);
-  if (!u) return `<div class="hero-sprite">${heroSvg(i)}</div>`;
-  return `<div class="hero-sprite">${aimRing(u, 'self')}${rasterOr('heroes', ASPECTS[i].id, heroSvg(i))}<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg></div>`;
-};
-const combatantView = (en) => {
-  const p = en.presentation || {};
-  return {
-    artCategory: p.artCategory || 'enemies',
-    artId: p.artId || en.key,
-    layoutKey: p.layoutKey || en.key,
-    kind: p.kind || ENEMIES[en.key].art.kind,
-    hue: p.hue ?? ENEMIES[en.key].art.hue,
-    tint: p.tint || null,
-    scale: p.scale || 1,
-  };
-};
-let disclosedRoseStateIds = [];
-let roseAssetsReady = false;
 
 function semanticUiCheckpoint() {
   const cb = S.cb;
+  const rose = getRoseState();
   return {
     screen: S.screen,
     busy: S.busy,
@@ -156,155 +65,10 @@ function semanticUiCheckpoint() {
       key: enemy.key, variantId: enemy.variantId || 'base', hp: enemy.hp, ward: enemy.block,
     })) : [],
     hand: cb ? cb.hand.map((card) => ({ id: card.id, count: 1 })) : [],
-    rose: {
-      fallback: forceRoseFallback,
-      ready: roseAssetsReady,
-      stateIds: [...disclosedRoseStateIds],
-    },
+    rose,
   };
 }
-
-let assetsWarmed = false;
-function warmAssets() { // pre-decode combat art so fights never pop in
-  if (assetsWarmed) return;
-  assetsWarmed = true;
-  for (const u of [...assetList('enemies'), ...assetList('heroes')]) new Image().src = u;
-}
-
-const FACET_DESC = () => tr('ui.keywords.facetDesc');
-const KEYWORDS = () => ({
-  Cracked: STATUS_INFO.vulnerable.desc, Dimmed: STATUS_INFO.weak.desc, Brittle: STATUS_INFO.frail.desc,
-  Smolder: STATUS_INFO.poison.desc, Fervor: STATUS_INFO.str.desc, Poise: STATUS_INFO.dex.desc,
-  Kindle: tr('ui.keywords.kindle'),
-  Ward: tr('ui.keywords.ward'),
-  Energy: tr('ui.keywords.energy'),
-  Ember: tr('ui.keywords.ember'),
-  Embers: tr('ui.keywords.ember'),
-  Chip: tr('ui.keywords.chip'),
-  Facet: FACET_DESC(), Facets: FACET_DESC(), Shatter: FACET_DESC(), Shatters: FACET_DESC(),
-  Staggered: tr('ui.keywords.staggered'),
-  Unplayable: tr('ui.keywords.unplayable'),
-  Shard: tr('ui.keywords.shard'),
-  Hex: tr('ui.keywords.hex'),
-  Cinder: tr('ui.keywords.cinder'),
-});
-
-// ------------------------------------------------------------ tooltip
-// mouse: hover, as ever. touch: press and hold anything to ask what it is.
-function initTooltip() {
-  const tip = $('#tooltip');
-  const tipFor = (n) => {
-    const t = n._tip;
-    tip.innerHTML = `${t.title ? `<div class="tt-title">${t.title}</div>` : ''}<div class="tt-body">${t.body || ''}</div>${t.sub ? `<div class="tt-sub">${t.sub}</div>` : ''}`;
-    tip.style.display = 'block';
-  };
-  const findTipped = (target) => {
-    let n = target;
-    while (n && n !== document.body && !n._tip) n = n.parentElement;
-    return n && n._tip ? n : null;
-  };
-  const place = (cx, cy, touch) => {
-    if (tip.style.display !== 'block') return;
-    const { x, y } = toStage(cx, cy);
-    const w = tip.offsetWidth, h = tip.offsetHeight;
-    if (touch) {
-      tip.style.left = `${Math.max(8, Math.min(stageW() - w - 8, x - w / 2))}px`;
-      tip.style.top = `${Math.max(8, y - h - 26)}px`;
-    } else {
-      tip.style.left = `${Math.min(stageW() - w - 12, x + 16)}px`;
-      tip.style.top = `${Math.max(8, Math.min(stageH() - h - 12, y - h / 2))}px`;
-    }
-  };
-  document.addEventListener('pointerover', (e) => {
-    // hover is only real on devices that hover — iOS replays a tap as mouse
-    // events onto whatever screen renders next, so touch never gets this path
-    if (!FINE || e.pointerType !== 'mouse') return;
-    const n = findTipped(e.target);
-    if (n) { tipFor(n); place(e.clientX, e.clientY, false); }
-    else tip.style.display = 'none';
-  });
-  document.addEventListener('pointermove', (e) => {
-    if (FINE && e.pointerType === 'mouse') place(e.clientX, e.clientY, false);
-    else if (lpT && Math.hypot(e.clientX - lpX, e.clientY - lpY) > 12) { clearTimeout(lpT); lpT = 0; }
-  });
-  let lpT = 0, lpX = 0, lpY = 0, hideT = 0;
-  document.addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'mouse') return;
-    tip.style.display = 'none';
-    clearTimeout(hideT);
-    const n = findTipped(e.target);
-    if (!n) return;
-    lpX = e.clientX; lpY = e.clientY;
-    clearTimeout(lpT);
-    lpT = setTimeout(() => { lpT = 0; tipFor(n); place(lpX, lpY, true); }, 380);
-  }, true);
-  const lpEnd = (e) => {
-    if (e.pointerType === 'mouse') return;
-    if (lpT) { clearTimeout(lpT); lpT = 0; }
-    clearTimeout(hideT);
-    hideT = setTimeout(() => (tip.style.display = 'none'), 1700);
-  };
-  document.addEventListener('pointerup', lpEnd);
-  document.addEventListener('pointercancel', lpEnd);
-}
-
-// ------------------------------------------------------------ card rendering
-function fmtText(text, inCombat) {
-  let t = text
-    .replace(/@(\d+)@/g, (_, n) => {
-      const base = +n;
-      const v = inCombat && S.cb ? E.previewAttack(S.cb, base) : base;
-      const cls = v > base ? 'boosted' : v < base ? 'reduced' : '';
-      return `<span class="val ${cls}">${v}</span>`;
-    })
-    .replace(/#(\d+)#/g, (_, n) => {
-      const base = +n;
-      const v = inCombat && S.cb ? E.previewBlock(S.run, S.cb, base) : base;
-      const cls = v > base ? 'boosted' : v < base ? 'reduced' : '';
-      return `<span class="val ${cls}">${v}</span>`;
-    });
-  t = t.replace(/\b(Cracked|Dimmed|Brittle|Smolder|Fervor|Poise|Kindle|Ward|Energy|Embers?|Chip|Facets?|Shatters?|Staggered|Unplayable|Shard|Hex|Cinder)\b/g, '<span class="kw">$1</span>');
-  return t;
-}
-function cardEl(inst, { inCombat = false, size = null } = {}) {
-  const d = E.cardData(inst);
-  const c = el('div', `card t-${d.type} r-${d.rarity}${inst.up ? ' upgraded' : ''}`);
-  if (size) c.style.setProperty('--cw', `${size}px`);
-  if (inst.uid != null) c.dataset.uid = inst.uid;
-  let costHtml = '';
-  if (d.cost != null) {
-    const eff = inCombat && S.cb ? E.effCost(S.run, S.cb, inst) : d.cost;
-    costHtml = `<div class="card-cost ${eff === 0 ? 'free' : ''}">${eff}</div>`;
-  }
-  let txt = fmtText(d.text, inCombat);
-  if (inst.bonus) txt = txt.replace(/<span class="val[^"]*">(\d+)<\/span>/, (m, v) => m.replace(v, +v + inst.bonus));
-  c.innerHTML = `<div class="card-lift">${costHtml}<div class="card-inner">
-    <div class="card-art">${rasterOr('cards', inst.id, cardArtSvg(inst.id, d.type))}</div>
-    <div class="card-name">${d.name}</div>
-    <div class="card-type">${d.type}</div>
-    <div class="card-text"><span class="ct-inner">${txt}</span></div>
-    <div class="card-rarity"></div>
-  </div></div>`;
-  const kw = KEYWORDS();
-  $$('.kw', c).forEach((k) => (k._tip = { title: k.textContent, body: kw[k.textContent] || '' }));
-  // 3D tilt + mouse-tracked glare/foil (a hovering pointer only)
-  if (FINE) c.addEventListener('mousemove', (e) => {
-    const r = c.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
-    const inner = $('.card-inner', c);
-    inner.style.setProperty('--ry', `${(px - 0.5) * 16}deg`);
-    inner.style.setProperty('--rx', `${(0.5 - py) * 12}deg`);
-    inner.style.setProperty('--mx', `${px * 100}%`);
-    inner.style.setProperty('--my', `${py * 100}%`);
-    inner.style.setProperty('--gx', (px - 0.5) * 60);
-  });
-  c.addEventListener('mouseleave', () => {
-    const inner = $('.card-inner', c);
-    inner.style.setProperty('--ry', '0deg');
-    inner.style.setProperty('--rx', '0deg');
-  });
-  return c;
-}
+const { initTooltip, fmtText, cardEl } = createTooltip({ tr });
 
 // ------------------------------------------------------------ HUD
 // the light economy: your HP is your lantern — stage plates darken as you
@@ -361,8 +125,8 @@ function renderHud() {
       <div class="hud-mid"><b>${act.name.toUpperCase()}</b> &nbsp;·&nbsp; Act ${S.run.act + 1} &nbsp;·&nbsp; Floor ${S.run.floorsClimbed} &nbsp;·&nbsp; ${act.bossName}</div>
       <div class="hud-right">
         ${E.runRevealed(S.run, 'phials') ? p.potions.map((id, i) => `<button class="potion-slot ${id ? 'full' : ''}" data-slot="${i}">${id ? rasterOr('potions', id, potionSvg(POTIONS[id].tone)) : ''}</button>`).join('') : ''}
-        <button class="icon-btn deck-btn" data-act="deck" aria-label="${tr('ui.hud.deckAria')}">${uiIcon('deck', 32)}<span class="deck-count">${p.deck.length}</span></button>
-        <button class="icon-btn" data-act="menu" aria-label="${tr('ui.hud.menuAria')}">${uiIcon('menu', 19)}</button>
+        <button class="icon-btn deck-btn" data-act="deck" aria-label="Deck">${uiIcon('deck', 32)}<span class="deck-count">${p.deck.length}</span></button>
+        <button class="icon-btn" data-act="menu" aria-label="Menu">${uiIcon('menu', 19)}</button>
       </div>
     </div>
     <div id="omen-slot"></div>
@@ -375,7 +139,7 @@ function renderHud() {
   if (omen) {
     const oc = el('div', 'relic-chip omen-chip', omenMark(omenId, 'hud-omen-art', 'hud-omen-fallback', 24));
     oc.style.setProperty('--tone', omen.tone);
-    oc._tip = { title: tr('ui.hud.omenTitle', { name: omen.name }), body: omen.text, sub: tr('ui.hud.omenSub', { act: S.run.act + 1 }) };
+    oc._tip = { title: `Omen — ${omen.name}`, body: omen.text, sub: `hangs over Act ${S.run.act + 1}` };
     omenSlot.appendChild(oc);
   }
   for (const rid of p.relics) {
@@ -390,636 +154,64 @@ function renderHud() {
     if (!id) return;
     const slot = $(`.potion-slot[data-slot="${i}"]`, hud);
     if (!slot) return;
-    slot._tip = { title: POTIONS[id].name, body: POTIONS[id].text, sub: tr('ui.hud.potionTip') };
+    slot._tip = { title: POTIONS[id].name, body: POTIONS[id].text, sub: 'Click to use or toss' };
   });
-  $('[data-act="deck"]', hud).onclick = () => { sfx.click(); showCardGrid(tr('ui.hud.deckTitle'), S.run.player.deck, { sub: tr('ui.hud.deckCount', { n: S.run.player.deck.length }) }); };
+  $('[data-act="deck"]', hud).onclick = () => { sfx.click(); showCardGrid('Your Deck', S.run.player.deck, { sub: `${S.run.player.deck.length} cards` }); };
   $('[data-act="menu"]', hud).onclick = (e) => { sfx.click(); openMenu(e.clientX, e.clientY); };
   $$('.potion-slot.full', hud).forEach((slot) => (slot.onclick = (e) => potionMenu(+slot.dataset.slot, e)));
   applyUiChromeLayout();
 }
-function openMenu(cx, cy) {
-  closeMenus();
-  const { x, y } = toStage(cx, cy);
-  const m = el('div', 'pop-menu');
-  const terminalLocked = terminalNavigationLocked();
-  m.innerHTML = `<button data-m="help">${tr('ui.menu.howToPlay')}</button><button data-m="settings">${tr('ui.menu.settings')}</button>${terminalLocked ? '' : `<button data-m="abandon" style="color:#ff8d8d">${tr('ui.menu.abandonRun')}</button>`}`;
-  stageEl().appendChild(m); // inside the stage so it scales with the game
-  m.style.left = `${Math.min(x, stageW() - 200)}px`;
-  m.style.top = `${y + 8}px`;
-  m.onclick = (e) => {
-    const a = e.target.dataset.m;
-    closeMenus();
-    if (a === 'help') showHelp();
-    if (a === 'settings') openSettingsPanel();
-    if (a === 'abandon' && !terminalNavigationLocked()) confirmAbandon();
-  };
-  setTimeout(() => document.addEventListener('pointerdown', closeMenusOnce, { once: true }), 0);
-}
-const closeMenus = () => $$('.pop-menu, .audio-panel, .settings-panel').forEach((m) => m.remove());
-const closeMenusOnce = (e) => { if (!e.target.closest('.pop-menu, .audio-panel, .settings-panel')) closeMenus(); };
-
-function openSettingsPanel() {
-  closeMenus();
-  const panel = el('div', 'settings-panel audio-panel');
-  const row = (label, vol, muted, bus) => `
-    <div class="audio-row" data-bus="${bus}">
-      <div class="audio-row-head">
-        <span class="audio-label">${label}</span>
-        <button type="button" class="audio-mute" data-a="mute">${muted ? tr('ui.menu.unmute') : tr('ui.menu.mute')}</button>
-      </div>
-      <input type="range" class="audio-vol" min="0" max="100" step="1" value="${Math.round(vol * 100)}" ${muted ? 'disabled' : ''}>
-    </div>`;
-  panel.innerHTML = `
-    <div class="audio-panel-title">${tr('ui.settings.title')}</div>
-    ${row(tr('ui.settings.music'), music.getMusicVolume(), music.isMusicMuted(), 'music')}
-    ${row(tr('ui.settings.sfx'), getSfxVolume(), isSfxMuted(), 'sfx')}
-    <div class="settings-debug">
-      <div class="settings-debug-label">${tr('ui.settings.debugLabel')}</div>
-      <button type="button" class="btn danger settings-reset" data-a="reset"${terminalNavigationLocked() ? ' disabled' : ''}>${tr('ui.settings.resetSave')}</button>
-      <div class="settings-debug-warn">${tr('ui.settings.resetWarn')}</div>
-    </div>
-    <button type="button" class="audio-close" data-a="close">${tr('ui.menu.close')}</button>`;
-  stageEl().appendChild(panel);
-  const bindRow = (bus) => {
-    const root = $(`.audio-row[data-bus="${bus}"]`, panel);
-    const slider = $('.audio-vol', root);
-    const muteBtn = $('.audio-mute', root);
-    const getVol = bus === 'music' ? music.getMusicVolume : getSfxVolume;
-    const setVol = bus === 'music' ? music.setMusicVolume : setSfxVolume;
-    const getMute = bus === 'music' ? music.isMusicMuted : isSfxMuted;
-    const setMute = bus === 'music' ? music.setMusicMuted : setSfxMuted;
-    slider.oninput = () => {
-      setVol(+slider.value / 100);
-      if (bus === 'sfx') sfx.click();
-    };
-    muteBtn.onclick = () => {
-      const on = setMute(!getMute());
-      muteBtn.textContent = on ? tr('ui.menu.unmute') : tr('ui.menu.mute');
-      slider.disabled = on;
-      slider.value = String(Math.round(getVol() * 100));
-      sfx.click();
-    };
-  };
-  bindRow('music');
-  bindRow('sfx');
-  $('[data-a="close"]', panel).onclick = () => closeMenus();
-  $('[data-a="reset"]', panel).onclick = () => {
-    if (terminalNavigationLocked()) return;
-    closeMenus();
-    confirmResetSave();
-  };
-  setTimeout(() => document.addEventListener('pointerdown', closeMenusOnce, { once: true }), 0);
-}
-
-function confirmResetSave() {
-  if (terminalNavigationLocked()) return;
-  openOverlay(`<div class="panel ov-panel" style="text-align:center">
-    <div class="ov-title">${tr('ui.settings.resetConfirmTitle')}</div>
-    <div class="ov-sub">${tr('ui.settings.resetConfirmBody')}</div>
-    <div class="ov-actions"><button class="btn danger" data-a="yes">${tr('ui.settings.eraseEverything')}</button><button class="btn ghost" data-a="no">${tr('ui.common.cancel')}</button></div>
-  </div>`, (root) => {
-    root.onclick = (e) => {
-      const a = e.target.dataset.a;
-      if (a === 'yes') {
-        E.clearSave();
-        runEffects.clearVigil();
-        S.run = null;
-        S.cb = null;
-        S.embark = null;
-        closeOverlay();
-        sfx.click();
-        show('title');
-      }
-      if (a === 'no') closeOverlay();
-    };
-  });
-}
-function potionMenu(slot, e) {
-  if (S.busy) return;
-  closeMenus();
-  const id = S.run.player.potions[slot];
-  if (!id) return;
-  const p = POTIONS[id];
-  const inCombat = S.cb && !S.cb.over && S.screen === 'combat';
-  const canUse = !p.combatOnly || inCombat;
-  const m = el('div', 'pop-menu');
-  m.innerHTML = `<button data-m="use" ${canUse ? '' : 'disabled style="opacity:.4"'}>${tr('ui.hud.usePotion', { name: p.name })}</button><button data-m="toss">${tr('ui.hud.tossPotion')}</button>`;
-  stageEl().appendChild(m);
-  const pt = toStage(e.clientX, e.clientY);
-  m.style.left = `${Math.min(pt.x - 60, stageW() - 220)}px`;
-  m.style.top = `${pt.y + 10}px`;
-  m.onclick = async (ev) => {
-    const a = ev.target.dataset.m;
-    closeMenus();
-    if (a === 'toss') { S.run.player.potions[slot] = null; sfx.card(); renderHud(); runEffects.saveRun(S.run); }
-    if (a === 'use' && canUse) {
-      if (p.needsTarget && inCombat) {
-        const living = S.cb.enemies.filter((x) => x.hp > 0);
-        if (living.length === 1) return usePotionOn(slot, living[0].idx);
-        setTargeting({ kind: 'potion', slot });
-      } else usePotionOn(slot, null);
-    }
-  };
-  setTimeout(() => document.addEventListener('pointerdown', closeMenusOnce, { once: true }), 0);
-}
-async function usePotionOn(slot, targetIdx) {
-  const potionSpan = trace.begin('input.potion', {
-    attributes: { slot, targetKind: targetIdx == null ? 'none' : 'enemy' },
-  });
-  try {
-    clearTargeting();
-    sfx.potion();
-    let used;
-    if (S.cb && !S.cb.over && S.screen === 'combat') {
-      used = E.usePotion(S.run, S.cb, slot, targetIdx);
-      if (used) {
-        await drain();
-        afterAction();
-      }
-    } else {
-      used = E.usePotion(S.run, null, slot, null);
-      if (used) {
-        renderHud();
-        runEffects.saveRun(S.run);
-      }
-    }
-    if (!used) {
-      potionSpan.finish('skipped', { reason: 'engine-rejected' });
-      return false;
-    }
-    potionSpan.finish('completed');
-    return true;
-  } catch (error) {
-    potionSpan.finish('failed', { reason: 'handler-error' });
-    throw error;
-  }
-}
-function confirmAbandon() {
-  if (terminalNavigationLocked()) return;
-  openOverlay(`<div class="panel ov-panel" style="text-align:center">
-    <div class="ov-title">${tr('ui.menu.abandonConfirmTitle')}</div>
-    <div class="ov-sub">${tr('ui.menu.abandonConfirmBody')}</div>
-    <div class="ov-actions"><button class="btn danger" data-a="yes">${tr('ui.menu.abandon')}</button><button class="btn ghost" data-a="no">${tr('ui.menu.keepClimbing')}</button></div>
-  </div>`, (root) => {
-    root.onclick = (e) => {
-      const a = e.target.dataset.a;
-      if (a === 'yes') {
-        const run = S.run;
-        root.onclick = null;
-        closeOverlay();
-        journalRunEnd(run, 'abandon', () => {
-          S.run = null;
-          S.cb = null;
-          show('title');
-        });
-      }
-      if (a === 'no') closeOverlay();
-    };
-  });
-}
-
-// ------------------------------------------------------------ overlay helpers
-let persistenceDialogTransaction = null;
-const persistenceAttempts = new Map();
-function persistObserved(kind, action, blockedReason = 'storage-unavailable') {
-  const attempt = (persistenceAttempts.get(kind) || 0) + 1;
-  persistenceAttempts.set(kind, attempt);
-  trace.emit('persistence.attempt', {
-    outcome: 'accepted', attributes: { kind, attempt, result: 'attempting' },
-  });
-  let result;
-  try {
-    result = action();
-  } catch (error) {
-    trace.emit('persistence.blocked', {
-      outcome: 'rejected',
-      attributes: { kind, attempt, result: 'blocked', reason: 'storage-unavailable' },
-    });
-    throw error;
-  }
-  const ok = result === true || result?.accepted === true;
-  trace.emit(ok ? 'persistence.recovered' : 'persistence.blocked', {
-    outcome: ok ? 'completed' : 'rejected',
-    attributes: { kind, attempt, result: ok ? 'saved' : 'blocked', reason: ok ? 'none' : blockedReason },
-  });
-  if (ok) persistenceAttempts.delete(kind);
-  return result;
-}
-function openOverlay(html, wire = null, closable = false) {
-  if (persistenceDialogTransaction) return false;
-  const ov = $('#overlay');
-  ov.innerHTML = html;
-  ov.classList.add('open');
-  ov._closable = closable;
-  if (wire) wire(ov.firstElementChild);
-  return true;
-}
-function closeOverlay() {
-  if (persistenceDialogTransaction) return false;
-  const ov = $('#overlay');
-  ov.classList.remove('open', 'run-save-lock');
-  ov.innerHTML = '';
-  return true;
-}
-function persistenceFailureHtml({ id, title, description, retry, reload }) {
-  return `<div class="panel ov-panel" role="alertdialog" aria-modal="true" aria-labelledby="${id}-title" aria-describedby="${id}-description" style="text-align:center">
-    <div class="ov-title" id="${id}-title">${title}</div>
-    <div class="ov-sub" id="${id}-description" role="status" aria-live="assertive" aria-atomic="true">${description}</div>
-    <div class="ov-actions"><button class="btn btn-primary" data-a="${retry.action}">${retry.label}</button><button class="btn ghost" data-a="${reload.action}">${reload.label}</button></div>
-  </div>`;
-}
-function openPersistenceDialog(html, focusSelector, wire) {
-  if (persistenceDialogTransaction) return null;
-  closeMenus();
-  const background = $('#shake');
-  const blockBackground = (event) => {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  };
-  const barrierToken = presentationBarrier.begin('persistence-dialog');
-  const transaction = { background, wasInert: !!background?.inert, blockBackground, settled: false, root: null, barrierToken };
-  let barrierOpen = true;
-  const closeBarrier = (cancelled = false) => {
-    if (!barrierOpen) return false;
-    barrierOpen = false;
-    return cancelled ? transaction.barrierToken.cancel() : transaction.barrierToken.finish();
-  };
-  const cleanupUi = () => {
-    if (transaction.root) {
-      transaction.root.onclick = null;
-      transaction.root.onkeydown = null;
-    }
-    if (background) {
-      background.inert = transaction.wasInert;
-      for (const type of ['click', 'pointerdown', 'pointerup', 'keydown']) {
-        background.removeEventListener(type, blockBackground, true);
-      }
-    }
-    const overlay = $('#overlay');
-    overlay.classList.remove('open', 'run-save-lock');
-    overlay.innerHTML = '';
-    overlay._closable = false;
-  };
-  transaction.active = () => persistenceDialogTransaction === transaction && !transaction.settled;
-  transaction.settle = (continuation = null) => {
-    if (!transaction.active()) return false;
-    transaction.settled = true;
-    persistenceDialogTransaction = null;
-    let cleanupError = null;
-    try {
-      cleanupUi();
-    } catch (error) {
-      cleanupError = error;
-    } finally {
-      closeBarrier(!!cleanupError);
-    }
-    if (cleanupError) throw cleanupError;
-    continuation?.();
-    return true;
-  };
-  try {
-    const opened = openOverlay(html, (root) => {
-      transaction.root = root;
-      root.onkeydown = (event) => {
-        // Keep global combat shortcuts from reaching the document while this
-        // transaction owns input. Background controls are inert, but the
-        // dialog itself still bubbles key events unless it stops them here.
-        event.stopPropagation();
-        if (event.key !== 'Tab') return;
-        const buttons = $$('button:not(:disabled)', root);
-        if (!buttons.length) return;
-        const first = buttons[0], last = buttons.at(-1);
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      };
-      wire(root, transaction);
-    });
-    if (!opened) {
-      transaction.settled = true;
-      cleanupUi();
-      closeBarrier(true);
-      return null;
-    }
-    $('#overlay').classList.add('run-save-lock');
-    persistenceDialogTransaction = transaction;
-    if (background) {
-      background.inert = true;
-      for (const type of ['click', 'pointerdown', 'pointerup', 'keydown']) {
-        background.addEventListener(type, blockBackground, true);
-      }
-    }
-    requestAnimationFrame(() => $(focusSelector, $('#overlay'))?.focus());
-    return transaction;
-  } catch (error) {
-    transaction.settled = true;
-    if (persistenceDialogTransaction === transaction) persistenceDialogTransaction = null;
-    try { cleanupUi(); } catch { /* preserve the setup error */ }
-    closeBarrier(true);
-    throw error;
-  }
-}
-function showRunSaveFailure(run, onSaved, kind = null) {
-  const html = persistenceFailureHtml({
-    id: 'run-save-failure',
-    title: tr('ui.persistence.saveFailedTitle'),
-    description: tr('ui.persistence.runSaveBody'),
-    retry: { action: 'retry-save', label: tr('ui.persistence.retrySave') },
-    reload: { action: 'reload-save', label: tr('ui.persistence.reloadClimb') },
-  });
-  openPersistenceDialog(html, '[data-a="retry-save"]', (root, transaction) => {
-    root.onclick = (e) => {
-      if (!transaction.active()) return;
-      const a = e.target.closest('[data-a]')?.dataset.a;
-      if (a === 'reload-save') { location.reload(); return; }
-      if (a !== 'retry-save') return;
-      sfx.click();
-      const retry = $('[data-a="retry-save"]', root);
-      const reload = $('[data-a="reload-save"]', root);
-      retry.disabled = true;
-      reload.disabled = true;
-      const saved = kind ? persistObserved(kind, () => runEffects.saveRun(run)) : runEffects.saveRun(run);
-      if (!saved) {
-        $('.ov-sub', root).textContent = tr('ui.persistence.runSaveRetryFail');
-        retry.disabled = false;
-        reload.disabled = false;
-        retry.focus();
-        return;
-      }
-      transaction.settle(onSaved);
-    };
-  });
-}
-function requireRunSave(run, onSaved, kind = null) {
-  if (persistenceDialogTransaction) return false;
-  const saved = kind ? persistObserved(kind, () => runEffects.saveRun(run)) : runEffects.saveRun(run);
-  if (saved) return true;
-  showRunSaveFailure(run, onSaved, kind);
-  return false;
-}
-function requireHollowRouteClear(run, onCleared) {
-  if (!run.pendingHollowRoute) return true;
-  if (persistObserved('hollow-route-clear', () => runEffects.completeHollowRoute(run))) return true;
-  const html = persistenceFailureHtml({
-    id: 'hollow-route-save-failure',
-    title: tr('ui.persistence.saveFailedTitle'),
-    description: tr('ui.persistence.hollowRouteBody'),
-    retry: { action: 'retry-hollow-route', label: tr('ui.persistence.retrySave') },
-    reload: { action: 'reload-hollow-route', label: tr('ui.persistence.reloadDestination') },
-  });
-  openPersistenceDialog(html, '[data-a="retry-hollow-route"]', (root, transaction) => {
-    root.onclick = (e) => {
-      if (!transaction.active()) return;
-      const action = e.target.closest('[data-a]')?.dataset.a;
-      if (action === 'reload-hollow-route') { location.reload(); return; }
-      if (action !== 'retry-hollow-route') return;
-      sfx.click();
-      transaction.settle(() => {
-        if (requireHollowRouteClear(run, onCleared)) onCleared();
-      });
-    };
-  });
-  return false;
-}
-function leaveHollowDestination(run, onCleared) {
-  if (!run.pendingHollowRoute) { onCleared(); return; }
-  if (!requireHollowRouteClear(run, onCleared)) return;
-  onCleared();
-}
-function showStonePersistenceFailure(onRetry, retryLabel = tr('ui.common.retry')) {
-  const html = persistenceFailureHtml({
-    id: 'stone-save-failure',
-    title: tr('ui.persistence.stoneTitle'),
-    description: tr('ui.persistence.stoneBody'),
-    retry: { action: 'retry-stone', label: retryLabel },
-    reload: { action: 'reload-stone', label: tr('ui.persistence.reloadClimb') },
-  });
-  openPersistenceDialog(html, '[data-a="retry-stone"]', (root, transaction) => {
-    root.onclick = (e) => {
-      if (!transaction.active()) return;
-      const a = e.target.closest('[data-a]')?.dataset.a;
-      if (a === 'reload-stone') { location.reload(); return; }
-      if (a !== 'retry-stone') return;
-      sfx.click();
-      transaction.settle(onRetry);
-    };
-  });
-}
-function requireBequestClear(onCleared) {
-  if (persistObserved('shade-bequest-clear', () => runEffects.clearBequest())) return true;
-  showStonePersistenceFailure(() => {
-    if (persistObserved('shade-bequest-clear', () => runEffects.clearBequest())) onCleared();
-    else requireBequestClear(onCleared);
-  });
-  return false;
-}
-function requirePendingShadeDuelClear(onCleared) {
-  const result = runEffects.resumeShadeDuel(S.run, (action) =>
-    persistObserved('shade-bequest-clear', action));
-  if (result.status === E.SHADE_DUEL_TX.READY) return true;
-  showStonePersistenceFailure(() => {
-    if (requirePendingShadeDuelClear(onCleared)) onCleared();
-  });
-  return false;
-}
-function resumeSavedCombat(run, onReady) {
-  if (run.pendingQuestId === 'ownShade' && !requirePendingShadeDuelClear(onReady)) return false;
-  onReady();
-  return true;
-}
-function showRunEndPersistenceFailure(run, onFinalised = null) {
-  const html = persistenceFailureHtml({
-    id: 'run-end-save-failure',
-    title: tr('ui.persistence.vigilTitle'),
-    description: tr('ui.persistence.vigilBody'),
-    retry: { action: 'retry-end', label: tr('ui.persistence.retryFinalisation') },
-    reload: { action: 'reload-end', label: tr('ui.persistence.reloadFinalisation') },
-  });
-  openPersistenceDialog(html, '[data-a="retry-end"]', (root, transaction) => {
-    root.onclick = (e) => {
-      if (!transaction.active()) return;
-      const a = e.target.closest('[data-a]')?.dataset.a;
-      if (a === 'reload-end') { location.reload(); return; }
-      if (a !== 'retry-end') return;
-      sfx.click();
-      transaction.settle(() => finalisePendingRunEnd(run, onFinalised));
-    };
-  });
-}
-function showCardGrid(title, instances, { sub = '', pick = null, canSkip = false, skipLabel = tr('ui.common.skip'), inCombat = false } = {}) {
-  const panel = el('div', 'panel ov-panel');
-  panel.innerHTML = `<div class="ov-title">${title}</div>${sub ? `<div class="ov-sub">${sub}</div>` : ''}`;
-  const grid = el('div', `card-grid ${pick ? 'choice-cards' : ''}`);
-  const sorted = pick ? instances : [...instances].sort((a, b) => E.cardData(a).name.localeCompare(E.cardData(b).name));
-  const latch = createChoiceLatch();
-  let skip = null;
-  const choose = (inst, card = null, delay = 0) => {
-    if (!latch.claim()) return;
-    if (card) card.classList.add('picked');
-    [...grid.children].forEach((choice) => {
-      choice.onclick = null;
-      choice.style.pointerEvents = 'none';
-      choice.setAttribute('aria-disabled', 'true');
-    });
-    if (skip) { skip.disabled = true; skip.onclick = null; }
-    const finish = () => { closeOverlay(); pick(inst); };
-    if (delay) setTimeout(finish, delay);
-    else finish();
-  };
-  for (const inst of sorted) {
-    const c = cardEl(inst, { inCombat });
-    if (pick) c.onclick = () => { sfx.click(); choose(inst, c, 240); };
-    grid.appendChild(c);
-  }
-  panel.appendChild(grid);
-  const actions = el('div', 'ov-actions');
-  if (canSkip && pick) {
-    skip = el('button', 'btn ghost', skipLabel);
-    skip.onclick = () => { sfx.click(); choose(null); };
-    actions.appendChild(skip);
-  }
-  if (!pick) {
-    const close = el('button', 'btn ghost', tr('ui.menu.close'));
-    close.onclick = () => { sfx.click(); closeOverlay(); };
-    actions.appendChild(close);
-  }
-  panel.appendChild(actions);
-  if (!openOverlay('', null, !pick)) return false;
-  $('#overlay').appendChild(panel);
-  return true;
-}
-function showHelp() {
-  openOverlay(`<div class="panel ov-panel howto">
-    <div class="ov-title">${tr('ui.help.title')}</div>
-    <h3>${tr('ui.help.climbTitle')}</h3>${tr('ui.help.climbBody')}
-    <h3>${tr('ui.help.combatTitle')}</h3>${tr('ui.help.combatBody')}
-    <h3>${tr('ui.help.glassTitle')}</h3>${tr('ui.help.glassBody')}
-    <h3>${tr('ui.help.lanternTitle')}</h3>${tr('ui.help.lanternBody')}
-    <h3>${tr('ui.help.wardTitle')}</h3>${tr('ui.help.wardBody')}
-    <h3>${tr('ui.help.firesTitle')}</h3>${tr('ui.help.firesBody')}
-    <h3>${tr('ui.help.vigilTitle')}</h3>${tr('ui.help.vigilBody')}
-    <div class="ov-actions"><button class="btn" data-a="ok">${tr('ui.menu.fightOn')}</button></div>
-  </div>`, (root) => { $('[data-a="ok"]', root).onclick = () => { sfx.click(); closeOverlay(); }; }, true);
-}
-
+const {
+  closeMenus, closeOverlay, leaveHollowDestination, openMenu, openOverlay,
+  openPersistenceDialog, openSettingsPanel, persistDawnOrRetry, persistObserved, persistenceDialogActive,
+  potionMenu, requireBequestClear, requireHollowRouteClear, requireRunSave,
+  resumeSavedCombat, showCardGrid, showHelp, showRunEndPersistenceFailure,
+  showRunSaveFailure, showStonePersistenceFailure, usePotionOn,
+} = createOverlay({
+  tr,
+  runEffects,
+  cardEl,
+  actions: {
+    afterAction: (...args) => afterAction(...args),
+    clearTargeting: (...args) => clearTargeting(...args),
+    drain: (...args) => drain(...args),
+    finalisePendingRunEnd: (...args) => finalisePendingRunEnd(...args),
+    journalRunEnd: (...args) => journalRunEnd(...args),
+    setTargeting: (...args) => setTargeting(...args),
+  },
+});
 // ------------------------------------------------------------ screens
-// ceremony: a band of lantern light sweeps the glass between scenes
-function wipe() {
-  if (REDUCED) return;
-  const w = $('#wipe');
-  w.classList.remove('go');
-  void w.offsetWidth;
-  w.classList.add('go');
-  setTimeout(() => w.classList.remove('go'), 620);
-}
-let transitionSeq = 0;
-async function transition(kind, opts = {}) {
-  if (REDUCED) return;
-  const t = $('#transit');
-  if (!t) return;
-  const seq = ++transitionSeq;
-  const run = (html, kf, dur) => {
-    t.innerHTML = html;
-    t.classList.add('on');
-    const child = t.firstElementChild;
-    return child.animate(kf, { duration: dur, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' }).finished
-      .catch(() => {})
-      .finally(() => {
-        if (seq !== transitionSeq) return;
-        t.classList.remove('on');
-        t.innerHTML = '';
-      });
-  };
-  if (kind === 'combat-in') {
-    const x = opts.x ?? stageW() / 2, y = opts.y ?? stageH() / 2;
-    return run('<div class="tr-iris"></div>', [
-      { clipPath: `circle(150% at ${x}px ${y}px)` },
-      { clipPath: `circle(0% at ${x}px ${y}px)` },
-    ], 480);
-  }
-  if (kind === 'victory-out') return run('<div class="tr-bloom"></div>', [{ opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 0 }], 900);
-  if (kind === 'defeat') return run('<div class="tr-crack"></div>', [{ opacity: 0 }, { opacity: 1 }], 700);
-  if (kind === 'act-change') {
-    const omen = OMENS[S.run.omens?.[S.run.act]];
-    return run(`<div class="tr-plate"><div class="tp-act">ACT ${S.run.act + 1} - ${ACTS[S.run.act].name.toUpperCase()}</div>
-      ${omen ? `<div class="tp-omen" style="color:${omen.tone}">${iconSvg(omenIconName(S.run.omens[S.run.act]), 16)} OMEN - ${omen.name.toUpperCase()}</div>` : ''}</div>`,
-      [{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }], 2200);
-  }
-}
-function liveMapWarmIds(run = S.run) {
-  if (!run) return [];
-  const act = (run.act | 0) + 1;
-  const ids = [`act${act}Combat`, `act${act}Boss`, 'elite', 'safeNodes', 'hollowLamplighter'];
-  if (run.omens?.[run.act] === 'eighthOmen') ids.push('eighthOmen');
-  return ids;
-}
+let readMapWarmIds = () => Object.freeze([]);
+const navigator = createNavigator({
+  routes: Object.freeze({
+    title: renderTitle,
+    embark: renderEmbark,
+    vigil: renderVigil,
+    map: renderMap,
+    combat: () => {},
+    reward: renderReward,
+    rest: renderRest,
+    shop: renderShop,
+    event: renderEvent,
+    treasure: renderTreasure,
+    hollow: renderHollow,
+    bossRelic: renderBossRelic,
+    end: renderEnd,
+  }),
+  beforeShow: () => {
+    closeMenus();
+    $('#tooltip').style.display = 'none';
+    return semanticUiCheckpoint;
+  },
+  publishMapWarmReader: (reader) => { readMapWarmIds = reader; },
+  trace,
+});
+const { show, transition } = navigator;
+export { show };
 
-export function show(name, data) {
-  const previous = S.screen;
-  trace.emit('screen.requested', { outcome: 'accepted', attributes: { screenId: name } });
-  if (S.screen !== name && S.run) wipe(); // travel is lit; in-place rerenders aren't
-  S.screen = name;
-  if (name !== 'end') $('#toasts')?.remove();
-  closeMenus();
-  $('#tooltip').style.display = 'none'; // a parked cursor shouldn't strand a tip across screens
-  if (name !== 'map') { exitMapMode(); clearOverlay(); }
-  V.setWeather(null);
-  const sc = screenEl();
-  sc.className = '';
-  sc.onclick = null; // screens share #screen — never let a stale delegate survive
-  ({
-    title: renderTitle, embark: renderEmbark, vigil: renderVigil, map: renderMap, combat: () => {}, reward: renderReward, rest: renderRest,
-    shop: renderShop, event: renderEvent, treasure: renderTreasure, hollow: renderHollow, bossRelic: renderBossRelic, end: renderEnd,
-  })[name](data);
-  if (name === 'map') warmAssets();
-  if (name !== 'combat' && name !== 'title') meshClear();
-  // Only switch BGM if the renderer stayed on this screen (map may redirect into combat).
-  // reward / bossRelic omit SCREEN_CUES: normal/elite keep combat music; Act 1/2 boss wins
-  // switch to victory in victoryFlow() and hold through reward/bossRelic until map.
-  if (S.screen === name && name !== 'combat' && name !== 'end') {
-    if (name === 'vigil' && data?.tab === 'rose') music.play('roseWindow');
-    else {
-      const eighth = S.run?.omens?.[S.run.act] === 'eighthOmen' && (name === 'map' || name === 'event');
-      music.playForScreen(name, eighth ? 'eighthOmen' : null);
-    }
-  }
-  if (S.screen === 'map' && S.run) {
-    music.warm(...liveMapWarmIds());
-  }
-  renderHud();
-  trace.emit('screen.exited', { outcome: 'completed', attributes: { screenId: previous } });
-  if (S.screen === name) {
-    trace.emit('screen.entered', { outcome: 'completed', attributes: { screenId: name } });
-  } else {
-    trace.emit('screen.redirected', {
-      outcome: 'completed', attributes: { fromScreenId: name, toScreenId: S.screen },
-    });
-  }
-  trace.emit('checkpoint.ui', { outcome: 'completed', checkpoint: semanticUiCheckpoint() });
-}
-
-const ROMAN = ['0', 'I', 'II', 'III', 'IV', 'V'];
-const ROSE_ASSET_IDS = {
-  mural: 'emberglass-mural',
-  frame: 'emberglass-frame',
-  masks: Object.fromEntries(QUEST_IDS.map((id) => [id, 'emberglass-mask-' + id])),
-};
 const ROSE_LABEL_POSITIONS = [
   [50, 15], [78, 34], [78, 69], [50, 84], [22, 69], [22, 34],
 ];
-let forceRoseFallback = false;
-
-function roseAssets() {
-  if (forceRoseFallback) return null;
-  const mural = assetUrl('meta', ROSE_ASSET_IDS.mural);
-  const frame = assetUrl('meta', ROSE_ASSET_IDS.frame);
-  const masks = Object.fromEntries(QUEST_IDS.map((id) => [id, assetUrl('meta', ROSE_ASSET_IDS.masks[id])]));
-  return mural && frame && Object.values(masks).every(Boolean) ? { mural, frame, masks } : null;
-}
 
 function rosePaneCopy(vigil, id, record) {
   const quest = QUESTS[id];
@@ -1157,7 +349,7 @@ function decodeRoseAssets(root) {
     .then(() => {
       if (!rose.isConnected) return;
       rose.classList.add('ready');
-      roseAssetsReady = true;
+      setRoseAssetsReady(true);
       trace.emit('checkpoint.ui', { outcome: 'completed', checkpoint: semanticUiCheckpoint() });
     })
     .catch(() => {});
@@ -1191,18 +383,18 @@ function decodeTitleRoseAssets(root) {
       if (!medallion.isConnected) return;
       medallion.disabled = false;
       medallion.classList.add('ready');
-      roseAssetsReady = true;
+      setRoseAssetsReady(true);
       trace.emit('checkpoint.ui', { outcome: 'completed', checkpoint: semanticUiCheckpoint() });
     })
     .catch(() => {});
 }
 
 function renderTitle() {
-  roseAssetsReady = false;
+  setRoseAssetsReady(false);
   setTheme(0);
   const vigil = runEffects.syncVigil(); // reconcile any owed unlocks (e.g. seeded from old stats)
-  disclosedRoseStateIds = Object.entries(Vigil.questSnapshot(vigil))
-    .map(([id, record]) => `${id}:${record.state}`);
+  setDisclosedRoseStateIds(Object.entries(Vigil.questSnapshot(vigil))
+    .map(([id, record]) => `${id}:${record.state}`));
   const saved = E.loadRun();
   if (E.savedRunRequiresFinalisation(saved)) { startRun(saved, true); return; }
   const d = vigil.deeds;
@@ -1230,7 +422,7 @@ function renderTitle() {
       <button class="btn" data-a="embark">${tr('ui.menu.beginClimb')}</button>
       <button class="btn ghost${vigil.news && !REDUCED ? ' news' : ''}" data-a="vigil">${tr('ui.menu.theVigil')}</button>
       <button class="btn ghost" data-a="help">${tr('ui.menu.howToPlay')}</button>
-      <button class="btn ghost" data-a="settings">${tr('ui.menu.settings')}</button>
+      <button class="btn ghost" data-a="settings">Settings</button>
     </div>
     <div class="title-stats">${d.runs} climbs · ${d.wins} dawns · ${d.slain} slain${vigil.unlocks.length ? ` · ${vigil.unlocks.length} secrets unearthed` : ''}</div>
     <div class="title-version" data-version-display aria-label="App version">${escHtml(ver.display)}</div>
@@ -1379,11 +571,11 @@ function renderEmbark() {
 // THE VIGIL — the hall between climbs. Phase 1 ships the Deeds tab; the
 // Emberglass rose window joins it when the chain arms (Phase 2).
 function renderVigil({ tab = 'deeds' } = {}) {
-  roseAssetsReady = false;
+  setRoseAssetsReady(false);
   setTheme(0);
   const v = runEffects.clearNews(); // opening the hall reads the news
-  disclosedRoseStateIds = Object.entries(Vigil.questSnapshot(v))
-    .map(([id, record]) => `${id}:${record.state}`);
+  setDisclosedRoseStateIds(Object.entries(Vigil.questSnapshot(v))
+    .map(([id, record]) => `${id}:${record.state}`));
   const hasRose = Vigil.isRevealed(v, 'emberglass');
   const assets = roseAssets();
   const deedRows = Object.entries(DEEDS).map(([id, deed]) => {
@@ -1447,7 +639,7 @@ function resumePendingHollowRoute(run) {
   return true;
 }
 function startRun(run, resumed = false) {
-  if (!resumed && persistenceDialogTransaction) return;
+  if (!resumed && persistenceDialogActive()) return;
   S.run = run;
   S.cb = null;
   setTheme(run.act);
@@ -1495,7 +687,7 @@ function routeStartedRun(run, resumed, curNode) {
 // THE LAMPLIGHTER — run start: one boon of three, and the fire the lantern carries.
 function renderLamplighter() {
   const run = S.run;
-  if (S.screen !== 'lamplighter') wipe();
+  if (S.screen !== 'lamplighter') transition('wipe');
   S.screen = 'lamplighter';
   music.playForScreen('lamplighter');
   closeMenus();
@@ -1579,7 +771,7 @@ function exitHollow(run) {
   const route = runEffects.stageHollowExit(run);
   if (!route) {
     const error = $('.hollow-error', screenEl());
-    if (error) error.textContent = tr('ui.hollow.routeFailed');
+    if (error) error.textContent = 'The way onward could not be prepared.';
     $$('[data-a^="hollow-"]', screenEl()).forEach((button) => {
       if (button.dataset.a === 'hollow-continue') button.disabled = !run.pendingHollow?.paid;
       else if (button.dataset.a === 'hollow-leave') button.disabled = !!run.pendingHollow?.paid;
@@ -1587,7 +779,7 @@ function exitHollow(run) {
     return;
   }
   if (!runEffects.saveRun(run)) {
-    restoreDurableHollow(tr('ui.hollow.routeSaveFailed'));
+    restoreDurableHollow('The way onward is not secured. Retry when storage is available.');
     return;
   }
   const node = run.map.nodes.find((candidate) => candidate.id === route.nodeId);
@@ -1622,15 +814,15 @@ function renderHollow() {
       </svg>
     </div>
     <div class="hollow-copy screen-enter">
-      <div class="hollow-kicker">${tr('ui.hollow.kicker', { current: meetingIndex + 1, total: QUESTS.hollowLamplighter.target })}</div>
-      <div class="hollow-title">${tr('ui.hollow.title')}</div>
+      <div class="hollow-kicker">THE UNLIT WAY · PRICE ${meetingIndex + 1} OF ${QUESTS.hollowLamplighter.target}</div>
+      <div class="hollow-title">THE HOLLOW LAMPLIGHTER</div>
       <div class="hollow-ask">“${escHtml(meeting.ask)}”</div>
       <div class="hollow-answer${pending.paid ? ' paid' : ''}" aria-live="polite">${pending.paid ? escHtml(pending.answer) : ''}</div>
       <div class="hollow-error" aria-live="assertive"></div>
       <div class="hollow-actions">
-        <button class="btn btn-primary" data-a="hollow-pay"${pending.paid ? ' disabled' : ''}>${pending.paid ? tr('ui.hollow.pricePaid') : tr('ui.hollow.payPrice')}</button>
-        <button class="btn ghost" data-a="hollow-continue"${pending.paid ? '' : ' disabled'}>${tr('ui.common.continue')}</button>
-        <button class="btn ghost" data-a="hollow-leave"${pending.paid ? ' disabled' : ''}>${tr('ui.hollow.returnLater')}</button>
+        <button class="btn btn-primary" data-a="hollow-pay"${pending.paid ? ' disabled' : ''}>${pending.paid ? 'Price Paid' : 'Pay the Price'}</button>
+        <button class="btn ghost" data-a="hollow-continue"${pending.paid ? '' : ' disabled'}>Continue</button>
+        <button class="btn ghost" data-a="hollow-leave"${pending.paid ? ' disabled' : ''}>Return Later</button>
       </div>
     </div>
   </div>`;
@@ -1656,8 +848,8 @@ function renderHollow() {
       if (!persistObserved('hollow-payment', () => runEffects.saveRun(run))) {
         answer.textContent = '';
         answer.classList.remove('paid', 'error');
-        error.textContent = tr('ui.hollow.saveFailed');
-        target.textContent = tr('ui.persistence.retrySave');
+        error.textContent = 'The price is not yet secured. Retry the save.';
+        target.textContent = 'Retry Save';
         target.disabled = false;
         continueButton.disabled = true;
         leaveButton.disabled = true;
@@ -1667,7 +859,7 @@ function renderHollow() {
       answer.classList.remove('error');
       answer.classList.add('paid');
       error.textContent = '';
-      target.textContent = tr('ui.hollow.pricePaid');
+      target.textContent = 'Price Paid';
       continueButton.disabled = false;
       leaveButton.disabled = true;
       renderHud();
@@ -1780,10 +972,10 @@ function renderMap() {
     <div class="map-screen screen-enter">
       <div class="map-haze" style="--haze:${['#2a3a2e', '#1f2e40', '#3a2030'][run.act] ?? '#2a3a2e'}"></div>
       <svg class="map-svg" width="100%" height="100%">${mapDefs}${edges}${dots}</svg>
-      ${sealedDoorVisible ? `<button class="sealed-door" data-a="sealed-door" aria-label="${tr('ui.map.sealedDoor.aria')}">
-        <span>${iconSvg('sealedDoor', 42)}</span><small>${tr('ui.map.sealedDoor.label')}</small>
+      ${sealedDoorVisible ? `<button class="sealed-door" data-a="sealed-door" aria-label="The sealed door">
+        <span>${iconSvg('sealedDoor', 42)}</span><small>THE SEALED DOOR</small>
       </button>` : ''}
-      <div class="map-hint">${tr('ui.map.survey', { action: COARSE ? tr('ui.map.drag') : tr('ui.map.scroll') })}</div>
+      <div class="map-hint">${COARSE ? 'drag' : 'scroll'} to survey the Spire</div>
     </div>`;
   const svg = $('.map-svg');
   const sealedDoor = $('.sealed-door');
@@ -1795,11 +987,11 @@ function renderMap() {
       sfx.click();
       music.play('sealedDoor');
       openOverlay(`<div class="panel sealed-door-panel">
-        <div class="ov-title">${tr('ui.map.sealedDoor.title')}</div>
+        <div class="ov-title">THE SEALED DOOR</div>
         <div class="sealed-door-mark">${iconSvg('sealedDoor', 96)}</div>
-        <div class="ov-sub">${tr('ui.map.sealedDoor.sub')}</div>
-        <div class="door-inscription">${tr('ui.map.sealedDoor.inscription')}</div>
-        <div class="ov-actions"><button class="btn" data-a="close-door">${tr('ui.map.sealedDoor.return')}</button></div>
+        <div class="ov-sub">Six panes burn behind you. The lock answers, but does not open.</div>
+        <div class="door-inscription">the climb continues</div>
+        <div class="ov-actions"><button class="btn" data-a="close-door">Return to the summit</button></div>
       </div>`, (root) => {
         root.onclick = (closeEvent) => {
           if (closeEvent.target.closest('[data-a="close-door"]')) {
@@ -1835,7 +1027,7 @@ function renderMap() {
     };
     const travel = tr('ui.map.travelHere', { action: COARSE ? tr('ui.map.tap') : tr('ui.map.click') });
     g._tip = n.questMarked
-      ? { title: tr('ui.map.witchlightTitle'), body: tr('ui.map.witchlightBody') }
+      ? { title: 'Witchlight trembles', body: 'Pale glass waits here.' }
       : n.unlit && !visited.has(n.id)
         ? { title: tr('ui.map.unlitTitle'), body: `${tr('ui.map.unlitBody')}${avail.has(n.id) ? ` ${travel}` : ''}` }
         : { title: names[n.type], body: avail.has(n.id) ? travel : '', sub: hints[n.type] };
@@ -2012,7 +1204,7 @@ function claimMonumentNode(node) {
     const reloadPending = transaction.status === E.SHADE_DUEL_TX.RELOAD_PENDING;
     showStonePersistenceFailure(
       reloadPending ? () => location.reload() : () => claimMonumentNode(node),
-      reloadPending ? tr('ui.persistence.reloadDuel') : tr('ui.common.retry'),
+      reloadPending ? 'Reload Saved Duel' : 'Retry',
     );
     return;
   }
@@ -2045,7 +1237,7 @@ function startCombatUI(enemyIds, kind) {
   exitMapMode(); // combat can start without going through show()
   clearOverlay();
   $('#tooltip').style.display = 'none';
-  if (S.screen !== 'combat') wipe();
+  if (S.screen !== 'combat') transition('wipe');
   S.cb = E.startCombat(S.run, enemyIds, kind);
   S.screen = 'combat';
   music.playForCombat(kind, S.run.act, {
@@ -2085,20 +1277,20 @@ function renderCombat() {
       </div>
       <div class="enemy-zone"></div>
     </div>
-    <div class="energy-orb" aria-label="${tr('ui.combat.energyAria')}"><div class="num">0</div><div class="candles"></div></div>
+    <div class="energy-orb" aria-label="Energy"><div class="num">0</div><div class="candles"></div></div>
     <button class="lantern-btn"><span class="lb-ic"></span><span class="lb-count">0</span><div class="lb-pips"></div></button>
     <button class="end-turn" type="button"><span class="et-ic">${uiIcon('end-turn', 120)}</span><span class="et-lbl">${tr('ui.combat.end')}</span></button>
-    <button class="pile-btn pile-draw" type="button" aria-label="${tr('ui.combat.drawPileAria')}">
+    <button class="pile-btn pile-draw" type="button" aria-label="Draw pile">
       <span class="pile-stack" data-pile="draw" data-count="-1" data-tier="-1"></span>
       <span class="cnt">0</span>
       <span class="lbl">${tr('ui.combat.draw')}</span>
     </button>
-    <button class="pile-btn pile-discard" type="button" aria-label="${tr('ui.combat.discardPileAria')}">
+    <button class="pile-btn pile-discard" type="button" aria-label="Discard pile">
       <span class="pile-stack" data-pile="discard" data-count="-1" data-tier="-1"></span>
       <span class="cnt">0</span>
       <span class="lbl">${tr('ui.combat.discard')}</span>
     </button>
-    <button class="pile-btn pile-exhaust" type="button" aria-label="${tr('ui.combat.ashesPileAria')}">
+    <button class="pile-btn pile-exhaust" type="button" aria-label="Ashes pile">
       <span class="pile-stack" data-pile="ashes" data-count="-1" data-tier="-1"></span>
       <span class="cnt">0</span>
       <span class="lbl">${tr('ui.combat.ashes')}</span>
@@ -2147,10 +1339,10 @@ function renderCombat() {
       pv: $('.pv', box), prev: $('.dmg-preview', box), facets: $('.facet-row', box),
     });
     ce.enemies[i].facets._tip = {
-      title: tr('ui.combat.facetsTitle'),
-      body: tr('ui.combat.facetsBody'),
+      title: 'Facets',
+      body: 'Every creature is glass. Attacks that draw unblocked blood chip a facet; fill the gauge and the glass <b>shatters</b> — it loses its next action, is Cracked, and spills Embers into your lantern.',
     };
-    if (afx) $('.name', box)._tip = { title: tr('ui.combat.affixTitle', { name: afx.name }), body: afx.text };
+    if (afx) $('.name', box)._tip = { title: `${afx.name} — an elite's title`, body: afx.text };
     box.onclick = () => onEnemyClick(i);
     box.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && S.targeting) { box.classList.add('target-hover'); updatePreviews(); } });
     box.addEventListener('pointerleave', () => { box.classList.remove('target-hover'); updatePreviews(); });
@@ -2175,9 +1367,9 @@ function renderCombat() {
     if (art) ce.lantern.style.color = art.tone;
   }
   ce.lantern._tip = {
-    title: art ? tr('ui.combat.lanternTitleArt', { name: art.name }) : tr('ui.combat.lanternTitle'),
-    body: `${art ? tr('ui.combat.lanternBodyLead', { cost: art.cost, text: art.text }) : ''}${tr('ui.combat.lanternBody')}`,
-    sub: tr('ui.combat.lanternSub'),
+    title: art ? `Lantern Art — ${art.name}` : 'The Lantern',
+    body: `${art ? `<b>${art.cost} Embers, once a turn:</b> ${art.text}<br><br>` : ''}The lantern holds the <b>Embers</b> spilled by shattered and slain glass. Drag any card onto it to <b>kindle</b> — burn the card away for an ember, once a turn. Curses refuse the fire.`,
+    sub: 'A · use Art',
   };
   ce.lantern.onclick = async () => {
     if (S.busy || !S.cb || S.cb.over) return;
@@ -2200,9 +1392,9 @@ function renderCombat() {
     scheduleChromeClamp();
   }, 1300);
   ce.endTurn.onclick = onEndTurn;
-  ce.draw.onclick = () => { sfx.click(); showCardGrid(tr('ui.combat.drawPileTitle'), cb.draw, { sub: tr('ui.combat.drawPileSub'), inCombat: true }); };
-  ce.discard.onclick = () => { sfx.click(); showCardGrid(tr('ui.combat.discardPileTitle'), cb.discard, { inCombat: true }); };
-  ce.exhaust.onclick = () => { sfx.click(); showCardGrid(tr('ui.combat.ashesTitle'), cb.exhaust, { sub: tr('ui.combat.ashesSub'), inCombat: true }); };
+  ce.draw.onclick = () => { sfx.click(); showCardGrid('Draw Pile', cb.draw, { sub: 'Order hidden — shown alphabetically', inCombat: true }); };
+  ce.discard.onclick = () => { sfx.click(); showCardGrid('Discard Pile', cb.discard, { inCombat: true }); };
+  ce.exhaust.onclick = () => { sfx.click(); showCardGrid('The Ashes', cb.exhaust, { sub: 'Burned away — each fed the lantern an ember', inCombat: true }); };
   ce.root.addEventListener('pointerdown', (e) => {
     if (e.target.closest('.enemy') || e.target.closest('.card')) return;
     if (S.targeting) clearTargeting();
@@ -2283,11 +1475,8 @@ function applyUiChromeLayout() {
     el.style.transformOrigin = w.left !== undefined ? 'top left' : 'top right';
     el.style.transform = s === 1 ? '' : `scale(${s})`;
   };
-  const omenEl = $('#omen-slot');
-  const relicEl = $('#relicbar');
-  const hasOmen = !!(omenEl && omenEl.childElementCount);
-  placeTop(omenEl, L.omen);
-  placeTop(relicEl, relicBarLayout(L, hasOmen));
+  placeTop($('#omen-slot'), L.omen);
+  placeTop($('#relicbar'), L.relics);
   if (!S.ce || S.screen !== 'combat') return;
   const place = (el, w) => {
     if (!el || !w) return;
@@ -2526,7 +1715,7 @@ function statusChips(container, statuses, isPlayer) {
       : (hasIcon(`st-${id}`) ? iconSvg(`st-${id}`, 32) : info.icon);
     const count = Math.abs(n) >= 2 ? `<span class="n">${n}</span>` : '';
     const chip = el('span', `schip ${kind}`, `${art}${count}`);
-    chip._tip = { title: info.name, body: info.desc.replace(/\bN\b/g, Math.abs(n)), sub: kind === 'debuff' ? tr('ui.combat.debuff') : tr('ui.combat.buff') };
+    chip._tip = { title: info.name, body: info.desc.replace(/\bN\b/g, Math.abs(n)), sub: kind === 'debuff' ? 'Debuff' : 'Buff' };
     container.appendChild(chip);
   }
 }
@@ -2598,7 +1787,7 @@ function syncCombat() {
     if (en.hp > 0 && en.flags.staggered) {
       x.intent.className = 'intent i-staggered';
       x.intent.innerHTML = `<span class="ic">${iconSvg('stagger', 38)}</span><span class="num">${tr('ui.combat.staggered')}</span>`;
-      x.intent._tip = { title: tr('ui.combat.staggeredTipTitle'), body: tr('ui.combat.staggeredTipBody') };
+      x.intent._tip = { title: 'Staggered', body: 'The glass has shattered — this creature loses its next action while it reseams.' };
     } else if (en.hp > 0 && en.moveKey) {
       const it = intentFor(en);
       x.intent.className = `intent i-${E.enemyMove(en).intent}`;
@@ -3579,7 +2768,6 @@ function pileCardByUid(pile, uid) {
 }
 
 // --------- the living-glass rig: one rAF drives eyes, inner fire and light pools
-const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // count a number element up/down to a target (ease-out cubic), with a set-pulse
 function tweenNum(node, from, to, ms = 640) {
   from = Math.round(from); to = Math.round(to);
@@ -3800,11 +2988,10 @@ const ENEMY_KIND_VFX = {
   slime: 'poison',
 };
 // ---- combat choreography: WAAPI, transform-only, REDUCED-gated ----
-const CHOREO_REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const HEAVY_KINDS = new Set(['golem', 'treeboss', 'leviathan', 'crab']);
 const FLOATY_KINDS = new Set(['wisp', 'shade', 'siren', 'eye', 'cultist']);
 function choreoAttack(el, dir = 1, kind = 'humanoid') {
-  if (CHOREO_REDUCED || !el) return Promise.resolve();
+  if (REDUCED || !el) return Promise.resolve();
   const heavy = HEAVY_KINDS.has(kind), floaty = FLOATY_KINDS.has(kind);
   const kf = heavy ? [
     { transform: 'translateX(0) scale(1,1)' },
@@ -3827,7 +3014,7 @@ function choreoAttack(el, dir = 1, kind = 'humanoid') {
     .catch(() => {});
 }
 function choreoHit(el, dir = 1) {
-  if (CHOREO_REDUCED || !el) return;
+  if (REDUCED || !el) return;
   meshFlash(el);
   el.animate(
     [
@@ -3839,7 +3026,7 @@ function choreoHit(el, dir = 1) {
   );
 }
 function choreoStagger(el) {
-  if (CHOREO_REDUCED || !el) return Promise.resolve();
+  if (REDUCED || !el) return Promise.resolve();
   return el.animate(
     [
       { transform: 'translateY(0) rotate(0deg)', filter: 'brightness(1)' },
@@ -4198,7 +3385,7 @@ async function handleEvent(ev, targetIdx) {
       break;
     }
     case 'monumentGift': {
-      banner(tr('ui.combat.monumentGift'));
+      banner('THE STONE RETURNS ITS GIFT');
       await sleep(REDUCED ? 40 : 1150);
       break;
     }
@@ -4822,7 +4009,7 @@ async function handleEvent(ev, targetIdx) {
       if (ev.perfect) {
         const token = presentationBarrier.begin('perfect-banner');
         const span = trace.begin('presentation.banner', { attributes: { kind: 'perfect' } });
-        const b = el('div', 'turn-banner perfect-banner', tr('ui.combat.perfectBanner'));
+        const b = el('div', 'turn-banner perfect-banner', 'PERFECT');
         screenEl().appendChild(b);
         setTimeout(() => {
           try {
@@ -4955,13 +4142,13 @@ function renderReward() {
   const { kind, rewards, taken, perfect } = pending;
   const sc = screenEl();
   const title = kind === 'boss' ? tr('ui.reward.bossVanquished') : kind === 'elite' ? tr('ui.reward.eliteSlain') : tr('ui.reward.victory');
-  const seal = perfect ? `<div class="perfect-seal">${tr('ui.reward.perfectSeal')}</div>` : '<div class="ornament">✦ ✦ ✦</div>';
+  const seal = perfect ? '<div class="perfect-seal">✦ PERFECT — the glass untouched ✦</div>' : '<div class="ornament">✦ ✦ ✦</div>';
   S.lastPerfect = false;
   sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
     <div class="ov-title">${title}</div>
     ${seal}
     <div class="reward-list"></div>
-    <div class="ov-actions"><button class="btn btn-primary" data-a="continue">${tr('ui.common.continue')}</button></div>
+    <div class="ov-actions"><button class="btn btn-primary" data-a="continue">Continue</button></div>
   </div></div>`;
   const list = $('.reward-list', sc);
   const settleRow = (row, onSaved) => {
@@ -4984,7 +4171,7 @@ function renderReward() {
     list.appendChild(row);
     return row;
   };
-  addRow('gold', uiIcon('coin', 28), tr('ui.reward.goldRow', { n: rewards.gold }),
+  addRow('gold', iconSvg('coin', 18), `<b class="gold-num">${rewards.gold}</b> gold`,
     () => E.takePendingReward(run, 'gold'), () => {
       sfx.coin();
       // the coins travel to the purse only after their taken flag is durable
@@ -5002,7 +4189,7 @@ function renderReward() {
     const p = POTIONS[rewards.potion];
     addRow('potion', rasterOr('potions', rewards.potion, potionSvg(p.tone)), `${p.name}`, () => {
       if (E.takePendingReward(run, 'potion')) return true;
-      V.floatText(stageW() / 2, stageH() / 2, tr('ui.reward.potionSlotsFull'), 'notice');
+      V.floatText(stageW() / 2, stageH() / 2, 'Potion slots full!', 'notice');
       return false;
     }, () => sfx.potion(), { title: p.name, body: p.text });
   }
@@ -5022,48 +4209,27 @@ function renderReward() {
         });
       }, { title: r.name, body: r.text });
   }
-  const cardRow = addRow('card', uiIcon('deck', 28), tr('ui.reward.addCardRow'));
+  const cardRow = addRow('card', iconSvg('cards', 26), 'Add a card to your deck');
   cardRow.dataset.cardrow = '1';
   if (!taken.card) cardRow.onclick = () => pickCardReward(rewards.cards);
 
-  const leaveReward = () => {
+  $('[data-a="continue"]', sc).onclick = () => {
+    sfx.click();
     E.clearPendingReward(run);
     const continueReward = () => { if (kind === 'boss') show('bossRelic'); else show('map'); };
     if (!requireRunSave(run, continueReward)) return;
     continueReward();
   };
-  $('[data-a="continue"]', sc).onclick = () => {
-    sfx.click();
-    if (!E.pendingRewardHasUntaken(run)) {
-      leaveReward();
-      return;
-    }
-    openOverlay(`<div class="panel ov-panel" style="text-align:center">
-      <div class="ov-title">${tr('ui.reward.leaveConfirmTitle')}</div>
-      <div class="ov-sub">${tr('ui.reward.leaveConfirmBody')}</div>
-      <div class="ov-actions"><button class="btn danger" data-a="yes">${tr('ui.reward.leaveConfirmYes')}</button><button class="btn ghost" data-a="no">${tr('ui.reward.leaveConfirmNo')}</button></div>
-    </div>`, (root) => {
-      root.onclick = (e) => {
-        const a = e.target.dataset.a;
-        if (a === 'yes') {
-          root.onclick = null;
-          closeOverlay();
-          leaveReward();
-        }
-        if (a === 'no') closeOverlay();
-      };
-    });
-  };
 
   function pickCardReward(ids) {
-    showCardGrid(tr('ui.reward.chooseCardTitle'), ids.map((id) => ({ id, up: false, uid: null })), {
-      sub: tr('ui.reward.chooseCardSub'),
+    showCardGrid('Choose a Card', ids.map((id) => ({ id, up: false, uid: null })), {
+      sub: 'Add one card to your deck — or skip to keep it lean.',
       pick: (inst) => {
         if (!E.takePendingReward(run, 'card', inst?.id ?? null)) return;
         const finish = () => settleRow(cardRow, () => {
           if (!inst) return;
           sfx.upgrade();
-          V.floatText(stageW() / 2, stageH() / 2, tr('ui.reward.cardAdded', { name: E.cardData(inst).name }), 'notice');
+          V.floatText(stageW() / 2, stageH() / 2, `${E.cardData(inst).name} added`, 'notice');
         });
         if (!requireRunSave(run, finish)) return;
         finish();
@@ -5081,8 +4247,8 @@ function renderBossRelic() {
   const picks = E.rollBossRelics(run);
   const sc = screenEl();
   sc.innerHTML = `<div class="center-panel screen-enter"><div class="panel" style="width:min(620px,94vw)">
-    <div class="ov-title">${tr('ui.reward.bossRelicTitle')}</div>
-    <div class="ov-sub">${tr('ui.reward.bossRelicSub')}</div>
+    <div class="ov-title">A BOSS RELIC CALLS</div>
+    <div class="ov-sub">Choose one — its power is permanent.</div>
     <div class="big-choices" style="flex-direction:column"></div>
   </div></div>`;
   const wrap = $('.big-choices', sc);
@@ -5108,7 +4274,7 @@ function renderBossRelic() {
     b.onclick = () => pick(id);
     wrap.appendChild(b);
   }
-  const skip = el('button', 'btn ghost', tr('ui.reward.takeNone'));
+  const skip = el('button', 'btn ghost', 'Take none');
   skip.style.marginTop = '10px';
   skip.onclick = () => pick(null);
   wrap.appendChild(skip);
@@ -5146,12 +4312,12 @@ function renderRest() {
   const run = S.run;
   const canUp = run.player.deck.some((c) => !c.up && CARDS[c.id].up);
   screenEl().innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
-    <div class="ov-title">${tr('ui.rest.title')}</div>
+    <div class="ov-title">REST SITE</div>
     <div class="art-lg">${rasterOr('props', 'campfire', campfireSvg())}</div>
-    <div class="ov-sub">${tr('ui.rest.sub')}</div>
+    <div class="ov-sub">The fire crackles. For a moment, the Spire is quiet.</div>
     <div class="big-choices">
-      <button class="btn btn-primary" data-a="rest">${iconSvg('flame', 18)} ${tr('ui.rest.restBtn')} <span style="font-size:13px;opacity:.8">${tr('ui.rest.restHeal', { hp: Math.round(run.player.maxHp * E.restHealFrac(run)) })}</span></button>
-      <button class="btn" data-a="smith" ${canUp ? '' : 'disabled'}>${iconSvg('hammer', 18)} ${tr('ui.rest.smithBtn')} <span style="font-size:13px;opacity:.8">${tr('ui.rest.smithSub')}</span></button>
+      <button class="btn btn-primary" data-a="rest">${iconSvg('flame', 18)} Rest <span style="font-size:13px;opacity:.8">— heal ${Math.round(run.player.maxHp * E.restHealFrac(run))} HP</span></button>
+      <button class="btn" data-a="smith" ${canUp ? '' : 'disabled'}>${iconSvg('hammer', 18)} Smith <span style="font-size:13px;opacity:.8">— upgrade a card</span></button>
     </div>
   </div></div>`;
   $('[data-a="rest"]').onclick = (e) => {
@@ -5162,7 +4328,7 @@ function renderRest() {
       sfx.heal();
       // the fire answers: a swell of warmth, embers rising off the hearth
       V.flash('#ff9a4d', 0.12, 0.8);
-      V.floatText(stageW() / 2, stageH() / 2 - 40, tr('ui.rest.healedFloat', { hp: healed }), 'healf');
+      V.floatText(stageW() / 2, stageH() / 2 - 40, `+${healed} HP`, 'healf');
       V.motes(stageW() / 2, stageH() / 2, '#8fe8a0', 22);
       V.motes(stageW() / 2, stageH() / 2 + 60, '#ffb066', 16);
       setTimeout(() => { if (S.screen === 'rest') show('map'); }, 900);
@@ -5175,15 +4341,15 @@ function renderRest() {
   $('[data-a="smith"]').onclick = () => {
     sfx.click();
     const ups = run.player.deck.filter((c) => !c.up && CARDS[c.id].up);
-    showCardGrid(tr('ui.rest.upgradeTitle'), ups, {
-      sub: tr('ui.rest.upgradeSub'),
+    showCardGrid('Upgrade a Card', ups, {
+      sub: 'Forge one card into its + form.',
       pick: (inst) => {
         if (!inst) return;
         E.upgradeCardInDeck(run, inst.uid);
         const finish = () => {
           sfx.upgrade();
           V.flash('#ffe9ac', 0.12, 0.4);
-          showCardGrid(tr('ui.rest.upgradedTitle'), [run.player.deck.find((c) => c.uid === inst.uid)], { sub: tr('ui.rest.upgradedSub') });
+          showCardGrid('Upgraded!', [run.player.deck.find((c) => c.uid === inst.uid)], { sub: 'It gleams with new power.' });
           setTimeout(() => { if (S.screen === 'rest') { closeOverlay(); show('map'); } }, 1300);
         };
         if (run.pendingHollowRoute) {
@@ -5205,20 +4371,20 @@ function renderTreasure() {
     if (subHtml) $('.ov-sub').innerHTML = subHtml;
     const bc = $('.big-choices');
     bc.innerHTML = '';
-    const btn = el('button', 'btn btn-primary', tr('ui.common.continue'));
+    const btn = el('button', 'btn btn-primary', 'Continue');
     btn.onclick = () => { sfx.click(); show('map'); };
     bc.appendChild(btn);
     renderHud();
     runEffects.saveRun(run);
   };
   screenEl().innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
-    <div class="ov-title">${tr('ui.treasure.title')}</div>
+    <div class="ov-title">TREASURE</div>
     <div class="art-lg" style="cursor:pointer" data-a="open">${rasterOr('props', 'chest', chestSvg(false))}</div>
-    <div class="ov-sub">${tr('ui.treasure.sub')}</div>
-    <div class="big-choices"><button class="btn btn-primary" data-a="open">${tr('ui.treasure.openBtn')}</button></div>
+    <div class="ov-sub">A heavy chest, banded in gold. Open it?</div>
+    <div class="big-choices"><button class="btn btn-primary" data-a="open">Open the Chest</button></div>
   </div></div>`;
   if (opened) {
-    showContinue(tr('ui.treasure.empty'));
+    showContinue('The chest lies empty.');
     return;
   }
   const open = () => {
@@ -5227,7 +4393,7 @@ function renderTreasure() {
     $$('[data-a="open"]').forEach((b) => { b.onclick = null; b.style.pointerEvents = 'none'; });
     const result = E.claimTreasure(run, { common: 0.55, uncommon: 0.35, rare: 0.1 });
     if (result.already) {
-      showContinue(tr('ui.treasure.empty'));
+      showContinue('The chest lies empty.');
       return;
     }
     V.flash('#ffe9ac', 0.2, 0.5);
@@ -5236,10 +4402,10 @@ function renderTreasure() {
     if (result.relicId) {
       sfx.relic();
       const r = RELICS[result.relicId];
-      sub = tr('ui.treasure.relicClaim', { tone: r.tone, name: r.name, text: r.text });
+      sub = `You claim <b style="color:${r.tone}">${r.name}</b> — <i>${r.text}</i>`;
     } else {
       sfx.coin();
-      sub = tr('ui.treasure.coinsOnly', { gold: 60 });
+      sub = 'Only coins remain — <b class="gold-num">+60 gold</b>.';
     }
     showContinue(sub);
   };
@@ -5256,13 +4422,13 @@ function renderShop() {
   sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel ov-panel" style="width:min(980px,96vw)">
     <div style="display:flex;align-items:center;justify-content:center;gap:18px">
       <div style="width:130px">${rasterOr('props', 'merchant', merchantSvg())}</div>
-      <div><div class="ov-title" style="text-align:left">${tr('ui.shop.title')}</div>
-      <div class="ov-sub shop-dialogue" style="text-align:left;margin:0">${tr('ui.shop.greeting')}</div></div>
+      <div><div class="ov-title" style="text-align:left">THE MERCHANT</div>
+      <div class="ov-sub shop-dialogue" style="text-align:left;margin:0">"Gold for glory, stranger. Everything's fair-priced — for the doomed."</div></div>
     </div>
     <div class="shop-grid">
       <div class="shop-row cards-row"></div>
       <div class="shop-row misc-row"></div>
-      <div class="ov-actions"><button class="btn btn-primary" data-a="leave">${tr('ui.shop.leave')}</button></div>
+      <div class="ov-actions"><button class="btn btn-primary" data-a="leave">Leave the Shop</button></div>
     </div>
   </div></div>`;
   const cardsRow = $('.cards-row', sc), miscRow = $('.misc-row', sc);
@@ -5345,7 +4511,7 @@ function renderShop() {
       const b = el('button', 'shop-relic', `<span style="width:34px;height:44px">${rasterOr('potions', it.id, potionSvg(p.tone))}</span><b>${p.name}</b>${p.text}`);
       b.onclick = () => {
         if (it.sold || gold() < it.price) return sfx.debuff();
-        if (!E.gainPotion(run, it.id)) { V.floatText(stageW() / 2, stageH() / 2, tr('ui.shop.potionSlotsFull'), 'notice'); return; }
+        if (!E.gainPotion(run, it.id)) { V.floatText(stageW() / 2, stageH() / 2, 'Potion slots full!', 'notice'); return; }
         it.sold = true;
         sfx.potion();
         buy(it.price);
@@ -5357,11 +4523,11 @@ function renderShop() {
     // card removal service
     const removable = E.removableCards(run);
     const wrap = el('div', `shop-item ${st.removed ? 'sold' : ''} ${gold() < st.removeCost || !removable.length ? 'cant' : ''}`);
-    const b = el('button', 'shop-relic', `<span style="width:34px;display:inline-flex;justify-content:center">${iconSvg('scissors', 26)}</span><b>${tr('ui.shop.cardRemoval.title')}</b>${tr('ui.shop.cardRemoval.desc')}`);
+    const b = el('button', 'shop-relic', `<span style="width:34px;display:inline-flex;justify-content:center">${iconSvg('scissors', 26)}</span><b>Card Removal</b>Remove a card from your deck forever.`);
     b.onclick = () => {
       if (st.removed || gold() < st.removeCost || !removable.length) return sfx.debuff();
-      showCardGrid(tr('ui.shop.cardRemoval.pickTitle'), removable, {
-        sub: tr('ui.shop.cardRemoval.pickSub'),
+      showCardGrid('Remove a Card', removable, {
+        sub: 'Cut the dead weight.',
         pick: (inst) => {
           if (!inst || !E.removeCardFromDeck(run, inst.uid)) return;
           st.removed = true;
@@ -5371,7 +4537,7 @@ function renderShop() {
           renderHud();
           refresh();
         },
-        canSkip: true, skipLabel: tr('ui.common.cancel'),
+        canSkip: true, skipLabel: 'Cancel',
       });
     };
     wrap.appendChild(b);
@@ -5400,7 +4566,7 @@ function renderEvent(eventId) {
   const leaveEvent = () => leaveHollowDestination(run, () => show('map'));
   const showEventContinue = () => {
     choices.innerHTML = '';
-    const done = el('button', 'btn btn-primary', tr('ui.common.continue'));
+    const done = el('button', 'btn btn-primary', 'Continue');
     done.onclick = () => { sfx.click(); leaveEvent(); };
     choices.appendChild(done);
   };
@@ -5463,16 +4629,16 @@ function renderEvent(eventId) {
       if (p === 'remove') {
         const removable = E.removableCards(run);
         if (!removable.length) return resolve();
-        showCardGrid(tr('ui.event.removeTitle'), removable, { sub: tr('ui.event.removeSub'), pick: (inst) => { if (inst && E.removeCardFromDeck(run, inst.uid)) sfx.card(); resolve(); }, canSkip: false });
+        showCardGrid('Remove a Card', removable, { sub: 'Let it go.', pick: (inst) => { if (inst && E.removeCardFromDeck(run, inst.uid)) sfx.card(); resolve(); }, canSkip: false });
       } else if (p === 'upgrade') {
         const ups = run.player.deck.filter((c) => !c.up && CARDS[c.id].up);
         if (!ups.length) return resolve();
-        showCardGrid(tr('ui.event.upgradeTitle'), ups, { sub: tr('ui.event.upgradeSub'), pick: (inst) => { if (inst) { E.upgradeCardInDeck(run, inst.uid); sfx.upgrade(); } resolve(); } });
+        showCardGrid('Upgrade a Card', ups, { sub: 'The forge hungers.', pick: (inst) => { if (inst) { E.upgradeCardInDeck(run, inst.uid); sfx.upgrade(); } resolve(); } });
       } else if (p === 'duplicate') {
-        showCardGrid(tr('ui.event.duplicateTitle'), run.player.deck, { sub: tr('ui.event.duplicateSub'), pick: (inst) => { if (inst) { E.duplicateCardInDeck(run, inst.uid); sfx.upgrade(); } resolve(); } });
+        showCardGrid('Duplicate a Card', run.player.deck, { sub: 'The mirror remembers.', pick: (inst) => { if (inst) { E.duplicateCardInDeck(run, inst.uid); sfx.upgrade(); } resolve(); } });
       } else if (p.pickCard) {
-        showCardGrid(tr('ui.event.chooseCardTitle'), E.rollEventCards(run, p.pickCard).map((id) => ({ id, up: false, uid: null })), {
-          sub: tr('ui.event.chooseCardSub'),
+        showCardGrid('Choose a Card', E.rollEventCards(run, p.pickCard).map((id) => ({ id, up: false, uid: null })), {
+          sub: 'One page still glows.',
           pick: (inst) => { if (inst) { E.addCardToDeck(run, inst.id); sfx.upgrade(); } resolve(); }, canSkip: true,
         });
       } else resolve();
@@ -5486,15 +4652,15 @@ function bequestLabel(o) {
   const kindIcon = bu
     ? `<img class="bq-kind" src="${bu}" alt="">`
     : `<span class="bq-kind-fallback">${iconSvg(`bequest-${o.kind}`, 22)}</span>`;
-  if (o.kind === 'relic') return { icon: `${kindIcon}${relicArt(o.id, 20)}`, name: RELICS[o.id]?.name || o.id, note: tr('ui.end.bequestNote.relic') };
-  if (o.kind === 'card') return { icon: `${kindIcon}<span class="bq-card">🂠</span>`, name: (CARDS[o.id]?.name || o.id) + (o.up ? '+' : ''), note: tr('ui.end.bequestNote.card') };
-  return { icon: `${kindIcon}${iconSvg('coin', 20)}`, name: tr('ui.end.bequestNote.gold', { n: o.amount }), note: tr('ui.end.bequestNote.goldCache') };
+  if (o.kind === 'relic') return { icon: `${kindIcon}${relicArt(o.id, 20)}`, name: RELICS[o.id]?.name || o.id, note: 'your rarest relic' };
+  if (o.kind === 'card') return { icon: `${kindIcon}<span class="bq-card">🂠</span>`, name: (CARDS[o.id]?.name || o.id) + (o.up ? '+' : ''), note: 'your finest card' };
+  return { icon: `${kindIcon}${iconSvg('coin', 20)}`, name: `${o.amount} gold`, note: 'a cache of gold' };
 }
 function unlockToastInfo(u) {
-  if (u === 'aspect2') return { kind: tr('ui.end.unlock.aspect'), name: tr('ui.end.unlock.ashwarden') };
+  if (u === 'aspect2') return { kind: 'Aspect Unlocked', name: 'The Ashwarden' };
   const [k, id] = u.split(':');
-  if (k === 'card') return { kind: tr('ui.end.unlock.card'), name: CARDS[id]?.name || id };
-  return { kind: tr('ui.end.unlock.relic'), name: RELICS[id]?.name || id };
+  if (k === 'card') return { kind: 'Card Unlocked', name: CARDS[id]?.name || id };
+  return { kind: 'Relic Unlocked', name: RELICS[id]?.name || id };
 }
 function showUnlockToasts(list = [], runId = S.run?.runId) {
   if (!list.length) return;
@@ -5506,7 +4672,7 @@ function showUnlockToasts(list = [], runId = S.run?.runId) {
     const info = unlockToastInfo(u);
     setTimeout(() => {
       if (!stillOnEnd()) return;
-      const t = el('div', 'unlock-toast', `<div class="ut-kind">${tr('ui.end.unlock.header', { kind: info.kind })}</div><div class="ut-name">${info.name}</div>`);
+      const t = el('div', 'unlock-toast', `<div class="ut-kind">✦ ${info.kind}</div><div class="ut-name">${info.name}</div>`);
       host.appendChild(t);
       requestAnimationFrame(() => t.classList.add('in'));
       sfx.relic();
@@ -5516,69 +4682,34 @@ function showUnlockToasts(list = [], runId = S.run?.runId) {
 }
 
 function dawnEventHtml(event) {
-  if (event.t === 'whisper') return `<div class="dawn-kicker">${tr('ui.dawn.whisperKicker')}</div>
+  if (event.t === 'whisper') return `<div class="dawn-kicker">A whisper reaches the dawn</div>
     <div class="dawn-whisper"><i>${escHtml(event.text)}</i></div>`;
   if (event.t === 'questReveal') {
     const quest = QUESTS[event.id];
-    return `<div class="dawn-kicker">${tr('ui.dawn.questRevealKicker', { mode: quest.mode })}</div>
+    return `<div class="dawn-kicker">${escHtml(quest.mode)} revealed</div>
       <div class="dawn-name">${escHtml(quest.name)}</div>
       <div class="dawn-copy">${escHtml(quest.inscription)}</div>`;
   }
-  if (event.t === 'questProgress') return `<div class="dawn-kicker">${tr('ui.dawn.questProgressKicker')}</div>
+  if (event.t === 'questProgress') return `<div class="dawn-kicker">The trail continues</div>
     <div class="dawn-name">${escHtml(E.questProgressName(event.id, event.target))}</div>
     <div class="dawn-count">${event.progress}/${event.target}</div>`;
-  if (event.t === 'questUnlock') return `<div class="dawn-kicker">${tr('ui.dawn.questUnlockKicker')}</div>
-    <div class="dawn-name">${tr('ui.dawn.witchlightLens')}</div>
-    <div class="dawn-copy">${tr('ui.dawn.witchlightCopy')}</div>`;
-  if (event.t === 'pageRead') return `<div class="dawn-kicker">${tr('ui.dawn.pageKicker', { n: event.index })}</div>
+  if (event.t === 'questUnlock') return `<div class="dawn-kicker">Insight awakened</div>
+    <div class="dawn-name">Witchlight Lens</div>
+    <div class="dawn-copy">Pale paths will now be marked.</div>`;
+  if (event.t === 'pageRead') return `<div class="dawn-kicker">Page ${event.index}</div>
     <div class="dawn-copy">${escHtml(event.text)}</div>`;
-  if (event.t === 'eighthResolved') return `<div class="dawn-kicker broken-omen">${tr('ui.dawn.eighthResolvedKicker')}</div>
+  if (event.t === 'eighthResolved') return `<div class="dawn-kicker broken-omen">The broken glyphs resolve</div>
     <div class="dawn-copy">${escHtml(event.text)}</div>`;
-  if (event.t === 'shadeResolved') return `<div class="dawn-kicker">${tr('ui.dawn.shadeResolvedKicker')}</div>
+  if (event.t === 'shadeResolved') return `<div class="dawn-kicker">The shade speaks plainly</div>
     <div class="dawn-copy">${escHtml(event.text)}</div>`;
-  if (event.t === 'questComplete') return `<div class="dawn-kicker">${tr('ui.dawn.questCompleteKicker', { mode: QUESTS[event.id].mode })}</div>
+  if (event.t === 'questComplete') return `<div class="dawn-kicker">${escHtml(QUESTS[event.id].mode)} complete</div>
     <div class="dawn-name">${escHtml(QUESTS[event.id].name)}</div>`;
   if (event.t === 'shardGrant') return `<div class="dawn-icon">${iconSvg('emberglassShard', 42)}</div>
     <div class="dawn-name">${escHtml(QUESTS[event.id].name)}</div>
-    <div class="dawn-copy">${tr('ui.dawn.shardGrantCopy')}</div>`;
+    <div class="dawn-copy">One pane answers.</div>`;
   if (event.t === 'act4Reveal') return `<div class="dawn-icon">${iconSvg('sealedDoor', 48)}</div>
-    <div class="dawn-copy">${tr('ui.dawn.act4RevealCopy')}</div>`;
+    <div class="dawn-copy">Six panes burn. Something waits above the crown.</div>`;
   return '';
-}
-
-function showDawnPersistenceFailure(onRetry, phase) {
-  const finishing = phase === 'clear';
-  const description = finishing
-    ? tr('ui.dawn.saveFailedClear')
-    : tr('ui.dawn.saveFailedCursor');
-  const html = persistenceFailureHtml({
-    id: 'dawn-save-failure',
-    title: tr('ui.dawn.saveFailedTitle'),
-    description,
-    retry: { action: 'retry-dawn', label: tr('ui.persistence.retrySave') },
-    reload: { action: 'reload-dawn', label: tr('ui.dawn.reloadSaved') },
-  });
-  openPersistenceDialog(html, '[data-a="retry-dawn"]', (root, transaction) => {
-    root.onclick = (event) => {
-      if (!transaction.active()) return;
-      const action = event.target.closest('[data-a]')?.dataset.a;
-      if (action === 'reload-dawn') { location.reload(); return; }
-      if (action !== 'retry-dawn') return;
-      sfx.click();
-      transaction.settle(onRetry);
-    };
-  });
-}
-
-function persistDawnOrRetry(action, phase) {
-  return new Promise((resolve) => {
-    const attempt = () => {
-      const kind = phase === 'clear' ? 'dawn-clear' : 'dawn-cursor';
-      if (persistObserved(kind, action)) { resolve(); return; }
-      showDawnPersistenceFailure(attempt, phase);
-    };
-    attempt();
-  });
 }
 
 async function drainEndQueue(run, host) {
@@ -5660,9 +4791,9 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
   } else {
     // the fallen may carve one thing into the stone for the next climber to find
     const bequestHtml = unpaidBequest
-      ? `<div class="bequest"><div class="bequest-done">${tr('ui.end.bequestUnpaid')}</div></div>`
+      ? '<div class="bequest"><div class="bequest-done">The unpaid gift remains in the standing stone</div></div>'
       : offers.length ? `<div class="bequest" id="bequest">
-        <div class="bequest-title">${tr('ui.end.bequestTitle', { act: `<b>${ACTS[fallAct].name}</b>` })}</div>
+        <div class="bequest-title">Carve one thing into the stone — the next climb may recover it in <b>${ACTS[fallAct].name}</b>.</div>
         <div class="bequest-opts">${offers.map((o, i) => {
       const L = bequestLabel(o);
       return `<button class="bequest-opt" data-a="bequest" data-i="${i}"><span class="bq-icon">${L.icon}</span><span class="bq-name">${L.name}</span><span class="bq-note">${L.note}</span></button>`;
@@ -5675,7 +4806,7 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
       <div class="monument">
         <div class="mon-flame"></div>
         <div class="end-title lose">${tr('ui.end.fallen')}</div>
-        <div class="ov-sub" style="font-size:16px">${tr('ui.end.fallenSub', { floor: totalFloor })}</div>
+        <div class="ov-sub" style="font-size:16px">Here ended a climb, on floor ${totalFloor}.<br>The Spire keeps what it takes — but the Vigil remembers.</div>
         ${stats}${bequestHtml}${btns}
       </div>
       <div class="embers">${embers}</div>
@@ -5690,11 +4821,11 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
       const o = offers[+t.dataset.i];
       runEffects.setBequest(fallAct, fallRow, o);
       const L = bequestLabel(o);
-      $('#bequest').innerHTML = `<div class="bequest-done">${tr('ui.end.bequestDone', { name: `<b>${L.name}</b>`, act: ACTS[fallAct].name })}</div>`;
+      $('#bequest').innerHTML = `<div class="bequest-done">✦ The stone keeps your <b>${L.name}</b>.<br>It will wait for you in ${ACTS[fallAct].name}.</div>`;
       return;
     }
     sfx.click();
-    if (a === 'deck') showCardGrid(tr('ui.end.finalDeckTitle'), run.player.deck, {});
+    if (a === 'deck') showCardGrid('Final Deck', run.player.deck, {});
     if (a === 'title') { S.run = null; S.lamp = null; show('title'); }
   };
   ceremony.then((owedUnlocks = newUnlocks) => {
@@ -5767,7 +4898,7 @@ function renderGallery() {
     bequests: ['relic', 'card', 'gold'].map((k) => [k, () => iconSvg(`bequest-${k}`, 64)]),
     meta: [
       'fallen', 'ascended', 'monument-node',
-      ROSE_ASSET_IDS.mural, ROSE_ASSET_IDS.frame, ...Object.values(ROSE_ASSET_IDS.masks),
+      'emberglass-mural', 'emberglass-frame', ...QUEST_IDS.map((id) => `emberglass-mask-${id}`),
     ].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
     piles: ['draw', 'discard', 'ashes'].map((k) => [k, () => `<div class="title-banner-ph">${k}</div>`]),
     ui: UI_CHROME_IDS.map((k) => [k, () => {
@@ -6037,7 +5168,7 @@ function installProbe() {
     queueIdle: () => !S.cb || S.cb.queue.length === 0,
     presentationIdle: () => presentationBarrier.activeCount() === 0,
     traceIntegrity: () => trace.assertIntegrity(),
-    mapWarmSet: () => [...liveMapWarmIds()],
+    mapWarmSet: () => [...readMapWarmIds()],
     resetBehaviourTrace: () => trace.reset(),
     translateForProbe: (key) => tr(key),
     settle: () => new Promise((res) => {
@@ -6088,11 +5219,10 @@ function installProbe() {
     setEmbers(n) { S.cb.embers = n; syncCombat(); },
     setEnemyHp(i, hp) { S.cb.enemies[i].hp = hp; syncCombat(); },
     forceRoseFallback(on) {
-      forceRoseFallback = !!on;
-      roseAssetsReady = false;
+      const fallback = setForceRoseFallback(on);
       if (S.screen === 'vigil') renderVigil({ tab: 'rose' });
       if (S.screen === 'title') renderTitle();
-      return forceRoseFallback;
+      return fallback;
     },
     // -- determinism switch -----------------------------------------------
     freeze() {
@@ -6105,6 +5235,12 @@ function installProbe() {
 }
 
 export function initUI() {
+  bindUICommands({
+    show,
+    startCombat: startCombatUI,
+    renderHud,
+    closeOverlay,
+  });
   const bootQ = new URLSearchParams(location.search);
   const audioOutcome = (result) => ['sample', 'synth-fallback', 'playing'].includes(result)
     ? 'completed' : 'rejected';

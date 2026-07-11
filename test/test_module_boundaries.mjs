@@ -77,6 +77,7 @@ assert.match(productionTraceSpec, /test\.afterAll\([\s\S]*?rmSync\(productionOut
   'production trace suite must clean its exact task-owned bundle after tests');
 
 const uiSource = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
+const overlaySource = readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8');
 const audioAssetsSource = readFileSync(new URL('../src/audio-assets.js', import.meta.url), 'utf8');
 assert.match(audioAssetsSource, /!\.\/assets\/musics\/_raw\/\*\*/,
   'Music Vite glob must exclude authoring-time _raw assets');
@@ -107,11 +108,19 @@ for (const [name, ownerSource] of animationLoopOwners) {
   assert.match(ownerSource, /requestAnimationFrame\(/, `${name} source guard must own an rAF loop`);
   assert.doesNotMatch(ownerSource, /trace\.(?:emit|begin)/, `${name} loop must not emit trace records`);
 }
-for (const marker of [
-  'function usePotionOn(', 'function selectMapNode(', 'function useLanternArt(',
-  'function doKindle(', 'function doPlay(', 'function onEndTurn(',
+assert.doesNotMatch(uiSource, /function\s+usePotionOn\s*\(/,
+  'usePotionOn must not retain a duplicate monolith owner after overlay extraction');
+assert.equal((overlaySource.match(/function\s+usePotionOn\s*\(/g) || []).length, 1,
+  'overlay must own exactly one traced usePotionOn handler');
+for (const [marker, source] of [
+  ['function usePotionOn(', overlaySource],
+  ['function selectMapNode(', uiSource],
+  ['function useLanternArt(', uiSource],
+  ['function doKindle(', uiSource],
+  ['function doPlay(', uiSource],
+  ['function onEndTurn(', uiSource],
 ]) {
-  const ownerSource = sourceBlock(uiSource, marker);
+  const ownerSource = sourceBlock(source, marker);
   assert.match(ownerSource, /catch\s*\(/, `${marker} must close its trace span on failure`);
   assert.match(ownerSource, /finish\('failed'/, `${marker} must record a failed terminal span`);
 }

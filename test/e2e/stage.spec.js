@@ -133,6 +133,105 @@ test('viewport maps to its canonical stage shape', async ({ page }) => {
   expect(box.t).toBeCloseTo((box.ih - box.h) / 2, 0);
 });
 
+test('P1 shared UI modules preserve exact browser boundaries and live commands', async ({ page }) => {
+  await boot(page, { query: 'trace=1' });
+  const result = await page.evaluate(async () => {
+    const modules = {
+      context: await import('/src/ui/context.js'),
+      policy: await import('/src/ui/policy.js'),
+      format: await import('/src/ui/format.js'),
+      rose: await import('/src/ui/rose.js'),
+      commands: await import('/src/ui/commands.js'),
+    };
+    const boundary = {
+      show: typeof window.spirebound.show,
+      state: typeof window.spirebound.S,
+      trace: typeof window.__probe.behaviourTrace,
+    };
+    const screen = document.getElementById('screen');
+    const stale = () => {};
+    screen.onclick = stale;
+    const beforeUnknown = window.spirebound.S.screen;
+    let unknownError = null;
+    try { window.spirebound.show('missing-route'); } catch (error) { unknownError = error.message; }
+    const unknown = {
+      error: unknownError,
+      screen: window.spirebound.S.screen,
+      sameScreen: window.spirebound.S.screen === beforeUnknown,
+      staleClickPreserved: screen.onclick === stale,
+      traced: window.__probe.behaviourTrace().records.some((entry) =>
+        entry.eventName === 'error.ui' && entry.attributes?.code === 'unknown-route'),
+    };
+    screen.onclick = stale;
+    modules.commands.uiCommands.show('embark');
+    const showCommand = {
+      screen: window.spirebound.S.screen,
+      rendered: !!screen.querySelector('.embark-screen'),
+      staleClickReplaced: screen.onclick !== stale,
+    };
+    window.spirebound.S.run = window.spirebound.E.newRun(7717);
+    window.spirebound.S.cb = null;
+    window.spirebound.S.screen = 'map';
+    modules.commands.uiCommands.renderHud();
+    const hud = document.getElementById('hud');
+    const renderHudCommand = {
+      visible: hud.classList.contains('show'),
+      gold: hud.querySelector('.gold-num')?.textContent,
+      deckCount: hud.querySelector('.deck-count')?.textContent,
+    };
+    modules.commands.uiCommands.show('title');
+    screen.querySelector('[data-a="help"]').click();
+    const overlay = document.getElementById('overlay');
+    const overlayBeforeClose = {
+      open: overlay.classList.contains('open'),
+      hasContent: overlay.childElementCount > 0,
+    };
+    modules.commands.uiCommands.closeOverlay();
+    const closeOverlayCommand = {
+      before: overlayBeforeClose,
+      open: overlay.classList.contains('open'),
+      empty: overlay.innerHTML === '',
+    };
+    modules.commands.uiCommands.startCombat(['sporeling'], 'normal');
+    const live = { screen: window.spirebound.S.screen, enemies: window.spirebound.S.cb.enemies.length };
+    return {
+      boundary,
+      exports: Object.fromEntries(Object.entries(modules).map(([name, mod]) => [name, Object.keys(mod).sort()])),
+      unknown,
+      showCommand,
+      renderHudCommand,
+      closeOverlayCommand,
+      live,
+    };
+  });
+  expect(result.boundary).toEqual({ show: 'function', state: 'object', trace: 'function' });
+  expect(result.exports.context).toEqual([
+    '$', '$$', 'COARSE', 'FINE', 'FORCE_INPUT', 'S', 'el', 'escHtml',
+    'presentationBarrier', 'screenEl', 'sleep', 'terminalNavigationLocked', 'trace',
+  ].sort());
+  expect(result.exports.policy).toEqual(['REDUCED']);
+  expect(result.exports.format).toEqual(['ROMAN']);
+  expect(result.exports.rose).toEqual([
+    'getRoseState', 'roseAssets', 'setDisclosedRoseStateIds', 'setForceRoseFallback', 'setRoseAssetsReady',
+  ]);
+  expect(result.exports.commands).toEqual(['bindUICommands', 'uiCommands']);
+  expect(result.unknown).toEqual({
+    error: 'Unknown UI route: missing-route',
+    screen: 'title',
+    sameScreen: true,
+    staleClickPreserved: true,
+    traced: true,
+  });
+  expect(result.showCommand).toEqual({ screen: 'embark', rendered: true, staleClickReplaced: true });
+  expect(result.renderHudCommand).toEqual({ visible: true, gold: '99', deckCount: '10' });
+  expect(result.closeOverlayCommand).toEqual({
+    before: { open: true, hasContent: true },
+    open: false,
+    empty: true,
+  });
+  expect(result.live).toEqual({ screen: 'combat', enemies: 1 });
+});
+
 test('?shape= override forces the remaining shapes', async ({ page }) => {
   test.skip(test.info().project.name !== 'desktop', 'one project is enough');
   await boot(page, { query: 'shape=pad-portrait' });

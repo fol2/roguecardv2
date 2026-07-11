@@ -46,6 +46,8 @@ import {
 } from '../src/ui/behaviour-trace.js';
 import { createPresentationBarrier } from '../src/ui/presentation-barrier.js';
 import * as RunEffectsModule from '../src/ui/run-effects.js';
+const FormatModule = await import('../src/ui/format.js');
+const CommandsModule = await import('../src/ui/commands.js');
 import {
   allocateStrictE2EPort, runWithStrictE2EPort,
 } from '../tools/run-with-strict-e2e-port.mjs';
@@ -60,6 +62,77 @@ function freshCombat(enemyIds = ['sporeling']) {
 }
 function forceHand(run, cb, ids) {
   cb.hand = ids.map((id) => makeCard(run, id));
+}
+
+// ---- Round 5 P1 shared UI module boundaries -------------------------------
+{
+  assert.deepEqual(Object.keys(FormatModule), ['ROMAN'], 'format exposes only ROMAN');
+  assert.deepEqual(Object.keys(CommandsModule), ['bindUICommands', 'uiCommands'],
+    'commands exposes only the binder and frozen facade');
+  assert.deepEqual(FormatModule.ROMAN, ['0', 'I', 'II', 'III', 'IV', 'V']);
+  assert.equal(Object.isFrozen(FormatModule.ROMAN), true, 'ROMAN is immutable');
+  assert.equal(Object.isFrozen(CommandsModule.uiCommands), true, 'command facade is immutable');
+
+  const exportNames = (source) => {
+    const names = new Set();
+    for (const match of source.matchAll(/\bexport\s+(?:async\s+)?(?:const|let|function|class)\s+([\w$]+)/g)) names.add(match[1]);
+    for (const match of source.matchAll(/\bexport\s*\{([^}]+)\}/g)) {
+      for (const entry of match[1].split(',')) {
+        const name = entry.trim().split(/\s+as\s+/).at(-1);
+        if (name) names.add(name);
+      }
+    }
+    return [...names].sort();
+  };
+  const sourceOf = (name) => readFileSync(new URL(`../src/ui/${name}.js`, import.meta.url), 'utf8');
+  assert.deepEqual(exportNames(sourceOf('context')), [
+    '$', '$$', 'COARSE', 'FINE', 'FORCE_INPUT', 'S', 'el', 'escHtml',
+    'presentationBarrier', 'screenEl', 'sleep', 'terminalNavigationLocked', 'trace',
+  ].sort(), 'context exact browser-owned export surface');
+  assert.deepEqual(exportNames(sourceOf('policy')), ['REDUCED'],
+    'policy exact browser-owned export surface');
+  assert.deepEqual(exportNames(sourceOf('rose')), [
+    'getRoseState', 'roseAssets', 'setDisclosedRoseStateIds', 'setForceRoseFallback', 'setRoseAssetsReady',
+  ], 'rose exact browser-owned export surface');
+  assert.deepEqual(exportNames(sourceOf('assets')), [
+    'aimRing', 'combatantView', 'heroArt', 'hudRelic', 'metaBg', 'omenIconName',
+    'omenMark', 'rasterOr', 'relicArt', 'sceneBg', 'warmAssets',
+  ], 'assets exports only consumers used outside its owner');
+  assert.deepEqual(exportNames(sourceOf('tooltip')), ['createTooltip']);
+  assert.deepEqual(exportNames(sourceOf('overlay')), ['createOverlay']);
+  assert.deepEqual(exportNames(sourceOf('navigation')), ['createNavigator']);
+
+  const uiSource = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
+  const overlaySource = sourceOf('overlay');
+  const navigationSource = sourceOf('navigation');
+  assert.doesNotMatch(uiSource, /\b(?:function|const|let)\s+(?:openPersistenceDialog|persistenceDialogTransaction|wipe|transitionSeq)\b/,
+    'shared overlay and navigation owners have no duplicate monolith bindings');
+  assert.match(overlaySource, /import\s*\{\s*createChoiceLatch\s*\}/,
+    'overlay retains the one-shot choice guard owner');
+  assert.match(navigationSource, /function\s+wipe\s*\(/);
+  assert.match(navigationSource, /let\s+transitionSeq\s*=\s*0/);
+  assert.equal((uiSource.match(/\bbindUICommands\s*\(/g) || []).length, 1,
+    'the transitional monolith contains exactly one command binding block');
+}
+
+// Freeze the predecessor locale-key multiset and lazy keyword decoration.
+{
+  const expectedTrKeys = [
+    'ui.keywords.facetDesc','ui.keywords.kindle','ui.keywords.ward','ui.keywords.energy','ui.keywords.ember','ui.keywords.ember','ui.keywords.chip','ui.keywords.staggered','ui.keywords.unplayable','ui.keywords.shard','ui.keywords.hex','ui.keywords.cinder','ui.menu.howToPlay','ui.menu.abandonRun','ui.menu.abandonConfirmTitle','ui.menu.abandonConfirmBody','ui.menu.abandon','ui.menu.keepClimbing','ui.help.title','ui.help.climbTitle','ui.help.climbBody','ui.help.combatTitle','ui.help.combatBody','ui.help.glassTitle','ui.help.glassBody','ui.help.lanternTitle','ui.help.lanternBody','ui.help.wardTitle','ui.help.wardBody','ui.help.firesTitle','ui.help.firesBody','ui.help.vigilTitle','ui.help.vigilBody','ui.menu.fightOn','ui.rose.shardRecoveredShort','ui.rose.dormantPane','ui.rose.unknownPane','ui.rose.shardRecovered','ui.rose.shardRecoveredShort','ui.rose.paneDark','ui.rose.selectedPane','ui.rose.finalWhisper','ui.rose.whisperLogTitle','ui.rose.openLabel','ui.brand.title','ui.brand.title','ui.brand.tagline','ui.menu.continueClimb','ui.menu.beginClimb','ui.menu.theVigil','ui.menu.howToPlay','ui.embark.aspectLabel','ui.embark.noVows','ui.embark.title','ui.embark.subChoose','ui.embark.subWait','ui.embark.warnSaved','ui.menu.beginAnew','ui.menu.beginClimb','ui.menu.back','ui.menu.beginAnewTitle','ui.menu.beginAnewBody','ui.menu.beginAnew','ui.menu.keepClimbing','ui.menu.theVigil','ui.vigil.deeds','ui.vigil.roseWindow','ui.menu.return','ui.lamp.title','ui.lamp.sub','ui.lamp.boonLabel','ui.lamp.artLabel','ui.lamp.artHint','ui.menu.lightTheWay','ui.menu.chooseBoon','ui.map.node.monster','ui.map.node.elite','ui.map.node.event','ui.map.node.rest','ui.map.node.shop','ui.map.node.treasure','ui.map.hint.monster','ui.map.hint.elite','ui.map.hint.event','ui.map.hint.rest','ui.map.hint.shop','ui.map.hint.treasure','ui.map.hint.boss','ui.map.travelHere','ui.map.tap','ui.map.click','ui.map.unlitTitle','ui.map.unlitBody','ui.combat.stoneRemembers','ui.combat.end','ui.combat.draw','ui.combat.discard','ui.combat.ashes','ui.combat.staggered','ui.combat.reshuffle','ui.combat.shatter','ui.combat.glassHolds','ui.combat.staggered','ui.combat.yourTurn','ui.combat.enemyTurn','ui.combat.guardShattered','ui.combat.guardShattered','ui.reward.bossVanquished','ui.reward.eliteSlain','ui.reward.victory','ui.end.floors','ui.end.slain','ui.end.elitesBosses','ui.end.deckSize','ui.end.dmgDealt','ui.end.dmgTaken','ui.end.cardsPlayed','ui.end.runTime','ui.end.viewDeck','ui.end.returnVigil','ui.end.ascended','ui.end.ascendedSub','ui.end.fallen',
+  ];
+  const uiSources = ['ui.js', ...readdirSync(new URL('../src/ui/', import.meta.url))
+    .filter((name) => name.endsWith('.js'))
+    .map((name) => `ui/${name}`)]
+    .map((name) => readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8'))
+    .join('\n');
+  const actualTrKeys = [...uiSources.matchAll(/\btr\(\s*(['"])([^'"\n]+)\1/g)].map((match) => match[2]);
+  assert.deepEqual(actualTrKeys.sort(), [...expectedTrKeys].sort(),
+    'P1 extraction preserves the predecessor tr(...) locale-key multiset');
+  assert.match(uiSources, /(?:const|function)\s+FACET_DESC\b[\s\S]*?=>\s*tr\(/,
+    'FACET_DESC remains a lazy locale factory');
+  assert.match(uiSources, /(?:const|function)\s+KEYWORDS\b[\s\S]*?=>\s*\(\{/, 'KEYWORDS remains a lazy factory');
+  assert.match(uiSources, /\$\$\(\s*['"]\.kw['"]\s*,\s*(?:c|card)\s*\)/,
+    'keyword decoration visits every keyword node on the card');
 }
 
 // ---- Round 5 normal Phase 2 transaction seam ------------------------------
@@ -196,6 +269,7 @@ function forceHand(run, cb, ids) {
 
   const runEffectsSource = readFileSync(new URL('../src/ui/run-effects.js', import.meta.url), 'utf8');
   const uiSource = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
+  const overlaySource = readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8');
   assert.doesNotMatch(runEffectsSource, /\b(?:window|document|location|HTMLElement|requestAnimationFrame)\b/,
     'run-effects stays DOM-free and Node-runnable');
   for (const owner of [
@@ -222,8 +296,12 @@ function forceHand(run, cb, ids) {
     'the end-screen owner delegates mutation while remaining in the monolith');
   assert.doesNotMatch(uiSource, /function\s+dawnQueue\s*\(/,
     'Dawn queue construction has no duplicate monolith owner');
-  assert.match(uiSource, /function\s+openPersistenceDialog\s*\(/,
-    'retry UI remains physically owned by the monolith');
+  assert.doesNotMatch(uiSource, /function\s+openPersistenceDialog\s*\(/,
+    'retry UI no longer has a duplicate monolith owner');
+  assert.match(overlaySource, /function\s+openPersistenceDialog\s*\(/,
+    'retry UI is physically owned by overlay');
+  assert.match(overlaySource, /let\s+persistenceDialogTransaction\s*=\s*null/,
+    'overlay alone owns the persistence dialog transaction');
   assert.match(uiSource, /function\s+(?:renderEnd|finalisePendingRunEnd)\s*\(/,
     'end-screen presentation remains physically owned by the monolith');
   assert.match(uiSource, /function\s+(?:startCombatUI|renderCombat)\s*\(/,

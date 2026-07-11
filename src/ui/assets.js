@@ -1,0 +1,64 @@
+import { ASPECTS, ENEMIES, RELICS } from '../data.js';
+import { assetList, assetUrl, heroSvg, iconSvg } from '../art.js';
+import { S, escHtml } from './context.js';
+
+export const rasterOr = (cat, id, svg) => {
+  const url = assetUrl(cat, id);
+  return url ? `<img class="raster-art" src="${url}" alt="">` : svg;
+};
+
+export function sceneBg() {
+  const url = assetUrl('stage', `act${(S.run?.act ?? 0) + 1}-backdrop`);
+  return url ? `<div class="scene-bg" style="background-image:url('${url}')"></div>` : '';
+}
+
+export function metaBg(id) {
+  const url = assetUrl('meta', id);
+  return url ? `<div class="meta-bg" style="background-image:url('${url}')"></div>` : '';
+}
+
+export const relicArt = (rid, size = 22) => {
+  const url = assetUrl('relics', rid);
+  return url ? `<img class="raster-art relic-art" src="${url}" alt="" style="width:${size}px;height:${size}px">` : (RELICS[rid]?.glyph || '◈');
+};
+
+export const hudRelic = (rid) => {
+  const url = assetUrl('relics', rid);
+  return url ? `<img class="relic-art hud-relic-art" src="${url}" alt="">` : `<span class="hud-relic-fallback">${RELICS[rid]?.glyph || '◈'}</span>`;
+};
+
+export const omenIconName = (oid) => oid === 'eighthOmen' ? 'eighthOmen' : `omen-${oid}`;
+export const omenMark = (oid, imgClass, fallbackClass, size = 22) => {
+  const url = assetUrl('omens', oid);
+  return url ? `<img class="${imgClass}" src="${url}" alt="">` : `<span class="${fallbackClass}">${iconSvg(omenIconName(oid), size)}</span>`;
+};
+
+export const aimRing = (url, kind) => url
+  ? `<svg class="aim-ring" aria-hidden="true"><image href="${escHtml(url)}" x="0" y="0" width="100%" height="100%" preserveAspectRatio="xMidYMax meet" filter="url(#aim-outline-${kind})"/></svg>`
+  : '';
+
+export const heroArt = (index) => {
+  const url = assetUrl('heroes', ASPECTS[index].id);
+  if (!url) return `<div class="hero-sprite">${heroSvg(index)}</div>`;
+  return `<div class="hero-sprite">${aimRing(url, 'self')}${rasterOr('heroes', ASPECTS[index].id, heroSvg(index))}<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg></div>`;
+};
+
+export const combatantView = (enemy) => {
+  const presentation = enemy.presentation || {};
+  return {
+    artCategory: presentation.artCategory || 'enemies',
+    artId: presentation.artId || enemy.key,
+    layoutKey: presentation.layoutKey || enemy.key,
+    kind: presentation.kind || ENEMIES[enemy.key].art.kind,
+    hue: presentation.hue ?? ENEMIES[enemy.key].art.hue,
+    tint: presentation.tint || null,
+    scale: presentation.scale || 1,
+  };
+};
+
+let assetsWarmed = false;
+export function warmAssets() {
+  if (assetsWarmed) return;
+  assetsWarmed = true;
+  for (const url of [...assetList('enemies'), ...assetList('heroes')]) new Image().src = url;
+}
