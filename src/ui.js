@@ -6,7 +6,7 @@ import { pileTier, pileFanLayers, pileFanAngleDeg, pileMasterId, flightSchedule,
 import { UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyphId } from './ui-chrome.js';
 // drawBatchSchedule also paces discardHand (same even-stagger clock)
 import * as V from './vfx.js';
-import { syncVigil, commitPendingRunEnd, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, clearNews, clearVigil, questSnapshot } from './vigil.js';
+import * as Vigil from './vigil.js';
 import { sfx, unlock, getSfxVolume, setSfxVolume, isSfxMuted, setSfxMuted, previewSfx, invalidateSfxSelection, preloadSfx, setSfxObservationSink } from './audio.js';
 import * as music from './music.js';
 import { SFX_CATALOG, MUSIC_CATALOG } from './audio-catalog.js';
@@ -17,6 +17,7 @@ import { charShadowLive, charCssFloat, charAim, onCharMetaChange } from './char-
 import { t as lookupTr, getLocale } from './i18n/index.js';
 import { createBehaviourTrace } from './ui/behaviour-trace.js';
 import { createPresentationBarrier } from './ui/presentation-barrier.js';
+import { createRunEffects } from './ui/run-effects.js';
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
@@ -26,6 +27,7 @@ import { createChoiceLatch } from './choice-latch.js';
 import { getVersionInfo } from './version.js';
 
 const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
+const runEffects = createRunEffects({ engine: E, vigil: Vigil });
 // one input grammar, two dialects: a fine pointer hovers, a coarse one presses.
 // ?input=touch|mouse overrides detection (simulators lie; debugging wants both)
 const FORCE_INPUT = new URLSearchParams(location.search).get('input');
@@ -480,7 +482,7 @@ function confirmResetSave() {
       const a = e.target.dataset.a;
       if (a === 'yes') {
         E.clearSave();
-        clearVigil();
+        runEffects.clearVigil();
         S.run = null;
         S.cb = null;
         S.embark = null;
@@ -509,7 +511,7 @@ function potionMenu(slot, e) {
   m.onclick = async (ev) => {
     const a = ev.target.dataset.m;
     closeMenus();
-    if (a === 'toss') { S.run.player.potions[slot] = null; sfx.card(); renderHud(); E.saveRun(S.run); }
+    if (a === 'toss') { S.run.player.potions[slot] = null; sfx.card(); renderHud(); runEffects.saveRun(S.run); }
     if (a === 'use' && canUse) {
       if (p.needsTarget && inCombat) {
         const living = S.cb.enemies.filter((x) => x.hp > 0);
@@ -538,7 +540,7 @@ async function usePotionOn(slot, targetIdx) {
       used = E.usePotion(S.run, null, slot, null);
       if (used) {
         renderHud();
-        E.saveRun(S.run);
+        runEffects.saveRun(S.run);
       }
     }
     if (!used) {
@@ -740,7 +742,7 @@ function showRunSaveFailure(run, onSaved, kind = null) {
       const reload = $('[data-a="reload-save"]', root);
       retry.disabled = true;
       reload.disabled = true;
-      const saved = kind ? persistObserved(kind, () => E.saveRun(run)) : E.saveRun(run);
+      const saved = kind ? persistObserved(kind, () => runEffects.saveRun(run)) : runEffects.saveRun(run);
       if (!saved) {
         $('.ov-sub', root).textContent = tr('ui.persistence.runSaveRetryFail');
         retry.disabled = false;
@@ -754,14 +756,14 @@ function showRunSaveFailure(run, onSaved, kind = null) {
 }
 function requireRunSave(run, onSaved, kind = null) {
   if (persistenceDialogTransaction) return false;
-  const saved = kind ? persistObserved(kind, () => E.saveRun(run)) : E.saveRun(run);
+  const saved = kind ? persistObserved(kind, () => runEffects.saveRun(run)) : runEffects.saveRun(run);
   if (saved) return true;
   showRunSaveFailure(run, onSaved, kind);
   return false;
 }
 function requireHollowRouteClear(run, onCleared) {
   if (!run.pendingHollowRoute) return true;
-  if (persistObserved('hollow-route-clear', () => E.completePendingHollowRoute(run))) return true;
+  if (persistObserved('hollow-route-clear', () => runEffects.completeHollowRoute(run))) return true;
   const html = persistenceFailureHtml({
     id: 'hollow-route-save-failure',
     title: tr('ui.persistence.saveFailedTitle'),
@@ -808,16 +810,16 @@ function showStonePersistenceFailure(onRetry, retryLabel = tr('ui.common.retry')
   });
 }
 function requireBequestClear(onCleared) {
-  if (persistObserved('shade-bequest-clear', () => clearBequest())) return true;
+  if (persistObserved('shade-bequest-clear', () => runEffects.clearBequest())) return true;
   showStonePersistenceFailure(() => {
-    if (persistObserved('shade-bequest-clear', () => clearBequest())) onCleared();
+    if (persistObserved('shade-bequest-clear', () => runEffects.clearBequest())) onCleared();
     else requireBequestClear(onCleared);
   });
   return false;
 }
 function requirePendingShadeDuelClear(onCleared) {
-  const result = E.resumeShadeDuel(S.run, () =>
-    persistObserved('shade-bequest-clear', () => clearBequest()));
+  const result = runEffects.resumeShadeDuel(S.run, (action) =>
+    persistObserved('shade-bequest-clear', action));
   if (result.status === E.SHADE_DUEL_TX.READY) return true;
   showStonePersistenceFailure(() => {
     if (requirePendingShadeDuelClear(onCleared)) onCleared();
@@ -1198,8 +1200,8 @@ function decodeTitleRoseAssets(root) {
 function renderTitle() {
   roseAssetsReady = false;
   setTheme(0);
-  const vigil = syncVigil(); // reconcile any owed unlocks (e.g. seeded from old stats)
-  disclosedRoseStateIds = Object.entries(questSnapshot(vigil))
+  const vigil = runEffects.syncVigil(); // reconcile any owed unlocks (e.g. seeded from old stats)
+  disclosedRoseStateIds = Object.entries(Vigil.questSnapshot(vigil))
     .map(([id, record]) => `${id}:${record.state}`);
   const saved = E.loadRun();
   if (E.savedRunRequiresFinalisation(saved)) { startRun(saved, true); return; }
@@ -1287,7 +1289,7 @@ function renderTitle() {
 // 'aspect2', the vow ladder with the first dawn.
 function renderEmbark() {
   setTheme(0);
-  const vigil = syncVigil();
+  const vigil = runEffects.syncVigil();
   const saved = E.loadRun();
   if (E.savedRunRequiresFinalisation(saved)) { startRun(saved, true); return; }
   const sel = (S.embark ||= { aspect: 0, vow: 0 });
@@ -1325,15 +1327,15 @@ function renderEmbark() {
     </div>
   </div>`;
   const beginClimb = () => {
-    const v = syncVigil(); // re-read after abandon so the next snapshot sees new reveals
+    const v = runEffects.syncVigil(); // re-read after abandon so the next snapshot sees new reveals
     startRun(E.newRun(undefined, {
       aspect: sel.aspect,
       vow: sel.vow,
-      lamplighter: isRevealed(v, 'lamplighter'),
+      lamplighter: Vigil.isRevealed(v, 'lamplighter'),
       monument: v.lastFall,
       unlocks: v.unlocks, // the fix: deed unlocks finally reach live pools
-      reveals: revealSnapshot(v),
-      quests: questSnapshot(v),
+      reveals: Vigil.revealSnapshot(v),
+      quests: Vigil.questSnapshot(v),
       shards: v.shards,
     }));
   };
@@ -1379,10 +1381,10 @@ function renderEmbark() {
 function renderVigil({ tab = 'deeds' } = {}) {
   roseAssetsReady = false;
   setTheme(0);
-  const v = clearNews(); // opening the hall reads the news
-  disclosedRoseStateIds = Object.entries(questSnapshot(v))
+  const v = runEffects.clearNews(); // opening the hall reads the news
+  disclosedRoseStateIds = Object.entries(Vigil.questSnapshot(v))
     .map(([id, record]) => `${id}:${record.state}`);
-  const hasRose = isRevealed(v, 'emberglass');
+  const hasRose = Vigil.isRevealed(v, 'emberglass');
   const assets = roseAssets();
   const deedRows = Object.entries(DEEDS).map(([id, deed]) => {
     const cur = v.deeds[deed.stat] || 0;
@@ -1506,7 +1508,7 @@ function renderLamplighter() {
     const boons = [];
     while (boons.length < 3 && pool.length) boons.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
     S.lamp = { boons, boon: null, art: run.art };
-    E.saveRun(run); // the draw is now fixed for this run
+    runEffects.saveRun(run); // the draw is now fixed for this run
   }
   const L = S.lamp;
   const asp = ASPECTS[run.aspect];
@@ -1574,7 +1576,7 @@ function restoreDurableHollow(message) {
 }
 
 function exitHollow(run) {
-  const route = E.stageHollowExit(run);
+  const route = runEffects.stageHollowExit(run);
   if (!route) {
     const error = $('.hollow-error', screenEl());
     if (error) error.textContent = tr('ui.hollow.routeFailed');
@@ -1584,7 +1586,7 @@ function exitHollow(run) {
     });
     return;
   }
-  if (!E.saveRun(run)) {
+  if (!runEffects.saveRun(run)) {
     restoreDurableHollow(tr('ui.hollow.routeSaveFailed'));
     return;
   }
@@ -1639,7 +1641,7 @@ function renderHollow() {
     if (action === 'hollow-pay') {
       target.disabled = true;
       unlock(); sfx.click();
-      const result = E.payHollowPrice(run);
+      const result = runEffects.payHollowPrice(run);
       const answer = $('.hollow-answer', sc);
       const error = $('.hollow-error', sc);
       const continueButton = $('[data-a="hollow-continue"]', sc);
@@ -1651,7 +1653,7 @@ function renderHollow() {
         target.disabled = false;
         return;
       }
-      if (!persistObserved('hollow-payment', () => E.saveRun(run))) {
+      if (!persistObserved('hollow-payment', () => runEffects.saveRun(run))) {
         answer.textContent = '';
         answer.classList.remove('paid', 'error');
         error.textContent = tr('ui.hollow.saveFailed');
@@ -1699,7 +1701,7 @@ function renderMap() {
     return;
   }
   if (run.pendingHollowRoute) { resumePendingHollowRoute(run); return; }
-  E.saveRun(run);
+  runEffects.saveRun(run);
   S.cb = null;
   const { nodes } = run.map;
   const avail = new Set(E.availableNodes(run).map((n) => n.id));
@@ -1942,7 +1944,7 @@ function enterNode(node) {
   setAltitude(run.act, node.row);
   const { type, bounty, hollow } = E.visitNode(run, node);
   if (hollow) {
-    if (!E.saveRun(run)) {
+    if (!runEffects.saveRun(run)) {
       S.run = E.loadRun();
       if (!S.run) { show('title'); return; }
       show('map');
@@ -1956,7 +1958,7 @@ function enterNode(node) {
   }
   showEighthFloorEcho(run);
   const isCombat = type === 'monster' || type === 'elite' || type === 'boss';
-  if (!isCombat && type !== 'monument') E.saveRun(run);
+  if (!isCombat && type !== 'monument') runEffects.saveRun(run);
   showNodeBounty(node, bounty);
   routeVisitedNode(node, type);
 }
@@ -1997,7 +1999,7 @@ function claimMonumentNode(node) {
   const run = S.run;
   const continueMap = () => show('map');
   if (run.monument?.standing && !run.monument.claimed) {
-    const transaction = E.beginShadeDuel(run, clearBequest);
+    const transaction = runEffects.beginShadeDuel(run);
     const beginDuel = () => {
       const g = $(`.mnode[data-node="${node.id}"]`);
       transition('combat-in', g ? V.centerOf(g) : {});
@@ -4891,7 +4893,7 @@ function victoryFlow() {
   continueVictory();
 }
 function journalRunEnd(run, outcome, onFinalised = null) {
-  E.journalTerminalOutcome(run, outcome);
+  runEffects.journalRunEnd(run, outcome);
   const continueRunEnd = () => {
     S.cb = null;
     finalisePendingRunEnd(run, onFinalised);
@@ -4903,40 +4905,36 @@ function journalRunEnd(run, outcome, onFinalised = null) {
 function finalisePendingRunEnd(run, onFinalised = null) {
   const outcome = run.pendingRunEnd?.outcome;
   if (!TERMINAL_OUTCOMES.includes(outcome)) return false;
-  const acknowledgeRunEnd = outcome === 'win'
-    ? (candidate) => E.stagePendingDawn(
-        candidate,
-        dawnQueue(candidate, candidate.runEndResult),
-        candidate.vigilResult?.newUnlocks || [],
-      )
-    : E.recordRunEnd;
-  return E.finaliseTerminalOutbox(
+  return runEffects.finaliseRunEnd(
     run,
-    () => persistObserved('run-end', () => commitPendingRunEnd(run, acknowledgeRunEnd)),
-    () => showRunEndPersistenceFailure(run, onFinalised),
-    ({ newUnlocks, ledger }) => {
-      S.cb = null;
-      if (onFinalised) {
-        onFinalised({ outcome, newUnlocks, ledger });
-      } else if (outcome === 'win') {
-        show('end', { won: true });
-      } else if (outcome === 'death') {
-        const node = run.map.nodes.find((candidate) => candidate.id === run.nodeId);
-        const { unpaidBequest, offerNewBequest } = E.shadeLossBequestState(run);
-        show('end', {
-          won: false,
-          newUnlocks,
-          offers: offerNewBequest ? bequestOptions(run) : [],
-          fallAct: run.act,
-          fallRow: node ? node.row : Math.max(1, run.floorsClimbed - 1),
-          unpaidBequest,
-          ledger,
-        });
-      } else {
-        S.run = null;
-        S.lamp = null;
-        show('title');
-      }
+    {
+      revealThreshold: PROGRESSION.revealThresholds.act4.shards,
+      persist: (action) => persistObserved('run-end', action),
+      onPersistenceFailure: () => showRunEndPersistenceFailure(run, onFinalised),
+      onFinalised: ({ newUnlocks, ledger }) => {
+        S.cb = null;
+        if (onFinalised) {
+          onFinalised({ outcome, newUnlocks, ledger });
+        } else if (outcome === 'win') {
+          show('end', { won: true });
+        } else if (outcome === 'death') {
+          const node = run.map.nodes.find((candidate) => candidate.id === run.nodeId);
+          const { unpaidBequest, offerNewBequest } = E.shadeLossBequestState(run);
+          show('end', {
+            won: false,
+            newUnlocks,
+            offers: offerNewBequest ? Vigil.bequestOptions(run) : [],
+            fallAct: run.act,
+            fallRow: node ? node.row : Math.max(1, run.floorsClimbed - 1),
+            unpaidBequest,
+            ledger,
+          });
+        } else {
+          S.run = null;
+          S.lamp = null;
+          show('title');
+        }
+      },
     },
   );
 }
@@ -5124,7 +5122,7 @@ function advanceAct() {
   E.healPlayer(run, Math.round(run.player.maxHp * 0.35));
   setTheme(run.act);
   setAltitude(run.act, 0);
-  E.saveRun(run);
+  runEffects.saveRun(run);
   transition('act-change');
   show('map');
   sfx.victory();
@@ -5171,7 +5169,7 @@ function renderRest() {
     };
     if (run.pendingHollowRoute) {
       if (!requireHollowRouteClear(run, finish)) return;
-    } else E.saveRun(run);
+    } else runEffects.saveRun(run);
     finish();
   };
   $('[data-a="smith"]').onclick = () => {
@@ -5190,7 +5188,7 @@ function renderRest() {
         };
         if (run.pendingHollowRoute) {
           if (!requireHollowRouteClear(run, finish)) return;
-        } else E.saveRun(run);
+        } else runEffects.saveRun(run);
         finish();
       },
     });
@@ -5211,7 +5209,7 @@ function renderTreasure() {
     btn.onclick = () => { sfx.click(); show('map'); };
     bc.appendChild(btn);
     renderHud();
-    E.saveRun(run);
+    runEffects.saveRun(run);
   };
   screenEl().innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
     <div class="ov-title">${tr('ui.treasure.title')}</div>
@@ -5271,7 +5269,7 @@ function renderShop() {
   const shopGrid = $('.shop-grid', sc);
   let shopSeeded = false;
   const gold = () => run.player.gold;
-  const buy = (price) => { run.player.gold -= price; sfx.coin(); E.saveRun(run); renderHud(); refresh(); };
+  const buy = (price) => { run.player.gold -= price; sfx.coin(); runEffects.saveRun(run); renderHud(); refresh(); };
   const say = (text) => {
     const dialogue = $('.shop-dialogue', sc);
     if (!dialogue) return;
@@ -5318,7 +5316,7 @@ function renderShop() {
         const leave = $('[data-a="leave"]', sc);
         b.disabled = true;
         if (leave) leave.disabled = true;
-        const result = E.buyQuestItem(run, it.id);
+        const result = runEffects.buyQuestItem(run, it.id);
         if (!result.ok) {
           b.disabled = false;
           if (leave) leave.disabled = false;
@@ -5369,7 +5367,7 @@ function renderShop() {
           st.removed = true;
           run.player.gold -= st.removeCost;
           sfx.card();
-          E.saveRun(run);
+          runEffects.saveRun(run);
           renderHud();
           refresh();
         },
@@ -5412,7 +5410,7 @@ function renderEvent(eventId) {
   }
   if (E.nodeEventInFlight(run)) {
     E.finalizeNodeEventChoice(run);
-    E.saveRun(run);
+    runEffects.saveRun(run);
     showEventContinue();
     return;
   }
@@ -5432,7 +5430,7 @@ function renderEvent(eventId) {
       sfx.click();
       const { pending, log, already } = E.applyNodeEventChoice(run, ch.ops);
       if (already) { showEventContinue(); return; }
-      E.saveRun(run); // persist rewardResolving before interactive pending
+      runEffects.saveRun(run); // persist rewardResolving before interactive pending
       renderHud();
       const logEl = $('.event-log', sc);
       const bits = [];
@@ -5444,14 +5442,14 @@ function renderEvent(eventId) {
       choices.innerHTML = '';
       for (const p of pending) await handlePending(p);
       E.finalizeNodeEventChoice(run);
-      E.saveRun(run);
+      runEffects.saveRun(run);
       renderHud();
       showEventContinue();
       if (!bits.length && !pending.length && !ch.ops.length) leaveEvent();
     } catch (err) {
       if (E.nodeEventInFlight(run) || E.nodeRewardClaimed(run)) {
         if (E.nodeEventInFlight(run)) E.finalizeNodeEventChoice(run);
-        E.saveRun(run);
+        runEffects.saveRun(run);
         showEventContinue();
         return;
       }
@@ -5515,22 +5513,6 @@ function showUnlockToasts(list = [], runId = S.run?.runId) {
       setTimeout(() => { t.classList.remove('in'); setTimeout(() => t.remove(), 500); }, 3800);
     }, 700 + i * 800);
   });
-}
-
-function dawnQueue(run, ledger) {
-  const events = [];
-  if (ledger?.whisper != null) events.push({ t: 'whisper', text: ledger.whisper });
-  events.push(...(run.endQueue || []).map((event) => ({ ...event })));
-  const newShards = Array.isArray(ledger?.newShards) ? [...ledger.newShards] : [];
-  for (const id of newShards) events.push({ t: 'shardGrant', id });
-  const threshold = PROGRESSION.revealThresholds.act4.shards;
-  const before = new Set(run.shards || []);
-  const after = new Set(ledger?.vigil?.shards || [...before, ...newShards]);
-  if (newShards.length && before.size < threshold && after.size >= threshold) {
-    events.push({ t: 'act4Reveal' });
-  }
-  return events.filter((event, index, queue) => !(event.t === 'questComplete' &&
-    queue.slice(index + 1).some((later) => later.t === 'shardGrant' && later.id === event.id)));
 }
 
 function dawnEventHtml(event) {
@@ -5624,9 +5606,9 @@ async function drainEndQueue(run, host) {
       requestAnimationFrame(() => panel.classList.add('shown'));
       await sleep(550);
     }
-    await persistDawnOrRetry(() => E.advancePendingDawn(run, i + 1), 'cursor');
+    await persistDawnOrRetry(() => runEffects.advanceDawn(run, i + 1), 'cursor');
   }
-  await persistDawnOrRetry(() => E.completePendingDawn(run), 'clear');
+  await persistDawnOrRetry(() => runEffects.completeDawn(run), 'clear');
   host.classList.add('complete');
   return newUnlocks;
   } catch (error) {
@@ -5706,7 +5688,7 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
     if (a === 'bequest') {
       sfx.relic();
       const o = offers[+t.dataset.i];
-      setBequest(fallAct, fallRow, o);
+      runEffects.setBequest(fallAct, fallRow, o);
       const L = bequestLabel(o);
       $('#bequest').innerHTML = `<div class="bequest-done">${tr('ui.end.bequestDone', { name: `<b>${L.name}</b>`, act: ACTS[fallAct].name })}</div>`;
       return;

@@ -45,6 +45,7 @@ import {
   TRACE_POINT_OUTCOMES, TRACE_VERSION,
 } from '../src/ui/behaviour-trace.js';
 import { createPresentationBarrier } from '../src/ui/presentation-barrier.js';
+import * as RunEffectsModule from '../src/ui/run-effects.js';
 import {
   allocateStrictE2EPort, runWithStrictE2EPort,
 } from '../tools/run-with-strict-e2e-port.mjs';
@@ -59,6 +60,174 @@ function freshCombat(enemyIds = ['sporeling']) {
 }
 function forceHand(run, cb, ids) {
   cb.hand = ids.map((id) => makeCard(run, id));
+}
+
+// ---- Round 5 normal Phase 2 transaction seam ------------------------------
+{
+  assert.deepEqual(Object.keys(RunEffectsModule), ['createRunEffects'],
+    'run-effects exposes only its dependency-injected factory');
+  const calls = [];
+  const engine = {
+    saveRun(run) { calls.push(['saveRun', run.runId]); return true; },
+    buyQuestItem(run, itemId) { calls.push(['buyQuestItem', run.runId, itemId]); return { ok: true, reason: null }; },
+    payHollowPrice(run) { calls.push(['payHollowPrice', run.runId]); return { ok: true, deferred: false, message: 'paid' }; },
+    stageHollowExit(run) { calls.push(['stageHollowExit', run.runId]); return { kind: 'destination', nodeId: 'n1', type: 'shop', eventId: null }; },
+    completePendingHollowRoute(run) { calls.push(['completePendingHollowRoute', run.runId]); return true; },
+    beginShadeDuel(run, clear) { calls.push(['beginShadeDuel', run.runId]); return { status: clear() ? 'ready' : 'retry' }; },
+    resumeShadeDuel(run, clear) { calls.push(['resumeShadeDuel', run.runId]); return { status: clear() ? 'ready' : 'retry' }; },
+    journalTerminalOutcome(run, outcome) {
+      calls.push(['journalTerminalOutcome', run.runId, outcome]);
+      run.pendingRunEnd = { outcome };
+      return run.pendingRunEnd;
+    },
+    stagePendingDawn(run, events, newUnlocks) {
+      calls.push(['stagePendingDawn', run.runId, events.map((event) => event.t), [...newUnlocks]]);
+      run.pendingRunEnd = null;
+      run.pendingDawn = { events, cursor: 0, newUnlocks };
+      return true;
+    },
+    recordRunEnd(run, won) { calls.push(['recordRunEnd', run.runId, won]); return true; },
+    finaliseTerminalOutbox(run, persist, blocked, finalised) {
+      calls.push(['finaliseTerminalOutbox', run.runId]);
+      const result = persist();
+      if (result?.accepted !== true) { blocked(); return false; }
+      finalised(result);
+      return true;
+    },
+    advancePendingDawn(run, nextCursor) { calls.push(['advancePendingDawn', run.runId, nextCursor]); return true; },
+    completePendingDawn(run) { calls.push(['completePendingDawn', run.runId]); return true; },
+  };
+  const vigil = {
+    syncVigil() { calls.push(['syncVigil']); return { shards: [] }; },
+    setBequest(act, row, bequest) { calls.push(['setBequest', act, row, bequest]); return true; },
+    clearBequest() { calls.push(['clearBequest']); return true; },
+    clearNews() { calls.push(['clearNews']); return { news: false }; },
+    clearVigil() { calls.push(['clearVigil']); return true; },
+    commitPendingRunEnd(run, acknowledge) {
+      calls.push(['commitPendingRunEnd', run.runId]);
+      run.runEndResult = { whisper: 'The glass remembers.', newShards: ['hollowLamplighter'], vigil: { shards: ['hollowLamplighter'] } };
+      run.vigilResult = { newUnlocks: ['aspect2'] };
+      return {
+        accepted: acknowledge(run), outcome: run.pendingRunEnd?.outcome || 'win',
+        newUnlocks: ['aspect2'], ledger: run.runEndResult,
+      };
+    },
+  };
+  const effects = RunEffectsModule.createRunEffects({ engine, vigil });
+  assert.deepEqual(Object.keys(effects), [
+    'advanceDawn', 'beginShadeDuel', 'buildDawnQueue', 'buyQuestItem',
+    'clearBequest', 'clearNews', 'clearVigil', 'completeDawn', 'completeHollowRoute', 'finaliseRunEnd',
+    'journalRunEnd', 'payHollowPrice', 'resumeShadeDuel', 'saveRun',
+    'setBequest', 'stageHollowExit', 'syncVigil',
+  ], 'the normal effects adapter has one frozen caller-facing surface');
+  assert.equal(Object.isFrozen(effects), true);
+
+  const run = { runId: 'run-effects', endQueue: [{ t: 'questComplete', id: 'hollowLamplighter' }], shards: [] };
+  assert.equal(effects.saveRun(run), true, 'initial and ordinary saves preserve their boolean result');
+  assert.deepEqual(effects.buyQuestItem(run, 'flamelessLantern'), { ok: true, reason: null });
+  assert.deepEqual(effects.payHollowPrice(run), { ok: true, deferred: false, message: 'paid' });
+  assert.deepEqual(effects.stageHollowExit(run), { kind: 'destination', nodeId: 'n1', type: 'shop', eventId: null });
+  assert.equal(effects.completeHollowRoute(run), true);
+  assert.deepEqual(effects.beginShadeDuel(run), { status: 'ready' });
+  let shadeAcknowledgements = 0;
+  assert.deepEqual(effects.resumeShadeDuel(run, (action) => {
+    shadeAcknowledgements++;
+    return action();
+  }), { status: 'ready' });
+  assert.equal(shadeAcknowledgements, 1,
+    'Shade recovery keeps caller-supplied persistence observation around the bequest acknowledgement');
+  assert.equal(effects.setBequest(2, 7, { kind: 'gold', amount: 50 }), true);
+  assert.equal(effects.clearBequest(), true);
+  assert.deepEqual(effects.clearNews(), { news: false });
+  assert.equal(effects.clearVigil(), true);
+  assert.deepEqual(effects.syncVigil(), { shards: [] });
+
+  assert.deepEqual(effects.journalRunEnd(run, 'win'), { outcome: 'win' });
+  assert.equal(effects.saveRun(run), true);
+  let blocked = 0;
+  let completed = null;
+  const finalised = effects.finaliseRunEnd(run, {
+    revealThreshold: 1,
+    persist: (action) => { calls.push(['persist']); return action(); },
+    onPersistenceFailure: () => { blocked++; },
+    onFinalised: (result) => { calls.push(['onFinalised']); completed = result; },
+  });
+  assert.equal(finalised, true);
+  assert.equal(blocked, 0);
+  assert.equal(completed.outcome, 'win');
+  assert.deepEqual(completed.newUnlocks, ['aspect2']);
+  assert.equal(run.pendingRunEnd, null);
+  assert.deepEqual(run.pendingDawn.events.map((event) => event.t), [
+    'whisper', 'shardGrant', 'act4Reveal',
+  ], 'Dawn construction removes the superseded completion and preserves canonical order');
+  assert.deepEqual(calls.slice(calls.findIndex(([name]) => name === 'journalTerminalOutcome')), [
+    ['journalTerminalOutcome', 'run-effects', 'win'],
+    ['saveRun', 'run-effects'],
+    ['finaliseTerminalOutbox', 'run-effects'],
+    ['persist'],
+    ['commitPendingRunEnd', 'run-effects'],
+    ['stagePendingDawn', 'run-effects', ['whisper', 'shardGrant', 'act4Reveal'], ['aspect2']],
+    ['onFinalised'],
+  ], 'terminal journalling, finalisation, durable commit and Dawn staging have one order');
+
+  const queueSource = [{ t: 'pageRead', index: 1, text: 'page' }];
+  const queueRun = { endQueue: queueSource, shards: ['a'] };
+  const queueLedger = { newShards: ['b'], vigil: { shards: ['a', 'b'] } };
+  const queue = effects.buildDawnQueue(queueRun, queueLedger, 2);
+  queueSource[0].index = 9;
+  queueLedger.newShards.push('c');
+  assert.deepEqual(queue, [
+    { t: 'pageRead', index: 1, text: 'page' },
+    { t: 'shardGrant', id: 'b' },
+    { t: 'act4Reveal' },
+  ], 'Dawn queue snapshots source events and shard ids');
+  assert.equal(effects.advanceDawn(run, 1), true);
+  assert.equal(effects.completeDawn(run), true);
+
+  let retryBlocked = 0;
+  const retryRun = { runId: 'run-retry', pendingRunEnd: { outcome: 'death' } };
+  assert.equal(effects.finaliseRunEnd(retryRun, {
+    revealThreshold: 1,
+    persist: () => ({ accepted: false }),
+    onPersistenceFailure: () => { retryBlocked++; },
+    onFinalised: () => assert.fail('a rejected commit must not continue'),
+  }), false);
+  assert.equal(retryBlocked, 1, 'rejected finalisation retains the caller-owned retry path');
+
+  const runEffectsSource = readFileSync(new URL('../src/ui/run-effects.js', import.meta.url), 'utf8');
+  const uiSource = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(runEffectsSource, /\b(?:window|document|location|HTMLElement|requestAnimationFrame)\b/,
+    'run-effects stays DOM-free and Node-runnable');
+  for (const owner of [
+    'saveRun', 'buyQuestItem', 'payHollowPrice', 'stageHollowExit', 'completePendingHollowRoute',
+    'beginShadeDuel', 'resumeShadeDuel', 'journalTerminalOutcome',
+    'finaliseTerminalOutbox', 'stagePendingDawn', 'advancePendingDawn',
+    'completePendingDawn',
+  ]) {
+    assert.doesNotMatch(uiSource, new RegExp(`\\bE\\.${owner}\\s*\\(`), `${owner} has one owner in run-effects`);
+    assert.equal((runEffectsSource.match(new RegExp(`\\bengine\\.${owner}\\s*\\(`, 'g')) || []).length, 1,
+      `${owner} has exactly one engine delegation in run-effects`);
+  }
+  for (const owner of ['syncVigil', 'commitPendingRunEnd', 'setBequest', 'clearBequest', 'clearNews', 'clearVigil']) {
+    const bareOwnerPattern = new RegExp(`(?<![.\\w])${owner}\\s*\\(`);
+    const vigilNamespacePattern = new RegExp(`\\bVigil\\.${owner}\\s*\\(`);
+    assert.match(`Vigil.${owner}()`, vigilNamespacePattern,
+      `${owner} guard recognises a forbidden Vigil namespace call`);
+    assert.doesNotMatch(uiSource, bareOwnerPattern, `${owner} has no bare owner in the monolith`);
+    assert.doesNotMatch(uiSource, vigilNamespacePattern, `${owner} has no Vigil namespace owner in the monolith`);
+    assert.equal((runEffectsSource.match(new RegExp(`\\bvigil\\.${owner}\\s*\\(`, 'g')) || []).length, 1,
+      `${owner} has exactly one Vigil delegation in run-effects`);
+  }
+  assert.match(uiSource, /runEffects\.finaliseRunEnd\s*\(/,
+    'the end-screen owner delegates mutation while remaining in the monolith');
+  assert.doesNotMatch(uiSource, /function\s+dawnQueue\s*\(/,
+    'Dawn queue construction has no duplicate monolith owner');
+  assert.match(uiSource, /function\s+openPersistenceDialog\s*\(/,
+    'retry UI remains physically owned by the monolith');
+  assert.match(uiSource, /function\s+(?:renderEnd|finalisePendingRunEnd)\s*\(/,
+    'end-screen presentation remains physically owned by the monolith');
+  assert.match(uiSource, /function\s+(?:startCombatUI|renderCombat)\s*\(/,
+    'combat remains physically owned by the monolith');
 }
 
 // ---- Round 5 always-on presentation barrier -------------------------------
