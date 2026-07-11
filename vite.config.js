@@ -290,20 +290,26 @@ function spireGitSha() {
   }
 }
 
-const SPIRE_VERSION = spirePackageVersion();
-const SPIRE_GIT_SHA = spireGitSha();
-const SPIRE_RELEASE = process.env.SPIRE_RELEASE === "1";
-
-export default defineConfig({
-  plugins: [bfSavePlugin()],
-  define: {
-    __SPIRE_VERSION__: JSON.stringify(SPIRE_VERSION),
-    __SPIRE_GIT_SHA__: JSON.stringify(SPIRE_GIT_SHA),
-    __SPIRE_RELEASE__: JSON.stringify(SPIRE_RELEASE),
-  },
-  server: {
-    host: "0.0.0.0",
-    port: BF_SAVE_PORT,
-    allowedHosts: DEV_ALLOWED_HOSTS,
-  },
+// Live git SHA in a production bundle breaks the CI "committed dist is
+// current" check: the SHA baked before `git commit` never matches HEAD after.
+// Dev (`vite` serve) always embeds the real short SHA; `vite build` keeps a
+// stable placeholder unless SPIRE_EMBED_SHA=1 (local +sha smoke only).
+export default defineConfig(({ command }) => {
+  const SPIRE_VERSION = spirePackageVersion();
+  const SPIRE_RELEASE = process.env.SPIRE_RELEASE === "1";
+  const embedSha = command === "serve" || process.env.SPIRE_EMBED_SHA === "1";
+  const SPIRE_GIT_SHA = embedSha ? spireGitSha() : "unknown";
+  return {
+    plugins: [bfSavePlugin()],
+    define: {
+      __SPIRE_VERSION__: JSON.stringify(SPIRE_VERSION),
+      __SPIRE_GIT_SHA__: JSON.stringify(SPIRE_GIT_SHA),
+      __SPIRE_RELEASE__: JSON.stringify(SPIRE_RELEASE),
+    },
+    server: {
+      host: "0.0.0.0",
+      port: BF_SAVE_PORT,
+      allowedHosts: DEV_ALLOWED_HOSTS,
+    },
+  };
 });
