@@ -16,7 +16,9 @@ and the English i18n overlay are loaded predecessor contracts, and the registry
 design now composes mechanics packs with locale overlays instead of reclaiming
 English display ownership; revised again after PR #17 merged at `40eb357`:
 its combat-chrome grounding, fixed energy-candle frame and geometry regression
-proof are inherited production behaviour, not styling to rediscover)
+proof are inherited production behaviour, not styling to rediscover; revised
+again after the first live P0.5 Safari row to make the Simulator input profile,
+host-safety boundary and complete-matrix GO/NO-GO evidence contract explicit)
 **Goal:** The commercial-grade production-engineering and final visual-hardening
 round. Replace the fragile CSS-composited
 combat UI with a **game-rendered PixiJS layer** (chrome *and* hand cards),
@@ -1218,6 +1220,13 @@ at spec time) is driven serially through Apple `safaridriver`, never labelled
 as Playwright Mobile Safari. The representative matrix is iPhone SE (3rd
 generation), iPhone 17 Pro, iPad mini (A17 Pro), and iPad Pro 13-inch (M5),
 portrait and landscape.
+The canonical spike URL is exactly
+`/?pixispike=1&tier=full&input=touch`; `shape=` is forbidden. `input=touch`
+declares the Simulator automation input profile only: the actual viewport must
+still select the natural phone/pad portrait/landscape canonical shape. Every
+cell records `inputProfile:'touch'`,
+`nativePointerCoarse:<boolean>` from the native
+`matchMedia('(pointer: coarse)').matches` result, and `shapeOverride:null`.
 The installed primary `safaridriver` contract is literal: requested
 `safari:deviceType` is only `iPhone` or `iPad`, the exact managed Simulator
 name is `safari:deviceName`, and its resolved UDID is
@@ -1233,8 +1242,14 @@ Simulator runtime is absent, PE records
 `SETUP BLOCKED`, installs that exact runtime through the supported visible
 Xcode/`xcodebuild -downloadPlatform` path without requesting credentials, and
 reruns preflight. Only a cell that actually boots and exercises the spike may
-produce compatibility PASS/NO-GO; an absent runtime is never misreported as a
-Pixi failure. No physical device is required.
+produce a decisive `passed|failed` row; an absent runtime is never misreported
+as a Pixi failure. No physical device is required.
+
+The runner never wakes the host or a display, unlocks a GUI or requests
+credentials. It fails setup before any managed-device mutation unless the Mac
+is already awake, unlocked and logged into a usable GUI session. Only after
+that preflight passes may an owned `caffeinate -d -i -w <runner-pid>` child
+prevent new sleep; the runner terminates that child itself.
 
 The artifact records Xcode, runtime/build, Safari, model/UDID, orientation, and
 host architecture. Written pass/fail criteria gate boot/API support,
@@ -1251,9 +1266,18 @@ or real background eviction; those are explicitly deferred to the future
 Capacitor/hardware round. More Simulator model names do not add hardware proof
 because they still use the host Mac's CPU, memory, and GPU.
 
-Pass → P1 proceeds. Functional compatibility fail → the canvas decision reopens
+A formal product decision requires all eight cells to be decisive
+`passed|failed` and every corresponding JSON/screenshot pair to be durably
+archived through a failure-atomic transaction: a failed publication leaves the
+complete prior durable archive unchanged and no partial replacement or owned
+staging/backup residue. Eight passes produce GO and P1 proceeds; one or more
+exercised functional failures produce NO-GO and reopen the canvas decision
 before any sunk cost (the registries, behaviour trace, and tooling phases remain
-valuable regardless).
+valuable regardless). A setup-blocked row, incomplete matrix or missing
+artifact remains `SETUP BLOCKED`/inconclusive and must not be published as
+either GO or NO-GO.
+This gate remains functional-compatibility-only: it requires no physical device
+and makes none of the deferred physical-device claims above.
 
 ### Registry & tooling gates (P2–P3)
 
@@ -1442,11 +1466,13 @@ scene3d/mesh (Capacitor round).
 There are three distinct outcomes; the implementation record must name which
 one occurred rather than blending them into one definition of “done”.
 
-1. **Compatibility NO-GO / re-scope:** a booted P0.5 cell fails a written
-   functional criterion. The spike has succeeded as a decision gate, but Round
-   5 has not shipped or completed. Production migration stops and this design
-   must be revised before execution resumes. Missing toolchain/runtime/GUI
-   prerequisites are `SETUP BLOCKED`, not this outcome.
+1. **Compatibility NO-GO / re-scope:** the complete P0.5 matrix has eight
+   decisive, durably archived cells and at least one booted/exercised cell
+   fails a written functional criterion. The spike has succeeded as a decision
+   gate, but Round 5 has not shipped or completed. Production migration stops
+   and this design must be revised before execution resumes. Missing
+   toolchain/runtime/GUI prerequisites, a setup-blocked row, a partial matrix
+   or missing artifacts are `SETUP BLOCKED`/inconclusive, not this outcome.
 2. **Supported reduced-scope prefix stop:** P0.5 passes and a contiguous phase
    prefix ending at P4, P5, or P6 passes every applicable standing gate. The
    execution record names the last completed phase and the explicitly deferred

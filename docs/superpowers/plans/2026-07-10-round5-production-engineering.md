@@ -368,7 +368,7 @@ terminal arrays preserve order and values.
 Task 0 PE/FE worktrees + ledger ─┬─ Task 2 FE contract (allowed preparation)
                                   └─ Task 1 predecessor gate
                                        → Task 3 disposable P0.5 spike branch
-                                       → Task 4 reusable Safari matrix + GO
+                                       → Task 4 reusable Safari matrix + formal GO/NO-GO
                                        → Tasks 5–9 P1 trace + decomposition
                                        → Tasks 10–15 P2 registries/packs/themes/sample
                                        → Tasks 16–20 P3 Lab/doctor/Manager/CI
@@ -1556,6 +1556,9 @@ test -z "$(git status --short)"
 Record the immutable spike hash. Do not push or merge this branch.
 Require `git merge-base --is-ancestor "$FINAL_PE" HEAD` and record both values;
 Task 4 rejects a spike whose parent chain names any earlier amended-plan head.
+The live-fixture clarification below requires no spike-source change and keeps
+this Task 3 review/freeze valid. Rerun Task 3 Step 5 and freeze a new hash only
+if a future repair changes the spike source itself.
 
 ### Task 4: `[PE]` Automate and record the Simulator Safari P0.5 gate
 
@@ -1573,7 +1576,10 @@ Task 4 rejects a spike whose parent chain names any earlier amended-plan head.
   requires a matching `SPIREBOUND_SOURCE_SHA`. DOM/production profiles retain
   their later task-specific source gates. The reusable runner never imports
   spike code.
-- Produces serial eight-cell JSON/screenshot evidence plus a PE-authored GO/NO-GO report; evidence claims functional compatibility only.
+- Produces serial eight-cell JSON/screenshot evidence plus a PE-authored formal
+  GO/NO-GO report only from a complete decisive durable archive; evidence
+  claims functional compatibility only. Setup-blocked or partial diagnostics
+  remain inconclusive and ignored.
 
 - [ ] **Step 1: Write the pure runner contract tests first**
 
@@ -1584,6 +1590,11 @@ validation, plus spawned-server readiness/owned-child cleanup with a fake child.
 Freeze `smoke` to exactly two cells: iPhone 17 Pro portrait and iPad mini
 (A17 Pro) landscape; `full` is all eight cells. No profile may reinterpret
 those names.
+Pure route-builder tests freeze the spike URL to exactly
+`/?pixispike=1&tier=full&input=touch`, reject any `shape=` parameter and require
+the normalised JSON evidence fields `inputProfile:'touch'`,
+`nativePointerCoarse:<boolean>` from the native `(pointer: coarse)` result, and
+`shapeOverride:null`.
 `dom-profile.test.mjs` freezes a reusable profile that always waits for
 `window.__probe.state()` and `settle()`. Loaded Phase 2 does not expose
 `queueIdle()` yet: before Task 6 the profile therefore requires
@@ -1635,8 +1646,9 @@ password or treat a model name as UDID proof. Require the pinned iOS 26.5
 (`23F73`) runtime and record Xcode 26.6 (17F113). A missing runtime/tool is
 `SETUP BLOCKED`, never a Pixi compatibility NO-GO. `preflight.mjs` prints the
 exact non-credential setup action and exits non-zero; it never substitutes a
-different runtime. Only a booted cell may produce a compatibility verdict. If
-WebDriver is unavailable it prints one visible manual setup instruction and
+different runtime. Only a booted and exercised cell may produce a decisive
+`passed|failed` row; the formal product decision still requires all eight rows.
+If WebDriver is unavailable it prints one visible manual setup instruction and
 exits non-zero.
 
 The same preflight requires a real console user (not `loginwindow`, root or a
@@ -1644,18 +1656,26 @@ background-only session), a live `launchctl gui/<uid>` domain, an unlocked GUI
 session and a resolvable Simulator application. It records the console uid, GUI
 session check and lock/power observations without recording usernames. The
 on-console `CGSSessionScreenIsLocked` fact is authoritative when it disagrees
-with a root `IOConsoleLocked` field. Preflight resolves Simulator without
+with a root `IOConsoleLocked` field. On the live macOS host an unlocked,
+login-complete on-console dictionary omits that key rather than serialising
+`No`; absence is normalised to unlocked only when the on-console/login-complete
+and root-unlocked facts are all present. Preflight resolves Simulator without
 launching it. It also requires System Events UI scripting to report
 `UI elements enabled`; a missing Accessibility/Apple Events grant is
 `SETUP BLOCKED` before any managed-device mutation and prints the one visible
-System Settings action. A sleeping/locked/headless Mac fails fast with the
-instruction to wake, unlock and log in locally; the runner never tries to wake
-the Mac or requests credentials.
-Once launched, `run.mjs` may own a `caffeinate` child for the duration and must
-terminate only that child in `finally`; it must never pass `-u`, and therefore
-prevents new sleep without turning on a display or waking an already sleeping
-host. Pure tests cover console-user, contradictory lock observations,
-locked-session and owned-caffeinate cleanup cases with fakes.
+System Settings action. The AppleScript captures System Events'
+`UI elements enabled` value outside every `tell process` scope; a pure
+structural test rejects process-scoped evaluation rather than accepting only a
+mocked successful output. A sleeping, inactive-display, locked or headless Mac
+fails setup before any managed-device mutation with the instruction to wake,
+unlock and log in locally. The runner never invokes `caffeinate -u`, wakes a
+display/host, unlocks a GUI or requests credentials. Only after the complete
+awake/unlocked/logged-in preflight succeeds may `run.mjs` start its owned
+`caffeinate -d -i -w <runner-pid>` child to prevent new sleep. It terminates
+only that child in `finally`. Pure tests cover the live omitted-unlocked-key
+shape, console-user and explicit-lock failures, AppleScript scope, asleep and
+inactive-display failures, no wake command, no guard before preflight, and
+owned-guard cleanup without Simulator mutation.
 
 Only devices named `Spirebound R5 - <model>` may be created, booted, rotated or
 shut down by the runner. Never erase/delete a Simulator and never shut down an
@@ -1716,7 +1736,8 @@ is exactly `Spirebound R5 - <model>` and is sent as `safari:deviceName`; the
 resolved managed UDID is separate. Pure tests reject a model in `deviceType`, a
 requested-only name, a family/name mismatch or a missing UDID. Dispatch
 assertions through the explicit
-`spike` or `dom` surface profile. Spike navigates to `/?pixispike=1` and verifies
+`spike` or `dom` surface profile. Spike navigates to exactly
+`/?pixispike=1&tier=full&input=touch`, with no `shape=` override, and verifies
 the Task 3 state/drag/cancel/fallback/shake/loss/rebuild contract, including
 strict WebGL preference, observed-and-lost Pixi test context, all-context live
 maximum three, exact named owners and no live unowned steady-state context;
@@ -1740,6 +1761,11 @@ capabilities, observed Safari name/version/build, requested model, exact
 managed `deviceName`, family-only `deviceType`, resolved `deviceUDID`, requested and
 observed orientation, viewport/stage shape, every semantic assertion, artifact
 paths and `claim:'functional-compatibility-only'`.
+It also records `inputProfile:'touch'`,
+`nativePointerCoarse:<boolean>` from the native
+`matchMedia('(pointer: coarse)').matches` result, and `shapeOverride:null`;
+`input=touch` declares automation input only, so shape still comes naturally
+from the Simulator viewport.
 
 Every cell fails unless its phone/pad + orientation selects the expected
 canonical stage shape, all four safe-area inputs are finite/non-negative,
@@ -1749,17 +1775,42 @@ For spike rows it also requires before/after owners exactly
 `bg3d,mesh,uigl`, during-loss owners `bg3d,mesh`, and maximum concurrent owners
 three; normalised JSON/report rows retain all four owner-evidence fields.
 
-After the full run, copy the eight JSON files and eight screenshots into
-`docs/superpowers/artifacts/round5-p0.5-simulator/` and generate
-`manifest.json` containing source/spike SHA, relative path, media type, byte
-size and SHA-256 for every file. The report links only these committed paths;
-ignored `test-results/` paths are never durable evidence.
-Promotion is never an implicit side effect of a reusable full run. It requires
-the tested `--promote-p0.5` flag, which is accepted only for the combination of
-`--matrix full`, `--surface spike`, exact source provenance and eight successful
-cells from an owned clean-head server. An external URL may exercise the runner
-with its explicit declared SHA but can never promote the P0.5 golden evidence;
-otherwise the command leaves `docs/**` untouched.
+Durable publication is never an implicit side effect of a reusable full run.
+Two tested, mutually exclusive actions publish to
+`docs/superpowers/artifacts/round5-p0.5-simulator/` through the same
+failure-atomic transaction:
+
+- `--promote-p0.5` accepts only `--matrix full`, `--surface spike`, an owned
+  clean-head server at the exact source SHA and eight `passed` cells. It writes
+  durable GO evidence.
+- `--archive-p0.5` requires the same matrix/surface/source contract, all eight
+  decisive `passed|failed` cells and at least one `failed` cell. It writes
+  durable NO-GO evidence.
+
+Both reject external URLs, partial rows, any setup-blocked row, missing or
+mismatched JSON/PNG pairs, unsafe paths, invalid declared media/signatures and
+any destination update outside the transaction below. The manifest records
+`decision:'GO'|'NO-GO'`, exact source SHA and, for every file, a safe relative
+path, media type, byte size and SHA-256. A functional cell failure continues to
+later cells so the matrix can reach a formal decision; setup, safety or cleanup
+failure stops the run. Pure tests cover both acceptance paths, mutual
+exclusion, every rejection class and rollback that preserves the previous
+durable destination after a failed transaction. The publisher first builds a
+unique staging directory under the destination's same parent and fully
+validates every row, file, signature and hash there. If the destination exists,
+it renames that complete directory to a unique backup; it then renames the
+validated staging directory to the destination. On any swap failure it restores
+the prior destination (or leaves it absent if none existed) and removes every
+publisher-owned staging/backup residue.
+It deletes the backup only after the staging-to-destination rename succeeds.
+There is no permitted failure state in which publication destroys or partially
+replaces prior durable evidence. Deterministic fault-injection tests fail before
+and after each destination-to-backup and staging-to-destination rename/swap
+boundary, and assert prior-destination restoration plus complete owned
+staging/backup cleanup. Success-path tests assert the final destination hashes
+and no owned staging/backup residue. Without a valid explicit action the
+command leaves `docs/**` untouched, and reports may link only the committed
+durable paths, never ignored `test-results/` diagnostics.
 
 - [ ] **Step 4: Add stable entry points and prove the runner tests green**
 
@@ -1795,7 +1846,26 @@ implements/tests `spike` and `dom`, and reserves `production` for Task 24.
 
 - [ ] **Step 5: Run the immutable spike through all eight real-Safari cells**
 
-Let the runner spawn the Task 3 worktree server on an isolated localhost port:
+Let the runner spawn the Task 3 worktree server on an isolated localhost port.
+First run the normal full matrix without either durable flag:
+
+```bash
+set -euo pipefail
+SPIKE_HEAD=$(git -C ../round5-pixi-spike rev-parse HEAD)
+test -z "$(git -C ../round5-pixi-spike status --short)"
+SPIREBOUND_SERVER_CWD=../round5-pixi-spike \
+  npm run test:simulator:full -- --surface spike \
+  --source-sha "$SPIKE_HEAD"
+```
+
+Inspect the ignored results and require all eight rows to be present, decisive
+`passed|failed` and paired with valid matching JSON/PNG evidence. A
+setup-blocked, partial, cleanup-failed or missing-artifact run is inconclusive:
+repair the runner/environment and repeat the unflagged full matrix; do not
+publish a product decision.
+
+If and only if all eight inspected cells passed, rerun the same complete gate
+with the explicit GO action:
 
 ```bash
 set -euo pipefail
@@ -1806,10 +1876,21 @@ SPIREBOUND_SERVER_CWD=../round5-pixi-spike \
   --source-sha "$SPIKE_HEAD" --promote-p0.5
 ```
 
-Expected: eight serial results, each proving ready, drag committed,
-pointer-cancelled rest, forced fallback, shake alignment, lost, rebuilding and
-ready recovery. A single failed criterion makes the decision NO-GO and blocks
-Task 5.
+If the complete inspected matrix instead contains one or more exercised
+functional failures, rerun it with the explicit NO-GO action:
+
+```bash
+set -euo pipefail
+SPIKE_HEAD=$(git -C ../round5-pixi-spike rev-parse HEAD)
+test -z "$(git -C ../round5-pixi-spike status --short)"
+SPIREBOUND_SERVER_CWD=../round5-pixi-spike \
+  npm run test:simulator:full -- --surface spike \
+  --source-sha "$SPIKE_HEAD" --archive-p0.5
+```
+
+The durable action validates its own fresh eight-cell result. Eight passes are
+GO; a complete decisive matrix with at least one functional failure is NO-GO
+and blocks Task 5. The runner must not assume GO from command intent.
 
 - [ ] **Step 6: Write the report and complete both independent review cycles**
 
@@ -1817,12 +1898,21 @@ The report records the loaded predecessor minimum `40eb357`, PR17
 base/head/merge and exact geometry contract, final amended PE
 head, spike hash, exact toolchain,
 each cell's observed Safari browser version/build, all eight rows,
-screenshots/JSON paths, each functional criterion, Playwright
+committed durable screenshot/JSON paths, manifest decision and hash, each
+functional criterion, Playwright
 host-relative numbers in a separate table, excluded physical-device claims and
 one final line exactly `Decision: GO` or `Decision: NO-GO`. A fresh spec
 reviewer reviews the report/raw artifacts, PE fixes and obtains re-review, then
 a fresh code-quality reviewer reviews the evidence/path discipline, followed by
 PE fixes and re-review. PE owns the decision evidence.
+
+Issue the formal report only after the matching explicit durable action has
+succeeded. A setup-blocked/partial run remains ignored diagnostics and is
+reported as `SETUP BLOCKED`/inconclusive without a product-decision report. A
+NO-GO report is permitted only after the complete `--archive-p0.5` contract;
+the final report links no ignored paths. Step 7 commits the report and its exact
+durable artifact directory together, then verifies every report link resolves
+to a committed path.
 
 On GO only, verify the disposable worktree is clean and record its frozen hash.
 Keep `.worktrees/round5-pixi-spike` and `codex/round5-pixi-spike` intact as
@@ -1853,8 +1943,11 @@ git add package.json package-lock.json test/simulator/matrix.mjs \
 git commit -m "test: record the Simulator Safari Pixi gate"
 ```
 
-Do not commit `test-results/`. A NO-GO report is still committed, but execution
-stops before Task 5 and the golden design is revised rather than bypassed.
+Do not commit `test-results/` or any setup-blocked/partial diagnostics. A formal
+NO-GO report is committed only with a complete decisive `--archive-p0.5`
+directory; execution then stops before Task 5 and the golden design is revised
+rather than bypassed. After the commit, require every report artifact link to
+resolve through `git ls-files` at that commit.
 
 ---
 
@@ -5368,7 +5461,9 @@ invokes the runner-owned isolated server. Its validated workflow inputs are
 artifact `functional-compatibility-only`. It is not a Linux required check and
 contains no physical-performance wording. Its first executable step runs the
 Task 4 GUI/awake/unlocked preflight and stops before device mutation on failure;
-workflow text says it cannot wake or unlock the self-hosted Mac.
+workflow text says it never wakes a display/host, unlocks the self-hosted Mac or
+requests credentials. The already-awake preflight must pass before the workflow
+may start an owned `caffeinate -d -i -w` child to prevent new sleep.
 
 Provisioning/registration of that GitHub runner and repository label is an
 owner-controlled external prerequisite, not something this plan silently
@@ -5414,8 +5509,10 @@ password or machine login is requested by an agent.
 
 Document the two browser lanes, serial rule, visible Safari Remote Automation
 preflight, no hidden password prompts, and phase-applicable gates. State
-explicitly that the self-hosted Mac must already be awake, unlocked and logged
-into a GUI session; neither Codex nor the workflow wakes it. Mark P3 complete;
+explicitly that the self-hosted Mac must already be awake with its runner
+executing and an unlocked, logged-in usable GUI session. Neither Codex nor the
+workflow wakes a display/host, unlocks the GUI or requests credentials; the
+post-preflight owned caffeine guard only prevents new sleep. Mark P3 complete;
 Content Manager remains optional in the exit contract even if shipped.
 
 - [ ] **Step 6: Verify and commit**
