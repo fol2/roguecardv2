@@ -226,7 +226,7 @@ function cardEl(inst, { inCombat = false, size = null } = {}) {
     <div class="card-rarity"></div>
   </div></div>`;
   const kw = KEYWORDS();
-  $('.kw', c).forEach((k) => (k._tip = { title: k.textContent, body: kw[k.textContent] || '' }));
+  $$('.kw', c).forEach((k) => (k._tip = { title: k.textContent, body: kw[k.textContent] || '' }));
   // 3D tilt + mouse-tracked glare/foil (a hovering pointer only)
   if (FINE) c.addEventListener('mousemove', (e) => {
     const r = c.getBoundingClientRect();
