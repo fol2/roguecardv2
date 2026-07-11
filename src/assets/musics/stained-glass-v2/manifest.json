@@ -68,8 +68,8 @@
       "source_url": "https://suno.com/song/e025829b-94f8-4a91-8bd0-bf006fc983f7",
       "selected_variant": "b",
       "title": "Six Dark Panes",
-      "wired": false,
-      "use": "Emberglass / Rose Window (future)"
+      "wired": true,
+      "use": "Vigil Rose Window tab"
     },
     "map": {
       "file": "map.mp3",
@@ -129,7 +129,7 @@
       "selected_variant": "b",
       "title": "The Rootheart Awakens",
       "wired": true,
-      "use": "Act 1 boss — Rootheart"
+      "use": "Act 1 boss \u2014 Rootheart"
     },
     "act2Combat": {
       "file": "act2-combat.mp3",
@@ -159,7 +159,7 @@
       "selected_variant": "b",
       "title": "Leviathan's Maw",
       "wired": true,
-      "use": "Act 2 boss — Leviathan"
+      "use": "Act 2 boss \u2014 Leviathan"
     },
     "act3Combat": {
       "file": "act3-combat.mp3",
@@ -189,7 +189,7 @@
       "selected_variant": "b",
       "title": "The Eternal Sovereign",
       "wired": true,
-      "use": "Act 3 boss — Eternal Sovereign"
+      "use": "Act 3 boss \u2014 Eternal Sovereign"
     },
     "elite": {
       "file": "elite.mp3",
@@ -218,8 +218,8 @@
       "source_url": "https://suno.com/song/64080dc6-c68f-434c-bf22-fc77c3e46b60",
       "selected_variant": "a",
       "title": "Witchlight Motes",
-      "wired": false,
-      "use": "Hidden quest — Pale Ones (future)"
+      "wired": true,
+      "use": "Pale Ones quest combat"
     },
     "shadeDuel": {
       "file": "shade-duel.mp3",
@@ -233,8 +233,8 @@
       "source_url": "https://suno.com/song/7a47f931-7deb-4149-bc42-ef1e8d328145",
       "selected_variant": "b",
       "title": "The Duel That Remembers",
-      "wired": false,
-      "use": "Hidden quest — shade duel (future)"
+      "wired": true,
+      "use": "Own Shade duel combat"
     },
     "usurper": {
       "file": "usurper.mp3",
@@ -248,8 +248,8 @@
       "source_url": "https://suno.com/song/1b365451-9cdb-4077-9195-38137336f09c",
       "selected_variant": "a",
       "title": "Lantern With No Flame",
-      "wired": false,
-      "use": "Hidden quest — Usurper boss (future)"
+      "wired": true,
+      "use": "Usurped Act 3 summit boss"
     },
     "eighthOmen": {
       "file": "eighth-omen.mp3",
@@ -263,8 +263,8 @@
       "source_url": "https://suno.com/song/b0c35536-11eb-423f-9dee-57ef9a642b70",
       "selected_variant": "b",
       "title": "Broken Glyph Run",
-      "wired": false,
-      "use": "Hidden quest — Eighth Omen run (future)"
+      "wired": true,
+      "use": "Eighth Omen act \u2014 map / non-boss combat"
     },
     "unreadablePage": {
       "file": "unreadable-page.mp3",
@@ -278,8 +278,8 @@
       "source_url": "https://suno.com/song/c9c08557-966d-4fd3-ab97-eedb3d5dc6ab",
       "selected_variant": "b",
       "title": "It Reads Itself",
-      "wired": false,
-      "use": "Hidden quest — Unreadable Page (future)"
+      "wired": true,
+      "use": "Unreadable Page dawn reading"
     },
     "hollowLamplighter": {
       "file": "hollow-lamplighter.mp3",
@@ -293,8 +293,8 @@
       "source_url": "https://suno.com/song/48f85b92-be56-42a3-a504-508622148a53",
       "selected_variant": "a",
       "title": "The Unlit Way",
-      "wired": false,
-      "use": "Hidden quest — hollow lamplighter (future)"
+      "wired": true,
+      "use": "Hollow Lamplighter meeting"
     },
     "sealedDoor": {
       "file": "sealed-door.mp3",
@@ -308,8 +308,8 @@
       "source_url": "https://suno.com/song/579463a7-32cf-4af2-b22d-b0723332b0c8",
       "selected_variant": "a",
       "title": "The Climb Continues",
-      "wired": false,
-      "use": "Sealed Act 4 door reveal (future)"
+      "wired": true,
+      "use": "Sealed Act 4 door / act4Reveal dawn"
     },
     "victory": {
       "file": "victory.mp3",

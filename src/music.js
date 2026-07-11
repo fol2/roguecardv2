@@ -3,6 +3,9 @@ import { ensureAudio, getAudioContext } from './audio.js';
 import { DEFAULT_AUDIO_SELECTION } from './audio-packs.js';
 import { getAudioSource } from './audio-assets.js';
 import { MUSIC_CATALOG } from './audio-catalog.js';
+import {
+  QUEST_COMBAT_CUES, SCREEN_CUES, resolveCombatCue, resolveScreenCue, dawnEventCue,
+} from './music-resolve.js';
 
 const CROSSFADE = 0.8;
 const DEFAULT_VOL = 0.35;
@@ -33,12 +36,17 @@ const loading = Object.create(null);
 const failedRefs = new Set();
 
 const WARM_WITH = {
-  title: ['embark', 'vigil'], embark: ['map'], vigil: ['title'],
-  map: ['act1Combat', 'safeNodes', 'elite'], safeNodes: ['map'],
+  title: ['embark', 'vigil'], embark: ['map'], vigil: ['title', 'roseWindow'],
+  roseWindow: ['vigil'],
+  map: ['act1Combat', 'safeNodes', 'elite', 'hollowLamplighter'], safeNodes: ['map'],
   act1Combat: ['act1Boss', 'map', 'elite'], act1Boss: ['map', 'victory'],
   act2Combat: ['act2Boss', 'map', 'elite'], act2Boss: ['map', 'victory'],
   act3Combat: ['act3Boss', 'map', 'elite'], act3Boss: ['victory', 'defeat'],
-  elite: ['map'], victory: ['title', 'vigil'], defeat: ['title', 'vigil'],
+  elite: ['map'],
+  paleOnes: ['map'], shadeDuel: ['map'], usurper: ['victory', 'defeat'],
+  eighthOmen: ['map', 'elite'], unreadablePage: ['victory', 'vigil'],
+  hollowLamplighter: ['map'], sealedDoor: ['map', 'vigil'],
+  victory: ['title', 'vigil'], defeat: ['title', 'vigil'],
 };
 
 /** @type {Record<string, { title: string, wired: boolean, warmWith?: string[] }>} */
@@ -47,6 +55,8 @@ export const REGISTRY = Object.fromEntries(MUSIC_CATALOG.map((row) => [row.id, {
   wired: row.wired,
   ...(WARM_WITH[row.id] ? { warmWith: WARM_WITH[row.id] } : {}),
 }]));
+
+export { QUEST_COMBAT_CUES, SCREEN_CUES, resolveCombatCue, resolveScreenCue, dawnEventCue };
 
 function ensureBus() {
   if (!ensureAudio()) return null;
@@ -205,28 +215,13 @@ export function invalidateMusicSelection() {
 /** Screen → cue. Combat / run-end / Act 1–2 boss victory resolve elsewhere.
  *  reward / bossRelic omit on purpose: normal/elite keep the combat cue;
  *  Act 1/2 boss wins already switched to `victory` in victoryFlow(). */
-export const SCREEN_CUES = {
-  title: 'title',
-  embark: 'embark',
-  vigil: 'vigil',
-  map: 'map',
-  shop: 'safeNodes',
-  rest: 'safeNodes',
-  treasure: 'safeNodes',
-  event: 'map',
-  lamplighter: 'map',
-};
-
-export function playForScreen(name) {
-  const cue = SCREEN_CUES[name];
+export function playForScreen(name, overrideCue = null) {
+  const cue = resolveScreenCue(name, overrideCue);
   if (cue) return play(cue);
 }
 
-export function playForCombat(kind, actIdx) {
-  const act = Math.max(0, Math.min(2, actIdx | 0)) + 1;
-  if (kind === 'boss') return play(`act${act}Boss`);
-  if (kind === 'elite') return play('elite');
-  return play(`act${act}Combat`);
+export function playForCombat(kind, actIdx, opts = {}) {
+  return play(resolveCombatCue(kind, actIdx, opts));
 }
 
 export function playForRunEnd(won) {

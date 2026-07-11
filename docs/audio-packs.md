@@ -106,7 +106,9 @@ The persisted shape is deliberately small:
 
 Overrides are stable inventory refs, not URLs or filesystem paths. Unknown
 versions, ids, refs, malformed objects, and incomplete whole packs are rejected
-before a save.
+before a save. `public/audio-selection.json` is that Save target: unit tests
+require it to stay valid for the installed inventory and to match the gallery
+serialiser, not to pin any particular pack version.
 
 ## Production host contract
 
