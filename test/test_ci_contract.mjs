@@ -54,7 +54,9 @@ assert.match(workflow, /test:e2e:main -- --shard=\$\{\{ matrix\.shard \}\}\/10/)
 assert.match(workflow, /e2e_serial:[\s\S]*?name: e2e serial[\s\S]*?npm run test:e2e:serial/);
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-assert.match(pkg.scripts['test:e2e'], /test:e2e:main && npm run test:e2e:serial && npm run test:e2e:visual/);
+assert.equal(pkg.scripts['test:e2e'], 'npm run test:e2e:nonvisual && npm run test:e2e:visual');
+assert.equal(pkg.scripts['test:e2e:nonvisual'],
+  'npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:main && npm run test:e2e:serial');
 assert.equal(pkg.scripts['test:boundaries'], 'node test/test_module_boundaries.mjs');
 assert.match(pkg.scripts['test:ci'], /npm run test:boundaries/);
 

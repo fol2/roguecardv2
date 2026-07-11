@@ -44,6 +44,7 @@ import {
   createBehaviourTrace, FORBIDDEN_TRACE_KEYS, TRACE_END_OUTCOMES,
   TRACE_POINT_OUTCOMES, TRACE_VERSION,
 } from '../src/ui/behaviour-trace.js';
+import { createPresentationBarrier } from '../src/ui/presentation-barrier.js';
 import {
   allocateStrictE2EPort, runWithStrictE2EPort,
 } from '../tools/run-with-strict-e2e-port.mjs';
@@ -58,6 +59,34 @@ function freshCombat(enemyIds = ['sporeling']) {
 }
 function forceHand(run, cb, ids) {
   cb.hand = ids.map((id) => makeCard(run, id));
+}
+
+// ---- Round 5 always-on presentation barrier -------------------------------
+{
+  const barrier = createPresentationBarrier({ strict: true });
+  const order = [];
+  const outer = barrier.begin('outer');
+  const inner = barrier.begin('inner');
+  assert.equal(barrier.activeCount(), 2, 'presentation barrier: nested tokens count');
+  const idle = barrier.whenIdle().then(() => order.push('idle'));
+  outer.finish();
+  await Promise.resolve();
+  assert.deepEqual(order, [], 'presentation barrier: nested work keeps whenIdle pending');
+  inner.cancel();
+  await idle;
+  assert.deepEqual(order, ['idle'], 'presentation barrier: whenIdle resolves after final token');
+  assert.equal(barrier.assertIdle(), true, 'presentation barrier: idle assertion');
+  assert.throws(() => inner.finish(), /already finished/, 'presentation barrier: strict double finish');
+
+  const runtime = createPresentationBarrier();
+  const token = runtime.begin('runtime');
+  assert.equal(token.finish(), true);
+  assert.equal(token.finish(), false, 'presentation barrier: runtime double finish is idempotent');
+  const destroyed = runtime.begin('destroyed');
+  runtime.destroy();
+  assert.equal(runtime.activeCount(), 0, 'presentation barrier: destroy cancels owned tokens');
+  assert.equal(destroyed.finish(), false, 'presentation barrier: destroyed token fails open');
+  assert.throws(() => runtime.begin('late'), /destroyed/, 'presentation barrier: begin after destroy rejected');
 }
 
 // ---- Round 5 semantic UI behaviour trace and standing gates ----------------
@@ -809,6 +838,8 @@ function forceHand(run, cb, ids) {
   assert.equal(resolveCombatCue('monster', 0, { questId: 'paleOnes', omenId: 'eighthOmen' }), 'paleOnes');
   assert.equal(resolveScreenCue('hollow'), 'hollowLamplighter');
   assert.equal(resolveScreenCue('map', 'eighthOmen'), 'eighthOmen');
+  assert.equal(resolveScreenCue('reward'), null, 'reward holds the cue selected before navigation');
+  assert.equal(resolveScreenCue('bossRelic'), null, 'boss relic holds the cue selected before navigation');
   assert.equal(SCREEN_CUES.lamplighter, 'map');
   assert.equal(dawnEventCue({ t: 'pageRead' }), 'unreadablePage');
   assert.equal(dawnEventCue({ t: 'act4Reveal' }), 'sealedDoor');

@@ -34,6 +34,14 @@ let playGen = 0;
 const buffers = Object.create(null);
 const loading = Object.create(null);
 const failedRefs = new Set();
+let observationSink = null;
+
+export function setMusicObservationSink(sink) {
+  observationSink = typeof sink === 'function' ? sink : null;
+}
+function observe(id, mode, result) {
+  try { observationSink?.({ id, mode, result }); } catch { /* observation never owns playback */ }
+}
 
 const WARM_WITH = {
   title: ['embark', 'vigil'], embark: ['map'], vigil: ['title', 'roseWindow'],
@@ -149,19 +157,21 @@ function fadeOutCurrent() {
 }
 
 async function playInternal(cueId, { force = false, selection } = {}) {
+  const mode = selection ? 'draft' : 'active';
   const entry = REGISTRY[cueId];
-  if (!entry || (!entry.wired && !force)) return;
+  if (!entry || (!entry.wired && !force)) { observe(cueId || 'unknown', mode, 'unavailable'); return; }
   const requestedSource = getAudioSource('music', cueId, selection);
-  if (!requestedSource) return;
+  if (!requestedSource) { observe(cueId, mode, 'unavailable'); return; }
   if (cueId === activeId && activeRequestedRef === requestedSource.ref && activeSrc) {
     if (entry.warmWith) warm(entry.warmWith);
+    observe(cueId, mode, muted ? 'muted' : 'playing');
     return;
   }
-  if (!ensureBus()) return;
+  if (!ensureBus()) { observe(cueId, mode, 'unavailable'); return; }
   const gen = ++playGen;
   const loaded = await loadCue(cueId, selection);
-  if (gen !== playGen) return; // superseded
-  if (!loaded) return;
+  if (gen !== playGen) { observe(cueId, mode, 'superseded'); return; }
+  if (!loaded) { observe(cueId, mode, 'unavailable'); return; }
   const ctx = getAudioContext();
   fadeOutCurrent();
   const src = ctx.createBufferSource();
@@ -178,6 +188,7 @@ async function playInternal(cueId, { force = false, selection } = {}) {
   activeSrc = src;
   activeGain = g;
   if (entry.warmWith) warm(entry.warmWith);
+  observe(cueId, mode, muted ? 'muted' : 'playing');
 }
 
 /** Play a Music Cue. Unwired / unknown cues no-op. Same cue re-entry is a no-op. */

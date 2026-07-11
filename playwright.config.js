@@ -11,6 +11,7 @@ const e2eServer = e2eServerSettings(process.env.SPIREBOUND_E2E_PORT);
 
 export default defineConfig({
   testDir: 'test/e2e',
+  testIgnore: /trace-production\.spec\.js/,
   fullyParallel: true,
   // every page runs a full three.js scene + bloom; more than two at once
   // starves the GPU/CPU and turns real animation waits into false timeouts

@@ -1,5 +1,7 @@
 // Runtime audio-selection gallery/backend controls (desktop dev tool).
-import { test, expect } from '@playwright/test';
+import { test, expect } from './trace-fixture.js';
+import { boot, settle, startFight } from './helpers.js';
+import { mixedLedger, seed } from './emberglass-fixtures.js';
 
 test.beforeEach(({}, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', 'audio backend controls are desktop-only');
@@ -7,7 +9,7 @@ test.beforeEach(({}, testInfo) => {
 
 async function openAudioGallery(page) {
   await page.goto('/?audio=1&mesh=0');
-  await page.waitForSelector('.audio-gallery-mode .ag-editor');
+  await page.waitForSelector('.audio-gallery-mode .ag-editor', { timeout: 10_000 });
 }
 
 test('audio gallery exposes complete pack selectors and every gameplay id', async ({ page }) => {
@@ -22,6 +24,11 @@ test('audio gallery exposes complete pack selectors and every gameplay id', asyn
   expect(await sfxVersion.evaluate((el) => [...el.options].some((option) => option.selected && option.value))).toBe(true);
   await expect(page.locator('.ag-source')).toHaveCount(58);
   await expect(page.locator('.ag-config-errors')).toHaveCount(0);
+  expect(await page.evaluate(async () => {
+    const { AUDIO_INVENTORY } = await import('/src/audio-assets.js');
+    return [...AUDIO_INVENTORY.music, ...AUDIO_INVENTORY.sfx]
+      .filter((ref) => ref.includes('_raw'));
+  })).toEqual([]);
 });
 
 test('override options put pack default once, then other same-action versions', async ({ page }) => {
@@ -60,6 +67,68 @@ test('per-file source choice posts selection metadata without audio binaries', a
   await expect.poll(() => payload).not.toBeNull();
   expect(payload).toEqual(expected);
   expect(JSON.stringify(payload)).not.toContain('data:audio');
+});
+
+test('PR15 hot apply invalidates both caches and actively re-resolves the current cue', async ({ page }) => {
+  await page.route('**/__audio-save', (route) => route.fulfill({ json: { ok: true, hot: true } }));
+  await openAudioGallery(page);
+  await page.locator('.ag-row[data-kind="music"][data-id="title"] .ag-preview').click();
+  await expect.poll(() => page.evaluate(async () => (await import('/src/music.js')).currentCue()),
+    { timeout: 20_000 }).toBe('title');
+  const before = await page.evaluate(async () => (await import('/src/music.js')).currentRequestedAudioRef());
+  const selectedBefore = await page.evaluate(async () =>
+    (await import('/src/audio-assets.js')).getAudioSelection().music.overrides.title ?? null);
+  await page.evaluate(() => { window.__audioGallerySentinel = 'same-page'; });
+  await page.evaluate(() => { location.hash = 'ag-music'; });
+  await page.locator('.ag-source[data-source-kind="music"][data-source-id="title"]')
+    .selectOption('stained-glass-v1/map.mp3');
+  await page.locator('[data-a="save-audio"]').click();
+  await expect.poll(() => page.evaluate(async () => ({
+    selected: (await import('/src/audio-assets.js')).getAudioSelection().music.overrides.title,
+    requested: (await import('/src/music.js')).currentRequestedAudioRef(),
+    active: (await import('/src/music.js')).currentAudioRef(),
+  })), { timeout: 20_000 }).toEqual({
+    selected: 'stained-glass-v1/map.mp3', requested: 'stained-glass-v1/map.mp3',
+    active: 'stained-glass-v1/map.mp3',
+  });
+  expect(await page.evaluate(() => ({
+    sentinel: window.__audioGallerySentinel,
+    hash: location.hash,
+    gallery: document.querySelector('.audio-gallery-mode')?.isConnected === true,
+    status: document.querySelector('#ag-save-status')?.textContent,
+  }))).toEqual({
+    sentinel: 'same-page', hash: '#ag-music', gallery: true, status: 'Saved ✓',
+  });
+  expect(selectedBefore).not.toBe('stained-glass-v1/map.mp3');
+  expect(before).not.toBe('stained-glass-v1/map.mp3');
+  const modes = await page.evaluate(() => window.__probe.behaviourTrace().records
+    .filter((record) => record.eventName === 'audio.music-request' && record.attributes?.id === 'title')
+    .map((record) => record.attributes.mode));
+  expect(modes).toContain('draft');
+  expect(modes).toContain('active');
+});
+
+test('PR15 unsaved selector changes stay draft-only until Save', async ({ page }) => {
+  await openAudioGallery(page);
+  const before = await page.evaluate(async () =>
+    (await import('/src/audio-assets.js')).getAudioSelection());
+  await page.locator('.ag-source[data-source-kind="music"][data-source-id="title"]')
+    .selectOption('stained-glass-v1/map.mp3');
+  await page.locator('.ag-row[data-kind="music"][data-id="title"] .ag-preview').click();
+  await expect.poll(() => page.evaluate(async () => ({
+    selection: (await import('/src/audio-assets.js')).getAudioSelection(),
+    requested: (await import('/src/music.js')).currentRequestedAudioRef(),
+    active: (await import('/src/music.js')).currentAudioRef(),
+  })), { timeout: 20_000 }).toEqual({
+    selection: before,
+    requested: 'stained-glass-v1/map.mp3',
+    active: 'stained-glass-v1/map.mp3',
+  });
+  const modes = await page.evaluate(() => window.__probe.behaviourTrace().records
+    .filter((record) => record.eventName === 'audio.music-request' && record.attributes?.id === 'title')
+    .map((record) => record.attributes.mode));
+  expect(modes).toContain('draft');
+  expect(modes).not.toContain('active');
 });
 
 test('invalid host selection visibly falls back to both immutable base packs', async ({ page }) => {
@@ -141,4 +210,303 @@ test('a broken selected music file falls back once without restart churn', async
   expect(baseRequests).toBe(1);
   expect(await page.evaluate(() => window.__forcedMusicDecodeFailures)).toBe(1);
   expect(await page.evaluate(() => window.__musicBufferStarts)).toBe(1);
+});
+
+test('draft previews report copy-free actual results without changing playback', async ({ page }) => {
+  await openAudioGallery(page);
+  await page.locator('.ag-row[data-kind="sfx"][data-id="click"] .ag-preview').click();
+  await expect.poll(() => page.evaluate(() => window.__probe.behaviourTrace().records
+    .some((record) => record.eventName === 'audio.sfx-request' && record.attributes.id === 'click'))).toBe(true);
+  await page.locator('.ag-row[data-kind="music"][data-id="title"] .ag-preview').click();
+  await expect.poll(() => page.evaluate(() => window.__probe.behaviourTrace().records
+    .some((record) => record.eventName === 'audio.music-request' && record.attributes.id === 'title')),
+  { timeout: 20_000 }).toBe(true);
+  const records = await page.evaluate(() => window.__probe.behaviourTrace().records
+    .filter((record) => ['audio.sfx-request', 'audio.music-request'].includes(record.eventName)));
+  for (const record of records) {
+    expect(Object.keys(record.attributes).sort()).toEqual(['id', 'mode', 'result']);
+    expect(record.attributes.mode).toBe('draft');
+    expect(record.attributes.result).toMatch(/^(sample|synth-fallback|muted|unavailable|superseded|playing)$/);
+    expect(record.outcome).toBe(['sample', 'synth-fallback', 'playing'].includes(record.attributes.result)
+      ? 'completed' : 'rejected');
+    expect(JSON.stringify(record.attributes)).not.toMatch(/https?:|\.mp3|version|override|pack/);
+  }
+});
+
+test('throwing audio observers cannot interrupt real preview playback', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await openAudioGallery(page);
+  await page.evaluate(async () => {
+    const audio = await import('/src/audio.js');
+    const music = await import('/src/music.js');
+    audio.setSfxObservationSink(() => { throw new Error('observer-only-sfx'); });
+    music.setMusicObservationSink(() => { throw new Error('observer-only-music'); });
+  });
+  await page.locator('.ag-row[data-kind="sfx"][data-id="click"] .ag-preview').click();
+  await page.locator('.ag-row[data-kind="music"][data-id="title"] .ag-preview').click();
+  await expect.poll(() => page.evaluate(async () => (await import('/src/music.js')).currentCue()),
+    { timeout: 20_000 }).toBe('title');
+  expect(errors).toEqual([]);
+});
+
+async function waitForAudioResult(page, result) {
+  await expect.poll(() => page.evaluate((expected) => window.__probe.behaviourTrace().records
+    .some((record) => record.eventName.startsWith('audio.') && record.attributes?.result === expected), result),
+  { timeout: 20_000 }).toBe(true);
+}
+
+async function waitForMusicOwner(page, id, afterSeq) {
+  await expect.poll(() => page.evaluate(({ cueId, after }) => window.__probe.behaviourTrace().records
+    .some((record) => record.seq > after && record.eventName === 'audio.music-request' &&
+      record.attributes?.id === cueId && record.attributes?.mode === 'active'),
+  { cueId: id, after: afterSeq }), { timeout: 20_000 }).toBe(true);
+}
+
+test('audio unlock observes fulfilled state and rejection instead of optimistic playback', async ({ page }) => {
+  await page.goto('/?trace=1');
+  await page.waitForFunction(() => window.__probe?.behaviourTrace);
+  const results = await page.evaluate(async () => {
+    const audio = await import('/src/audio.js');
+    audio.ensureAudio();
+    const context = audio.getAudioContext();
+    Object.defineProperty(context, 'state', { configurable: true, value: 'suspended' });
+    const run = async (mode) => {
+      window.__probe.resetBehaviourTrace();
+      if (mode === 'rejected') {
+        window.addEventListener('unhandledrejection', (event) => event.preventDefault(), { once: true });
+        context.resume = () => Promise.reject(new Error('forced-resume-rejection'));
+      } else {
+        context.resume = () => Promise.resolve();
+      }
+      audio.unlock();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      return window.__probe.behaviourTrace().records
+        .find((record) => record.eventName === 'audio.unlock')?.attributes.result ?? null;
+    };
+    return {
+      fulfilledStillSuspended: await run('fulfilled'),
+      rejected: await run('rejected'),
+    };
+  });
+  expect(results).toEqual({
+    fulfilledStillSuspended: 'unavailable',
+    rejected: 'unavailable',
+  });
+});
+
+test('audio result: sample', async ({ page }) => {
+  await openAudioGallery(page);
+  await page.locator('.ag-row[data-kind="sfx"][data-id="click"] .ag-preview').click();
+  await waitForAudioResult(page, 'sample');
+});
+
+test('audio result: synth-fallback', async ({ page }) => {
+  await openAudioGallery(page);
+  await page.route('**/click.mp3*', (route) =>
+    new URL(route.request().url()).searchParams.has('url') ? route.continue() : route.abort());
+  await page.locator('.ag-row[data-kind="sfx"][data-id="click"] .ag-preview').click();
+  await waitForAudioResult(page, 'synth-fallback');
+});
+
+test('audio result: muted', async ({ page }) => {
+  await openAudioGallery(page);
+  await page.evaluate(async () => (await import('/src/audio.js')).setSfxMuted(true));
+  await page.locator('.ag-row[data-kind="sfx"][data-id="click"] .ag-preview').click();
+  await waitForAudioResult(page, 'muted');
+});
+
+test('audio result: unavailable', async ({ page }) => {
+  await openAudioGallery(page);
+  await page.evaluate(async () => { await (await import('/src/audio.js')).previewSfx('missing-audio-id'); });
+  await waitForAudioResult(page, 'unavailable');
+});
+
+test('audio result: superseded', async ({ page }) => {
+  await page.route('**/title.mp3*', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await route.continue();
+  });
+  await openAudioGallery(page);
+  await page.evaluate(async () => {
+    const music = await import('/src/music.js');
+    const assets = await import('/src/audio-assets.js');
+    const selection = assets.getAudioSelection();
+    await Promise.all([music.preview('title', selection), music.preview('embark', selection)]);
+  });
+  await waitForAudioResult(page, 'superseded');
+});
+
+test('audio result: playing', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => window.__probe?.behaviourTrace);
+  await waitForAudioResult(page, 'playing');
+});
+
+test('PR16 real screen and combat owners request their selected Music Cues', async ({ page }) => {
+  await seed(page, mixedLedger());
+  let cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.locator('[data-a="vigil"]').click();
+  await waitForMusicOwner(page, 'vigil', cursor);
+  cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.locator('[data-a="tab-rose"]').click();
+  await waitForMusicOwner(page, 'roseWindow', cursor);
+  cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.locator('[data-a="tab-deeds"]').click();
+  await waitForMusicOwner(page, 'vigil', cursor);
+  cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.locator('[data-a="tab-rose"]').click();
+  await waitForMusicOwner(page, 'roseWindow', cursor);
+
+  await page.evaluate(() => {
+    const sp = window.spirebound;
+    const run = sp.E.newRun(8816);
+    run.quests.hollowLamplighter = { state: 'revealed', progress: 1, memory: {} };
+    const node = run.map.nodes[0];
+    run.nodeId = node.id;
+    run.pendingHollow = { nodeId: node.id, type: 'event', paid: false, deferred: false, answer: null };
+    sp.S.run = run;
+  });
+  cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.evaluate(() => window.spirebound.show('hollow', { nodeId: window.spirebound.S.run.nodeId }));
+  await waitForMusicOwner(page, 'hollowLamplighter', cursor);
+
+  for (const scenario of [
+    { questId: 'paleOnes', enemy: 'paleDuskfang', expected: 'paleOnes' },
+    { questId: 'ownShade', enemy: 'ownShade1', expected: 'shadeDuel' },
+    { questId: 'usurper', enemy: 'usurpedSovereign', expected: 'usurper' },
+  ]) {
+    cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+    await page.evaluate(({ questId, enemy }) => {
+      const sp = window.spirebound;
+      sp.S.run.pendingQuestId = questId;
+      sp.startCombatUI([enemy], 'monster');
+    }, scenario);
+    await waitForMusicOwner(page, scenario.expected, cursor);
+    await settle(page);
+  }
+
+  await page.evaluate(() => {
+    const run = window.spirebound.S.run;
+    run.pendingQuestId = null;
+    run.act = 1;
+    run.omens[1] = 'eighthOmen';
+  });
+  cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.evaluate(() => window.spirebound.show('map'));
+  await waitForMusicOwner(page, 'eighthOmen', cursor);
+  cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.evaluate(async () => {
+    const { EVENTS } = await import('/src/data.js');
+    window.spirebound.show('event', Object.keys(EVENTS)[0]);
+  });
+  await waitForMusicOwner(page, 'eighthOmen', cursor);
+  cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.evaluate(() => window.spirebound.startCombatUI(['sporeling'], 'monster'));
+  await waitForMusicOwner(page, 'eighthOmen', cursor);
+  await settle(page);
+  cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.evaluate(() => window.spirebound.startCombatUI(['sporeling'], 'boss'));
+  await waitForMusicOwner(page, 'act2Boss', cursor);
+  await settle(page);
+});
+
+test('PR16 Dawn page and Act 4 reveal panels request their real owner cues', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  const cursor = await page.evaluate(() => {
+    const sp = window.spirebound;
+    const run = sp.E.newRun(8820);
+    run.pendingRunEnd = { outcome: 'win' };
+    if (!sp.E.saveRun(run) || !sp.E.stagePendingDawn(run, [
+      { t: 'pageRead', index: 1, text: 'TRACE PAGE SENTINEL' },
+      { t: 'act4Reveal' },
+    ], [])) throw new Error('Dawn cue fixture did not stage');
+    sp.S.run = run;
+    sp.show('end', { won: true });
+    return window.__probe.behaviourTrace().lastSeq;
+  });
+  await waitForMusicOwner(page, 'unreadablePage', cursor);
+  await waitForMusicOwner(page, 'sealedDoor', cursor);
+});
+
+test('PR16 sealed-door close restores the selected Eighth Map cue', async ({ page }) => {
+  await boot(page);
+  let cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.evaluate(async () => {
+    const { QUEST_IDS } = await import('/src/data.js');
+    const sp = window.spirebound;
+    sp.S.run.act = 2;
+    sp.S.run.shards = QUEST_IDS.slice(0, 6);
+    sp.S.run.omens = [null, null, 'eighthOmen'];
+    sp.show('map');
+  });
+  await waitForMusicOwner(page, 'eighthOmen', cursor);
+  await expect(page.locator('[data-a="sealed-door"]')).toBeVisible();
+
+  cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.locator('[data-a="sealed-door"]').click();
+  await waitForMusicOwner(page, 'sealedDoor', cursor);
+  expect(await page.evaluate(async () => (await import('/src/music.js')).currentCue())).toBe('sealedDoor');
+
+  cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.locator('[data-a="close-door"]').click();
+  await waitForMusicOwner(page, 'eighthOmen', cursor);
+  expect(await page.evaluate(async () => (await import('/src/music.js')).currentCue())).toBe('eighthOmen');
+});
+
+test('PR16 nominal boss victory holds its cue through reward and boss-relic navigation', async ({ page }) => {
+  await boot(page);
+  let cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await startFight(page, ['rootheart'], 'boss');
+  await waitForMusicOwner(page, 'act1Boss', cursor);
+  cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  const uid = await page.evaluate(() => {
+    window.__probe.setEnemyHp(0, 1);
+    window.__probe.setEnergy(3);
+    return window.__probe.forceHand(['strike'])[0];
+  });
+  expect(await page.evaluate((cardUid) => window.__probe.play(cardUid, 0), uid)).toBe(true);
+  await settle(page);
+  await expect.poll(() => page.evaluate(() => window.spirebound.S.screen)).toBe('reward');
+  await waitForMusicOwner(page, 'victory', cursor);
+  expect(await page.evaluate(async () => (await import('/src/music.js')).currentCue())).toBe('victory');
+  expect(await page.evaluate((after) => window.__probe.behaviourTrace().records
+    .filter((record) => record.seq > after && record.eventName === 'audio.music-request')
+    .map((record) => record.attributes.id), cursor)).toEqual(['victory']);
+
+  cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.locator('[data-a="continue"]').click();
+  await settle(page);
+  await expect.poll(() => page.evaluate(() => window.spirebound.S.screen)).toBe('bossRelic');
+  await page.waitForTimeout(100);
+  expect(await page.evaluate((after) => window.__probe.behaviourTrace().records
+    .filter((record) => record.seq > after && record.eventName === 'audio.music-request'), cursor)).toEqual([]);
+  expect(await page.evaluate(async () => (await import('/src/music.js')).currentCue())).toBe('victory');
+});
+
+test('PR16 pending reward recovery holds the pre-navigation cue through boss relic', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  await page.evaluate(() => {
+    localStorage.clear();
+    const sp = window.spirebound;
+    const run = sp.E.newRun(8821);
+    sp.E.setPendingReward(run, 'boss', sp.E.genCombatRewards(run, 'boss'));
+    if (!sp.E.saveRun(run)) throw new Error('pending reward cue fixture did not persist');
+  });
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  await waitForMusicOwner(page, 'title', 0);
+  const cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.locator('[data-a="continue"]').click();
+  await settle(page);
+  await expect.poll(() => page.evaluate(() => window.spirebound.S.screen)).toBe('reward');
+  await page.locator('[data-a="continue"]').click();
+  await settle(page);
+  await expect.poll(() => page.evaluate(() => window.spirebound.S.screen)).toBe('bossRelic');
+  await page.waitForTimeout(100);
+  expect(await page.evaluate((after) => window.__probe.behaviourTrace().records
+    .filter((record) => record.seq > after && record.eventName === 'audio.music-request'), cursor)).toEqual([]);
+  expect(await page.evaluate(async () => (await import('/src/music.js')).currentCue())).toBe('title');
 });

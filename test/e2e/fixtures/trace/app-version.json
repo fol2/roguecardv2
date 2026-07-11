@@ -1,0 +1,20 @@
+{
+  "journey": "app-version",
+  "records": [
+    [
+      "app.version",
+      "point",
+      "completed"
+    ],
+    [
+      "app.version-debug",
+      "point",
+      "completed"
+    ],
+    [
+      "app.version-debug",
+      "point",
+      "completed"
+    ]
+  ]
+}

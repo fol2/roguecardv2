@@ -1,0 +1,15 @@
+{
+  "journey": "detached-ceremony",
+  "records": [
+    [
+      "presentation.banner",
+      "start",
+      null
+    ],
+    [
+      "presentation.banner",
+      "end",
+      "settled"
+    ]
+  ]
+}

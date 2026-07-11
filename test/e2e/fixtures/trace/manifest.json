@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "fixtures": [
+    "title-embark", "app-version", "i18n-copy-invariance", "opening-turn",
+    "targeted-play", "drag-cancel", "art", "pile-cycle", "detached-ceremony",
+    "initial-run-save", "usurper-purchase", "shade-bequest-clear",
+    "hollow-payment", "hollow-route-clear", "terminal-outbox-retry",
+    "dawn-cursor-retry", "dawn-final-clear-retry", "dawn-resume-from-cursor"
+  ]
+}

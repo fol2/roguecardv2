@@ -7,14 +7,16 @@ import { UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyph
 // drawBatchSchedule also paces discardHand (same even-stagger clock)
 import * as V from './vfx.js';
 import { syncVigil, commitPendingRunEnd, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, clearNews, clearVigil, questSnapshot } from './vigil.js';
-import { sfx, unlock, getSfxVolume, setSfxVolume, isSfxMuted, setSfxMuted, previewSfx, invalidateSfxSelection, preloadSfx } from './audio.js';
+import { sfx, unlock, getSfxVolume, setSfxVolume, isSfxMuted, setSfxMuted, previewSfx, invalidateSfxSelection, preloadSfx, setSfxObservationSink } from './audio.js';
 import * as music from './music.js';
 import { SFX_CATALOG, MUSIC_CATALOG } from './audio-catalog.js';
 import { applyAudioSelection, getAudioOverrideRefs, getAudioPackDefaultRef, getAudioSelection, getAudioSelectionProblems, getAudioSource, getAudioVersions } from './audio-assets.js';
 import { setTheme, kick, mapNodePos, enterMapMode, exitMapMode, setOverlay, clearOverlay, peekMap, setAltitude, sunrise, freezeScene } from './scene3d.js';
 import { meshBind, meshClear, meshEnabled, meshDebug, meshRelease, meshFlash, meshCrack, meshDeath, meshHandoff, meshLift, meshAim, meshAimClear, meshWard } from './mesh.js';
 import { charShadowLive, charCssFloat, charAim, onCharMetaChange } from './char-meta.js';
-import { t as tr } from './i18n/index.js';
+import { t as lookupTr, getLocale } from './i18n/index.js';
+import { createBehaviourTrace } from './ui/behaviour-trace.js';
+import { createPresentationBarrier } from './ui/presentation-barrier.js';
 // fixed virtual stage: layout code speaks STAGE px; pointer events arrive in
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
@@ -29,6 +31,38 @@ const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, 
 const FORCE_INPUT = new URLSearchParams(location.search).get('input');
 const COARSE = FORCE_INPUT ? FORCE_INPUT === 'touch' : matchMedia('(pointer: coarse)').matches;
 const FINE = FORCE_INPUT ? FORCE_INPUT === 'mouse' : matchMedia('(hover: hover) and (pointer: fine)').matches;
+const qs = new URLSearchParams(location.search);
+const TRACE_BUILD = import.meta.env.DEV
+  || import.meta.env.MODE === 'test'
+  || import.meta.env.VITE_QA_TRACE === '1';
+const presentationBarrier = createPresentationBarrier();
+const trace = createBehaviourTrace({
+  enabled: TRACE_BUILD && (qs.has('trace') || qs.has('lab')),
+  identity: () => {
+    const version = getVersionInfo();
+    return {
+      appVersion: version.version,
+      buildKind: version.release ? 'release' : version.gitSha === 'unknown' ? 'ordinary' : 'dev',
+      gitSha: version.gitSha,
+      locale: getLocale(),
+    };
+  },
+  policy: () => ({
+    screen: S.screen,
+    renderer: 'dom',
+    motion: REDUCED ? 'reduced' : 'full',
+    tier: COARSE ? 'lite' : 'full',
+  }),
+});
+function tr(key, params) {
+  const value = lookupTr(key, params);
+  if (value === key) {
+    trace.emit('i18n.missing', {
+      outcome: 'failed', attributes: { locale: getLocale(), localeKey: key, code: 'missing-key' },
+    });
+  }
+  return value;
+}
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -103,6 +137,30 @@ const combatantView = (en) => {
     scale: p.scale || 1,
   };
 };
+let disclosedRoseStateIds = [];
+let roseAssetsReady = false;
+
+function semanticUiCheckpoint() {
+  const cb = S.cb;
+  return {
+    screen: S.screen,
+    busy: S.busy,
+    queueDepth: cb?.queue?.length || 0,
+    player: cb ? {
+      hp: cb.player.hp, ward: cb.player.block, energy: cb.player.energy,
+    } : null,
+    embers: cb?.embers ?? null,
+    enemies: cb ? cb.enemies.map((enemy) => ({
+      key: enemy.key, variantId: enemy.variantId || 'base', hp: enemy.hp, ward: enemy.block,
+    })) : [],
+    hand: cb ? cb.hand.map((card) => ({ id: card.id, count: 1 })) : [],
+    rose: {
+      fallback: forceRoseFallback,
+      ready: roseAssetsReady,
+      stateIds: [...disclosedRoseStateIds],
+    },
+  };
+}
 
 let assetsWarmed = false;
 function warmAssets() { // pre-decode combat art so fights never pop in
@@ -463,16 +521,35 @@ function potionMenu(slot, e) {
   setTimeout(() => document.addEventListener('pointerdown', closeMenusOnce, { once: true }), 0);
 }
 async function usePotionOn(slot, targetIdx) {
-  clearTargeting();
-  sfx.potion();
-  if (S.cb && !S.cb.over && S.screen === 'combat') {
-    E.usePotion(S.run, S.cb, slot, targetIdx);
-    await drain();
-    afterAction();
-  } else {
-    E.usePotion(S.run, null, slot, null);
-    renderHud();
-    E.saveRun(S.run);
+  const potionSpan = trace.begin('input.potion', {
+    attributes: { slot, targetKind: targetIdx == null ? 'none' : 'enemy' },
+  });
+  try {
+    clearTargeting();
+    sfx.potion();
+    let used;
+    if (S.cb && !S.cb.over && S.screen === 'combat') {
+      used = E.usePotion(S.run, S.cb, slot, targetIdx);
+      if (used) {
+        await drain();
+        afterAction();
+      }
+    } else {
+      used = E.usePotion(S.run, null, slot, null);
+      if (used) {
+        renderHud();
+        E.saveRun(S.run);
+      }
+    }
+    if (!used) {
+      potionSpan.finish('skipped', { reason: 'engine-rejected' });
+      return false;
+    }
+    potionSpan.finish('completed');
+    return true;
+  } catch (error) {
+    potionSpan.finish('failed', { reason: 'handler-error' });
+    throw error;
   }
 }
 function confirmAbandon() {
@@ -501,6 +578,31 @@ function confirmAbandon() {
 
 // ------------------------------------------------------------ overlay helpers
 let persistenceDialogTransaction = null;
+const persistenceAttempts = new Map();
+function persistObserved(kind, action, blockedReason = 'storage-unavailable') {
+  const attempt = (persistenceAttempts.get(kind) || 0) + 1;
+  persistenceAttempts.set(kind, attempt);
+  trace.emit('persistence.attempt', {
+    outcome: 'accepted', attributes: { kind, attempt, result: 'attempting' },
+  });
+  let result;
+  try {
+    result = action();
+  } catch (error) {
+    trace.emit('persistence.blocked', {
+      outcome: 'rejected',
+      attributes: { kind, attempt, result: 'blocked', reason: 'storage-unavailable' },
+    });
+    throw error;
+  }
+  const ok = result === true || result?.accepted === true;
+  trace.emit(ok ? 'persistence.recovered' : 'persistence.blocked', {
+    outcome: ok ? 'completed' : 'rejected',
+    attributes: { kind, attempt, result: ok ? 'saved' : 'blocked', reason: ok ? 'none' : blockedReason },
+  });
+  if (ok) persistenceAttempts.delete(kind);
+  return result;
+}
 function openOverlay(html, wire = null, closable = false) {
   if (persistenceDialogTransaction) return false;
   const ov = $('#overlay');
@@ -532,11 +634,15 @@ function openPersistenceDialog(html, focusSelector, wire) {
     event.preventDefault();
     event.stopImmediatePropagation();
   };
-  const transaction = { background, wasInert: !!background?.inert, blockBackground, settled: false, root: null };
-  transaction.active = () => persistenceDialogTransaction === transaction && !transaction.settled;
-  transaction.settle = (continuation = null) => {
-    if (!transaction.active()) return false;
-    transaction.settled = true;
+  const barrierToken = presentationBarrier.begin('persistence-dialog');
+  const transaction = { background, wasInert: !!background?.inert, blockBackground, settled: false, root: null, barrierToken };
+  let barrierOpen = true;
+  const closeBarrier = (cancelled = false) => {
+    if (!barrierOpen) return false;
+    barrierOpen = false;
+    return cancelled ? transaction.barrierToken.cancel() : transaction.barrierToken.finish();
+  };
+  const cleanupUi = () => {
     if (transaction.root) {
       transaction.root.onclick = null;
       transaction.root.onkeydown = null;
@@ -547,45 +653,75 @@ function openPersistenceDialog(html, focusSelector, wire) {
         background.removeEventListener(type, blockBackground, true);
       }
     }
+    const overlay = $('#overlay');
+    overlay.classList.remove('open', 'run-save-lock');
+    overlay.innerHTML = '';
+    overlay._closable = false;
+  };
+  transaction.active = () => persistenceDialogTransaction === transaction && !transaction.settled;
+  transaction.settle = (continuation = null) => {
+    if (!transaction.active()) return false;
+    transaction.settled = true;
     persistenceDialogTransaction = null;
-    closeOverlay();
+    let cleanupError = null;
+    try {
+      cleanupUi();
+    } catch (error) {
+      cleanupError = error;
+    } finally {
+      closeBarrier(!!cleanupError);
+    }
+    if (cleanupError) throw cleanupError;
     continuation?.();
     return true;
   };
-  const opened = openOverlay(html, (root) => {
-    transaction.root = root;
-    root.onkeydown = (event) => {
-      // Keep global combat shortcuts from reaching the document while this
-      // transaction owns input. Background controls are inert, but the
-      // dialog itself still bubbles key events unless it stops them here.
-      event.stopPropagation();
-      if (event.key !== 'Tab') return;
-      const buttons = $$('button:not(:disabled)', root);
-      if (!buttons.length) return;
-      const first = buttons[0], last = buttons.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    wire(root, transaction);
-  });
-  if (!opened) return null;
-  $('#overlay').classList.add('run-save-lock');
-  persistenceDialogTransaction = transaction;
-  if (background) {
-    background.inert = true;
-    for (const type of ['click', 'pointerdown', 'pointerup', 'keydown']) {
-      background.addEventListener(type, blockBackground, true);
+  try {
+    const opened = openOverlay(html, (root) => {
+      transaction.root = root;
+      root.onkeydown = (event) => {
+        // Keep global combat shortcuts from reaching the document while this
+        // transaction owns input. Background controls are inert, but the
+        // dialog itself still bubbles key events unless it stops them here.
+        event.stopPropagation();
+        if (event.key !== 'Tab') return;
+        const buttons = $$('button:not(:disabled)', root);
+        if (!buttons.length) return;
+        const first = buttons[0], last = buttons.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      };
+      wire(root, transaction);
+    });
+    if (!opened) {
+      transaction.settled = true;
+      cleanupUi();
+      closeBarrier(true);
+      return null;
     }
+    $('#overlay').classList.add('run-save-lock');
+    persistenceDialogTransaction = transaction;
+    if (background) {
+      background.inert = true;
+      for (const type of ['click', 'pointerdown', 'pointerup', 'keydown']) {
+        background.addEventListener(type, blockBackground, true);
+      }
+    }
+    requestAnimationFrame(() => $(focusSelector, $('#overlay'))?.focus());
+    return transaction;
+  } catch (error) {
+    transaction.settled = true;
+    if (persistenceDialogTransaction === transaction) persistenceDialogTransaction = null;
+    try { cleanupUi(); } catch { /* preserve the setup error */ }
+    closeBarrier(true);
+    throw error;
   }
-  requestAnimationFrame(() => $(focusSelector, $('#overlay'))?.focus());
-  return transaction;
 }
-function showRunSaveFailure(run, onSaved) {
+function showRunSaveFailure(run, onSaved, kind = null) {
   const html = persistenceFailureHtml({
     id: 'run-save-failure',
     title: tr('ui.persistence.saveFailedTitle'),
@@ -604,7 +740,8 @@ function showRunSaveFailure(run, onSaved) {
       const reload = $('[data-a="reload-save"]', root);
       retry.disabled = true;
       reload.disabled = true;
-      if (!E.saveRun(run)) {
+      const saved = kind ? persistObserved(kind, () => E.saveRun(run)) : E.saveRun(run);
+      if (!saved) {
         $('.ov-sub', root).textContent = tr('ui.persistence.runSaveRetryFail');
         retry.disabled = false;
         reload.disabled = false;
@@ -615,15 +752,16 @@ function showRunSaveFailure(run, onSaved) {
     };
   });
 }
-function requireRunSave(run, onSaved) {
+function requireRunSave(run, onSaved, kind = null) {
   if (persistenceDialogTransaction) return false;
-  if (E.saveRun(run)) return true;
-  showRunSaveFailure(run, onSaved);
+  const saved = kind ? persistObserved(kind, () => E.saveRun(run)) : E.saveRun(run);
+  if (saved) return true;
+  showRunSaveFailure(run, onSaved, kind);
   return false;
 }
 function requireHollowRouteClear(run, onCleared) {
   if (!run.pendingHollowRoute) return true;
-  if (E.completePendingHollowRoute(run)) return true;
+  if (persistObserved('hollow-route-clear', () => E.completePendingHollowRoute(run))) return true;
   const html = persistenceFailureHtml({
     id: 'hollow-route-save-failure',
     title: tr('ui.persistence.saveFailedTitle'),
@@ -670,15 +808,16 @@ function showStonePersistenceFailure(onRetry, retryLabel = tr('ui.common.retry')
   });
 }
 function requireBequestClear(onCleared) {
-  if (clearBequest()) return true;
+  if (persistObserved('shade-bequest-clear', () => clearBequest())) return true;
   showStonePersistenceFailure(() => {
-    if (clearBequest()) onCleared();
+    if (persistObserved('shade-bequest-clear', () => clearBequest())) onCleared();
     else requireBequestClear(onCleared);
   });
   return false;
 }
 function requirePendingShadeDuelClear(onCleared) {
-  const result = E.resumeShadeDuel(S.run, clearBequest);
+  const result = E.resumeShadeDuel(S.run, () =>
+    persistObserved('shade-bequest-clear', () => clearBequest()));
   if (result.status === E.SHADE_DUEL_TX.READY) return true;
   showStonePersistenceFailure(() => {
     if (requirePendingShadeDuelClear(onCleared)) onCleared();
@@ -809,7 +948,17 @@ async function transition(kind, opts = {}) {
       [{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }], 2200);
   }
 }
+function liveMapWarmIds(run = S.run) {
+  if (!run) return [];
+  const act = (run.act | 0) + 1;
+  const ids = [`act${act}Combat`, `act${act}Boss`, 'elite', 'safeNodes', 'hollowLamplighter'];
+  if (run.omens?.[run.act] === 'eighthOmen') ids.push('eighthOmen');
+  return ids;
+}
+
 export function show(name, data) {
+  const previous = S.screen;
+  trace.emit('screen.requested', { outcome: 'accepted', attributes: { screenId: name } });
   if (S.screen !== name && S.run) wipe(); // travel is lit; in-place rerenders aren't
   S.screen = name;
   if (name !== 'end') $('#toasts')?.remove();
@@ -837,12 +986,18 @@ export function show(name, data) {
     }
   }
   if (S.screen === 'map' && S.run) {
-    const a = (S.run.act | 0) + 1;
-    const warmIds = [`act${a}Combat`, `act${a}Boss`, 'elite', 'safeNodes', 'hollowLamplighter'];
-    if (S.run.omens?.[S.run.act] === 'eighthOmen') warmIds.push('eighthOmen');
-    music.warm(...warmIds);
+    music.warm(...liveMapWarmIds());
   }
   renderHud();
+  trace.emit('screen.exited', { outcome: 'completed', attributes: { screenId: previous } });
+  if (S.screen === name) {
+    trace.emit('screen.entered', { outcome: 'completed', attributes: { screenId: name } });
+  } else {
+    trace.emit('screen.redirected', {
+      outcome: 'completed', attributes: { fromScreenId: name, toScreenId: S.screen },
+    });
+  }
+  trace.emit('checkpoint.ui', { outcome: 'completed', checkpoint: semanticUiCheckpoint() });
 }
 
 const ROMAN = ['0', 'I', 'II', 'III', 'IV', 'V'];
@@ -997,7 +1152,12 @@ function decodeRoseAssets(root) {
   if (!rose) return;
   const images = $$('.rose-preload img', rose);
   Promise.all(images.map((image) => image.decode ? image.decode() : Promise.resolve()))
-    .then(() => { if (rose.isConnected) rose.classList.add('ready'); })
+    .then(() => {
+      if (!rose.isConnected) return;
+      rose.classList.add('ready');
+      roseAssetsReady = true;
+      trace.emit('checkpoint.ui', { outcome: 'completed', checkpoint: semanticUiCheckpoint() });
+    })
     .catch(() => {});
 }
 
@@ -1029,13 +1189,18 @@ function decodeTitleRoseAssets(root) {
       if (!medallion.isConnected) return;
       medallion.disabled = false;
       medallion.classList.add('ready');
+      roseAssetsReady = true;
+      trace.emit('checkpoint.ui', { outcome: 'completed', checkpoint: semanticUiCheckpoint() });
     })
     .catch(() => {});
 }
 
 function renderTitle() {
+  roseAssetsReady = false;
   setTheme(0);
   const vigil = syncVigil(); // reconcile any owed unlocks (e.g. seeded from old stats)
+  disclosedRoseStateIds = Object.entries(questSnapshot(vigil))
+    .map(([id, record]) => `${id}:${record.state}`);
   const saved = E.loadRun();
   if (E.savedRunRequiresFinalisation(saved)) { startRun(saved, true); return; }
   const d = vigil.deeds;
@@ -1043,6 +1208,15 @@ function renderTitle() {
   const titleText = assetUrl('title', 'title');
   const rose = roseAssets();
   const ver = getVersionInfo();
+  trace.emit('app.version', {
+    outcome: 'completed',
+    attributes: {
+      controlId: 'title-version',
+      locale: getLocale(),
+      release: ver.release,
+      shaState: ver.gitSha === 'unknown' ? 'unknown' : 'known',
+    },
+  });
   const sc = screenEl();
   sc.innerHTML = `<div class="title-screen screen-enter">
     ${banner ? `<div class="title-banner"><div class="title-banner-frame"><img class="raster-art" src="${banner}" alt=""></div></div>` : ''}
@@ -1065,15 +1239,21 @@ function renderTitle() {
   const debugEl = sc.querySelector('[data-version-debug]');
   let taps = [];
   let debugTimer = 0;
+  const ownsDebugSurface = () => S.screen === 'title' && debugEl?.isConnected && screenEl().contains(debugEl);
   const hideDebug = () => {
-    if (!debugEl) return;
+    clearTimeout(debugTimer);
+    debugTimer = 0;
+    if (!debugEl || debugEl.hidden) return;
     debugEl.hidden = true;
     debugEl.textContent = '';
+    if (!ownsDebugSurface()) return;
+    trace.emit('app.version-debug', { outcome: 'completed', attributes: { action: 'hidden', controlId: 'title-version' } });
   };
   const showDebug = () => {
-    if (!debugEl) return;
+    if (!ownsDebugSurface()) return;
     debugEl.hidden = false;
     debugEl.textContent = `${ver.gitSha} · ${ver.release ? 'release' : 'dev'}`;
+    trace.emit('app.version-debug', { outcome: 'completed', attributes: { action: 'shown', controlId: 'title-version' } });
     clearTimeout(debugTimer);
     debugTimer = setTimeout(hideDebug, 3000);
   };
@@ -1197,8 +1377,11 @@ function renderEmbark() {
 // THE VIGIL — the hall between climbs. Phase 1 ships the Deeds tab; the
 // Emberglass rose window joins it when the chain arms (Phase 2).
 function renderVigil({ tab = 'deeds' } = {}) {
+  roseAssetsReady = false;
   setTheme(0);
   const v = clearNews(); // opening the hall reads the news
+  disclosedRoseStateIds = Object.entries(questSnapshot(v))
+    .map(([id, record]) => `${id}:${record.state}`);
   const hasRose = isRevealed(v, 'emberglass');
   const assets = roseAssets();
   const deedRows = Object.entries(DEEDS).map(([id, deed]) => {
@@ -1269,7 +1452,7 @@ function startRun(run, resumed = false) {
   const curNode = run.nodeId ? run.map.nodes.find((n) => n.id === run.nodeId) : null;
   setAltitude(run.act, curNode ? curNode.row : 0);
   const continueStart = () => routeStartedRun(run, resumed, curNode);
-  if (!resumed && !requireRunSave(run, continueStart)) return;
+  if (!resumed && !requireRunSave(run, continueStart, 'initial-run')) return;
   continueStart();
 }
 function routeStartedRun(run, resumed, curNode) {
@@ -1468,7 +1651,7 @@ function renderHollow() {
         target.disabled = false;
         return;
       }
-      if (!E.saveRun(run)) {
+      if (!persistObserved('hollow-payment', () => E.saveRun(run))) {
         answer.textContent = '';
         answer.classList.remove('paid', 'error');
         error.textContent = tr('ui.hollow.saveFailed');
@@ -1632,7 +1815,8 @@ function renderMap() {
     const g = e.target.closest('.mnode.avail');
     if (!g || S.busy) return;
     unlock();
-    enterNode(nodes.find((n) => n.id === g.dataset.node));
+    const node = nodes.find((n) => n.id === g.dataset.node);
+    selectMapNode(node);
   };
   // tooltips on nodes
   $$('.mnode', svg).forEach((g) => {
@@ -1711,7 +1895,12 @@ function renderMap() {
   });
   const panEnd = (e) => {
     if (panY == null || e.pointerType === 'mouse') return;
+    const distance = panDist;
     panY = null;
+    if (distance > 14) {
+      const panSpan = trace.begin('input.map-pan', { attributes: { threshold: 'crossed' } });
+      panSpan.finish(e.type === 'pointercancel' ? 'cancelled' : 'completed');
+    }
     const coast = () => {
       panV *= 0.93;
       if (Math.abs(panV) < 0.5 || S.screen !== 'map') return;
@@ -1723,6 +1912,19 @@ function renderMap() {
   };
   ms.addEventListener('pointerup', panEnd);
   ms.addEventListener('pointercancel', panEnd);
+}
+function selectMapNode(node) {
+  const selectSpan = trace.begin('input.map-select', {
+    attributes: { nodeId: node.id, nodeType: node.type },
+  });
+  try {
+    enterNode(node);
+    selectSpan.finish('completed');
+    return true;
+  } catch (error) {
+    selectSpan.finish('failed', { reason: 'handler-error' });
+    throw error;
+  }
 }
 function showNodeBounty(node, bounty) {
   if (bounty) {
@@ -1978,16 +2180,11 @@ function renderCombat() {
   ce.lantern.onclick = async () => {
     if (S.busy || !S.cb || S.cb.over) return;
     unlock();
-    if (!E.canUseArt(S.run, S.cb)) {
+    if (!await useLanternArt()) {
       ce.lantern.classList.add('nope');
       setTimeout(() => ce.lantern.classList.remove('nope'), 350);
       sfx.debuff();
-      return;
     }
-    clearTargeting();
-    E.useArt(S.run, S.cb);
-    await drain();
-    afterAction();
   };
   S.ce = ce;
   applyBattlefieldLayout(L);
@@ -2718,26 +2915,48 @@ function bindCardDrag(c, uid) {
     dragConsumedAt = performance.now();
     c.classList.remove('dragging', 'will-cast', 'will-burn');
     S.ce?.lantern?.classList.remove('kindle-target');
-    if (cancelled) { clearTargeting(); layoutHand(); return; }
+    if (cancelled) {
+      st.traceSpan?.finish('cancelled', { reason: 'pointer-cancelled' });
+      clearTargeting(); layoutHand(); return;
+    }
     // the lantern is always listening: release a card on it to kindle
     const overLantern = underPointer(e.clientX, e.clientY)?.closest('.lantern-btn');
     if (overLantern) {
       const inst = S.cb.hand.find((x) => x.uid === uid);
-      if (inst && E.canKindle(S.run, S.cb, inst)) { clearTargeting(); doKindle(uid); return; }
+      if (inst && E.canKindle(S.run, S.cb, inst)) {
+        st.traceSpan?.finish('completed', { reason: 'kindled' });
+        clearTargeting(); doKindle(uid); return;
+      }
+      st.traceSpan?.finish('cancelled', { reason: 'invalid-lantern-drop' });
       clearTargeting(); layoutHand(); return;
     }
-    if (st.kindleOnly) { S.hoveredCard = null; layoutHand(); return; } // nowhere else to go
+    if (st.kindleOnly) {
+      st.traceSpan?.finish('cancelled', { reason: 'kindle-only-drop' });
+      S.hoveredCard = null; layoutHand(); return;
+    } // nowhere else to go
     if (st.free) {
-      if (toStage(e.clientX, e.clientY).y < castLine()) doPlay(uid, null);
-      else { S.hoveredCard = null; layoutHand(); }
+      if (toStage(e.clientX, e.clientY).y < castLine()) {
+        st.traceSpan?.finish('completed', { reason: 'card-play' });
+        doPlay(uid, null);
+      } else {
+        st.traceSpan?.finish('cancelled', { reason: 'below-cast-line' });
+        S.hoveredCard = null; layoutHand();
+      }
       return;
     }
     const en = document.elementFromPoint(e.clientX, e.clientY)?.closest('.enemy');
     const idx = en ? +en.dataset.idx : -1;
     const living = S.cb.enemies.filter((x) => x.hp > 0);
-    if (idx >= 0 && S.cb.enemies[idx].hp > 0) doPlay(uid, idx);
-    else if (living.length === 1 && toStage(e.clientX, e.clientY).y < castLine()) doPlay(uid, living[0].idx); // one foe: releasing high is aim enough
-    else { clearTargeting(); layoutHand(); }
+    if (idx >= 0 && S.cb.enemies[idx].hp > 0) {
+      st.traceSpan?.finish('completed', { reason: 'card-play' });
+      doPlay(uid, idx);
+    } else if (living.length === 1 && toStage(e.clientX, e.clientY).y < castLine()) {
+      st.traceSpan?.finish('completed', { reason: 'card-play' });
+      doPlay(uid, living[0].idx); // one foe: releasing high is aim enough
+    } else {
+      st.traceSpan?.finish('cancelled', { reason: 'invalid-target' });
+      clearTargeting(); layoutHand();
+    }
   };
   c.addEventListener('pointerup', (e) => finish(e, false));
   c.addEventListener('pointercancel', (e) => finish(e, true));
@@ -2756,6 +2975,7 @@ function beginCardDrag(st, c) {
       st.live = true;
       st.free = true;
       st.kindleOnly = true;
+      st.traceSpan = trace.begin('input.card-drag', { attributes: { cardId: inst.id } });
       S.hoveredCard = null;
       sfx.hover();
       c.classList.add('dragging');
@@ -2769,6 +2989,7 @@ function beginCardDrag(st, c) {
     return;
   }
   st.live = true;
+  st.traceSpan = trace.begin('input.card-drag', { attributes: { cardId: inst.id } });
   S.hoveredCard = null;
   sfx.hover();
   if (E.canKindle(S.run, cb, inst)) S.ce?.lantern?.classList.add('kindle-target');
@@ -2780,10 +3001,43 @@ function beginCardDrag(st, c) {
   }
 }
 async function doKindle(uid) {
-  S.hoveredCard = null;
-  if (!E.kindleFromHand(S.run, S.cb, uid)) { layoutHand(); return; }
-  await drain();
-  afterAction();
+  const kindleSpan = trace.begin('input.kindle', { attributes: { action: 'card-kindle' } });
+  try {
+    S.hoveredCard = null;
+    if (!E.kindleFromHand(S.run, S.cb, uid)) {
+      kindleSpan.finish('skipped', { reason: 'engine-rejected' });
+      layoutHand();
+      return false;
+    }
+    await drain();
+    afterAction();
+    kindleSpan.finish('completed');
+    return true;
+  } catch (error) {
+    kindleSpan.finish('failed', { reason: 'handler-error' });
+    throw error;
+  }
+}
+async function useLanternArt() {
+  const artSpan = trace.begin('input.kindle', { attributes: { action: 'lantern-art' } });
+  try {
+    if (!E.canUseArt(S.run, S.cb)) {
+      artSpan.finish('skipped', { reason: 'not-ready' });
+      return false;
+    }
+    clearTargeting();
+    if (!E.useArt(S.run, S.cb)) {
+      artSpan.finish('skipped', { reason: 'engine-rejected' });
+      return false;
+    }
+    await drain();
+    afterAction();
+    artSpan.finish('completed');
+    return true;
+  } catch (error) {
+    artSpan.finish('failed', { reason: 'handler-error' });
+    throw error;
+  }
 }
 function hoverEnemyAt(x, y) {
   const en = document.elementFromPoint(x, y)?.closest('.enemy');
@@ -2896,6 +3150,7 @@ function onEnemyClick(idx) {
   else if (t.kind === 'potion') usePotionOn(t.slot, idx);
 }
 function setTargeting(t) {
+  trace.emit('input.targeting', { outcome: 'accepted', attributes: { kind: t.kind } });
   S.targeting = t;
   S.ce.root.classList.add('targeting');
   S.cb.enemies.forEach((e, i) => S.ce.enemies[i].root.classList.toggle('targetable', e.hp > 0));
@@ -2909,7 +3164,11 @@ function setTargeting(t) {
   }
 }
 function clearTargeting() {
+  const previousTargeting = S.targeting;
   S.targeting = null;
+  if (previousTargeting) trace.emit('input.targeting', {
+    outcome: 'cancelled', attributes: { kind: previousTargeting.kind },
+  });
   $('#aim').innerHTML = '';
   document.removeEventListener('pointermove', aimMove);
   meshAimClear();
@@ -2950,56 +3209,127 @@ function aimMove(e) {
   }
 }
 async function doPlay(uid, targetIdx) {
-  // Prefer drag-captured seat; else freeze current hand seat before clearTargeting reflows
-  if (!cardFlightAnchor.has(String(uid))) {
-    const c = $(`.card[data-uid="${uid}"]`, S.ce?.hand);
-    if (c) captureCardAnchor(uid, c);
+  const inst = S.cb?.hand.find((card) => card.uid === uid);
+  const playSpan = trace.begin('input.card-play', {
+    attributes: { cardId: inst?.id || 'unknown', targetKind: targetIdx == null ? 'none' : 'enemy' },
+  });
+  let playSpanOpen = true;
+  try {
+    // Prefer drag-captured seat; else freeze current hand seat before clearTargeting reflows
+    if (!cardFlightAnchor.has(String(uid))) {
+      const c = $(`.card[data-uid="${uid}"]`, S.ce?.hand);
+      if (c) captureCardAnchor(uid, c);
+    }
+    clearTargeting();
+    S.hoveredCard = null;
+    if (!E.playCard(S.run, S.cb, uid, targetIdx)) {
+      playSpan.finish('skipped', { reason: 'engine-rejected' });
+      playSpanOpen = false;
+      return false;
+    }
+    playSpan.finish('completed');
+    playSpanOpen = false;
+    await drain(targetIdx);
+    afterAction();
+    return true;
+  } catch (error) {
+    if (playSpanOpen) playSpan.finish('failed', { reason: 'handler-error' });
+    throw error;
   }
-  clearTargeting();
-  S.hoveredCard = null;
-  if (!E.playCard(S.run, S.cb, uid, targetIdx)) return;
-  await drain(targetIdx);
-  afterAction();
 }
 async function onEndTurn() {
   if (S.busy || !S.cb || S.cb.over) return;
-  clearTargeting();
-  sfx.click();
-  E.endTurn(S.run, S.cb);
-  await drain();
-  afterAction();
+  const turnSpan = trace.begin('input.end-turn');
+  try {
+    clearTargeting();
+    sfx.click();
+    E.endTurn(S.run, S.cb);
+    await drain();
+    afterAction();
+    turnSpan.finish('completed');
+  } catch (error) {
+    turnSpan.finish('failed', { reason: 'handler-error' });
+    throw error;
+  }
 }
 function banner(text) {
+  const token = presentationBarrier.begin('banner');
+  const span = trace.begin('presentation.banner');
   const b = el('div', 'turn-banner', text);
   screenEl().appendChild(b);
-  setTimeout(() => b.remove(), 1150);
+  setTimeout(() => {
+    try {
+      b.remove();
+      span.finish('settled');
+    } catch (error) {
+      span.finish('failed', { reason: 'presentation-error' });
+      throw error;
+    } finally {
+      token.finish();
+    }
+  }, 1150);
 }
 
 // ceremony: things travel — coins to the purse, relics to the bar, card-backs
 // from the discard to the draw pile. One arc-flight helper for all of it.
 function flyTo(x0, y0, x1, y1, { n = 6, color = '#ffe9ac', size = 8, dur = 640, glyph = '', cls = 'flymote', done = null } = {}) {
   const layer = $('#floaties');
-  for (let i = 0; i < n; i++) {
-    const m = el('div', cls, glyph);
-    m.style.left = `${x0}px`;
-    m.style.top = `${y0}px`;
-    if (!glyph) {
-      m.style.width = `${size}px`;
-      m.style.height = `${size}px`;
-      m.style.background = `radial-gradient(circle at 35% 30%, #fff, ${color} 55%, transparent 85%)`;
-    } else m.style.color = color;
-    layer.appendChild(m);
-    const mx = (x0 + x1) / 2 + (Math.random() - 0.5) * 140;
-    const my = Math.min(y0, y1) - 50 - Math.random() * 80;
-    const anim = m.animate(
-      [
-        { transform: 'translate(-50%,-50%) scale(0.5)', opacity: 0 },
-        { transform: `translate(calc(-50% + ${mx - x0}px), calc(-50% + ${my - y0}px)) scale(1.05)`, opacity: 1, offset: 0.45 },
-        { transform: `translate(calc(-50% + ${x1 - x0}px), calc(-50% + ${y1 - y0}px)) scale(0.55)`, opacity: 0.95 },
-      ],
-      { duration: dur, delay: i * 46, easing: 'cubic-bezier(.32,.05,.35,1)' }
-    );
-    anim.onfinish = () => { m.remove(); if (i === n - 1 && done) done(); };
+  if (n <= 0) { done?.(); return; }
+  const barrierToken = presentationBarrier.begin('mote-flight');
+  let remaining = n;
+  let cancelled = false;
+  let aborted = false;
+  const created = [];
+  const animations = [];
+  const settleOne = (wasCancelled = false) => {
+    cancelled ||= wasCancelled;
+    remaining -= 1;
+    if (remaining > 0) return;
+    if (cancelled) barrierToken.cancel();
+    else barrierToken.finish();
+    done?.();
+  };
+  try {
+    for (let i = 0; i < n; i++) {
+      const m = el('div', cls, glyph);
+      created.push(m);
+      m.style.left = `${x0}px`;
+      m.style.top = `${y0}px`;
+      if (!glyph) {
+        m.style.width = `${size}px`;
+        m.style.height = `${size}px`;
+        m.style.background = `radial-gradient(circle at 35% 30%, #fff, ${color} 55%, transparent 85%)`;
+      } else m.style.color = color;
+      layer.appendChild(m);
+      const mx = (x0 + x1) / 2 + (Math.random() - 0.5) * 140;
+      const my = Math.min(y0, y1) - 50 - Math.random() * 80;
+      const anim = m.animate(
+        [
+          { transform: 'translate(-50%,-50%) scale(0.5)', opacity: 0 },
+          { transform: `translate(calc(-50% + ${mx - x0}px), calc(-50% + ${my - y0}px)) scale(1.05)`, opacity: 1, offset: 0.45 },
+          { transform: `translate(calc(-50% + ${x1 - x0}px), calc(-50% + ${y1 - y0}px)) scale(0.55)`, opacity: 0.95 },
+        ],
+        { duration: dur, delay: i * 46, easing: 'cubic-bezier(.32,.05,.35,1)' }
+      );
+      animations.push(anim);
+      let settled = false;
+      const settle = (wasCancelled) => {
+        if (settled) return;
+        settled = true;
+        m.remove();
+        if (!aborted) settleOne(wasCancelled);
+      };
+      anim.onfinish = () => settle(false);
+      anim.oncancel = () => settle(true);
+    }
+  } catch (error) {
+    aborted = true;
+    for (const animation of animations) {
+      try { animation.cancel(); } catch { /* setup already failed */ }
+    }
+    for (const mote of created) mote.remove();
+    barrierToken.cancel();
+    throw error;
   }
 }
 
@@ -3139,11 +3469,17 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
   const n = fromList.length;
   const { stagger, flightDur, awaitMs } = opts.schedule || flightSchedule(n, budgetMs);
   if (REDUCED || n === 0) return Promise.resolve(0);
+  const token = presentationBarrier.begin('card-flight');
+  const span = trace.begin('presentation.card-flight', { attributes: { count: n } });
   const sizePile = opts.sizePile || toEl;
   const artUrl = (opts.face === 'back' || opts.face === 'card')
     ? null
     : assetUrl('piles', pileMasterId(opts.pileArt || 'draw'));
-  fromList.forEach((src, i) => {
+  const completions = [];
+  const created = [];
+  let cancelled = false;
+  try {
+    fromList.forEach((src, i) => {
     const origin = src.el
       ? (() => { const r = stageRect(src.el); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }; })()
       : src;
@@ -3181,6 +3517,7 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
       if (artUrl) m.style.backgroundImage = `url(${artUrl})`;
     }
     layer.appendChild(m);
+    created.push(m);
     const smooth = opts.arc === 'smooth';
     const easing = opts.easing || (smooth ? 'cubic-bezier(.22,.7,.28,1)' : 'cubic-bezier(.32,.05,.35,1)');
     // Smooth arc: short lift toward discard, little jitter. Default: loftier random mid.
@@ -3205,11 +3542,33 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
         { transform: `translate(calc(-50% + ${dx1}px), calc(-50% + ${dy1}px)) scale(${midScale})`, opacity: 1, offset: 0.45 },
         { transform: `translate(calc(-50% + ${dx2}px), calc(-50% + ${dy2}px)) scale(${landScale})`, opacity: 0.9 },
       ];
-    m.animate(keyframes, {
+    const animation = m.animate(keyframes, {
       duration: flightDur, delay: i * stagger, easing, fill: 'forwards',
-    }).onfinish = () => m.remove();
+    });
+      completions.push(animation.finished
+        .catch(() => { cancelled = true; })
+        .finally(() => m.remove()));
+    });
+  } catch (error) {
+    for (const card of created) card.remove();
+    span.finish('failed', { reason: 'animation-error' });
+    token.cancel();
+    throw error;
+  }
+  return Promise.all(completions).then(() => {
+    if (cancelled) {
+      span.finish('cancelled', { reason: 'animation-cancelled' });
+      token.cancel();
+    } else {
+      span.finish('settled');
+      token.finish();
+    }
+    return awaitMs;
+  }, (error) => {
+    span.finish('failed', { reason: 'animation-error' });
+    token.cancel();
+    throw error;
   });
-  return sleep(awaitMs);
 }
 
 /** Resolve a card instance already moved into a pile (engine mutates before drain). */
@@ -3526,27 +3885,51 @@ function igniteVessel(x, dur = 200) {
 }
 async function drain(targetIdx = null) {
   const cb = S.cb, ce = S.ce;
-  S.busy = true;
-  ce.endTurn.classList.add('enemy-phase');
-  const q = cb.queue;
-  while (q.length) {
-    const ev = q[0];
-    try {
-      // drawCards may emit draw* → reshuffle → draw*; keep one wave so hand stays paced
-      if (ev.t === 'draw' || ev.t === 'reshuffle') {
-        await handleDrawWave(q);
-      } else {
-        q.shift();
-        await handleEvent(ev, targetIdx);
+  const queueSpan = trace.begin('playback.queue', { attributes: { initialDepth: cb.queue.length } });
+  const queueCauseSeq = trace.enabled ? trace.read().lastSeq : null;
+  try {
+    S.busy = true;
+    ce.endTurn.classList.add('enemy-phase');
+    const q = cb.queue;
+    while (q.length) {
+      const ev = q[0];
+      try {
+        // drawCards may emit draw* → reshuffle → draw*; keep one wave so hand stays paced
+        if (ev.t === 'draw' || ev.t === 'reshuffle') {
+          await handleDrawWave(q, queueCauseSeq);
+        } else {
+          q.shift();
+          const eventSpan = trace.begin('playback.queue-event', {
+            ...(queueCauseSeq ? { causeSeq: queueCauseSeq } : {}),
+            attributes: { eventType: ev.t },
+          });
+          try {
+            await handleEvent(ev, targetIdx);
+            eventSpan.finish('completed');
+          } catch (error) {
+            eventSpan.finish('failed', { reason: 'handler-error' });
+            throw error;
+          }
+        }
+      } catch (err) {
+        trace.emit('error.playback', { outcome: 'failed', attributes: { code: 'queue-event-failed', eventType: ev.t } });
+        console.error('vfx event error', ev, err);
       }
-    } catch (err) { console.error('vfx event error', ev, err); }
+    }
+    S.busy = false;
+    if (!cb.over) ce.endTurn.classList.remove('enemy-phase');
+    pileVisualOverride = null;
+    syncCombat();
+    syncHand();
+    renderHud();
+    queueSpan.finish('completed');
+    trace.emit('checkpoint.ui', { outcome: 'completed', checkpoint: semanticUiCheckpoint() });
+  } catch (error) {
+    queueSpan.finish('failed', { reason: 'drain-error' });
+    throw error;
+  } finally {
+    S.busy = false;
   }
-  S.busy = false;
-  if (!cb.over) ce.endTurn.classList.remove('enemy-phase');
-  pileVisualOverride = null;
-  syncCombat();
-  syncHand();
-  renderHud();
 }
 
 /** Parse draw/reshuffle/draw segments from the front of the queue. */
@@ -3592,10 +3975,23 @@ async function playReshuffleCeremony(ev) {
 }
 
 /** One drawCards wave: pre-pending all hand seats, then draw / reshuffle / draw in order. */
-async function handleDrawWave(q) {
+async function handleDrawWave(q, queueCauseSeq = null) {
   const cb = S.cb, ce = S.ce;
   const segments = takeDrawWaveSegments(q);
-  const reshuffle = segments.find((s) => s.t === 'reshuffle');
+  const eventSpans = new Map();
+  const openEvents = new Set();
+  try {
+    for (const segment of segments) {
+      const events = segment.t === 'reshuffle' ? [segment.ev] : segment.draws;
+      for (const event of events) {
+        eventSpans.set(event, trace.begin('playback.queue-event', {
+          ...(queueCauseSeq ? { causeSeq: queueCauseSeq } : {}),
+          attributes: { eventType: event.t },
+        }));
+        openEvents.add(event);
+      }
+    }
+    const reshuffle = segments.find((s) => s.t === 'reshuffle');
 
   // Resting seats only — clear hover so flyers never aim at a lifted card
   if (S.hoveredCard != null) S.hoveredCard = null;
@@ -3629,6 +4025,8 @@ async function handleDrawWave(q) {
   for (const seg of segments) {
     if (seg.t === 'reshuffle') {
       await playReshuffleCeremony(seg.ev);
+      eventSpans.get(seg.ev)?.finish('completed');
+      openEvents.delete(seg.ev);
       continue;
     }
     const draws = seg.draws;
@@ -3680,10 +4078,21 @@ async function handleDrawWave(q) {
       pileVisualOverride.draw = Math.max(0, (pileVisualOverride.draw || 0));
     }
     syncPileWidgets(cb);
+    for (const event of draws) {
+      eventSpans.get(event)?.finish('completed');
+      openEvents.delete(event);
+    }
   }
 
   pileVisualOverride = null;
   syncCombat();
+  } catch (error) {
+    for (const event of openEvents) {
+      eventSpans.get(event)?.finish('failed', { reason: 'draw-wave-error' });
+    }
+    openEvents.clear();
+    throw error;
+  }
 }
 
 let emberFrom = null; // where the last fire spilled from (shatter/death/kindle)
@@ -4409,9 +4818,21 @@ async function handleEvent(ev, targetIdx) {
       sfx.victory();
       V.flash('#ffe9ac', 0.16, 0.6);
       if (ev.perfect) {
+        const token = presentationBarrier.begin('perfect-banner');
+        const span = trace.begin('presentation.banner', { attributes: { kind: 'perfect' } });
         const b = el('div', 'turn-banner perfect-banner', tr('ui.combat.perfectBanner'));
         screenEl().appendChild(b);
-        setTimeout(() => b.remove(), 1400);
+        setTimeout(() => {
+          try {
+            b.remove();
+            span.finish('settled');
+          } catch (error) {
+            span.finish('failed', { reason: 'presentation-error' });
+            throw error;
+          } finally {
+            token.finish();
+          }
+        }, 1400);
         await sleep(500);
       }
       break;
@@ -4475,7 +4896,7 @@ function journalRunEnd(run, outcome, onFinalised = null) {
     S.cb = null;
     finalisePendingRunEnd(run, onFinalised);
   };
-  if (!requireRunSave(run, continueRunEnd)) return false;
+  if (!requireRunSave(run, continueRunEnd, 'run-end')) return false;
   continueRunEnd();
   return true;
 }
@@ -4491,7 +4912,7 @@ function finalisePendingRunEnd(run, onFinalised = null) {
     : E.recordRunEnd;
   return E.finaliseTerminalOutbox(
     run,
-    () => commitPendingRunEnd(run, acknowledgeRunEnd),
+    () => persistObserved('run-end', () => commitPendingRunEnd(run, acknowledgeRunEnd)),
     () => showRunEndPersistenceFailure(run, onFinalised),
     ({ newUnlocks, ledger }) => {
       S.cb = null;
@@ -4913,7 +5334,7 @@ function renderShop() {
           refresh();
           if (leave) leave.disabled = false;
         };
-        if (!requireRunSave(run, finishPurchase)) return;
+        if (!requireRunSave(run, finishPurchase, 'usurper-purchase')) return;
         finishPurchase();
       };
       wrap.appendChild(b);
@@ -5170,7 +5591,8 @@ function showDawnPersistenceFailure(onRetry, phase) {
 function persistDawnOrRetry(action, phase) {
   return new Promise((resolve) => {
     const attempt = () => {
-      if (action()) { resolve(); return; }
+      const kind = phase === 'clear' ? 'dawn-clear' : 'dawn-cursor';
+      if (persistObserved(kind, action)) { resolve(); return; }
       showDawnPersistenceFailure(attempt, phase);
     };
     attempt();
@@ -5178,6 +5600,10 @@ function persistDawnOrRetry(action, phase) {
 }
 
 async function drainEndQueue(run, host) {
+  const barrierToken = presentationBarrier.begin('dawn');
+  const dawnSpan = trace.begin('presentation.dawn');
+  let dawnOutcome = 'settled';
+  try {
   const pending = run.pendingDawn;
   if (!pending) throw new Error('winning end screen requires a staged dawn presentation');
   const events = pending.events.map((event) => ({ ...event }));
@@ -5203,6 +5629,14 @@ async function drainEndQueue(run, host) {
   await persistDawnOrRetry(() => E.completePendingDawn(run), 'clear');
   host.classList.add('complete');
   return newUnlocks;
+  } catch (error) {
+    dawnOutcome = 'failed';
+    throw error;
+  } finally {
+    dawnSpan.finish(dawnOutcome, dawnOutcome === 'failed' ? { reason: 'presentation-error' } : {});
+    if (dawnOutcome === 'failed') barrierToken.cancel();
+    else barrierToken.finish();
+  }
 }
 
 function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1, unpaidBequest = false }) {
@@ -5596,6 +6030,10 @@ function installProbe() {
           $('.lb-count', ce.lantern).textContent === String(cb.embers),
           `dom="${$('.lb-count', ce.lantern).textContent}" engine=${cb.embers}`);
       }
+      const failures = out.filter((item) => !item.pass);
+      if (failures.length) trace.emit('error.invariant', {
+        outcome: 'failed', attributes: { code: 'probe-invariant-failed', count: failures.length },
+      });
       return out;
     },
     state() {
@@ -5612,9 +6050,18 @@ function installProbe() {
         hand: cb ? cb.hand.map((c) => ({ uid: c.uid, id: c.id })) : null,
       };
     },
+    behaviourTrace: ({ after = null, format = 'records' } = {}) =>
+      trace.read({ after, format }),
+    queueIdle: () => !S.cb || S.cb.queue.length === 0,
+    presentationIdle: () => presentationBarrier.activeCount() === 0,
+    traceIntegrity: () => trace.assertIntegrity(),
+    mapWarmSet: () => [...liveMapWarmIds()],
+    resetBehaviourTrace: () => trace.reset(),
+    translateForProbe: (key) => tr(key),
     settle: () => new Promise((res) => {
-      const done = () => !S.busy && (!S.cb || S.cb.queue.length === 0);
-      const check = () => (done() ? res(true) : setTimeout(check, 50));
+      const done = () => !S.busy && (!S.cb || S.cb.queue.length === 0)
+        && presentationBarrier.activeCount() === 0;
+      const check = () => (done() ? res(true) : setTimeout(check, 16));
       check();
     }),
     // -- drivers (reuse the real input code paths) ------------------------
@@ -5624,19 +6071,30 @@ function installProbe() {
       // a played card leaves the hand; an unplayable one stays put
       return !S.cb || S.cb.over || !S.cb.hand.some((c) => c.uid === uid);
     },
-    async endTurn() { await onEndTurn(); },
-    async useArt() {
-      if (S.busy || !S.cb || S.cb.over || !E.canUseArt(S.run, S.cb)) return false;
-      E.useArt(S.run, S.cb);
-      await drain();
-      afterAction();
+    targetCardForProbe(uid) {
+      if (!S.cb?.hand.some((card) => card.uid === uid)) return false;
+      setTargeting({ kind: 'card', uid });
       return true;
     },
+    async endTurn() { await onEndTurn(); },
+    async useArt() {
+      if (S.busy || !S.cb || S.cb.over) return false;
+      return useLanternArt();
+    },
     async usePotion(slot, targetIdx = null) {
-      if (S.busy || !E.usePotion(S.run, S.cb, slot, targetIdx)) return false;
-      if (S.cb) { await drain(); afterAction(); }
-      renderHud();
-      return true;
+      if (S.busy) return false;
+      return usePotionOn(slot, targetIdx);
+    },
+    showBarrierProbe() { banner('Barrier probe'); },
+    showMoteFlightProbe() {
+      flyTo(stageW() / 2, stageH() / 2, stageW() / 2 + 40, stageH() / 2 - 40, { n: 1 });
+    },
+    showPersistenceSetupFailureProbe() {
+      return openPersistenceDialog(
+        '<div class="panel"><button data-a="retry-probe">Retry</button></div>',
+        '[data-a="retry-probe"]',
+        () => { throw new Error('forced-persistence-wire-failure'); },
+      );
     },
     // -- test-state shims (scenario setup only; engine-legal states) ------
     forceHand(ids) {
@@ -5649,6 +6107,7 @@ function installProbe() {
     setEnemyHp(i, hp) { S.cb.enemies[i].hp = hp; syncCombat(); },
     forceRoseFallback(on) {
       forceRoseFallback = !!on;
+      roseAssetsReady = false;
       if (S.screen === 'vigil') renderVigil({ tab: 'rose' });
       if (S.screen === 'title') renderTitle();
       return forceRoseFallback;
@@ -5665,8 +6124,23 @@ function installProbe() {
 
 export function initUI() {
   const bootQ = new URLSearchParams(location.search);
+  const audioOutcome = (result) => ['sample', 'synth-fallback', 'playing'].includes(result)
+    ? 'completed' : 'rejected';
+  setSfxObservationSink(({ id, mode, result }) => trace.emit(
+    id === 'audio-context' ? 'audio.unlock' : 'audio.sfx-request',
+    { outcome: audioOutcome(result), attributes: { id, mode, result } },
+  ));
+  music.setMusicObservationSink(({ id, mode, result }) => trace.emit('audio.music-request', {
+    outcome: audioOutcome(result), attributes: { id, mode, result },
+  }));
+  window.__probe = {
+    behaviourTrace: ({ after = null, format = 'records' } = {}) => trace.read({ after, format }),
+    traceIntegrity: () => trace.assertIntegrity(),
+  };
   if (bootQ.has('gallery')) return renderGallery();
   if (bootQ.has('audio')) return renderAudioGallery();
+  window.spirebound = { S, E, startCombatUI, show, meshEnabled, meshDebug, refitCombat };
+  installProbe();
   initTooltip();
   document.addEventListener('pointerdown', () => unlock(), { once: true });
   document.addEventListener('contextmenu', (e) => { if (S.targeting) { e.preventDefault(); clearTargeting(); } });
@@ -5681,8 +6155,12 @@ export function initUI() {
   $('#overlay').addEventListener('pointerdown', (e) => {
     if (e.target === $('#overlay') && $('#overlay')._closable) closeOverlay();
   });
-  window.spirebound = { S, E, startCombatUI, show, meshEnabled, meshDebug, refitCombat }; // ponytail: console debug hook, harmless in prod
-  installProbe(); // window.__probe — contract readers + drivers for test/e2e
+  window.addEventListener('error', () => trace.emit('error.ui', {
+    outcome: 'failed', attributes: { code: 'window-error' },
+  }));
+  window.addEventListener('unhandledrejection', () => trace.emit('error.ui', {
+    outcome: 'failed', attributes: { code: 'unhandled-rejection' },
+  }));
   requestAnimationFrame(rigTick); // living-glass rig: no-op outside combat
   // char-meta / battlefield-layout / ui-chrome-layout HMR → soft-apply without reload
   const softCombat = () => { if (S.screen === 'combat' && S.cb && S.ce) refitCombat(); };
@@ -5690,4 +6168,6 @@ export function initUI() {
   onBFChange(softCombat);
   onUICChange(softCombat);
   show('title');
+  trace.emit('renderer.ready', { outcome: 'completed', attributes: { rendererId: 'dom' } });
+  trace.emit('app.ready', { outcome: 'completed' });
 }

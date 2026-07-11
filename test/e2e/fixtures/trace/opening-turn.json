@@ -1,0 +1,25 @@
+{
+  "journey": "opening-turn",
+  "records": [
+    [
+      "playback.queue",
+      "start",
+      null
+    ],
+    [
+      "playback.queue-event",
+      "start",
+      null
+    ],
+    [
+      "playback.queue-event",
+      "end",
+      "completed"
+    ],
+    [
+      "playback.queue",
+      "end",
+      "completed"
+    ]
+  ]
+}

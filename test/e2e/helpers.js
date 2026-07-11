@@ -44,6 +44,20 @@ export function settle(page) {
   return page.evaluate(() => window.__probe.settle());
 }
 
+export async function attachBehaviourTrace(page, testInfo) {
+  const artifact = await page.evaluate(() => ({
+    ndjson: window.__probe?.behaviourTrace?.({ format: 'ndjson' })?.ndjson ?? '',
+    text: window.__probe?.behaviourTrace?.({ format: 'text' })?.text ?? '',
+  })).catch(() => ({ ndjson: '', text: '' }));
+  await testInfo.attach('ui-behaviour-trace.ndjson', {
+    body: Buffer.from(artifact.ndjson), contentType: 'application/x-ndjson',
+  });
+  await testInfo.attach('ui-behaviour-trace.txt', {
+    body: Buffer.from(artifact.text), contentType: 'text/plain',
+  });
+  return artifact;
+}
+
 // Record short-lived UI copy in the page so a loaded CI driver cannot miss an
 // otherwise-correct banner between Playwright polling turns.
 export async function recordTransientText(page, selector = '.turn-banner') {

@@ -10,7 +10,7 @@
 // NOTE: the mesh-on kill scenarios FAIL against the pre-fix code — the warp
 // plane keeps rendering the corpse (hardening spec §2). The mesh-off twin
 // passes, which pins the defect to the mesh lifecycle, not the DOM path.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './trace-fixture.js';
 import {
   boot, startFight, settle, probeState, collectErrors,
   expectInvariants, expectNoErrors, recordTransientText, waitForTransientText,

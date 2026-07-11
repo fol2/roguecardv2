@@ -1,8 +1,14 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './trace-fixture.js';
 import {
   freshLedger, mixedLedger, completeLedger, seed, QIDS, stagePendingRunEnd,
   PERSISTED_EIGHTH_TEXT, PERSISTED_SHADE_TEXT, waitForDawnComplete,
 } from './emberglass-fixtures.js';
+
+async function persistenceTrace(page, kind) {
+  return page.evaluate((selectedKind) => window.__probe.behaviourTrace().records
+    .filter((record) => record.eventName.startsWith('persistence.') && record.attributes?.kind === selectedKind)
+    .map((record) => [record.eventName, record.phase, record.outcome ?? null]), kind);
+}
 
 test.describe('desktop Emberglass behaviour', () => {
   test.beforeEach(async ({ page }) => {
@@ -292,6 +298,13 @@ test('run-end persistence failure owns input until finalisation retries', async 
   await page.waitForFunction(() => window.spirebound?.S.screen === 'end');
   await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
   expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBeNull();
+  const runEndTrace = await persistenceTrace(page, 'run-end');
+  expect(runEndTrace).toEqual([
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.blocked', 'point', 'rejected'],
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.recovered', 'point', 'completed'],
+  ]);
 });
 
 test('normal-motion reload resumes only unacknowledged dawn panels', async ({ page }) => {
@@ -348,7 +361,6 @@ test('normal-motion reload resumes only unacknowledged dawn panels', async ({ pa
   expect(completed.statsRaw).toBe(checkpoint.statsRaw);
   expect(completed.save).toBeNull();
   expect(JSON.parse(completed.statsRaw)).toMatchObject({ lastRunId: staged.runId });
-
   await page.reload();
   await page.waitForFunction(() => window.spirebound && window.__probe?.state().screen === 'title');
   await expect(page.locator('.dawn-event')).toHaveCount(0);
@@ -387,6 +399,13 @@ test('a rejected dawn cursor save stays locked and retries the same panel', asyn
   await expect(page.locator('[data-event="eighthResolved"]')).toContainText('CURSOR FAILURE COPY');
   expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBeNull();
   await page.evaluate(() => { Storage.prototype.setItem = window.__dawnSetItem; });
+  const cursorTrace = await persistenceTrace(page, 'dawn-cursor');
+  expect(cursorTrace).toEqual([
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.blocked', 'point', 'rejected'],
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.recovered', 'point', 'completed'],
+  ]);
 });
 
 test('a rejected final dawn clear stays locked and retryable', async ({ page }) => {
@@ -422,6 +441,13 @@ test('a rejected final dawn clear stays locked and retryable', async ({ page }) 
   await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
   expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBeNull();
   await page.evaluate(() => { Storage.prototype.removeItem = window.__dawnRemoveItem; });
+  const clearTrace = await persistenceTrace(page, 'dawn-clear');
+  expect(clearTrace).toEqual([
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.blocked', 'point', 'rejected'],
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.recovered', 'point', 'completed'],
+  ]);
 });
 
 for (const outcome of ['death', 'abandon']) {

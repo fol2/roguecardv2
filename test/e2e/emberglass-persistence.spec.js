@@ -1,9 +1,17 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './trace-fixture.js';
 import { freshLedger, seed } from './emberglass-fixtures.js';
 
 test.beforeEach(() => {
   test.skip(test.info().project.name !== 'desktop', 'persistence behaviour is shape-independent');
 });
+
+async function expectPersistenceTrace(page, kind, expectedEvents) {
+  const records = await page.evaluate((selectedKind) => window.__probe.behaviourTrace().records
+    .filter((record) => record.eventName.startsWith('persistence.') && record.attributes?.kind === selectedKind)
+    .map((record) => ({ eventName: record.eventName, outcome: record.outcome, attempt: record.attributes.attempt })), kind);
+  expect(records.map((record) => record.eventName)).toEqual(expectedEvents);
+  expect(records.map((record) => record.attempt)).toEqual(records.map((_, index) => Math.floor(index / 2) + 1));
+}
 
 async function seedUsurperShop(page, gold = 650) {
   const vigil = freshLedger();
@@ -107,6 +115,11 @@ test('fresh climb waits for its exact initial save before routing', async ({ pag
   // refreshes the same durable snapshot once more.
   expect(accepted.attempts).toBe(4);
   await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
+  await expectPersistenceTrace(page, 'initial-run', [
+    'persistence.attempt', 'persistence.blocked',
+    'persistence.attempt', 'persistence.blocked',
+    'persistence.attempt', 'persistence.recovered',
+  ]);
 });
 
 test('Usurper first sight is durable before the shop item is exposed', async ({ page }) => {
@@ -270,6 +283,11 @@ test('Usurper purchase confirms only after the single 650-gold mutation is durab
     attempts: window.__usurperBuyAttempts,
   }));
   expect(afterRepeatClick).toEqual({ gold: 0, attempts: 3 });
+  await expectPersistenceTrace(page, 'usurper-purchase', [
+    'persistence.attempt', 'persistence.blocked',
+    'persistence.attempt', 'persistence.blocked',
+    'persistence.attempt', 'persistence.recovered',
+  ]);
 });
 
 test('Reload Saved Climb discards a failed live mutation and restores the durable run', async ({ page }) => {
@@ -345,4 +363,8 @@ test('Shade cross-store failure keeps the saved duel behind an exclusive retry d
   await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_vigil_v2')).lastFall))
     .toBeNull();
+  await expectPersistenceTrace(page, 'shade-bequest-clear', [
+    'persistence.attempt', 'persistence.blocked',
+    'persistence.attempt', 'persistence.recovered',
+  ]);
 });
