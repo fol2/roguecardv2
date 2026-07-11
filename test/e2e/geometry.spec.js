@@ -485,13 +485,14 @@ test('energy candles stay in a fixed frame as slot count grows', async ({ page }
     const stage = document.getElementById('stage').getBoundingClientRect();
     const row = document.querySelector('.energy-orb .candles');
     const rr = row.getBoundingClientRect();
+    // clientWidth is pre-transform stage px — stable vs shadow/overflow on getBoundingClientRect
     const kids = [...row.querySelectorAll('.candle')].map((c) => {
       const r = c.getBoundingClientRect();
       return ((r.left + r.right) / 2 - stage.left) / info.scale;
     });
     const pitches = kids.slice(1).map((cx, i) => cx - kids[i]);
     return {
-      frameW: rr.width / info.scale,
+      frameW: row.clientWidth,
       frameLeft: (rr.left - stage.left) / info.scale,
       n: kids.length,
       avgPitch: pitches.length
@@ -505,17 +506,20 @@ test('energy candles stay in a fixed frame as slot count grows', async ({ page }
     P.energyMax = 3;
     window.__probe.setEnergy(3);
   });
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   const at3 = await measure();
   await page.evaluate(() => {
     const P = window.spirebound.S.cb.player;
     P.energyMax = 5;
     window.__probe.setEnergy(5);
   });
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   const at5 = await measure();
 
   expect(at3.n, '3 energy slots').toBe(3);
   expect(at5.n, '5 energy slots').toBe(5);
-  expect(Math.abs(at5.frameW - at3.frameW), 'candle frame width stays fixed').toBeLessThanOrEqual(1);
+  expect(at3.frameW, '3-slot frame uses the authored candle box').toBe(120);
+  expect(at5.frameW, '5-slot frame stays the authored candle box').toBe(120);
   expect(Math.abs(at5.frameLeft - at3.frameLeft), 'candle frame left edge stays fixed').toBeLessThanOrEqual(1);
   expect(at5.avgPitch, 'more candles compress pitch inside the frame').toBeLessThan(at3.avgPitch - 1);
   expectNoErrors(errors, 'energy candle frame');

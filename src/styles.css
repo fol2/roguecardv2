@@ -1276,7 +1276,9 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .energy-orb .candles {
   position: relative; left: auto; bottom: auto; transform: none;
   display: flex; align-items: flex-end; justify-content: center; gap: 0;
-  width: 120px; /* 3 × 40px design candle */
+  box-sizing: border-box;
+  width: 120px; min-width: 120px; max-width: 120px; /* 3 × 40px design candle */
+  overflow: hidden;
   z-index: 1;
   pointer-events: none;
 }
@@ -2039,7 +2041,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .choice-cards .card { --cw: 150px; }
   .hand-zone { height: 230px; }
   .energy-orb .num { font-size: 40px; }
-  .energy-orb .candles { width: 102px; } /* 3 × 34 */
+  .energy-orb .candles { width: 102px; min-width: 102px; max-width: 102px; } /* 3 × 34 */
   .candle:has(.candle-img) { max-width: 34px; height: 48px; }
   .lantern-btn { --lbr: 44px; }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 84px; height: 84px; }
@@ -2118,7 +2120,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .hand-zone .card { bottom: 46px; }
   /* chrome positions: ui-chrome-layout.js (?bfuiedit=1) */
   .energy-orb .num { font-size: 36px; }
-  .energy-orb .candles { width: 84px; } /* 3 × 28 */
+  .energy-orb .candles { width: 84px; min-width: 84px; max-width: 84px; } /* 3 × 28 */
   .lantern-btn { --lbr: 36px; }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 68px; height: 68px; }
   .lantern-btn .lb-count { font-size: 20px; }
@@ -2190,7 +2192,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .hand-zone .card { bottom: 0; }
   /* chrome positions: ui-chrome-layout.js (?bfuiedit=1) */
   .energy-orb .num { font-size: 33px; }
-  .energy-orb .candles { width: 72px; } /* 3 × 24 */
+  .energy-orb .candles { width: 72px; min-width: 72px; max-width: 72px; } /* 3 × 24 */
   .lantern-btn { --lbr: 31px; }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 62px; height: 62px; }
   .lantern-btn .lb-count { font-size: 18px; }
