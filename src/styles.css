@@ -365,6 +365,33 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .title-btns { display: flex; flex-direction: column; gap: 12px; width: 300px; }
 .title-btns .btn { width: 100%; }
 .title-stats { color: var(--text-dim); font-size: 14px; letter-spacing: 0.08em; margin-top: 6px; text-align: center; }
+.title-screen > .title-version {
+  position: absolute;
+  right: calc(18px + var(--sar));
+  bottom: calc(18px + var(--sab));
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
+  pointer-events: none;
+  user-select: none;
+}
+.title-screen > .title-version-debug {
+  position: absolute;
+  right: calc(18px + var(--sar));
+  bottom: calc(36px + var(--sab));
+  z-index: 2;
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+  pointer-events: none;
+}
 .title-corner { position: absolute; top: calc(18px + var(--sat)); right: calc(18px + var(--sar)); display: flex; gap: 10px; }
 /* landscape stages are 820 tall: the wordmark eases down and the utility
    buttons share one row, so even the fullest profile (Continue + vow V +
@@ -2044,6 +2071,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .title-btns .btn { width: 100%; padding: 9px 12px; }
   .title-btns .btn.ghost { width: auto; flex: 1 1 0; padding: 8px 6px; font-size: 12.5px; }
   .title-stats { position: static; margin-top: 0; font-size: 12px; }
+  .title-screen > .title-version, .title-screen > .title-version-debug { font-size: 10px; }
   .lamp-boons { gap: 10px; }
   .lamp-boon { width: min(300px, 82cqw); min-height: 0; }
   .lamp-hero { width: 60px; height: 60px; }
@@ -2198,6 +2226,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .title-btns { flex-direction: row; flex-wrap: wrap; justify-content: center; width: auto; max-width: 94cqw; gap: 7px; }
   .title-btns .btn { width: auto; padding: 7px 15px; font-size: 12.5px; }
   .title-stats { font-size: 10.5px; margin-top: 0; }
+  .title-screen > .title-version, .title-screen > .title-version-debug { font-size: 10px; }
   #overlay { align-items: stretch; }
   .ov-panel { max-width: 100cqw; width: 100cqw; max-height: none; height: 100%; border-radius: 0; border-left: none; border-right: none; padding: 12px calc(16px + var(--sar)) calc(10px + var(--sab)) calc(16px + var(--sal)); }
   .ov-title { font-size: 18px; margin-bottom: 2px; }

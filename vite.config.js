@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
-import { readdirSync, writeFileSync, renameSync } from "node:fs";
+import { readdirSync, writeFileSync, renameSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { execSync } from "node:child_process";
 
 const BF_SAVE_PORT = 5174;
 // Vite Host header gate for loading the page over Tailscale / LAN.
@@ -269,11 +270,46 @@ function bfSavePlugin() {
   };
 }
 
-export default defineConfig({
-  plugins: [bfSavePlugin()],
-  server: {
-    host: "0.0.0.0",
-    port: BF_SAVE_PORT,
-    allowedHosts: DEV_ALLOWED_HOSTS,
-  },
+function spirePackageVersion() {
+  try {
+    return JSON.parse(readFileSync(resolve("package.json"), "utf8")).version || "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+function spireGitSha() {
+  try {
+    return execSync("git rev-parse --short HEAD", {
+      cwd: resolve("."),
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+    }).trim() || "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+// Live git SHA in a production bundle breaks the CI "committed dist is
+// current" check: the SHA baked before `git commit` never matches HEAD after.
+// Dev (`vite` serve) always embeds the real short SHA; `vite build` keeps a
+// stable placeholder unless SPIRE_EMBED_SHA=1 (local +sha smoke only).
+export default defineConfig(({ command }) => {
+  const SPIRE_VERSION = spirePackageVersion();
+  const SPIRE_RELEASE = process.env.SPIRE_RELEASE === "1";
+  const embedSha = command === "serve" || process.env.SPIRE_EMBED_SHA === "1";
+  const SPIRE_GIT_SHA = embedSha ? spireGitSha() : "unknown";
+  return {
+    plugins: [bfSavePlugin()],
+    define: {
+      __SPIRE_VERSION__: JSON.stringify(SPIRE_VERSION),
+      __SPIRE_GIT_SHA__: JSON.stringify(SPIRE_GIT_SHA),
+      __SPIRE_RELEASE__: JSON.stringify(SPIRE_RELEASE),
+    },
+    server: {
+      host: "0.0.0.0",
+      port: BF_SAVE_PORT,
+      allowedHosts: DEV_ALLOWED_HOSTS,
+    },
+  };
 });
