@@ -34,6 +34,7 @@ import { BASE_AUDIO_VERSIONS, DEFAULT_AUDIO_SELECTION, audioRefFromPath, canonic
 import { serializeAudioSelection } from '../src/dev/audio-selection-serialize.js';
 import { fetchAudioSelectionJson } from '../src/audio-selection-fetch.js';
 import { createChoiceLatch } from '../src/choice-latch.js';
+import { formatVersionDisplay } from '../src/version.js';
 import { MUSIC_CATALOG } from '../src/audio-catalog.js';
 import {
   resolveCombatCue, resolveScreenCue, dawnEventCue, SCREEN_CUES,
@@ -49,6 +50,12 @@ function forceHand(run, cb, ids) {
 }
 
 // ---- unit checks -----------------------------------------------------------
+{
+  assert.equal(formatVersionDisplay('1.2.3', 'abc1234', true), '1.2.3');
+  assert.equal(formatVersionDisplay('1.2.3', 'abc1234', false), '1.2.3+abc1234');
+  assert.equal(formatVersionDisplay('1.2.3', '', false), '1.2.3+unknown');
+  assert.equal(formatVersionDisplay('1.2.3', 'unknown', false), '1.2.3+unknown');
+}
 {
   let aborted = false;
   const neverResolves = (_url, { signal }) => new Promise((_resolve, reject) => {
