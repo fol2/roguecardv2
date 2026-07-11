@@ -484,7 +484,7 @@ title; no executor invents them.
 - Task 5 may start only after the commit is pushed, `ls-remote` verifies the
   published head and the ledger records closure.
 
-- [ ] **Step 1: Verify the current topology and lease read-only**
+- [x] **Step 1: Verify the current topology and lease read-only**
 
 ```bash
 set -euo pipefail
@@ -503,7 +503,7 @@ test -z "$(git -C ../round5-front-end status --short)"
 Do not recreate a worktree, rewrite FE history or revive any historical Task 3
 or Task 4 execution command.
 
-- [ ] **Step 2: Close the six-document review package**
+- [x] **Step 2: Close the six-document review package**
 
 The package is exactly:
 
@@ -521,7 +521,7 @@ PASS, with every finding fixed and re-reviewed. Record the already independent
 deferred-design spec review as PASS; do not edit that design merely to make the
 publication package dirty.
 
-- [ ] **Step 3: Publish exactly the six reviewed documents**
+- [x] **Step 3: Publish exactly the six reviewed documents**
 
 Run only after Step 2 is fully green:
 
@@ -548,6 +548,11 @@ and successful `ls-remote` result to the ignored ledger using `apply_patch`.
 Task 5 remains blocked until those ledger rows exist. This documentation-only
 publication uses an ordinary push only after exact local/remote lease equality;
 the global Git rules remain unchanged.
+
+**Closure:** COMPLETE at `a70eeaba3665cd2bfadf1da415ec8e5ed5b3eba3`.
+The exact six-path publication, three independent PASS verdicts, ordinary push
+and post-push `ls-remote` equality are recorded in the ignored ledger. Task 5
+is unblocked; Tasks 3–4 remain retired tombstones.
 
 
 ### Task 1: `[PE]` Loaded Phase 2 + version + i18n + PR17 geometry re-entry
