@@ -46,3 +46,10 @@ function merge(base, over) {
 export function uicResolve(shape) {
   return merge(UIC.base, UIC.shapes?.[shape]);
 }
+
+/** Relic strip origin: when the Omen seat is empty, start where the Omen would sit. */
+export function relicBarLayout(L, hasOmen) {
+  if (!L?.relics) return null;
+  if (hasOmen || !L.omen) return L.relics;
+  return { ...L.relics, left: L.omen.left, top: L.omen.top ?? L.relics.top };
+}
