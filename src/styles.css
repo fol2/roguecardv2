@@ -233,9 +233,11 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   display: flex; align-items: center; justify-content: center;
   width: 42px; height: 42px;
 }
+/* early climbs have no Omen — collapse the seat so it cannot cover relics */
+#omen-slot:empty { display: none; width: 0; height: 0; pointer-events: none; }
 #relicbar {
   position: absolute; z-index: 1; pointer-events: auto;
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 2px; flex-wrap: wrap;
   max-width: 60%;
 }
 .hud-relic {
@@ -2103,7 +2105,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .potion-slot svg { width: 25px; height: 32px; }
   .relic-chip { width: 34px; height: 34px; font-size: 16px; }
   .hud-relic { width: 38px; height: 38px; }
-  #relicbar { max-width: 100%; gap: 6px; }
+  #relicbar { max-width: 100%; gap: 2px; }
   .map-title { top: calc(58px + var(--sat)); font-size: 12px; letter-spacing: 0.16em; padding: 0 58px; line-height: 1.7; }
   /* stage */
   .stage-ledge { --glow-h: 90px; }
@@ -2184,7 +2186,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .potion-slot { width: 30px; height: 36px; }
   .relic-chip { width: 30px; height: 30px; font-size: 14px; }
   .hud-relic { width: 34px; height: 34px; }
-  #relicbar { gap: 6px; }
+  #relicbar { gap: 2px; }
   .map-title { top: calc(42px + var(--sat)); font-size: 11.5px; }
   .stage-ledge { --glow-h: 70px; }
   .player-zone .hpbar-wrap, .hpbar-wrap { width: 118px; }

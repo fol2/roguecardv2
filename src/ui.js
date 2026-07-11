@@ -19,7 +19,7 @@ import { t as tr } from './i18n/index.js';
 // client px and cross over via toStage/stageRect at the handler boundary
 import { stageW, stageH, stageEl, stageInfo, toStage, stageRect } from './stage.js';
 import { bfResolve, bfActor, bfSlots, bfEnemyFrame, bfEnemyFootY, bfEnemyZOrder, bfHeroY, onBFChange } from './battlefield.js';
-import { uicResolve, onUICChange } from './uic.js';
+import { uicResolve, relicBarLayout, onUICChange } from './uic.js';
 import { createChoiceLatch } from './choice-latch.js';
 import { getVersionInfo } from './version.js';
 
@@ -2084,8 +2084,11 @@ function applyUiChromeLayout() {
     el.style.transformOrigin = w.left !== undefined ? 'top left' : 'top right';
     el.style.transform = s === 1 ? '' : `scale(${s})`;
   };
-  placeTop($('#omen-slot'), L.omen);
-  placeTop($('#relicbar'), L.relics);
+  const omenEl = $('#omen-slot');
+  const relicEl = $('#relicbar');
+  const hasOmen = !!(omenEl && omenEl.childElementCount);
+  placeTop(omenEl, L.omen);
+  placeTop(relicEl, relicBarLayout(L, hasOmen));
   if (!S.ce || S.screen !== 'combat') return;
   const place = (el, w) => {
     if (!el || !w) return;

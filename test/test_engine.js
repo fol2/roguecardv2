@@ -24,7 +24,7 @@ import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, 
 import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, commitPendingRunEnd, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFrame, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
-import { uicResolve, _setUIC, uicRaw } from '../src/uic.js';
+import { uicResolve, _setUIC, uicRaw, relicBarLayout } from '../src/uic.js';
 import { serializeUIC, validateUIC } from '../src/dev/bfui-serialize.js';
 import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, drawBatchSchedule, PILE_IDS, PILE_FAN_DEG, PILE_FAN_MAX_DEG, PILE_FAN_MAX_LAYERS } from '../src/pile-chrome.js';
 import {
@@ -4455,6 +4455,13 @@ function randomAgentRun(seed) {
   assert.equal(uicResolve('phone-portrait').energy.bottom, uicRaw().shapes['phone-portrait'].energy.bottom, 'uic: override does not leak');
   _setUIC(null);
   assert.equal(uicResolve('desktop-landscape').energy.bottom, baseE, 'uic: _setUIC(null) restores');
+  {
+    const L = uicResolve('desktop-landscape');
+    assert.deepEqual(relicBarLayout(L, true), L.relics, 'uic: omen present keeps relic origin');
+    assert.deepEqual(relicBarLayout(L, false), { ...L.relics, left: L.omen.left, top: L.omen.top },
+      'uic: empty omen packs relics from omen seat');
+    assert.equal(relicBarLayout(null, false), null, 'uic: missing layout yields null');
+  }
   assert.equal(validateUIC(uicRaw()).ok, true, 'uic: file validates');
   assert.deepEqual(validateUIC(uicRaw()).problems, [], 'uic: no problems');
   const src1 = serializeUIC(uicRaw());
