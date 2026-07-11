@@ -233,9 +233,11 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   display: flex; align-items: center; justify-content: center;
   width: 42px; height: 42px;
 }
+/* early climbs have no Omen — collapse the seat so it cannot cover relics */
+#omen-slot:empty { display: none; width: 0; height: 0; pointer-events: none; }
 #relicbar {
   position: absolute; z-index: 1; pointer-events: auto;
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 2px; flex-wrap: wrap;
   max-width: 60%;
 }
 .hud-relic {
