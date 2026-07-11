@@ -12,9 +12,7 @@ This ledger defines the BGM cue strategy and SUNO prompts for Spirebound. The cu
 
 ## Production priority
 
-**Essential live set — 14 cues:** title, embark, vigil, map, safeNodes, act1Combat, act1Boss, act2Combat, act2Boss, act3Combat, act3Boss, elite, victory, defeat.
-
-**Hidden / future suite — 8 cues:** roseWindow, paleOnes, shadeDuel, usurper, eighthOmen, unreadablePage, hollowLamplighter, sealedDoor.
+**Live set — 22 cues:** every Music Cue in the catalogue is wired after Emberglass Phase 2. The former hidden suite (`roseWindow`, `paleOnes`, `shadeDuel`, `usurper`, `eighthOmen`, `unreadablePage`, `hollowLamplighter`, `sealedDoor`) plays from Vigil / quest combat / Hollow / dawn / sealed-door call sites.
 
 ## Global music direction
 

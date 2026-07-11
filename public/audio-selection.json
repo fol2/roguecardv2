@@ -1,10 +1,35 @@
 {
   "music": {
-    "version": "stained-glass-v2",
+    "version": "stained-glass-v1",
     "overrides": {}
   },
   "sfx": {
     "version": "ashglass-v2",
-    "overrides": {}
+    "overrides": {
+      "art": "ashglass-v1/art.mp3",
+      "atkEnemyHeavy": "ashglass-v1/atkEnemyHeavy.mp3",
+      "atkEnemyLight": "ashglass-v1/atkEnemyLight.mp3",
+      "atkEnemyMed": "ashglass-v1/atkEnemyMed.mp3",
+      "atkHeroLight": "ashglass-v1/atkHeroLight.mp3",
+      "bigDeath": "ashglass-v1/bigDeath.mp3",
+      "buff": "ashglass-v2/debuff.mp3",
+      "card": "ashglass-v1/card.mp3",
+      "coin": "ashglass-v1/coin.mp3",
+      "death": "ashglass-v1/death.mp3",
+      "debuff": "ashglass-v1/debuff.mp3",
+      "ember": "ashglass-v1/ember.mp3",
+      "energy": "ashglass-v1/energy.mp3",
+      "heal": "ashglass-v1/heal.mp3",
+      "kindle": "ashglass-v1/kindle.mp3",
+      "omen": "ashglass-v1/omen.mp3",
+      "poison": "ashglass-v1/poison.mp3",
+      "potion": "ashglass-v1/potion.mp3",
+      "relic": "ashglass-v1/relic.mp3",
+      "shatter": "ashglass-v1/shatter.mp3",
+      "stagger": "ashglass-v1/stagger.mp3",
+      "turn": "ashglass-v1/turn.mp3",
+      "upgrade": "ashglass-v1/upgrade.mp3",
+      "victory": "ashglass-v1/victory.mp3"
+    }
   }
 }

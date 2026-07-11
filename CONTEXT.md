@@ -98,15 +98,15 @@ A Music Cue that current screens/content actually call. Unwired cues stay in the
 _Avoid_: stub track, placeholder cue (prefer Wired / unwired)
 
 **Combat Cue Resolve**:
-Boss → act boss cue; elite → shared elite cue; monster → act combat cue. Hidden overrides arrive later via an explicit cue override, not by expanding resolve rules early.
+Quest override (`paleOnes` / `shadeDuel` / `usurper`) → Eighth Omen non-boss → boss act cue / elite cue / act combat cue. Overrides are explicit cue ids from `resolveCombatCue`, not an enemy-id soundtrack matrix.
 _Avoid_: enemy-id soundtrack matrix (as the default)
 
 **Safe Node Cue**:
-Only shop, rest, and treasure play the safe-node Music Cue. Event keeps the map cue. Reward and boss-relic leave the combat cue playing; map music starts only on the node-pick map screen. Lamplighter stays on map fallback until its own cue is wired.
+Only shop, rest, and treasure play the safe-node Music Cue. Event keeps the map cue (or Eighth Omen when that omen owns the act). Reward and boss-relic leave the combat cue playing; map music starts only on the node-pick map screen. The run-start Lamplighter stays on map fallback; Hollow Lamplighter meetings play `hollowLamplighter`.
 _Avoid_: one BGM for every non-combat screen
 
 **Run-End Cue**:
-Act 1/2 boss-victory transitions and the final victory end screen play the victory Music Cue; the defeat end screen plays the defeat Cue. Normal-fight and elite reward screens keep their combat cue.
+Act 1/2 boss-victory transitions and the final victory end screen play the victory Music Cue; the defeat end screen plays the defeat Cue. Normal-fight and elite reward screens keep their combat cue. Dawn panels may temporarily take `unreadablePage` (pageRead) or `sealedDoor` (act4Reveal).
 _Avoid_: victory sting after every combat
 
 **Music Module**:
@@ -126,7 +126,7 @@ Every Music Cue loops by default, including victory and defeat, so end screens c
 _Avoid_: one-shot end stings as the default policy
 
 **Music Call Sites**:
-Screen Music Cues resolve centrally in `show()`; combat cues in `startCombatUI`; run-end cues in `renderEnd`. Renderers do not each call music ad hoc.
+Screen Music Cues resolve centrally in `show()`; combat cues in `startCombatUI`; run-end cues in `renderEnd`. Rose-tab switches, the sealed-door overlay, and dawn panel cues are the allowed ceremony exceptions.
 _Avoid_: per-renderer music.play scatter
 
 **Default Bus Levels**:

@@ -35,6 +35,10 @@ import { serializeAudioSelection } from '../src/dev/audio-selection-serialize.js
 import { fetchAudioSelectionJson } from '../src/audio-selection-fetch.js';
 import { createChoiceLatch } from '../src/choice-latch.js';
 import { formatVersionDisplay } from '../src/version.js';
+import { MUSIC_CATALOG } from '../src/audio-catalog.js';
+import {
+  resolveCombatCue, resolveScreenCue, dawnEventCue, SCREEN_CUES,
+} from '../src/music-resolve.js';
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -172,8 +176,8 @@ function forceHand(run, cb, ids) {
   const sfxManifest = JSON.parse(readFileSync(new URL('../src/assets/sfx/manifest.json', import.meta.url), 'utf8'));
   assert.equal(musicManifest.pack_id, BASE_AUDIO_VERSIONS.music, 'audio packs: base Music manifest has a stable version id');
   assert.equal(Object.keys(musicManifest.items).length, 22, 'audio packs: base Music manifest covers every Cue');
-  assert.equal(Object.values(musicManifest.items).filter((item) => item.wired).length, 14, 'audio packs: exactly 14 Music Cues are live');
-  assert.equal(Object.values(musicManifest.items).filter((item) => !item.wired).length, 8, 'audio packs: exactly 8 Music Cues are hidden/future');
+  assert.equal(Object.values(musicManifest.items).filter((item) => item.wired).length, 22, 'audio packs: all 22 Music Cues are live');
+  assert.equal(Object.values(musicManifest.items).filter((item) => !item.wired).length, 0, 'audio packs: no Music Cues remain unwired');
   for (const [id, item] of Object.entries(musicManifest.items)) {
     assert.equal(item.file, canonicalAudioFilename('music', id), `audio packs: ${id} keeps its canonical Music filename`);
     assert.ok(currentInventory.music.includes(`${BASE_AUDIO_VERSIONS.music}/${item.file}`), `audio packs: ${id} Music file exists`);
@@ -184,6 +188,22 @@ function forceHand(run, cb, ids) {
     assert.ok(item.requested_duration_seconds >= 0.5, `audio packs: ${id} records ElevenLabs request duration`);
     assert.ok(item.prompt_influence >= 0 && item.prompt_influence <= 1, `audio packs: ${id} records prompt influence`);
   }
+  assert.ok(MUSIC_CATALOG.every((row) => row.wired), 'audio catalog: every Music Cue is wired');
+  assert.equal(resolveCombatCue('monster', 0), 'act1Combat');
+  assert.equal(resolveCombatCue('elite', 1), 'elite');
+  assert.equal(resolveCombatCue('boss', 2), 'act3Boss');
+  assert.equal(resolveCombatCue('monster', 0, { questId: 'paleOnes' }), 'paleOnes');
+  assert.equal(resolveCombatCue('monster', 1, { questId: 'ownShade' }), 'shadeDuel');
+  assert.equal(resolveCombatCue('boss', 2, { questId: 'usurper' }), 'usurper');
+  assert.equal(resolveCombatCue('elite', 0, { omenId: 'eighthOmen' }), 'eighthOmen');
+  assert.equal(resolveCombatCue('boss', 0, { omenId: 'eighthOmen' }), 'act1Boss', 'Eighth Omen does not steal boss cues');
+  assert.equal(resolveCombatCue('monster', 0, { questId: 'paleOnes', omenId: 'eighthOmen' }), 'paleOnes');
+  assert.equal(resolveScreenCue('hollow'), 'hollowLamplighter');
+  assert.equal(resolveScreenCue('map', 'eighthOmen'), 'eighthOmen');
+  assert.equal(SCREEN_CUES.lamplighter, 'map');
+  assert.equal(dawnEventCue({ t: 'pageRead' }), 'unreadablePage');
+  assert.equal(dawnEventCue({ t: 'act4Reveal' }), 'sealedDoor');
+  assert.equal(dawnEventCue({ t: 'whisper' }), null);
   const completeV2Inventory = {
     music: [
       ...currentInventory.music,
@@ -222,16 +242,29 @@ function forceHand(run, cb, ids) {
     'ashglass-v2/atkHeroMed.mp3',
     'audio packs: complete SFX v2 resolves its canonical gameplay file',
   );
-  const persistedSelection = JSON.parse(readFileSync(new URL('../public/audio-selection.json', import.meta.url), 'utf8'));
-  assert.deepEqual(
-    persistedSelection,
-    bothV2Selection,
-    'audio packs: committed runtime selection activates both installed v2 packs without overrides',
-  );
+  // public/audio-selection.json is the ?audio=1 Save target — any valid installed
+  // selection is allowed (whole packs and/or per-id overrides), not a pinned v2 default.
+  const persistedRaw = readFileSync(new URL('../public/audio-selection.json', import.meta.url), 'utf8');
+  const persistedSelection = JSON.parse(persistedRaw);
   assert.deepEqual(
     validateAudioSelection(persistedSelection, completeV2Inventory),
     [],
-    'audio packs: committed runtime selection is valid for the compiled installed inventory',
+    'audio packs: ?audio=1 save (public/audio-selection.json) is valid for the installed inventory',
+  );
+  const accepted = normaliseAudioSelection(persistedSelection, completeV2Inventory);
+  assert.deepEqual(accepted.problems, [], 'audio packs: ?audio=1 save normalises without falling back to base packs');
+  assert.deepEqual(
+    accepted.selection,
+    {
+      music: { version: persistedSelection.music.version, overrides: { ...persistedSelection.music.overrides } },
+      sfx: { version: persistedSelection.sfx.version, overrides: { ...persistedSelection.sfx.overrides } },
+    },
+    'audio packs: ?audio=1 save keeps the chosen versions and overrides',
+  );
+  assert.equal(
+    persistedRaw,
+    serializeAudioSelection(accepted.selection),
+    'audio packs: public/audio-selection.json matches the gallery Save serialiser',
   );
   const rejected = normaliseAudioSelection({
     music: { version: 'missing', overrides: {} },

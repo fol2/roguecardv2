@@ -827,10 +827,18 @@ export function show(name, data) {
   // Only switch BGM if the renderer stayed on this screen (map may redirect into combat).
   // reward / bossRelic omit SCREEN_CUES: normal/elite keep combat music; Act 1/2 boss wins
   // switch to victory in victoryFlow() and hold through reward/bossRelic until map.
-  if (S.screen === name && name !== 'combat' && name !== 'end') music.playForScreen(name);
+  if (S.screen === name && name !== 'combat' && name !== 'end') {
+    if (name === 'vigil' && data?.tab === 'rose') music.play('roseWindow');
+    else {
+      const eighth = S.run?.omens?.[S.run.act] === 'eighthOmen' && (name === 'map' || name === 'event');
+      music.playForScreen(name, eighth ? 'eighthOmen' : null);
+    }
+  }
   if (S.screen === 'map' && S.run) {
     const a = (S.run.act | 0) + 1;
-    music.warm(`act${a}Combat`, `act${a}Boss`, 'elite', 'safeNodes');
+    const warmIds = [`act${a}Combat`, `act${a}Boss`, 'elite', 'safeNodes', 'hollowLamplighter'];
+    if (S.run.omens?.[S.run.act] === 'eighthOmen') warmIds.push('eighthOmen');
+    music.warm(...warmIds);
   }
   renderHud();
 }
@@ -1233,9 +1241,13 @@ function renderVigil({ tab = 'deeds' } = {}) {
     const t = e.target.closest('[data-a]');
     if (!t) return;
     sfx.click();
-    if (t.dataset.a === 'tab-deeds') draw('deeds');
-    else if (t.dataset.a === 'tab-rose' && hasRose) draw('rose');
-    else if (t.dataset.a === 'rose-pane') selectRosePane(sc, v, Number(t.dataset.index));
+    if (t.dataset.a === 'tab-deeds') {
+      draw('deeds');
+      music.play('vigil');
+    } else if (t.dataset.a === 'tab-rose' && hasRose) {
+      draw('rose');
+      music.play('roseWindow');
+    } else if (t.dataset.a === 'rose-pane') selectRosePane(sc, v, Number(t.dataset.index));
     else if (t.dataset.a === 'back') show('title');
   };
 }
@@ -1594,6 +1606,7 @@ function renderMap() {
       event.stopPropagation();
       unlock();
       sfx.click();
+      music.play('sealedDoor');
       openOverlay(`<div class="panel sealed-door-panel">
         <div class="ov-title">THE SEALED DOOR</div>
         <div class="sealed-door-mark">${iconSvg('sealedDoor', 96)}</div>
@@ -1602,7 +1615,11 @@ function renderMap() {
         <div class="ov-actions"><button class="btn" data-a="close-door">Return to the summit</button></div>
       </div>`, (root) => {
         root.onclick = (closeEvent) => {
-          if (closeEvent.target.closest('[data-a="close-door"]')) closeOverlay();
+          if (closeEvent.target.closest('[data-a="close-door"]')) {
+            closeOverlay();
+            const eighth = S.run?.omens?.[S.run.act] === 'eighthOmen';
+            music.playForScreen('map', eighth ? 'eighthOmen' : null);
+          }
         };
       });
     };
@@ -1816,7 +1833,10 @@ function startCombatUI(enemyIds, kind) {
   if (S.screen !== 'combat') wipe();
   S.cb = E.startCombat(S.run, enemyIds, kind);
   S.screen = 'combat';
-  music.playForCombat(kind, S.run.act);
+  music.playForCombat(kind, S.run.act, {
+    questId: S.run.pendingQuestId,
+    omenId: S.run.omens?.[S.run.act] ?? null,
+  });
   V.setWeather(S.run.act, { boss: kind === 'boss' });
   renderCombat();
   renderHud();
@@ -5117,6 +5137,8 @@ async function drainEndQueue(run, host) {
     const event = events[i];
     const html = dawnEventHtml(event);
     if (!html) throw new Error(`unrenderable dawn event: ${event.t}`);
+    const dawnCue = music.dawnEventCue(event);
+    if (dawnCue) music.play(dawnCue);
     const panel = el('div', 'dawn-event', html);
     panel.dataset.event = event.t;
     host.appendChild(panel);
@@ -5395,7 +5417,7 @@ function renderAudioGallery() {
     </nav>
   </div>
   ${editorHtml}
-  <p class="ag-note">SFX are one-shots. Music loops until you pick another cue or Stop. Unwired music cues are registered for future content — preview still works here.</p>
+  <p class="ag-note">SFX are one-shots. Music loops until you pick another cue or Stop. Every Music Cue is wired into live screens after Emberglass Phase 2.</p>
   <h2 class="g-head" id="ag-sfx">SFX — ${SFX_CATALOG.length}</h2>
   ${sfxHtml}
   <h2 class="g-head" id="ag-music">Music — ${MUSIC_CATALOG.length}</h2>
