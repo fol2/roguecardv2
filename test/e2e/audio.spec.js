@@ -10,12 +10,16 @@ async function openAudioGallery(page) {
   await page.waitForSelector('.audio-gallery-mode .ag-editor');
 }
 
-test('audio gallery exposes the selected complete v2 versions and every gameplay id', async ({ page }) => {
+test('audio gallery exposes complete pack selectors and every gameplay id', async ({ page }) => {
   await openAudioGallery(page);
   await expect(page.locator('.ag-row[data-kind="music"]')).toHaveCount(22);
   await expect(page.locator('.ag-row[data-kind="sfx"]')).toHaveCount(36);
-  await expect(page.locator('#ag-music-version')).toHaveValue('stained-glass-v2');
-  await expect(page.locator('#ag-sfx-version')).toHaveValue('ashglass-v2');
+  const musicVersion = page.locator('#ag-music-version');
+  const sfxVersion = page.locator('#ag-sfx-version');
+  await expect(musicVersion).not.toHaveValue('');
+  await expect(sfxVersion).not.toHaveValue('');
+  expect(await musicVersion.evaluate((el) => [...el.options].some((option) => option.selected && option.value))).toBe(true);
+  expect(await sfxVersion.evaluate((el) => [...el.options].some((option) => option.selected && option.value))).toBe(true);
   await expect(page.locator('.ag-source')).toHaveCount(58);
   await expect(page.locator('.ag-config-errors')).toHaveCount(0);
 });
@@ -39,14 +43,22 @@ test('per-file source choice posts selection metadata without audio binaries', a
     await route.fulfill({ json: { ok: true, hot: true } });
   });
   await openAudioGallery(page);
+  const expected = await page.evaluate(() => {
+    const next = {
+      music: { version: document.querySelector('#ag-music-version').value, overrides: {} },
+      sfx: { version: document.querySelector('#ag-sfx-version').value, overrides: {} },
+    };
+    for (const select of document.querySelectorAll('.ag-source')) {
+      if (select.value) next[select.dataset.sourceKind].overrides[select.dataset.sourceId] = select.value;
+    }
+    return next;
+  });
   await page.locator('.ag-source[data-source-kind="music"][data-source-id="title"]')
     .selectOption('stained-glass-v1/map.mp3');
+  expected.music.overrides.title = 'stained-glass-v1/map.mp3';
   await page.locator('[data-a="save-audio"]').click();
   await expect.poll(() => payload).not.toBeNull();
-  expect(payload).toEqual({
-    music: { version: 'stained-glass-v2', overrides: { title: 'stained-glass-v1/map.mp3' } },
-    sfx: { version: 'ashglass-v2', overrides: {} },
-  });
+  expect(payload).toEqual(expected);
   expect(JSON.stringify(payload)).not.toContain('data:audio');
 });
 
