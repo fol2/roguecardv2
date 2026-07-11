@@ -387,7 +387,11 @@ Task 0 PE/FE worktrees + ledger ─┬─ Task 2 FE contract (allowed preparatio
 
 This protocol applies only after a green P4, P5 or P6 gate explicitly selects
 its supported prefix. It never applies to a P0.5 NO-GO or a partially completed
-phase.
+phase. The matching explicit P0.5 GO publication operation must have returned
+`{ clean:true, decision, destination, manifest }`, followed by exact durable
+manifest/hash/source re-verification and an empty matching debt scan; a
+candidate GO manifest or cleanup-blocked publication cannot support a prefix
+exit.
 
 1. Before locking the prefix source SHA, run `git fetch origin --prune` and
    record it as `Base SHA: <hash>` in the gate report. Require
@@ -1576,10 +1580,13 @@ if a future repair changes the spike source itself.
   requires a matching `SPIREBOUND_SOURCE_SHA`. DOM/production profiles retain
   their later task-specific source gates. The reusable runner never imports
   spike code.
-- Produces serial eight-cell JSON/screenshot evidence plus a PE-authored formal
-  GO/NO-GO report only from a complete decisive durable archive; evidence
-  claims functional compatibility only. Setup-blocked or partial diagnostics
-  remain inconclusive and ignored.
+- Produces serial eight-cell JSON/screenshot evidence. A complete decisive
+  durable archive is candidate evidence only; a PE-authored formal GO/NO-GO
+  report additionally requires the matching explicit publication operation to
+  return `{ clean:true, decision, destination, manifest }`, exact
+  manifest/hash/source re-verification and an empty matching debt scan. Evidence
+  claims functional compatibility only. Setup-blocked, partial or non-clean
+  diagnostics remain inconclusive and ignored.
 
 - [ ] **Step 1: Write the pure runner contract tests first**
 
@@ -1778,39 +1785,101 @@ three; normalised JSON/report rows retain all four owner-evidence fields.
 Durable publication is never an implicit side effect of a reusable full run.
 Two tested, mutually exclusive actions publish to
 `docs/superpowers/artifacts/round5-p0.5-simulator/` through the same
-failure-atomic transaction:
+clean-publication transaction:
 
 - `--promote-p0.5` accepts only `--matrix full`, `--surface spike`, an owned
   clean-head server at the exact source SHA and eight `passed` cells. It writes
-  durable GO evidence.
+  durable candidate GO evidence; the archive or manifest never carries `clean`,
+  and the candidate becomes formal only after the matching explicit publication
+  operation returns `{ clean:true, decision, destination, manifest }` and the
+  post-publication verification/debt gate passes.
 - `--archive-p0.5` requires the same matrix/surface/source contract, all eight
   decisive `passed|failed` cells and at least one `failed` cell. It writes
-  durable NO-GO evidence.
+  durable candidate NO-GO evidence under the same operation-result and
+  post-publication gate.
 
 Both reject external URLs, partial rows, any setup-blocked row, missing or
 mismatched JSON/PNG pairs, unsafe paths, invalid declared media/signatures and
-any destination update outside the transaction below. The manifest records
-`decision:'GO'|'NO-GO'`, exact source SHA and, for every file, a safe relative
-path, media type, byte size and SHA-256. A functional cell failure continues to
-later cells so the matrix can reach a formal decision; setup, safety or cleanup
-failure stops the run. Pure tests cover both acceptance paths, mutual
-exclusion, every rejection class and rollback that preserves the previous
-durable destination after a failed transaction. The publisher first builds a
-unique staging directory under the destination's same parent and fully
-validates every row, file, signature and hash there. If the destination exists,
-it renames that complete directory to a unique backup; it then renames the
-validated staging directory to the destination. On any swap failure it restores
-the prior destination (or leaves it absent if none existed) and removes every
-publisher-owned staging/backup residue.
-It deletes the backup only after the staging-to-destination rename succeeds.
-There is no permitted failure state in which publication destroys or partially
-replaces prior durable evidence. Deterministic fault-injection tests fail before
-and after each destination-to-backup and staging-to-destination rename/swap
-boundary, and assert prior-destination restoration plus complete owned
-staging/backup cleanup. Success-path tests assert the final destination hashes
-and no owned staging/backup residue. Without a valid explicit action the
-command leaves `docs/**` untouched, and reports may link only the committed
-durable paths, never ignored `test-results/` diagnostics.
+any destination update outside the transaction below. The manifest records a
+candidate `decision:'GO'|'NO-GO'`, exact source SHA and, for every file, a safe
+relative path, media type, byte size and SHA-256. The manifest never stores
+`clean`; that field belongs only to the publication operation result. A
+successful operation returns exactly
+`{ clean:true, decision, destination, manifest }`. A cleanup-debt error carries
+`error.publication={ clean:false, decision, destination, manifest? }` and
+`error.cleanupDebt={ code, ownedPaths, errors }`; `manifest` is present only
+when one was actually installed, `ownedPaths` contains exact paths, and
+`errors` retains the underlying error records. A functional cell failure
+continues to later cells so the matrix can reach a candidate decision; setup,
+safety or cleanup failure stops the run.
+
+The canonical destination is
+`docs/superpowers/artifacts/round5-p0.5-simulator/`; its same artifacts parent
+owns the fixed atomic lock
+`docs/superpowers/artifacts/.round5-p0.5-simulator.lock`. Transaction
+workspaces have the exact direct-child layout
+`docs/superpowers/artifacts/.round5-p0.5-simulator-txn-<unique>/`; staging is
+exactly `<workspace>/staging/`, and backup is exactly
+`<workspace>/backup/`. A backup exists only inside that owned transaction
+workspace. Before final source revalidation, the runner atomically creates the
+fixed lock. `EEXIST` rejects with zero source/artifact/workspace/destination
+mutation; the runner never removes or steals that existing lock.
+
+Only after a module-private token proves current ownership of the newly
+acquired fixed lock does the runner scan known transaction-workspace/debt
+records. The current owned lock is not debt while held; it becomes exact owned
+debt only if its release fails and the cleanup-debt error records its path. The
+debt scan recognises only the fixed lock path and direct children matching the
+exact `.round5-p0.5-simulator-txn-` prefix. A nested backup is known only through
+an exactly recorded workspace path; the scanner never performs a recursive or
+prefix-heuristic backup search. Any known prior debt or unowned/unknown matching
+workspace blocks before candidate artifact reads, transaction-workspace
+creation, final source revalidation or destination mutation. Final exact source
+revalidation, artifact reads and publication then occur inside the critical
+section. Only exact paths recorded by an error or operation result may enter
+deliberate audited reconciliation; prefix-heuristic deletion is forbidden. The
+runner retains and returns the publication operation result from the lock
+callback so command-line and report diagnostics still contain the candidate
+decision, canonical destination and installed manifest if lock release creates
+cleanup debt.
+
+The publisher creates one unique transaction workspace using the frozen layout,
+fully validates every row, file, signature and hash in its staging directory,
+then swaps by rename. The publication commit boundary is successful
+installation of that fully validated staging directory at the canonical
+destination followed by passage of the explicit post-swap fault point. Before
+that boundary, a recoverable failure removes any newly installed destination,
+restores the complete prior destination (or its prior absence) and removes the
+owned workspace. If rollback or cleanup itself fails, publication exits
+non-zero with the cleanup-debt error shape above, preserves every exact owned
+debt path and underlying error, and is cleanup-blocked/inconclusive; it must not
+claim zero residue or fabricate an installed manifest when none exists.
+
+After the commit boundary, backup, workspace or lock disposal failure must
+never restore a possibly partial old backup over the verified new destination.
+The complete hash-verifiable new destination remains installed and the command
+exits non-zero with the same cleanup-debt error shape.
+`error.cleanupDebt.code` is `PUBLICATION_CLEANUP_DEBT` or
+`PUBLICATION_LOCK_CLEANUP_DEBT`; `error.publication.manifest` is present only
+when installed. Pre-commit cleanup debt retains whatever candidate operation
+metadata was actually established but never fabricates an installed manifest.
+
+Pure and real-filesystem tests cover both clean acceptance paths, mutual
+exclusion, every rejection class, prior matching debt blocking a later run,
+an untouched foreign lock, pre-commit rollback/cleanup debt paths, a complete
+post-commit destination plus cleanup debt, lock-cleanup debt metadata, and a
+clean path with exact final hashes and zero matching residue. Deterministic
+fault injection covers every destination-to-backup,
+staging-to-destination, post-swap, backup/workspace disposal and lock-release
+boundary. Tests freeze the exact fixed lock path, direct-child workspace prefix,
+backup nesting, atomic-acquire/token/debt-scan order, `EEXIST` zero-mutation
+behaviour, current-lock exclusion and recorded-exact-path-only reconciliation
+boundary. Exact recorded owned debt is reconciled only through a deliberate
+audited cleanup outside this task, followed by re-verification of the surviving
+durable archive when one exists or proof that the canonical destination remains
+absent otherwise, then a fresh complete unflagged-plus-flagged run. Without a
+valid explicit action the command leaves `docs/**` untouched, and reports may
+link only committed durable paths, never ignored `test-results/` diagnostics.
 
 - [ ] **Step 4: Add stable entry points and prove the runner tests green**
 
@@ -1862,7 +1931,12 @@ Inspect the ignored results and require all eight rows to be present, decisive
 `passed|failed` and paired with valid matching JSON/PNG evidence. A
 setup-blocked, partial, cleanup-failed or missing-artifact run is inconclusive:
 repair the runner/environment and repeat the unflagged full matrix; do not
-publish a product decision.
+publish a product decision. Before the matching explicit flagged rerun, require
+no matching publication workspace/backup/lock debt. If exact recorded owned
+debt exists, stop for deliberate audited reconciliation, re-verify the
+surviving durable archive when one exists or prove the canonical destination
+remains absent otherwise, then perform a fresh complete
+unflagged-plus-flagged run; never auto-delete it.
 
 If and only if all eight inspected cells passed, rerun the same complete gate
 with the explicit GO action:
@@ -1889,8 +1963,20 @@ SPIREBOUND_SERVER_CWD=../round5-pixi-spike \
 ```
 
 The durable action validates its own fresh eight-cell result. Eight passes are
-GO; a complete decisive matrix with at least one functional failure is NO-GO
-and blocks Task 5. The runner must not assume GO from command intent.
+a candidate GO; a complete decisive matrix with at least one functional
+failure is a candidate NO-GO. If publication throws any error, including a
+cleanup-debt error, or returns anything other than
+`{ clean:true, decision, destination, manifest }`, stop
+cleanup-blocked/inconclusive: issue no formal report, commit no artifacts and do
+not continue to Task 5. Repair a non-debt error before retrying. For recorded
+cleanup debt, do not rerun publication until deliberate audited reconciliation,
+re-verification of the surviving durable archive when one exists or proof that
+the canonical destination remains absent otherwise. In either case, the next
+decision attempt is a fresh complete unflagged-plus-flagged run. Only the
+matching explicit publication operation's `clean:true` result plus the
+subsequent archive/debt gate makes the candidate a formal decision. A formal
+NO-GO blocks Task 5. The runner must not assume GO from command intent or
+manifest decision alone.
 
 - [ ] **Step 6: Write the report and complete both independent review cycles**
 
@@ -1906,13 +1992,20 @@ reviewer reviews the report/raw artifacts, PE fixes and obtains re-review, then
 a fresh code-quality reviewer reviews the evidence/path discipline, followed by
 PE fixes and re-review. PE owns the decision evidence.
 
-Issue the formal report only after the matching explicit durable action has
-succeeded. A setup-blocked/partial run remains ignored diagnostics and is
-reported as `SETUP BLOCKED`/inconclusive without a product-decision report. A
-NO-GO report is permitted only after the complete `--archive-p0.5` contract;
-the final report links no ignored paths. Step 7 commits the report and its exact
-durable artifact directory together, then verifies every report link resolves
-to a committed path.
+Issue the formal report only after the matching explicit publication operation
+returns `{ clean:true, decision, destination, manifest }`, every durable
+manifest entry, hash and source SHA re-verifies, and a same-parent scan finds no
+matching debt. A setup-blocked/partial/non-clean run remains
+ignored diagnostics and is reported as `SETUP BLOCKED`/inconclusive without a
+product-decision report. A formal NO-GO report is permitted only after the
+complete `--archive-p0.5` candidate-evidence contract and those operation,
+verification and debt gates; the final report links no ignored paths. Cleanup
+debt blocks reporting and another publication until deliberate audited
+reconciliation, re-verification of the surviving durable archive when one
+exists or proof that the canonical destination remains absent otherwise, then
+a fresh complete unflagged-plus-flagged run. Step 7 commits the report and its
+exact durable artifact directory together, then verifies every report link
+resolves to a committed path.
 
 On GO only, verify the disposable worktree is clean and record its frozen hash.
 Keep `.worktrees/round5-pixi-spike` and `codex/round5-pixi-spike` intact as
@@ -1943,11 +2036,19 @@ git add package.json package-lock.json test/simulator/matrix.mjs \
 git commit -m "test: record the Simulator Safari Pixi gate"
 ```
 
-Do not commit `test-results/` or any setup-blocked/partial diagnostics. A formal
-NO-GO report is committed only with a complete decisive `--archive-p0.5`
-directory; execution then stops before Task 5 and the golden design is revised
-rather than bypassed. After the commit, require every report artifact link to
-resolve through `git ls-files` at that commit.
+Do not commit `test-results/` or any setup-blocked/partial/non-clean
+diagnostics. Stage a formal GO/NO-GO report and durable directory only after
+the matching explicit publication operation returned
+`{ clean:true, decision, destination, manifest }`, exact manifest/hash/source
+re-verification and an empty matching debt scan. A formal NO-GO report is
+committed only with a complete decisive `--archive-p0.5` candidate directory
+after those gates; execution then stops before Task 5 and the golden design is
+revised rather than bypassed. Cleanup debt blocks both this commit and another
+publication until deliberate audited reconciliation, re-verification of the
+surviving durable archive when one exists or proof that the canonical
+destination remains absent otherwise, then a fresh complete
+unflagged-plus-flagged run. After the commit, require every report artifact link
+to resolve through `git ls-files` at that commit.
 
 ---
 

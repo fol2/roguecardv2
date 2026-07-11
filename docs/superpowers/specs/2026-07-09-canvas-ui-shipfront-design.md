@@ -1267,15 +1267,50 @@ Capacitor/hardware round. More Simulator model names do not add hardware proof
 because they still use the host Mac's CPU, memory, and GPU.
 
 A formal product decision requires all eight cells to be decisive
-`passed|failed` and every corresponding JSON/screenshot pair to be durably
-archived through a failure-atomic transaction: a failed publication leaves the
-complete prior durable archive unchanged and no partial replacement or owned
-staging/backup residue. Eight passes produce GO and P1 proceeds; one or more
-exercised functional failures produce NO-GO and reopen the canvas decision
-before any sunk cost (the registries, behaviour trace, and tooling phases remain
-valuable regardless). A setup-blocked row, incomplete matrix or missing
-artifact remains `SETUP BLOCKED`/inconclusive and must not be published as
-either GO or NO-GO.
+`passed|failed` and every corresponding JSON/screenshot pair to pass the
+clean-publication contract. The publication commit boundary is the successful
+installation of the fully validated staging directory at the canonical
+destination followed by passage of the explicit post-swap fault point. Before
+that boundary, a recoverable failure restores the complete prior destination
+(or its prior absence) and removes the publisher-owned transaction workspace.
+If that rollback or cleanup itself fails, the publisher preserves and records
+the exact owned debt paths, exits non-zero with a cleanup-debt error whose
+publication operation result has `clean:false`, and treats the gate as
+cleanup-blocked/inconclusive; it makes no absolute no-residue claim.
+
+After the commit boundary, a backup, workspace or publication-lock disposal
+failure must never restore a possibly partial old backup over the complete,
+hash-verifiable new destination. The publisher preserves that new destination,
+exits non-zero with a cleanup-debt error whose publication operation result has
+`clean:false`, and records exact publisher-owned debt paths plus
+`PUBLICATION_CLEANUP_DEBT` or `PUBLICATION_LOCK_CLEANUP_DEBT`. `clean` belongs
+only to the publication operation result, never to the manifest or archive. A
+successful operation returns `{ clean:true, decision, destination, manifest }`.
+A cleanup-debt error carries
+`error.publication={ clean:false, decision, destination, manifest? }` and
+`error.cleanupDebt={ code, ownedPaths, errors }`; `manifest` is present only
+when one was actually installed. The manifest retains only candidate
+decision/source/file metadata. Its `decision:'GO'|'NO-GO'` remains a candidate
+until the matching explicit publication operation returns `clean:true`. Formal
+GO/NO-GO reporting, an artifact commit and P1 continuation additionally require
+exact durable manifest/hash/source re-verification and an empty matching
+workspace/backup/lock debt scan at the canonical destination.
+
+Any matching prior debt blocks a later publication before source or artifact
+mutation. An unowned or contended lock/workspace is never removed, stolen or
+automatically reconciled. Exact recorded owned debt may be reconciled only by
+a deliberate audited cleanup, followed by re-verification of the surviving
+durable archive when one exists or proof that the canonical destination remains
+absent otherwise, then a fresh complete unflagged-plus-flagged run.
+Cleanup-blocked publication is a technical inconclusive state, not another
+product outcome. When the matching explicit publication operation returns
+`clean:true` and the subsequent durable archive verification and empty matching
+debt gates pass, eight passes produce GO and P1 proceeds; one or more exercised
+functional failures produce NO-GO and reopen the canvas decision before any
+sunk cost (the registries, behaviour trace, and tooling phases remain valuable
+regardless). A setup-blocked row, incomplete matrix, missing artifact or
+non-clean publication remains `SETUP BLOCKED`/inconclusive and must not be
+reported or committed as either GO or NO-GO.
 This gate remains functional-compatibility-only: it requires no physical device
 and makes none of the deferred physical-device claims above.
 
@@ -1465,18 +1500,28 @@ scene3d/mesh (Capacitor round).
 
 There are three distinct outcomes; the implementation record must name which
 one occurred rather than blending them into one definition of “done”.
+Publication cleanup debt is a technical `SETUP BLOCKED`/inconclusive state,
+not a fourth outcome. It blocks formal reporting, an artifact commit, a later
+publication and every downstream exit until deliberately reconciled and
+the surviving durable archive has been re-verified when one exists or the
+canonical destination has been proven absent otherwise, followed by a fresh
+complete unflagged-plus-flagged run.
 
 1. **Compatibility NO-GO / re-scope:** the complete P0.5 matrix has eight
-   decisive, durably archived cells and at least one booted/exercised cell
-   fails a written functional criterion. The spike has succeeded as a decision
-   gate, but Round 5 has not shipped or completed. Production migration stops
-   and this design must be revised before execution resumes. Missing
-   toolchain/runtime/GUI prerequisites, a setup-blocked row, a partial matrix
-   or missing artifacts are `SETUP BLOCKED`/inconclusive, not this outcome.
-2. **Supported reduced-scope prefix stop:** P0.5 passes and a contiguous phase
-   prefix ending at P4, P5, or P6 passes every applicable standing gate. The
-   execution record names the last completed phase and the explicitly deferred
-   tail:
+   decisive cells, at least one booted/exercised cell fails a written
+   functional criterion, the matching explicit NO-GO publication operation
+   returned `clean:true`, and the archive passed exact manifest/hash/source
+   verification with no matching workspace/backup/lock debt. The spike has
+   succeeded as a decision gate, but Round 5 has not shipped or completed.
+   Production migration stops and this design must be revised before execution
+   resumes. Missing toolchain/runtime/GUI prerequisites, a setup-blocked row, a
+   partial matrix, missing artifacts or any non-clean publication are
+   `SETUP BLOCKED`/inconclusive, not this outcome.
+2. **Supported reduced-scope prefix stop:** P0.5 passes its clean-publication
+   gate and a contiguous phase prefix ending at P4, P5, or P6 passes every
+   applicable standing gate. A candidate GO manifest or cleanup-blocked
+   publication cannot support this outcome. The execution record names the
+   last completed phase and the explicitly deferred tail:
    - **P4 PE-core:** combat chrome is Pixi while the hand remains DOM under the
      P4 allowed-list; P5–P7 are deferred. It may claim the commercial-engine
      substrate, but not fully game-rendered combat.
@@ -1494,7 +1539,10 @@ one occurred rather than blending them into one definition of “done”.
 ## Full-Round success criteria
 
 1. **P0.5 Simulator Safari compatibility spike passed its written functional
-   criteria.** The evidence makes no physical-device claim.
+   criteria and clean-publication gate.** The matching explicit GO publication
+   operation returned `clean:true`, and the archive passed exact
+   manifest/hash/source verification with no matching workspace/backup/lock
+   debt. The evidence makes no physical-device claim.
 2. **Semantic behaviour proof:** an AI can diagnose representative screen,
    card-drag/cancel, combat queue, ceremony, persistence-recovery, and renderer-
    recovery journeys from the timestamped text alone; Playwright and Simulator
