@@ -1,6 +1,6 @@
 # Round 5 research: semantic UI behaviour trace and iOS Simulator
 
-**Date:** 2026-07-10
+**Date:** 2026-07-10; live toolchain snapshot refreshed 2026-07-11
 
 **Status:** Accepted research basis; the Round 5 design specification is the canonical contract, not this note
 
@@ -129,7 +129,7 @@ The workstation inspected for this note currently has:
 
 - macOS 26.5.2;
 - Xcode 26.6 (build 17F113);
-- iOS Simulator runtime 26.5 (23F77); and
+- iOS Simulator runtime 26.5 (23F73); and
 - Playwright 1.61.1 in this repository.
 
 `xcrun simctl list devicetypes` confirms current definitions for iPhone 17,

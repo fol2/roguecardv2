@@ -5,14 +5,17 @@ revised again after three independent reviews — gstack four-lens, ponytail
 over-engineering, ask-matt grilling — with owner decisions recorded below;
 revised 2026-07-10: commercial-grade production framing, semantic UI behaviour
 trace, iOS Simulator Safari coverage, and explicit Production Engineering /
-Front-end Experience agent ownership)
+Front-end Experience agent ownership; revised 2026-07-11 after PR #14 and
+PR #15 merged: the 32-export data contract, transactional Dawn recovery,
+parallel-CI/performance policy, Phase 2 presentation states, and hot-applied
+audio-gallery behaviour are now part of the Round 5 baseline)
 **Goal:** The commercial-grade production-engineering and final visual-hardening
 round. Replace the fragile CSS-composited
 combat UI with a **game-rendered PixiJS layer** (chrome *and* hand cards),
 rebuild the content substrate as **registries + compiled-in content packs** so
 expansions and Act 4 become data drops instead of codebase surgery, grow the
 dev tooling (Content Lab, completeness reporting, Content Manager), give
-every remaining screen (title, Embark, fallen/victory, non-combat panels, map)
+every remaining screen (title, Embark, Fall/Dawn, non-combat panels, map)
 its award-bar treatment, extend the already-merged CI gate for the new
 contracts, and clear the remaining ship-front backlog (per-boss stages, store
 visual kit, unlock-toast art). After this round the game should
@@ -27,11 +30,12 @@ checkpoint**, never left to the executor.
 (fixed stage, Playwright kit, invariants), `2026-07-09-ui-chrome-assets-design.md`
 (the 27-asset `src/assets/ui/` kit this round reuses as textures),
 `2026-07-09-pile-chrome-ceremony-design.md` (flight budgets carried over),
-`2026-07-09-entrance-progressive-delivery-design.md` (**hard prerequisite:**
-Phase 2 — variants, Emberglass chain, rose window — must be merged before this
-round's runtime work starts; this spec assumes those surfaces and tables exist.
-Documentation/planning and unpromoted FE concept work may prepare earlier, but
-they are not Round 5 runtime execution.)
+`2026-07-09-entrance-progressive-delivery-design.md` (**landed prerequisite:**
+Phase 2 — variants, the Emberglass chain, Rose Window, transactional Dawn and
+sealed summit promise — merged in PR #14 at `4698906`; PR #15 then established
+the current `4dc1af7` baseline for hot audio-gallery preview/apply. Every Round
+5 execution branch must contain both merges before runtime work. The merged
+surfaces and contracts are inputs, never work for Round 5 to reimplement.)
 
 ## Decisions record (owner-approved)
 
@@ -42,16 +46,18 @@ they are not Round 5 runtime execution.)
 | UI end-state | **Canvas/WebGL chrome**, not data-driven DOM and not a framework migration |
 | Canvas migration depth | **Full combat UI including hand cards** — but gated: the **P0.5 Simulator Safari compatibility spike** must pass before P1 begins, and a **P4→P5 Simulator/Playwright checkpoint** must pass before the hand migrates. "Pixi chrome + DOM hand" is a declared-acceptable shipped state if P5 stops |
 | Engine | **PixiJS v8**, WebGL renderer pinned (never WebGPU) |
-| Ordering vs content line | **Progressive Delivery Phase 2 executes first**; this round starts after it merges. During P2 (re-homing) the content line observes a **content-table freeze** (assets/plans only) |
+| Ordering vs content line | **Progressive Delivery Phase 2 and its PR #15 follow-up are loaded** at the `4dc1af7` minimum baseline. A later `main` change triggers a fresh drift audit before execution. During Round 5 P2 (re-homing) the content line observes a **content-table freeze** (assets/plans only) |
 | Delivery lanes | **Production Engineering (PE) is the primary lane; Front-end Experience (FE) is a small, design-led lane.** PE owns all substrate, refactoring, Content Lab/manager, renderer mechanics, tooling, tests and integration. FE owns only authored player-facing presentation. Independent QA verifies both; owner taste checkpoints stay with the owner |
 | Parallel execution | PE and FE may run concurrently only from separate worktrees on a written disjoint-file manifest. A shared file is a sequential hand-off, never a concurrent edit. Every implementation-plan task has exactly one `[PE]`, `[FE]`, `[QA]`, or `[OWNER]` lead |
-| Content substrate | **Full content-pack architecture**: per-domain registries with schemas, existing content re-homed as the `core` pack, `data.js` becomes the assembler. Registry work lands **before any production Pixi migration**; the disposable P0.5 compatibility spike is the sole exception. Pack contract is **data plus behaviour functions** (enemy `ai` stays code — see §2); an AI-DSL is explicitly out of scope |
+| Content substrate | **Full content-pack architecture**: per-domain registries with schemas, existing content re-homed as the `core` pack, `data.js` becomes the assembler. Registry work lands **before any production Pixi migration**; the disposable P0.5 compatibility spike is the sole exception. Pack contract is **data plus declared behaviour functions** (enemy `ai` stays code — see §2); the legacy Hollow target getter is materialised from merged progression rather than copied with a global closure; an AI-DSL is explicitly out of scope |
 | Pack delivery | **Compiled-in** (static imports; an expansion ships as an app update). Runtime/downloadable DLC out of scope — the pack *format* is the future-proofing, not a download pipeline. No save-shape change for packs (unknown-id validation already rejects a save whose content is absent) |
 | Dev tooling | Dev shell, Content Lab, completeness reporting ("content doctor"), and **Content Manager** (the schema-driven CRUD editor). Content Manager and the dev shell are **droppable pressure-valve items**; Content Manager covers cards/relics/potions/themes only and never touches behaviour fields. All are PE, not FE |
 | UI behaviour observability | **Semantic UI Behaviour Trace** — a renderer-neutral, versioned structured event stream is canonical; timestamped text and NDJSON are derived AI/human views. It lands at the start of P1 before decomposition, is local and bounded, and is not analytics or a second source of game truth |
 | Mobile browser matrix | Playwright WebKit device emulation and actual Safari in representative iOS/iPadOS Simulators are separate lanes. Simulator Safari is driven serially through Apple `safaridriver`; Round 5 deliberately has no physical-device gate and makes no physical FPS, memory, thermal, background-eviction, latency, or touch-feel claim |
+| Performance policy | The merged Phase 2 policy remains authoritative: **a missing, invalid or crashed measurement fails; a valid 55fps/22ms target miss is a recorded warning/reference, not a merge failure**. Round 5 records portrait/LITE and desktop/Full Pixi measurements without claiming Simulator or physical-device performance |
+| Phase 2 domain language | A successful Climb ends at **Dawn** and a death is a **Fall**. Internal compatibility values (`win`, `death`), route names and Music Cue ids (`victory`, `defeat`) stay unchanged |
 | Store kit | Keep the **capture script + shot list** (rerunnable assets); the captured set is labelled **provisional/marketing-only**; trailer capture is raw reference footage only; device-framed store matrices and store-grade capture re-run in the Capacitor round |
-| Screens in scope | All four sets: fallen/victory, title + Embark, non-combat panels (rewards/shop/event/rest/lamplighter/vigil), map re-upgrade (light) |
+| Screens in scope | All four sets: Fall/Dawn, title + Embark, non-combat panels (rewards/shop/event/rest/lamplighter/vigil), map re-upgrade (light) |
 | Catch-up status | CI wiring is already complete at P0. Remaining items are per-boss unique stage sets, store visual assets, and unlock-toast art; later phases extend the existing CI gate rather than redoing it |
 | What stays DOM | Tooltip, pop-menus, toasts, settings, map screen (DOM-on-3D projection), all non-combat screens — restyled, not migrated |
 
@@ -151,7 +157,8 @@ choreography to a high bar. What remains fragile is the *substrate*:
 - Combat chrome is CSS composition hand-tuned pixel by pixel — the UI-chrome
   round left dozens of "Nudge / Enlarge / Shrink / Restore" commits as evidence
   that the model has no stable widget layer.
-- `ui.js` is a 4.3k-line single orchestrator rendering every screen.
+- Post-Phase-2 `ui.js` is a 5.6k-line single orchestrator rendering every
+  screen and coordinating the new persistence/Dawn transactions.
 - **Content is scattered.** One card's identity spans `data.js` (stats, `vfx`
   field), `src/assets/cards/`, `vfx.js` (`BESPOKE_VFX`), pool/wave membership
   in `PROGRESSION`, and unlock `locked:` flags. One enemy adds `char-meta.js`
@@ -163,7 +170,7 @@ choreography to a high bar. What remains fragile is the *substrate*:
   hard-coded as engine hooks. Registries make content *registration* a data
   drop; new *mechanics* still mean engine work. The spec claims the former,
   not the latter.)
-- Fallen/victory screens are a meta plate behind a CSS panel; the title got
+- Fall/Dawn screens are a meta plate behind a CSS panel; the title got
   *cleaned* by Progressive Delivery Phase 1 but never visually hardened; the
   non-combat screens only ever received scene-panel backdrops and icons.
 - CI wiring is complete at P0. Repeatedly deferred per-boss stages and store
@@ -172,47 +179,72 @@ choreography to a high bar. What remains fragile is the *substrate*:
 ## Invariants (violating any fails review)
 
 - **The predecessor gate is a hard runtime stop.** Before P0.5, PE verifies
-  from the execution branch itself that Progressive Delivery Phase 2 is in its
-  ancestry and that the expected `src/data.js` exports `VARIANTS` and
-  `WHISPERS`, plus the Emberglass-chain and
-  rose-window/reveal surfaces are present. Planning and the FE experience
-  contract may proceed earlier; Round 5 production code may not. A local dirty
-  predecessor worktree is not a merge and cannot satisfy this gate.
+  from the execution branch itself that PR #14 merge `4698906` and PR #15
+  merge `4dc1af7` are in its ancestry. The branch must expose all 32 current
+  `src/data.js` exports: 28 content views plus `QUEST_STATES`,
+  `QUEST_ACTIVE_STATES`, `TERMINAL_OUTCOMES` and `RUN_ID_RE`; the Emberglass,
+  Rose Window, sealed-door, transactional Dawn and hot audio-gallery surfaces
+  must be present. A later `main` change reopens the drift audit. A local dirty
+  predecessor worktree never satisfies this gate.
 - **Engine purity is untouched.** `engine.js`, `vigil.js`, `data.js`,
   `battlefield*.js`, `uic.js`, `ui-chrome-layout.js`, and the new
-  `src/registry.js` / `src/packs/**` / `src/ui/tokens.js` /
-  `src/ui/behaviour-trace.js` stay Node-runnable and DOM-free. `drain()` still
+  `src/content-protocol.js` / `src/registry.js` / `src/packs/**` /
+  `src/ui/tokens.js` / `src/ui/behaviour-trace.js` /
+  `src/ui/presentation-barrier.js` / `src/ui/run-effects.js` stay
+  Node-runnable and DOM-free. Existing `src/choice-latch.js` stays Node-pure.
+  `drain()` still
   consumes `cb.queue`; only the playback target changes from DOM to sprites.
   The trace observes presentation and never enters the engine import graph.
-  `npm test` green at every task boundary.
+  `npm run test:ci` and `npm test` stay green at every task boundary.
 - **The import graph is preserved.** `engine.js` imports `data.js` only,
   exactly as today. `data.js` becomes an assembler (imports packs + registry,
-  re-exports the same named exports) — its consumers never change.
+  re-exports the 28 content views and the four protocol constants) — its
+  consumers never change. Protocol constants are not pack-merge content.
 - **Registry refactor is behaviour-neutral, proven three ways.** Content
-  tables contain functions (enemy `ai`), so "deep-equal a fixture" alone is
-  unimplementable. The golden-equivalence gate is: (i) deep-equal on a
-  functions-stripped JSON projection of every exported table; (ii) behavioural
+  tables contain functions (enemy `ai`), the pre-registry Hollow target is a
+  getter closing over global progression, and the compatibility surface
+  contains a RegExp (`RUN_ID_RE`), so "deep-equal a JSON fixture" alone is
+  unimplementable. The golden-equivalence gate is: (i) deep-equal on a stable
+  observable-value projection of all 32 exports which strips behaviour
+  functions and encodes RegExp `source`/`flags`, plus a descriptor inventory
+  proving the single legacy Hollow getter is intentionally replaced by the
+  same numeric value derived from the merged context's progression; (ii) behavioural
   trace equivalence for each enemy `ai` over a fixed seeded schedule of the
   complete live context (`turn`, `last`, `prev`, `hpFrac`, `rng`, and mutable
   `self`), before vs after re-homing — comparing the returned move, RNG
   consumption/final state, and every permitted `self` mutation; (iii) the
   fixed-seed monte-carlo digest unchanged. All three legs are `npm test` checks.
-- **Internal keys, card/relic/status ids, save shapes: immutable, as ever.**
-  Re-homing content into packs changes file locations, never ids. No new save
-  fields for packs.
+- **Internal keys, card/relic/status ids, and the post-PR15 save shape are
+  immutable.** Re-homing content into packs changes file locations, never ids.
+  No new save fields for packs. The protected baseline includes `runId`, quest
+  snapshots, pending encounters/rewards/Hollow routes/Shade duels,
+  `pendingRunEnd`, `pendingDawn`, Dawn cursor/clear recovery, Vigil receipts and
+  bequest validation.
+- **Phase 2 terminal work has one transactional owner.** P1 extracts one
+  Node-pure run-effects seam before moving the end, overlay or combat owners.
+  It preserves journal → save → `commitPendingRunEnd` → Vigil/stats receipt →
+  run acknowledgement ordering, idempotent retry, navigation lock, Dawn
+  stage/cursor/final-clear recovery, Hollow/Shard/bequest recovery and the
+  one-shot `choice-latch` guards. P3 extends that same seam for ephemeral Lab
+  runs; it never creates a second terminal path.
 - **Schemas are the single source.** Registry schemas drive validation, the
   content-doctor report, and Content Manager's CRUD forms. No tool re-declares
   content shape. Unknown extension keys warn, never fail. Behaviour-valued
   fields (`ai`, event hooks) are declared as `kind: 'function'` in the schema:
   validated for presence/arity only, excluded from projection, serialisation,
-  and CRUD forms.
+  and CRUD forms. Pack getters/setters are rejected because their closures can
+  bind the wrong context. Assembly derives the numeric Hollow Quest target from
+  that context's merged progression. Protocol RegExp/constants are outside pack
+  schemas.
 - **No act coupling outside packs.** After the theme extraction, act
   references may not survive outside pack content — and the sweep covers
   more than string literals: numeric act indices, clamps (e.g. the
   `Math.min(act, 2)` weather clamp in `vfx.js`), and `length`-of-acts
-  assumptions. Unavoidable residue (e.g. save migration, tower geometry if
-  not extracted) enters an explicit, enumerated allowlist in the plan — the
-  promise is honest, not implied-zero.
+  assumptions. Current final-act comparisons, `PALE_BY_ACT` clamps and save
+  validation ceilings must resolve through registered theme count/finality;
+  they cannot be allowlisted while this round claims future Act 4 registration
+  is a data drop. Fixed three-act tower geometry/editor coordinates are the
+  only expected residue and enter an explicit, enumerated allowlist.
 - **Combat input has one owner.** `#uigl` is `pointer-events: none`. A single
   stage-level input router receives all combat pointer input, hit-tests the
   Pixi scene first (using the same bounds the probe `ui()` reader exposes),
@@ -276,6 +308,13 @@ choreography to a high bar. What remains fragile is the *substrate*:
   LITE reads intentional, lower DPR cap).
 - **Preview mirrors are untouched.** `previewPlay` / `previewBlock` /
   `previewEnemyDmg` stay pure; only their display layer changes.
+- **PR #15 audio-gallery behaviour is a protected baseline.** Unsaved
+  per-row selection previews the draft ref; Save posts metadata only, applies
+  in place without reload, invalidates SFX/music selection caches and
+  re-resolves the active cue; `_raw` audio never enters inventory or bundle;
+  production remains read-only. P1 extraction and P2 theme work preserve these
+  interfaces. A forced gallery preview is not evidence that an unwired Music
+  Cue plays in the game.
 - **The Semantic UI Behaviour Trace is a first-class test interface, never a
   second game truth.** Semantic owners emit versioned, immutable, JSON-safe
   records at interaction, routing, queue-playback, ceremony, lifecycle,
@@ -288,11 +327,18 @@ choreography to a high bar. What remains fragile is the *substrate*:
   frames, and full save snapshots never enter the trace. The bounded buffer
   reports overflow explicitly; tracing fails open for play but overflow,
   malformed records, orphaned spans, and unexpected `error.*` events fail tests.
+  Phase 2 transaction records use bounded stable kinds/reasons for initial-run
+  save, Usurper purchase, Shade bequest clear, Hollow payment/route clear,
+  terminal finalisation and Dawn cursor/final clear. Compact checkpoints may
+  include terminal lock, pending kind, Dawn cursor/total and Hollow route type,
+  never a full save. Phase 2 Probe enemy identity (`key`, `variantId`, `artId`)
+  and forced Rose fallback remain visible through their existing read-only
+  contracts.
 - **Trace scope is local diagnostics.** It is enabled only in development,
   tests, or an explicit non-public QA build; ordinary production builds take a
   no-op path. It has no network exporter, automatic persistence, user analytics,
-  or crash reporting. Performance gates run with recording disabled so the
-  observer cannot perturb the number it measures.
+  or crash reporting. Performance measurements run with recording disabled so
+  the observer cannot perturb the number it measures.
 - **Dev tooling is dev-only.** The Lab / doctor / Content Manager and the
   `/__content-save` endpoint exist only under the Vite dev server (same
   same-origin gate as `/__bf-save`); none of it reaches the production
@@ -334,7 +380,9 @@ src/packs/core/**  (data + declared behaviour functions + presentation meta)
 src/registry.js    (schemas, id uniqueness, cross-refs, per-domain merge,
                     freeze, content-doctor report — Node-pure)
         ↓
-src/data.js        (assembler: re-exports the same named tables as today)
+src/content-protocol.js (four immutable validation/protocol exports)
+        ↓
+src/data.js        (assembler: 28 content views + four protocol re-exports)
         ↓                          ↓
 engine.js (unchanged)     ui/* + vfx + music (read registries & tokens)
 ```
@@ -358,9 +406,11 @@ installs `window.spirebound` / `window.__probe`.
 |---|---|---|---|
 | `src/ui/index.js` | orchestrator: `show()`, screen routing, boot | P1 | PE |
 | `src/ui/behaviour-trace.js` | renderer-neutral structured flight recorder; span lifecycle, bounded buffer, contract/text/NDJSON projections | P1, before decomposition | PE |
+| `src/ui/run-effects.js` | sole DOM-free terminal/Vigil/stats/Dawn/Hollow/Shard/bequest transaction adapter; normal path first, later extended for ephemeral Lab suppression | P1, P3 | PE |
 | `src/ui/drain.js` | `drain()` and the event→handler dispatch | P1 | PE |
 | `src/ui/combat.js` | combat screen assembly (later delegates to `src/ui/combat-gl.js`) | P1 | PE |
 | `src/ui/screens/*.js` | title, embark, map, rewards, shop, event, rest, lamplighter, end, vigil | P1, P6 | PE owns all JavaScript; FE contract + dedicated CSS provide presentation |
+| `src/content-protocol.js` | `QUEST_STATES`, `QUEST_ACTIVE_STATES`, `TERMINAL_OUTCOMES`, `RUN_ID_RE`; never pack-merge content | P2 | PE |
 | `src/registry.js` | pack registration, schemas, merge, content doctor | P2 | PE |
 | `src/packs/core/**` | all existing content, re-homed | P2 | PE |
 | `src/packs/_sample/**` | dev/test-only fixture pack (a card, an enemy, a mini theme) | P2 | PE |
@@ -440,12 +490,18 @@ The initial vocabulary covers:
   card drag, targeting, keyboard actions, map selection, and map pan boundaries;
 - combat and dawn drain start/end; every queue event start/end/fail, including
   each event consumed inside a draw/reshuffle batch;
+- the merged Phase 2 presentation owners `bossIntro`, `variantDialogue`,
+  `questReveal`, `questProgress`, `questComplete`, `questUnlock`,
+  `monumentGift` and `hollowTithe`, preserving their queue correlation;
 - named presentation ceremonies start/end, with terminal outcome `settled`,
   `cancelled`, `skipped`, or `failed`; REDUCED is renderer-policy metadata plus
   a named end-state, never a lifecycle outcome. A handler finishing stays
   distinct from detached motion actually settling;
-- meaningful Music Cue/SFX request outcomes, audio unlock, persistence blockers
-  and recovery, renderer context loss/rebuild/ready, and trace/invariant errors;
+- meaningful Music Cue/SFX request outcomes, audio unlock, and persistence
+  attempts/blockers/recovery with stable `kind`/`reason` for initial-run save,
+  Usurper purchase, Shade bequest clear, Hollow payment/route clear, terminal
+  finalisation and Dawn cursor/final clear; renderer context
+  loss/rebuild/ready; and trace/invariant errors;
 - explicit compact checkpoints using the same semantic state projection as the
   probe — never a mutable reference to `run`, `cb`, DOM, or Pixi state.
 
@@ -488,17 +544,30 @@ production substrate used by the shipped game, not dev tooling.
 ### The assembler move
 
 `data.js` stops *containing* content and starts *assembling* it: it imports
-the pack modules, feeds them through `src/registry.js`, and re-exports exactly
-the named tables it exports today (`CARDS`, `ENEMIES`, `RELICS`, `POTIONS`,
-`EVENTS`, `STATUS_INFO`, `OMENS`, `BOONS`, `ASPECTS`, `DEEDS`, `VARIANTS`,
-`WHISPERS`, `PROGRESSION`, `REVEALS`, …the exact list is enumerated in the
-plan after Progressive Delivery Phase 2 merges). Engine, tests, saves, and
-UI consumers never notice. **During this phase the content line observes a
+the pack modules, feeds them through `src/registry.js`, and preserves exactly
+32 named exports. Twenty-eight are content/derived views (`CARDS`, `ENEMIES`,
+`RELICS`, `POTIONS`, `EVENTS`, `STATUS_INFO`, `OMENS`, `BOONS`, `ASPECTS`,
+`DEEDS`, `VARIANTS`, `WHISPERS`, `PROGRESSION`, `REVEALS`, and the remaining
+enumerated surface); four are immutable protocol exports from
+`src/content-protocol.js`: `QUEST_STATES`, `QUEST_ACTIVE_STATES`,
+`TERMINAL_OUTCOMES` and `RUN_ID_RE`. Engine, tests, saves, and UI consumers
+never notice. **During this phase the content line observes a
 content-table freeze** (assets and planning only); the P2 plan names who
-folds the freshly-merged `VARIANTS`/`WHISPERS` into the core pack.
+folds the merged Phase 2 `VARIANTS`/`WHISPERS`/`QUESTS` into the core pack.
+
+The live cut-over has two reviewed halves. First PE assembles and validates the
+complete frozen core candidate while `data.js` remains authoritative. Then,
+still against live data, it installs the engine-private run→content seam and
+refactors Phase-2 tuning/save tests to use fresh explicit frozen contexts. Only
+after simultaneous core/tuned runs pass does `data.js` atomically alias the 28
+content views and re-export the four protocols. Public `loadRun()` stays core-
+only and zero-argument; no content id enters the save shape. This ordering makes
+the `_sample` engine proof real before the Lab UI exists.
 
 Before moving the first table, PE commits the **before oracle**: the complete
-functions-stripped export projection, the seeded full-context enemy-AI trace
+32-export stable observable-value projection (including RegExp `source`/`flags`)
+and a property-descriptor inventory which identifies the legacy Hollow getter,
+the seeded full-context enemy-AI trace
 digest and the fixed-seed monte-carlo digest. The same tests then run against
 the assembled registries after each move. Capturing an oracle after deleting
 the old table is invalid evidence.
@@ -511,15 +580,19 @@ or assembler-derived, and assigns explicit merge/derivation semantics. No
 export may disappear merely because it was absent from the domain shorthand
 below.
 
-### Pack contract: data plus behaviour
+### Pack contract: data plus declared behaviour functions
 
-Content tables are not purely declarative — enemies carry `ai` functions,
-and events carry hooks. The pack contract is therefore **"Node-pure data
-plus declared behaviour functions"**: behaviour fields are named in the
-schema as `kind: 'function'`, validated for presence/arity, excluded from
-the golden projection, from serialisation, and from CRUD forms. Converting
-`ai` to a declarative DSL is an engine-mechanics change and explicitly out
-of scope.
+Content tables are not purely declarative — enemies carry `ai` functions and
+events carry hooks. The pack contract is therefore **"Node-pure data plus
+declared behaviour functions"**: function fields are named in the schema as
+`kind:'function'`, validated for presence/arity, and excluded from
+serialisation and CRUD forms. Getters/setters are rejected. The legacy
+`QUESTS.hollowLamplighter.target` getter is a pre-registry coupling artifact:
+assembly materialises the same numeric target from the merged progression
+context, so a custom/tuned context cannot close over production globals.
+Protocol RegExp/constants never enter a pack.
+Converting `ai` to a declarative DSL is an engine-mechanics change and
+explicitly out of scope.
 
 ### Registry domains
 
@@ -536,11 +609,10 @@ arts, aspects, deeds, whispers, **themes**. Per domain the registry enforces:
   aggregate tables (`PROGRESSION.poolWaves`, `REVEALS`, encounter lists,
   pool membership) each declare append / keyed-replace / error in the P2
   plan — no aggregate merges by accident.
-- Registries **freeze after boot**; under dev HMR a pack edit rebuilds the
-  registry through one named invalidate/rebuild path, following the explicit
-  listener/rebuild precedent in `uic.js` / `battlefield.js`. Current `data.js`
-  has no HMR contract to preserve, so the plan must decide whether a pack edit
-  preserves object identity and live-run state or deliberately reloads the page.
+- Registries **freeze after boot**. Core-pack edits deliberately use Vite's
+  full-page reload in this round; there is no object-identity or live-run-state
+  preservation promise and no registry-specific HMR rebuild path. Geometry
+  editors keep their existing explicit `uic.js` / `battlefield.js` listeners.
 - **Content doctor:** validation failures are aggregated into one report —
   every failure with entry id, field, expected shape, and a fix hint —
   surfaced identically in `npm test` output and in the dev overlay. (This
@@ -577,9 +649,10 @@ rather than implied absent.
 - **Assets do not move.** `assetUrl` globbing stays as-is; packs declare ids;
   the `npm test` manifest gate becomes registry-driven (automatically covers
   future packs).
-- **Save compatibility:** ids unchanged; `loadRun` validation reads the merged
-  registries; **no new save fields** — unknown-id rejection already yields
-  the right failure for a save whose pack is absent.
+- **Save compatibility:** ids and the complete post-PR15 transactional save
+  shape stay unchanged; `loadRun` validation reads the merged registries;
+  **no new save fields** — unknown-id rejection already yields the right
+  failure for a save whose pack is absent.
 - **`_sample` fixture pack:** imported by `test_engine.js` for contract tests
   and loadable in the Lab behind a dev flag; zero production surface.
 - **Localisation note (no scope added):** registries centralise display
@@ -607,8 +680,14 @@ are core deliverables.
   beat” survives without persisting the trace. The Lab interacts with the
   game exclusively through probe drivers and `newRun` opts, so the P4/P5
   render swap costs it nothing. It never touches the real save — the plan
-  owns the required engine touch explicitly (an `opts.ephemeral` that
-  no-ops `saveRun`). God-mode panel (energy / embers / HP / add card) and
+  owns the required engine touch explicitly. `opts.ephemeral` is a transient
+  engine marker and never enters the save shape; engine save/stat writes and
+  the same single `run-effects` boundary return caller-compatible no-op success
+  for **all** run/meta persistence effects: terminal/Vigil/stats receipts,
+  Dawn staging/cursor/final clear, Hollow/Shard recovery and bequest write/
+  consume as well as ordinary run saves. It never opens a second terminal
+  route, and the normal post-Phase-2 transaction order remains unchanged.
+  God-mode panel (energy / embers / HP / add card) and
   **replay last beat** (render the immutable presentation fixture referenced by
   the last replayable Semantic UI Behaviour Trace span; never re-run its engine
   command or mutate run state) included. A
@@ -641,7 +720,8 @@ trace, probe, tests and integration remain PE.
 - **Migrates:** energy candles, facet chips, HP vials + Ward chip, the three
   pile widgets (stack tiers + always-visible counts), End Turn, lantern
   button (ember pips, art chip, ready pulse), intent chips, top HUD (HP,
-  gold, deck, menu, omen chip).
+  gold, deck, menu, omen chip). Map nodes remain DOM-on-3D and are not P4
+  Pixi widgets.
 - **Input:** the stage-level router from the invariants section is built
   here (`src/ui/pointer.js`), with the real-pointer router e2e as its proof.
   The task first inventories every existing combat pointer/touch/click listener
@@ -661,9 +741,11 @@ trace, probe, tests and integration remain PE.
   tooltip, positioned from sprite bounds (stage px → client px).
 - **P4 exit checkpoint (gates P5):** the full Simulator Safari matrix proves
   interaction semantics, motion coherence (including shake), layout, and
-  renderer recovery at parity or better; the Playwright perf gate passes with
-  measured host-relative headroom. This checkpoint makes no physical touch-
-  feel or device-performance claim. Otherwise stop: ship the declared-
+  renderer recovery at parity or better; Playwright produces a valid
+  host-relative portrait/LITE measurement and records target warnings without
+  turning a valid miss into a merge failure. This checkpoint makes no physical
+  touch-feel or device-performance claim. A functional compatibility failure
+  stops the migration: ship the declared-
   acceptable mixed state, keep the DOM hand, and re-plan P5.
 
 ## 5. Phase 5 — hand, floaters, banners (combat fully game-rendered)
@@ -694,6 +776,11 @@ probe, performance and integration remain PE.
 - **Floaters:** the 4-tier damage hierarchy as Pixi BitmapText with archetype
   tints and the existing stagger rules; turn banner, boss intro plate, and
   the guard-shattered beat become sprite/text sequences on `src/ui/tween.js`.
+- **Phase 2 presentation owners:** `bossIntro`, `variantDialogue`,
+  `questReveal`, `questProgress`, `questComplete`, `questUnlock`,
+  `monumentGift` and `hollowTithe` receive explicit Full/LITE/REDUCED
+  sprite/text contracts and trace/replay terminal proof. No queue event is
+  dropped merely because it arrived after the original FE matrix was drafted.
 - **Pile ceremony re-wired:** draw / discard / exhaust / reshuffle per-card
   flights re-implemented as Pixi sprites under the same wall-clock budgets
   as the pile-chrome spec (`discardHand` ~320–480ms, `reshuffle` ~450–650ms,
@@ -722,7 +809,8 @@ approval remains a separate gate.
 FE's exact design deliverable is
 `docs/superpowers/specs/2026-07-10-round5-fe-experience-contract.md`. It records
 the P4 widget states, P5 card hierarchy, P4–P6 visual token values, every
-ceremony's motion table, LITE/REDUCED outcomes and P6 compositions. PE freezes
+ceremony's motion table, LITE/REDUCED outcomes, the 70 base P6 compositions,
+and the merged Phase 2 substate matrix. PE freezes
 the selector/state/asset-id manifest before FE authors
 `src/styles/round5-screens.css`; FE may style only that manifest. PE translates
 the approved contract into Pixi/JavaScript values and imports the stylesheet.
@@ -732,9 +820,22 @@ For every screen below, the plan must additionally specify: (a) the
 before aspects/vows/rose-window exist, what teases growth); (b) every
 ceremony beat **mechanically** (element, property, duration, easing token,
 trigger, `REDUCED` end-state) — the pile-chrome spec is the precedent; (c) a
-**wiring-only audio pass** mapping each new ceremony beat to existing
-catalogued SFX/music cues (`src/audio-catalog.js`) — no new audio assets;
+**wiring-only audio pass** mapping each new ceremony beat to an existing wired
+catalogue cue/fallback, or to an owner-approved logical intent which PE then
+marks, wires and gameplay-tests (`src/audio-catalog.js`) — no new audio assets
+and no inference from forced gallery preview;
 (d) the LITE/REDUCED end-state, one line each.
+
+The Phase 2 substate matrix is additional to, not a replacement for, the 70
+shape/screen rows. It covers Rose absent/loading/inert/ready, atomic raster or
+complete labelled fallback, all four Quest pane states, pane selection,
+whispers and six-Shard completion; Hollow unpaid/pay/save-failed/retry/paid/
+continue/return/recovery; Pale/Witchlight and Eighth-floor map markers plus the
+sealed-door hidden/visible/open overlay; the ten Dawn panel kinds and both
+cursor/final-clear retry states; Usurper shop states; and the unpaid Shade
+bequest at Fall. These are presentation states only: PE retains all reveal,
+persistence and interaction logic. The sealed door remains a non-path promise;
+this round adds no playable Act 4 screen or route.
 
 ### Title + Embark
 
@@ -750,12 +851,14 @@ catalogued SFX/music cues (`src/audio-catalog.js`) — no new audio assets;
   ledger; Begin plays a lantern-lighting transition into the map. Reveal
   logic from Progressive Delivery Phase 1 is untouched — presentation only.
 
-### Fallen / Victory (ceremony tier)
+### Fall / Dawn (ceremony tier)
 
-- Fallen: monument-carving ceremony — the plate rises, chisel-strike beats
+- Fall (display title `FALLEN`, compatibility cue id `defeat`):
+  monument-carving ceremony — the plate rises, chisel-strike beats
   with ember spray, bequest choice framed as a ritual, the whisper line, and
   stats engraved via `tweenNum`.
-- Victory: dawn ceremony — light bloom, ascended-plate parallax, the
+- Dawn (display title `ASCENDED`, compatibility cue id `victory`): light bloom,
+  ascended-plate parallax, the
   Progressive Delivery Phase 2 shard/page queue moments given their full
   visual weight, stats as an illuminated ledger, "the climb continues" close.
 - Existing `sunrise()`, confetti, and monument CSS are upgraded in place, not
@@ -770,17 +873,21 @@ catalogued SFX/music cues (`src/audio-catalog.js`) — no new audio assets;
   card-composer textures (single-renderer rule); rest gets a firelight
   pulse; event gets art-plate framing; lamplighter boons/picker and both
   Vigil tabs adopt the same panel language.
+- Existing logical Music Cue ids such as `hollowLamplighter`, `roseWindow` and
+  `sealedDoor` are FE intent only until PE explicitly marks/wires them and adds
+  gameplay tests. Forced `?audio=1` preview never counts as runtime evidence.
 
 ### Map (kept light — R3 already upgraded it)
 
 - Node entrance stagger (floors light up on map entry), path-ignite ceremony
-  on route choice, camera settle polish. The DOM-on-3D projection
-  architecture is untouched.
+  on route choice, camera settle polish, Pale/Witchlight and Eighth-floor
+  markers, and the sealed-door overlay states. Drag-suppressed taps remain
+  non-selections. The DOM-on-3D projection architecture is untouched.
 
 ### Owner taste gate
 
 Per screen, PE generates a fixed-format **contact sheet** (all stage shapes ×
-key states, austere and grown profiles), FE records its mechanical/visual
+key states, austere and grown profiles, plus every named Phase 2 substate), FE records its mechanical/visual
 critique under `docs/superpowers/reports/`, and the owner signs it off **before
 PE refreshes baselines**. The award-bar checklist (§8) is the pre-filter; owner
 sign-off is the gate. A lower-grade executor never self-certifies
@@ -843,13 +950,15 @@ sign-off is the gate. A lower-grade executor never self-certifies
 
 ### Phase 0 — CI (complete)
 
-GitHub Actions: `npm test` + `npm run build` + Playwright (Chromium on
-ubuntu; the linux baselines already exist) on every relevant PR and push to
-main, with a required no-op success for docs/tooling-only changes.
+GitHub Actions: stable required aggregators `unit` and `e2e`; Draft PRs run
+parallel unit/build plus Chromium smoke, while Ready PRs and `main` run the
+complete parallel disk, three-shard random-agent, ten-shard main,
+serial-heavy and per-project visual topology. `npm run test:ci` protects that
+contract, and docs/tooling-only changes receive successful no-op aggregators.
 `perf.spec` runs as a nightly/manual job — CI runner numbers are recorded,
-not gating. Failure screenshots/diffs upload as artifacts. This landed from
-`docs/superpowers/plans/2026-07-09-ci-wiring.md`; later phases extend the
-existing gate rather than treating P0 as still in flight.
+target misses warn, and missing/invalid metrics fail. Failure screenshots/diffs
+upload as artifacts. This landed with Phase 2's fast-feedback follow-up; later
+phases extend the tested lane/result map rather than rebuilding or weakening it.
 
 “P0 complete” does not pre-complete Round 5's later CI work. PE extends the
 gate in the phase that introduces each contract: Playwright WebKit device
@@ -869,6 +978,15 @@ as Playwright Mobile Safari. The representative matrix is iPhone SE (3rd
 generation), iPhone 17 Pro, iPad mini (A17 Pro), and iPad Pro 13-inch (M5),
 portrait and landscape.
 
+The runtime is an environment prerequisite, not a product result. The
+2026-07-11 live toolchain exposes iOS 26.5 build `23F73`; if that exact
+Simulator runtime is absent, PE records
+`SETUP BLOCKED`, installs that exact runtime through the supported visible
+Xcode/`xcodebuild -downloadPlatform` path without requesting credentials, and
+reruns preflight. Only a cell that actually boots and exercises the spike may
+produce compatibility PASS/NO-GO; an absent runtime is never misreported as a
+Pixi failure. No physical device is required.
+
 The artifact records Xcode, runtime/build, Safari, model/UDID, orientation, and
 host architecture. Written pass/fail criteria gate boot/API support,
 stage/safe-area selection, font and texture readiness/fallback, automated
@@ -887,8 +1005,10 @@ valuable regardless).
 
 ### Registry & tooling gates (P2–P3)
 
-- **Golden equivalence, three legs** (see invariants): stripped-projection
-  deep-equal, seeded `ai` trace equivalence, monte-carlo digest.
+- **Golden equivalence, three legs** (see invariants): 32-export stable
+  observable projection deep-equal (RegExp encoded and the one getter→derived-
+  number transition explicitly asserted), seeded `ai` trace
+  equivalence, monte-carlo digest.
 - Registry unit tests in `test_engine.js` (Node-pure): schema validation,
   id-collision throw, cross-reference checks, per-table merge semantics,
   content-doctor report shape, `_sample` fixture registering without
@@ -909,7 +1029,9 @@ independently checks the recorded evidence, may re-run commands read-only, and
 issues the verdict. FE never has to modify test infrastructure in order to
 satisfy a presentation task.
 
-1. `npm test` green.
+1. `npm run test:ci` and `npm test` green. P2 closure and the Full-Round gate
+   also run `npm run test:progression` and preserve the guided/unguided pacing
+   contract.
 2. geometry / battle / stage suites green — updated in the same phase that
    moves a contract.
 3. On every visual-contract-moving phase, visual baselines are re-captured
@@ -929,12 +1051,13 @@ satisfy a presentation task.
    P4/P5 apart from explicitly reviewed renderer-policy fields. Playwright
    attaches NDJSON and timestamped text on failure, while timing/perf runs keep
    recording off.
-6. **P4 onward:** Perf gate unchanged in numbers (portrait/LITE, CPU 4×,
-   avg ≥ 55fps, p95
-   ≤ 22ms) measured **with the Pixi scene active**; additionally the nightly
-   `perf.yml` records a **desktop full-tier** run (foil on, high DPR) so the
-   shiny path has a watched number; plus a Pixi-context-loss smoke (simulated
-   loss → restore) and a heap/texture-leak check across the long
+6. **P4 onward:** performance measurement remains unchanged in targets
+   (portrait/LITE, CPU 4×, avg ≥ 55fps, p95 ≤ 22ms) and runs **with the Pixi
+   scene active**. Missing/invalid metrics or a crashed journey fail; a valid
+   target miss records `PERF_WARNING` and reference evidence without failing
+   the merge. The nightly `perf.yml` also records a **desktop full-tier** run
+   (foil on, high DPR) so the shiny path has a watched number; plus a
+   Pixi-context-loss smoke (simulated loss → restore) and a heap/texture-leak check across the long
    random-agent run from P5 onward (per-combat texture leaks are the expected
    leak class); a REDUCED-motion e2e runs against the Pixi scene.
 7. **P0.5 and every later browser-contract-moving phase:** Simulator Safari
@@ -976,7 +1099,7 @@ contact-sheet sign-off in §6 is the gate)
 | P3 | Dev tooling (Lab + doctor + trace view core; shell + Content Manager droppable) | PE only, including all tooling UI | Dev-only surfaces; the Lab becomes the P4/P5 acceptance harness |
 | P4 | Pixi bootstrap + widget kit + chrome + input router | PE code; FE contract/review only | First canvas UI; **exit checkpoint gates P5** |
 | P5 | Hand + floaters/banners + pile flights + keyboard path | PE code; FE contract/review only | Combat fully game-rendered; falsifiable wins |
-| P6 | Screens: title/Embark, fallen/victory, non-combat, map | FE contract/dedicated CSS; PE JavaScript/integration; owner taste gate | Per-screen deliverables; owner contact-sheet sign-offs |
+| P6 | Screens: title/Embark, Fall/Dawn, non-combat, map | FE contract/dedicated CSS; PE JavaScript/integration; owner taste gate | Per-screen and Phase 2-substate deliverables; owner contact-sheet sign-offs |
 | P7 | Per-boss stages, unlock toast, store kit (provisional) | Split FE visual tasks from PE registration/capture tasks | Parallel with P6 after P5 |
 
 Ordering logic: P1 establishes the renderer-neutral behaviour contract before
@@ -996,11 +1119,13 @@ reduced-scope exit and does not satisfy Full-Round success.
 | Risk | Mitigation |
 |---|---|
 | Pixi incompatible with mobile WebKit | **P0.5 Simulator Safari spike before any sunk cost**; P4 exit checkpoint before the hand migrates; WebKit-safe review and declared-acceptable fallback states at each gate; actual Capacitor WKWebView remains for its own round |
+| Required Simulator runtime is absent | Treat as environment setup, install the pinned runtime through supported Xcode tooling without credentials, and rerun preflight; never call absence a Pixi NO-GO |
 | Simulator success is misreported as device performance proof | Record the exact runtime/host, label the gate functional compatibility, forbid Simulator FPS, memory, touch-feel, thermal, and background-eviction claims, and defer those claims explicitly |
 | Behaviour trace becomes a second game truth or a noisy logger | Observe only semantic owners; structured versioned records are canonical; no engine imports, DOM inference, frame/pointer-move spam, or console-first transport |
 | Trace snapshots become timing-flaky | `seq` and explicit causality define contract order; normal projections strip timestamps; only named budget tests assert elapsed time with tolerances |
 | Missing instrumentation makes a trace look complete when it is not | P1 event inventory covers routing bypasses, batched queue consumption, detached ceremonies, dawn queue, error and overflow; schema integrity and orphan-span tests are mandatory |
-| Function-valued content breaks the P2 gates | Pack contract is data + declared behaviour functions; three-leg equivalence; Content Manager CRUD excludes behaviour fields |
+| Functions/accessors/RegExp break the P2 gates | Stable 32-export projection encodes RegExp and evaluated values; a descriptor inventory records the one legacy getter; pack schemas reject accessors and declare behaviour functions; assembly derives Hollow target from the active context; protocol constants stay outside packs |
+| Recursive registry freeze breaks authored-tunable compatibility tests | The implementation plan establishes an explicit derived content-context/snapshot-validation seam before the immutable cut-over; tests never mutate frozen production content |
 | `data.js` re-homing drifts behaviour | Golden-equivalence (three legs) + monte-carlo + full Playwright; P2 is its own phase, never mixed with Pixi work |
 | Refactor collides with parallel content commits | Content-table freeze during P2; named owner folds `VARIANTS`/`WHISPERS` into the core pack |
 | PE/FE agents collide or silently cross ownership | Separate worktrees, task-level disjoint write manifests, one lead per task, sequential shared-file hand-offs, exact commit/interface records and independent QA before integration |
@@ -1044,10 +1169,11 @@ scene3d/mesh (Capacitor round).
 There are three distinct outcomes; the implementation record must name which
 one occurred rather than blending them into one definition of “done”.
 
-1. **Compatibility NO-GO / re-scope:** P0.5 fails a written functional
-   criterion. The spike has succeeded as a decision gate, but Round 5 has not
-   shipped or completed. Production migration stops and this design must be
-   revised before execution resumes.
+1. **Compatibility NO-GO / re-scope:** a booted P0.5 cell fails a written
+   functional criterion. The spike has succeeded as a decision gate, but Round
+   5 has not shipped or completed. Production migration stops and this design
+   must be revised before execution resumes. Missing toolchain/runtime/GUI
+   prerequisites are `SETUP BLOCKED`, not this outcome.
 2. **Supported reduced-scope prefix stop:** P0.5 passes and a contiguous phase
    prefix ending at P4, P5, or P6 passes every applicable standing gate. The
    execution record names the last completed phase and the explicitly deferred
@@ -1080,9 +1206,10 @@ one occurred rather than blending them into one definition of “done”.
    baselines remain the
    separate current-state and pixel proofs.
 3. Combat is fully game-rendered: DOM in combat is exactly the allowed list;
-   the perf gate passes with the Pixi scene active on the portrait project;
-   the desktop full-tier number is recorded nightly; the P5 falsifiable wins
-   are all present.
+   valid portrait/LITE and desktop/Full measurements exist with the Pixi scene
+   active, target warnings are recorded under the non-gating Phase 2 policy,
+   the desktop full-tier number is recorded nightly, and the P5 falsifiable
+   wins are all present.
 4. bfuiedit still edits live chrome geometry, now rendered by Pixi; bfedit
    (combatants + stage plates, which stay DOM) is unaffected and still works.
 5. **Registry proof:** the three-leg golden equivalence holds; the `_sample`
@@ -1094,9 +1221,10 @@ one occurred rather than blending them into one definition of “done”.
    variants) from a pasted URL and can replay a correlated trace beat; if the
    Content Manager shipped, it round-trips an edit through `/__content-save` with
    a clean `npm test` afterwards.
-7. All four screen sets carry **owner contact-sheet sign-offs** (austere and
-   grown profiles); fallen/victory play as specified ceremonies with wired
-   audio; the title has its ignition; combat has its keyboard path.
+7. All four screen sets carry **owner contact-sheet sign-offs** (austere,
+   grown and every named Phase 2 substate); Fall/Dawn play as specified
+   ceremonies with a gameplay-tested cue/fallback disposition for every audio
+   intent; the title has its ignition; combat has its keyboard path.
 8. Every PR receives the required CI status; the full kit runs on relevant PRs
    and pushes to main, while docs/tooling-only changes receive the required
    no-op success. A red required status blocks merge; the bundle budget is
