@@ -10,7 +10,11 @@ PR #15 merged: the 32-export data contract, transactional Dawn recovery,
 parallel-CI/performance policy, Phase 2 presentation states, and hot-applied
 audio-gallery behaviour are now part of the Round 5 baseline; revised again
 after PR #16 merged: all 22 Music Cues, the pure cue resolver and their live
-Phase 2 call sites are predecessor behaviour rather than Round 5 intent)
+Phase 2 call sites are predecessor behaviour rather than Round 5 intent;
+revised again after PR #18 and PR #7 merged: app versioning/release semantics
+and the English i18n overlay are loaded predecessor contracts, and the registry
+design now composes mechanics packs with locale overlays instead of reclaiming
+English display ownership)
 **Goal:** The commercial-grade production-engineering and final visual-hardening
 round. Replace the fragile CSS-composited
 combat UI with a **game-rendered PixiJS layer** (chrome *and* hand cards),
@@ -36,10 +40,12 @@ checkpoint**, never left to the executor.
 Phase 2 — variants, the Emberglass chain, Rose Window, transactional Dawn and
 sealed summit promise — merged in PR #14 at `4698906`; PR #15 established
 hot audio-gallery preview/apply at `4dc1af7`; PR #16 then wired the complete
-22-cue Music catalogue into the live Phase 2 surfaces and established the
-current `7b8e01a` baseline. Every Round 5 execution branch must contain all
-three merges before runtime work. The merged surfaces and contracts are
-inputs, never work for Round 5 to reimplement.)
+22-cue Music catalogue into the live Phase 2 surfaces at `7b8e01a`; PR #18
+established package-sourced app versioning and the manual release convention at
+`de84c30`; PR #7 extracted the default English catalogue and Node-pure i18n API
+at `b285b81`. Every Round 5 execution branch must contain all five merges before
+runtime work. The merged surfaces and contracts are inputs, never work for
+Round 5 to reimplement. Open/red PR #17 is not a predecessor.)
 
 ## Decisions record (owner-approved)
 
@@ -49,11 +55,11 @@ inputs, never work for Round 5 to reimplement.)
 | Capacitor packaging | **Out of scope** — this is production engineering and presentation, not packaging. Capacitor *compatibility* is protected by WebKit-safe APIs, the GPU context budget, and Simulator Safari coverage; physical-device performance/feel evidence is deliberately deferred to the Capacitor/hardware round |
 | UI end-state | **Canvas/WebGL chrome**, not data-driven DOM and not a framework migration |
 | Canvas migration depth | **Full combat UI including hand cards** — but gated: the **P0.5 Simulator Safari compatibility spike** must pass before P1 begins, and a **P4→P5 Simulator/Playwright checkpoint** must pass before the hand migrates. "Pixi chrome + DOM hand" is a declared-acceptable shipped state if P5 stops |
-| Engine | **PixiJS v8**, WebGL renderer pinned (never WebGPU) |
-| Ordering vs content line | **Progressive Delivery Phase 2 and its PR #15/#16 follow-ups are loaded** at the `7b8e01a` minimum baseline. A later `main` change triggers a fresh drift audit before execution. During Round 5 P2 (re-homing) the content line observes a **content-table freeze** (assets/plans only) |
+| Engine | **PixiJS v8**, strictly WebGL with `preference: ['webgl']` (never the fall-through string form and never WebGPU) |
+| Ordering vs content line | **Progressive Delivery Phase 2, PR #15/#16, PR #18 app versioning and PR #7 English i18n are loaded** at the `b285b81` minimum baseline. A later `main` change triggers a fresh drift audit before execution. During Round 5 P2 (re-homing) the mechanics and English-catalogue lines observe a **content-table freeze** (assets/plans only) |
 | Delivery lanes | **Production Engineering (PE) is the primary lane; Front-end Experience (FE) is a small, design-led lane.** PE owns all substrate, refactoring, Content Lab/manager, renderer mechanics, tooling, tests and integration. FE owns only authored player-facing presentation. Independent QA verifies both; owner taste checkpoints stay with the owner |
 | Parallel execution | PE and FE may run concurrently only from separate worktrees on a written disjoint-file manifest. A shared file is a sequential hand-off, never a concurrent edit. Every implementation-plan task has exactly one `[PE]`, `[FE]`, `[QA]`, or `[OWNER]` lead |
-| Content substrate | **Full content-pack architecture**: per-domain registries with schemas, existing content re-homed as the `core` pack, `data.js` becomes the assembler. Registry work lands **before any production Pixi migration**; the disposable P0.5 compatibility spike is the sole exception. Pack contract is **data plus declared behaviour functions** (enemy `ai` stays code — see §2); the legacy Hollow target getter is materialised from merged progression rather than copied with a global closure; an AI-DSL is explicitly out of scope |
+| Content substrate | **Full paired content architecture**: per-domain schemas join mechanics/behaviour from the `core` pack to English display data retained in the PR #7 locale overlay; `data.js` aliases the resulting hydrated frozen context. Registry work lands **before any production Pixi migration**; the disposable P0.5 compatibility spike is the sole exception. Enemy `ai` stays code; the legacy Hollow target getter is materialised from merged progression rather than copied with a global closure; an AI-DSL is explicitly out of scope |
 | Pack delivery | **Compiled-in** (static imports; an expansion ships as an app update). Runtime/downloadable DLC out of scope — the pack *format* is the future-proofing, not a download pipeline. No save-shape change for packs (unknown-id validation already rejects a save whose content is absent) |
 | Dev tooling | Dev shell, Content Lab, completeness reporting ("content doctor"), and **Content Manager** (the schema-driven CRUD editor). Content Manager and the dev shell are **droppable pressure-valve items**; Content Manager covers cards/relics/potions/themes only and never touches behaviour fields. All are PE, not FE |
 | UI behaviour observability | **Semantic UI Behaviour Trace** — a renderer-neutral, versioned structured event stream is canonical; timestamped text and NDJSON are derived AI/human views. It lands at the start of P1 before decomposition, is local and bounded, and is not analytics or a second source of game truth |
@@ -61,6 +67,8 @@ inputs, never work for Round 5 to reimplement.)
 | Performance policy | The merged Phase 2 policy remains authoritative: **a missing, invalid or crashed measurement fails; a valid 55fps/22ms target miss is a recorded warning/reference, not a merge failure**. Round 5 records portrait/LITE and desktop/Full Pixi measurements without claiming Simulator or physical-device performance |
 | Phase 2 domain language | A successful Climb ends at **Dawn** and a death is a **Fall**. Internal compatibility values (`win`, `death`), route names and Music Cue ids (`victory`, `defeat`) stay unchanged |
 | Phase 2 music baseline | PR #16 makes **all 22 existing Music Cues live**. `src/music-resolve.js` is the Node-pure resolution truth; quest overrides beat Eighth Omen, Eighth Omen beats ordinary non-boss act music, and bosses retain their boss cue. Rose/Vigil, Hollow, sealed-door and Dawn exceptions are protected live call sites, not FE wiring requests |
+| App-version baseline | PR #18 makes `package.json` version `0.5.0` the authored source; DEV embeds a live short SHA, ordinary builds show `0.5.0+unknown`, and only explicit release builds show clean semver. The safe-area Title label and hidden debug gesture are protected behaviour. Release scripts remain manual preparation and never commit, tag or push |
+| English i18n baseline | PR #7 keeps the default locale `en`, exposes exactly seven Node-pure i18n APIs, owns English display strings in 18 content domains plus the UI catalogue, and hydrates the compatibility graph once at module initialisation without changing saves. Round 5 completes/preserves English coverage; it does not ship a second locale or runtime language switch |
 | Store kit | Keep the **capture script + shot list** (rerunnable assets); the captured set is labelled **provisional/marketing-only**; trailer capture is raw reference footage only; device-framed store matrices and store-grade capture re-run in the Capacitor round |
 | Screens in scope | All four sets: Fall/Dawn, title + Embark, non-combat panels (rewards/shop/event/rest/lamplighter/vigil), map re-upgrade (light) |
 | Catch-up status | CI wiring is already complete at P0. Remaining items are per-boss unique stage sets, store visual assets, and unlock-toast art; later phases extend the existing CI gate rather than redoing it |
@@ -78,8 +86,8 @@ refactor from being misrouted merely because it renders a browser screen.
 
 | Lane | Accountable agent | Owns | Explicitly does not own |
 |---|---|---|---|
-| **Production Engineering (PE)** | Primary/root agent | P0.5–P5 leadership; engine/data/registry contracts; `ui.js` decomposition; all product JavaScript; stable markup/selectors; Semantic UI Behaviour Trace; Content Lab, doctor and editor; Pixi bootstrap and widget/card mechanics; input, probe, geometry, recovery, accessibility, audio wiring, performance, capture, tests, CI, dev endpoints, docs and final integration | Player-facing taste, art direction or owner sign-off |
-| **Front-end Experience (FE)** | One separate FE agent | One exact experience contract for P4–P6; the dedicated Round 5 screen stylesheet; approved visual token values; authored motion/state matrices; P7 visual assets, contact-sheet critique and provisional store compositions | Content architecture or management; refactoring; any product JavaScript; trace; renderer/input infrastructure; dev tooling; probe; engine/audio wiring; test harnesses; capture automation; CI/perf; changing ids, schemas or save shape |
+| **Production Engineering (PE)** | Primary/root agent | P0.5–P5 leadership; engine/data/registry/i18n/version contracts; all locale keys, English values, accessibility copy and runtime fallback behaviour; `ui.js` decomposition; all product JavaScript; stable markup/selectors; Semantic UI Behaviour Trace; Content Lab, doctor and editor; Pixi bootstrap and widget/card mechanics; input, probe, geometry, recovery, audio wiring, performance, capture, tests, CI, release/dev endpoints, docs and final integration | Player-facing taste, art direction or owner sign-off |
+| **Front-end Experience (FE)** | One separate FE agent | One exact experience contract for P4–P6; the dedicated Round 5 screen stylesheet; approved visual token values; supplied-copy fit, hierarchy, wrapping, placement and motion; P7 visual assets, contact-sheet critique and provisional store compositions. FE may reference locale keys but cannot author or alter copy | Content architecture or management; localisation keys/values/fallbacks/accessibility wording; refactoring; any product JavaScript; trace; renderer/input infrastructure; dev tooling; probe; engine/audio wiring; test harnesses; capture automation; CI/perf; changing ids, schemas or save shape |
 | **Verification (QA)** | A fresh reviewer agent, independent of the task implementer | Independent diff/evidence review; spec-compliance and code-quality verdicts; read-only re-runs where useful; confirmation that PE has closed findings | Producing or modifying product/test-harness code, owning gate evidence, fixing findings, or making taste decisions |
 | **Owner checkpoint** | Owner | Art direction, ceremony feel, asset promotion and per-screen contact-sheet approval | Routine engineering execution |
 
@@ -97,10 +105,14 @@ worktrees/branches and may run concurrently only when the plan lists disjoint
 write sets. Read access is unrestricted; write ownership is exclusive.
 
 - **Always PE-owned:** all `src/**/*.js`, including `src/engine.js`,
-  `src/vigil.js`, `src/data.js`, `src/registry.js`, `src/packs/**`, the P1
+  `src/vigil.js`, `src/data.js`, `src/version.js`, `src/i18n/**`,
+  `src/registry.js`, `src/packs/**`, the P1
   extraction of `src/ui.js`, `src/ui/**`, probe/test code, Vite/dev-server
   endpoints, workflows, geometry/layout resolvers, capture scripts,
   `src/styles.css`, performance instrumentation and build configuration.
+  Round 5 authors no new player-facing wording without owner approval; when a
+  touched residual literal must move, PE adds the approved English locale key
+  and value while FE preserves its presentation.
 - **FE-exclusive write set:**
   `docs/superpowers/specs/2026-07-10-round5-fe-experience-contract.md`;
   `src/styles/round5-screens.css`;
@@ -185,29 +197,39 @@ choreography to a high bar. What remains fragile is the *substrate*:
 
 - **The predecessor gate is a hard runtime stop.** Before P0.5, PE verifies
   from the execution branch itself that PR #14 merge `4698906`, PR #15 merge
-  `4dc1af7` and PR #16 merge `7b8e01a` are in its ancestry. The branch must
+  `4dc1af7`, PR #16 merge `7b8e01a`, PR #18 merge `de84c30`, and PR #7 merge
+  `b285b81` are in its ancestry. The branch must
   expose all 32 current
   `src/data.js` exports: 28 content views plus `QUEST_STATES`,
   `QUEST_ACTIVE_STATES`, `TERMINAL_OUTCOMES` and `RUN_ID_RE`; the Emberglass,
   Rose Window, sealed-door, transactional Dawn and hot audio-gallery surfaces
   must be present. The 22/22 live Music catalogue, pure resolver and real
-  Phase 2 cue call sites must also be present. A later `main` change reopens the
-  drift audit. A local dirty predecessor worktree never satisfies this gate.
+  Phase 2 cue call sites must also be present. It must retain `package.json`
+  version `0.5.0`, the version/release UI and build contracts, the unchanged 32
+  data exports, exactly seven i18n APIs, default `en`, all 18 English content
+  domains, and module-init hydration with no save-shape change. A later `main`
+  change reopens the drift audit. A local dirty predecessor worktree never
+  satisfies this gate.
 - **Engine purity is untouched.** `engine.js`, `vigil.js`, `data.js`,
   `battlefield*.js`, `uic.js`, `ui-chrome-layout.js`, and the new
   `src/content-protocol.js` / `src/registry.js` / `src/packs/**` /
   `src/ui/tokens.js` / `src/ui/behaviour-trace.js` /
   `src/ui/presentation-barrier.js` / `src/ui/run-effects.js` and the existing
-  `src/music-resolve.js` stay
+  `src/music-resolve.js`, `src/version.js`, and `src/i18n/**` stay
   Node-runnable and DOM-free. Existing `src/choice-latch.js` stays Node-pure.
   `drain()` still
   consumes `cb.queue`; only the playback target changes from DOM to sprites.
   The trace observes presentation and never enters the engine import graph.
   `npm run test:ci` and `npm test` stay green at every task boundary.
-- **The import graph is preserved.** `engine.js` imports `data.js` only,
-  exactly as today. `data.js` becomes an assembler (imports packs + registry,
-  re-exports the 28 content views and the four protocol constants) — its
-  consumers never change. Protocol constants are not pack-merge content.
+- **The import graph is preserved.** `engine.js` and `vigil.js` import
+  `data.js`, never i18n/version/UI. The P2 assembler calls
+  `createContentContext(packs, { id, resources, localeContent, localeToken })`;
+  that function descriptor-validates, copies and derives a fresh mutable
+  compatibility graph, invokes the existing `hydrateContent` before locale
+  validation and recursive freeze, and preserves required aliases/identities.
+  `data.js` aliases the already-hydrated frozen context's 28 content views and
+  re-exports four protocol constants; it performs no post-freeze mutation.
+  Protocol constants are not pack-merge content.
 - **Registry refactor is behaviour-neutral, proven three ways.** Content
   tables contain functions (enemy `ai`), the pre-registry Hollow target is a
   getter closing over global progression, and the compatibility surface
@@ -228,6 +250,27 @@ choreography to a high bar. What remains fragile is the *substrate*:
   snapshots, pending encounters/rewards/Hollow routes/Shade duels,
   `pendingRunEnd`, `pendingDawn`, Dawn cursor/clear recovery, Vigil receipts and
   bequest validation.
+- **PR #7's i18n slice is preserved, not expanded by implication.** The exact
+  API is `lookup`, `t`, `getLocale`, `setLocale`, `registerLocale`,
+  `hydrateContent`, and `getContent`; default `en` owns the 18 domains `cards`,
+  `status`, `relics`, `potions`, `arts`, `boons`, `enemies`, `events`, `omens`,
+  `affixes`, `acts`, `aspects`, `vows`, `deeds`, `quests`, `whispers`,
+  `variants`, and `shadeKits`. `setLocale()` changes `t`/`tr` lookup only in
+  this slice: it does not rehydrate tables, rerender screens, persist a choice,
+  add a picker, or change saves; unknown codes return `false` and are no-ops.
+  P1 preserves every `t as tr` call, lazy `KEYWORDS()`/`FACET_DESC()` and
+  `$$('.kw', card)` wiring. P2 completes English catalogue validation while a
+  second locale, RTL and locale-specific fonts remain deferred.
+- **PR #18's app identity is preserved.** `package.json` `0.5.0` is the only
+  authored version. Vite defines `__SPIRE_VERSION__`, `__SPIRE_GIT_SHA__` and
+  `__SPIRE_RELEASE__`; DEV serve embeds the real short SHA, an ordinary build
+  deliberately uses `unknown`, `SPIRE_EMBED_SHA=1` is local smoke only, and
+  `SPIRE_RELEASE=1` produces clean semver. `src/version.js` remains Node-pure.
+  The bottom-right label respects safe-area variables, has no `data-a`, and
+  five logo taps within two seconds reveal an `aria-live="polite"` debug row
+  for three seconds (or hide it on the next completed gesture) without SFX.
+  `npm run release`/`release:build` never run automatically and the release
+  tool never commits, tags, or pushes.
 - **Phase 2 terminal work has one transactional owner.** P1 extracts one
   Node-pure run-effects seam before moving the end, overlay or combat owners.
   It preserves journal → save → `commitPendingRunEnd` → Vigil/stats receipt →
@@ -295,8 +338,18 @@ choreography to a high bar. What remains fragile is the *substrate*:
   WebGL only (no WebGPU), no SharedArrayBuffer dependence, OffscreenCanvas
   only within Safari 16.4+ coverage, fonts bundled locally. Enforced as a
   review checklist item on every task.
-- **GPU context budget.** WebGL contexts may not exceed three (scene3d, mesh,
-  Pixi). The new Pixi layer ships with a context-loss/restore contract (what
+- **GPU context budget.** The renderer option is exactly
+  `preference: ['webgl']`; Pixi 8.19's scalar preference form is forbidden
+  because it falls through to WebGPU/canvas. **All** WebGL contexts count,
+  including detached/id-less Pixi support-test canvases. The observer computes
+  live total from every captured context using `!gl.isContextLost()`, while a
+  separate named-owner assertion requires `bg3d`, `mesh`, and `uigl`. Before
+  creating `uigl`, prewarm a `ColorMatrixFilter`/`GlProgram` while only bg3d and
+  mesh are live, observe Pixi `isWebGLSupported()`'s temporary
+  `getTestContext()`, explicitly lose that context through
+  `WEBGL_lose_context`, and prove it is lost. Steady state has no live unowned
+  context and the all-context maximum is three before, after, and throughout
+  recovery. The new Pixi layer ships with a context-loss/restore contract (what
   re-uploads, what rebuilds, what state survives); retrofitting scene3d/mesh
   restore is deferred to the Capacitor round where real devices make it
   testable. Absorbing the 2D vfx canvas into Pixi is a stretch goal that
@@ -365,7 +418,7 @@ choreography to a high bar. What remains fragile is the *substrate*:
 - **Dev tooling is dev-only.** The Lab / doctor / Content Manager and the
   `/__content-save` endpoint exist only under the Vite dev server (same
   same-origin gate as `/__bf-save`); none of it reaches the production
-  bundle. The `_sample` fixture pack is imported by tests and by the Lab
+  bundle. The `_sample` mechanics/locale fixture pair is imported by tests and by the Lab
   behind a dev flag; it never registers in production builds.
 - **Docs move with their contracts.** The same rule as Playwright: any phase
   that changes a documented contract (module graph, icon policy, tool list)
@@ -398,16 +451,22 @@ pointer input and dispatches to Pixi or DOM explicitly.
 ### Content flow
 
 ```
-src/packs/core/**  (data + declared behaviour functions + presentation meta)
-        ↓ definePack()
-src/registry.js    (schemas, id uniqueness, cross-refs, per-domain merge,
-                    freeze, content-doctor report — Node-pure)
-        ↓
+src/packs/core/**              src/i18n/en/content.js
+(mechanics + behaviour)        (English display overlay: 18 domains)
+           ↓ definePack()       ↓ locale catalogue
+           └────────────┬───────┘
+                        ↓
+src/registry.js  createContentContext(packs,
+                 { id, resources, localeContent, localeToken })
+                 validate descriptors → copy/derive mutable graph →
+                 hydrateContent → validate joined locale coverage → freeze
+                        ↓
 src/content-protocol.js (four immutable validation/protocol exports)
-        ↓
-src/data.js        (assembler: 28 content views + four protocol re-exports)
-        ↓                          ↓
-engine.js (unchanged)     ui/* + vfx + music (read registries & tokens)
+                        ↓
+src/data.js       (aliases one already-hydrated frozen context:
+                   28 content views + four protocol re-exports)
+           ↓                                      ↓
+engine.js + vigil.js (data only)      ui/* + vfx + music + real locale token
 ```
 
 ### Module decomposition (Phase 1 refactor + new substrate modules)
@@ -435,8 +494,9 @@ installs `window.spirebound` / `window.__probe`.
 | `src/ui/screens/*.js` | title, embark, map, rewards, shop, event, rest, lamplighter, end, vigil | P1, P6 | PE owns all JavaScript; FE contract + dedicated CSS provide presentation |
 | `src/content-protocol.js` | `QUEST_STATES`, `QUEST_ACTIVE_STATES`, `TERMINAL_OUTCOMES`, `RUN_ID_RE`; never pack-merge content | P2 | PE |
 | `src/registry.js` | pack registration, schemas, merge, content doctor | P2 | PE |
-| `src/packs/core/**` | all existing content, re-homed | P2 | PE |
-| `src/packs/_sample/**` | dev/test-only fixture pack (a card, an enemy, a mini theme) | P2 | PE |
+| `src/packs/core/**` | existing mechanics and declared behaviour, re-homed without English display fields | P2 | PE |
+| `src/i18n/en/content.js` | existing English display ownership retained as the compiled-in locale overlay | predecessor/P2 validation | PE; FE may consume keys but not edit copy |
+| `src/packs/_sample/**` + `locale-en.js` | dev/test-only mechanics fixture plus matching English overlay (a card, an enemy, a mini theme) | P2 | PE |
 | `src/ui/tokens.js` | easing / palette / type scale; injected into CSS vars at boot | P2, P4–P6 | PE owns code/API and transcribes owner-approved FE values |
 | `src/ui/dev/*.js` | dev shell, Lab, doctor view, Content Manager (dev-only chunk) | P3 | PE |
 | `src/ui/widgets.js` | the Pixi widget kit | P4 | PE; consumes the FE experience contract |
@@ -495,7 +555,11 @@ whose sequence restarts at one. Incremental reads therefore use the composite
 cursor `{ segment, seq }`, never `seq` alone. If a supplied cursor's segment is
 not the active segment, `read()` returns the new segment header plus records
 from sequence one and a new cursor; retaining an old segment can never suppress
-new-page records.
+new-page records. The segment header records sanitised app version/build
+identity and active locale once; normal fixtures strip the volatile short SHA.
+Records may carry stable locale codes, locale keys and control ids, never
+resolved copy, HTML or dialogue. Missing-copy diagnostics emit only a stable
+key and reason code.
 An `end` record has exactly one stable `outcome`: `completed` for non-visual
 work, `settled` for completed presentation, or `cancelled`, `skipped`, or
 `failed`. The `eventName` identifies the semantic operation; lifecycle is never
@@ -545,8 +609,9 @@ parameter with `history.replaceState()` before exposing it as “last
 replayable”; the full scenario is already in the same URL. Reload starts a
 fresh trace segment, hydrates the replay button from `replay=`, and **does not
 auto-run it**. Pressing the button replays only that isolated visual fixture.
-Normal game URLs are never mutated. Non-replayable spans expose a stable
-disabled reason instead of pretending they can be replayed.
+Normal game URLs are never mutated. Replay URLs contain ids and an optional
+locale code, never resolved copy. Non-replayable spans expose a stable disabled
+reason instead of pretending they can be replayed.
 
 Playwright enables tracing before boot, waits on semantic predicates instead of
 guessed sleeps where a named event exists, checks schema/order/no-overflow/no-
@@ -566,8 +631,9 @@ production substrate used by the shipped game, not dev tooling.
 
 ### The assembler move
 
-`data.js` stops *containing* content and starts *assembling* it: it imports
-the pack modules, feeds them through `src/registry.js`, and preserves exactly
+`data.js` stops *containing* content and starts *aliasing* one assembled,
+already-hydrated context. The assembler composes mechanics packs with the
+existing English locale overlay through `src/registry.js`, and preserves exactly
 32 named exports. Twenty-eight are content/derived views (`CARDS`, `ENEMIES`,
 `RELICS`, `POTIONS`, `EVENTS`, `STATUS_INFO`, `OMENS`, `BOONS`, `ASPECTS`,
 `DEEDS`, `VARIANTS`, `WHISPERS`, `PROGRESSION`, `REVEALS`, and the remaining
@@ -575,21 +641,31 @@ enumerated surface); four are immutable protocol exports from
 `src/content-protocol.js`: `QUEST_STATES`, `QUEST_ACTIVE_STATES`,
 `TERMINAL_OUTCOMES` and `RUN_ID_RE`. Engine, tests, saves, and UI consumers
 never notice. **During this phase the content line observes a
-content-table freeze** (assets and planning only); the P2 plan names who
-folds the merged Phase 2 `VARIANTS`/`WHISPERS`/`QUESTS` into the core pack.
+content-table freeze** (assets and planning only); the P2 plan names who folds
+the merged Phase 2 mechanics for `VARIANTS`/`WHISPERS`/`QUESTS` into the core
+pack while English names, prose and dialogue remain in
+`src/i18n/en/content.js`.
 
 The live cut-over has two reviewed halves. First PE assembles and validates the
-complete frozen core candidate while `data.js` remains authoritative. Then,
-still against live data, it installs the engine-private run→content seam and
+complete core candidate while `data.js` remains authoritative. The full
+factory signature is
+`createContentContext(packs, { id, resources, localeContent, localeToken })`.
+It descriptor-validates and copies raw mechanics, derives compatibility views,
+calls the predecessor's `hydrateContent` on that fresh mutable graph, validates
+locale coverage/source ownership, then recursively freezes. Then, still
+against live data, it installs the engine-private run→content seam and
 refactors Phase-2 tuning/save tests to use fresh explicit frozen contexts. Only
 after simultaneous core/tuned runs pass does `data.js` atomically alias the 28
-content views and re-export the four protocols. Public `loadRun()` stays core-
+content views from that frozen context and re-export the four protocols without
+post-freeze hydration or mutation. Public `loadRun()` stays core-
 only and zero-argument; no content id enters the save shape. This ordering makes
 the `_sample` engine proof real before the Lab UI exists.
 
 Before moving the first table, PE commits the **before oracle**: the complete
-32-export stable observable-value projection (including RegExp `source`/`flags`)
-and a property-descriptor inventory which identifies the legacy Hollow getter,
+post-PR7 hydrated 32-export stable observable-value projection (including
+RegExp `source`/`flags`), a separate raw-mechanics ownership projection, the
+English catalogue digest/provenance, the exact seven-API inventory, and a
+property-descriptor inventory which identifies the legacy Hollow getter,
 the seeded full-context enemy-AI trace
 digest and the fixed-seed monte-carlo digest. The same tests then run against
 the assembled registries after each move. Capturing an oracle after deleting
@@ -603,36 +679,46 @@ or assembler-derived, and assigns explicit merge/derivation semantics. No
 export may disappear merely because it was absent from the domain shorthand
 below.
 
-### Pack contract: data plus declared behaviour functions
+### Pack contract: mechanics plus declared behaviour, joined to locale data
 
 Content tables are not purely declarative — enemies carry `ai` functions and
-events carry hooks. The pack contract is therefore **"Node-pure data plus
+events carry hooks. The pack contract is therefore **"Node-pure mechanics plus
 declared behaviour functions"**: function fields are named in the schema as
 `kind:'function'`, validated for presence/arity, and excluded from
 serialisation and CRUD forms. Getters/setters are rejected. The legacy
 `QUESTS.hollowLamplighter.target` getter is a pre-registry coupling artifact:
 assembly materialises the same numeric target from the merged progression
 context, so a custom/tuned context cannot close over production globals.
-Protocol RegExp/constants never enter a pack.
+Protocol RegExp/constants never enter a pack. English display fields remain in
+the parallel compiled-in locale overlay; they are not copied into pack source.
+Every schema field declares exactly `source:'pack'` or `source:'locale'`.
+Known locale-owned fields found in mechanics are errors; ordinary unknown
+extension keys still warn. The same metadata drives locale coverage, doctor
+rows and joined Content Manager forms. A mechanics-only partial registry is
+allowed for isolated mechanics validation, but only a full joined context may
+back `data.js`, production UI or a climb.
 Converting `ai` to a declarative DSL is an engine-mechanics change and
 explicitly out of scope.
 
 ### Registry domains
 
-cards, relics, potions, enemies, variants, statuses, events, omens, boons,
-arts, aspects, deeds, whispers, **themes**. Per domain the registry enforces:
+Mechanics domains are cards, relics, potions, enemies, variants, statuses,
+events, omens, boons, arts, aspects, deeds, and **themes**. English `whispers`
+remain an ordered locale domain and join during full-context assembly; they are
+never accepted from a mechanics pack. Per domain the registry enforces:
 
 - **Schema:** required fields + types per domain; cross-reference checks
   (a card's `vfx` must be a known archetype; a theme's `music` entries must
   be registered cue ids; a variant's `base` must be a registered enemy).
-  Unknown extension keys warn, never fail.
+  Unknown extension keys warn, never fail unless the key is a known
+  `source:'locale'` display field misplaced in mechanics.
 - **Id uniqueness** across all packs (collision = throw at boot).
 - **Merge semantics are per-table, declared in the spec of the domain:**
   entity tables (cards, enemies, …) are keyed-unique (collision = error);
   aggregate tables (`PROGRESSION.poolWaves`, `REVEALS`, encounter lists,
   pool membership) each declare append / keyed-replace / error in the P2
   plan — no aggregate merges by accident.
-- Registries **freeze after boot**. Core-pack edits deliberately use Vite's
+- Registries **freeze after boot**. Core-pack or locale edits deliberately use Vite's
   full-page reload in this round; there is no object-identity or live-run-state
   preservation promise and no registry-specific HMR rebuild path. Geometry
   editors keep their existing explicit `uic.js` / `battlefield.js` listeners.
@@ -648,7 +734,7 @@ One theme entry gathers everything that today defines "an act" across five
 files:
 
 ```js
-{ id: 'act1', name, tagline,
+{ id: 'act1',
   plates: { backdrop, mid, ledge },      // per-boss override slot: bossPlates
   weather: { kinds, density, palette, velocity },
   lanternLights: [ … ],                  // ambient light-position table
@@ -659,6 +745,9 @@ files:
 ```
 
 Engine reads `roster`/`encounters` (pure data); UI/vfx/music read the rest.
+The matching English overlay owns theme `name`, `tagline` and boss display
+copy; those fields are invalid in mechanics. The i18n help composer replaces
+its hard-coded “3 acts” with `{count}` from the registered theme count.
 The extraction sweep covers literals **and** index/clamp/length coupling
 (see invariants). The acceptance test is behavioural, not registrational:
 **a dev-flagged fourth theme (the `_sample` mini theme) boots into a
@@ -672,16 +761,21 @@ rather than implied absent.
 - **Assets do not move.** `assetUrl` globbing stays as-is; packs declare ids;
   the `npm test` manifest gate becomes registry-driven (automatically covers
   future packs).
-- **Save compatibility:** ids and the complete post-PR15 transactional save
+- **Save compatibility:** ids and the complete post-PR7 predecessor save
   shape stay unchanged; `loadRun` validation reads the merged registries;
   **no new save fields** — unknown-id rejection already yields the right
   failure for a save whose pack is absent.
-- **`_sample` fixture pack:** imported by `test_engine.js` for contract tests
-  and loadable in the Lab behind a dev flag; zero production surface.
-- **Localisation note (no scope added):** registries centralise display
-  strings, so future localisation becomes a string-table swap; the card-face
-  texture cache key includes a locale token (constant today) so baked text
-  can be invalidated per locale later.
+- **`_sample` fixture pair:** a mechanics pack plus `_sample/locale-en.js`,
+  imported by `test_engine.js` for joined contract tests and loadable in the Lab
+  behind a dev flag; zero production surface.
+- **Act 4/data-drop boundary:** a future content-only Act 4 is one paired,
+  compiled registration — mechanics pack plus English locale overlay. New
+  mechanics still require engine work, but registration itself touches no
+  central switch.
+- **Localisation boundary:** the card-face texture cache key uses the real
+  `getLocale()` token and invalidates baked text when it changes; no fictional
+  constant is introduced. Round 5 preserves/completes English coverage only.
+  Full-page reload is the supported response to pack or locale source edits.
 
 ## 3. Phase 3 — dev tooling
 
@@ -719,14 +813,17 @@ are core deliverables.
   Lab is the acceptance harness for the P4/P5 migration.
 - **Content doctor:** primary surface is the aggregated report in `npm test`
   output (§2); `?dashboard=1` is a thin dev view over the same pure API —
-  per-domain tables with badges (art / vfx / char-meta / audio / pool
+  per-domain tables with badges (locale / art / vfx / char-meta / audio / pool
   membership) linking into gallery preview and Lab launch.
 - **Content Manager (`?contentedit=1`)** *(droppable)*: schema-driven CRUD
-  forms for **cards, relics, potions, and themes only** — enemies are
+  joined mechanics/locale forms for **cards, relics, potions, and themes only** — enemies are
   excluded in v1 (their `ai` is code; at most rendered as read-only source).
   Save → `POST /__content-save` (dev-only Vite plugin, same-origin gate) →
-  writes the pack module back with a stable-ordered, pretty-printed
-  serialiser, validating against the schema *before* writing. `npm test`
+  writes a staged multi-source transaction with stable-ordered,
+  pretty-printed serialisers, validating the complete joined candidate *before*
+  atomically replacing either source and rolling both back on failure. A
+  description edit changes locale bytes only; a mechanics edit changes pack
+  bytes only. `npm test`
   remains the commit gate.
 - **Dev shell (`?dev=1`)** *(droppable)*: a thin launcher page listing every
   tool. Existing tool URLs unchanged.
@@ -869,7 +966,12 @@ this round adds no playable Act 4 screen or route.
   ember drift, a once-per-session wordmark ignition sequence, button column
   restyled in the widget-kit language; the Vigil pulse and rose-window
   medallion (Progressive Delivery Phase 2 surfaces) get their finished
-  treatment.
+  treatment. The PR #18 bottom-right version label stays visible in all five
+  canonical shapes, inside safe areas and outside the button/stats geometry.
+  Five logo taps inside two seconds still reveal the `aria-live` debug row for
+  three seconds or until the next completed five-tap gesture; neither surface
+  enters `data-a` routing or emits SFX. Trace records only stable show/hide,
+  locale/control and release-state facts, never semver/SHA display copy.
 - Embark: aspect picker as full-art panels (hero art + kit summary) with a
   selection ceremony; vow stepper as a lantern dial with the cumulative
   ledger; Begin plays a lantern-lighting transition into the map. Reveal
@@ -1017,8 +1119,11 @@ Pixi failure. No physical device is required.
 The artifact records Xcode, runtime/build, Safari, model/UDID, orientation, and
 host architecture. Written pass/fail criteria gate boot/API support,
 stage/safe-area selection, font and texture readiness/fallback, automated
-pointer and pointer-cancel semantics, motion coherence, all three contexts
-coexisting, and deliberately induced **Pixi context** loss → rebuild → ready.
+pointer and pointer-cancel semantics, motion coherence, all-context maximum
+three plus exact named owners/no steady unowned context, and deliberately
+induced **Pixi context** loss → rebuild → ready. The disposable proof includes
+the deliberately observed-and-lost Pixi support-test context; counting only
+canvas ids is invalid evidence.
 Scene3d/mesh context restoration remains out of scope. Playwright
 records host-relative performance separately, but neither lane claims physical
 device FPS, GPU/texture-memory headroom, input latency/feel, thermal behaviour,
@@ -1033,12 +1138,16 @@ valuable regardless).
 ### Registry & tooling gates (P2–P3)
 
 - **Golden equivalence, three legs** (see invariants): 32-export stable
-  observable projection deep-equal (RegExp encoded and the one getter→derived-
+  hydrated observable projection deep-equal (RegExp encoded and the one getter→derived-
   number transition explicitly asserted), seeded `ai` trace
   equivalence, monte-carlo digest.
+- Raw mechanics ownership and English catalogue digest/provenance stay pinned;
+  exactly seven i18n APIs, 18 domains, joined locale completeness and
+  source-owned fields are checked. The sample mechanics/locale pair proves a
+  fourth theme without English display fields leaking into its pack.
 - Registry unit tests in `test_engine.js` (Node-pure): schema validation,
   id-collision throw, cross-reference checks, per-table merge semantics,
-  content-doctor report shape, `_sample` fixture registering without
+  content-doctor joined locale report shape, `_sample` fixture pair registering without
   polluting core pools.
 - Act-coupling sweep gate: literals + indices + clamps, with the enumerated
   allowlist; the climbable `_sample`-theme Lab smoke.
@@ -1146,6 +1255,7 @@ reduced-scope exit and does not satisfy Full-Round success.
 | Risk | Mitigation |
 |---|---|
 | Pixi incompatible with mobile WebKit | **P0.5 Simulator Safari spike before any sunk cost**; P4 exit checkpoint before the hand migrates; WebKit-safe review and declared-acceptable fallback states at each gate; actual Capacitor WKWebView remains for its own round |
+| Pixi's support probe briefly creates an unowned fourth context | Observe every `getContext`, prewarm while only two named owners exist, explicitly lose `getTestContext()`, and gate the all-context live maximum separately from named ownership |
 | Required Simulator runtime is absent | Treat as environment setup, install the pinned runtime through supported Xcode tooling without credentials, and rerun preflight; never call absence a Pixi NO-GO |
 | Simulator success is misreported as device performance proof | Record the exact runtime/host, label the gate functional compatibility, forbid Simulator FPS, memory, touch-feel, thermal, and background-eviction claims, and defer those claims explicitly |
 | Behaviour trace becomes a second game truth or a noisy logger | Observe only semantic owners; structured versioned records are canonical; no engine imports, DOM inference, frame/pointer-move spam, or console-first transport |
@@ -1154,7 +1264,10 @@ reduced-scope exit and does not satisfy Full-Round success.
 | Functions/accessors/RegExp break the P2 gates | Stable 32-export projection encodes RegExp and evaluated values; a descriptor inventory records the one legacy getter; pack schemas reject accessors and declare behaviour functions; assembly derives Hollow target from the active context; protocol constants stay outside packs |
 | Recursive registry freeze breaks authored-tunable compatibility tests | The implementation plan establishes an explicit derived content-context/snapshot-validation seam before the immutable cut-over; tests never mutate frozen production content |
 | `data.js` re-homing drifts behaviour | Golden-equivalence (three legs) + monte-carlo + full Playwright; P2 is its own phase, never mixed with Pixi work |
-| Refactor collides with parallel content commits | Content-table freeze during P2; named owner folds `VARIANTS`/`WHISPERS` into the core pack |
+| Registry work reclaims or duplicates PR #7 English copy | Exact `source` metadata, raw-mechanics/locale oracle legs, hydrate-before-freeze, joined doctor/Manager forms and locale-only byte tests |
+| English copy silently changes during visual work | PE owns keys/values and requires owner approval for new wording; FE owns fit/hierarchy/wrapping/placement only; copy-invariance and unresolved-key gates stand |
+| App version becomes volatile or a mid-round build looks released | Keep `0.5.0` package source, ordinary build `+unknown`, DEV-only live SHA, and never invoke release scripts during Round 5 closure |
+| Refactor collides with parallel content commits | Mechanics/English-catalogue freeze during P2; named owner re-homes `VARIANTS` mechanics while `WHISPERS` and all display/dialogue remain locale-owned |
 | PE/FE agents collide or silently cross ownership | Separate worktrees, task-level disjoint write manifests, one lead per task, sequential shared-file hand-offs, exact commit/interface records and independent QA before integration |
 | Pointer/drag regressions on the canvas boundary | Single stage-level router specified up front; real-pointer router + pointercancel e2e |
 | Migrated chrome stops shaking / motion regressions | Shake-mirror invariant; named trace span plus Simulator Safari motion review, not just static pixels |
@@ -1183,8 +1296,10 @@ enemy-AI DSL (behaviour stays code); engine mechanics or event-shape changes
 beyond the named `opts.ephemeral` Lab hook; audio redesign or new cue ids
 (Round 5 preserves PR #16's live resolver/call sites); analytics / crash telemetry (named for the
 Capacitor round, not silently dropped); screen-reader support (declared
-deferral — keyboard path is in scope); localisation (registries merely
-centralise strings for it); daily seeds / challenge modes; cutout/skeletal
+deferral — keyboard path is in scope); any second locale, live content-table
+rehydration/rerender, language picker or persistence, RTL, locale-specific font
+coverage, ICU or full runtime language-switch claim (preservation/completion of
+the default English catalogue is in scope); daily seeds / challenge modes; cutout/skeletal
 rigging; Act 4 content (the `_sample` pack is scaffolding, not content);
 store-grade capture and device-framed store matrices (Capacitor round);
 trailer editing; save-storage migration (stays guarded localStorage / vigil
@@ -1239,11 +1354,11 @@ one occurred rather than blending them into one definition of “done”.
    wins are all present.
 4. bfuiedit still edits live chrome geometry, now rendered by Pixi; bfedit
    (combatants + stage plates, which stay DOM) is unaffected and still works.
-5. **Registry proof:** the three-leg golden equivalence holds; the `_sample`
-   fixture pack boots a **climbable** mini theme in the Lab with zero code
-   changes outside its own directory; the act-coupling sweep passes with its
-   enumerated residue; the content doctor reports the core pack 100%
-   complete.
+5. **Registry proof:** the three-leg golden equivalence and raw-mechanics/
+   English-catalogue oracle legs hold; the `_sample` mechanics/locale pair boots
+   a **climbable** mini theme in the Lab with zero code changes outside its own
+   directory; the act-coupling sweep passes with its enumerated residue; the
+   content doctor reports the joined core 100% complete.
 6. **Tooling proof:** the Lab stages any registered encounter (including
    variants) from a pasted URL and can replay a correlated trace beat; if the
    Content Manager shipped, it round-trips an edit through `/__content-save` with
@@ -1251,7 +1366,9 @@ one occurred rather than blending them into one definition of “done”.
 7. All four screen sets carry **owner contact-sheet sign-offs** (austere,
    grown and every named Phase 2 substate); Fall/Dawn play as specified
    ceremonies while preserving every PR #16 cue/fallback call site and its
-   gameplay/trace evidence; the title has its ignition; combat has its keyboard
+   gameplay/trace evidence; the title has its ignition and exact PR #18 version
+   behaviour; captures assert locale `en`, catalogue hashes, no unresolved key
+   or `{param}`, and visible supplied copy in all shapes; combat has its keyboard
    path.
 8. Every PR receives the required CI status; the full kit runs on relevant PRs
    and pushes to main, while docs/tooling-only changes receive the required

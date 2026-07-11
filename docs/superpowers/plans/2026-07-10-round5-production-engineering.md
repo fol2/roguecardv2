@@ -2,16 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use Superpowers 6.1.1 `superpowers:subagent-driven-development` to implement this plan task-by-task with a fresh implementer and fresh spec/code reviewers. Do not substitute `executing-plans`. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Phase 2 re-entry (2026-07-11):** Re-authored against loaded PR #14, PR #15
-> and PR #16 at `7b8e01ab5ab5f7be0a3a8cbd3c61b3b41549a419`. The prior plan is
+> **Predecessor re-entry (2026-07-11):** Re-authored against loaded PR #14,
+> PR #15, PR #16, PR #18 and PR #7 at the minimum baseline
+> `b285b815509d5c700b2b76847302c01bc595db47`. The prior plan is
 > not executable by assumption: terminal/Dawn transactions, the 32-export
 > surface, parallel CI, progression gates, PR #15 audio hot-apply and PR #16's
-> complete live Music Cue resolver/call sites are protected predecessor
-> behaviour throughout this revision.
+> complete live Music Cue resolver/call sites, PR #18 app versioning/release
+> flow, and PR #7 English i18n/hydration are protected predecessor behaviour
+> throughout this revision. Open/red PR #17 is explicitly excluded.
 
 **Goal:** Deliver the Full-Round commercial-engine target: a registry-backed content substrate, AI-readable Semantic UI Behaviour Trace, production Pixi combat UI, deterministic authoring/QA tooling, finished DOM screens, and the provisional ship-front kit, with a supported P4/P5/P6 prefix stop at every declared gate.
 
-**Architecture:** Production Engineering (PE) remains the primary lane and owns every product JavaScript file, state transition, renderer/input seam, authoring tool, probe, test, workflow and integration commit. A separate Front-end Experience (FE) worktree owns only the checked-in experience contract, one dedicated stylesheet, named visual assets and review reports. PE and FE run concurrently only on the disjoint write sets below; PE consumes FE outputs through named commit hand-offs after interfaces are frozen.
+**Architecture:** Production Engineering (PE) remains the primary lane and owns every product JavaScript file, state transition, renderer/input seam, locale/version contract, authoring tool, probe, test, workflow and integration commit. Mechanics/behaviour live in `src/packs/**`; English display ownership remains the parallel compiled-in `src/i18n/en/content.js` overlay, joined and hydrated before a content context freezes. A separate Front-end Experience (FE) worktree owns only the checked-in experience contract, one dedicated stylesheet, named visual assets and review reports. PE and FE run concurrently only on the disjoint write sets below; PE consumes FE outputs through named commit hand-offs after interfaces are frozen.
 
 **Tech Stack:** Vite 8.1 + vanilla ES modules; Node 24; Three.js 0.185; PixiJS **8.19.0** pinned to WebGL; Selenium WebDriver **4.45.0** for serial Simulator Safari automation; plain `node:assert` checks in `test/test_engine.js`; Playwright 1.61.1; GitHub Actions; Apple `safaridriver` against the live iOS 26.5 (`23F73`) Simulator runtime prerequisite.
 
@@ -20,30 +22,36 @@
 - **Loaded predecessor gate:** no Round 5 runtime/product edit starts unless the
   execution branch contains PR #14 merge `469890680239c523e708e6d05ad3a02d867f0859`,
   PR #15 merge `4dc1af79c47e8a93795355607cfca238c82f57be` and
-  PR #16 merge `7b8e01ab5ab5f7be0a3a8cbd3c61b3b41549a419`.
+  PR #16 merge `7b8e01ab5ab5f7be0a3a8cbd3c61b3b41549a419`,
+  PR #18 merge `de84c3015c9726d573106f2de97d0972cf283c32`, and
+  PR #7 merge `b285b815509d5c700b2b76847302c01bc595db47`.
   `src/data.js` must expose the complete 32-name post-Phase-2 contract,
   transactional Dawn/Rose/sealed-door surfaces and PR #15 hot audio-gallery
   behaviour. `src/music-resolve.js`, all 22 live catalogue rows, their PR #16
-  precedence and real gameplay call sites must also be present. A later
+  precedence and real gameplay call sites must also be present. Package version
+  `0.5.0`, version/release build semantics, exact seven i18n APIs, default `en`,
+  18 English content domains and module-init hydration must also be present
+  without a save change. A later
   `origin/main` change triggers a fresh drift audit before runtime work; a
   local predecessor worktree never passes.
 - Keep `src/engine.js`, `src/vigil.js`, `src/data.js`, `src/content.js`, `src/registry.js`,
   `src/content-protocol.js`, `src/choice-latch.js`,
-  `src/music-resolve.js`,
+  `src/music-resolve.js`, `src/version.js`, `src/i18n/index.js`,
+  `src/i18n/en/index.js`, `src/i18n/en/content.js`, `src/i18n/en/ui.js`,
   `src/packs/**`, `src/presentation-catalog.js`, `src/content-resources.js`, `src/battlefield.js`,
   `src/battlefield-layout.js`, `src/uic.js`, `src/ui-chrome-layout.js`,
   `src/ui/tokens.js`, `src/ui/shipfront-assets.js`,
   `src/ui/content.js`, `src/ui/behaviour-trace.js` and
   `src/ui/presentation-barrier.js`
   plus `src/ui/run-effects.js` Node-runnable and DOM-free.
-- Preserve the load-bearing import graph: `src/engine.js` imports `src/data.js` only. `src/data.js` becomes the assembler and keeps the complete post-predecessor named-export surface.
-- Keep all current internal ids and the complete `7b8e01a` save keys/shapes
+- Preserve the load-bearing import graph: `src/engine.js` and `src/vigil.js` import `src/data.js`, never i18n/version/UI. `src/data.js` aliases one already-hydrated frozen content context, performs no post-freeze mutation, and keeps the complete post-predecessor named-export surface.
+- Keep all current internal ids and the complete `b285b81` save keys/shapes
   immutable, including `runId`, pending encounter/reward/Hollow/Shade state,
   `pendingRunEnd`, `pendingDawn`, Vigil receipts and bequests. Packs add no save
   field. New mechanics, a playable Act 4, runtime DLC, AI DSL, screen-reader
   mirror and Capacitor packaging are out of scope.
 - P1 is a zero-visual-change refactor. Instrument the post-predecessor monolith before moving code; preserve selected DOM-era trace contracts through P4/P5.
-- The trace is structured/versioned and observer-only. Order is `seq`; incremental cursor is `{ segment, seq }`; `atMs` is diagnostic; REDUCED is policy metadata; text/NDJSON are projections; no network exporter or automatic persistence.
+- The trace is structured/versioned and observer-only. Order is `seq`; incremental cursor is `{ segment, seq }`; `atMs` is diagnostic; REDUCED is policy metadata; text/NDJSON are projections; no network exporter or automatic persistence. A segment header carries sanitised app version/build identity and locale once; fixtures strip volatile SHA. Events may contain stable locale/localeKey/control ids, never resolved copy/HTML/dialogue.
 - Presentation completion is owned by an always-on renderer-neutral barrier, never by the optional trace. Enabling or disabling trace may not change `settle()` timing or gameplay semantics.
 - Every trace-enabled Playwright spec imports the automatic `test/e2e/trace-fixture.js`; failure NDJSON and timestamped text are mandatory for battle, Lab, input, presentation and P6 journeys.
 - Pixi-era screenshot tolerance is pre-authorised at `0.01` for each named P4,
@@ -51,7 +59,30 @@
   in response to a failed baseline; a different value requires a golden-spec
   revision before capture.
 - Content Lab replay is presentation-only. On a replayable span settle, Lab writes bounded `replay=` via `history.replaceState`; reload hydrates but never auto-runs it; replay never calls engine commands or writes saves.
-- Pin Pixi to WebGL (`preference: 'webgl'`), never WebGPU. New APIs must be current-iOS-WebKit safe. Total WebGL contexts stay at three: scene3d, mesh and Pixi.
+- Pin Pixi strictly to WebGL with exact `preference: ['webgl']`, never the Pixi
+  8.19 fall-through string form and never WebGPU. All WebGL contexts count,
+  including detached/id-less support-test contexts; total live contexts stay at
+  three while named steady owners are exactly scene3d, mesh and Pixi.
+- Preserve PR #7 slice-1 semantics: `setLocale()` changes `t`/`tr` only; it does
+  not rehydrate/rerender/persist/add a picker, unknown locale returns false, and
+  no second locale/RTL/font claim is added. Preserve `t as tr`, every `tr` call,
+  lazy `KEYWORDS()`/`FACET_DESC()` and `$$('.kw', card)`. Round 5 authors no new
+  product wording without owner approval; PE owns keys/English values/fallbacks,
+  while FE owns supplied-copy fit, hierarchy, wrapping, placement and motion.
+- P2 uses
+  `createContentContext(packs, { id, resources, localeContent, localeToken })`.
+  It descriptor-validates/copies/derives a fresh mutable graph, invokes existing
+  `hydrateContent` before locale validation and recursive freeze, preserves
+  aliases/identities, and returns the only graph `data.js` may alias. A partial
+  registry is mechanics-only. Every schema field declares exact
+  `source:'pack'|'locale'`; known locale fields in mechanics fail, while generic
+  unknown extensions warn. The same metadata powers coverage, doctor and joined
+  Manager forms. A future content-only Act 4 registers a paired mechanics pack
+  plus English overlay; new mechanics still require engine work.
+- Preserve PR #18 exactly: `package.json` `0.5.0` is the source; DEV uses a live
+  short SHA, ordinary build uses `+unknown`, and only explicit release build is
+  clean semver. Round 5 never invokes `npm run release`, `release:build` or
+  `tools/release.mjs`; those scripts remain manual-only and never commit/tag/push.
 - Simulator Safari proves functional compatibility only. It makes no physical-device FPS, memory, thermal, background-eviction, input-latency or touch-feel claim.
 - Preserve the merged Phase 2 performance policy: missing/invalid metrics or a
   crashed journey fail; valid portrait/LITE or desktop/Full target misses emit
@@ -90,7 +121,7 @@
   ```
 - PE produces gate evidence and fixes findings. A fresh QA agent reviews each task diff for both spec compliance and code quality; the implementer never self-certifies. Owner checkpoints remain owner-only.
 - Use UK English in code comments, docs and player copy. Keep normal user communication in HK Cantonese.
-- Rebuild tracked `dist/` only in the final Full-Round task or at an explicitly declared prefix exit. Stage exact paths; never use `git add -A`; never amend or force-push.
+- Rebuild tracked `dist/` only in the final Full-Round task or at an explicitly declared prefix exit. Stage exact paths; never use `git add -A`; never amend or force-push. The sole exception is the owner-requested predecessor-only rebase of the already-published documentation branches before runtime history starts: if their remote tips still name the pre-PR7 documents, update each with `git push --force-with-lease=<ref>:<observed-old-sha>`. Record old/new heads and lease in the ledger. After the first runtime commit, force-push is forbidden without exception.
 
 ### Executable standing-gate matrix
 
@@ -179,7 +210,7 @@ before the Task 37 owner gate and the per-file P7 approval in Task 38.
 
 | Owner | Exact write set |
 |---|---|
-| PE | All `src/**/*.js`; `src/styles.css`; `src/main.js`; `index.html`; `package*.json`; `vite.config.js`; Playwright configs; `test/**`; `.github/**`; `tools/**`; `public/**`; `dist/**`; PE docs/reports |
+| PE | All `src/**/*.js`, explicitly including `src/i18n/**` and `src/version.js`; all locale keys/English values/accessibility/fallback/runtime behaviour; `src/styles.css`; `src/main.js`; `index.html`; `package*.json`; `vite.config.js`; Playwright configs; `test/**`; `.github/**`; `tools/**`; `public/**`; `dist/**`; PE docs/reports |
 | FE | `docs/superpowers/specs/2026-07-10-round5-fe-experience-contract.md`; `src/styles/round5-screens.css`; `docs/stage-art-bible.md`; `docs/superpowers/reports/2026-07-10-round5-fe-contact-sheet-review.md`; `docs/superpowers/reports/2026-07-10-round5-store-fe-draft.md`; `scratch/style-tests/round5/**`; the exact approved P7 asset paths from the golden spec |
 | QA | Review reports/ledger only; no product or test-harness writes |
 
@@ -206,12 +237,16 @@ before the Task 37 owner gate and the per-file P7 approval in Task 38.
 | `src/ui/index.js` | Imports/wires modules, binds commands, installs globals/HMR and boots UI | P1 |
 | `src/ui.js` | Thin public re-export of `initUI` and `show` | P1 |
 | `src/music-resolve.js` | Existing Node-pure PR #16 cue resolution: quest/Eighth/theme precedence, screen overrides and Dawn ceremony cues | P1/P2 |
+| `src/version.js` | Existing Node-pure PR #18 version display/build identity helper | predecessor; preserved P1/P6 |
+| `src/i18n/index.js` | Existing seven-API Node-pure locale lookup and hydration seam; slice-1 switch changes lookup only | predecessor; preserved P1/P2 |
+| `src/i18n/en/content.js` | Existing English display overlay for 18 content domains; remains the display source through registry re-homing | predecessor/P2 |
+| `src/i18n/en/ui.js` | Existing English UI catalogue; P1 preserves/completes approved residual keys | predecessor/P1/P6 |
 | `src/content-protocol.js` | Four immutable protocol exports: quest states, active states, terminal outcomes and run-id RegExp | P2 |
 | `src/registry.js` | Node-pure schemas, pack definition, deterministic content-context merge/freeze and doctor | P2 |
 | `src/content-resources.js` | Node-pure static VFX/character/fallback/audio/token catalogues; no filesystem or Vite asset glob | P2 |
 | `src/content.js` | Private production full-context assembler; exports `CORE_CONTENT` without widening `data.js` | P2 |
-| `src/packs/core/*.js` | Existing content re-homed without id/value drift | P2 |
-| `src/packs/_sample/*.js` | Dev/test-only card, enemy and fourth mini theme | P2 |
+| `src/packs/core/*.js` | Existing mechanics/behaviour re-homed without ids or English display fields | P2 |
+| `src/packs/_sample/*.js` + `locale-en.js` | Dev/test-only mechanics/English pair: card, enemy and fourth mini theme | P2 |
 | `src/ui/tokens.js` | Node-pure motion/palette/type values consumed by CSS and Pixi | P2 |
 | `src/ui/content.js` | Node-pure full presentation-context resolver; core default plus explicit ephemeral binding | P2/P3 |
 | `src/presentation-catalog.js` | Node-pure VFX, character-kind and structural-fallback id inventory | P2 |
@@ -376,9 +411,10 @@ title; no executor invents them.
   `codex/round5-production-engineering`
 - FE worktree/branch: `.worktrees/round5-front-end` /
   `codex/round5-front-end`
-- The original plan/bootstrap commit has already been rebased onto Phase 2;
-  FE owns two contract commits. Re-running `git worktree add -b`, recreating the
-  ledger or assuming equal PE/FE heads is forbidden.
+- The original plan/bootstrap range was rebased onto Phase 2/PR16 and has now
+  been rebased onto PR18/PR7; FE owns three reviewed contract commits. Re-running
+  `git worktree add -b`, recreating the ledger, or assuming equal PE/FE heads is
+  forbidden.
 
 **Interfaces:**
 - Produces: immutable historical bootstrap evidence only.
@@ -395,22 +431,34 @@ test -f .superpowers/sdd/progress.md
 ```
 
 Expected: each branch occurs in exactly one worktree and the ledger retains the
-Phase-2/PR16 re-entry rows. Do not edit, truncate or recreate it.
+Phase-2/PR16 re-entry rows. Append new PR18/PR7 rows; do not edit, truncate or
+recreate historical evidence.
 
 - [x] **Step 2: Preserve the FE-owned history**
 
 The FE branch contains the original contract, its Phase-2 amendment and its
 PR #16 live-music amendment. The controller rebases that owned range once onto
-the final amended PE-plan head, records the resulting heads with `apply_patch`,
+the final PR18/PR7-amended PE-plan head, records the resulting heads with `apply_patch`,
 then treats both Task 0 and Task 1 mutation steps as closed. A future executor
 may run only ancestry, status and diff/write-set checks; it may never reuse a
 historical `PE pre-rebase`/`PE post-rebase` pair as a new `rebase --onto`
 instruction.
 
-### Task 1: `[PE]` Loaded Phase 2 + live-music predecessor re-entry — completed checkpoint
+Because these are predecessor-only documentation branches and runtime history
+has not started, the owner has authorised one remote correction if needed:
+push each rewritten docs branch with an explicit
+`--force-with-lease=<ref>:<observed-old-sha>`, never a bare `--force`. Record
+remote old head, local new head and lease. This exception expires before the
+Task 3 spike is frozen; every implementation commit thereafter retains the
+normal no-force rule.
+
+### Task 1: `[PE]` Loaded Phase 2 + app-version + English-i18n predecessor re-entry — browser rerun required
 
 **Files:**
 - Read only: `src/data.js`, `src/ui.js`, `src/engine.js`, `src/vigil.js`,
+  `src/version.js`, `src/i18n/index.js`, `src/i18n/en/index.js`,
+  `src/i18n/en/content.js`, `src/i18n/en/ui.js`, `vite.config.js`,
+  `tools/release.mjs`, `docs/app-versioning.md`,
   `src/audio-assets.js`, `src/audio.js`, `src/audio-catalog.js`,
   `src/music-resolve.js`, `src/music.js`, `src/dev/audio-selection-serialize.js`,
   `public/audio-selection.json`, `package.json`,
@@ -420,11 +468,12 @@ instruction.
 - No commit; this is a hard execution gate
 
 **Interfaces:**
-- Produces: the already-recorded clean PR #14 + PR #15 + PR #16 ancestry and
+- Produces: clean PR #14 + PR #15 + PR #16 + PR #18 + PR #7 ancestry and the
   semantic baseline consumed by every runtime task.
-- Status: reopened and closed after the second 2026-07-11 rebase/audit onto
-  `7b8e01a`. Do not replay its historical branch mutation; a future `main`
-  change opens a new drift-audit task.
+- Status: ancestry/semantic/node/build audit reopened and closed after the
+  2026-07-11 rebase onto `b285b81`; the full local browser gate must still be
+  rerun from the final amended head before Task 3 is recreated/frozen. Do not
+  replay historical branch mutations; a later `main` change opens a new audit.
 
 - [x] **Step 1: Verify the recorded ancestry without replaying the rebase**
 
@@ -438,15 +487,22 @@ git fetch origin --prune
 git fetch origin refs/pull/14/head:refs/remotes/origin/pr/14
 git fetch origin refs/pull/15/head:refs/remotes/origin/pr/15
 git fetch origin refs/pull/16/head:refs/remotes/origin/pr/16
-for PR in 14 15 16; do
+git fetch origin refs/pull/18/head:refs/remotes/origin/pr/18
+git fetch origin refs/pull/7/head:refs/remotes/origin/pr/7
+for PR in 14 15 16 18 7; do
   test "$(gh pr view "$PR" --repo fol2/roguecardv2 --json state --jq .state)" = MERGED
   for CHECK in unit e2e; do
     test "$(gh pr view "$PR" --repo fol2/roguecardv2 --json statusCheckRollup \
       --jq "[.statusCheckRollup[] | select(.name==\"$CHECK\" and .conclusion==\"SUCCESS\") ] | length > 0")" = true
   done
 done
-test "$(git rev-parse origin/main)" = 7b8e01ab5ab5f7be0a3a8cbd3c61b3b41549a419
+test "$(git rev-parse origin/main)" = b285b815509d5c700b2b76847302c01bc595db47
 git merge-base --is-ancestor origin/main HEAD
+
+PR7_CHECKS=$(gh pr view 7 --repo fol2/roguecardv2 --json statusCheckRollup)
+test "$(printf '%s' "$PR7_CHECKS" | jq '[.statusCheckRollup[] | select(.conclusion=="SUCCESS")] | length')" = 24
+test "$(printf '%s' "$PR7_CHECKS" | jq '[.statusCheckRollup[] | select(.name=="e2e smoke" and .conclusion=="SKIPPED")] | length')" = 1
+test "$(printf '%s' "$PR7_CHECKS" | jq '[.statusCheckRollup[] | select(.conclusion!="SUCCESS" and .conclusion!="SKIPPED")] | length')" = 0
 ```
 
 Then it proved predecessor provenance:
@@ -470,17 +526,37 @@ test "$(gh pr view 16 --repo fol2/roguecardv2 --json headRefOid --jq .headRefOid
   7c91f1675d5aa13694497855e3a5f068541d31b9
 test "$(gh pr view 16 --repo fol2/roguecardv2 --json mergeCommit --jq .mergeCommit.oid)" = \
   7b8e01ab5ab5f7be0a3a8cbd3c61b3b41549a419
+test "$(gh pr view 18 --repo fol2/roguecardv2 --json baseRefOid --jq .baseRefOid)" = \
+  7b8e01ab5ab5f7be0a3a8cbd3c61b3b41549a419
+test "$(gh pr view 18 --repo fol2/roguecardv2 --json headRefOid --jq .headRefOid)" = \
+  b54936ecebe7f1e0376a237c1f7d84aa5305a1bd
+test "$(gh pr view 18 --repo fol2/roguecardv2 --json mergeCommit --jq .mergeCommit.oid)" = \
+  de84c3015c9726d573106f2de97d0972cf283c32
+test "$(gh pr view 7 --repo fol2/roguecardv2 --json baseRefOid --jq .baseRefOid)" = \
+  de84c3015c9726d573106f2de97d0972cf283c32
+test "$(gh pr view 7 --repo fol2/roguecardv2 --json headRefOid --jq .headRefOid)" = \
+  d8773b7f3ad3b1fdc09b1cdbddfbaa5bb6b79193
+test "$(gh pr view 7 --repo fol2/roguecardv2 --json mergeCommit --jq .mergeCommit.oid)" = \
+  b285b815509d5c700b2b76847302c01bc595db47
 test "$(git rev-parse refs/remotes/origin/pr/14)" = \
   469890680239c523e708e6d05ad3a02d867f0859
 test "$(git rev-parse refs/remotes/origin/pr/15)" = \
   f429a419eecdd3a6a8ffb8c796689f34792a7259
 test "$(git rev-parse refs/remotes/origin/pr/16)" = \
   7c91f1675d5aa13694497855e3a5f068541d31b9
+test "$(git rev-parse refs/remotes/origin/pr/18)" = \
+  b54936ecebe7f1e0376a237c1f7d84aa5305a1bd
+test "$(git rev-parse refs/remotes/origin/pr/7)" = \
+  d8773b7f3ad3b1fdc09b1cdbddfbaa5bb6b79193
 git merge-base --is-ancestor 469890680239c523e708e6d05ad3a02d867f0859 HEAD
 git merge-base --is-ancestor f429a419eecdd3a6a8ffb8c796689f34792a7259 HEAD
 git merge-base --is-ancestor 4dc1af79c47e8a93795355607cfca238c82f57be HEAD
 git merge-base --is-ancestor 7c91f1675d5aa13694497855e3a5f068541d31b9 HEAD
 git merge-base --is-ancestor 7b8e01ab5ab5f7be0a3a8cbd3c61b3b41549a419 HEAD
+git merge-base --is-ancestor b54936ecebe7f1e0376a237c1f7d84aa5305a1bd HEAD
+git merge-base --is-ancestor de84c3015c9726d573106f2de97d0972cf283c32 HEAD
+git merge-base --is-ancestor d8773b7f3ad3b1fdc09b1cdbddfbaa5bb6b79193 HEAD
+git merge-base --is-ancestor b285b815509d5c700b2b76847302c01bc595db47 HEAD
 ```
 
 Expected: every command exits 0 and the branch is clean. Record the immutable
@@ -488,19 +564,22 @@ PR/head/merge hashes, green required checks and actual `origin/main`/PE heads
 in the execution ledger. The old `4275781` application/test checkpoint remains
 historical evidence only: PR #14 review/standards commits intentionally changed
 source and tests after it and were re-proved by final required CI. Do not revive
-the obsolete byte-clean assertion. The PR #16 re-entry recorded
-`git diff --name-status 4dc1af7..7b8e01a` and re-proved the local baseline. If
-`origin/main` contains commits after `7b8e01a`, record
-`git diff --name-status 7b8e01a..origin/main`, re-enter the spec/plan drift
+the obsolete byte-clean assertion. The historical PR #16 re-entry recorded
+`git diff --name-status 4dc1af7..7b8e01a`; PR #18 and PR #7 then received their
+own audits. PR #7's final required CI contains 24 successful checks and exactly
+one expected skipped Draft smoke, with aggregate `unit` and `e2e` green. If
+`origin/main` contains commits after `b285b81`, record
+`git diff --name-status b285b81..origin/main`, re-enter the spec/plan drift
 audit, and do not continue merely because ancestry passes.
 
 The controller separately rebases the three reviewed FE-owned contract commits
-onto the final amended plan head exactly once. It records `Phase 2 final PE
-head:` and `Phase 2 final FE head:` in the ledger. Future checks are read-only:
+onto the final PR18/PR7-amended plan head exactly once. Preserve the historical
+`Phase 2 final *` rows and append `Loaded predecessor final PE head:` and
+`Loaded predecessor final FE head:`. Future checks are read-only:
 
 ```bash
-FINAL_PE=$(sed -n 's/^Phase 2 final PE head: //p' .superpowers/sdd/progress.md | tail -1)
-FINAL_FE=$(sed -n 's/^Phase 2 final FE head: //p' .superpowers/sdd/progress.md | tail -1)
+FINAL_PE=$(sed -n 's/^Loaded predecessor final PE head: //p' .superpowers/sdd/progress.md | tail -1)
+FINAL_FE=$(sed -n 's/^Loaded predecessor final FE head: //p' .superpowers/sdd/progress.md | tail -1)
 test -n "$FINAL_PE" && test -n "$FINAL_FE"
 test "$(git rev-parse HEAD)" = "$FINAL_PE"
 test "$(git -C ../round5-front-end rev-parse HEAD)" = "$FINAL_FE"
@@ -520,6 +599,8 @@ Run:
 node --input-type=module -e '
   import { readFileSync } from "node:fs";
   const data = await import("./src/data.js");
+  const i18n = await import("./src/i18n/index.js");
+  const versionApi = await import("./src/version.js");
   const { MUSIC_CATALOG } = await import("./src/audio-catalog.js");
   const musicResolve = await import("./src/music-resolve.js");
   const { serializeAudioSelection } = await import("./src/dev/audio-selection-serialize.js");
@@ -535,10 +616,39 @@ node --input-type=module -e '
   if (JSON.stringify(QUEST_ACTIVE_STATES) !== JSON.stringify(["armed","revealed"])) throw new Error("active quest states drifted");
   if (JSON.stringify(TERMINAL_OUTCOMES) !== JSON.stringify(["win","death","abandon"])) throw new Error("terminal outcomes drifted");
   if (RUN_ID_RE.source !== "^(?:run|legacy)-[a-z0-9]+(?:-[a-z0-9]+){1,3}$" || RUN_ID_RE.flags !== "") throw new Error("run id contract drifted");
+  const expectedI18n = ["getContent","getLocale","hydrateContent","lookup","registerLocale","setLocale","t"];
+  if (JSON.stringify(Object.keys(i18n).sort()) !== JSON.stringify(expectedI18n))
+    throw new Error("PR 7 exact i18n API drifted");
+  if (i18n.getLocale() !== "en" || i18n.setLocale("missing-round5") !== false
+    || i18n.getLocale() !== "en") throw new Error("PR 7 locale semantics drifted");
+  const expectedDomains = ["acts","affixes","arts","aspects","boons","cards","deeds","enemies","events","omens","potions","quests","relics","shadeKits","status","variants","vows","whispers"];
+  const localeContent = i18n.getContent();
+  if (JSON.stringify(Object.keys(localeContent).sort()) !== JSON.stringify(expectedDomains))
+    throw new Error("PR 7 English domain inventory drifted");
+  if (data.CARDS.strike.name !== localeContent.cards.strike.name
+    || data.QUESTS.paleOnes.name !== localeContent.quests.paleOnes.name)
+    throw new Error("PR 7 module-init hydration drifted");
+  if (JSON.stringify(Object.keys(versionApi).sort()) !== JSON.stringify(["formatVersionDisplay","getVersionInfo"]))
+    throw new Error("PR 18 version API drifted");
+  const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+  if (packageJson.version !== "0.5.0") throw new Error("PR 18 package version drifted");
+  if (versionApi.formatVersionDisplay("0.5.0", "abc1234", false) !== "0.5.0+abc1234"
+    || versionApi.formatVersionDisplay("0.5.0", "", false) !== "0.5.0+unknown"
+    || versionApi.formatVersionDisplay("0.5.0", "abc1234", true) !== "0.5.0")
+    throw new Error("PR 18 version formatting drifted");
+  const vite = readFileSync("vite.config.js", "utf8");
+  for (const marker of ["__SPIRE_VERSION__","__SPIRE_GIT_SHA__","__SPIRE_RELEASE__","SPIRE_EMBED_SHA","command === \"serve\""])
+    if (!vite.includes(marker)) throw new Error(`PR 18 Vite define missing: ${marker}`);
+  const releaseTool = readFileSync("tools/release.mjs", "utf8");
+  if (!packageJson.scripts.release || !packageJson.scripts["release:build"]
+    || !releaseTool.includes("--no-git-tag-version") || !releaseTool.includes("Suggested next steps"))
+    throw new Error("PR 18 manual release contract drifted");
   const art = readFileSync("src/art.js", "utf8");
   const ui = readFileSync("src/ui.js", "utf8");
   if (!/roseWindow/.test(art) || !/sealedDoor/.test(art)) throw new Error("Rose Window/sealed-door art ids missing");
   if (!/rose-window/.test(ui) || !/sealed-door/.test(ui)) throw new Error("Rose Window/sealed-door UI surfaces missing");
+  for (const marker of ["data-version-logo","data-version-display","data-version-debug","aria-live=\"polite\"","taps.length >= 5","setTimeout(hideDebug, 3000)"])
+    if (!ui.includes(marker)) throw new Error(`PR 18 Title version contract missing: ${marker}`);
   for (const marker of ["pendingRunEnd", "pendingDawn", "commitPendingRunEnd", "createChoiceLatch"]) {
     if (!ui.includes(marker) && !readFileSync("src/engine.js", "utf8").includes(marker)
       && !readFileSync("src/vigil.js", "utf8").includes(marker)) throw new Error(`Phase 2 transaction marker missing: ${marker}`);
@@ -583,7 +693,7 @@ Expected on the loaded baseline: the Node command
 prints `Round 5 predecessor present`, and the documentation status is no longer
 pending.
 
-- [x] **Step 3: Establish a clean post-merge baseline**
+- [ ] **Step 3: Freeze the clean `b285b81` post-merge baseline before Task 3**
 
 Run:
 
@@ -592,7 +702,7 @@ npm install
 npm run test:ci
 npm test
 npm run test:progression
-npx vite build --outDir /tmp/spirebound-round5-phase2-baseline --emptyOutDir
+npx vite build --outDir /tmp/spirebound-round5-b285-baseline --emptyOutDir
 export SPIREBOUND_E2E_PORT=$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")
 node --input-type=module -e 'import {e2eServerSettings} from "./playwright-server.js"; const x=e2eServerSettings(process.env.SPIREBOUND_E2E_PORT); if (x.reuseExistingServer || !x.command.includes("--strictPort")) process.exit(1)'
 npm run test:e2e
@@ -609,8 +719,17 @@ Recorded PR #16 re-entry evidence: `test:ci`/module boundaries passed;
 resolved `reuseExistingServer:false`; disk `1`, random-agent `3`, main `154`
 with `152` intentional skips, serial `5`, and visual `48` all passed. PR #16
 changed no package/lock file. The tested runtime/test/config surface matched
-`origin/main`; only the in-progress Round 5 specification/plan documents
-differed and are committed before Task 3.
+the then-current PR #16 baseline.
+
+Recorded local `b285b81` evidence already green: `test:ci`/module boundaries;
+`npm test` with 300 Monte-Carlo runs (1 win, 299 deaths); progression guided
+median 18 and unguided median 50; and the temporary ordinary Vite build. PR #7
+itself has the complete green remote e2e partition (24 successful checks plus
+the one expected skipped smoke). A complete local e2e did pass on `de84c30`,
+but that result is superseded by PR #7 and is **not** claimed for `b285b81`.
+The executor must run the full block above from the final amended PE head,
+append every command/port/result under `Loaded predecessor b285 local baseline:`
+in the ledger, and close this checkbox before recreating or freezing Task 3.
 
 ### Task 2: `[FE]` Bounded Round 5 experience contract — completed proposal
 
@@ -620,7 +739,9 @@ differed and are committed before Task 3.
 
 **Interfaces:**
 - Consumes: the golden spec, `docs/style-bible.md`, `docs/ui-chrome-art-bible.md`, `docs/superpowers/specs/2026-07-09-pile-chrome-ceremony-design.md`.
-- Produces: exact P4/P5/P6 presentation values for PE; no selectors, product JavaScript or runtime state.
+- Produces: exact P4/P5/P6 presentation values for PE; no selectors, product
+  JavaScript, runtime state, locale keys or authored copy. FE may name locale
+  keys only to specify supplied-copy fit/wrapping/hierarchy/placement/motion.
 - Status: the original `904036b`, Phase-2 `6c80bfc` and PR #16 live-music
   `ee79e74` commits passed fresh review; the document remains unapproved until
   the Task 21 owner checkpoint.
@@ -636,6 +757,7 @@ The document must begin with this binding checklist:
 - [ ] P5: card hierarchy, fan states, four damage tiers, banners and pile flights
 - [ ] P6: fresh/grown composition for every named screen and stage shape
 - [ ] Merged Phase 2: exact Rose, Hollow, map, Dawn, quest-shop and Fall substates
+- [ ] Loaded PR #18/#7: preserve Title version/debug geometry and supplied English catalogue copy without authoring or altering it
 - [ ] Full/LITE/REDUCED appearance and named end-state for every effect
 - [ ] Exact colour, type, duration and easing values; no subjective or unspecified judgement language
 - [ ] No product JavaScript, content/tooling behaviour or engine requirements
@@ -764,13 +886,27 @@ them into `src/ui/tokens.js` before that checkpoint.
 - Produces only a throwaway `codex/round5-pixi-spike` commit and `window.__pixiSpike` with `state()`, `drag(from, to)`, `cancelDrag()`, `loseContext()` and `restoreContext()`.
 - Consumes live scene3d/mesh contexts, the 2D VFX canvas, fixed-stage geometry and the current VFX shake transform.
 - No spike source, route, canvas markup, Pixi dependency or test is merged into the PE branch.
+- The earlier pre-PR18/pre-PR7 spike and its `ca85c34`-based proof are obsolete.
+  The only Task 4-consumable immutable hash must descend from both the final
+  amended PE head and `b285b815509d5c700b2b76847302c01bc595db47`.
 
 - [ ] **Step 1: Create an isolated spike worktree from the post-gate PE head**
 
-From the main repository root:
+From the main repository root, after Task 1 Step 3 is green, record any old
+spike hash as obsolete and remove/recreate the disposable worktree/branch. Do
+not re-use its build or test artifacts:
 
 ```bash
 PE_HEAD=$(git -C .worktrees/round5-production-engineering rev-parse HEAD)
+git -C .worktrees/round5-production-engineering merge-base --is-ancestor \
+  b285b815509d5c700b2b76847302c01bc595db47 "$PE_HEAD"
+if test -d .worktrees/round5-pixi-spike; then
+  test -z "$(git -C .worktrees/round5-pixi-spike status --short)"
+  git worktree remove .worktrees/round5-pixi-spike
+fi
+if git show-ref --verify --quiet refs/heads/codex/round5-pixi-spike; then
+  git branch -D codex/round5-pixi-spike
+fi
 git worktree add .worktrees/round5-pixi-spike -b codex/round5-pixi-spike "$PE_HEAD"
 npm --prefix .worktrees/round5-pixi-spike install
 ```
@@ -783,7 +919,9 @@ the spike branch was created.
 In the spike worktree create `test/e2e/pixi-spike.spec.js`. It must assert:
 
 ```text
-Pixi renderer = WebGL; exact live owners before/after recovery are #bg3d,#mesh,#uigl; #vfx remains 2D; max concurrent owners = 3
+Pixi renderer = WebGL from exact preference:['webgl']; exact named live owners before/after recovery are #bg3d,#mesh,#uigl; #vfx remains 2D
+all WebGL contexts, including detached/id-less support contexts, use !gl.isContextLost(); max total live = 3; no live unowned context at steady state
+ColorMatrixFilter/GlProgram prewarm observes Pixi getTestContext while only bg3d+mesh exist, then explicitly loses it before #uigl
 one NineSliceSprite; ten sprite-backed objects; one composed card face
 observed canonical shape/viewport and finite --sat/--sar/--sab/--sal inputs
 document.fonts.status = loaded; end-turn blocking texture ready with non-zero size
@@ -797,11 +935,22 @@ The disposable spike module exports `installSpikeContextObserver()` and the
 `?pixispike=1` branch installs it before `initScene`, `initVfx`, `initMesh` or
 Pixi initialisation. Both Playwright and actual Safari WebDriver read this same
 runtime recorder through `state()`; no test-only init-script monkeypatch is the
-evidence source. Before loss and after rebuild, the sorted live owner set must equal exactly
+evidence source. The observer wraps every WebGL `getContext` before any renderer
+starts and retains context+canvas records even when the canvas is detached or
+has no id. It calculates the all-context live total from
+`!gl.isContextLost()` and named ownership separately. Before loss and after
+rebuild, the sorted named live owner set must equal exactly
 `['bg3d','mesh','uigl']`; during Pixi loss it may temporarily be
-`['bg3d','mesh']`. The recorded maximum is three, with no transient fourth or
-duplicate Pixi owner. An absent scene3d/mesh context cannot pass merely because
-the count is below the cap.
+`['bg3d','mesh']`.
+
+Before `uigl`, prewarm a real `ColorMatrixFilter`/`GlProgram` while bg3d+mesh
+are the only named owners; observe Pixi 8.19 `isWebGLSupported()` creating its
+detached `getTestContext()`, obtain `WEBGL_lose_context`, lose it explicitly and
+assert `isContextLost() === true`. Only then create `uigl`. The recorded
+all-context maximum is three before, after and throughout recovery, with no
+transient fourth, duplicate Pixi owner, or live unowned steady-state context.
+An absent scene3d/mesh context cannot pass merely because the total is below
+the cap.
 
 The separate perf spec warms for 2 seconds, samples `requestAnimationFrame` for
 10 seconds under the same host Chromium run and writes average fps/p95 frame ms
@@ -813,7 +962,7 @@ Run:
 ```bash
 export SPIREBOUND_E2E_PORT=$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")
 test "$SPIREBOUND_E2E_PORT" != 5174
-npx playwright test pixi-spike pixi-spike-perf --project=portrait --workers=1 --no-deps
+npx playwright test test/e2e/pixi-spike.spec.js test/e2e/pixi-spike-perf.spec.js --project=portrait --workers=1 --no-deps
 ```
 
 Expected: FAIL because the route and `window.__pixiSpike` do not exist.
@@ -833,7 +982,7 @@ instead of nesting the canvas inside the DOM shake container.
 
 - [ ] **Step 4: Implement the complete disposable surface**
 
-Initialise one Pixi `Application` with `preference:'webgl'`, DPR capped at 2,
+Initialise one Pixi `Application` with `preference: ['webgl']`, DPR capped at 2,
 transparent background and the fixed virtual stage size. Exercise a real
 `NineSliceSprite`, ten sprite-backed objects, composed card face, foil filter,
 forced missing-raster fallback, W3C pointer drag/cancel and
@@ -845,7 +994,8 @@ Wait for `document.fonts.ready`; resolve every input coordinate through
 `state()` exposes `stageInfo()`, observed viewport, the four parsed root safe-
 area custom properties, `document.fonts.status`, and both real/fallback texture
 records. It also exposes `webglOwnersBefore`, `webglOwnersDuringLoss`,
-`webglOwnersAfter` and `maxConcurrentWebglOwners` from the observer. The real
+`webglOwnersAfter`, all-context live counts, unowned-live counts and
+`maxConcurrentWebglContexts` from the observer. The real
 texture is existing `ui/end-turn.png` and must have non-zero
 dimensions; the forced-missing id remains a separate fallback assertion.
 
@@ -854,7 +1004,7 @@ dimensions; the forced-missing id remains a separate fallback assertion.
 ```bash
 export SPIREBOUND_E2E_PORT=$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")
 test "$SPIREBOUND_E2E_PORT" != 5174
-npx playwright test pixi-spike pixi-spike-perf --project=portrait --workers=1 --no-deps
+npx playwright test test/e2e/pixi-spike.spec.js test/e2e/pixi-spike-perf.spec.js --project=portrait --workers=1 --no-deps
 npm test
 npx vite build --outDir /tmp/spirebound-round5-pixi-spike --emptyOutDir
 if rg -n "__pixiSpike|pixispike|installSpikeContextObserver" /tmp/spirebound-round5-pixi-spike/assets; then exit 1; fi
@@ -875,6 +1025,8 @@ git rev-parse HEAD
 ```
 
 Record the immutable spike hash. Do not push or merge this branch.
+Require `git merge-base --is-ancestor "$PE_HEAD" HEAD` and record both values;
+Task 4 rejects a spike whose parent chain names any earlier amended-plan head.
 
 ### Task 4: `[PE]` Automate and record the Simulator Safari P0.5 gate
 
@@ -976,7 +1128,10 @@ capabilities with this exact requested map and pure-test every key:
 Model and UDID are the row's exact resolved managed device, never a requested-
 only evidence label. Dispatch assertions through the explicit
 `spike` or `dom` surface profile. Spike navigates to `/?pixispike=1` and verifies
-the Task 3 state/drag/cancel/fallback/shake/loss/rebuild contract; DOM uses a
+the Task 3 state/drag/cancel/fallback/shake/loss/rebuild contract, including
+strict WebGL preference, observed-and-lost Pixi test context, all-context live
+maximum three, exact named owners and no live unowned steady-state context;
+DOM uses a
 normal deterministic game URL and semantic Probe facts. `driver.quit()` runs in
 `finally`.
 
@@ -1057,7 +1212,8 @@ Task 5.
 
 - [ ] **Step 6: Write the report and obtain independent QA review**
 
-The report records the Phase 2 merge hash, PE head, spike hash, exact toolchain,
+The report records the loaded predecessor minimum `b285b81`, final amended PE
+head, spike hash, exact toolchain,
 each cell's observed Safari browser version/build, all eight rows,
 screenshots/JSON paths, each functional criterion, Playwright
 host-relative numbers in a separate table, excluded physical-device claims and
@@ -1102,11 +1258,14 @@ stops before Task 5 and the golden design is revised rather than bypassed.
 
 **Golden spec merge:** `d048640`, PR #13
 
-**Loaded PR #14/#15 golden amendment:** `156e0ce`
+**Loaded PR #14/#15 golden amendment (rebased ancestry):** `a6bb171`
 
-**Loaded PR #16 golden amendment:** `d02fd64`
+**Loaded PR #16 golden amendment (rebased ancestry):** `bb4e82a`
 
-**Loaded PR #16 recovery clarification:** `be0dda0`
+**Loaded PR #16 recovery clarification (rebased ancestry):** `4769481`
+
+**Loaded PR #18/PR #7 amendment:** this document's commit; append its exact SHA
+to the ignored ledger before Task 1 Step 3 and use that head to recreate Task 3.
 
 ### Task 5: `[PE]` Implement the Node-pure Semantic UI Behaviour Trace
 
@@ -1223,6 +1382,7 @@ export function createBehaviourTrace({
   segment = `page-${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}`,
   now = () => performance.now(),
   policy = () => ({}),
+  identity = () => ({}),
 } = {}) {
   // bounded immutable records; main collector alone assigns seq
 }
@@ -1269,14 +1429,22 @@ string.
 
 On an initial read (`after == null`) or any stale/foreign segment cursor,
 `header` is the frozen active segment header
-`{v,enabled,segment,firstSeq,lastSeq,dropped,reset}`; on a same-segment
+`{v,enabled,segment,firstSeq,lastSeq,dropped,reset,identity}`; on a same-segment
 incremental read it is `null`. A stale cursor sets `reset:true` and restarts at
 the retained first record. `.text` starts with one `# trace ...` header line and
 `.ndjson` starts with one `{kind:'trace-header',...}` object whenever `header`
 is present. Contract/record consumers read the envelope header directly. Add
 initial, same-segment incremental, stale-seq and foreign-segment tests.
 
-For `format:'contract'`, strip `atMs`, generated/run/instance ids and asset URLs.
+Task 6 injects identity exactly once per segment as sanitised
+`{appVersion,buildKind,gitSha,locale}`. Validate semver, finite enum
+`buildKind:'dev'|'ordinary'|'release'`, short-SHA-or-`unknown`, and locale code;
+do not read Vite globals or i18n from this Node-pure module. Raw records/text
+may expose the validated short SHA for local diagnostics, but contract fixtures
+strip `gitSha` and every downstream equality assertion ignores it. No event
+repeats version/build identity.
+
+For `format:'contract'`, strip `atMs`, generated/run/instance ids, `gitSha` and asset URLs.
 For the `.text` projection, emit one line with this fixed grammar:
 
 ```text
@@ -1329,6 +1497,7 @@ git commit -m "feat: add the semantic UI behaviour trace"
 - Create: `test/e2e/trace-production.spec.js`, `playwright.trace-production.config.js`
 - Modify: `package.json`, `package-lock.json`
 - Create: `test/e2e/fixtures/trace/manifest.json`, `title-embark.json`,
+  `app-version.json`, `i18n-copy-invariance.json`,
   `opening-turn.json`, `targeted-play.json`, `drag-cancel.json`, `art.json`,
   `pile-cycle.json`, `detached-ceremony.json`, `initial-run-save.json`,
   `usurper-purchase.json`, `shade-bequest-clear.json`,
@@ -1372,6 +1541,14 @@ Boot with `trace=1`, drive the real title navigation, a real cancelled pointer
 drag and a real card play. Assert contiguous sequence, zero drops, zero open
 spans and no `error.*` records.
 
+Freeze PR #18/PR #7 in the same spec. On Title render, `app.version` is one
+point event whose attributes are exactly stable `controlId`, `locale`,
+`release`, and `shaState:'known'|'unknown'`; it never carries semver, raw SHA,
+display text or HTML. Five logo taps within two seconds emit
+`app.version-debug` point actions `shown` then `hidden` (timeout at three
+seconds, or the next completed five-tap gesture), again with no copy or SHA.
+Assert the corner has no `data-a` and neither gesture requests SFX.
+
 Repeat representative assertions using only `behaviourTrace({format:'text'})`:
 parse its `.text` field and no structured records, then diagnose screen entry,
 card drag cancellation
@@ -1385,7 +1562,8 @@ real animation callback completes, and `await __probe.settle()` cannot resolve
 early. The enabled and disabled journeys must expose identical final semantic
 Probe state; trace is an observer, not the synchronisation primitive.
 
-The same spec owns the frozen Task 6 fixture manifest: Title→Embark,
+The same spec owns the frozen Task 6 fixture manifest: Title→Embark, app-version
+label/debug, complete synthetic-UI-catalogue copy invariance,
 opening/draw, targeted play, drag cancel, Lantern Art, draw/reshuffle pile
 cycle, detached ceremony settle, initial-run save, Usurper purchase, Shade
 bequest clear, Hollow payment, Hollow route clear, terminal-outbox retry, Dawn-cursor retry,
@@ -1394,7 +1572,17 @@ manifest is the only downstream fixture inventory; later tasks say “the frozen
 Task 6 fixture manifest” rather than repeating a number. Fixtures exclude
 timestamps, segment/instance ids, URLs and renderer policy. Characterise the
 post-Phase-2 retry, inert/focus, idempotence and exact-once outcomes before any
-owner is extracted.
+owner is extracted. The normaliser strips header `gitSha`; fixture records may
+carry stable locale/localeKey/control ids but never resolved strings.
+
+For copy invariance, walk every string leaf in the existing English **UI**
+catalogue and build a complete synthetic bundle whose values are deterministic
+key-derived replacements. Register it only in the test process, switch lookup,
+rerender and replay the same semantic Title→Embark journey, and require the
+normalised trace to equal `en`. Restore `setLocale('en')` in `finally` and
+assert it. Do not mutate card/content copy: PR #7 intentionally does not
+rehydrate those tables on `setLocale()` in slice 1. An explicit missing-key
+diagnostic contains only `{locale,localeKey,code:'missing-key'}`.
 
 In `test_engine.js`, import the not-yet-created presentation barrier and write
 pure failing tests for nested work, cancellation, double-finish strict/runtime
@@ -1422,6 +1610,13 @@ const TRACE_BUILD = import.meta.env.DEV
   || import.meta.env.VITE_QA_TRACE === '1';
 const trace = createBehaviourTrace({
   enabled: TRACE_BUILD && (qs.has('trace') || qs.has('lab')),
+  identity: () => ({
+    appVersion: getVersionInfo().version,
+    buildKind: getVersionInfo().release ? 'release'
+      : getVersionInfo().gitSha === 'unknown' ? 'ordinary' : 'dev',
+    gitSha: getVersionInfo().gitSha,
+    locale: getLocale(),
+  }),
 });
 ```
 
@@ -1471,6 +1666,7 @@ Add point/spans at these exact owner boundaries:
 
 ```text
 boot/render readiness: app.ready, renderer.ready
+app identity controls: app.version, app.version-debug, i18n.missing
 show/transition: screen.requested, screen.exited, screen.entered, screen.redirected
 bindCardDrag/beginCardDrag/doPlay: input.card-drag, input.card-play
 setTargeting/clearTargeting: input.targeting
@@ -1512,7 +1708,7 @@ distinguish the live variant and fallback path without reading pixels or copy.
 
 Dispatch 100 raw `pointermove` events and advance 100 idle ticker frames; record
 count must not change until a semantic threshold/cancellation boundary occurs.
-Change visible card/screen copy in a controlled fixture and require the
+Use the complete synthetic UI-catalogue journey above and require the
 normalised contract/text semantic fields to remain identical. Add source checks
 rejecting trace emission inside raw pointermove and animation-frame/ticker loops.
 
@@ -1648,6 +1844,8 @@ git add src/ui.js src/ui/presentation-barrier.js src/audio-assets.js src/audio.j
   package.json package-lock.json \
   test/e2e/fixtures/trace/manifest.json \
   test/e2e/fixtures/trace/title-embark.json \
+  test/e2e/fixtures/trace/app-version.json \
+  test/e2e/fixtures/trace/i18n-copy-invariance.json \
   test/e2e/fixtures/trace/opening-turn.json \
   test/e2e/fixtures/trace/targeted-play.json \
   test/e2e/fixtures/trace/drag-cancel.json test/e2e/fixtures/trace/art.json \
@@ -1682,6 +1880,9 @@ git commit -m "feat: trace real UI behaviour boundaries"
 **Interfaces:**
 - Produces: the low-level modules and command façade from the target/state maps.
 - Preserves: `show()` semantics, one `#screen`, stale-click clearing, persistence recovery and trace contracts.
+- Preserves PR #7 lookup wiring: one `t as tr` import/injection, every existing
+  `tr(...)` call, lazy `KEYWORDS()`/`FACET_DESC()`, and
+  `$$('.kw', card)` keyword-node selection; no new hardcoded player copy.
 - Review boundaries: 7A lands/reviews the DOM-free normal transaction seam
   while overlay/end/combat remain in the monolith; only then may 7B move shared
   DOM owners.
@@ -1748,6 +1949,11 @@ modules and invoke the real command handlers. Run `npm test`; expected
 `ERR_MODULE_NOT_FOUND` for the pure modules or a missing-source assertion,
 without altering/sabotaging production source.
 
+Add source characterisation that records every predecessor `tr(...)` locale
+key, requires `FACET_DESC` and `KEYWORDS` to remain functions evaluated lazily,
+and requires keyword decoration to use `$$('.kw', card)` rather than the
+single-node `$`. Each transitional commit must preserve that inventory exactly.
+
 - [ ] **Step 5 (7B): Create `context.js` and `commands.js`**
 
 `context.js` alone exports the trace singleton and always-on presentation
@@ -1782,6 +1988,9 @@ thin re-export; no task boundary contains an unbound facade or two binders.
 Move, without rewriting, every binding listed for `assets.js`, `tooltip.js` and
 `overlay.js`. Export only functions consumed outside the module. Replace direct
 upward calls with `uiCommands`; do not duplicate a helper to avoid an import.
+Inject `tr` into any extracted owner that consumes supplied copy. Move the lazy
+keyword factories with their single owner; never snapshot them at module load,
+hardcode their English values, or add a second locale lookup path.
 
 Keep the already-reviewed `run-effects.js` byte-identical. `overlay.js` alone
 owns `persistenceDialogTransaction`, its retry modal, inert background and
@@ -1836,8 +2045,12 @@ git commit -m "refactor: extract shared UI services"
 **Interfaces:**
 - Each file exports one `create*Screen(deps)` factory returning named render functions.
 - Screens import only the matching shared
-  `context/policy/format/rose/assets/tooltip/overlay/commands` modules; no
+  `context/policy/format/rose/assets/tooltip/overlay/commands` modules or receive
+  injected `tr`/`getLocale`/`getVersionInfo`; no
   screen imports `index.js`, `navigation.js`, another screen or Pixi.
+- PR #18 Title version state/listeners and PR #7 lookup state move exactly once
+  with their semantic owner; no timer, tap array, locale lookup or UI string is
+  duplicated in the transitional orchestrator.
 
 - [ ] **Step 1: Freeze the route inventory in a failing assertion**
 
@@ -1860,7 +2073,8 @@ screen factory receives only the dependencies it calls; its return value is
 frozen. Example:
 
 ```js
-export function createTitleScreen({ context, assets, commands, vigil, music }) {
+export function createTitleScreen({ context, assets, commands, vigil, music,
+  tr, getLocale, getVersionInfo }) {
   function renderTitle() { /* existing body moved verbatim */ }
   return Object.freeze({ renderTitle });
 }
@@ -1872,6 +2086,14 @@ presentation state, panel rendering and cursor/final-clear acknowledgement;
 durable outboxes remain engine-owned and all normal mutations delegate to
 `run-effects.js`. Gallery lightbox state remains private to `gallery.js`.
 `overlay.js` remains the sole persistence-dialog/focus/inert owner.
+
+Move PR #18's complete version label and debug gesture atomically into
+`screens/title.js`: safe-area selectors, `data-version-*`, 5 taps/2 seconds,
+3-second timeout/next-gesture hide, `aria-live="polite"`, no `data-a`, no SFX,
+and timer cleanup on screen destruction. It consumes the existing Node-pure
+`getVersionInfo` dependency; it never reconstructs Vite defines. Preserve every
+PR #7 `tr` call and inject the single lookup functions into leaf factories.
+The frozen Task 6 app-version/i18n fixtures compare green after the move.
 
 Move PR #16's browser call sites once, without moving or rewriting the pure
 `music-resolve.js`: `navigation.js` owns central normal/Eighth/initial-Rose/
@@ -1986,7 +2208,11 @@ window.__probe = installProbe(...);
 ```
 
 It also owns keyboard/global listeners, HMR change hooks and gallery/editor boot
-routing. Replace `src/ui.js` with:
+routing. It imports `{ t as tr, getLocale }` from `src/i18n/index.js` and
+`getVersionInfo` from `src/version.js` once, then injects those exact functions
+into the extracted owners. Source tests require the predecessor `tr` key
+inventory, lazy keyword factories, `$$('.kw', card)`, exact seven i18n exports,
+and absence of new hardcoded player copy. Replace `src/ui.js` with:
 
 ```js
 export { initUI, show } from './ui/index.js';
@@ -2037,7 +2263,9 @@ mapping before P2 starts.
 - Modify/Test: `test/test_engine.js`
 
 **Interfaces:**
-- Produces: the only valid before-move projection, enemy-AI schedule and monte-carlo digest.
+- Produces: the only valid before-move `b285b81` hydrated 28-view projection,
+  raw-mechanics ownership projection, English catalogue digest/provenance,
+  exact seven-i18n-API inventory, enemy-AI schedule and monte-carlo digest.
 - Consumes: the unmodified post-predecessor `src/data.js` and `src/engine.js`.
 
 - [ ] **Step 1: Activate the P2 content-table freeze**
@@ -2061,6 +2289,16 @@ Add to `test/test_engine.js`:
   ]);
   assert.equal(oracle.enemyAi.length, Object.values(ENEMIES).filter((e) => e.ai).length);
   assert.equal(oracle.shadeAi.length, Object.values(SHADE_KITS).filter((e) => e.ai).length);
+  assert.equal(oracle.enemyAi.length + oracle.shadeAi.length, 29);
+  assert.ok([...oracle.enemyAi, ...oracle.shadeAi].every((row) => row.arity === 1));
+  assert.deepEqual(oracle.i18n.apis, [
+    'getContent', 'getLocale', 'hydrateContent', 'lookup',
+    'registerLocale', 'setLocale', 't',
+  ]);
+  assert.equal(oracle.i18n.defaultLocale, 'en');
+  assert.equal(Object.keys(oracle.i18n.domains).length, 18);
+  assert.match(oracle.i18n.catalogueSha256, /^[a-f0-9]{64}$/);
+  assert.match(oracle.rawMechanics.sha256, /^[a-f0-9]{64}$/);
   assert.match(oracle.monteCarlo.sha256, /^[a-f0-9]{64}$/);
 }
 ```
@@ -2082,6 +2320,18 @@ ordered values of `QUEST_STATES`, `QUEST_ACTIVE_STATES` and
 `TERMINAL_OUTCOMES`. Tests exercise named valid and invalid run ids as well as
 deep equality of all three arrays; protocol constants never enter a pack,
 registry merge policy or custom content context.
+
+Capture two additional immutable legs before any move. The raw-mechanics leg
+uses the existing `hydrateContent` ownership map/English catalogue to remove
+only locale-owned fields from a fresh canonical projection; it records every
+mechanics descriptor/path and proves names/text/dialogue do not become pack
+ownership merely because the runtime graph is hydrated. The i18n leg records
+exactly the seven sorted exports, default `en`, all 18 sorted content domains,
+canonical English catalogue SHA-256 and source provenance
+`src/i18n/en/{content,ui,index}.js`. It also records the hydrated-alias identity
+inventory that PR #7 preserves. Both legs are checked after every P2 move and
+are **never regenerated**; deliberate source re-homing must preserve the
+canonical ownership/value digests rather than rewriting the oracle.
 
 Capture a descriptor inventory before reading values. The live monolith is
 expected to contain exactly one schema-visible accessor,
@@ -2165,14 +2415,17 @@ git commit -m "test: freeze the pre-registry content oracle"
 
 **Interfaces:**
 - Produces: `definePack`, `createContentRegistry`, `createContentContext`,
+  `joinLocaleContent`,
   `themeById`, `themeForAct`, `isFinalTheme`, `CONTENT_SCHEMAS`,
   `MERGE_POLICIES`, `PROGRESSION_MERGE_POLICIES`, `doctorContent`,
   `formatContentReport`.
-- `createContentRegistry(packs)` may assemble a partial registry for focused
-  schema/merge tests. `createContentContext(packs, {
-  id, resources = STATIC_REFERENCE_CATALOGUES })` requires the full
+- `createContentRegistry(packs)` may assemble a partial **mechanics-only**
+  registry for focused schema/merge tests; it never backs UI
+  or a run. `createContentContext(packs, {
+  id, resources = STATIC_REFERENCE_CATALOGUES, localeContent, localeToken })`
+  requires the full joined
   engine surface and returns the frozen, versioned context accepted by P3;
-  all derived legacy views come from that same assembly.
+  all derived/hydrated legacy views come from that same assembly.
 - Does not yet modify `src/data.js`.
 
 - [ ] **Step 1: Write failing registry unit blocks**
@@ -2183,28 +2436,34 @@ Add tests covering:
 const sample = definePack({
   id: 'sample',
   cards: { sampleCard: {
-    name: 'Sample', type: 'attack', rarity: 'common', cost: 1,
-    target: 'enemy', vfx: 'slash', text: 'Deal @1@ damage.',
+    type: 'attack', rarity: 'common', cost: 1,
+    target: 'enemy', vfx: 'slash',
     effects: [{ kind: 'dmg', n: 1 }],
   } },
   enemies: { sampleEnemy: {
-    name: 'Sample Enemy', hp: [1, 1], facets: 2,
-    moves: { wait: { name: 'Wait', intent: 'buff' } }, ai: (_ctx) => 'wait',
+    hp: [1, 1], facets: 2,
+    moves: { wait: { intent: 'buff' } }, ai: (_ctx) => 'wait',
   } },
 });
+const sampleLocale = {
+  cards: { sampleCard: { name: 'Sample', text: 'Deal @1@ damage.' } },
+  enemies: { sampleEnemy: { name: 'Sample Enemy', moves: { wait: { name: 'Wait' } } } },
+};
 const registry = createContentRegistry([sample]);
-assert.equal(registry.cards.sampleCard.name, 'Sample');
+assert.equal(registry.cards.sampleCard.name, undefined);
 assert.equal(registry.enemies.sampleEnemy.ai.length, 1);
 assert.equal(Object.isFrozen(registry.cards), true);
 assert.throws(() => createContentRegistry([sample, sample]), /duplicate pack.*sample/i);
 const sample2 = definePack({ id: 'sample2', cards: { sampleCard: sample.cards.sampleCard } });
 assert.throws(() => createContentRegistry([sample, sample2]), /duplicate.*sampleCard/i);
-assert.throws(() => definePack({ id: 'bad', cards: { bad: { name: 'Bad' } } }), /cards\.bad/);
+assert.throws(() => definePack({ id: 'bad', cards: { bad: { text: 'locale leak' } } }), /source.*locale|cards\.bad/i);
 assert.throws(() => createContentContext([sample], {
   id: 'incomplete', resources: STATIC_REFERENCE_CATALOGUES,
+  localeContent: sampleLocale, localeToken: 'en',
 }), /player|themes/i);
 const report = doctorContent([sample], {
-  ...STATIC_REFERENCE_CATALOGUES, assetManifest: new Set(),
+  ...STATIC_REFERENCE_CATALOGUES, localeContent: sampleLocale,
+  localeToken: 'en', assetManifest: new Set(),
 });
 assert.ok(report.problems.every((p) => p.packId && p.entryId && p.field && p.expected && p.hint));
 ```
@@ -2230,7 +2489,7 @@ export const MERGE_POLICIES = Object.freeze({
   omens: 'keyed-unique', affixes: 'keyed-unique', arts: 'keyed-unique',
   deeds: 'keyed-unique', quests: 'keyed-unique', variants: 'keyed-unique',
   shadeKits: 'keyed-unique', boons: 'keyed-unique', themes: 'keyed-unique',
-  aspects: 'append-unique-id', vows: 'append', whispers: 'append', questIds: 'append-unique',
+  aspects: 'append-unique-id', vows: 'append', questIds: 'append-unique',
   progression: 'nested-declared',
 });
 ```
@@ -2301,6 +2560,11 @@ its contents; the 28-content-view oracle leg proves the assembled projection is 
 `append-unique-id` preserves aspect order but rejects a duplicate aspect id
 across packs; include that collision test.
 
+`whispers` is not a mechanics merge target: PR #7 established it as an English
+locale domain. Joined locale assembly preserves its ordered compatibility array
+and combines core/sample overlays before hydration; attempting to submit
+`whispers` from a pack is `locale-field-in-pack`.
+
 `ACTS`, `ENCOUNTERS`, `REWARD_GOLD`, `REVEALS`, card/relic pools and
 `POOL_GATE` become assembler-derived views and are not merge targets.
 `REVEALS` is derived solely from merged
@@ -2311,9 +2575,12 @@ prove parity and reject divergent/duplicate threshold ownership.
 - [ ] **Step 3: Define schemas once**
 
 `CONTENT_SCHEMAS` describes required primitive/object/array fields and
-cross-references. Mark `enemy.ai` and event hooks `{ kind:'function', arity }`;
+cross-references. Every field carries exactly `source:'pack'` or
+`source:'locale'`. Mark `enemy.ai` and event hooks
+`{ kind:'function', arity, source:'pack' }`;
 validate them but exclude them from serialisation/CRUD. Unknown keys append a
-warning, never a failure. `definePack()` aggregates every error before throwing
+warning, never a failure; a known locale-owned field found in mechanics is a
+hard `locale-field-in-pack` error. `definePack()` aggregates every error before throwing
 one `ContentValidationError` whose `.problems` uses the doctor problem shape.
 
 Except at a schema field explicitly declared `{kind:'function'}`, every
@@ -2359,11 +2626,13 @@ Add tests proving the static default has no DOM/filesystem/Vite dependency and
 that only the full doctor reports a removed raster as `asset-missing` at its
 schema path. Do not claim raster existence is a production-boot error.
 
-The theme schema requires a `legacyAct` object with the exact compatibility
-shape `{name,boss,bossName,theme:{sky,fog,particles,glow,accent,ember}}` in
-addition to the new presentation/roster fields. `legacyAct` is the sole source
-of `ACTS`; never attempt to reconstruct the six legacy theme values from new
-palette token ids. The oracle proves those legacy values remain byte-identical.
+The mechanics theme schema requires `legacyAct` with exact pack-owned shape
+`{boss,theme:{sky,fog,particles,glow,accent,ember}}`; `name`, `tagline` and
+`bossName` are `source:'locale'` and error in the pack. Joined assembly combines
+the ordered `localeContent.acts` row with `legacyAct` to produce the exact
+hydrated `ACTS` compatibility row. Never reconstruct the six legacy theme
+values from palette token ids. The oracle proves the joined result remains
+byte-identical.
 
 - [ ] **Step 4: Implement deterministic registry assembly**
 
@@ -2377,17 +2646,22 @@ not keys in `MERGE_POLICIES`, are not accepted from a pack and are not fields
 of a content registry/context. Add negative tests for attempted protocol
 submission and an exact source assertion for that boundary.
 
-`createContentRegistry()` returns the recursively frozen merged domains.
-`createContentContext(packs, {
-id, resources = STATIC_REFERENCE_CATALOGUES })` first requires every engine domain
-and validates the injected Node-pure resource sets, then returns this
+`createContentRegistry()` returns the recursively frozen mechanics-only merged
+domains and rejects locale-owned fields. `createContentContext(packs, {
+id, resources = STATIC_REFERENCE_CATALOGUES, localeContent, localeToken })`
+first requires every engine domain and a non-empty locale token/catalogue. It
+descriptor-validates/copies mechanics, derives the complete fresh mutable
+compatibility graph, invokes the existing Node-pure `hydrateContent(graph,
+localeContent)`, validates joined locale coverage and injected resource sets,
+then recursively freezes. Hydration after freeze or a `data.js` post-pass is a
+test failure. It returns this
 branded structural envelope (domain rows omitted here only for readability;
 every policy domain is present):
 
 ```js
 {
   contextVersion: 1,
-  id,
+  id, localeToken,
   packIds,
   player, cards, cardPools, statuses, relics, relicPools, potions,
   enemies, events, rewardGold, shop, omens, affixes, arts,
@@ -2398,7 +2672,8 @@ every policy domain is present):
 ```
 
 `themeOrder` is the frozen declared pack order of theme ids; `acts` is
-`themeOrder.map(id => themes[id].legacyAct)`, while `encounters` and
+the hydrated ordered compatibility projection using mechanics `legacyAct`
+plus locale `acts` name/boss display fields, while `encounters` and
 `rewardGold` are the matching ordered projections of each theme's encounters
 and reward ranges. Card/relic pools and
 `poolGate` are also derived here, not independently in `data.js` or a dev
@@ -2424,7 +2699,7 @@ Lab registry the same shape and prevents a dev-only parallel lookup model.
       entries: [{
         id, packId, complete,
         badges: {
-          art: { status, refs }, vfx: { status, refs },
+          locale: { status, refs }, art: { status, refs }, vfx: { status, refs },
           charMeta: { status, refs }, audio: { status, refs },
           pool: { status, refs },
         },
@@ -2436,8 +2711,10 @@ Lab registry the same shape and prevents a dev-only parallel lookup model.
 }
 ```
 
-Asset/audio completeness is computed from injected sets, keeping Node purity.
-Every entry has the five fixed badges; an inapplicable badge is explicit
+Locale coverage and asset/audio completeness are computed from the same
+`CONTENT_SCHEMAS` source metadata and injected sets, keeping Node purity. A
+missing locale field, orphan locale entry and misplaced display field carry
+stable exact-path error codes. Every entry has the six fixed badges; an inapplicable badge is explicit
 `status:'not-applicable'`, never omitted. Stable route descriptors power the
 dashboard links without browser imports. Domain totals are derived from these
 entry rows, so Task 18 does not recompute a parallel completeness model.
@@ -2462,6 +2739,8 @@ git commit -m "feat: add content registries and schema doctor"
 - Create: `src/packs/core/player.js`, `cards.js`, `statuses.js`, `relics.js`, `potions.js`, `enemies.js`, `events.js`, `omens.js`, `arts.js`, `meta.js`, `progression.js`, `themes.js`, `index.js`
 - Create: `src/content.js`
 - Create: `src/content-protocol.js`
+- Read/consume without reclaiming display ownership: `src/i18n/index.js`,
+  `src/i18n/en/content.js`
 - Modify: `src/data.js`, `src/engine.js`
 - Create: `tools/check-core-candidate.mjs`
 - Modify: `tools/capture-content-oracle.mjs`
@@ -2471,7 +2750,8 @@ git commit -m "feat: add content registries and schema doctor"
 - Produces: `CORE_PACK`, private full `CORE_CONTENT`, the engine-private
   run→content seam and the extracted immutable protocol module.
 - Preserves: 28 content-view aliases plus four protocol re-exports: the exact
-  32-name `src/data.js` surface.
+  32-name `src/data.js` surface; all English display ownership remains in the
+  existing locale overlay.
 - Review boundaries: Task 12A commits the complete candidate while `data.js`
   stays live; Task 12B first moves the engine seam against live data, then
   performs one atomic cut-over. Each subtask gets its own fresh spec/quality
@@ -2491,6 +2771,8 @@ import { captureContentOracle } from '../tools/capture-content-oracle.mjs';
   assert.deepEqual(actual.protocolExports, expected.protocolExports);
   assert.deepEqual(actual.enemyAi, expected.enemyAi);
   assert.deepEqual(actual.shadeAi, expected.shadeAi);
+  assert.deepEqual(actual.rawMechanics, expected.rawMechanics);
+  assert.deepEqual(actual.i18n, expected.i18n);
   assert.equal(actual.monteCarlo.sha256, expected.monteCarlo.sha256);
 }
 ```
@@ -2503,12 +2785,16 @@ monolith while candidates are compared independently.
 - [ ] **Step 2 (12A): Copy and compare every candidate domain while live data stays green**
 
 First create import-safe `tools/check-core-candidate.mjs`; `--all` initially
-fails because the candidate files are absent. It imports live `src/data.js` and
-one candidate module at a time, compares ordered canonical data, and compares
+fails because the candidate files are absent. It imports live `src/data.js`,
+the existing English overlay and one candidate module at a time. It first
+compares the candidate raw-mechanics ownership projection, then builds a fresh
+joined candidate, hydrates it with that overlay, and compares ordered runtime
+compatibility data. It compares
 only schema-declared behaviour hooks by exact
 `Function.prototype.toString()` plus the Task 10 deterministic AI schedule for
-enemy/shade definitions. Theme comparison
-uses only exact legacy ACTS/ENCOUNTERS/REWARD_GOLD projections while separately
+enemy/shade definitions. Theme comparison uses the mechanics-only theme
+candidate plus the existing English acts overlay to reproduce exact legacy
+ACTS/ENCOUNTERS/REWARD_GOLD projections while separately
 validating the new required presentation fields. It never writes the oracle or
 imports a candidate through `src/data.js`.
 
@@ -2517,6 +2803,8 @@ Before reading a candidate property, inspect its descriptor. The live
 progression assembly must expose an own enumerable numeric data property with
 the same observable value and no `get`/`set`. Reject every other accessor or
 descriptor drift. The oracle compares `target === 5`, not getter source text.
+Across the candidate, require exactly 29 schema-declared arity-one enemy/shade
+AI functions; the Hollow path is the sole getter→numeric transition.
 
 Copy content according to this map, running the matching focused command after
 each file:
@@ -2535,10 +2823,12 @@ omens.js       OMENS, AFFIXES
 arts.js        ARTS
 meta.js        DEEDS, ASPECTS, VOWS, BOONS
 progression.js the Task 11 core progression authoring wrapper around verbatim
-               revealThresholds/poolWaves/emberglass values; QUEST_IDS,
-               WHISPERS, QUESTS, SHADE_KITS, VARIANTS
+               revealThresholds/poolWaves/emberglass values; QUEST_IDS and
+               mechanics/behaviour-only QUESTS, SHADE_KITS, VARIANTS;
+               WHISPERS/name/text/dialogue/move names remain locale-owned
 themes.js      the three complete theme records: exact ACTS rows under
-               legacyAct; current ENCOUNTERS/REWARD_GOLD; and the existing
+               mechanics-only legacyAct boss/theme values; current
+               ENCOUNTERS/REWARD_GOLD; and the existing
                plates/weather/lantern/palette/music/roster/map-haze values
                copied from their current production owners
 ```
@@ -2683,15 +2973,18 @@ function. Run `npm test`; expected FAIL only on that assertion
 while the live oracle and `check-core-candidate --all` remain green. This is the
 single intentional cut-over red.
 
-`src/content.js` imports `CORE_PACK`, `createContentContext` and
-`STATIC_REFERENCE_CATALOGUES`; it exports exactly
+`src/content.js` imports `CORE_PACK`, `createContentContext`,
+`STATIC_REFERENCE_CATALOGUES`, and the existing `getContent`/`getLocale`; it
+exports exactly
 `CORE_CONTENT = createContentContext([CORE_PACK], {
-id:'core', resources:STATIC_REFERENCE_CATALOGUES })`. It never imports a Vite
+id:'core', resources:STATIC_REFERENCE_CATALOGUES,
+localeContent:getContent(), localeToken:getLocale() })`. It never imports a Vite
 asset glob or scans the filesystem.
 Move `QUEST_STATES`, `QUEST_ACTIVE_STATES`, `TERMINAL_OUTCOMES` and `RUN_ID_RE`
 verbatim into Node-pure `content-protocol.js`. `src/data.js` imports the content
 object, contains the exhaustive 28 named compatibility aliases, re-exports the
-four protocol constants and exposes no default/33rd export. Alias the
+four protocol constants and exposes no default/33rd export. It no longer calls
+`hydrateContent` or mutates an alias after the context freezes. Alias the
 registry-derived views:
 
 ```js
@@ -2714,7 +3007,10 @@ Run `node tools/check-core-candidate.mjs --all`, `npm test` and
 `node tools/capture-content-oracle.mjs --check`. Leg one compares the 28
 observable content views (including the named getter→numeric hardening
 exception); leg two compares the four protocols, RegExp cases and exact export
-set; leg three compares AI schedules and the monte-carlo digest. Also run
+set; leg three compares exactly 29 arity-one enemy/shade AI functions, their
+schedules and the monte-carlo digest. The raw-mechanics ownership, English
+catalogue digest/provenance, seven APIs, 18 domains and hydrated alias identities
+are additional mandatory oracle legs. Also run
 `npm run test:ci`, `npm run test:progression` and the `p2-base` standing
 profile. Task 13 creates the act-coupling gate; Task 12 may not invoke a future
 script. If one leg changes, repair the seam/candidate/cut-over;
@@ -2739,6 +3035,7 @@ transaction flow before Task 13 begins.
 - Modify: `src/packs/core/themes.js`, `src/engine.js`, `src/scene3d.js`,
   `src/vfx.js`, `src/music-resolve.js`, `src/music.js`,
   `src/audio-catalog.js`, `src/ui/**/*.js`,
+  `src/i18n/en/content.js`, `src/i18n/en/ui.js`,
   `src/battlefield.js`, `src/dev/bf-editor.js`
 - Create: `src/ui/content.js`
 - Modify: `src/presentation-catalog.js`, `src/ui/tokens.js`
@@ -2787,8 +3084,8 @@ Each core theme contains exactly:
 
 ```js
 {
-  id, name, tagline,
-  legacyAct: { name, boss, bossName,
+  id,
+  legacyAct: { boss,
     theme: { sky, fog, particles, glow, accent, ember } },
   plates: { backdrop, mid, ledge }, bossPlates: {},
   weather: { kinds, density, palette, velocity },
@@ -2800,7 +3097,9 @@ Each core theme contains exactly:
 ```
 
 Use asset and Music Cue ids, never browser URLs.
-Assert these Task 12 values project to the exact legacy `ACTS`, `ENCOUNTERS`
+The ordered `src/i18n/en/content.js` `acts` overlay owns `name`, `tagline` and
+`bossName`; those fields fail if present in mechanics. Assert the joined Task
+12 values project to the exact legacy `ACTS`, `ENCOUNTERS`
 and `REWARD_GOLD` oracle; this task changes consumers, not theme values.
 
 - [ ] **Step 3: Replace scattered act decisions**
@@ -2815,6 +3114,9 @@ never reconstructed from `ACTS`.
 
 Replace `run.act >= 2`, scattered `ACTS.length` end checks and player copy such
 as `3 acts` with the engine `isFinalTheme(run)`/`themeCount(run)` boundary.
+Specifically change `ui.help.climbBody` in `src/i18n/en/ui.js` from hard-coded
+`3 acts` to `{count} acts` and pass the registered theme count through `tr`;
+do not move that English sentence into mechanics or hardcode a replacement.
 Task 13 proves production Act 3 is final and preserves the Task 12B custom-
 context-aware boundary. Task 14 proves that appending a fourth theme makes Act
 3 advance instead.
@@ -2896,7 +3198,7 @@ switches the same injection call to it.
 
 - [ ] **Step 4: Implement the static sweep**
 
-Scan non-pack production JS for all of these families:
+Scan non-pack production JS **and `src/i18n/**` catalogues** for all of these families:
 
 ```js
 [/\bact[1-9]\b/i,
@@ -2966,6 +3268,7 @@ node tools/check-act-coupling.mjs --self-test
 node tools/run-with-strict-e2e-port.mjs -- npx playwright test geometry stage audio --project=desktop --workers=1
 git add src/packs/core/themes.js src/engine.js src/scene3d.js src/vfx.js \
   src/music-resolve.js src/music.js src/audio-catalog.js \
+  src/i18n/en/content.js src/i18n/en/ui.js \
   src/battlefield.js src/dev/bf-editor.js \
   src/presentation-catalog.js src/ui/context.js src/ui/index.js \
   src/ui/content.js src/ui/tokens.js src/ui/assets.js src/ui/overlay.js \
@@ -2984,12 +3287,13 @@ git commit -m "refactor: resolve acts through theme registries"
 ### Task 14: `[PE]` Add the isolated dev/test sample pack and fourth-theme fixture
 
 **Files:**
-- Create: `src/packs/_sample/index.js`, `src/packs/_sample/card.js`, `enemy.js`, `theme.js`
+- Create: `src/packs/_sample/index.js`, `src/packs/_sample/card.js`, `enemy.js`, `theme.js`, `locale-en.js`
 - Create: `src/packs/dev.js`
 - Modify/Test: `test/test_engine.js`
 
 **Interfaces:**
-- Produces: `SAMPLE_PACK`, `createDevRegistry({sample:true})`; no production registration.
+- Produces: `SAMPLE_PACK`, `SAMPLE_LOCALE_EN`,
+  `createDevRegistry({sample:true})`; no production registration.
 - Consumes: Task 12B's generic ephemeral engine content-context seam.
 - Consumed by: Task 16's UI presentation binding, Content Lab Task 17 and
   registry tests. P2 proves both assembly and engine isolation; UI remains out
@@ -3015,26 +3319,31 @@ rendering is deliberately not claimed in this task.
 
 ```js
 export const sampleCard = {
-  name: 'Test Spark', type: 'attack', rarity: 'common',
+  type: 'attack', rarity: 'common',
   cost: 1, target: 'enemy', vfx: 'slash', chip: 1,
-  text: 'Deal @3@ damage. Chip 1 extra Facet.',
   effects: [{ kind: 'dmg', n: 3 }],
 };
 export const sampleEnemy = {
-  name: 'Test Pane', hp: [12, 12], facets: 2,
+  hp: [12, 12], facets: 2,
   art: { kind: 'wisp', hue: 180, size: 0.8 },
-  moves: { wait: { name: 'Wait', intent: 'block', block: 1 } },
+  moves: { wait: { intent: 'block', block: 1 } },
   ai: (_ctx) => 'wait',
 };
 ```
+
+`locale-en.js` alone supplies `Test Spark`, its text, `Test Pane`, `Wait`, and
+the sample act/theme/boss display fields in the same 18-domain locale shape.
+Tests reject any `name`, `text`, `tagline`, `bossName`, dialogue or move display
+name in the mechanics fixture.
 
 The sample theme uses existing Act 1 plate ids and the already-registered
 non-`actN` cue ids `map` (map), `paleOnes` (combat), `usurper` (boss) and
 `victory`, with one normal roster entry and one encounter. Tests call the
 ordinary resolver with no quest/omen override and require `paleOnes`/
 `usurper`, so the old three-act clamp cannot pass by coincidence. It supplies a valid fourth reward row
-`{normal:[1,1],elite:[1,1],boss:[1,1]}`, a complete `legacyAct` row named
-`Test Gallery` whose boss is `sampleEnemy`, and every required theme field. It
+`{normal:[1,1],elite:[1,1],boss:[1,1]}`, a complete mechanics `legacyAct` row
+whose boss id is `sampleEnemy`, with `Test Gallery` owned only by
+`SAMPLE_LOCALE_EN`, and every required theme field. It
 adds no runtime assets.
 
 - [ ] **Step 3: Keep the production graph clean**
@@ -3045,7 +3354,9 @@ Only `src/packs/dev.js`, tests and DEV-only dynamic imports may import
 
 `createDevRegistry({sample:true})` calls
 `createContentContext([CORE_PACK,SAMPLE_PACK], {
-id:'dev:_sample', resources:STATIC_REFERENCE_CATALOGUES })`; with
+id:'dev:_sample', resources:STATIC_REFERENCE_CATALOGUES,
+localeContent:joinLocaleContent(getContent(),SAMPLE_LOCALE_EN),
+localeToken:getLocale() })`; with
 `sample:false` it returns the complete core dev context. It does not hand-merge
 derived pools/themes/rewards. Reject unknown option keys so adding a fixture
 cannot silently alter the production graph.
@@ -3064,7 +3375,8 @@ node tools/capture-content-oracle.mjs --check
 npx vite build --outDir /tmp/spirebound-round5-p2-sample --emptyOutDir
 npm run test:round5:standing -- --profile p2
 git add src/packs/_sample/index.js src/packs/_sample/card.js \
-  src/packs/_sample/enemy.js src/packs/_sample/theme.js src/packs/dev.js \
+  src/packs/_sample/enemy.js src/packs/_sample/theme.js \
+  src/packs/_sample/locale-en.js src/packs/dev.js \
   test/test_engine.js
 git commit -m "test: add the isolated sample content pack"
 ```
@@ -3081,9 +3393,12 @@ git commit -m "test: add the isolated sample content pack"
 
 **Interfaces:**
 - Produces: P2 evidence: three-leg equality, 100% core doctor, deep-frozen
-  no-accessor core, tuned-context variation, sample engine isolation, act sweep
-  the exact 32-export list, and PR #16's five-export/22-live-cue contract on a
+  no-accessor core, tuned-context variation, sample engine isolation, act
+  sweep, the exact 32-export list, and PR #16's five-export/22-live-cue contract on a
   theme-record resolver with no three-act clamp.
+- Also proves exact PR #7 seven APIs/default `en`/18-domain catalogue,
+  raw-mechanics versus locale ownership, joined locale completeness/provenance,
+  sample locale isolation and full-page reload for either source type.
 
 - [ ] **Step 1: Add one aggregate P2 assertion**
 
@@ -3095,10 +3410,17 @@ catalogues in `audio-catalog.js`, and `tokenIds` from `ui/tokens.js`. Import
 `CHAR_META` from Node-pure `char-meta.js` and inject its ids plus the documented
 default-fallback policy for valid hero/enemy ids. The doctor also verifies pool membership or
 an explicit schema-level no-pool declaration. The test runs
-`doctorContent([CORE_PACK], resourceManifest)` and requires zero errors and every
+`doctorContent([CORE_PACK], {...resourceManifest,
+localeContent:getContent(),localeToken:getLocale()})` and requires zero errors and every
 domain `complete === total`. It imports all 32 names, asserts the 28 content
 views and four protocol constants form exactly the inventory in this plan, and
 proves protocol values remain outside every pack/context domain.
+
+Require every schema field to expose exact `source:'pack'|'locale'`; every
+core/sample entry's locale badge is complete; no mechanics row contains a known
+locale field; no locale row is orphaned; catalogue digest/provenance and all 18
+domains match Task 10. Reassert default `en`, exact seven exports, unknown-code
+false/no-op, module-init hydrated aliases, and no save key/shape change.
 
 Re-run the strict deep-freeze, no-accessor, authoring-input snapshot and tuned-
 context derivation assertions from Tasks 11–12. The core context must contain
@@ -3125,8 +3447,9 @@ valid. Neither schema nor a UI module carries an independent id enum.
 
 Print `formatContentReport(report)` from `test_engine.js` so the command-line
 doctor and Task 18 dashboard consume the same report/projection. Add a source
-assertion that `src/data.js`, `src/registry.js` and `src/packs/core/**` contain no
-HMR accept handler: pack edits deliberately fall through to Vite's full-page
+assertion that `src/data.js`, `src/registry.js`, `src/packs/core/**`,
+`src/i18n/en/**` and `_sample/locale-en.js` contain no HMR accept handler: pack
+or locale edits deliberately fall through to Vite's full-page
 reload, so no live-run or exported-object identity is promised.
 
 Add a failing pure `theme-profile.test.mjs` for an exact three-theme result per
@@ -3194,16 +3517,18 @@ scenario setup to visit all three registered production themes, starts one real
 normal encounter per theme and verifies theme id/index, resolved backdrop/mid/
 ledge ids or labelled fallback, weather semantic snapshot, requested combat
 Music Cue/fallback, one real card play and End Turn, expected stage shape and
-zero trace drops/errors/orphans. The pure profile test proves all three theme
+active locale `en`, zero unresolved locale keys/`{param}`, and zero trace
+drops/errors/orphans. The pure profile test proves all three theme
 rows are mandatory and normalises only semantic ids; no screenshot inference
 or physical performance claim passes this gate.
 
 - [ ] **Step 5: Write evidence/current docs and release the freeze**
 
 Record commit range, exact commands/output summaries, export inventory, doctor
-counts, allowlisted act residue and sample isolation. Update `AGENTS.md` module
+counts, locale catalogue hashes/provenance, allowlisted act residue and paired
+sample mechanics/locale isolation. Update `AGENTS.md` module
 graph and `docs/README.md` to mark P2 complete; explain deliberate page reload
-on pack edits (no object-identity-preserving HMR in this round).
+on pack or locale edits (no object-identity-preserving HMR in this round).
 
 Promote both cells' JSON, screenshot, timestamped text and NDJSON plus a
 source-SHA/path/bytes/SHA-256 manifest into the declared P2 artifact directory.
@@ -3674,8 +3999,9 @@ git commit -m "feat: add registry doctor developer tools"
   `playwright.config.js`, `test/test_engine.js`
 
 **Interfaces:**
-- `?contentedit=1` edits cards/relics/potions/themes only.
-- `POST /__content-save` accepts `{ v:1, packId, domain, order, entries }`, same-origin DEV only.
+- `?contentedit=1` edits the joined mechanics/English projection for cards/relics/potions/themes only.
+- `POST /__content-save` accepts
+  `{ v:1, packId, locale:'en', domain, order, mechanics, display }`, same-origin DEV only.
 - Behaviour fields are absent/read-only; validation occurs before atomic write.
 
 - [ ] **Step 1: Record the pressure-valve decision**
@@ -3687,7 +4013,7 @@ not a blocker or prefix exit.
 
 - [ ] **Step 2: Write pure serialiser tests first**
 
-In `test/test_engine.js`, assert stable key order, round-trip of a card/theme,
+In `test/test_engine.js`, assert stable key order, joined round-trip of a card/theme,
 rejection of `ai`/functions, invalid ids, path traversal and schema failures.
 The serialised module must be deterministic and end with one newline.
 Include an unknown non-function extension key: schema warns, the Manager shows
@@ -3697,29 +4023,43 @@ control owns it.
 
 - [ ] **Step 3: Write the failing disk e2e**
 
-Mirror `bfeditor.spec.js`: copy the target pack source, open Content Manager,
-change a temporary card description, save, verify disk content and registry
-validation, and restore the original bytes plus remove any owned `.tmp.mjs` in
-`finally`. Run once with one worker.
-Record the original SHA-256 and require the restored SHA-256, exact bytes and
-clean absence of `.tmp.mjs` before the test reports success.
+Mirror `bfeditor.spec.js`: copy both target mechanics and English-locale source,
+open Content Manager, then run two transactions. A temporary card description
+edit must change locale bytes only and leave mechanics SHA-256 identical; a
+cost/effect mechanics edit must change pack bytes only and leave locale SHA-256
+identical. Each save validates the joined context. Restore both originals and
+remove owned `.tmp.mjs`/backup files in `finally`. Run once with one worker.
+Record both original SHA-256 values and require restored exact bytes/hashes.
 
 - [ ] **Step 4: Implement stable serialisation and endpoint**
 
 Allow only `core` and domains `cards`, `relics`, `potions`, `themes`; require
-version 1, unique `order` ids matching `entries`, and a body no larger than 1
-MiB. Resolve through an explicit domain→file map, never a user path. Serialise
-and schema/registry-compile the structured `entries` in memory first. Then write
-the candidate beside its target as `file.tmp.mjs`, import it through a
-cache-busted file URL, build a fresh candidate `CORE_PACK` with that imported
-domain explicitly substituted for the live module, compile a complete
-`createContentContext()` and run the doctor before atomic rename to the real
-`.js` path. Do not validate by re-importing cached `packs/core/index.js`, which
+version 1, unique `order` ids matching both projections, and a body no larger
+than 1 MiB. Resolve through explicit domain→mechanics-file and
+domain→English-locale-file maps, never a user path. Split fields only from
+`CONTENT_SCHEMAS.source`; submitted locale-owned fields can never enter the
+mechanics serialiser and vice versa. Serialise both candidates in memory first,
+write both beside their targets as staged `.tmp.mjs`, import through cache-
+busted file URLs, build a fresh candidate `CORE_PACK` with the imported
+mechanics domain and a joined candidate locale with the imported display
+domain, then compile the exact full
+`createContentContext(packs,{id,resources,localeContent,localeToken})` and run
+the doctor. Only a completely green joined candidate enters a two-source
+rename transaction with owned backups; any failure rolls both sources back
+byte-for-byte before returning structured 400/500. Do not validate by
+re-importing cached `packs/core/index.js`, which
 would silently compile the old domain. A source/unit assertion proves the
 replacement module's values are the ones observed by candidate compilation.
-Preserve the submitted
-top-level entry order and schema field order. On error, delete only the
-`.tmp.mjs`, leave source bytes unchanged and return structured 400/500.
+Preserve submitted top-level entry order and schema field order. On error,
+delete only owned temporary/backups and leave both source hashes unchanged.
+
+Extend the existing PR #18
+`export default defineConfig(({ command }) => { ...; return {...}; })`
+configuration and its
+existing plugin/middleware; do not replace it with a second config or a static
+object. Source/unit tests require the three `__SPIRE_*__` defines, DEV/live SHA,
+ordinary-build `unknown`, release boolean and every existing save endpoint to
+survive the Content Manager endpoint unchanged.
 
 Reject accessors before reading values and reject every function field in the
 four editable domains unless its schema explicitly marks it read-only (none is
@@ -3730,9 +4070,10 @@ module.
 
 - [ ] **Step 5: Build forms from `CONTENT_SCHEMAS`**
 
-Render required/optional fields, types, enum options and warnings from the
-schema. Omit every `{kind:'function'}` control. The view owns no duplicated
-field list.
+Render required/optional fields, types, enum options, source badge and warnings
+from the schema. Join mechanics and display fields into one form while retaining
+their write target. Omit every `{kind:'function'}` control. The view owns no
+duplicated field list or locale ownership table.
 
 - [ ] **Step 6: Add the serial disk script**
 
@@ -3749,7 +4090,8 @@ and a matching one-worker Playwright project.
 ```bash
 npm test
 node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:content-disk
-test -z "$(find src/packs/core -name '*.tmp.mjs' -print -quit)"
+test -z "$(find src/packs/core src/i18n/en -type f \
+  \( -name '*.tmp.mjs' -o -name '*.round5-backup' \) -print -quit)"
 npm test
 node tools/verify-production-surface.mjs
 git status --short
@@ -3975,9 +4317,15 @@ imports the P2 `tokens.js` API and initially fails because `ROUND5_TOKENS` is no
 exported; it then asserts the exact approved FE values and no DOM/global access.
 
 Install a pre-navigation `HTMLCanvasElement.getContext` observer in the Pixi
-spec. Assert the only live WebGL owners are exactly `#bg3d`, `#mesh`, `#uigl`;
-`#vfx` is 2D; no fourth owner appears before or after Pixi rebuild. Context
-generation may increment on recovery, but the live owner set remains three.
+spec and retain every context/canvas record, including detached/id-less
+canvases. Calculate total live as `!gl.isContextLost()` and named owners
+separately. Prewarm a real `ColorMatrixFilter`/`GlProgram` while only bg3d+mesh
+are live, observe Pixi's `getTestContext()`, explicitly lose it, assert it is
+lost, and only then create `uigl`. Assert named steady owners are exactly
+`#bg3d`, `#mesh`, `#uigl`; `#vfx` is 2D; total live never exceeds three before,
+after or through recovery; and no live unowned context remains at steady state.
+Context generation may increment on recovery, but the old Pixi context must be
+lost/destroyed before its replacement becomes live.
 
 Add Node-pure `contrastRatio(foreground, background)` to `tokens.js` and assert
 every approved text/background token pair is at least 4.5:1. In Pixi, extract
@@ -4083,7 +4431,7 @@ export async function createPixiLayer({ canvas, stage, policy, trace, snapshot }
 }
 ```
 
-Initialise with `preference:'webgl'`, antialias off for baselines, stage-pixel
+Initialise with `preference: ['webgl']`, antialias off for baselines, stage-pixel
 width/height, and resolution `Math.min(devicePixelRatio * stage.scale,
 policy.tier === 'lite' ? 1 : 2)`. On loss: `preventDefault`, cancel pointer and
 tooltip, freeze presentation and retain only the immutable presentation
@@ -4638,7 +4986,9 @@ Watch required checks and stop all execution after opening the P4 prefix PR.
 - Modify: `src/ui/combat-gl.js`, `src/ui/tooltip.js`, `src/ui/overlay.js`, `src/ui/screens/reward.js`, `src/ui/screens/shop.js`, `test/test_engine.js`
 
 **Interfaces:**
-- Produces `createCardFaceComposer({renderer,registries,assets,tokens,locale,policy})`.
+- Produces `createCardFaceComposer({renderer,registries,assets,tokens,getLocale,policy})`.
+  Cache acquisition reads the real PR #7 `getLocale()` token; no fictional
+  constant or duplicate locale state is accepted.
 
 - [ ] **Step 1: Write Node layout/cache tests first**
 
@@ -4662,8 +5012,14 @@ LRU caps are 4,191,990 bytes LITE and 16,767,960 bytes full, maximum 24 entries.
 - [ ] **Step 2: Verify red and implement the pure layout module**
 
 Run `npm test`; expected missing module. Implement token-aware wrap, cache key
-including locale/content/upgrade/effective-value/DPR tier, allocation estimator
+including the current `getLocale()` result/content/upgrade/effective-value/DPR
+tier, allocation estimator
 and deterministic upgrade-diff token ranges.
+
+Add a focused invalidation test: register/switch a synthetic UI catalogue,
+observe the locale token change, invalidate every baked text texture, then
+restore `en`. Do not claim live card-table rehydration; card mechanics/display
+tables remain the module-init English graph in this slice.
 
 - [ ] **Step 3: Implement the composer contract**
 
@@ -5099,6 +5455,8 @@ git commit -m "style: add the Round 5 screen experience layer"
 **Interfaces:**
 - Produces frozen P6 selector/state markup for Title/Embark; consumes FE contract values.
 - Does not import the FE stylesheet until Task 35.
+- Preserves PR #18 app-version behaviour and PR #7 supplied English copy; FE
+  may change fit/hierarchy/wrapping/placement/motion only.
 
 - [ ] **Step 1: Write semantic/state tests first**
 
@@ -5106,6 +5464,22 @@ Assert fresh/grown title and Embark expose the fixed `.r5-*` selectors/data
 states, reveal logic is unchanged, ignition runs once per page session, Begin
 emits lantern-lighting span then enters map, and REDUCED lands directly on the
 named final state.
+
+Add exact app-version behaviour tests: `data-version-display` equals the
+existing `getVersionInfo().display`, has no `data-a`, and is visible; four taps
+or five taps outside a two-second window do nothing; five taps inside two
+seconds show `data-version-debug` with `aria-live="polite"`; it hides after
+three seconds or the next completed five-tap gesture. Assert no Music/SFX
+request and no title action routing. The `app.version` and
+`app.version-debug` show/hide trace records contain stable control/locale/
+release/sha-state facts only—no semver, SHA, resolved copy or HTML.
+
+For each exact canonical shape `phone-portrait`, `phone-landscape`,
+`pad-portrait`, `pad-landscape`, `desktop-landscape`, use probe/stage bounds and
+computed safe-area variables to require both label/debug bounds stay inside the
+safe rectangle, remain bottom-right, are non-zero/visible, and do not intersect
+`.title-btns`, `.title-stats` or the Rose medallion. Cover fresh/grown and
+debug-hidden/debug-visible states.
 
 Cover the Title Rose states here, before Task 34: Rose absent, medallion loading,
 inert and ready, including decode failure, labelled fallback, keyboard focus and
@@ -5117,7 +5491,9 @@ facts and never invent quest state.
 Use exact selectors from Task 31. Title supports three P7 parallax layer asset
 ids with existing `title.png` fallback; no generated asset is required yet.
 Wire only existing Music/SFX catalogue ids from the FE contract. Embark keeps
-engine/Vigil reveal decisions untouched.
+engine/Vigil reveal decisions untouched. Preserve the extracted version timer/
+tap state and injected `tr`/`getLocale`/`getVersionInfo` owner from Task 8
+exactly once; add no player copy outside the English catalogue.
 
 - [ ] **Step 3: Verify semantic gates and commit**
 
@@ -5196,6 +5572,10 @@ git commit -m "feat: add Fall and Dawn ceremonies"
 For each screen assert fresh/grown profile, all five stage shapes, scene-panel
 theme resolution, card texture use in shop/rewards, and named ceremony trace.
 Map keeps DOM-on-3D projection and adds entrance/path/camera spans only.
+Every P6 case asserts active locale `en`, the Task 10 English content/UI
+catalogue hashes, no visible unresolved locale key or `{param}`, and no newly
+hardcoded product wording. Title cases additionally require the PR #18 version
+label visible and safe in every shape.
 
 Treat the Task 2 additive Phase-2 matrix as mandatory capture/state coverage,
 not extra screens. Task 32 already owns Title Rose absent/loading/inert/ready;
@@ -5243,6 +5623,8 @@ Lab/probe scenarios for every screen × stage shape × fresh/grown state **and**
 every named additive Phase-2 substate from the Task 2 contract. Its frozen
 capture manifest lists all 43 additive rows by stable state id and maps each to
 its owning base screen; a missing/duplicate state fails before capture. The tool
+records locale `en`, both catalogue hashes, version-label visibility and an
+unresolved-key/parameter scan result in every capture row. It
 waits on presentation settle/fonts/images, freezes, captures PNGs and composes
 one sheet per screen with separate base and Phase-2-substate sections under
 `test-results/round5-contact-sheets/`.
@@ -5908,8 +6290,19 @@ npm run test:simulator:full -- --surface production
 npm run test:simulator:profiles -- --surface production
 npm run test:round5:standing -- --profile full
 git diff --check
+test "$(node -p 'require("./package.json").version')" = 0.5.0
+test -z "${SPIRE_RELEASE:-}"
+test -z "${SPIRE_EMBED_SHA:-}"
 npm run build
+test "$(node -p 'require("./package.json").version')" = 0.5.0
+node -e 'const fs=require("node:fs"),p=require("node:path");const js=fs.readdirSync("dist/assets").filter(x=>x.endsWith(".js")).map(x=>fs.readFileSync(p.join("dist/assets",x),"utf8")).join("\n");if(!js.includes("0.5.0")||!js.includes("unknown"))process.exit(1)'
 ```
+
+This is deliberately the ordinary non-release build and must render
+`0.5.0+unknown` on Title. Do not run `npm run release`, `npm run release:build`,
+`SPIRE_RELEASE=1`, `SPIRE_EMBED_SHA=1` or `tools/release.mjs` anywhere in Task
+40: those flows mutate the version/release identity and require a separate
+owner-requested release operation.
 
 The full report records both tiers' measured values and every valid
 `PERF_WARNING`; such a warning cannot fail Full-Round or block the PR. Missing,
@@ -5948,6 +6341,9 @@ open while a separate visible-browser session performs both rows. Record the
 PTY/session id and `http://127.0.0.1:$PREVIEW_PORT`, verify the listener and
 served `dist/index.html` hash, then send Ctrl-C only to that owned session and
 verify the port closed.
+Both visible desktop rows first assert the corner label is exactly
+`0.5.0+unknown`; the five-tap debug row reports `unknown · dev`, remains
+`aria-live="polite"`, hides after three seconds and emits no SFX/action route.
 Manually drive two additional visible desktop
 rows in the `desktop-landscape` shape: `fresh` and `veteran`. Fresh clears the
 profile keys, uses real Title→Embark→map controls, enters a normal encounter,
