@@ -8,6 +8,7 @@
     "test:ci": "node test/test_ci_contract.mjs && npm run test:boundaries",
     "test:boundaries": "node test/test_module_boundaries.mjs",
     "build": "vite build",
+    "release": "node tools/release.mjs",
     "release:build": "SPIRE_RELEASE=1 vite build",
     "preview": "vite preview",
     "test": "node test/test_engine.js",
