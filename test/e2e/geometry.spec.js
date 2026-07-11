@@ -433,6 +433,11 @@ test('desktop pair keeps each HP plate under its own foe', async ({ page }) => {
   await boot(page, { query: 'mesh=0' });
   await page.evaluate(() => { window.spirebound.S.run.act = 0; });
   await startFight(page, ['duskfang', 'duskfang']);
+  await page.evaluate(() => {
+    const { S } = window.spirebound;
+    S.cb.enemies.forEach((enemy) => { enemy.block = 5; });
+    window.__probe.setEnemyHp(0, S.cb.enemies[0].hp);
+  });
   await stable(page);
   const rects = await combatChromeRects(page);
   assertGrounded(await measure(page), 'desktop duskfang pair');
