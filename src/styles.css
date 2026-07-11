@@ -1245,19 +1245,22 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .energy-orb::before { display: none; }
 .energy-orb.spent { filter: saturate(0.35) brightness(0.75); }
 .energy-orb.pop { animation: chipPop 0.35s ease-out; }
-/* candles: one flame per point of energy, guttering out as they're spent */
+/* candles: fixed frame — more slots compress pitch (W/n), no rightward grow */
 .energy-orb .candles {
   position: relative; left: auto; bottom: auto; transform: none;
-  display: flex; gap: 6px; align-items: flex-end; z-index: 1;
+  display: flex; align-items: flex-end; justify-content: center; gap: 0;
+  width: 120px; /* 3 × 40px design candle */
+  z-index: 1;
   pointer-events: none;
 }
 .candle {
-  width: 22px; height: 30px; border-radius: 50% 50% 46% 46% / 66% 66% 34% 34%;
-  background: #232a40; border: 1px solid rgba(180, 195, 235, 0.16); transition: background 0.3s, box-shadow 0.3s;
+  flex: 1 1 0; min-width: 0; max-width: 22px;
+  width: auto; height: 30px; border-radius: 50% 50% 46% 46% / 66% 66% 34% 34%;
+  background: #232a40; border: 1px solid rgba(180, 195, 235, 0.16); transition: background 0.3s, box-shadow 0.3s, max-width 0.2s;
   display: flex; align-items: flex-end; justify-content: center; overflow: hidden;
 }
 .candle:has(.candle-img) {
-  width: 40px; height: 56px;
+  max-width: 40px; height: 56px;
   background: transparent; border: none; border-radius: 0; overflow: visible;
 }
 .candle-img {
@@ -2009,7 +2012,8 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .choice-cards .card { --cw: 150px; }
   .hand-zone { height: 230px; }
   .energy-orb .num { font-size: 40px; }
-  .candle:has(.candle-img) { width: 34px; height: 48px; }
+  .energy-orb .candles { width: 102px; } /* 3 × 34 */
+  .candle:has(.candle-img) { max-width: 34px; height: 48px; }
   .lantern-btn { --lbr: 44px; }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 84px; height: 84px; }
   .lantern-btn .lb-count { font-size: 22px; }
@@ -2086,15 +2090,15 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .hand-zone .card { bottom: 46px; }
   /* chrome positions: ui-chrome-layout.js (?bfuiedit=1) */
   .energy-orb .num { font-size: 36px; }
-  .energy-orb .candles { gap: 4px; }
+  .energy-orb .candles { width: 84px; } /* 3 × 28 */
   .lantern-btn { --lbr: 36px; }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 68px; height: 68px; }
   .lantern-btn .lb-count { font-size: 20px; }
   .facet-row { gap: 4px; margin-top: 3px; }
   .facet-row .pip { width: 8px; height: 8px; }
   .facet-row .pip:has(.facet-img), .facet-row .pip .facet-img { width: 14px; height: 14px; }
-  .candle { width: 16px; height: 22px; }
-  .candle:has(.candle-img) { width: 28px; height: 40px; }
+  .candle { max-width: 16px; height: 22px; }
+  .candle:has(.candle-img) { max-width: 28px; height: 40px; }
   .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 96px; height: 96px; }
   .end-turn .et-lbl { font-size: 15px; letter-spacing: 0.12em; }
   .pile-stack { left: 0; right: 0; top: 0; bottom: 14px; }
@@ -2158,15 +2162,15 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .hand-zone .card { bottom: 0; }
   /* chrome positions: ui-chrome-layout.js (?bfuiedit=1) */
   .energy-orb .num { font-size: 33px; }
-  .energy-orb .candles { gap: 3px; }
+  .energy-orb .candles { width: 72px; } /* 3 × 24 */
   .lantern-btn { --lbr: 31px; }
   .lantern-btn .lb-ic .ui-icon, .lantern-btn .lb-ic .gicon { width: 62px; height: 62px; }
   .lantern-btn .lb-count { font-size: 18px; }
   .facet-row { gap: 3px; margin-top: 2px; }
   .facet-row .pip { width: 7px; height: 7px; }
   .facet-row .pip:has(.facet-img), .facet-row .pip .facet-img { width: 12px; height: 12px; }
-  .candle { width: 14px; height: 18px; }
-  .candle:has(.candle-img) { width: 24px; height: 34px; }
+  .candle { max-width: 14px; height: 18px; }
+  .candle:has(.candle-img) { max-width: 24px; height: 34px; }
   .end-turn .et-ic .ui-icon, .end-turn .et-ic .gicon { width: 84px; height: 84px; }
   .end-turn .et-lbl { font-size: 14px; letter-spacing: 0.1em; }
   .pile-stack { left: 0; right: 0; top: 0; bottom: 14px; }

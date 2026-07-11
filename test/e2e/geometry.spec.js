@@ -473,6 +473,54 @@ test('foe HP floor stays put when a hand card lifts', async ({ page }) => {
   expectNoErrors(errors, 'hand-hover chrome floor');
 });
 
+test('energy candles stay in a fixed frame as slot count grows', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'energy candle frame regression');
+  const errors = collectErrors(page);
+  await boot(page, { query: 'mesh=0' });
+  await startFight(page, ['duskfang']);
+  await stable(page);
+
+  const measure = () => page.evaluate(() => {
+    const info = window.__probe.stage();
+    const stage = document.getElementById('stage').getBoundingClientRect();
+    const row = document.querySelector('.energy-orb .candles');
+    const rr = row.getBoundingClientRect();
+    const kids = [...row.querySelectorAll('.candle')].map((c) => {
+      const r = c.getBoundingClientRect();
+      return ((r.left + r.right) / 2 - stage.left) / info.scale;
+    });
+    const pitches = kids.slice(1).map((cx, i) => cx - kids[i]);
+    return {
+      frameW: rr.width / info.scale,
+      frameLeft: (rr.left - stage.left) / info.scale,
+      n: kids.length,
+      avgPitch: pitches.length
+        ? pitches.reduce((a, b) => a + b, 0) / pitches.length
+        : 0,
+    };
+  });
+
+  await page.evaluate(() => {
+    const P = window.spirebound.S.cb.player;
+    P.energyMax = 3;
+    window.__probe.setEnergy(3);
+  });
+  const at3 = await measure();
+  await page.evaluate(() => {
+    const P = window.spirebound.S.cb.player;
+    P.energyMax = 5;
+    window.__probe.setEnergy(5);
+  });
+  const at5 = await measure();
+
+  expect(at3.n, '3 energy slots').toBe(3);
+  expect(at5.n, '5 energy slots').toBe(5);
+  expect(Math.abs(at5.frameW - at3.frameW), 'candle frame width stays fixed').toBeLessThanOrEqual(1);
+  expect(Math.abs(at5.frameLeft - at3.frameLeft), 'candle frame left edge stays fixed').toBeLessThanOrEqual(1);
+  expect(at5.avgPitch, 'more candles compress pitch inside the frame').toBeLessThan(at3.avgPitch - 1);
+  expectNoErrors(errors, 'energy candle frame');
+});
+
 for (const variant of [
   { id: 'paleDuskfang', act: 0 },
   { id: 'usurpedSovereign', act: 2 },
