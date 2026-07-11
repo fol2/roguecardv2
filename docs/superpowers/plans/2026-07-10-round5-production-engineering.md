@@ -2,16 +2,34 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use Superpowers 6.1.1 `superpowers:subagent-driven-development` to implement this plan task-by-task with a fresh implementer and fresh spec/code reviewers. Do not substitute `executing-plans`. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Phase 2 re-entry (2026-07-11):** Re-authored against loaded PR #14, PR #15
+> and PR #16 at `7b8e01ab5ab5f7be0a3a8cbd3c61b3b41549a419`. The prior plan is
+> not executable by assumption: terminal/Dawn transactions, the 32-export
+> surface, parallel CI, progression gates, PR #15 audio hot-apply and PR #16's
+> complete live Music Cue resolver/call sites are protected predecessor
+> behaviour throughout this revision.
+
 **Goal:** Deliver the Full-Round commercial-engine target: a registry-backed content substrate, AI-readable Semantic UI Behaviour Trace, production Pixi combat UI, deterministic authoring/QA tooling, finished DOM screens, and the provisional ship-front kit, with a supported P4/P5/P6 prefix stop at every declared gate.
 
 **Architecture:** Production Engineering (PE) remains the primary lane and owns every product JavaScript file, state transition, renderer/input seam, authoring tool, probe, test, workflow and integration commit. A separate Front-end Experience (FE) worktree owns only the checked-in experience contract, one dedicated stylesheet, named visual assets and review reports. PE and FE run concurrently only on the disjoint write sets below; PE consumes FE outputs through named commit hand-offs after interfaces are frozen.
 
-**Tech Stack:** Vite 8.1 + vanilla ES modules; Node 24; Three.js 0.185; PixiJS **8.19.0** pinned to WebGL; Selenium WebDriver **4.45.0** for serial Simulator Safari automation; plain `node:assert` checks in `test/test_engine.js`; Playwright 1.61.1; GitHub Actions; Apple `safaridriver` against the installed iOS 26.5 Simulator runtime.
+**Tech Stack:** Vite 8.1 + vanilla ES modules; Node 24; Three.js 0.185; PixiJS **8.19.0** pinned to WebGL; Selenium WebDriver **4.45.0** for serial Simulator Safari automation; plain `node:assert` checks in `test/test_engine.js`; Playwright 1.61.1; GitHub Actions; Apple `safaridriver` against the live iOS 26.5 (`23F73`) Simulator runtime prerequisite.
 
 ## Global Constraints
 
-- **Hard predecessor gate:** no Round 5 runtime/product edit starts until PR #14, `Ship Emberglass Phase 2`, is merged into current `origin/main` and the execution branch has been rebased onto that merge. `src/data.js` must export `VARIANTS` and `WHISPERS`; Emberglass quests, Rose Window and sealed-door surfaces must exist. An open PR, green unit check alone or dirty local predecessor worktree does not pass.
+- **Loaded predecessor gate:** no Round 5 runtime/product edit starts unless the
+  execution branch contains PR #14 merge `469890680239c523e708e6d05ad3a02d867f0859`,
+  PR #15 merge `4dc1af79c47e8a93795355607cfca238c82f57be` and
+  PR #16 merge `7b8e01ab5ab5f7be0a3a8cbd3c61b3b41549a419`.
+  `src/data.js` must expose the complete 32-name post-Phase-2 contract,
+  transactional Dawn/Rose/sealed-door surfaces and PR #15 hot audio-gallery
+  behaviour. `src/music-resolve.js`, all 22 live catalogue rows, their PR #16
+  precedence and real gameplay call sites must also be present. A later
+  `origin/main` change triggers a fresh drift audit before runtime work; a
+  local predecessor worktree never passes.
 - Keep `src/engine.js`, `src/vigil.js`, `src/data.js`, `src/content.js`, `src/registry.js`,
+  `src/content-protocol.js`, `src/choice-latch.js`,
+  `src/music-resolve.js`,
   `src/packs/**`, `src/presentation-catalog.js`, `src/content-resources.js`, `src/battlefield.js`,
   `src/battlefield-layout.js`, `src/uic.js`, `src/ui-chrome-layout.js`,
   `src/ui/tokens.js`, `src/ui/shipfront-assets.js`,
@@ -19,7 +37,11 @@
   `src/ui/presentation-barrier.js`
   plus `src/ui/run-effects.js` Node-runnable and DOM-free.
 - Preserve the load-bearing import graph: `src/engine.js` imports `src/data.js` only. `src/data.js` becomes the assembler and keeps the complete post-predecessor named-export surface.
-- Keep all current internal ids and save keys/shapes immutable. Packs add no save field. New mechanics, a playable Act 4, runtime DLC, AI DSL, screen-reader mirror and Capacitor packaging are out of scope.
+- Keep all current internal ids and the complete `7b8e01a` save keys/shapes
+  immutable, including `runId`, pending encounter/reward/Hollow/Shade state,
+  `pendingRunEnd`, `pendingDawn`, Vigil receipts and bequests. Packs add no save
+  field. New mechanics, a playable Act 4, runtime DLC, AI DSL, screen-reader
+  mirror and Capacitor packaging are out of scope.
 - P1 is a zero-visual-change refactor. Instrument the post-predecessor monolith before moving code; preserve selected DOM-era trace contracts through P4/P5.
 - The trace is structured/versioned and observer-only. Order is `seq`; incremental cursor is `{ segment, seq }`; `atMs` is diagnostic; REDUCED is policy metadata; text/NDJSON are projections; no network exporter or automatic persistence.
 - Presentation completion is owned by an always-on renderer-neutral barrier, never by the optional trace. Enabling or disabling trace may not change `settle()` timing or gameplay semantics.
@@ -31,6 +53,10 @@
 - Content Lab replay is presentation-only. On a replayable span settle, Lab writes bounded `replay=` via `history.replaceState`; reload hydrates but never auto-runs it; replay never calls engine commands or writes saves.
 - Pin Pixi to WebGL (`preference: 'webgl'`), never WebGPU. New APIs must be current-iOS-WebKit safe. Total WebGL contexts stay at three: scene3d, mesh and Pixi.
 - Simulator Safari proves functional compatibility only. It makes no physical-device FPS, memory, thermal, background-eviction, input-latency or touch-feel claim.
+- Preserve the merged Phase 2 performance policy: missing/invalid metrics or a
+  crashed journey fail; valid portrait/LITE or desktop/Full target misses emit
+  `PERF_WARNING` and remain non-gating reference evidence. Do not silently turn
+  55fps/22ms into a merge hard gate.
 - `#uigl` has `pointer-events: none`. One stage-level router owns combat input. Preserve card 26px upward drag activation, touch-tooltip 12px cancellation, and map-pan 14px activation as separate grammars.
 - `src/battlefield-layout.js` and `src/ui-chrome-layout.js` remain geometry truth; bfedit/bfuiedit edit those files and Pixi subscribes to their existing change hooks.
 - From P5, one Pixi card-face composer feeds combat and DOM grids. No second card-face implementation may exist at a merge boundary.
@@ -40,17 +66,27 @@
   Pure documentation, worktree, predecessor, evidence and decision-gate tasks
   use their declared preflight/characterisation/verification checks and never
   fabricate a red by breaking production source.
-- Every Playwright command/package script runs against an isolated strict-port
-  server. At the start of each task that invokes Playwright, allocate a free
-  localhost port, export it as `SPIREBOUND_E2E_PORT`, record it in that task's
-  report, and assert the post-Phase2 `playwright-server.js` resolves
+- Every Playwright-backed top-level command/package script runs against its own
+  isolated strict-port server. Shell environment is never assumed to persist
+  across tool calls or fresh subagents. Tasks 1 and 3 precede the durable
+  wrapper, so each of their browser blocks allocates and exports a fresh port in
+  the same fenced shell invocation as the browser command. Task 5 creates the
+  import-safe `tools/run-with-strict-e2e-port.mjs`; every later executable
+  browser line in this plan and CI invokes that wrapper in the same shell
+  command, for example `node tools/run-with-strict-e2e-port.mjs -- npm run
+  test:e2e`. Bare Playwright strings in `package.json` snippets are definitions,
+  never an authorisation to execute them without the wrapper. The standing-gate
+  runner imports the same allocator and injects a new port for each top-level
+  browser row. Every selected port is recorded in that task's report, and the
+  wrapper asserts the post-Phase2 `playwright-server.js` resolves
   `reuseExistingServer:false`. The strict bind may fail on a race, but no task
-  may fall back to or reuse port 5174; rerun with a newly allocated port. This
-  rule includes local baseline update/verify, perf, full gates and CI.
+  may fall back to or reuse port 5174; rerun the wrapper so it allocates again.
+  This rule includes capture tools, local baseline update/verify, perf, full
+  gates and CI. A nested aggregate may run its serial child scripts on the one
+  fresh isolated port assigned to that top-level aggregate invocation.
 
   ```bash
-  export SPIREBOUND_E2E_PORT=$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")
-  test "$SPIREBOUND_E2E_PORT" != 5174
+  node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e
   ```
 - PE produces gate evidence and fixes findings. A fresh QA agent reviews each task diff for both spec compliance and code quality; the implementer never self-certifies. Owner checkpoints remain owner-only.
 - Use UK English in code comments, docs and player copy. Keep normal user communication in HK Cantonese.
@@ -59,7 +95,8 @@
 ### Executable standing-gate matrix
 
 Task 5 introduces the import-safe `tools/run-round5-standing-gates.mjs` and
-the package entry `test:round5:standing`. From that task onwards, every PE
+`tools/run-with-strict-e2e-port.mjs`, plus the package entry
+`test:round5:standing`. From that task onwards, every PE
 task must run the profile in this table immediately before its commit step,
 in addition to its focused RED/GREEN and phase-closure commands. The runner
 executes argv arrays with `spawnSync` and no shell, stops on the first non-zero
@@ -70,10 +107,11 @@ list, port list and exit codes.
 
 | Tasks | Profile | Exact cumulative standing commands |
 |---|---|---|
-| 5 | `p1-node` | `npm test` |
-| 6–8 | `p1-dom` | all `p1-node`; `npx playwright test trace battle --project=desktop --workers=1`; `npm run test:e2e:trace-production` |
-| 9–12 | `p1-complete` | all `p1-dom`; `npm run test:e2e:nonvisual` |
-| 13–16 | `p2` | all `p1-complete`; `npm run test:act-coupling` |
+| 5 | `p1-node` | `npm run test:ci`; `npm test` |
+| 6–8 | `p1-dom` | all `p1-node`; `npx playwright test trace battle audio --project=desktop --workers=1`; `npm run test:e2e:trace-production` |
+| 9 | `p1-complete` | all `p1-dom`; `npm run test:e2e:nonvisual` |
+| 10–12 | `p2-base` | all `p1-complete`; `npm run test:progression` |
+| 13–16 | `p2` | all `p2-base`; `npm run test:act-coupling` |
 | 17–23 | `p3` | all `p2`; `node tools/verify-production-surface.mjs`; optional `npm run test:e2e:content-disk` when the script is defined |
 | 24–28 | `p4` | all `p3`; `npm run test:e2e:webkit`; `npm run test:e2e:perf`; `node tools/check-bundle-budget.mjs` |
 | 29–34 | `p5` | all `p4`; `npm run test:e2e:leak` |
@@ -81,8 +119,9 @@ list, port list and exit codes.
 | 40 | `full` | all `p6`; `npm run test:e2e:visual`; `npm run test:simulator:full -- --surface production`; `npm run test:simulator:profiles -- --surface production` |
 
 The cumulative relation is literal, expands each named command once in first-
-occurrence order and is unit-tested: `p2` makes the act-coupling
-sweep stand in every P2+ task; `p3` makes the production-surface verifier stand
+occurrence order and is unit-tested: `p2-base` preserves the merged guided/
+unguided pacing contract from the first registry task, and `p2` makes the
+act-coupling sweep stand in every later P2+ task; `p3` makes the production-surface verifier stand
 in every P3+ task, including Pixi, P5, P6 and ship-front source commits, and
 makes the Manager disk gate stand from the first commit that defines it. A task
 may repeat a command for a narrower proof, but may not replace or omit its
@@ -91,7 +130,7 @@ declared preflight/gates.
 
 Task 6 defines `test:e2e:nonvisual` exactly as
 `npm run test:e2e:disk && npm run test:e2e:random-agent && npm run
-test:e2e:main`. The existing `test:e2e` remains that lane followed by
+test:e2e:main && npm run test:e2e:serial`. The existing `test:e2e` remains that lane followed by
 `test:e2e:visual`. Per-task standing profiles intentionally use the complete
 non-visual lane: Tasks 22–23, 26–28, 34–35 and 39 move pixels before their
 authorised phase baseline commit, so stale visual baselines cannot be a
@@ -116,22 +155,17 @@ shell subsection and all of Task 19 Content Manager. PE records either
 report. The mandatory Task 18 content doctor/dashboard still ships; omission is
 not a new prefix state and does not block Task 20.
 
-PE worktree and branch already exist:
+PE and FE worktrees/branches already exist; Task 0 forbids recreating either:
 
 ```text
 /Users/jamesto/Coding/roguecardv2/.worktrees/round5-production-engineering
 codex/round5-production-engineering
+/Users/jamesto/Coding/roguecardv2/.worktrees/round5-front-end
+codex/round5-front-end
 ```
 
-After this plan is committed, create the FE worktree from that commit:
-
-```bash
-git worktree add .worktrees/round5-front-end \
-  -b codex/round5-front-end codex/round5-production-engineering
-```
-
-The dedicated FE agent may execute Task 2 while the predecessor gate is red,
-then Tasks 31, 36 and 38 when their declared PE hand-offs exist. All PE
+The dedicated FE agent has completed the reviewed Task 2 proposal, and resumes
+at Tasks 31, 36 and 38 when their declared PE hand-offs exist. All PE
 implementation tasks remain serial relative to other PE tasks. Before any
 cross-lane integration, record both branch heads and use a normal merge; do not
 copy uncommitted files between worktrees.
@@ -155,6 +189,7 @@ before the Task 37 owner gate and the per-file P7 approval in Task 38.
 |---|---|---|
 | `src/ui/behaviour-trace.js` | Node-pure bounded trace, span lifecycle, composite cursors and projections | P1 |
 | `src/ui/presentation-barrier.js` | Always-on renderer-neutral presentation ownership and settle barrier | P1 |
+| `src/ui/run-effects.js` | Sole transactional terminal/Hollow/Shard/bequest boundary; preserves the normal Phase 2 flow in P1 and adds Lab suppression in P3 | P1/P3 |
 | `src/ui/context.js` | Browser UI singleton state, environment flags and DOM helpers | P1 |
 | `src/ui/policy.js` | One motion/input/render-tier policy snapshot, including `REDUCED` | P1 |
 | `src/ui/format.js` | Shared pure display formatters such as `ROMAN` | P1 |
@@ -170,6 +205,8 @@ before the Task 37 owner gate and the per-file P7 approval in Task 38.
 | `src/ui/probe.js` | `window.__probe` readers/drivers; no test-only game logic | P1/P4 |
 | `src/ui/index.js` | Imports/wires modules, binds commands, installs globals/HMR and boots UI | P1 |
 | `src/ui.js` | Thin public re-export of `initUI` and `show` | P1 |
+| `src/music-resolve.js` | Existing Node-pure PR #16 cue resolution: quest/Eighth/theme precedence, screen overrides and Dawn ceremony cues | P1/P2 |
+| `src/content-protocol.js` | Four immutable protocol exports: quest states, active states, terminal outcomes and run-id RegExp | P2 |
 | `src/registry.js` | Node-pure schemas, pack definition, deterministic content-context merge/freeze and doctor | P2 |
 | `src/content-resources.js` | Node-pure static VFX/character/fallback/audio/token catalogues; no filesystem or Vite asset glob | P2 |
 | `src/content.js` | Private production full-context assembler; exports `CORE_CONTENT` without widening `data.js` | P2 |
@@ -179,7 +216,6 @@ before the Task 37 owner gate and the per-file P7 approval in Task 38.
 | `src/ui/content.js` | Node-pure full presentation-context resolver; core default plus explicit ephemeral binding | P2/P3 |
 | `src/presentation-catalog.js` | Node-pure VFX, character-kind and structural-fallback id inventory | P2 |
 | `src/dev/lab-scenario.js` | Pure URL scenario/replay codec | P3 |
-| `src/ui/run-effects.js` | Sole persistence/meta-effect boundary; suppresses every Lab-run side effect | P3 |
 | `src/ui/dev/*.js` | Lab, doctor dashboard, optional Content Manager and dev launcher | P3 |
 | `src/dev/content-serialize.js` | Stable schema-driven pack serialiser | P3 |
 | `src/ui/pixi-app.js` | One Pixi Application, resize/DPR/tier and context recovery | P4 |
@@ -205,22 +241,23 @@ These are semantic owners, not suggestions:
 | `rose.js` | `forceRoseFallback`, `roseAssets`, Rose asset readiness/fallback helpers |
 | `assets.js` | `rasterOr`, `sceneBg`, `metaBg`, `relicArt`, `hudRelic`, `omenIconName`, `omenMark`, `aimRing`, `heroArt`, `combatantView`, `assetsWarmed`, `warmAssets` |
 | `tooltip.js` | `FACET_DESC`, `KEYWORDS`, `initTooltip`, `fmtText`, the P1 DOM `cardEl` |
-| `overlay.js` | `closeMenus*`, settings/reset/abandon, potion flow, `persistenceDialogTransaction`, overlays/persistence recovery, card grid and help |
-| `navigation.js` | `wipe`, `transitionSeq`, `transition` and `show`; dispatches the route map injected by `index.js` |
+| `overlay.js` | `closeMenus*`, settings/reset/abandon, potion flow, `persistenceDialogTransaction`, persistence-dialog rendering/retry UI, card grid and help; retains `createChoiceLatch` one-shot guards |
+| `run-effects.js` | the dependency-injected Phase 2 transaction adapter for terminal journal/finalise/acknowledge, Dawn stage/cursor/final clear, Hollow/Shard recovery and bequest writes/clears; owns no DOM |
+| `navigation.js` | `wipe`, `transitionSeq`, `transition` and `show`; dispatches the route map injected by `index.js` and preserves PR #16 central screen-cue resolution, including Eighth Omen map/event and initial Rose/Hollow routing |
 | `screens/title.js` | title-only state/helpers and `renderTitle`; consumes `rose.js` |
 | `screens/embark.js` | `renderEmbark` |
-| `screens/vigil.js` | Vigil/whisper helpers and `renderVigil`; consumes `rose.js`/`format.js` |
+| `screens/vigil.js` | Vigil/whisper helpers and `renderVigil`; consumes `rose.js`/`format.js`; Rose/deeds tab switches retain `roseWindow`/`vigil` cue ownership |
 | `screens/run.js` | pending-route recovery, `startRun`, `routeStartedRun` |
 | `screens/lamplighter.js` | Lamplighter and Hollow route render/exit helpers |
-| `screens/map.js` | `NODE_ICONS`, map render, node bounty/routing, monument/echo flows |
+| `screens/map.js` | `NODE_ICONS`, map render, node bounty/routing, monument/echo flows; sealed-door open owns `sealedDoor` and close restores map/Eighth cue |
 | `screens/reward.js` | reward, boss-relic and act-advance flows |
 | `screens/rest.js` | rest and treasure renderers |
 | `screens/shop.js` | shop renderer and stock interactions |
 | `screens/event.js` | event renderer |
-| `screens/end.js` | bequest/unlock/dawn/end state, queue and persistence helpers |
+| `screens/end.js` | Fall/Dawn panel presentation, unlock queue and cursor/final-clear acknowledgement; delegates every mutation to `run-effects.js` and every retry modal to `overlay.js`; preserves `pageRead`/`act4Reveal` Dawn cue dispatch |
 | `screens/gallery.js` | gallery state/lightbox and gallery renderer |
-| `screens/audio-gallery.js` | audio gallery renderer |
-| `combat.js` | combat assembly/layout/sync, pile/hand state, drag/targeting, card play/end turn, rig/mesh/choreography/floaters and `afterAction` |
+| `screens/audio-gallery.js` | complete PR #15 audio-gallery transaction: draft preview, metadata save, same-page apply, cache invalidation and active-cue re-resolution; never pins the mutable committed selection to one pack/version |
+| `combat.js` | combat assembly/layout/sync, pile/hand state, drag/targeting, card play/end turn, rig/mesh/choreography/floaters and `afterAction`; passes pending quest and current omen to the pure PR #16 cue resolver |
 | `drain.js` | `drain`, draw-wave/reshuffle batching, `handleEvent`, victory/defeat queue transitions |
 | `probe.js` | `installProbe`, trace/state/geometry/UI readers, invariants and real-handler drivers |
 | `index.js` | `initUI`, the sole ordered screen route map, command binding, `window.spirebound`, keyboard/global listeners, HMR hooks and boot routing |
@@ -232,14 +269,22 @@ operations through `commands.js`; they never import `index.js` or
 
 ## Complete post-predecessor `src/data.js` export inventory
 
-P2 preserves these **28** names exactly:
+P2 preserves these **32** names exactly. The first 28 are pack-owned,
+registry-owned or assembler-derived content views; the final four are immutable
+protocol exports and never pack merge targets:
 
 ```text
 PLAYER, ACTS, CARDS, CARD_POOLS, STATUS_INFO, RELICS, RELIC_POOLS, POTIONS,
 ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, OMENS, AFFIXES, ARTS, DEEDS,
 PROGRESSION, REVEALS, POOL_GATE, QUEST_IDS, WHISPERS, QUESTS, SHADE_KITS,
-VARIANTS, ASPECTS, VOWS, BOONS
+VARIANTS, ASPECTS, VOWS, BOONS,
+QUEST_STATES, QUEST_ACTIVE_STATES, TERMINAL_OUTCOMES, RUN_ID_RE
 ```
+
+`src/content-protocol.js` owns the final four values. `src/data.js` re-exports
+them so `engine.js` and `vigil.js` retain their sole `./data.js` import.
+`RUN_ID_RE` equivalence is its exact `source` and `flags`; the Quest state and
+terminal arrays preserve order and values.
 
 ## Task dependency graph
 
@@ -323,154 +368,151 @@ title; no executor invents them.
 
 ---
 
-### Task 0: `[PE]` Initialise durable execution bookkeeping and the FE worktree
+### Task 0: `[PE]` Historical bootstrap — completed; do not replay
 
-**Files:**
-- Create (git-ignored): `.superpowers/sdd/progress.md`
-- Create worktree: `.worktrees/round5-front-end`
-- No product commit
+**Existing state:**
+- Git-ignored ledger: `.superpowers/sdd/progress.md`
+- PE worktree/branch: `.worktrees/round5-production-engineering` /
+  `codex/round5-production-engineering`
+- FE worktree/branch: `.worktrees/round5-front-end` /
+  `codex/round5-front-end`
+- The original plan/bootstrap commit has already been rebased onto Phase 2;
+  FE owns two contract commits. Re-running `git worktree add -b`, recreating the
+  ledger or assuming equal PE/FE heads is forbidden.
 
 **Interfaces:**
-- Produces: one durable task ledger and the isolated `codex/round5-front-end` branch at the plan commit.
-- Consumes: this plan committed on `codex/round5-production-engineering`.
+- Produces: immutable historical bootstrap evidence only.
+- Runtime execution resumes at Task 3 after the read-only Task 1 checkpoint and
+  the amended spec/plan/FE heads are recorded.
 
-- [ ] **Step 1: Commit this implementation plan**
-
-Run:
-
-```bash
-git add docs/superpowers/plans/2026-07-10-round5-production-engineering.md
-git diff --cached --check
-git commit -m "docs: plan Round 5 commercial engine delivery"
-```
-
-Expected: one docs-only commit.
-
-- [ ] **Step 2: Create the FE worktree from the exact plan commit**
-
-Run from the main repository root:
+- [x] **Step 1: Verify the existing topology read-only**
 
 ```bash
-git worktree add .worktrees/round5-front-end \
-  -b codex/round5-front-end codex/round5-production-engineering
-npm --prefix .worktrees/round5-front-end install
-npm --prefix .worktrees/round5-front-end test
+git worktree list --porcelain
+git rev-parse --verify codex/round5-production-engineering
+git rev-parse --verify codex/round5-front-end
+test -f .superpowers/sdd/progress.md
 ```
 
-Expected: FE baseline ends with `unit checks passed`; PE and FE worktrees are on
-different branches.
+Expected: each branch occurs in exactly one worktree and the ledger retains the
+Phase-2/PR16 re-entry rows. Do not edit, truncate or recreate it.
 
-- [ ] **Step 3: Create the durable SDD ledger with `apply_patch`**
+- [x] **Step 2: Preserve the FE-owned history**
 
-Create `.superpowers/sdd/progress.md` in the PE worktree with exactly:
+The FE branch contains the original contract, its Phase-2 amendment and its
+PR #16 live-music amendment. The controller rebases that owned range once onto
+the final amended PE-plan head, records the resulting heads with `apply_patch`,
+then treats both Task 0 and Task 1 mutation steps as closed. A future executor
+may run only ancestry, status and diff/write-set checks; it may never reuse a
+historical `PE pre-rebase`/`PE post-rebase` pair as a new `rebase --onto`
+instruction.
 
-```markdown
-# Round 5 SDD progress
-
-Plan: docs/superpowers/plans/2026-07-10-round5-production-engineering.md
-Golden spec: d048640
-PE branch: codex/round5-production-engineering
-FE branch: codex/round5-front-end
-
-Task 1: pending predecessor gate
-```
-
-- [ ] **Step 4: Record branch heads and write-set proof**
-
-Run:
-
-```bash
-git rev-parse HEAD
-git -C ../round5-front-end rev-parse HEAD
-git status --short
-git -C ../round5-front-end status --short
-```
-
-Expected: both hashes match and both statuses are empty.
-
-### Task 1: `[PE]` Prove merged PR #14 as the Progressive Delivery Phase 2 predecessor
+### Task 1: `[PE]` Loaded Phase 2 + live-music predecessor re-entry — completed checkpoint
 
 **Files:**
-- Read only: `src/data.js`, `src/ui.js`, `src/engine.js`, `docs/README.md`
+- Read only: `src/data.js`, `src/ui.js`, `src/engine.js`, `src/vigil.js`,
+  `src/audio-assets.js`, `src/audio.js`, `src/audio-catalog.js`,
+  `src/music-resolve.js`, `src/music.js`, `src/dev/audio-selection-serialize.js`,
+  `public/audio-selection.json`, `package.json`,
+  `test/test_module_boundaries.mjs`, `CONTEXT-MAP.md`,
+  `docs/domain/climb/CONTEXT.md`, `docs/domain/vigil/CONTEXT.md`,
+  `docs/README.md`
 - No commit; this is a hard execution gate
 
 **Interfaces:**
-- Produces: a clean PE branch rebased on the Phase 2 merge and the semantic evidence consumed by every runtime task.
-- Blocks: Tasks 3–40. Tasks 0 and 2 are planning/FE preparation and may proceed while this gate is red.
+- Produces: the already-recorded clean PR #14 + PR #15 + PR #16 ancestry and
+  semantic baseline consumed by every runtime task.
+- Status: reopened and closed after the second 2026-07-11 rebase/audit onto
+  `7b8e01a`. Do not replay its historical branch mutation; a future `main`
+  change opens a new drift-audit task.
 
-- [ ] **Step 1: Fetch and rebase onto current main**
+- [x] **Step 1: Verify the recorded ancestry without replaying the rebase**
 
-Before any fetch/rebase command, run `git rev-parse HEAD` and use `apply_patch`
-to append `PE pre-rebase: <actual hash>` to the ignored SDD ledger. Then run:
+The ledger already records the historical PE/FE pre/post-rebase hashes. They
+are evidence, not arguments for another `rebase --onto`. The completed
+checkpoint used these read-only provenance commands after the one authorised
+rebase:
 
 ```bash
 git fetch origin --prune
 git fetch origin refs/pull/14/head:refs/remotes/origin/pr/14
-test "$(gh pr view 14 --repo fol2/roguecardv2 --json state --jq .state)" = MERGED
-git rebase origin/main
+git fetch origin refs/pull/15/head:refs/remotes/origin/pr/15
+git fetch origin refs/pull/16/head:refs/remotes/origin/pr/16
+for PR in 14 15 16; do
+  test "$(gh pr view "$PR" --repo fol2/roguecardv2 --json state --jq .state)" = MERGED
+  for CHECK in unit e2e; do
+    test "$(gh pr view "$PR" --repo fol2/roguecardv2 --json statusCheckRollup \
+      --jq "[.statusCheckRollup[] | select(.name==\"$CHECK\" and .conclusion==\"SUCCESS\") ] | length > 0")" = true
+  done
+done
+test "$(git rev-parse origin/main)" = 7b8e01ab5ab5f7be0a3a8cbd3c61b3b41549a419
 git merge-base --is-ancestor origin/main HEAD
 ```
 
-Immediately run `git rev-parse HEAD` and use `apply_patch` to append
-`PE post-rebase: <actual hash>` before any FE operation. Then prove the
-predecessor provenance:
+Then it proved predecessor provenance:
 
 ```bash
-PHASE2_PR_HEAD=$(gh pr view 14 --repo fol2/roguecardv2 --json headRefOid --jq .headRefOid)
-PHASE2_PR_BASE=$(gh pr view 14 --repo fol2/roguecardv2 --json baseRefOid --jq .baseRefOid)
-PHASE2_MAIN_COMMIT=$(gh pr view 14 --repo fol2/roguecardv2 --json mergeCommit --jq .mergeCommit.oid)
-test "$PHASE2_PR_HEAD" = "$(git rev-parse refs/remotes/origin/pr/14)"
-test "$PHASE2_PR_BASE" = d048640b962ccd17663e37bc0d1c8c5c692567b5
-test -n "$PHASE2_MAIN_COMMIT"
-git merge-base --is-ancestor "$PHASE2_MAIN_COMMIT" HEAD
-if ! git merge-base --is-ancestor "$PHASE2_PR_HEAD" "$PHASE2_MAIN_COMMIT"; then
-  git diff --quiet "$PHASE2_PR_HEAD" "$PHASE2_MAIN_COMMIT" -- .
-fi
-PHASE2_SOURCE_CHECKPOINT=$(sed -nE 's/.*application\/test checkpoint `([0-9a-f]{40})`.*/\1/p' \
-  docs/superpowers/reports/2026-07-09-emberglass-phase2-evidence.md | head -1)
-test -n "$PHASE2_SOURCE_CHECKPOINT"
-git merge-base --is-ancestor "$PHASE2_SOURCE_CHECKPOINT" "$PHASE2_PR_HEAD"
-git diff --quiet "$PHASE2_SOURCE_CHECKPOINT" "$PHASE2_PR_HEAD" -- \
-  src test tools public dist index.html package.json package-lock.json \
-  vite.config.js playwright.config.js playwright-server.js \
-  playwright.random-agent.config.js .github
+test "$(gh pr view 14 --repo fol2/roguecardv2 --json baseRefOid --jq .baseRefOid)" = \
+  d048640b962ccd17663e37bc0d1c8c5c692567b5
+test "$(gh pr view 14 --repo fol2/roguecardv2 --json headRefOid --jq .headRefOid)" = \
+  469890680239c523e708e6d05ad3a02d867f0859
+test "$(gh pr view 14 --repo fol2/roguecardv2 --json mergeCommit --jq .mergeCommit.oid)" = \
+  469890680239c523e708e6d05ad3a02d867f0859
+test "$(gh pr view 15 --repo fol2/roguecardv2 --json baseRefOid --jq .baseRefOid)" = \
+  469890680239c523e708e6d05ad3a02d867f0859
+test "$(gh pr view 15 --repo fol2/roguecardv2 --json headRefOid --jq .headRefOid)" = \
+  f429a419eecdd3a6a8ffb8c796689f34792a7259
+test "$(gh pr view 15 --repo fol2/roguecardv2 --json mergeCommit --jq .mergeCommit.oid)" = \
+  4dc1af79c47e8a93795355607cfca238c82f57be
+test "$(gh pr view 16 --repo fol2/roguecardv2 --json baseRefOid --jq .baseRefOid)" = \
+  4dc1af79c47e8a93795355607cfca238c82f57be
+test "$(gh pr view 16 --repo fol2/roguecardv2 --json headRefOid --jq .headRefOid)" = \
+  7c91f1675d5aa13694497855e3a5f068541d31b9
+test "$(gh pr view 16 --repo fol2/roguecardv2 --json mergeCommit --jq .mergeCommit.oid)" = \
+  7b8e01ab5ab5f7be0a3a8cbd3c61b3b41549a419
+test "$(git rev-parse refs/remotes/origin/pr/14)" = \
+  469890680239c523e708e6d05ad3a02d867f0859
+test "$(git rev-parse refs/remotes/origin/pr/15)" = \
+  f429a419eecdd3a6a8ffb8c796689f34792a7259
+test "$(git rev-parse refs/remotes/origin/pr/16)" = \
+  7c91f1675d5aa13694497855e3a5f068541d31b9
+git merge-base --is-ancestor 469890680239c523e708e6d05ad3a02d867f0859 HEAD
+git merge-base --is-ancestor f429a419eecdd3a6a8ffb8c796689f34792a7259 HEAD
+git merge-base --is-ancestor 4dc1af79c47e8a93795355607cfca238c82f57be HEAD
+git merge-base --is-ancestor 7c91f1675d5aa13694497855e3a5f068541d31b9 HEAD
+git merge-base --is-ancestor 7b8e01ab5ab5f7be0a3a8cbd3c61b3b41549a419 HEAD
 ```
 
 Expected: every command exits 0 and the branch is clean. Record the immutable
-PR number, `PHASE2_PR_BASE`, final `PHASE2_PR_HEAD`, tested
-`PHASE2_SOURCE_CHECKPOINT` and containing `PHASE2_MAIN_COMMIT` in the execution
-ledger. A normal merge proves PR-head ancestry; a squash/rebase merge must have
-a byte-identical final tree. The report's tested checkpoint must be an ancestor
-of final PR head, and no application/test/config path may change between them.
-The evidence-only PR tip is therefore not mistaken for the tested source. GitHub's
-immutable `refs/pull/14/head` plus merged PR metadata replaces the previously
-proposed ad-hoc tag requirement. A moving/open PR, local branch or dirty
-predecessor worktree is never gate evidence.
+PR/head/merge hashes, green required checks and actual `origin/main`/PE heads
+in the execution ledger. The old `4275781` application/test checkpoint remains
+historical evidence only: PR #14 review/standards commits intentionally changed
+source and tests after it and were re-proved by final required CI. Do not revive
+the obsolete byte-clean assertion. The PR #16 re-entry recorded
+`git diff --name-status 4dc1af7..7b8e01a` and re-proved the local baseline. If
+`origin/main` contains commits after `7b8e01a`, record
+`git diff --name-status 7b8e01a..origin/main`, re-enter the spec/plan drift
+audit, and do not continue merely because ancestry passes.
 
-Because Task 2 may have committed on FE while this predecessor was red, preserve
-the two-lane topology explicitly. Do not rebase a running/dirty FE worktree;
-wait for its current Task 2 agent to finish and its commit to pass review. Load
-the two durable hashes and rebase only the owned FE commits when PE moved:
+The controller separately rebases the three reviewed FE-owned contract commits
+onto the final amended plan head exactly once. It records `Phase 2 final PE
+head:` and `Phase 2 final FE head:` in the ledger. Future checks are read-only:
 
 ```bash
-OLD_PE_HEAD=$(sed -n 's/^PE pre-rebase: //p' .superpowers/sdd/progress.md | tail -1)
-NEW_PE_HEAD=$(sed -n 's/^PE post-rebase: //p' .superpowers/sdd/progress.md | tail -1)
-test -n "$OLD_PE_HEAD" && test -n "$NEW_PE_HEAD"
+FINAL_PE=$(sed -n 's/^Phase 2 final PE head: //p' .superpowers/sdd/progress.md | tail -1)
+FINAL_FE=$(sed -n 's/^Phase 2 final FE head: //p' .superpowers/sdd/progress.md | tail -1)
+test -n "$FINAL_PE" && test -n "$FINAL_FE"
+test "$(git rev-parse HEAD)" = "$FINAL_PE"
+test "$(git -C ../round5-front-end rev-parse HEAD)" = "$FINAL_FE"
+git merge-base --is-ancestor "$FINAL_PE" "$FINAL_FE"
+test -z "$(git status --short)"
 test -z "$(git -C ../round5-front-end status --short)"
-if test "$OLD_PE_HEAD" != "$NEW_PE_HEAD"; then
-  git -C ../round5-front-end rebase --onto "$NEW_PE_HEAD" "$OLD_PE_HEAD"
-fi
-git merge-base --is-ancestor "$NEW_PE_HEAD" \
-  "$(git -C ../round5-front-end rev-parse HEAD)"
 ```
 
-If PE did not move, use `apply_patch` to record `FE rebase: not required`;
-otherwise record its new head. Update both branch heads in the ledger. This
-prevents a subsequent FE merge from importing the obsolete pre-Phase2 plan
-ancestry while retaining Task 2's exact diff. Shell variables are never assumed
-to survive between controller tool calls.
+Do not fall back to the obsolete historical old/new pair. This prevents a
+subsequent FE merge from replaying already-rebased commits.
 
-- [ ] **Step 2: Run the semantic predecessor assertion**
+- [x] **Step 2: Run the semantic predecessor assertion**
 
 Run:
 
@@ -478,34 +520,78 @@ Run:
 node --input-type=module -e '
   import { readFileSync } from "node:fs";
   const data = await import("./src/data.js");
-  const { VARIANTS, WHISPERS, QUESTS, QUEST_IDS, PROGRESSION } = data;
-  if (Object.keys(data).length !== 28) throw new Error(`expected 28 exports; got ${Object.keys(data).length}`);
+  const { MUSIC_CATALOG } = await import("./src/audio-catalog.js");
+  const musicResolve = await import("./src/music-resolve.js");
+  const { serializeAudioSelection } = await import("./src/dev/audio-selection-serialize.js");
+  const { VARIANTS, WHISPERS, QUESTS, QUEST_IDS, PROGRESSION,
+    QUEST_STATES, QUEST_ACTIVE_STATES, TERMINAL_OUTCOMES, RUN_ID_RE } = data;
+  if (Object.keys(data).length !== 32) throw new Error(`expected 32 exports; got ${Object.keys(data).length}`);
   if (!VARIANTS || Object.keys(VARIANTS).length < 1) throw new Error("VARIANTS missing");
   if (!Array.isArray(WHISPERS) || WHISPERS.length !== 24) throw new Error("WHISPERS missing");
   if (!Array.isArray(QUEST_IDS) || QUEST_IDS.length !== 6) throw new Error("Emberglass quests missing");
   if (!QUESTS?.hollowLamplighter || !PROGRESSION?.emberglass) throw new Error("Emberglass chain incomplete");
   if (PROGRESSION?.revealThresholds?.act4?.shards !== 6) throw new Error("sealed Act 4 data surface missing");
+  if (JSON.stringify(QUEST_STATES) !== JSON.stringify(["dormant","armed","revealed","complete"])) throw new Error("quest states drifted");
+  if (JSON.stringify(QUEST_ACTIVE_STATES) !== JSON.stringify(["armed","revealed"])) throw new Error("active quest states drifted");
+  if (JSON.stringify(TERMINAL_OUTCOMES) !== JSON.stringify(["win","death","abandon"])) throw new Error("terminal outcomes drifted");
+  if (RUN_ID_RE.source !== "^(?:run|legacy)-[a-z0-9]+(?:-[a-z0-9]+){1,3}$" || RUN_ID_RE.flags !== "") throw new Error("run id contract drifted");
   const art = readFileSync("src/art.js", "utf8");
   const ui = readFileSync("src/ui.js", "utf8");
   if (!/roseWindow/.test(art) || !/sealedDoor/.test(art)) throw new Error("Rose Window/sealed-door art ids missing");
   if (!/rose-window/.test(ui) || !/sealed-door/.test(ui)) throw new Error("Rose Window/sealed-door UI surfaces missing");
+  for (const marker of ["pendingRunEnd", "pendingDawn", "commitPendingRunEnd", "createChoiceLatch"]) {
+    if (!ui.includes(marker) && !readFileSync("src/engine.js", "utf8").includes(marker)
+      && !readFileSync("src/vigil.js", "utf8").includes(marker)) throw new Error(`Phase 2 transaction marker missing: ${marker}`);
+  }
+  const audioAssets = readFileSync("src/audio-assets.js", "utf8");
+  const audio = readFileSync("src/audio.js", "utf8");
+  const music = readFileSync("src/music.js", "utf8");
+  if (!/applyAudioSelection/.test(audioAssets) || !/previewSfx/.test(audio)
+    || !/invalidateMusicSelection/.test(music)) throw new Error("PR 15 hot audio contract missing");
+  const expectedResolverExports = ["QUEST_COMBAT_CUES","SCREEN_CUES","dawnEventCue","resolveCombatCue","resolveScreenCue"];
+  if (JSON.stringify(Object.keys(musicResolve).sort()) !== JSON.stringify(expectedResolverExports.sort()))
+    throw new Error("PR 16 music resolver export contract drifted");
+  if (MUSIC_CATALOG.length !== 22 || MUSIC_CATALOG.some((row) => !row.wired))
+    throw new Error("PR 16 requires 22/22 live Music Cues");
+  const { resolveCombatCue, resolveScreenCue, dawnEventCue } = musicResolve;
+  const cases = [
+    [resolveCombatCue("monster",0,{questId:"paleOnes",omenId:"eighthOmen"}),"paleOnes"],
+    [resolveCombatCue("monster",1,{questId:"ownShade"}),"shadeDuel"],
+    [resolveCombatCue("boss",2,{questId:"usurper"}),"usurper"],
+    [resolveCombatCue("elite",0,{omenId:"eighthOmen"}),"eighthOmen"],
+    [resolveCombatCue("boss",0,{omenId:"eighthOmen"}),"act1Boss"],
+    [resolveScreenCue("hollow"),"hollowLamplighter"],
+    [resolveScreenCue("map","eighthOmen"),"eighthOmen"],
+    [dawnEventCue({t:"pageRead"}),"unreadablePage"],
+    [dawnEventCue({t:"act4Reveal"}),"sealedDoor"],
+  ];
+  if (cases.some(([actual,expected]) => actual !== expected)) throw new Error("PR 16 cue precedence drifted");
+  const selectionRaw = readFileSync("public/audio-selection.json", "utf8");
+  const selection = JSON.parse(selectionRaw);
+  if (!selection.music?.version || !selection.sfx?.version
+    || typeof selection.music.overrides !== "object" || typeof selection.sfx.overrides !== "object")
+    throw new Error("audio selection shape drifted");
+  if (selectionRaw !== serializeAudioSelection(selection)) throw new Error("audio selection is not canonical gallery output");
   console.log("Round 5 predecessor present");
 '
 rg -n "Phase 2.*(shipped|complete|merged)" docs/README.md
+rg -n "Dawn|Fall|Run Outcome|Rose Window" CONTEXT-MAP.md \
+  docs/domain/climb/CONTEXT.md docs/domain/vigil/CONTEXT.md
 ```
 
-Expected before the predecessor merges: FAIL at the import. Do not weaken the
-assertion and do not continue to Task 3. Expected after merge: the Node command
+Expected on the loaded baseline: the Node command
 prints `Round 5 predecessor present`, and the documentation status is no longer
 pending.
 
-- [ ] **Step 3: Establish a clean post-merge baseline**
+- [x] **Step 3: Establish a clean post-merge baseline**
 
 Run:
 
 ```bash
 npm install
+npm run test:ci
 npm test
+npm run test:progression
 npx vite build --outDir /tmp/spirebound-round5-phase2-baseline --emptyOutDir
 export SPIREBOUND_E2E_PORT=$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")
 node --input-type=module -e 'import {e2eServerSettings} from "./playwright-server.js"; const x=e2eServerSettings(process.env.SPIREBOUND_E2E_PORT); if (x.reuseExistingServer || !x.command.includes("--strictPort")) process.exit(1)'
@@ -517,7 +603,16 @@ Expected: tests and temporary build exit 0, the complete Playwright gate passes,
 and status is empty. If an unmodified post-merge checkout is dirty, resolve that
 predecessor defect before Round 5.
 
-### Task 2: `[FE]` Author the bounded Round 5 experience contract
+Recorded PR #16 re-entry evidence: `test:ci`/module boundaries passed;
+`npm test` passed with 300 Monte-Carlo runs; progression retained guided median
+18 and unguided median 50; the temporary build passed; strict port `65361`
+resolved `reuseExistingServer:false`; disk `1`, random-agent `3`, main `154`
+with `152` intentional skips, serial `5`, and visual `48` all passed. PR #16
+changed no package/lock file. The tested runtime/test/config surface matched
+`origin/main`; only the in-progress Round 5 specification/plan documents
+differed and are committed before Task 3.
+
+### Task 2: `[FE]` Bounded Round 5 experience contract — completed proposal
 
 **Files (FE worktree only):**
 - Create: `docs/superpowers/specs/2026-07-10-round5-fe-experience-contract.md`
@@ -526,8 +621,11 @@ predecessor defect before Round 5.
 **Interfaces:**
 - Consumes: the golden spec, `docs/style-bible.md`, `docs/ui-chrome-art-bible.md`, `docs/superpowers/specs/2026-07-09-pile-chrome-ceremony-design.md`.
 - Produces: exact P4/P5/P6 presentation values for PE; no selectors, product JavaScript or runtime state.
+- Status: the original `904036b`, Phase-2 `6c80bfc` and PR #16 live-music
+  `ee79e74` commits passed fresh review; the document remains unapproved until
+  the Task 21 owner checkpoint.
 
-- [ ] **Step 1: Write the contract acceptance checklist before the contract**
+- [x] **Step 1: Write the contract acceptance checklist before the contract**
 
 The document must begin with this binding checklist:
 
@@ -537,12 +635,13 @@ The document must begin with this binding checklist:
 - [ ] P4: rest, hover, pressed, disabled, ready and loading states for every widget
 - [ ] P5: card hierarchy, fan states, four damage tiers, banners and pile flights
 - [ ] P6: fresh/grown composition for every named screen and stage shape
+- [ ] Merged Phase 2: exact Rose, Hollow, map, Dawn, quest-shop and Fall substates
 - [ ] Full/LITE/REDUCED appearance and named end-state for every effect
 - [ ] Exact colour, type, duration and easing values; no subjective or unspecified judgement language
 - [ ] No product JavaScript, content/tooling behaviour or engine requirements
 ```
 
-- [ ] **Step 2: Lock the shared value table**
+- [x] **Step 2: Lock the shared value table**
 
 Record these values verbatim; PE transcribes them into `src/ui/tokens.js` in Task 21:
 
@@ -567,7 +666,7 @@ file. The names identify the approved families only. PE owns self-hosting,
 licence/provenance, preload and readiness in Task 21; FE must not add a Google
 Fonts import, CDN URL or font file.
 
-- [ ] **Step 3: Specify P4 and P5 state matrices mechanically**
+- [x] **Step 3: Specify P4 and P5 state matrices mechanically**
 
 For each widget/card state, give: visible layers, opacity, scale/offset, colour,
 duration, easing, LITE replacement and REDUCED final frame. The fixed policies
@@ -582,20 +681,50 @@ REDUCED renders only the terminal state and emits motion=reduced, outcome=settle
 damage tiers: normal 32px, heavy 40px, kill 52px, overkill 62px
 ```
 
-- [ ] **Step 4: Specify every P6 composition and ceremony**
+The P4 inventory is exact: energy/candle, Lantern Art, facet row, Draw,
+Discard and Ashes piles, End Turn, HP vial, Ward chip, intent chip and top-HUD
+HP/gold/deck/menu/omen. Map nodes remain DOM-on-3D and must not appear as P4
+Pixi widgets. The P5 presentation table includes turn, boss intro and guard
+shattered plus the merged owners `bossIntro`, `variantDialogue`,
+`questReveal`, `questProgress`, `questComplete`, `questUnlock`,
+`monumentGift` and `hollowTithe`.
+
+- [x] **Step 4: Specify every P6 composition and ceremony**
 
 Enumerate all five canonical shapes (`phone-portrait`, `phone-landscape`,
-`pad-portrait`, `pad-landscape`, `desktop-landscape`) for Title, Embark, Fallen,
-Victory, rewards, boss relic, shop, event, rest, treasure, lamplighter, Hollow,
+`pad-portrait`, `pad-landscape`, `desktop-landscape`) for Title, Embark, Fall,
+Dawn, rewards, boss relic, shop, event, rest, treasure, lamplighter, Hollow,
 Vigil and map. Boss relic is a reward-family state, treasure a rest-family state,
 and Hollow a lamplighter-family state, but each gets its own row. Every row
 contains fresh/grown content, trigger, properties, duration, easing, separate
 existing Music Cue and SFX catalogue ids, LITE state and REDUCED terminal frame.
-FE selects ids already present in the catalogues; PE validates and wires them.
+FE selects ids already present in the catalogues; PE preserves PR #16's live
+resolver/call sites and validates the intended presentation alignment. Reward
+and boss-relic rows request no screen cue and explicitly preserve the current
+active cue (nominally combat/victory in uninterrupted play).
 Copy named ceremony outcomes from the golden spec; do not invent engine/reveal
 logic.
 
-- [ ] **Step 5: Run the FE documentation gate**
+- [x] **Step 5: Reconcile every merged Phase 2 presentation substate**
+
+Retain the 70 base rows and add an exact separate matrix for: Rose absent,
+loading/inert/ready, atomic raster/fallback, four pane states, selection,
+whispers and six-Shard completion; Hollow unpaid/pay/save-failed/retry/paid/
+continue/return/recovery; Pale/Witchlight and Eighth-floor map markers plus
+sealed-door hidden/visible/open and drag-suppressed tap; all ten Dawn event
+kinds plus cursor/final-clear retry; Usurper shop states; and unpaid Shade
+bequest at Fall. `Dawn`/`Fall` are domain names while compatibility cue ids
+remain `victory`/`defeat` and display titles remain `ASCENDED`/`FALLEN`.
+
+All 22 logical Music Cue ids are already live predecessor behaviour.
+The contract records the PR #16 dispositions for Rose/Vigil, Hollow, quest
+combat, Eighth map/event/combat, Dawn page/door, sealed-door restore and
+reward/boss-relic no-request hold; FE neither marks nor wires them. Forced
+gallery preview is not gameplay evidence. The sealed door is a non-path
+promise, not an Act 4 route. No pack version, override ref, asset URL or
+PR #15 runtime mechanism enters the FE document.
+
+- [x] **Step 6: Run the FE documentation gate**
 
 Run:
 
@@ -607,17 +736,20 @@ if rg -n '\b(T[B]D|T[O]DO|FIX[M]E|lat[e]r|appropriat[e]|tastefull[y])\b' \
 
 Expected: no output and exit 0.
 
-- [ ] **Step 6: Commit only the FE contract**
+- [x] **Step 7: Commit only the FE contract**
 
 Run:
 
 ```bash
 git add docs/superpowers/specs/2026-07-10-round5-fe-experience-contract.md
 git diff --cached --check
-git commit -m "docs: lock the Round 5 experience contract"
+git commit -m "docs: reconcile Round 5 experience contract with Phase 2"
 ```
 
-Record the FE contract commit in the execution ledger. It remains an FE proposal
+If the pre-merge draft and Phase-2 amendment already exist, retain both and add
+the PR #16 amendment as `docs: load Phase 2 music into the Round 5 experience
+contract`. Record all three FE contract commits in the execution ledger. It
+remains an FE proposal
 until the owner explicitly approves its value tables; Task 21 may not transcribe
 them into `src/ui/tokens.js` before that checkpoint.
 
@@ -679,6 +811,8 @@ physical-iOS performance.
 Run:
 
 ```bash
+export SPIREBOUND_E2E_PORT=$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")
+test "$SPIREBOUND_E2E_PORT" != 5174
 npx playwright test pixi-spike pixi-spike-perf --project=portrait --workers=1 --no-deps
 ```
 
@@ -718,6 +852,8 @@ dimensions; the forced-missing id remains a separate fallback assertion.
 - [ ] **Step 5: Prove green and production exclusion without touching tracked `dist/`**
 
 ```bash
+export SPIREBOUND_E2E_PORT=$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")
+test "$SPIREBOUND_E2E_PORT" != 5174
 npx playwright test pixi-spike pixi-spike-perf --project=portrait --workers=1 --no-deps
 npm test
 npx vite build --outDir /tmp/spirebound-round5-pixi-spike --emptyOutDir
@@ -788,9 +924,12 @@ export const SIMULATOR_MATRIX = [
 `preflight.mjs` reads `xcrun simctl list -j`, Xcode/runtime versions and
 `safaridriver --help`; it must never invoke `safaridriver --enable`, request a
 password or treat a model name as UDID proof. Require the pinned iOS 26.5
-(23F77) runtime and record Xcode 26.6 (17F113); a toolchain mismatch is NO-GO,
-not silently substituted evidence. If WebDriver is unavailable it prints one
-visible manual setup instruction and exits non-zero.
+(`23F73`) runtime and record Xcode 26.6 (17F113). A missing runtime/tool is
+`SETUP BLOCKED`, never a Pixi compatibility NO-GO. `preflight.mjs` prints the
+exact non-credential setup action and exits non-zero; it never substitutes a
+different runtime. Only a booted cell may produce a compatibility verdict. If
+WebDriver is unavailable it prints one visible manual setup instruction and
+exits non-zero.
 
 The same preflight requires a real console user (not `loginwindow`, root or a
 background-only session), a live `launchctl gui/<uid>` domain, an unlocked GUI
@@ -810,11 +949,12 @@ unrelated device. `orientation.mjs` uses a visible Simulator menu action through
 stage shape; it does not invent an unsupported `simctl` rotation command.
 
 `run.mjs` owns an isolated Vite server by default: choose a free localhost port,
-spawn `npm run dev -- --host 127.0.0.1 --port <port>` in the current worktree (or
+spawn `npm run dev -- --host 127.0.0.1 --port <port> --strictPort` in the current worktree (or
 `SPIREBOUND_SERVER_CWD`), wait for HTTP readiness, and terminate only that child
 process tree in `finally`. If an explicit `SPIREBOUND_BASE_URL` is supplied it
 uses but never stops that external server. It never reuses the developer's 5174
-process.
+process. Pure tests assert `--strictPort`, a bind-race failure, readiness timeout
+and owned-child cleanup; the runner never falls back to another port or server.
 
 - [ ] **Step 3: Implement the WebDriver assertion contract**
 
@@ -826,7 +966,7 @@ capabilities with this exact requested map and pure-test every key:
   browserName: 'Safari',
   platformName: 'iOS',
   'safari:platformVersion': '26.5',
-  'safari:platformBuildVersion': '23F77',
+  'safari:platformBuildVersion': '23F73',
   'safari:useSimulator': true,
   'safari:deviceType': model,
   'safari:deviceUDID': managedUdid,
@@ -881,8 +1021,23 @@ Add scripts:
 ```
 
 Run `node --test test/simulator/*.test.mjs` and
-`npm run test:simulator:preflight`. Expected: pure tests pass; preflight either
-passes or stops with the documented visible setup action, never a hidden prompt.
+`npm run test:simulator:preflight`. On the refreshed 2026-07-11 host, Xcode,
+SafariDriver, all four device types and iOS 26.5 build `23F73` are present;
+there are no managed Spirebound devices yet, which is expected because the
+runner creates only its own names. If the exact runtime is absent on a later
+host, first observe `SETUP BLOCKED`, run the supported non-interactive download
+and rerun preflight:
+
+```bash
+xcodebuild -downloadPlatform iOS -buildVersion 26.5
+npm run test:simulator:preflight
+```
+
+No agent invokes a password prompt. If Xcode reports that a credential or GUI
+approval is required, stop as environment-blocked and report that visible
+action; do not work around it. Expected after setup: pure tests and preflight
+pass. Preflight may otherwise stop with the documented visible setup action,
+never a hidden prompt.
 `run.mjs` requires an explicit `--surface spike|dom|production`; Task 4
 implements/tests `spike` and `dom`, and reserves `production` for Task 24.
 
@@ -947,10 +1102,17 @@ stops before Task 5 and the golden design is revised rather than bypassed.
 
 **Golden spec merge:** `d048640`, PR #13
 
+**Loaded PR #14/#15 golden amendment:** `156e0ce`
+
+**Loaded PR #16 golden amendment:** `d02fd64`
+
+**Loaded PR #16 recovery clarification:** `be0dda0`
+
 ### Task 5: `[PE]` Implement the Node-pure Semantic UI Behaviour Trace
 
 **Files:**
 - Create: `src/ui/behaviour-trace.js`
+- Create: `tools/run-with-strict-e2e-port.mjs`
 - Create: `tools/run-round5-standing-gates.mjs`
 - Modify: `package.json`, `package-lock.json`
 - Modify/Test: `test/test_engine.js`
@@ -997,7 +1159,12 @@ Export/test a frozen forbidden-key set containing `text`, `copy`, `html`,
 pointer coordinates/events and save-shaped payloads. Replay Descriptor data is
 validated through its own bounded schema, never smuggled into attributes.
 
-Import the not-yet-created standing-gate runner and assert the exact frozen
+Import the two not-yet-created runners. For the strict-port wrapper, assert an
+empty argv is rejected, import performs no allocation/spawn, the allocator
+never returns 5174, `e2eServerSettings(String(port))` is strict and
+`reuseExistingServer:false`, argv is spawned without a shell, inherited env is
+preserved, and the child receives only the newly allocated
+`SPIREBOUND_E2E_PORT`. For the standing-gate runner assert the exact frozen
 profile/command table above, literal cumulative inclusion from `p1-node` through
 `full`, argv-array execution, fail-fast behaviour and a distinct non-5174 port
 for each simulated Playwright-backed command. Assert import performs no process
@@ -1010,13 +1177,24 @@ Run `npm test`.
 Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `behaviour-trace.js` or the
 standing-gate runner.
 
-- [ ] **Step 3: Implement the standing-gate runner**
+- [ ] **Step 3: Implement the strict-port wrapper and standing-gate runner**
+
+In `run-with-strict-e2e-port.mjs`, export `allocateStrictE2EPort()` and
+`runWithStrictE2EPort({argv, spawn, env, allocatePort})`. Keep CLI execution
+behind a direct-execution guard, require the exact CLI form
+`node tools/run-with-strict-e2e-port.mjs -- <argv...>`, allocate immediately
+before spawning, reject 5174, validate `e2eServerSettings(String(port))`, print
+the selected port, and use `spawnSync(argv[0], argv.slice(1), {shell:false,
+stdio:'inherit', env:{...env,SPIREBOUND_E2E_PORT:String(port)}})`. Propagate
+signal/non-zero status; never retry on 5174 or reuse a previous environment
+value.
 
 Export `STANDING_GATE_PROFILES` and `runStandingGates({profile, spawn,
-allocatePort, record})`. Keep CLI execution behind a direct-execution guard.
-Use explicit command/argument arrays and inject a freshly allocated port only
-for Playwright-backed rows. The real CLI appends one JSON result row per command
-to the ignored SDD ledger and exits non-zero on the first failure. Add exactly:
+allocatePort, record})`. Import the shared allocator, keep CLI execution behind
+a direct-execution guard, use explicit command/argument arrays and inject a
+freshly allocated port only for Playwright-backed rows. The real CLI appends one
+JSON result row per command to the ignored SDD ledger and exits non-zero on the
+first failure. Add exactly:
 
 ```json
 "test:round5:standing": "node tools/run-round5-standing-gates.mjs"
@@ -1129,7 +1307,8 @@ Expected: all trace blocks plus the existing monte-carlo pass.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/ui/behaviour-trace.js tools/run-round5-standing-gates.mjs \
+git add src/ui/behaviour-trace.js tools/run-with-strict-e2e-port.mjs \
+  tools/run-round5-standing-gates.mjs \
   package.json package-lock.json test/test_engine.js
 git commit -m "feat: add the semantic UI behaviour trace"
 ```
@@ -1138,13 +1317,24 @@ git commit -m "feat: add the semantic UI behaviour trace"
 
 **Files:**
 - Modify: `src/ui.js`, `src/audio.js`, `src/music.js`
+- Modify: `src/audio-assets.js` only if the selected/draft observation sink must
+  be placed at the selection-resolution boundary
 - Create: `src/ui/presentation-barrier.js`
-- Modify/Test: `test/test_engine.js`
-- Modify: `test/e2e/helpers.js`, `test/e2e/battle.spec.js`
+- Modify/Test: `test/test_engine.js`, `test/test_module_boundaries.mjs`
+- Modify: `test/e2e/helpers.js`, `test/e2e/battle.spec.js`,
+  `test/e2e/audio.spec.js`, `test/e2e/emberglass.spec.js`,
+  `test/e2e/emberglass-persistence.spec.js`,
+  `test/e2e/hollow-transaction.spec.js`
 - Create: `test/e2e/trace.spec.js`, `test/e2e/trace-fixture.js`
 - Create: `test/e2e/trace-production.spec.js`, `playwright.trace-production.config.js`
 - Modify: `package.json`, `package-lock.json`
-- Create: `test/e2e/fixtures/trace/title-embark.json`, `opening-turn.json`, `targeted-play.json`, `drag-cancel.json`, `art.json`, `pile-cycle.json`, `detached-ceremony.json`, `dawn-recovery.json`
+- Create: `test/e2e/fixtures/trace/manifest.json`, `title-embark.json`,
+  `opening-turn.json`, `targeted-play.json`, `drag-cancel.json`, `art.json`,
+  `pile-cycle.json`, `detached-ceremony.json`, `initial-run-save.json`,
+  `usurper-purchase.json`, `shade-bequest-clear.json`,
+  `hollow-payment.json`, `hollow-route-clear.json`, `terminal-outbox-retry.json`,
+  `dawn-cursor-retry.json`, `dawn-final-clear-retry.json`,
+  `dawn-resume-from-cursor.json`
 
 **Interfaces:**
 - Produces: trace-enabled `window.__probe.behaviourTrace`, an always-on
@@ -1195,10 +1385,16 @@ real animation callback completes, and `await __probe.settle()` cannot resolve
 early. The enabled and disabled journeys must expose identical final semantic
 Probe state; trace is an observer, not the synchronisation primitive.
 
-The same spec owns eight normalised contract fixtures: Title→Embark,
+The same spec owns the frozen Task 6 fixture manifest: Title→Embark,
 opening/draw, targeted play, drag cancel, Lantern Art, draw/reshuffle pile
-cycle, detached ceremony settle and dawn persistence recovery. Fixtures exclude
-timestamps, segment/instance ids, URLs and renderer policy.
+cycle, detached ceremony settle, initial-run save, Usurper purchase, Shade
+bequest clear, Hollow payment, Hollow route clear, terminal-outbox retry, Dawn-cursor retry,
+Dawn-final-clear retry and Dawn resume from its acknowledged cursor. The
+manifest is the only downstream fixture inventory; later tasks say “the frozen
+Task 6 fixture manifest” rather than repeating a number. Fixtures exclude
+timestamps, segment/instance ids, URLs and renderer policy. Characterise the
+post-Phase-2 retry, inert/focus, idempotence and exact-once outcomes before any
+owner is extracted.
 
 In `test_engine.js`, import the not-yet-created presentation barrier and write
 pure failing tests for nested work, cancellation, double-finish strict/runtime
@@ -1210,7 +1406,7 @@ Run:
 
 ```bash
 npm test
-npx playwright test trace --project=desktop --workers=1
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test trace --project=desktop --workers=1
 ```
 
 Expected: Node fails on the missing barrier module and Playwright fails because
@@ -1245,7 +1441,7 @@ zero persistence/network activity.
 Also add the durable non-visual aggregate used by every standing profile:
 
 ```json
-"test:e2e:nonvisual": "npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:main"
+"test:e2e:nonvisual": "npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:main && npm run test:e2e:serial"
 ```
 
 Keep `test:e2e` as `npm run test:e2e:nonvisual && npm run test:e2e:visual` and
@@ -1282,7 +1478,7 @@ map pointer/select boundaries: input.map-pan, input.map-select
 onEndTurn/doKindle/usePotionOn: input.end-turn, input.kindle, input.potion
 drain/handleEvent/draw batches: playback.queue, playback.queue-event
 banner/flyCardBacks/dawnQueue: presentation.banner, presentation.card-flight, presentation.dawn
-save/recovery dialogs: persistence.blocked, persistence.recovered
+save/recovery: persistence.attempt, persistence.blocked, persistence.recovered
 music/audio observation sinks: audio.unlock, audio.music-request, audio.sfx-request
 stable semantic snapshots: checkpoint.ui
 window error/unhandled rejection/drain/invariant catch: error.ui, error.playback, error.invariant
@@ -1292,10 +1488,27 @@ Every started span finishes once; detached motion finishes only when its real
 callback/animation settles. Each draw/reshuffle batch member gets its own
 `playback.queue-event` span.
 
+Use one semantic `persistence.*` vocabulary for Phase 2. Its finite `kind` is
+exactly `initial-run`, `usurper-purchase`, `shade-bequest-clear`,
+`hollow-payment`, `hollow-route-clear`, `run-end`, `dawn-cursor` or
+`dawn-clear`; attributes contain numeric `attempt` plus the existing stable
+result/reason vocabulary. Freeze one real focused assertion and manifest entry
+for every kind. Never emit a save payload, run copy, receipt, asset reference
+or player-facing text. Presentation-barrier ownership spans
+the whole Dawn drain and any open persistence dialog, including the retry
+interval. `settle()` cannot resolve while either owns a token. Add focused
+characterisation for terminal-outbox retry, Dawn cursor retry, Dawn final-clear
+retry, resume-from-cursor, the choice latch and the modal's inert/focus trap.
+
 `checkpoint.ui` uses the same compact semantic projection as Probe state:
 screen/busy/queue depth; player HP/Ward/energy; embers; enemy ids/HP/Ward; hand
 content ids and counts. It deep-copies primitives only and never retains
 `run`, `cb`, DOM or renderer objects.
+
+Enemy identity is `{key,variantId}` rather than display name, and Rose state
+includes only stable readiness/fallback flags and disclosed state ids. Add a
+Phase-2 test for `paleDuskfang` plus forced Rose fallback so AI debugging can
+distinguish the live variant and fallback path without reading pixels or copy.
 
 Dispatch 100 raw `pointermove` events and advance 100 idle ticker frames; record
 count must not change until a semantic threshold/cancellation boundary occurs.
@@ -1303,9 +1516,10 @@ Change visible card/screen copy in a controlled fixture and require the
 normalised contract/text semantic fields to remain identical. Add source checks
 rejecting trace emission inside raw pointermove and animation-frame/ticker loops.
 
-Add optional browser-only observation sinks to `audio.js` and `music.js`; UI
-installs them and maps actual playback results to trace records. The sinks never
-change playback selection or timing and report the true result vocabulary:
+Add optional browser-only observation sinks to `audio.js`, `music.js` and, only
+when resolution evidence requires it, `audio-assets.js`; UI installs them and
+maps actual playback results to trace records. The sinks never change playback
+selection or timing and report the true result vocabulary:
 `sample`, `synth-fallback`, `muted`, `unavailable`, `superseded` or `playing`.
 Neither module imports the trace, and engine/vigil imports remain unchanged.
 
@@ -1314,6 +1528,67 @@ with `attributes.result` from that six-value enum; use point outcome
 `completed` for `sample`, `synth-fallback` and `playing`, and `rejected` for
 `muted`, `unavailable` and `superseded`. Add one test per result so no audio
 string is accidentally passed as `outcome` and rejected by the collector.
+Every audio record carries only its logical Music Cue/SFX id,
+`mode:'active'|'draft'` and actual result. It excludes URLs, file names, pack
+versions and override references. Characterise PR #15's unsaved draft preview,
+same-page hot apply, both cache invalidations and active-cue re-resolution in
+`audio.spec.js`; the trace must distinguish gameplay from forced preview
+without changing either path. Also freeze PR #15's `_raw` glob exclusion and
+the production gallery's read-only/no-POST behaviour; both remain explicit
+`audio.spec.js` assertions through extraction.
+
+Freeze PR #16 before moving any UI owner. Node checks require exactly the five
+`music-resolve.js` exports, 22/22 wired catalogue rows, quest → Eighth
+non-boss → ordinary theme precedence, `ownShade` → `shadeDuel`, and the
+screen/Dawn mappings. Browser audio/trace journeys drive the real owners for:
+initial Vigil and Rose/deeds tab switches; Hollow; Pale Ones, Own Shade and
+Usurper combat; Eighth map, event, non-boss combat and boss fallback;
+`pageRead` and `act4Reveal` Dawn panels; sealed-door open and map/Eighth restore
+on close. Reward and boss-relic journeys assert **no screen-cue request** and
+that the cue active before navigation is unchanged, including one nominal
+combat/victory flow and one pending-state recovery flow. These are
+selected-state fixtures, not gallery force-preview. `public/audio-selection.json` is characterised as
+valid installed canonical Save output without pinning either version or empty
+overrides. Module-boundary tests keep `music-resolve.js` Node-pure and forbid it
+from importing audio, trace, DOM or stage modules.
+
+The same browser test dynamically imports `/src/music.js` after normal boot,
+projects `REGISTRY[id].warmWith`, and freezes this exact PR #16 core graph:
+
+```js
+const PR16_WARM_GRAPH = {
+  title: ['embark', 'vigil'],
+  embark: ['map'],
+  vigil: ['title', 'roseWindow'],
+  roseWindow: ['vigil'],
+  map: ['act1Combat', 'safeNodes', 'elite', 'hollowLamplighter'],
+  safeNodes: ['map'],
+  act1Combat: ['act1Boss', 'map', 'elite'],
+  act1Boss: ['map', 'victory'],
+  act2Combat: ['act2Boss', 'map', 'elite'],
+  act2Boss: ['map', 'victory'],
+  act3Combat: ['act3Boss', 'map', 'elite'],
+  act3Boss: ['victory', 'defeat'],
+  elite: ['map'],
+  paleOnes: ['map'],
+  shadeDuel: ['map'],
+  usurper: ['victory', 'defeat'],
+  eighthOmen: ['map', 'elite'],
+  unreadablePage: ['victory', 'vigil'],
+  hollowLamplighter: ['map'],
+  sealedDoor: ['map', 'vigil'],
+  victory: ['title', 'vigil'],
+  defeat: ['title', 'vigil'],
+};
+```
+
+Task 13 must keep this production-core projection byte-for-byte equal after
+deriving theme edges; a custom four-theme fixture is asserted separately and
+never rewrites this frozen oracle. Separately characterise the live Map entry
+warm call: current act combat/boss plus shared `elite`, `safeNodes` and
+`hollowLamplighter`, with `eighthOmen` added only when active. That dynamic
+current-theme warm set is not conflated with the registry's first-theme
+look-ahead row.
 
 - [ ] **Step 5: Expose read-only probe and presentation settle**
 
@@ -1351,31 +1626,42 @@ Run:
 
 ```bash
 npm test
-UPDATE_TRACE_CONTRACTS=1 npx playwright test trace --project=desktop --workers=1
-npx playwright test trace battle --project=desktop --workers=1
-npm run test:e2e:trace-production
+UPDATE_TRACE_CONTRACTS=1 node tools/run-with-strict-e2e-port.mjs -- npx playwright test trace --project=desktop --workers=1
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test audio emberglass emberglass-persistence hollow-transaction trace battle --project=desktop --workers=1
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:trace-production
 ```
 
 The update command is permitted exactly once here, while `src/ui.js` is still
-the instrumented DOM monolith and before Task 7 moves any owner. Inspect all
-eight fixtures. Every subsequent task runs comparison-only mode; fixture updates
+the instrumented DOM monolith and before Task 7 moves any owner. Inspect every
+entry in the frozen Task 6 fixture manifest. Every subsequent task runs comparison-only mode; fixture updates
 require a golden-contract revision, not an executor judgement.
 
 Then:
 
 ```bash
-git add src/ui.js src/ui/presentation-barrier.js src/audio.js src/music.js \
-  test/test_engine.js test/e2e/helpers.js \
-  test/e2e/trace-fixture.js test/e2e/battle.spec.js test/e2e/trace.spec.js \
+git add src/ui.js src/ui/presentation-barrier.js src/audio-assets.js src/audio.js src/music.js \
+  test/test_engine.js test/test_module_boundaries.mjs test/e2e/helpers.js \
+  test/e2e/trace-fixture.js test/e2e/battle.spec.js test/e2e/audio.spec.js \
+  test/e2e/emberglass.spec.js test/e2e/emberglass-persistence.spec.js \
+  test/e2e/hollow-transaction.spec.js test/e2e/trace.spec.js \
   test/e2e/trace-production.spec.js playwright.trace-production.config.js \
   package.json package-lock.json \
+  test/e2e/fixtures/trace/manifest.json \
   test/e2e/fixtures/trace/title-embark.json \
   test/e2e/fixtures/trace/opening-turn.json \
   test/e2e/fixtures/trace/targeted-play.json \
   test/e2e/fixtures/trace/drag-cancel.json test/e2e/fixtures/trace/art.json \
   test/e2e/fixtures/trace/pile-cycle.json \
   test/e2e/fixtures/trace/detached-ceremony.json \
-  test/e2e/fixtures/trace/dawn-recovery.json
+  test/e2e/fixtures/trace/initial-run-save.json \
+  test/e2e/fixtures/trace/usurper-purchase.json \
+  test/e2e/fixtures/trace/shade-bequest-clear.json \
+  test/e2e/fixtures/trace/hollow-payment.json \
+  test/e2e/fixtures/trace/hollow-route-clear.json \
+  test/e2e/fixtures/trace/terminal-outbox-retry.json \
+  test/e2e/fixtures/trace/dawn-cursor-retry.json \
+  test/e2e/fixtures/trace/dawn-final-clear-retry.json \
+  test/e2e/fixtures/trace/dawn-resume-from-cursor.json
 git commit -m "feat: trace real UI behaviour boundaries"
 ```
 
@@ -1384,16 +1670,61 @@ git commit -m "feat: trace real UI behaviour boundaries"
 **Files:**
 - Create: `src/ui/context.js`, `src/ui/policy.js`, `src/ui/format.js`,
   `src/ui/rose.js`, `src/ui/commands.js`, `src/ui/assets.js`,
-  `src/ui/tooltip.js`, `src/ui/overlay.js`, `src/ui/navigation.js`
+  `src/ui/tooltip.js`, `src/ui/overlay.js`, `src/ui/navigation.js`,
+  `src/ui/run-effects.js`
 - Modify: `src/ui.js`
 - Modify/Test: `test/test_engine.js`
-- Test: `test/e2e/stage.spec.js`, `test/e2e/rewards.spec.js`, `test/e2e/trace.spec.js`
+- Test: `test/e2e/stage.spec.js`, `test/e2e/rewards.spec.js`,
+  `test/e2e/trace.spec.js`, `test/e2e/emberglass.spec.js`,
+  `test/e2e/emberglass-persistence.spec.js`,
+  `test/e2e/hollow-transaction.spec.js`
 
 **Interfaces:**
 - Produces: the low-level modules and command façade from the target/state maps.
 - Preserves: `show()` semantics, one `#screen`, stale-click clearing, persistence recovery and trace contracts.
+- Review boundaries: 7A lands/reviews the DOM-free normal transaction seam
+  while overlay/end/combat remain in the monolith; only then may 7B move shared
+  DOM owners.
 
-- [ ] **Step 1: Add a failing module-boundary smoke**
+- [ ] **Step 1 (7A): Freeze and fail the normal transaction seam**
+
+Run the complete Task 6 Phase-2 fixture manifest and the focused
+`emberglass`, `emberglass-persistence` and `hollow-transaction` suites against
+the monolith first; they must be green. Then add Node/source assertions for a
+not-yet-created DOM-free `createRunEffects({engine,vigil})`, its exact exported
+surface, and the one-owner inventory. Assert the normal adapter preserves
+initial save, Usurper purchase, Shade bequest clear, Hollow payment/route,
+terminal journal→finalise→commit and Dawn stage/cursor/final-clear ordering,
+return shapes, retries and idempotence. Run `npm test`; expected RED is the
+missing module/source owner only.
+
+- [ ] **Step 2 (7A): Extract and delegate to `run-effects.js` before moving DOM owners**
+
+Move only the dependency-injected transaction coordinator into Node-pure
+`run-effects.js`. It owns the normal mutation/acknowledgement order and Dawn
+queue construction; it owns no DOM, overlay, focus, inert state, retry UI,
+screen rendering or Lab suppression yet. Leave `overlay.js`, end/combat
+functions and all other shared owners physically in `src/ui.js`, but make their
+mutation calls delegate to this reviewed seam. No transaction implementation
+may remain duplicated in the monolith.
+
+- [ ] **Step 3 (7A): Verify, review and commit the seam alone**
+
+```bash
+npm test
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test emberglass emberglass-persistence hollow-transaction trace --project=desktop --workers=1
+npm run test:round5:standing -- --profile p1-dom
+git add src/ui.js src/ui/run-effects.js test/test_engine.js \
+  test/e2e/emberglass.spec.js test/e2e/emberglass-persistence.spec.js \
+  test/e2e/hollow-transaction.spec.js test/e2e/trace.spec.js
+git commit -m "refactor: extract the Phase 2 transaction seam"
+```
+
+A fresh spec reviewer and fresh quality reviewer must approve 7A before 7B.
+Their package explicitly proves overlay/end/combat owners have not moved and
+normal Phase-2 results are unchanged.
+
+- [ ] **Step 4 (7B): Add a failing module-boundary smoke**
 
 In `test/e2e/stage.spec.js`, evaluate after boot:
 
@@ -1417,7 +1748,7 @@ modules and invoke the real command handlers. Run `npm test`; expected
 `ERR_MODULE_NOT_FOUND` for the pure modules or a missing-source assertion,
 without altering/sabotaging production source.
 
-- [ ] **Step 2: Create `context.js` and `commands.js`**
+- [ ] **Step 5 (7B): Create `context.js` and `commands.js`**
 
 `context.js` alone exports the trace singleton and always-on presentation
 barrier plus its other assigned bindings. `policy.js`, `format.js` and
@@ -1446,13 +1777,18 @@ browser assertion that all four commands are bound and real handlers run. Task
 9 moves that exact sole binding block to `ui/index.js` and removes it from the
 thin re-export; no task boundary contains an unbound facade or two binders.
 
-- [ ] **Step 3: Move shared owners mechanically**
+- [ ] **Step 6 (7B): Move the remaining shared owners mechanically**
 
 Move, without rewriting, every binding listed for `assets.js`, `tooltip.js` and
 `overlay.js`. Export only functions consumed outside the module. Replace direct
 upward calls with `uiCommands`; do not duplicate a helper to avoid an import.
 
-- [ ] **Step 4: Move navigation and preserve route semantics**
+Keep the already-reviewed `run-effects.js` byte-identical. `overlay.js` alone
+owns `persistenceDialogTransaction`, its retry modal, inert background and
+focus trap, and delegates all mutation/acknowledgement calls downward. Source
+checks prove the transaction seam still has one owner.
+
+- [ ] **Step 7 (7B): Move navigation and preserve route semantics**
 
 `navigation.js` owns `wipe`, `transitionSeq`, `transition` and `show`. Its
 constructor receives a frozen route map:
@@ -1466,22 +1802,25 @@ export function createNavigator({ routes, beforeShow, trace }) {
 `show()` must clear `screenEl().onclick` before dispatch, emit the existing
 trace span and reject unknown route names with `error.ui` plus a thrown error.
 
-- [ ] **Step 5: Run phase-applicable gates**
+- [ ] **Step 8 (7B): Run phase-applicable gates**
 
 ```bash
 npm test
-npx playwright test stage rewards trace --project=desktop --workers=1
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test stage rewards emberglass hollow-transaction audio trace --project=desktop --workers=1
 ```
 
 Expected: green and no screenshot changes.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 9 (7B): Review and commit the remaining shared services**
 
 ```bash
 git add src/ui.js src/ui/context.js src/ui/policy.js src/ui/format.js \
   src/ui/rose.js src/ui/commands.js src/ui/assets.js \
-  src/ui/tooltip.js src/ui/overlay.js src/ui/navigation.js test/test_engine.js \
-  test/e2e/stage.spec.js test/e2e/rewards.spec.js test/e2e/trace.spec.js
+  src/ui/tooltip.js src/ui/overlay.js src/ui/navigation.js \
+  test/test_engine.js \
+  test/e2e/stage.spec.js test/e2e/rewards.spec.js \
+  test/e2e/emberglass.spec.js test/e2e/hollow-transaction.spec.js \
+  test/e2e/audio.spec.js test/e2e/trace.spec.js
 git commit -m "refactor: extract shared UI services"
 ```
 
@@ -1489,8 +1828,10 @@ git commit -m "refactor: extract shared UI services"
 
 **Files:**
 - Create: `src/ui/screens/title.js`, `embark.js`, `vigil.js`, `run.js`, `lamplighter.js`, `map.js`, `reward.js`, `rest.js`, `shop.js`, `event.js`, `end.js`, `gallery.js`, `audio-gallery.js`
-- Modify: `src/ui.js`, `src/ui/navigation.js`
-- Test: `test/e2e/stage.spec.js`, `rewards.spec.js`, `visual.spec.js`, `trace.spec.js`
+- Modify: `src/ui.js`, `src/ui/navigation.js`, `src/ui/overlay.js`
+- Test: `test/e2e/stage.spec.js`, `rewards.spec.js`, `visual.spec.js`,
+  `trace.spec.js`, `audio.spec.js`, `emberglass.spec.js`,
+  `emberglass-persistence.spec.js`, `hollow-transaction.spec.js`
 
 **Interfaces:**
 - Each file exports one `create*Screen(deps)` factory returning named render functions.
@@ -1526,8 +1867,26 @@ export function createTitleScreen({ context, assets, commands, vigil, music }) {
 ```
 
 Shared Rose asset/fallback state lives only in `rose.js`; title and Vigil keep
-only their screen-local selection/layout state. Dawn state remains private to
-`end.js`; gallery lightbox state remains private to `gallery.js`.
+only their screen-local selection/layout state. `end.js` owns only Dawn
+presentation state, panel rendering and cursor/final-clear acknowledgement;
+durable outboxes remain engine-owned and all normal mutations delegate to
+`run-effects.js`. Gallery lightbox state remains private to `gallery.js`.
+`overlay.js` remains the sole persistence-dialog/focus/inert owner.
+
+Move PR #16's browser call sites once, without moving or rewriting the pure
+`music-resolve.js`: `navigation.js` owns central normal/Eighth/initial-Rose/
+Hollow screen dispatch; `vigil.js` owns Rose/deeds tab switching; `map.js` owns
+sealed-door open and map/Eighth restore; `end.js` owns Dawn event cue requests.
+Task 9's `combat.js` retains pending-quest/current-omen resolution. Reward and
+boss-relic modules deliberately make no screen-cue request. The frozen Task 6
+audio/trace journeys must compare green after each move.
+
+Move the complete PR #15 audio-gallery transaction atomically into
+`screens/audio-gallery.js`, with injected audio-assets/audio/music dependencies:
+unsaved draft preview, metadata-only POST, same-page apply, both cache
+invalidations and active-cue re-resolution, with no reload. Preserve the
+production read-only path. A screen extraction may not leave half of hot apply
+in the orchestrator or silently convert draft preview to active selection.
 
 - [ ] **Step 3: Build and expose the exact route map**
 
@@ -1542,8 +1901,8 @@ Run:
 
 ```bash
 npm test
-npx playwright test stage rewards trace --project=desktop --workers=1
-npm run test:e2e:visual
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test stage rewards emberglass hollow-transaction audio trace --project=desktop --workers=1
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual
 ```
 
 Expected: all current baselines match exactly; do not update snapshots.
@@ -1556,7 +1915,10 @@ git add src/ui.js src/ui/navigation.js src/ui/screens/title.js \
   src/ui/screens/lamplighter.js src/ui/screens/map.js \
   src/ui/screens/reward.js src/ui/screens/rest.js src/ui/screens/shop.js \
   src/ui/screens/event.js src/ui/screens/end.js src/ui/screens/gallery.js \
-  src/ui/screens/audio-gallery.js test/e2e/stage.spec.js
+  src/ui/screens/audio-gallery.js src/ui/overlay.js \
+  test/e2e/stage.spec.js test/e2e/audio.spec.js \
+  test/e2e/emberglass.spec.js test/e2e/emberglass-persistence.spec.js \
+  test/e2e/hollow-transaction.spec.js
 git commit -m "refactor: extract non-combat UI screens"
 ```
 
@@ -1640,7 +2002,7 @@ contracts and P1 completion. Do not alter unrelated guidance.
 ```bash
 npm test
 npx vite build --outDir /tmp/spirebound-round5-p1 --emptyOutDir
-npm run test:e2e
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e
 npm run test:simulator:smoke -- --surface dom --journey trace
 git status --short
 ```
@@ -1693,7 +2055,10 @@ Add to `test/test_engine.js`:
 {
   const oracle = JSON.parse(readFileSync(new URL('./fixtures/round5-content-oracle-v1.json', import.meta.url), 'utf8'));
   assert.equal(oracle.version, 1);
-  assert.equal(oracle.exports.length, 28);
+  assert.equal(oracle.contentExports.length, 28);
+  assert.deepEqual(Object.keys(oracle.protocolExports), [
+    'QUEST_STATES', 'QUEST_ACTIVE_STATES', 'TERMINAL_OUTCOMES', 'RUN_ID_RE',
+  ]);
   assert.equal(oracle.enemyAi.length, Object.values(ENEMIES).filter((e) => e.ai).length);
   assert.equal(oracle.shadeAi.length, Object.values(SHADE_KITS).filter((e) => e.ai).length);
   assert.match(oracle.monteCarlo.sha256, /^[a-f0-9]{64}$/);
@@ -1704,12 +2069,29 @@ Run `npm test`; expected FAIL with `ENOENT`.
 
 - [ ] **Step 3: Implement deterministic projection helpers**
 
-`capture-content-oracle.mjs` imports all 28 named exports and exports an
+`capture-content-oracle.mjs` imports all 32 named exports and exports an
 import-safe `captureContentOracle()` function. Its CLI body runs only behind a
 direct-execution guard; importing it from `test_engine.js` must write nothing and
 must not inspect CLI arguments. Recursively sort object keys, preserve array
 order, and omit function-valued fields entirely from the JSON projection. Reject
 symbols, cycles and non-finite numbers. Hash canonical JSON with SHA-256.
+
+Partition the fixture into 28 content views and a separate four-export protocol
+leg. Canonicalise `RUN_ID_RE` exactly as `{source,flags}` and retain the exact
+ordered values of `QUEST_STATES`, `QUEST_ACTIVE_STATES` and
+`TERMINAL_OUTCOMES`. Tests exercise named valid and invalid run ids as well as
+deep equality of all three arrays; protocol constants never enter a pack,
+registry merge policy or custom content context.
+
+Capture a descriptor inventory before reading values. The live monolith is
+expected to contain exactly one schema-visible accessor,
+`QUESTS.hollowLamplighter.target`; record its observable numeric value and its
+path. Any second accessor is an oracle-capture failure. Task 12's candidate is
+allowed one named descriptor transition at that path—from the legacy getter to
+an enumerable own numeric data property with the same value—and no other
+descriptor drift. Compare `Function#toString()` only for behaviour fields the
+Task 11 schema explicitly declares as functions; ordinary data projection
+never evaluates or serialises arbitrary functions.
 
 For every enemy `ai` and every AI-bearing `SHADE_KITS` entry, derive
 `moveKeys = Object.keys(def.moves)` and execute the full Cartesian schedule
@@ -1756,8 +2138,11 @@ Run:
 
 ```bash
 node tools/capture-content-oracle.mjs --write --expect-monolith
+npm run test:ci
+npm run test:progression
 npm test
 node tools/capture-content-oracle.mjs --check
+npm run test:round5:standing -- --profile p2-base
 ```
 
 `--expect-monolith` fails if `src/data.js` already imports `registry.js` or
@@ -1912,7 +2297,7 @@ reserved `revealThresholds`/`poolWaves` keys; core's unchanged Emberglass object
 therefore remains `PROGRESSION.emberglass`, byte-equivalent to Phase 2, rather
 than becoming `PROGRESSION.features.emberglass`. Reject reserved feature names.
 Task 12 may wrap the verbatim nested object for pack authoring but may not alter
-its contents; the 28-export oracle proves the assembled projection is exact.
+its contents; the 28-content-view oracle leg proves the assembled projection is exact.
 `append-unique-id` preserves aspect order but rejects a duplicate aspect id
 across packs; include that collision test.
 
@@ -1930,6 +2315,26 @@ cross-references. Mark `enemy.ai` and event hooks `{ kind:'function', arity }`;
 validate them but exclude them from serialisation/CRUD. Unknown keys append a
 warning, never a failure. `definePack()` aggregates every error before throwing
 one `ContentValidationError` whose `.problems` uses the doctor problem shape.
+
+Except at a schema field explicitly declared `{kind:'function'}`, every
+schema-visible property must be an own enumerable data property. Walk
+`Reflect.ownKeys()` and inspect `Object.getOwnPropertyDescriptor()` before any
+`Object.entries()` call or value read; a `get` or `set` descriptor is an
+`accessor-not-allowed` error at that exact path and validation must never invoke
+it. Function-valued data properties are rejected unless their schema field is
+the declared behaviour hook.
+
+`definePack()` performs one descriptor-first validation/snapshot walk: inspect
+each descriptor, reject an accessor before dereferencing it, then recursively
+copy mutable data into a fresh graph. Only schema-declared behaviour hooks keep
+their original function identity; this is the explicit code contract, not a
+general closure-backed configuration escape. Mutating the original authoring
+object afterwards cannot change any copied data in the pack. `createContentRegistry()` and
+`createContentContext()` recursively freeze every object and array leaf,
+including nested `progression` and `quests`; strict-mode tests prove nested
+writes throw. Add focused tests for caller-input mutation, progression/quest
+leaf immutability, allowed behaviour functions and exact-path accessor
+rejection without getter execution.
 
 Schemas name reference **kinds** (`vfx-id`, `character-kind-id`,
 `fallback-id`, `music-id`, `sfx-id`, `token-id`, `asset-id`, `variant-base`)
@@ -1966,6 +2371,11 @@ Validate pack ids, reject duplicate pack registration, merge in supplied pack
 order according to the fixed policies, validate cross-references only after all
 packs merge, derive keyed reveal arrays by `id`, and recursively freeze the
 assembled public tables without freezing function objects.
+
+The four `src/content-protocol.js` exports are platform/save grammar. They are
+not keys in `MERGE_POLICIES`, are not accepted from a pack and are not fields
+of a content registry/context. Add negative tests for attempted protocol
+submission and an exact source assertion for that boundary.
 
 `createContentRegistry()` returns the recursively frozen merged domains.
 `createContentContext(packs, {
@@ -2035,10 +2445,11 @@ entry rows, so Task 18 does not recompute a parallel completeness model.
 used by `npm test` and the dev dashboard; neither consumer formats problems
 independently.
 
-- [ ] **Step 6: Verify and commit**
+- [ ] **Step 6: Verify, review and commit the registry kernel**
 
 ```bash
 npm test
+npm run test:round5:standing -- --profile p2-base
 git add src/registry.js src/presentation-catalog.js src/content-resources.js \
   src/ui/tokens.js \
   test/test_engine.js
@@ -2050,16 +2461,23 @@ git commit -m "feat: add content registries and schema doctor"
 **Files:**
 - Create: `src/packs/core/player.js`, `cards.js`, `statuses.js`, `relics.js`, `potions.js`, `enemies.js`, `events.js`, `omens.js`, `arts.js`, `meta.js`, `progression.js`, `themes.js`, `index.js`
 - Create: `src/content.js`
-- Modify: `src/data.js`
+- Create: `src/content-protocol.js`
+- Modify: `src/data.js`, `src/engine.js`
 - Create: `tools/check-core-candidate.mjs`
 - Modify: `tools/capture-content-oracle.mjs`
 - Test: `test/test_engine.js`, oracle fixture
 
 **Interfaces:**
-- Produces: `CORE_PACK` and private full `CORE_CONTENT`; all content ids/values/functions move verbatim.
-- Temporarily preserves: all 28 `src/data.js` exports through assembler aliases.
+- Produces: `CORE_PACK`, private full `CORE_CONTENT`, the engine-private
+  run→content seam and the extracted immutable protocol module.
+- Preserves: 28 content-view aliases plus four protocol re-exports: the exact
+  32-name `src/data.js` surface.
+- Review boundaries: Task 12A commits the complete candidate while `data.js`
+  stays live; Task 12B first moves the engine seam against live data, then
+  performs one atomic cut-over. Each subtask gets its own fresh spec/quality
+  review before the next begins.
 
-- [ ] **Step 1: Add the live-oracle comparison before moving the first table**
+- [ ] **Step 1 (12A): Add the live-oracle comparison before moving the first table**
 
 Import the already export-safe oracle helper and add:
 
@@ -2069,7 +2487,8 @@ import { captureContentOracle } from '../tools/capture-content-oracle.mjs';
 {
   const expected = JSON.parse(readFileSync(new URL('./fixtures/round5-content-oracle-v1.json', import.meta.url), 'utf8'));
   const actual = captureContentOracle();
-  assert.deepEqual(actual.exports, expected.exports);
+  assert.deepEqual(actual.contentExports, expected.contentExports);
+  assert.deepEqual(actual.protocolExports, expected.protocolExports);
   assert.deepEqual(actual.enemyAi, expected.enemyAi);
   assert.deepEqual(actual.shadeAi, expected.shadeAi);
   assert.equal(actual.monteCarlo.sha256, expected.monteCarlo.sha256);
@@ -2081,16 +2500,23 @@ Run `npm test`; expected PASS before the move, proving the comparison is wired.
 Do not add the final cut-over assertion yet; `src/data.js` remains the live
 monolith while candidates are compared independently.
 
-- [ ] **Step 2: Copy and compare every candidate domain while live data stays green**
+- [ ] **Step 2 (12A): Copy and compare every candidate domain while live data stays green**
 
 First create import-safe `tools/check-core-candidate.mjs`; `--all` initially
 fails because the candidate files are absent. It imports live `src/data.js` and
 one candidate module at a time, compares ordered canonical data, and compares
-function-valued fields by exact `Function.prototype.toString()` plus the Task
-10 deterministic AI schedule for enemy/shade definitions. Theme comparison
+only schema-declared behaviour hooks by exact
+`Function.prototype.toString()` plus the Task 10 deterministic AI schedule for
+enemy/shade definitions. Theme comparison
 uses only exact legacy ACTS/ENCOUNTERS/REWARD_GOLD projections while separately
 validating the new required presentation fields. It never writes the oracle or
 imports a candidate through `src/data.js`.
+
+Before reading a candidate property, inspect its descriptor. The live
+`QUESTS.hollowLamplighter.target` getter is the sole named exception: candidate
+progression assembly must expose an own enumerable numeric data property with
+the same observable value and no `get`/`set`. Reject every other accessor or
+descriptor drift. The oracle compares `target === 5`, not getter source text.
 
 Copy content according to this map, running the matching focused command after
 each file:
@@ -2121,6 +2547,21 @@ Do not reformat function bodies in this task. Local imports between core files
 may point downward only: progression may import enemy ids/constants; no pack
 imports `src/data.js`.
 
+In `progression.js`, declare the local core progression authoring object first,
+then construct quests from it. Materialise
+`hollowLamplighter.target =
+coreProgression.features.emberglass.hollowLamplighter.completeAt` at assembly
+time; no closure-backed getter survives. `src/packs/core/index.js` exports
+`createCoreAuthoring(overrides = {})` and
+`deriveCoreCouplings(authoring)`. The first returns a fresh mutable complete
+policy-domain graph, deep-merges only the declared `progression`, `quests` and
+`variants` override objects, calls the second, and never mutates module
+singletons. `deriveCoreCouplings` re-materialises Hollow quest targets and
+variant stat aliases from that graph. Production defines
+`CORE_PACK = definePack({id:'core', ...createCoreAuthoring()})`; tuned tests call
+the same API before `createContentContext()` freezes the result. Unknown
+override domains/keys fail with exact paths.
+
 ```bash
 node tools/check-core-candidate.mjs --domain player
 node tools/check-core-candidate.mjs --domain cards
@@ -2145,23 +2586,100 @@ The new presentation fields are unused until Task 13 and therefore cannot
 alter rendering in this move. They still must be complete enough for
 `createContentContext()` now. Store palette references as the stable token ids
 Task 13 will publish; keep the exact legacy numeric/hex values separately in
-`legacyAct.theme` for the 28-export oracle.
+`legacyAct.theme` for the 28-content-view oracle leg.
 
-- [ ] **Step 3: Define and validate the complete candidate context**
+- [ ] **Step 3 (12A): Define and validate the complete candidate context**
 
 `src/packs/core/index.js` calls `definePack()` once with id `core` and the
 policy-domain names from Task 11. Theme order is `act1`, `act2`, `act3`; each
 theme receives its existing reward ranges verbatim. Create `src/content.js`
 against this complete pack and run `node tools/check-core-candidate.mjs --all`;
-it compares all 28 derived data views plus enemy/shade AI schedules against the
+it compares all 28 derived content views plus enemy/shade AI schedules against the
 still-live monolith. The engine monte-carlo remains on the live monolith until
 the atomic cut-over. Expected: green before cut-over.
 
-- [ ] **Step 4: Observe one final red, then atomically cut over all 28 exports**
+- [ ] **Step 4 (12A): Commit the reviewed candidate without changing the live graph**
+
+Run `npm run test:round5:standing -- --profile p2-base`, obtain fresh reviews
+of the candidate projection, freeze/accessor rules and progression derivation,
+then commit only the candidate/tool/test paths:
+
+```bash
+git add src/content.js src/packs/core/player.js src/packs/core/cards.js \
+  src/packs/core/statuses.js src/packs/core/relics.js \
+  src/packs/core/potions.js src/packs/core/enemies.js \
+  src/packs/core/events.js src/packs/core/omens.js src/packs/core/arts.js \
+  src/packs/core/meta.js src/packs/core/progression.js \
+  src/packs/core/themes.js src/packs/core/index.js test/test_engine.js \
+  tools/capture-content-oracle.mjs tools/check-core-candidate.mjs
+git commit -m "refactor: assemble the frozen core content candidate"
+```
+
+`src/data.js` and `src/engine.js` remain byte-identical to their pre-12A forms
+at this commit. A fresh reviewer confirms the production import graph has not
+cut over.
+
+- [ ] **Step 5 (12B): Write the run-bound and tuned-context failures before cut-over**
+
+With live `data.js` still authoritative, add RED tests for two simultaneous
+frozen contexts: exact core and a fresh tuned authoring clone. Apply overrides
+to the clone, re-derive coupled Hollow quest targets and variant stat aliases,
+then create/freeze the tuned context. Assert nested writes throw and neither
+run observes the other's progression, quests, variants, cards or encounters.
+
+Refactor the post-Phase-2 tunable-variation/save-bound tests away from mutating
+global `PROGRESSION`/`QUESTS`/`VARIANTS`. Extract a pure explicit-content test
+seam with this exact signature:
+
+```js
+export function _normaliseRunSnapshotForTest(raw, content) // canonical mutable run or null
+```
+
+It deep-copies `raw`, runs the same validation/additive migration used by
+production against the explicit engine content view, never reads/writes
+storage, and returns a normalised mutable run or `null`. `loadRun()` remains
+zero-argument/core-only and calls the same private normaliser after reading
+storage. No content/context/theme id enters the saved object.
+
+Add failures for `newRun(seed,{ephemeral:true,content:tuned,...})`,
+`contentIdFor(run)`, `isEphemeralRun(run)`, `cardData(inst,run)`, map and
+encounter generation, combat creation, finality and save/stat no-op behaviour.
+Unknown ids must fail before RNG consumption or run mutation. Normal core calls
+and every strict `saveRun(...) === true` caller retain their current contract.
+Run `npm test`; expected failure is only the absent run-bound engine seam or
+immutable-tuning helpers.
+
+- [ ] **Step 6 (12B): Move the engine content seam while live data remains authoritative**
+
+At module scope in `engine.js`, create private `RUN_CONTENT` and
+`EPHEMERAL_RUNS` weak collections plus `engineContentFor(run)`. Build the
+frozen core engine view only from the 28 content imports already supplied by
+`data.js`; `engine.js` continues importing `data.js` only and never imports
+`content.js`, `registry.js` or a pack. Bind and mark a run before starter cards,
+vows, omens or map generation can read content.
+
+Replace every run-capable static table read with the matching explicit content
+domain. `cardData(inst, run = null)` preserves the one-argument core contract;
+`enemyMove(enemy)` still reads the definition attached by `startCombat()`.
+`themeCount(run)` and `isFinalTheme(run)` use the run-bound context boundary.
+Export only the stable semantic `contentIdFor(run)` and
+`isEphemeralRun(run)` reads needed by UI/effects later. Core-only catalogue
+calls remain enumerated in a source-test allowlist.
+
+Marking a run ephemeral causes engine-owned persistence/stat writes to return
+their exact predecessor success value without touching storage; normal
+`pendingRunEnd`, Dawn cursor/final-clear, receipt and save validation paths stay
+unchanged. The test-only snapshot seam accepts explicit frozen content, but
+production `loadRun()` validates/hydrates only core and binds no custom
+context. Run the full core/tuned isolation suite while `data.js` is still the
+monolith; it must pass before alias cut-over.
+
+- [ ] **Step 7 (12B): Observe one final red, then atomically cut over 28 views plus four protocols**
 
 Now add the source assertion that `src/data.js` imports `CORE_CONTENT` from
-`./content.js`, exports exactly the 28 inventory names, and contains no entity
-table literal/AI function. Run `npm test`; expected FAIL only on that assertion
+`./content.js`, re-exports the four constants from `./content-protocol.js`,
+exports exactly the 32-name inventory and contains no entity table literal/AI
+function. Run `npm test`; expected FAIL only on that assertion
 while the live oracle and `check-core-candidate --all` remain green. This is the
 single intentional cut-over red.
 
@@ -2170,9 +2688,11 @@ single intentional cut-over red.
 `CORE_CONTENT = createContentContext([CORE_PACK], {
 id:'core', resources:STATIC_REFERENCE_CATALOGUES })`. It never imports a Vite
 asset glob or scans the filesystem.
-`src/data.js` imports that object and contains only the exhaustive 28 named
-compatibility aliases; it does not re-export `CORE_CONTENT` and does not add a
-29th named/default export. Alias the registry-derived views:
+Move `QUEST_STATES`, `QUEST_ACTIVE_STATES`, `TERMINAL_OUTCOMES` and `RUN_ID_RE`
+verbatim into Node-pure `content-protocol.js`. `src/data.js` imports the content
+object, contains the exhaustive 28 named compatibility aliases, re-exports the
+four protocol constants and exposes no default/33rd export. Alias the
+registry-derived views:
 
 ```js
 export const CARDS = CORE_CONTENT.cards;
@@ -2186,34 +2706,39 @@ export const POOL_GATE = CORE_CONTENT.poolGate;
 ```
 
 Keep the export names/order inventory in this plan. `src/engine.js` and every
-consumer remain unchanged.
+consumer retain their existing `data.js` import boundary.
 
-- [ ] **Step 5: Run the three-leg oracle after the atomic cut-over**
+- [ ] **Step 8 (12B): Run the three-leg oracle after the atomic cut-over**
 
 Run `node tools/check-core-candidate.mjs --all`, `npm test` and
-`node tools/capture-content-oracle.mjs --check`. Expected: the projection, AI
-schedule, monte-carlo digest, exact export source assertion and all existing
-tests are green. If one leg changes, repair the candidate/cut-over; never
-regenerate the oracle.
+`node tools/capture-content-oracle.mjs --check`. Leg one compares the 28
+observable content views (including the named getter→numeric hardening
+exception); leg two compares the four protocols, RegExp cases and exact export
+set; leg three compares AI schedules and the monte-carlo digest. Also run
+`npm run test:ci`, `npm run test:progression` and the `p2-base` standing
+profile. Task 13 creates the act-coupling gate; Task 12 may not invoke a future
+script. If one leg changes, repair the seam/candidate/cut-over;
+never regenerate the oracle.
 
-- [ ] **Step 6: Commit the complete atomic move**
+- [ ] **Step 9 (12B): Commit the engine seam and atomic live cut-over**
 
 ```bash
-git add src/data.js src/content.js src/packs/core/player.js src/packs/core/cards.js \
-  src/packs/core/statuses.js src/packs/core/relics.js \
-  src/packs/core/potions.js src/packs/core/enemies.js \
-  src/packs/core/events.js src/packs/core/omens.js src/packs/core/arts.js \
-  src/packs/core/meta.js src/packs/core/progression.js \
-  src/packs/core/themes.js src/packs/core/index.js test/test_engine.js \
+git add src/data.js src/content-protocol.js src/engine.js test/test_engine.js \
   tools/capture-content-oracle.mjs tools/check-core-candidate.mjs
-git commit -m "refactor: re-home the core content pack"
+git commit -m "refactor: cut the engine over to frozen run content"
 ```
+
+Fresh reviewers must inspect both 12A..12B commits together and confirm: exact
+32-export surface, no save-shape widening, no global tunable mutation, no
+custom-content leakage, recursive freeze, and an unchanged Phase-2 terminal
+transaction flow before Task 13 begins.
 
 ### Task 13: `[PE]` Extract theme consumers and enforce no act coupling
 
 **Files:**
 - Modify: `src/packs/core/themes.js`, `src/engine.js`, `src/scene3d.js`,
-  `src/vfx.js`, `src/music.js`, `src/audio-catalog.js`, `src/ui/**/*.js`,
+  `src/vfx.js`, `src/music-resolve.js`, `src/music.js`,
+  `src/audio-catalog.js`, `src/ui/**/*.js`,
   `src/battlefield.js`, `src/dev/bf-editor.js`
 - Create: `src/ui/content.js`
 - Modify: `src/presentation-catalog.js`, `src/ui/tokens.js`
@@ -2230,8 +2755,9 @@ git commit -m "refactor: re-home the core content pack"
 
 API placement is fixed: generic `themeById(context,id)`,
 `themeForAct(context,index)` and `isFinalTheme(context,index)` live in
-Node-pure `registry.js`; `data.js` exports only the exhaustive 28 compatibility
-names. `src/ui/content.js` imports `CORE_CONTENT` from `content.js` and owns
+Node-pure `registry.js`; `data.js` exports the exhaustive 28 compatibility
+content views plus the four protocol re-exports. `src/ui/content.js` imports
+`CORE_CONTENT` from `content.js` and owns
 `contentViewFor(run)`/`themeForRun(run)` for full presentation data. Because
 `engine.js` may import only `data.js`, it owns one allowlisted private
 engine-only boundary plus `themeCount(run)`/`isFinalTheme(run)`; it never
@@ -2242,9 +2768,12 @@ scene/VFX/music.
 
 Add a pure test that passes a four-theme context to the registry and asserts
 `themeForAct(context, 3).id === 'sampleTheme'`, the fourth reward row resolves,
-and `isFinalTheme(context, 3) === true`. This is a registry-only assertion;
-the engine advance/boss-flow proof waits for Task 16's run-bound custom-content
-seam. Add package script:
+and `isFinalTheme(context, 3) === true`. In the same RED block call
+`resolveCombatCue` with `{combat:'paleOnes',boss:'usurper'}` and no quest/omen;
+assert monster→`paleOnes`, boss→`usurper`, elite→the shared `elite`, proving no
+numeric act clamp/string construction remains. Task 12B has already made the engine
+run-context aware; Task 14 supplies the first fully registered non-core engine
+journey and fourth-theme advance/boss proof. Add package script:
 
 ```json
 "test:act-coupling": "node tools/check-act-coupling.mjs"
@@ -2286,28 +2815,66 @@ never reconstructed from `ACTS`.
 
 Replace `run.act >= 2`, scattered `ACTS.length` end checks and player copy such
 as `3 acts` with the engine `isFinalTheme(run)`/`themeCount(run)` boundary.
-Task 13 proves production Act 3 is final. Task 16 makes those helpers custom-
-context aware and owns the proof that appending a fourth theme makes Act 3
-advance instead.
+Task 13 proves production Act 3 is final and preserves the Task 12B custom-
+context-aware boundary. Task 14 proves that appending a fourth theme makes Act
+3 advance instead.
 
 Change the browser seams to accept a resolved theme record, not an act index:
 scene3d receives its plates/palette/lantern data, VFX receives weather, and UI
-passes the selected Music Cue id to music. `ui/content.js` supplies
+passes the resolved theme Music record to music. `ui/content.js` supplies
 `CORE_CONTENT` at P2; Task 16 adds an explicit ephemeral override. None of
 those modules imports a dev pack or maintains its own act array. Fixed
 three-act tower coordinates remain
 the explicit scene/editor allowlist residue; an appended theme reuses the last
 physical tower segment in this round without clamping its data/presentation.
 
-Delete `music.js`'s hard-coded `WARM_WITH` rows for `act1Combat` through
-`act3Boss`. Export `configureThemeMusic({ themes, themeOrder })`; derive every
-theme combat→boss/map/elite and boss→map/victory adjacency from that theme's
-`music` record. Final-theme warming uses the last `themeOrder` entry, never a
-cue-name prefix. The remaining semantic global rows (`title`, `embark`,
-`vigil`, `map`, `safeNodes`, `elite`, `victory`, `defeat`) contain no
-theme-specific cue id. `ui/index.js` configures the graph once from
-`CORE_CONTENT`. A four-theme unit fixture must prove the sample combat/boss
-cues warm correctly without editing `music.js`.
+Atomically change the pure PR #16 resolver from
+`resolveCombatCue(kind, actIdx, opts)` to
+`resolveCombatCue(kind, themeMusic, opts)`, where `themeMusic` contains
+`combat` and `boss`. Preserve exact priority: recognised quest override
+→ Eighth Omen when `kind !== 'boss'` → `themeMusic.boss` for boss,
+the shared global `'elite'` cue for elite, otherwise `themeMusic.combat`.
+Preserve
+`QUEST_COMBAT_CUES`, `SCREEN_CUES`, `resolveScreenCue` and `dawnEventCue`; the
+module retains exactly those five exports and stays Node-pure. `music.js`
+re-exports them, `playForCombat` accepts the resolved theme Music record, and
+`combat.js` passes `themeForRun(run).music`. A four-theme test uses registered
+non-`actN` cue ids so the old clamp/string construction cannot accidentally
+pass. Map/event use the resolved theme's `map` unless Eighth owns them; Dawn
+starts from the resolved theme `victory` and retains `pageRead`/`act4Reveal`
+overrides. Each Map entry explicitly warms the resolved current theme's
+combat/boss cues plus shared `elite`, `safeNodes` and `hollowLamplighter`, and
+adds `eighthOmen` only when active.
+
+Delete `music.js`'s hard-coded theme-specific `WARM_WITH` rows. Export
+`configureThemeMusic({ themes, themeOrder })`; derive every theme
+combat→boss/map/shared-elite adjacency from that theme's `music` record.
+Non-final boss cues warm their theme map and victory; the final theme boss warms
+victory and defeat, with no map edge. `embark` and the shared map row warm the
+first theme through `themeOrder`, never a cue-name prefix: in the production
+graph `embark → map` and
+`map → act1Combat,safeNodes,elite,hollowLamplighter`. Preserve PR #16's
+semantic global graph exactly: title/embark/vigil,
+Rose↔Vigil, safe nodes/map, elite/map, Pale/Own-Shade→map,
+Usurper→victory/defeat, Eighth→map/elite, Unreadable Page→victory/vigil,
+Hollow Lamplighter→map, Sealed Door→map/vigil, and victory/defeat→title/vigil.
+No hard-coded semantic row contains a theme-specific cue id; generated
+first-theme/per-theme edges may contain only ids read from theme records.
+`ui/index.js` configures the graph once from `CORE_CONTENT`. A focused
+`audio.spec.js` browser-module fixture calls `configureThemeMusic` with four
+theme records using registered non-`actN` sample combat/boss ids, proves those
+cues warm correctly without editing `music.js`, then reloads and reasserts the
+frozen production-core graph.
+
+Preserve PR #15 selection semantics and PR #16 selection policy through the
+music-graph move.
+`preview(cue, draftSelection)` remains a forced unsaved-preview path;
+`invalidateMusicSelection()` hot-re-resolves the currently active logical cue
+against the newly applied selection and rebuilt theme graph. Keep the Task 6
+audio trace distinction and every `audio.spec.js` hot-preview/apply check in
+the focused gate. `_raw` files remain excluded from inventory and bundle.
+`public/audio-selection.json` remains any valid installed canonical gallery
+Save output; no test pins v2 or clears its overrides.
 
 Remove the old VFX archetype, enemy/character art-kind and structural fallback
 id inventories after switching browser renderers to Task 11's Node-pure
@@ -2382,7 +2949,7 @@ act2Combat → Sunken City normal fights
 act2Boss → Sunken City boss — Leviathan
 act3Combat → Astral Court normal fights
 act3Boss → Astral Court boss — Eternal Sovereign
-sealedDoor → Sealed summit door reveal
+sealedDoor → Sealed summit door / act4Reveal Dawn
 victory → Non-final boss ceremony and final run victory / end(won)
 ```
 
@@ -2396,9 +2963,10 @@ production JS.
 npm test
 npm run test:act-coupling
 node tools/check-act-coupling.mjs --self-test
-npx playwright test geometry stage audio --project=desktop --workers=1
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test geometry stage audio --project=desktop --workers=1
 git add src/packs/core/themes.js src/engine.js src/scene3d.js src/vfx.js \
-  src/music.js src/audio-catalog.js src/battlefield.js src/dev/bf-editor.js \
+  src/music-resolve.js src/music.js src/audio-catalog.js \
+  src/battlefield.js src/dev/bf-editor.js \
   src/presentation-catalog.js src/ui/context.js src/ui/index.js \
   src/ui/content.js src/ui/tokens.js src/ui/assets.js src/ui/overlay.js \
   src/ui/navigation.js src/ui/combat.js src/ui/drain.js \
@@ -2422,17 +2990,26 @@ git commit -m "refactor: resolve acts through theme registries"
 
 **Interfaces:**
 - Produces: `SAMPLE_PACK`, `createDevRegistry({sample:true})`; no production registration.
-- Consumed by: Task 16's generic ephemeral content-context seam, Content Lab
-  Task 17 and registry tests. P2 proves assembly/isolation; the behavioural
-  climb smoke deliberately lands in P3 after that seam exists.
+- Consumes: Task 12B's generic ephemeral engine content-context seam.
+- Consumed by: Task 16's UI presentation binding, Content Lab Task 17 and
+  registry tests. P2 proves both assembly and engine isolation; UI remains out
+  of scope until P3.
 
-- [ ] **Step 1: Write failing isolation and context-assembly tests**
+- [ ] **Step 1: Write failing isolation, context and engine-behaviour tests**
 
 Assert the production registry has no `sampleCard`, `sampleEnemy` or
 `sampleTheme`; a dev registry has all three; `ACTS` production length remains
 three; the dev context has `themeOrder.at(-1) === 'sampleTheme'`; and the sample
 theme's one encounter resolves its enemy and registered Music Cue fallback.
-Do not claim engine climbability in this task.
+Drive the context through the real Task 12B engine seam and assert: sample
+`newRun`, starter deck/map, encounter roll, combat creation, `enemyMove`, boss
+resolution and finality all use the sample context; Act 3 is non-final and
+advances to theme index 3; theme index 3 is final. Hold a core run beside it and
+prove both remain isolated. Assert engine-owned run-save/stat/terminal-journal
+writes are success-shaped no-ops. This engine-only proof must not invoke a UI,
+Vigil, Dawn or bequest route; Task 16A extends the already extracted
+`run-effects` boundary and proves those remaining effects are suppressed. UI
+rendering is deliberately not claimed in this task.
 
 - [ ] **Step 2: Implement the exact fixture content**
 
@@ -2451,8 +3028,11 @@ export const sampleEnemy = {
 };
 ```
 
-The sample theme uses existing Act 1 plate ids, `map`/`act1Combat` cue ids, one
-normal roster entry and one encounter. It supplies a valid fourth reward row
+The sample theme uses existing Act 1 plate ids and the already-registered
+non-`actN` cue ids `map` (map), `paleOnes` (combat), `usurper` (boss) and
+`victory`, with one normal roster entry and one encounter. Tests call the
+ordinary resolver with no quest/omen override and require `paleOnes`/
+`usurper`, so the old three-act clamp cannot pass by coincidence. It supplies a valid fourth reward row
 `{normal:[1,1],elite:[1,1],boss:[1,1]}`, a complete `legacyAct` row named
 `Test Gallery` whose boss is `sampleEnemy`, and every required theme field. It
 adds no runtime assets.
@@ -2470,11 +3050,19 @@ id:'dev:_sample', resources:STATIC_REFERENCE_CATALOGUES })`; with
 derived pools/themes/rewards. Reject unknown option keys so adding a fixture
 cannot silently alter the production graph.
 
+Use the existing Task 12B `newRun(...,{ephemeral:true,content})` and explicit
+theme/aspect/omen id options. Do not add another engine registry, global active
+context or sample-specific branch. Exercise simultaneous core/sample runs in
+both call orders so a module-global current context cannot pass accidentally.
+
 - [ ] **Step 4: Verify and commit**
 
 ```bash
 npm test
+npm run test:act-coupling
+node tools/capture-content-oracle.mjs --check
 npx vite build --outDir /tmp/spirebound-round5-p2-sample --emptyOutDir
+npm run test:round5:standing -- --profile p2
 git add src/packs/_sample/index.js src/packs/_sample/card.js \
   src/packs/_sample/enemy.js src/packs/_sample/theme.js src/packs/dev.js \
   test/test_engine.js
@@ -2492,7 +3080,10 @@ git commit -m "test: add the isolated sample content pack"
 - Create: `docs/superpowers/artifacts/round5-p2-simulator-smoke/**`
 
 **Interfaces:**
-- Produces: P2 evidence: three-leg equality, 100% core doctor, sample isolation, act sweep and exact export list.
+- Produces: P2 evidence: three-leg equality, 100% core doctor, deep-frozen
+  no-accessor core, tuned-context variation, sample engine isolation, act sweep
+  the exact 32-export list, and PR #16's five-export/22-live-cue contract on a
+  theme-record resolver with no three-act clamp.
 
 - [ ] **Step 1: Add one aggregate P2 assertion**
 
@@ -2505,8 +3096,23 @@ catalogues in `audio-catalog.js`, and `tokenIds` from `ui/tokens.js`. Import
 default-fallback policy for valid hero/enemy ids. The doctor also verifies pool membership or
 an explicit schema-level no-pool declaration. The test runs
 `doctorContent([CORE_PACK], resourceManifest)` and requires zero errors and every
-domain `complete === total`. It imports all 28 names and asserts their set
-exactly equals the inventory in this plan.
+domain `complete === total`. It imports all 32 names, asserts the 28 content
+views and four protocol constants form exactly the inventory in this plan, and
+proves protocol values remain outside every pack/context domain.
+
+Re-run the strict deep-freeze, no-accessor, authoring-input snapshot and tuned-
+context derivation assertions from Tasks 11–12. The core context must contain
+no schema-visible accessor; the materialised Hollow target retains the Phase 2
+numeric value. Exercise simultaneous core/sample engine runs and both tuned
+save-validation projections. A P2 report may not claim equivalence from an
+assembly-only sample.
+
+Re-run the Task 6/13 Music contract: exactly five `music-resolve.js` exports,
+22/22 live catalogue rows, quest/Eighth/boss priority, Rose/Hollow/Dawn/summit
+screen mappings, reward/boss-relic no-request hold and a non-`actN` fourth
+theme. The source and act-coupling sweep reject the old numeric clamp or cue
+construction. Update `AGENTS.md`'s module graph to place `music-resolve.js`
+below browser-only `music.js`; it imports no audio, trace, DOM or stage module.
 
 Assert `CORE_CONTENT` was compiled with the exact static catalogue categories;
 the physical `assetManifest` is doctor/test-only. In a negative fixture remove
@@ -2549,7 +3155,7 @@ theme order from the runner result and rejects a missing/duplicate row.
 ```bash
 npm test
 npm run test:act-coupling
-npx playwright test geometry stage audio --project=desktop --workers=1
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test geometry stage audio --project=desktop --workers=1
 node --test test/simulator/theme-profile.test.mjs
 npm run test:round5:standing -- --profile p2
 git add src/ui/probe.js test/test_engine.js \
@@ -2575,7 +3181,7 @@ P2_SIM_SOURCE_SHA=$(sed -n 's/^P2 Simulator capture source: //p' \
 test -n "$P2_SIM_SOURCE_SHA"
 test "$(git rev-parse HEAD)" = "$P2_SIM_SOURCE_SHA"
 npx vite build --outDir /tmp/spirebound-round5-p2 --emptyOutDir
-npm run test:e2e
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e
 npm run test:simulator:smoke -- --surface dom --journey themes
 npm run test:round5:standing -- --profile p2
 ```
@@ -2626,12 +3232,11 @@ git commit -m "test: close the content registry equivalence gate"
 
 ---
 
-### Task 16: `[PE]` Add ephemeral content contexts, side-effect isolation and the pure Lab URL codec
+### Task 16: `[PE]` Bind ephemeral presentation/effects and add the pure Lab URL codec
 
 **Files:**
-- Modify: `src/engine.js`
-- Create: `src/ui/run-effects.js`
-- Modify: `src/ui/content.js`, `src/ui/assets.js`, `src/ui/navigation.js`, `src/ui/index.js`,
+- Modify: `src/ui/run-effects.js`, `src/ui/content.js`, `src/ui/assets.js`,
+  `src/ui/navigation.js`, `src/ui/index.js`,
   `src/ui/combat.js`, `src/ui/drain.js`, `src/ui/overlay.js`,
   `src/ui/tooltip.js`, `src/ui/screens/embark.js`, `src/ui/screens/map.js`,
   `src/ui/screens/run.js`, `src/ui/screens/lamplighter.js`,
@@ -2639,65 +3244,97 @@ git commit -m "test: close the content registry equivalence gate"
   `src/ui/screens/shop.js`, `src/ui/screens/event.js`, `src/ui/screens/end.js`
 - Create: `src/dev/lab-scenario.js`
 - Modify/Test: `test/test_engine.js`
+- Create/Test: `test/e2e/content-context.spec.js`
 
 **Interfaces:**
-- `newRun(seed, { ...existing, ephemeral:true, content, themeId, aspectId,
-  omenId })` binds the
-  returned object to a frozen custom registry context in engine-private and
-  UI-private `WeakMap`s; non-core content is rejected unless the run is
-  ephemeral.
-- Engine-internal `engineContentFor(run)` returns the custom context or a
-  private engine-only core view reconstructed from the 28 `data.js` imports.
-  It is not exported and contains no presentation themes.
-- `contentIdFor(run)` exposes only the stable semantic id.
-  `cardData(inst, run = null)` preserves the predecessor one-argument public
-  contract and optionally resolves a run-bound card table. `enemyMove(enemy)`
-  remains unchanged and reads the definition attached by `startCombat`.
+- Consumes the reviewed Task 12B engine seam: `newRun(...,{ephemeral:true,
+  content,...})`, `contentIdFor`, `isEphemeralRun`, run-bound card/map/combat
+  lookup and engine-owned storage/stat no-ops. Task 16 does not reimplement or
+  widen that seam.
 - `bindRunContent(run, content)`/`contentViewFor(run)`/`themeForRun(run)` live
   in `src/ui/content.js`. They return the imported full `CORE_CONTENT` for a
   normal run or the explicitly bound full custom context for an ephemeral run.
-- Engine `themeCount(run)`/`isFinalTheme(run)` use the engine view. Active-run
-  UI resolves cards, enemies, relics, potions, omens, affixes, arts, statuses
+- Active-run UI resolves cards, enemies, relics, potions, omens, affixes, arts, statuses
   and themes through `contentViewFor(run)`, never a mutable global registry.
-- `genMap(run)`, `rollEncounter(run, ...)` and `startCombat(run, ...)` resolve
-  every engine theme-index/roster/entity fact through `engineContentFor(run)`.
 - `isEphemeralRun(run)` is the sole read path for terminal UI/meta suppression.
-- `saveRun(run)` returns the predecessor-compatible boolean `true` without
-  storage for marked runs; no serialised field is added. It must preserve every
-  strict `=== true` caller.
-- `createRunEffects({ engine, vigil })` is the sole UI adapter for abandon,
-  terminal Vigil/stats commits and bequest consume/write. Ordinary `saveRun`
-  calls may remain direct because the engine itself owns the ephemeral no-op.
+- The existing P1 `createRunEffects({ engine, vigil })` stays the sole UI
+  transaction adapter and gains success-shaped ephemeral suppression for every
+  terminal/Vigil/Dawn/Hollow/Shard/bequest effect. It never creates a second
+  terminal route.
 - `encodeLabScenario`, shape-only `decodeLabScenario`,
   `validateLabScenario(scenario, content)`, `encodeReplayDescriptor` and
   `decodeReplayDescriptor` are Node-pure.
 
-- [ ] **Step 1: Write failing engine and codec tests**
+- [ ] **Step 1 (16A): Write failing UI-binding and effects-isolation tests**
 
-Build `createDevRegistry({sample:true})`, then test that
-`newRun(seed,{ephemeral:true,content:dev,themeId:'sampleTheme'})` binds before
-the starter deck/map is made. Immediately call `bindRunContent(run, dev)` and
-assert `contentIdFor(run) === 'dev:_sample'`,
+Build `createDevRegistry({sample:true})` and first re-run the green Task 12B/14
+engine assertions; a failure there returns to P2 instead of being repaired in
+the UI. Create a sample run, call `bindRunContent(run, dev)` immediately after
+`newRun`, and assert `contentIdFor(run) === 'dev:_sample'`,
 `contentViewFor(run) === dev`, `themeForRun(run).id === 'sampleTheme'`,
-`cardData({id:'sampleCard',up:false},run)`, `genMap(run)`,
-`rollEncounter(run,'normal',0)`, `startCombat(run,['sampleEnemy'])` and
-`enemyMove(cb.enemies[0])` all resolve the dev context. Assert a non-
-ephemeral custom context throws, a normal run's UI view is the exact imported
-`CORE_CONTENT`, and `loadRun()` always reports core. Create simultaneous core
-and sample runs and prove both engine/UI lookup paths remain isolated.
-Add explicit old/new parity tests for every core card:
-`cardData(inst) === cardData(inst, coreRun)` by value. Preserve every existing
-one-argument engine/test/UI caller that does not render a custom run.
+and every active-run UI table/asset/theme read resolves the dev context. Assert
+a non-ephemeral binding throws, a normal run's UI view is the exact imported
+`CORE_CONTENT`, and simultaneous core/sample runs remain isolated in both call
+orders. Preserve every one-argument core engine/UI caller already proven in
+P2.
 
-Test that an ephemeral run never calls the storage adapter, survives all normal
-engine operations, reports through `isEphemeralRun()`, and serialises without
-`ephemeral`, `content`, `contentId`, `registry` or `themeId` properties. Use
-sentinel stats/Vigil stores and exercise victory, defeat, abandon, bequest
-write and bequest consumption through `run-effects.js`; every sentinel must
-remain byte-identical. The corresponding normal-run journey must preserve the
-current call order and exact mutations. Add a source assertion that all UI
-calls to `commitRunToVigil`, `commitRunEnd`, `recordRunEnd`, `setBequest` and
-`clearBequest` occur only inside `run-effects.js`.
+Use sentinel run-save, stats and Vigil stores and exercise victory, Fall,
+abandon, terminal receipt, Dawn staging/cursor/final-clear, Hollow/Shard
+recovery, bequest write and bequest consumption through `run-effects.js`;
+every sentinel remains byte-identical and every return has the normal caller-
+compatible success shape. The corresponding normal-run journeys preserve the
+post-Phase-2 call order, retry/idempotence behaviour and exact mutations. Add a
+source assertion that all UI calls to terminal/Vigil/stats/Dawn/Hollow/Shard/
+bequest mutators occur only inside `run-effects.js`.
+
+Run `npm test` and the new `content-context.spec.js`; expected RED is missing UI
+binding/suppression, never a changed engine/save assertion.
+
+- [ ] **Step 2 (16A): Bind presentation content and extend the one effects boundary**
+
+Extend `ui/content.js` with a private `RUN_PRESENTATION_CONTENT` WeakMap.
+`bindRunContent` requires an engine-marked ephemeral run and matching
+`contentIdFor(run)`, then binds the exact same recursively frozen context.
+`contentViewFor` returns that object or imported `CORE_CONTENT`; it never asks
+the engine for full presentation definitions and never reads a save field.
+
+Update every active-run UI lookup to use the explicit view, including HUD
+relics, cards, potions/statuses, omen/art labels, reward/deck rows, enemy/
+variant presentation, scene plates, audio cues and finality copy. Add a source
+inventory for all post-P1 modules. `content-context.spec.js` uses Vite browser
+imports to create/bind simultaneous core/sample runs and invokes the real pure
+card/theme/asset resolvers without assigning `S.run`, adding a hidden route or
+hard-coding sample ids in production. Actual sample screen/combat rendering is
+the Task 17 Lab journey. Core-only title/gallery catalogue reads stay only in
+the named allowlist.
+
+Extend—not replace—the P1 `run-effects.js`. For an ephemeral run, every
+run/meta effect returns a frozen success-shaped diagnostic without calling
+storage, Vigil or stats; terminal completion returns a Lab-result descriptor
+for Task 17 instead of entering Dawn/Fall/bequest presentation. Normal paths
+retain the exact journal→finalise→commit and Dawn queue sequence. `overlay.js`
+remains the sole retry/focus/inert dialog owner.
+
+- [ ] **Step 3 (16A): Verify, review and commit UI/effects isolation**
+
+```bash
+npm test
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test content-context emberglass hollow-transaction trace --project=desktop --workers=1
+npm run test:round5:standing -- --profile p2
+git add src/ui/run-effects.js src/ui/content.js src/ui/assets.js \
+  src/ui/navigation.js src/ui/index.js src/ui/combat.js src/ui/drain.js \
+  src/ui/overlay.js src/ui/tooltip.js src/ui/screens/embark.js \
+  src/ui/screens/map.js src/ui/screens/run.js src/ui/screens/lamplighter.js \
+  src/ui/screens/reward.js src/ui/screens/rest.js src/ui/screens/shop.js \
+  src/ui/screens/event.js src/ui/screens/end.js \
+  test/e2e/content-context.spec.js test/test_engine.js
+git commit -m "feat: isolate ephemeral Lab presentation and effects"
+```
+
+Fresh reviewers must confirm there is one normal/ephemeral transaction owner,
+no save-shape field, and no P2 engine seam duplicated in UI before 16B.
+
+- [ ] **Step 4 (16B): Write the failing canonical codec tests**
 
 Test this exact scenario round-trip:
 
@@ -2739,82 +3376,7 @@ must exist in `VARIANTS` and have `base === id`; own-shade variants are the one
 declared special case `{ id:'shade', variantId:'ownShade1|2|3' }` where
 `base === 'hero'`. Staging passes `variantId ?? id` to the real combat command.
 
-- [ ] **Step 2: Verify red**
-
-Run `npm test`; expected missing module/ephemeral assertion failure.
-
-- [ ] **Step 3: Implement the generic content association before any lookup**
-
-At module scope in `engine.js`:
-
-```js
-const EPHEMERAL_RUNS = new WeakSet();
-const RUN_CONTENT = new WeakMap();
-```
-
-Construct one private frozen **engine-only** core view from the existing 28
-`data.js` imports: entity tables, pools, aspects/vows, encounters, rewards,
-progression and an `actCount`; do not invent full themes or `themeOrder` from
-legacy `ACTS`. Validate a supplied custom context's `contextVersion`, id,
-recursive freeze and every engine-required domain structurally; engine still
-imports only `data.js`, never `content.js`, `registry.js` or a pack. Allocate
-the run, bind `RUN_CONTENT` and mark `EPHEMERAL_RUNS` before calling `makeCard`,
-`vowMods`, `rollOmen` or `genMap`. Resolve custom `themeId` to a numeric
-`run.act` through the supplied full context's `themeOrder`; resolve
-`aspectId`/`omenId` against that same context before starter deck, omen array
-and map creation. These id options are accepted only with `ephemeral:true`;
-core production calls keep their numeric/rolled behaviour. Core runs do not
-accept a `themeId`. Neither engine WeakMap nor UI WeakMap consults a save field
-or global mutable current-registry singleton.
-
-Replace every engine static table read with the matching
-`engineContentFor(run)` domain. Update only engine/UI paths that can operate on
-a custom run to call `cardData(inst, run)`; a source inventory proves each
-custom-run path supplies the second argument while legacy core-only callers
-remain valid. Keep `enemyMove(enemy)` unchanged; `startCombat` attaches the
-resolved custom/core enemy definition to each combatant exactly as the
-predecessor does. `rollEncounter` reads the selected theme's registered
-encounter view and `startCombat` rejects unknown enemy ids before dereference.
-`themeCount` uses custom `themeOrder.length` or core `ACTS.length`;
-`isFinalTheme` compares against that boundary. `loadRun` validates core only
-and has no custom binding. This separation is why two simultaneous Lab/core
-runs cannot leak content into each other while the 28-export/import invariant
-remains intact.
-
-Extend `ui/content.js` with its separate `RUN_PRESENTATION_CONTENT` WeakMap.
-`bindRunContent` requires an ephemeral run and matching `contentIdFor(run)`,
-then binds the exact same frozen object Lab supplied to `newRun`.
-`contentViewFor` returns that object or imported `CORE_CONTENT`; it cannot ask
-engine for full core presentation data.
-
-Update every active-run UI lookup to use that context, including HUD relics,
-potions/statuses, omen/art labels, reward/deck card rows and theme copy. Add a
-source inventory test for the post-P1 modules and an e2e assertion that the
-sample card/enemy/theme render without importing `_sample` in a production UI
-module. Core-only title/gallery catalogue reads may stay static and are named
-in the source-test allowlist. In particular, `assets.js` receives the run/
-content for hero/relic/scene resolution, while `navigation.js` resolves act
-transition/omen/music data through `themeForRun`; neither captures core tables
-at module initialisation.
-
-- [ ] **Step 4: Implement the complete ephemeral side-effect boundary**
-
-At the first line of `saveRun` and `recordRunEnd`, return boolean `true` without
-storage/stat mutation for a marked run. Export `isEphemeralRun(run)`. Preserve
-all predecessor failure/receipt/journal return values and strict boolean call
-sites on the normal path.
-
-Move all UI terminal/meta calls behind `createRunEffects()`. In the P1 final
-ownership layout, `combat.js`/`drain.js` own victory and defeat, `overlay.js`
-owns abandon, and end/map screens own bequest write/consume. For an ephemeral
-run, `finish`, `abandon`, `writeBequest` and `consumeBequest` return frozen
-empty/diagnostic results without calling Vigil or stats. The normal path calls
-the existing functions in their existing order. On ephemeral combat terminal,
-return a Lab-result descriptor for Task 17 to render; do not enter the normal
-dawn/bequest route. Merely guarding `screens/end.js` is insufficient because
-the real commits occur before that screen.
-
-- [ ] **Step 5: Implement canonical URL codecs**
+- [ ] **Step 5 (16B): Implement canonical URL codecs**
 
 Sort object/query keys deterministically while preserving every array's semantic
 order; encode JSON payloads with base64url; deep-copy/freeze decoded values.
@@ -2835,24 +3397,23 @@ Replay descriptor shape is:
 
 It contains no command, engine state, DOM/Pixi data or save snapshot.
 
-- [ ] **Step 6: Verify and commit**
+- [ ] **Step 6 (16B): Verify, review and commit the pure codec**
 
 ```bash
 npm test
 npm run test:act-coupling
 node tools/capture-content-oracle.mjs --check
 npx vite build --outDir /tmp/spirebound-round5-p3-context --emptyOutDir
-npm run test:e2e
-git add src/engine.js src/ui/run-effects.js src/ui/content.js src/ui/assets.js \
-  src/ui/navigation.js src/ui/index.js src/ui/combat.js src/ui/drain.js \
-  src/ui/overlay.js src/ui/tooltip.js src/ui/screens/embark.js \
-  src/ui/screens/map.js src/ui/screens/run.js src/ui/screens/lamplighter.js \
-  src/ui/screens/reward.js src/ui/screens/rest.js src/ui/screens/shop.js \
-  src/ui/screens/event.js src/ui/screens/end.js \
-  src/dev/lab-scenario.js \
-  test/test_engine.js
-git commit -m "feat: isolate ephemeral Lab content and effects"
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e
+npm run test:round5:standing -- --profile p2
+git add src/dev/lab-scenario.js test/test_engine.js
+git commit -m "feat: add the bounded Lab scenario codec"
 ```
+
+The fresh 16B review checks deterministic ordering, size/version limits,
+explicit-context validation and that replay descriptors cannot encode commands,
+engine/save state or auto-run behaviour. Task 17 depends on both reviewed 16A
+and 16B commits.
 
 ### Task 17: `[PE]` Build Content Lab, replay preview and live trace transcript
 
@@ -2937,7 +3498,7 @@ incoming descriptor byte-for-byte until publication was armed.
 - [ ] **Step 2: Verify red**
 
 ```bash
-npx playwright test lab --project=desktop --workers=1
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test lab --project=desktop --workers=1
 ```
 
 Expected: FAIL because the route is absent.
@@ -3010,7 +3571,7 @@ markers to remain in the verifier's list.
 
 ```bash
 npm test
-npx playwright test lab trace --project=desktop --workers=1
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test lab trace --project=desktop --workers=1
 node tools/verify-production-surface.mjs
 npm run test:round5:standing -- --profile p3
 git add src/main.js src/ui/dev/lab.js src/ui/dev/replay-preview.js \
@@ -3075,7 +3636,8 @@ problem links, gallery preview and Lab launch. If the ledger marks the shell
 
 - [ ] **Step 2: Verify red**
 
-Run `npx playwright test dev-tools --project=desktop --workers=1`; expected FAIL.
+Run `node tools/run-with-strict-e2e-port.mjs -- npx playwright test dev-tools
+--project=desktop --workers=1`; expected FAIL.
 
 - [ ] **Step 3: Implement thin views over existing pure APIs**
 
@@ -3097,7 +3659,7 @@ production build.
 
 ```bash
 npm test
-npx playwright test dev-tools --project=desktop --workers=1
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test dev-tools --project=desktop --workers=1
 node tools/verify-production-surface.mjs
 git add src/main.js src/ui/dev/doctor.js test/e2e/dev-tools.spec.js
 if test -f src/ui/dev/shell.js; then git add src/ui/dev/shell.js; fi
@@ -3149,10 +3711,22 @@ version 1, unique `order` ids matching `entries`, and a body no larger than 1
 MiB. Resolve through an explicit domain→file map, never a user path. Serialise
 and schema/registry-compile the structured `entries` in memory first. Then write
 the candidate beside its target as `file.tmp.mjs`, import it through a
-cache-busted file URL, compile the complete candidate core pack and run the
-doctor before atomic rename to the real `.js` path. Preserve the submitted
+cache-busted file URL, build a fresh candidate `CORE_PACK` with that imported
+domain explicitly substituted for the live module, compile a complete
+`createContentContext()` and run the doctor before atomic rename to the real
+`.js` path. Do not validate by re-importing cached `packs/core/index.js`, which
+would silently compile the old domain. A source/unit assertion proves the
+replacement module's values are the ones observed by candidate compilation.
+Preserve the submitted
 top-level entry order and schema field order. On error, delete only the
 `.tmp.mjs`, leave source bytes unchanged and return structured 400/500.
+
+Reject accessors before reading values and reject every function field in the
+four editable domains unless its schema explicitly marks it read-only (none is
+editable). The endpoint accepts only own enumerable data properties and the
+same bounded JSON-safe primitives as the registry; it cannot smuggle a getter,
+prototype key, import expression or executable source into the generated
+module.
 
 - [ ] **Step 5: Build forms from `CONTENT_SCHEMAS`**
 
@@ -3174,7 +3748,7 @@ and a matching one-worker Playwright project.
 
 ```bash
 npm test
-npm run test:e2e:content-disk
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:content-disk
 test -z "$(find src/packs/core -name '*.tmp.mjs' -print -quit)"
 npm test
 node tools/verify-production-surface.mjs
@@ -3189,7 +3763,10 @@ git commit -m "feat: add the schema-driven Content Manager"
 
 **Files:**
 - Modify: `package.json`, `package-lock.json`, `playwright.config.js`,
-  `.github/workflows/ci.yml`, `test/test_engine.js`
+  `.github/workflows/ci.yml`, `.github/workflows/perf.yml`,
+  `.github/workflows/update-baselines.yml`,
+  `tools/ci-contract.mjs`, `test/test_ci_contract.mjs`,
+  `test/test_module_boundaries.mjs`
 - Create: `.github/workflows/simulator-safari.yml`
 - Modify: `AGENTS.md`, `docs/README.md`
 
@@ -3197,9 +3774,10 @@ git commit -m "feat: add the schema-driven Content Manager"
 - Produces: Playwright WebKit emulation on iPhone 17 Pro/iPad Mini; serial disk tools; manual self-hosted Simulator lane.
 - Does not claim Playwright WebKit is Simulator Safari.
 
-- [ ] **Step 1: Add failing config assertions**
+- [ ] **Step 1: Add failing config assertions to the existing CI contract**
 
-In a Node block in `test_engine.js`, read the config/workflows and assert project
+Extend `test/test_ci_contract.mjs`—not the engine self-check—to read the
+config/workflows and assert project
 names `iphone-webkit`, `ipad-webkit`, package script `test:e2e:webkit`, CI install
 contains `chromium webkit`, and Simulator workflow uses labels
 `[self-hosted, macOS, spirebound-simulator]`. Also require
@@ -3207,6 +3785,18 @@ contains `chromium webkit`, and Simulator workflow uses labels
 any WebKit/dev-tool project must never widen canonical snapshot generation.
 Import `e2eServerSettings` and assert an explicit port yields strictPort command,
 127.0.0.1 origin and `reuseExistingServer:false`.
+
+Scan every workflow shell line after Task 5: any executable `playwright test`,
+`npm run test:e2e*` or browser-backed capture command must use
+`tools/run-with-strict-e2e-port.mjs` in the same invocation, except the
+Simulator runner which owns its separate isolated server. This test initially
+fails on the existing bare Linux `update-baselines.yml` capture.
+
+Keep `tools/ci-contract.mjs` as the executable source of truth. Extend its
+`FULL_E2E_LANES` with `e2e-webkit` and assert the stable aggregate gates remain
+named exactly `unit` and `e2e`. Add module-boundary checks only to
+`test/test_module_boundaries.mjs`; do not duplicate CI topology in
+`test_engine.js`.
 
 - [ ] **Step 2: Add WebKit projects and script**
 
@@ -3232,23 +3822,49 @@ prerequisite, not a test and not a password flow. The Linux baseline workflow
 continues installing only the Chromium browser it captures because the update
 script is now project-locked.
 
-- [ ] **Step 3: Extend Linux CI phase-applicably**
+- [ ] **Step 3: Extend the current parallel Linux topology without replacing it**
 
-Install `chromium webkit`; run unit/build/committed-dist checks as today; run the
-existing Chromium kit and WebKit semantic suite. Run the serial Content Manager
-disk test only when Task 19 shipped and the package script exists. Add new
+Preserve the post-Phase-2 topology exactly: all relevant Draft/Ready/`main`
+changes run `unit-tests` and `build-dist` in parallel; Draft PR e2e mode runs
+Chromium smoke, while Ready PRs and `main` run `e2e-disk`, random agent (3
+shards), main (10 shards), `e2e-serial` and visual (desktop, portrait,
+landscape). Add one separate `e2e-webkit` job, one worker, running the two
+semantic projects. Add it to `FULL_E2E_LANES`, the aggregate `e2e` job's
+`needs`/result map and no other required check; `unit` and `e2e` stay the only
+stable required names.
+
+Install `chromium webkit`; keep ffmpeg 8.1 in the npm/unit lane and retain all
+committed-dist/clean-checkout checks. If Task 19 shipped, run content-disk
+sequentially inside `e2e-disk` after the existing disk test, with its own fresh
+server; optionality must not create a dynamic aggregate lane. Add new
 source/config paths to `paths-filter`. Upload behaviour NDJSON/text with existing
-failure artifacts. Before any browser step, allocate once and persist across
-Actions steps:
+failure artifacts.
+
+Change `update-baselines.yml`'s local capture step to exactly
+`node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:update`. Task 24
+later adds its manifest writer around this already-isolated command; it must not
+be the first task to repair the port contract. Tasks 5–19 never dispatch the
+manual baseline workflow; Task 20 must land before Task 24 performs its first
+Round 5 dispatch.
+
+Invoke the shared strict-port wrapper immediately around **each** top-level
+Playwright command in the same step/command invocation:
 
 ```bash
-PORT=$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")
-echo "SPIREBOUND_E2E_PORT=$PORT" >> "$GITHUB_ENV"
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit
 ```
 
-The config's strict bind prevents a race from becoming stale-server reuse.
+Never persist one `GITHUB_ENV` port across commands; the config's strict bind
+prevents a race from becoming stale-server reuse.
 After the production build, run `node tools/verify-production-surface.mjs` as a
 standing CI gate; archive its failure report with other diagnostics.
+
+Keep `.github/workflows/perf.yml`'s existing valid-measurement verifier.
+`test_ci_contract.mjs` must reject any CI source that turns the 55fps/22ms
+reference thresholds into an assertion or non-zero exit. Missing/wrong-tier/
+non-finite/zero/no-frame/browser/application-error measurements still fail;
+valid misses emit `PERF_WARNING`. Deterministic bundle bytes, exact WebGL owner
+count and texture/cache allocation invariants remain hard gates.
 
 - [ ] **Step 4: Add the separately labelled manual Simulator workflow**
 
@@ -3289,17 +3905,24 @@ Content Manager remains optional in the exit contract even if shipped.
 - [ ] **Step 6: Verify and commit**
 
 ```bash
+npm run test:ci
 npm test
-npm run test:e2e
-npm run test:e2e:webkit
+npm run test:progression
+npm run test:act-coupling
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit
 if node -e "const p=require('./package.json');process.exit(p.scripts?.['test:e2e:content-disk']?0:1)"; then
-  npm run test:e2e:content-disk
+  node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:content-disk
 fi
 node tools/verify-production-surface.mjs
+npm run test:round5:standing -- --profile p3
 git diff --check
 git add package.json package-lock.json playwright.config.js \
-  .github/workflows/ci.yml .github/workflows/simulator-safari.yml \
-  AGENTS.md docs/README.md test/test_engine.js
+  .github/workflows/ci.yml .github/workflows/perf.yml \
+  .github/workflows/simulator-safari.yml \
+  .github/workflows/update-baselines.yml tools/ci-contract.mjs \
+  test/test_ci_contract.mjs test/test_module_boundaries.mjs \
+  AGENTS.md docs/README.md
 git commit -m "ci: extend Round 5 browser and tooling gates"
 ```
 
@@ -3407,6 +4030,22 @@ provenance rows. A temporary production build must contain the seven expected
 hashed WOFF2 assets and no Google/Fontsource network URL. No CSS `@import`,
 `fonts.googleapis.com`, `fonts.gstatic.com` or runtime CDN request is allowed.
 
+After implementing the verifier and pinning the packages, generate and verify
+the exact evidence before any later renderer work:
+
+```bash
+npm install --save-exact @fontsource/cinzel@5.2.8 @fontsource/alegreya@5.2.8
+node tools/verify-round5-fonts.mjs --write-evidence
+node tools/verify-round5-fonts.mjs --check
+test -s docs/licences/fonts/cinzel-OFL.txt
+test -s docs/licences/fonts/alegreya-OFL.txt
+test -s docs/licences/fonts/round5-provenance.json
+```
+
+`--check` is read-only and byte-verifies the generated docs, lock integrity,
+seven WOFF2 inputs and package licences. Re-run it after every package/source
+change in this task.
+
 - [ ] **Step 5: Pin the production renderer dependency**
 
 Run `npm install --save-exact pixi.js@8.19.0` in the PE worktree and assert
@@ -3500,7 +4139,8 @@ from `index.html`, gzips at level 9 and fails above that stored max.
 
 ```bash
 npm test
-npx playwright test pixi --project=desktop --workers=1 --no-deps
+node tools/verify-round5-fonts.mjs --check
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test pixi --project=desktop --workers=1 --no-deps
 node tools/check-bundle-budget.mjs
 git add package.json package-lock.json index.html src/main.js src/ui/index.js \
   src/ui/pixi-app.js src/ui/widgets.js src/ui/tween.js src/ui/fonts.js \
@@ -3596,17 +4236,20 @@ Create a dedicated `bfuieditor-disk` one-worker project and
 `test:e2e:bfuieditor-disk` script. `bfuieditor.spec.js` saves through the real
 `/__bfui-save` endpoint, observes live Pixi relayout, and restores the exact
 `src/ui-chrome-layout.js` bytes in `finally`; it never runs under `--no-deps`.
-Insert this disk-writing lane exactly once beside the existing battlefield/
-character editor disk lane in the partitioned `npm run test:e2e`; all remaining
-projects keep `--no-deps`.
+Extend the existing `test:e2e:disk` nested aggregate to run this command exactly
+once after the battlefield/character editor disk command, with a fresh strict
+port. Do not add a new top-level lane or change Task 6's frozen
+`test:e2e = nonvisual && visual` and disk→random→main→serial ordering; all
+remaining projects keep `--no-deps`. Update the exact package/CI-contract source
+assertions accordingly.
 
 - [ ] **Step 6: Verify and commit**
 
 ```bash
 npm test
-npx playwright test pixi battle geometry stage --project=desktop --workers=1 --no-deps
-npm run test:e2e:bfuieditor-disk
-npx playwright test bfeditor --project=desktop --workers=1
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test pixi battle geometry stage --project=desktop --workers=1 --no-deps
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:bfuieditor-disk
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test bfeditor --project=desktop --workers=1
 node tools/check-bundle-budget.mjs
 git add src/ui/combat.js src/ui/combat-gl.js src/ui/widgets.js src/ui/pixi-app.js \
   src/uic.js src/styles.css test/e2e/battle.spec.js test/e2e/geometry.spec.js \
@@ -3683,7 +4326,7 @@ scene/VFX/DOM rig and delegates to Pixi; a CSS-only freeze is not canvas proof.
 
 ```bash
 npm test
-npx playwright test input-router battle trace --project=desktop --workers=1 --no-deps
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test input-router battle trace --project=desktop --workers=1 --no-deps
 git add src/ui/pointer.js src/ui/combat.js src/ui/combat-gl.js src/ui/probe.js \
   src/ui/tooltip.js src/ui/index.js test/e2e/input-router.spec.js \
   test/e2e/helpers.js test/test_engine.js
@@ -3696,6 +4339,7 @@ git commit -m "feat: centralise combat input and Probe v2"
 - Create: `test/e2e/visual-policy.js`
 - Create: `tools/write-baseline-manifest.mjs`
 - Create: `tools/run-baseline-workflow.mjs`
+- Create: `tools/install-baseline-artifact.mjs`
 - Modify: `test/e2e/helpers.js`, `test/e2e/pixi.spec.js`,
   `test/e2e/visual.spec.js`, `test/e2e/trace.spec.js`, `perf.spec.js`,
   `playwright.config.js`, `package.json`
@@ -3716,7 +4360,7 @@ git commit -m "feat: centralise combat input and Probe v2"
 
 - [ ] **Step 1: Prove the frozen P1 fixture projections unchanged**
 
-Run all eight Task 6 fixtures against the P4 renderer in comparison-only mode.
+Run the complete frozen Task 6 fixture manifest against the P4 renderer in comparison-only mode.
 Do not update them. Assert renderer kind/generation separately so the semantic
 names/order remain byte-for-byte fixed.
 
@@ -3778,11 +4422,21 @@ hand a browser an unvalidated arbitrary storage blob. Freeze the profile matrix
 to iPhone 17 Pro portrait and iPad mini (A17 Pro) landscape, each run once as
 fresh and veteran (four rows).
 
-- [ ] **Step 3: Extend performance outputs**
+- [ ] **Step 3: Extend performance outputs without changing Phase 2 policy**
 
-Portrait/LITE CPU 4× remains gating at average ≥55fps and p95 ≤22ms with Pixi
-ready asserted. Add desktop/full-tier recording (foil/high DPR) as non-gating.
-Disable semantic trace recording in both. Write separate JSON artifacts.
+Record portrait/LITE CPU 4× reference targets at average ≥55fps and p95 ≤22ms
+with Pixi ready asserted, plus desktop/Full (foil/high DPR). A valid miss in
+either tier emits `PERF_WARNING`, records the measured/reference values and does
+not fail the task, CI gate or prefix decision. Missing artifact, wrong project
+or tier, zero/non-finite metrics, no frames, browser crash, application error or
+unready Pixi remains a hard failure. Disable semantic trace recording in both
+and write separate JSON artifacts.
+
+Add a source/CI-contract assertion that 55/22 cannot appear in a threshold
+`expect` or non-zero-exit branch. Deterministic main-chunk bytes, exact WebGL
+owner count and texture/cache allocation invariants remain hard gates. The
+host-relative heap measurement in Task 29 keeps its separately declared leak
+gate; this FPS/frame-time policy does not silently redefine it.
 
 - [ ] **Step 4: Extend workflows phase-applicably**
 
@@ -3811,6 +4465,16 @@ tests fake a delayed listing, a previous run on the same SHA, duplicate new
 runs and head mismatch. P5/P6/P7 reuse this helper; no task selects `--limit=1`
 immediately after dispatch.
 
+`tools/install-baseline-artifact.mjs` has the exact CLI
+`--artifact <dir> --expect-sha <sha> --destination
+test/e2e/visual.spec.js-snapshots`. It finds exactly one
+`baseline-manifest.json`, verifies schema/source SHA, exact Linux snapshot
+allowlist, no missing/extra files, bytes and SHA-256 for every row, and performs
+no copy until all validation passes. It then atomically replaces only the
+manifest-listed Linux files and prints their sorted paths. Import-safe tests
+cover head mismatch, traversal, missing/extra/hash failure and all-or-nothing
+copy.
+
 Add package script `test:simulator:profiles` for that exact four-row matrix.
 Each row injects the validated profile on the app origin, reloads, drives real
 title/Vigil/Embark/map/combat controls through Probe/stage pointer paths, and
@@ -3824,9 +4488,9 @@ and require a clean worktree before baseline generation:
 
 ```bash
 npm test
-npm run test:e2e:webkit
-npm run test:e2e:perf
-PERF=1 PERF_TIER=full npx playwright test perf --project=desktop --workers=1 --no-deps
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
+PERF=1 PERF_TIER=full node tools/run-with-strict-e2e-port.mjs -- npx playwright test perf --project=desktop --workers=1 --no-deps
 node tools/check-bundle-budget.mjs
 node --test test/simulator/*.test.mjs
 git add test/e2e/trace.spec.js test/e2e/perf.spec.js playwright.config.js \
@@ -3839,6 +4503,7 @@ git add test/e2e/trace.spec.js test/e2e/perf.spec.js playwright.config.js \
   .github/workflows/simulator-safari.yml \
   .github/workflows/update-baselines.yml \
   tools/write-baseline-manifest.mjs tools/run-baseline-workflow.mjs \
+  tools/install-baseline-artifact.mjs \
   AGENTS.md docs/README.md
 git add test/test_engine.js
 git commit -m "test: prepare the P4 renderer gates"
@@ -3846,6 +4511,11 @@ git push -u origin codex/round5-production-engineering
 P4_SOURCE_SHA=$(git rev-parse HEAD)
 test -z "$(git status --short)"
 ```
+
+Inspect both metric artifacts before committing. A valid reference miss is
+recorded as `PERF_WARNING` and does not abort this step; any missing/invalid/
+crashed measurement still aborts. Never edit the thresholds to make evidence
+green.
 
 - [ ] **Step 6: Recapture and review the P4 visual contract in-phase**
 
@@ -3859,21 +4529,22 @@ contract, and a fresh QA agent verifies evidence/quality. Neither edits tests or
 baselines.
 
 ```bash
-export SPIREBOUND_E2E_PORT=$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")
-npm run test:e2e:update
-npm run test:e2e:visual
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:update
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual
 P4_SOURCE_SHA=$(git rev-parse HEAD)
 node tools/run-baseline-workflow.mjs \
   --workflow update-baselines.yml \
   --ref codex/round5-production-engineering \
   --sha "$P4_SOURCE_SHA" \
   --out /tmp/spirebound-round5-p4-linux-baselines
+node tools/install-baseline-artifact.mjs \
+  --artifact /tmp/spirebound-round5-p4-linux-baselines \
+  --expect-sha "$P4_SOURCE_SHA" \
+  --destination test/e2e/visual.spec.js-snapshots
 ```
 
-Use `baseline-manifest.json` to verify source SHA, exact allowlisted paths,
-byte sizes and SHA-256, then copy only its generated Linux snapshot paths into
-`test/e2e/visual.spec.js-snapshots/`; reject an artifact whose source SHA is not
-`P4_SOURCE_SHA`. A fresh FE agent verifies the captures against the
+The installer enforces source SHA, exact allowlisted paths, byte sizes and
+SHA-256 before copying. A fresh FE agent verifies the captures against the
 approved contract; a fresh QA agent verifies evidence/quality. Any source fix
 creates a new pushed source SHA and repeats both Darwin and Linux generation.
 
@@ -3881,13 +4552,17 @@ creates a new pushed source SHA and repeats both Darwin and Linux generation.
 
 ```bash
 npm test
-npm run test:e2e:webkit
-npm run test:e2e:perf
-PERF=1 PERF_TIER=full npx playwright test perf --project=desktop --workers=1 --no-deps
-npm run test:e2e:visual
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
+PERF=1 PERF_TIER=full node tools/run-with-strict-e2e-port.mjs -- npx playwright test perf --project=desktop --workers=1 --no-deps
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual
 git add test/e2e/visual.spec.js-snapshots
 git commit -m "test: approve the P4 visual baselines"
 ```
+
+Again, valid `PERF_WARNING` rows are preserved as evidence and are not a
+baseline failure. Only the hard measurement-validity conditions from Step 3
+block this commit.
 
 ### Task 25: `[PE]` Close the P4→P5 gate or select the P4 prefix exit
 
@@ -3901,11 +4576,14 @@ git commit -m "test: approve the P4 visual baselines"
 - [ ] **Step 1: Run every P4 gate from a clean checkout**
 
 ```bash
+npm run test:ci
 npm test
-npm run test:e2e
-npm run test:e2e:webkit
-npm run test:e2e:perf
-PERF=1 PERF_TIER=full npx playwright test perf --project=desktop --workers=1 --no-deps
+npm run test:progression
+npm run test:act-coupling
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
+PERF=1 PERF_TIER=full node tools/run-with-strict-e2e-port.mjs -- npx playwright test perf --project=desktop --workers=1 --no-deps
 node tools/check-bundle-budget.mjs
 node tools/verify-production-surface.mjs
 npm run test:simulator:full -- --surface production
@@ -3916,7 +4594,10 @@ git diff --check
 
 Record trace parity, pointer/cancel/lost-capture, context recovery, shake motion,
 bfuiedit/bfedit, all stage shapes, cold-preload fallback, Darwin/Linux baseline
-review and exact Simulator rows. Do not report hardware performance.
+review and exact Simulator rows. Record portrait/LITE and desktop/Full values
+plus any `PERF_WARNING`; a valid target miss alone cannot select a prefix exit
+or block `GO TO P5`. Missing/invalid/crashed measurements remain blocking. Do
+not report hardware performance.
 
 - [ ] **Step 3: Obtain independent review**
 
@@ -4009,7 +4690,7 @@ implementation at the merge boundary.
 
 ```bash
 npm test
-npx playwright test cardface rewards --project=desktop --workers=1 --no-deps
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test cardface rewards --project=desktop --workers=1 --no-deps
 git add src/ui/cardface-layout.js src/ui/cardface.js src/ui/combat-gl.js \
   src/ui/tooltip.js src/ui/overlay.js src/ui/screens/reward.js \
   src/ui/screens/shop.js test/e2e/cardface.spec.js test/test_engine.js
@@ -4057,7 +4738,7 @@ the same semantic action façade and emits accepted/rejected reason codes.
 
 ```bash
 npm test
-npx playwright test input-router battle cardface --project=desktop --workers=1 --no-deps
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test input-router battle cardface --project=desktop --workers=1 --no-deps
 git add src/ui/hand-layout.js src/ui/combat-gl.js src/ui/combat.js \
   src/ui/pointer.js src/ui/probe.js src/ui/index.js src/styles.css \
   test/e2e/input-router.spec.js test/e2e/battle.spec.js \
@@ -4069,8 +4750,9 @@ git commit -m "feat: migrate the combat hand and keyboard path"
 
 **Files:**
 - Modify: `src/ui/drain.js`, `src/ui/combat-gl.js`, `src/ui/tween.js`, `src/vfx.js`, `src/pile-chrome.js`, `src/styles.css`
+- Read-only: `src/ui/screens/end.js`
 - Create: `test/e2e/presentation.spec.js`
-- Modify: `test/e2e/trace.spec.js`, `visual.spec.js`
+- Modify: `test/e2e/trace.spec.js`, `visual.spec.js`, `test/test_engine.js`
 
 **Interfaces:**
 - Leaves no combat use of DOM `#floaties`; non-combat floaties may remain.
@@ -4091,6 +4773,23 @@ shatter fragments and banners into the Pixi scene/ticker. Pixi shatter consumes
 the mesh handoff canvas as a temporary texture, animates fragments and destroys
 it on settle.
 
+Inventory queue ownership by `{domain,eventType}`, never by event name alone.
+Migrate only combat `cb.queue` owners in this task: `questReveal`,
+`questProgress`, `questComplete`, `questUnlock`, `variantDialogue`,
+`hollowTithe` and `monumentGift`, plus pre-existing `bossIntro`, relic/status,
+damage and combat-terminal events. Preserve each event's ordering,
+detached-animation barrier and exact fallback. Trace only semantic
+quest/variant/event ids and stable outcomes; never copy `variantDialogue` text
+into trace records.
+
+The distinct `run.endQueue` domain remains DOM-owned by `screens/end.js` for
+Task 33/P6: `whisper`, `questReveal`, `questProgress`, `questUnlock`,
+`pageRead`, `eighthResolved`, `shadeResolved`, `questComplete`, `shardGrant`
+and `act4Reveal`. The four overlapping quest names therefore have two explicit
+domain-qualified owners. Task 28 does not edit or migrate a Dawn panel. Add a
+source inventory asserting every `{domain,eventType}` row has exactly one
+declared owner and no Phase-2 event falls through silently.
+
 - [ ] **Step 3: Preserve trace and replay descriptors**
 
 Each ceremony span publishes only the immutable renderer-neutral descriptor;
@@ -4101,10 +4800,10 @@ factory without engine mutation.
 
 ```bash
 npm test
-npx playwright test presentation trace --project=desktop --workers=1 --no-deps
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test presentation trace --project=desktop --workers=1 --no-deps
 git add src/ui/drain.js src/ui/combat-gl.js src/ui/tween.js src/vfx.js \
   src/pile-chrome.js src/styles.css test/e2e/presentation.spec.js \
-  test/e2e/trace.spec.js test/e2e/visual.spec.js
+  test/e2e/trace.spec.js test/e2e/visual.spec.js test/test_engine.js
 git commit -m "feat: migrate combat presentation ceremonies to Pixi"
 ```
 
@@ -4170,9 +4869,9 @@ path and push the clean source head:
 
 ```bash
 npm test
-npm run test:e2e:webkit
-npm run test:e2e:leak
-npm run test:e2e:perf
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:leak
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
 node tools/check-bundle-budget.mjs
 node tools/verify-production-surface.mjs
 npm run test:simulator:full -- --surface production
@@ -4186,18 +4885,39 @@ git push origin codex/round5-production-engineering
 test -z "$(git status --short)"
 ```
 
+`test:e2e:leak`, deterministic cache/texture allocation and bundle failures are
+hard. A valid portrait/LITE or desktop/Full `PERF_WARNING` is recorded and does
+not block this source commit; missing/invalid/crashed perf evidence does.
+
+Use `apply_patch` to append `P5 baseline source: <actual HEAD>` to the ignored
+ledger after the clean push.
+
 - [ ] **Step 6: Recapture and review the P5 visual contract in-phase**
 
-Immediately before the baseline helper/dispatch, recompute in that same shell:
+Reload the durable source SHA and execute the full local/remote install flow:
 
 ```bash
-P5_SOURCE_SHA=$(git rev-parse HEAD)
+P5_SOURCE_SHA=$(sed -n 's/^P5 baseline source: //p' .superpowers/sdd/progress.md | tail -1)
+test -n "$P5_SOURCE_SHA"
+test "$(git rev-parse HEAD)" = "$P5_SOURCE_SHA"
 test -z "$(git status --short)"
+git push origin codex/round5-production-engineering
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:update
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual
+node tools/run-baseline-workflow.mjs \
+  --workflow update-baselines.yml \
+  --ref codex/round5-production-engineering \
+  --sha "$P5_SOURCE_SHA" \
+  --out /tmp/spirebound-round5-p5-linux-baselines
+node tools/install-baseline-artifact.mjs \
+  --artifact /tmp/spirebound-round5-p5-linux-baselines \
+  --expect-sha "$P5_SOURCE_SHA" \
+  --destination test/e2e/visual.spec.js-snapshots
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual
 ```
 
-Repeat the Task 24 Darwin/Linux commands from that `P5_SOURCE_SHA`, including the
-remote push-before-dispatch rule and `gh run view ... --json headSha` equality
-check. Inspect every
+`run-baseline-workflow.mjs` rejects any dispatch/run whose `headSha` differs
+from `P5_SOURCE_SHA`; the installer rejects manifest/path/hash drift. Inspect every
 changed hand/card/floaty/banner/pile frame and deterministic terminal state. A
 fresh FE agent checks the approved card/ceremony contract; fresh QA checks the
 evidence and code-quality package. Do not carry a P4 baseline into P6 when P5
@@ -4208,17 +4928,20 @@ changed its contract. Require suite key `p5Cards` and the unchanged fixed
 
 ```bash
 npm test
-npm run test:e2e
-npm run test:e2e:webkit
-npm run test:e2e:leak
-npm run test:e2e:perf
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:leak
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
 node tools/check-bundle-budget.mjs
 node tools/verify-production-surface.mjs
 npm run test:simulator:full -- --surface production
-npm run test:e2e:visual
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual
 git add test/e2e/visual.spec.js-snapshots
 git commit -m "test: approve the P5 visual baselines"
 ```
+
+Preserve any valid `PERF_WARNING` in the P5 evidence. It cannot make the visual
+gate red or trigger a tolerance/baseline change.
 
 ### Task 30: `[PE]` Close P5 and publish the P6 hand-off
 
@@ -4231,9 +4954,31 @@ git commit -m "test: approve the P5 visual baselines"
 
 - [ ] **Step 1: Re-run P4 commands plus P5 leak/full matrix**
 
-Run all Task 25 commands plus `npm run test:e2e:leak`. Require P1/P4/P5 trace
+Run this exact clean-source gate:
+
+```bash
+npm run test:ci
+npm test
+npm run test:progression
+npm run test:act-coupling
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
+PERF=1 PERF_TIER=full node tools/run-with-strict-e2e-port.mjs -- npx playwright test perf --project=desktop --workers=1 --no-deps
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:leak
+node tools/check-bundle-budget.mjs
+node tools/verify-production-surface.mjs
+npm run test:simulator:full -- --surface production
+npm run test:round5:standing -- --profile p5
+git diff --check
+```
+
+Require P1/P4/P5 trace
 parity, exact DOM list, one composer, keyboard path, recovery, cache/heap/bundle/
-perf and Darwin/Linux visual approval.
+perf and Darwin/Linux visual approval. Record valid performance target misses
+as `PERF_WARNING`; they cannot by themselves select `P5 PREFIX EXIT` or block
+`GO TO P6`. The declared heap leak/cache/bundle invariants and invalid/crashed
+performance evidence remain blocking.
 
 - [ ] **Step 2: Generate the cross-lane manifest**
 
@@ -4292,7 +5037,11 @@ git fetch origin --prune
 git rebase codex/round5-production-engineering
 ```
 
-Expected: only FE-owned contract history replays; status is clean.
+Expected: Task 21's recorded FE merge already makes every contract commit an
+ancestor of the PE hand-off, so this advances the FE branch to the P5 head with
+zero replayed commits and a clean status. If Git attempts to duplicate/replay a
+contract commit, stop and repair ancestry rather than accepting duplicate
+history.
 
 - [ ] **Step 2: Validate the frozen selector vocabulary**
 
@@ -4343,8 +5092,9 @@ git commit -m "style: add the Round 5 screen experience layer"
 ### Task 32: `[PE]` Implement Title and Embark presentation seams
 
 **Files:**
-- Modify: `src/ui/screens/title.js`, `src/ui/screens/embark.js`, `src/ui/tokens.js`, `src/ui/tween.js`
-- Modify/Test: `test/e2e/stage.spec.js`, `trace.spec.js`
+- Modify: `src/ui/screens/title.js`, `src/ui/screens/embark.js`, `src/ui/rose.js`,
+  `src/ui/tokens.js`, `src/ui/tween.js`
+- Modify/Test: `test/e2e/stage.spec.js`, `trace.spec.js`, `emberglass.spec.js`
 
 **Interfaces:**
 - Produces frozen P6 selector/state markup for Title/Embark; consumes FE contract values.
@@ -4357,6 +5107,11 @@ states, reveal logic is unchanged, ignition runs once per page session, Begin
 emits lantern-lighting span then enters map, and REDUCED lands directly on the
 named final state.
 
+Cover the Title Rose states here, before Task 34: Rose absent, medallion loading,
+inert and ready, including decode failure, labelled fallback, keyboard focus and
+REDUCED terminal frames. These tests consume the existing Phase-2 reveal/asset
+facts and never invent quest state.
+
 - [ ] **Step 2: Implement stable markup and ceremonies**
 
 Use exact selectors from Task 31. Title supports three P7 parallax layer asset
@@ -4368,42 +5123,59 @@ engine/Vigil reveal decisions untouched.
 
 ```bash
 npm test
-npx playwright test stage trace --project=desktop --workers=1 --no-deps
-git add src/ui/screens/title.js src/ui/screens/embark.js src/ui/tokens.js \
-  src/ui/tween.js test/e2e/stage.spec.js test/e2e/trace.spec.js
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test stage trace --project=desktop --workers=1 --no-deps
+git add src/ui/screens/title.js src/ui/screens/embark.js src/ui/rose.js \
+  src/ui/tokens.js src/ui/tween.js test/e2e/stage.spec.js \
+  test/e2e/trace.spec.js test/e2e/emberglass.spec.js
 git commit -m "feat: harden Title and Embark presentation"
 ```
 
-### Task 33: `[PE]` Implement Fallen and Victory ceremonies
+### Task 33: `[PE]` Implement Fall and Dawn ceremonies
 
 **Files:**
-- Modify: `src/ui/screens/end.js`, `src/ui/tween.js`, `src/ui/drain.js`
+- Modify: `src/ui/screens/end.js`, `src/ui/tween.js`, `src/ui/drain.js`,
+  `src/ui/overlay.js`
 - Create: `test/e2e/end-ceremony.spec.js`
+- Modify/Test: `test/e2e/emberglass.spec.js`,
+  `test/e2e/emberglass-persistence.spec.js`, `test/e2e/trace.spec.js`
 
 **Interfaces:**
 - Produces monument-carving and dawn presentation spans; persistence/ledger logic remains unchanged.
 
 - [ ] **Step 1: Write failing full/reduced ceremony tests**
 
-Assert exact order: Fallen plate rise→chisel beats→ember spray→bequest→whisper→
-stats; Victory bloom→ascended parallax→shard/page queue→ledger→close. Assert
+Assert exact order: Fall plate rise→chisel beats→ember spray→bequest→whisper→
+stats; Dawn bloom→ascended parallax→shard/page queue→ledger→close. Assert
 existing pending-dawn persistence survives reload and REDUCED produces one
 terminal frame with settled spans.
+
+Require one presentation case for each exact Dawn owner: `whisper`,
+`questReveal`, `questProgress`, `questUnlock`, `pageRead`, `eighthResolved`,
+`shadeResolved`, `questComplete`, `shardGrant` and non-path `act4Reveal`, plus
+cursor-save retry, final-clear retry and reload resume from the acknowledged
+cursor. Fall includes the unpaid Shade-bequest state with no phantom choice.
+All cases preserve the reviewed `run-effects` transaction owner and the
+overlay-owned inert/focus/retry modal.
 
 - [ ] **Step 2: Implement from the FE motion table**
 
 Use `.r5-end*`, `.r5-monument`, `.r5-dawn-ledger`; pass presentation payloads
 through trace/replay descriptors. Reuse `sunrise`, confetti and `tweenNum` only
 where their contract still matches. Audio calls use existing ids only.
+The compatibility CSS modifiers `.r5-end--fallen`/`.r5-end--victory`, internal
+outcomes `death`/`win`, cue ids `defeat`/`victory` and display titles
+`FALLEN`/`ASCENDED` stay unchanged; docs and domain narration call the outcomes
+Fall and Dawn.
 
 - [ ] **Step 3: Verify and commit**
 
 ```bash
 npm test
-npx playwright test end-ceremony trace --project=desktop --workers=1 --no-deps
-git add src/ui/screens/end.js src/ui/tween.js src/ui/drain.js \
-  test/e2e/end-ceremony.spec.js
-git commit -m "feat: add Fallen and Victory ceremonies"
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test end-ceremony trace --project=desktop --workers=1 --no-deps
+git add src/ui/screens/end.js src/ui/tween.js src/ui/drain.js src/ui/overlay.js \
+  test/e2e/end-ceremony.spec.js test/e2e/emberglass.spec.js \
+  test/e2e/emberglass-persistence.spec.js test/e2e/trace.spec.js
+git commit -m "feat: add Fall and Dawn ceremonies"
 ```
 
 ### Task 34: `[PE]` Implement remaining P6 screens and deterministic capture
@@ -4425,13 +5197,23 @@ For each screen assert fresh/grown profile, all five stage shapes, scene-panel
 theme resolution, card texture use in shop/rewards, and named ceremony trace.
 Map keeps DOM-on-3D projection and adds entrance/path/camera spans only.
 
+Treat the Task 2 additive Phase-2 matrix as mandatory capture/state coverage,
+not extra screens. Task 32 already owns Title Rose absent/loading/inert/ready;
+Task 33 already owns all ten Dawn events, both retries and unpaid Shade bequest.
+This task implements the Vigil Rose atomic raster/fallback, four pane states,
+selection/whispers/six shards; all Hollow payment/save/recovery states;
+Witchlight/eighth markers, hidden/visible/open sealed-door promise and drag
+suppression; and all four Usurper shop states. Re-run the earlier Title and end
+cases in the integrated matrix. `act4Reveal` and the open sealed door remain a
+non-path promise with no node, route or Act 4 gameplay.
+
 `contrast.spec.js` visits every visible text/state in the same matrix, resolves
 computed foreground/background colours with alpha compositing, and requires
 ≥4.5:1. It fails on transparent/unknown backgrounds rather than assuming a
 colour. Canvas card images use the P5 pixel-sampling result, not DOM CSS maths.
 
-Add deterministic visual cases for Title/Embark fresh and grown; Fallen;
-Victory; rewards and boss relic; rest and treasure; lamplighter and Hollow;
+Add deterministic visual cases for Title/Embark fresh and grown; Fall; Dawn;
+rewards and boss relic; rest and treasure; lamplighter and Hollow;
 Vigil; and map. The table covers all five canonical shapes at least once and
 both profile states for each screen family. Add the cases now, but do not create
 their baselines until the Task 37 owner gate.
@@ -4447,18 +5229,29 @@ Use the fixed selector set. PE owns every handler, theme/card-texture resolve,
 audio call, trace/probe hook, accessibility state and scenario URL. No FE-owned
 CSS rule is copied into `src/styles.css`.
 
+PR #16's `hollowLamplighter`, `roseWindow` and `sealedDoor` Music Cues are
+already live PE-owned predecessor behaviour, not FE proposals. Preserve their
+real state owners and the Task 6 audio/trace characterisation while applying
+screen presentation. The FE contract may align visual beats but cannot mark,
+wire, defer or replace a cue. A forced gallery preview cannot replace the
+gameplay evidence, and `sealedDoor` remains a non-path promise.
+
 - [ ] **Step 3: Implement the capture script**
 
 Add package script `capture:round5:contact-sheets`. The tool drives URL-addressed
-Lab/probe scenarios for every screen × stage shape × fresh/grown state, waits on
-presentation settle/fonts/images, freezes, captures PNGs and composes one sheet
-per screen under `test-results/round5-contact-sheets/`.
+Lab/probe scenarios for every screen × stage shape × fresh/grown state **and**
+every named additive Phase-2 substate from the Task 2 contract. Its frozen
+capture manifest lists all 43 additive rows by stable state id and maps each to
+its owning base screen; a missing/duplicate state fails before capture. The tool
+waits on presentation settle/fonts/images, freezes, captures PNGs and composes
+one sheet per screen with separate base and Phase-2-substate sections under
+`test-results/round5-contact-sheets/`.
 
 - [ ] **Step 4: Verify and commit**
 
 ```bash
 npm test
-npx playwright test p6-screens contrast trace --project=desktop --workers=1 --no-deps
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test p6-screens contrast trace --project=desktop --workers=1 --no-deps
 node --test test/simulator/screens-profile.test.mjs
 git add src/ui/screens/reward.js src/ui/screens/shop.js \
   src/ui/screens/event.js src/ui/screens/rest.js \
@@ -4509,8 +5302,8 @@ SDD ledger. Do not rely on the shell variable outside this command block.
 
 ```bash
 npm test
-npx playwright test p6-screens end-ceremony contrast stage trace --project=desktop --project=portrait --project=landscape --workers=1 --no-deps
-npm run capture:round5:contact-sheets
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test p6-screens end-ceremony contrast stage trace --project=desktop --project=portrait --project=landscape --workers=1 --no-deps
+node tools/run-with-strict-e2e-port.mjs -- npm run capture:round5:contact-sheets
 ```
 
 Inspect every individual capture before composing sheets. Record contrast,
@@ -4563,7 +5356,11 @@ recommended FE CSS change; no JS suggestion.
 - [ ] **Step 3: Fix CSS-only findings and re-capture through PE**
 
 If needed, edit only `round5-screens.css`, commit, hand the hash to PE, and have
-PE rerun Task 35 capture. Repeat until the report says `FE pre-filter: PASS`.
+PE merge it and run `npm test`, the three-project
+`p6-screens end-ceremony contrast stage trace` command, and
+`node tools/run-with-strict-e2e-port.mjs -- npm run
+capture:round5:contact-sheets` from a clean committed source head.
+Repeat until the report says `FE pre-filter: PASS`.
 
 - [ ] **Step 4: Commit the review**
 
@@ -4588,12 +5385,22 @@ git commit -m "docs: approve the P6 FE contact-sheet pre-filter"
 
 - [ ] **Step 1: PE merges the final FE CSS/review commit and re-captures**
 
-Verify the merge diff remains FE-only, rerun Task 35 commands, and present the
-fixed-format sheets plus FE PASS report to the owner. Before merging the final
+Verify the merge diff remains FE-only and present the fixed-format sheets plus
+FE PASS report to the owner. Before merging the final
 FE correction/review head, record `PE_PRE_FE_P6=$(git rev-parse HEAD)`; after
 `--no-ff`, record `FE_P6_MERGE=$(git rev-parse HEAD)`. The P6 gate report names
 both hashes, frozen selector/stylesheet interface and rollback command
 `git revert -m 1 "$FE_P6_MERGE"`.
+
+Run the exact integrated recapture after the merge:
+
+```bash
+npm test
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test p6-screens end-ceremony contrast stage trace --project=desktop --project=portrait --project=landscape --workers=1 --no-deps
+node tools/run-with-strict-e2e-port.mjs -- npm run capture:round5:contact-sheets
+test -s test-results/round5-contact-sheets/manifest.json
+node -e 'const fs=require("node:fs");const m=JSON.parse(fs.readFileSync("test-results/round5-contact-sheets/manifest.json"));if(m.sourceSha!==require("node:child_process").execFileSync("git",["rev-parse","HEAD"],{encoding:"utf8"}).trim())process.exit(1)'
+```
 
 After re-capture, compute a candidate manifest in `test-results` but keep the
 worktree clean for the source-SHA push. The owner reviews those exact hashes.
@@ -4605,49 +5412,76 @@ verify every manifest hash and record that fact; never finish with an ignored
 
 - [ ] **Step 2: Owner signs each screen set**
 
-Record explicit pass/change decision for Title/Embark, Fallen/Victory,
+Record explicit pass/change decision for Title/Embark, Fall/Dawn,
 non-combat panels and map in the execution ledger. Do not create/dirty the gate
 report until remote baseline generation has locked the source SHA. No agent may
 substitute its taste verdict.
 
+The owner decision reviews only visual/timing taste around PR #16's already-live
+Music Cues; it cannot approve, defer or undo gameplay wiring. PE must present
+the Task 6/current audio/trace evidence for `hollowLamplighter`, `roseWindow`,
+`sealedDoor` and the other Phase 2 call sites. Gallery force-preview evidence is
+not accepted. Visual approval of `sealedDoor` never authorises an Act 4 route.
+
 - [ ] **Step 3: Refresh baselines only after all owner passes**
 
-Refresh Darwin locally; run the Linux baseline workflow, download its artifact,
-eyeball both sets and stage them in the same gate commit. Run
-`npm run test:simulator:smoke -- --surface production --journey screens`, then
-promote the two JSON/screenshots plus source-SHA/SHA-256 manifest into the
-declared P6 artifact directory.
-
 First require the final FE merge/correction head to be committed and clean,
-push it, and record `P6_SOURCE_SHA`. Repeat the Task 24 update-baselines commands
-and require the workflow run's `headSha` to equal `P6_SOURCE_SHA`; any correction
-creates a new source commit/SHA and repeats both platforms. Require suite key
-`p6Screens` and the unchanged fixed `0.01` policy before capture.
+push it, and use `apply_patch` to append `P6 baseline source: <actual HEAD>` to
+the ignored ledger. Then execute the complete local/remote install and
+Simulator flow; any correction creates a new source commit/SHA, appends a new
+ledger row and repeats the block. Require suite key `p6Screens` and the
+unchanged fixed `0.01` policy before capture.
 
 ```bash
+P6_SOURCE_SHA=$(sed -n 's/^P6 baseline source: //p' .superpowers/sdd/progress.md | tail -1)
+test -n "$P6_SOURCE_SHA"
+test "$(git rev-parse HEAD)" = "$P6_SOURCE_SHA"
 test -z "$(git status --short)"
 git push origin codex/round5-production-engineering
-P6_SOURCE_SHA=$(git rev-parse HEAD)
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:update
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual
+node tools/run-baseline-workflow.mjs \
+  --workflow update-baselines.yml \
+  --ref codex/round5-production-engineering \
+  --sha "$P6_SOURCE_SHA" \
+  --out /tmp/spirebound-round5-p6-linux-baselines
+node tools/install-baseline-artifact.mjs \
+  --artifact /tmp/spirebound-round5-p6-linux-baselines \
+  --expect-sha "$P6_SOURCE_SHA" \
+  --destination test/e2e/visual.spec.js-snapshots
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual
 npm run test:simulator:smoke -- --surface production --journey screens
+npm run test:round5:standing -- --profile p6
 ```
 
-Recompute `P6_SOURCE_SHA=$(git rev-parse HEAD)` in the same shell immediately
-before each baseline helper/dispatch and `headSha` comparison; the prose record
-or an earlier shell variable is not executable state.
+Promote the two Simulator JSON/screenshots/text/NDJSON rows plus their
+source-SHA/path/bytes/SHA-256 manifest into the declared P6 artifact directory,
+and promote the final contact-sheet manifest/captures from Step 1. The baseline
+helper rejects a workflow `headSha` mismatch and the installer rejects all
+manifest/path/hash drift.
+
+Record any valid FPS/frame-time `PERF_WARNING` without changing the decision;
+it cannot by itself force `P6 PREFIX EXIT` or block `GO TO P7`. Invalid/crashed
+performance evidence and the standing hard bundle/leak/context/cache gates do
+block closure.
 
 - [ ] **Step 4: Commit GO or close the P6 prefix**
 
 After promoting the final contact-sheet artifacts and baselines, run:
 
 ```bash
+npm run test:ci
 npm test
-npm run test:e2e
-npm run test:e2e:webkit
-npm run test:e2e:leak
-npm run test:e2e:perf
+npm run test:progression
+npm run test:act-coupling
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:leak
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
 node tools/check-bundle-budget.mjs
 node tools/verify-production-surface.mjs
 npm run test:simulator:smoke -- --surface production --journey screens
+npm run test:round5:standing -- --profile p6
 ```
 
 For `Decision: GO TO P7`, update the three status docs and commit:
@@ -4864,7 +5698,7 @@ Run the focused and standing gates, then commit every non-generated input:
 
 ```bash
 npm test
-npx playwright test stage battle p6-screens trace --project=desktop --workers=1 --no-deps
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test stage battle p6-screens trace --project=desktop --workers=1 --no-deps
 npm run test:round5:standing -- --profile p6
 git add src/packs/core/themes.js src/ui/combat.js src/ui/screens/title.js \
   src/ui/screens/end.js \
@@ -4890,7 +5724,7 @@ P7_CAPTURE_SOURCE_SHA=$(sed -n 's/^P7 store capture source: //p' \
   .superpowers/sdd/progress.md | tail -1)
 test -n "$P7_CAPTURE_SOURCE_SHA"
 test "$(git rev-parse HEAD)" = "$P7_CAPTURE_SOURCE_SHA"
-npm run capture:store-kit
+node tools/run-with-strict-e2e-port.mjs -- npm run capture:store-kit
 tools/gen-icons.sh --public-only \
   --source docs/store-assets/round5/title.png
 ```
@@ -4905,7 +5739,7 @@ and `p6` standing gates, and obtain fresh FE plus QA approval.
 
 ```bash
 npm test
-npx playwright test stage battle p6-screens trace --project=desktop --workers=1 --no-deps
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test stage battle p6-screens trace --project=desktop --workers=1 --no-deps
 npm run test:round5:standing -- --profile p6
 ```
 
@@ -4948,12 +5782,9 @@ clean. Read `docs/store-assets/round5/manifest.json.sourceSha` and require no
 diff from that commit to `HEAD` across `src/**`, non-snapshot `test/**`,
 `index.html`, package/lock, Vite/Playwright configs, `tools/capture-store-kit.mjs`,
 `tools/gen-icons.sh` and `docs/store-shot-list.md`. If any such path changed
-(including an `origin/main` merge), first treat clean current `HEAD` as a new
-P7 store capture source and repeat Task 39 Steps 6–7: regenerate store captures,
-icons and manifest, obtain FE/QA approval and commit the evidence-only delta.
-Then push that refreshed head and continue. Only after this provenance check
-passes, push/record the P7 baseline source SHA and repeat the Task 24
-Darwin/Linux baseline procedure from that immutable head.
+(including an `origin/main` merge), run the exact store refresh block below,
+obtain FE/QA approval and commit the evidence-only delta. Only after the
+equivalence check passes may baseline capture begin.
 
 Use this exact equivalence check; exit 42 triggers the Task 39 refresh described
 above, after which reload the new manifest and rerun it:
@@ -4970,32 +5801,73 @@ git diff --quiet "$STORE_SOURCE_SHA"..HEAD -- \
   playwright.config.js playwright-server.js playwright.random-agent.config.js \
   tools/capture-store-kit.mjs tools/gen-icons.sh docs/store-shot-list.md || exit 42
 ```
+
+Exit 42 means: with clean current `HEAD`, use `apply_patch` to append
+`P7 store recapture source: <actual HEAD>` to the ledger, then run:
+
+```bash
+P7_CAPTURE_SOURCE_SHA=$(sed -n 's/^P7 store recapture source: //p' .superpowers/sdd/progress.md | tail -1)
+test -n "$P7_CAPTURE_SOURCE_SHA"
+test "$(git rev-parse HEAD)" = "$P7_CAPTURE_SOURCE_SHA"
+test -z "$(git status --short)"
+node tools/run-with-strict-e2e-port.mjs -- npm run capture:store-kit
+tools/gen-icons.sh --public-only --source docs/store-assets/round5/title.png
+node -e 'const fs=require("node:fs");const m=JSON.parse(fs.readFileSync("docs/store-assets/round5/manifest.json"));if(m.sourceSha!==process.argv[1])process.exit(1)' "$P7_CAPTURE_SOURCE_SHA"
+npm test
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test stage battle p6-screens trace --project=desktop --workers=1 --no-deps
+npm run test:round5:standing -- --profile p6
+git add docs/README.md \
+  docs/superpowers/reports/2026-07-10-round5-p7-handoff.md \
+  docs/store-assets/round5/title.png docs/store-assets/round5/combat.png \
+  docs/store-assets/round5/map.png docs/store-assets/round5/rose-window.png \
+  docs/store-assets/round5/boss.png docs/store-assets/round5/raw-reference.webm \
+  docs/store-assets/round5/manifest.json \
+  public/icon-180.png public/icon-512.png public/og.png public/feature-graphic.png
+git diff --cached --check
+git commit -m "feat: refresh the provisional Round 5 ship-front kit"
+git push origin codex/round5-production-engineering
+```
+
+Fresh FE and QA approvals occur after generation and before the commit. Rerun
+the exact equivalence check against the new manifest; do not continue on a
+second exit 42.
 Inspect title layers, boss overrides/fallback, unlock toast and every previously
 approved P4–P6 frame. Reject a Linux artifact whose source SHA differs. Fresh
 FE verifies the approved P7 visual package; fresh QA verifies evidence/quality.
 Require suite key `p7Shipfront` and the unchanged fixed `0.01` policy before
 capture.
 
+With equivalence green, use `apply_patch` to append
+`P7 final baseline source: <actual HEAD>` to the ignored ledger, then execute:
+
 ```bash
+P7_SOURCE_SHA=$(sed -n 's/^P7 final baseline source: //p' .superpowers/sdd/progress.md | tail -1)
+test -n "$P7_SOURCE_SHA"
+test "$(git rev-parse HEAD)" = "$P7_SOURCE_SHA"
 test -z "$(git status --short)"
 git push origin codex/round5-production-engineering
-P7_SOURCE_SHA=$(git rev-parse HEAD)
-```
-
-Run the Darwin update after that push, then dispatch Linux and require the
-workflow run's `headSha` to equal
-`P7_SOURCE_SHA`. Recompute `P7_SOURCE_SHA=$(git rev-parse HEAD)` in the same
-shell immediately before the Task 24 helper/dispatch; do not rely on the
-variable from the preceding block. Any source fix creates a new commit/SHA and regenerates both
-platforms before the complete gate. After both reviews approve, commit only the
-Darwin/Linux snapshot delta and push it:
-
-```bash
-npm run test:e2e:visual
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:update
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual
+node tools/run-baseline-workflow.mjs \
+  --workflow update-baselines.yml \
+  --ref codex/round5-production-engineering \
+  --sha "$P7_SOURCE_SHA" \
+  --out /tmp/spirebound-round5-p7-linux-baselines
+node tools/install-baseline-artifact.mjs \
+  --artifact /tmp/spirebound-round5-p7-linux-baselines \
+  --expect-sha "$P7_SOURCE_SHA" \
+  --destination test/e2e/visual.spec.js-snapshots
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual
 git add test/e2e/visual.spec.js-snapshots
+git diff --cached --check
 git commit -m "test: approve the P7 visual baselines"
 git push origin codex/round5-production-engineering
 ```
+
+`run-baseline-workflow.mjs` requires the remote run `headSha` to equal
+`P7_SOURCE_SHA`; the installer validates the manifest before copying. Any
+source fix starts Step 1 again. Fresh FE/QA approve both platforms before the
+baseline-only commit.
 
 This makes every visual artifact part of the broad committed review range. No
 subsequent step may change source/test/config without returning here and producing a
@@ -5010,8 +5882,8 @@ reviewer checks both spec compliance and code quality. One fixer resolves the
 complete Critical/Important list with TDD and exact commits.
 
 Any source, test, config, workflow or baseline fix is committed/pushed and
-returns to Step 1: first refresh Task 39 store-kit evidence when its capture
-inputs changed, then regenerate Darwin and Linux from the new SHA, repeat FE/QA
+returns to Step 1: run its exact store-recapture block when capture inputs
+changed, then run its exact Darwin/Linux block from the new SHA, repeat FE/QA
 visual review, commit those baselines, then repeat this broad review. Continue
 only when the committed head has an explicit approval and the PE worktree has
 no unexpected changes.
@@ -5019,22 +5891,31 @@ no unexpected changes.
 - [ ] **Step 3: Run the complete gate, then generate final `dist/`**
 
 ```bash
+npm run test:ci
 npm test
-npm run test:e2e
-npm run test:e2e:webkit
+npm run test:progression
+npm run test:act-coupling
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit
 if node -e "const p=require('./package.json');process.exit(p.scripts?.['test:e2e:content-disk']?0:1)"; then
-  npm run test:e2e:content-disk
+  node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:content-disk
 fi
-npm run test:e2e:leak
-npm run test:e2e:perf
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:leak
+node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
 node tools/check-bundle-budget.mjs
 node tools/verify-production-surface.mjs
 npm run test:simulator:full -- --surface production
 npm run test:simulator:profiles -- --surface production
-npm run test:act-coupling
+npm run test:round5:standing -- --profile full
 git diff --check
 npm run build
 ```
+
+The full report records both tiers' measured values and every valid
+`PERF_WARNING`; such a warning cannot fail Full-Round or block the PR. Missing,
+invalid, wrong-tier, zero/non-finite, no-frame or crashed measurements do fail,
+as do the deterministic bundle, WebGL-owner, texture/cache and declared leak
+gates. Do not rewrite policy or thresholds during closure.
 
 The profile command produces exactly four actual-Simulator Safari rows:
 
@@ -5194,4 +6075,7 @@ has merged and post-merge tests pass.
 - [ ] Each runtime task has a RED command, a focused GREEN command, phase-applicable gates and an exact commit boundary.
 - [ ] Content Manager remains optional; its tests are conditional when omitted.
 - [ ] Simulator results are compatibility evidence only; no physical-device gate appears.
+- [ ] Phase 2 terminal/Dawn/Hollow/Shard/choice-latch, PR #15 hot apply and PR #16's 22-cue resolver/live call sites each retain one named owner and focused characterisation.
+- [ ] P2 exposes exactly 28 content views plus four non-pack protocol exports; recursive freeze has no closure-backed accessors.
+- [ ] Valid FPS/frame-time target misses remain `PERF_WARNING`; invalid/crashed evidence and deterministic bundle/context/cache/leak invariants retain their declared hard gates.
 - [ ] Generated `dist/` is committed only by Task 40 or an explicitly selected supported prefix closure.
