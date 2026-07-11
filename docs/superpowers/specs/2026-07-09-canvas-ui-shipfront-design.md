@@ -8,7 +8,9 @@ trace, iOS Simulator Safari coverage, and explicit Production Engineering /
 Front-end Experience agent ownership; revised 2026-07-11 after PR #14 and
 PR #15 merged: the 32-export data contract, transactional Dawn recovery,
 parallel-CI/performance policy, Phase 2 presentation states, and hot-applied
-audio-gallery behaviour are now part of the Round 5 baseline)
+audio-gallery behaviour are now part of the Round 5 baseline; revised again
+after PR #16 merged: all 22 Music Cues, the pure cue resolver and their live
+Phase 2 call sites are predecessor behaviour rather than Round 5 intent)
 **Goal:** The commercial-grade production-engineering and final visual-hardening
 round. Replace the fragile CSS-composited
 combat UI with a **game-rendered PixiJS layer** (chrome *and* hand cards),
@@ -32,10 +34,12 @@ checkpoint**, never left to the executor.
 `2026-07-09-pile-chrome-ceremony-design.md` (flight budgets carried over),
 `2026-07-09-entrance-progressive-delivery-design.md` (**landed prerequisite:**
 Phase 2 — variants, the Emberglass chain, Rose Window, transactional Dawn and
-sealed summit promise — merged in PR #14 at `4698906`; PR #15 then established
-the current `4dc1af7` baseline for hot audio-gallery preview/apply. Every Round
-5 execution branch must contain both merges before runtime work. The merged
-surfaces and contracts are inputs, never work for Round 5 to reimplement.)
+sealed summit promise — merged in PR #14 at `4698906`; PR #15 established
+hot audio-gallery preview/apply at `4dc1af7`; PR #16 then wired the complete
+22-cue Music catalogue into the live Phase 2 surfaces and established the
+current `7b8e01a` baseline. Every Round 5 execution branch must contain all
+three merges before runtime work. The merged surfaces and contracts are
+inputs, never work for Round 5 to reimplement.)
 
 ## Decisions record (owner-approved)
 
@@ -46,7 +50,7 @@ surfaces and contracts are inputs, never work for Round 5 to reimplement.)
 | UI end-state | **Canvas/WebGL chrome**, not data-driven DOM and not a framework migration |
 | Canvas migration depth | **Full combat UI including hand cards** — but gated: the **P0.5 Simulator Safari compatibility spike** must pass before P1 begins, and a **P4→P5 Simulator/Playwright checkpoint** must pass before the hand migrates. "Pixi chrome + DOM hand" is a declared-acceptable shipped state if P5 stops |
 | Engine | **PixiJS v8**, WebGL renderer pinned (never WebGPU) |
-| Ordering vs content line | **Progressive Delivery Phase 2 and its PR #15 follow-up are loaded** at the `4dc1af7` minimum baseline. A later `main` change triggers a fresh drift audit before execution. During Round 5 P2 (re-homing) the content line observes a **content-table freeze** (assets/plans only) |
+| Ordering vs content line | **Progressive Delivery Phase 2 and its PR #15/#16 follow-ups are loaded** at the `7b8e01a` minimum baseline. A later `main` change triggers a fresh drift audit before execution. During Round 5 P2 (re-homing) the content line observes a **content-table freeze** (assets/plans only) |
 | Delivery lanes | **Production Engineering (PE) is the primary lane; Front-end Experience (FE) is a small, design-led lane.** PE owns all substrate, refactoring, Content Lab/manager, renderer mechanics, tooling, tests and integration. FE owns only authored player-facing presentation. Independent QA verifies both; owner taste checkpoints stay with the owner |
 | Parallel execution | PE and FE may run concurrently only from separate worktrees on a written disjoint-file manifest. A shared file is a sequential hand-off, never a concurrent edit. Every implementation-plan task has exactly one `[PE]`, `[FE]`, `[QA]`, or `[OWNER]` lead |
 | Content substrate | **Full content-pack architecture**: per-domain registries with schemas, existing content re-homed as the `core` pack, `data.js` becomes the assembler. Registry work lands **before any production Pixi migration**; the disposable P0.5 compatibility spike is the sole exception. Pack contract is **data plus declared behaviour functions** (enemy `ai` stays code — see §2); the legacy Hollow target getter is materialised from merged progression rather than copied with a global closure; an AI-DSL is explicitly out of scope |
@@ -56,6 +60,7 @@ surfaces and contracts are inputs, never work for Round 5 to reimplement.)
 | Mobile browser matrix | Playwright WebKit device emulation and actual Safari in representative iOS/iPadOS Simulators are separate lanes. Simulator Safari is driven serially through Apple `safaridriver`; Round 5 deliberately has no physical-device gate and makes no physical FPS, memory, thermal, background-eviction, latency, or touch-feel claim |
 | Performance policy | The merged Phase 2 policy remains authoritative: **a missing, invalid or crashed measurement fails; a valid 55fps/22ms target miss is a recorded warning/reference, not a merge failure**. Round 5 records portrait/LITE and desktop/Full Pixi measurements without claiming Simulator or physical-device performance |
 | Phase 2 domain language | A successful Climb ends at **Dawn** and a death is a **Fall**. Internal compatibility values (`win`, `death`), route names and Music Cue ids (`victory`, `defeat`) stay unchanged |
+| Phase 2 music baseline | PR #16 makes **all 22 existing Music Cues live**. `src/music-resolve.js` is the Node-pure resolution truth; quest overrides beat Eighth Omen, Eighth Omen beats ordinary non-boss act music, and bosses retain their boss cue. Rose/Vigil, Hollow, sealed-door and Dawn exceptions are protected live call sites, not FE wiring requests |
 | Store kit | Keep the **capture script + shot list** (rerunnable assets); the captured set is labelled **provisional/marketing-only**; trailer capture is raw reference footage only; device-framed store matrices and store-grade capture re-run in the Capacitor round |
 | Screens in scope | All four sets: Fall/Dawn, title + Embark, non-combat panels (rewards/shop/event/rest/lamplighter/vigil), map re-upgrade (light) |
 | Catch-up status | CI wiring is already complete at P0. Remaining items are per-boss unique stage sets, store visual assets, and unlock-toast art; later phases extend the existing CI gate rather than redoing it |
@@ -179,18 +184,21 @@ choreography to a high bar. What remains fragile is the *substrate*:
 ## Invariants (violating any fails review)
 
 - **The predecessor gate is a hard runtime stop.** Before P0.5, PE verifies
-  from the execution branch itself that PR #14 merge `4698906` and PR #15
-  merge `4dc1af7` are in its ancestry. The branch must expose all 32 current
+  from the execution branch itself that PR #14 merge `4698906`, PR #15 merge
+  `4dc1af7` and PR #16 merge `7b8e01a` are in its ancestry. The branch must
+  expose all 32 current
   `src/data.js` exports: 28 content views plus `QUEST_STATES`,
   `QUEST_ACTIVE_STATES`, `TERMINAL_OUTCOMES` and `RUN_ID_RE`; the Emberglass,
   Rose Window, sealed-door, transactional Dawn and hot audio-gallery surfaces
-  must be present. A later `main` change reopens the drift audit. A local dirty
-  predecessor worktree never satisfies this gate.
+  must be present. The 22/22 live Music catalogue, pure resolver and real
+  Phase 2 cue call sites must also be present. A later `main` change reopens the
+  drift audit. A local dirty predecessor worktree never satisfies this gate.
 - **Engine purity is untouched.** `engine.js`, `vigil.js`, `data.js`,
   `battlefield*.js`, `uic.js`, `ui-chrome-layout.js`, and the new
   `src/content-protocol.js` / `src/registry.js` / `src/packs/**` /
   `src/ui/tokens.js` / `src/ui/behaviour-trace.js` /
-  `src/ui/presentation-barrier.js` / `src/ui/run-effects.js` stay
+  `src/ui/presentation-barrier.js` / `src/ui/run-effects.js` and the existing
+  `src/music-resolve.js` stay
   Node-runnable and DOM-free. Existing `src/choice-latch.js` stays Node-pure.
   `drain()` still
   consumes `cb.queue`; only the playback target changes from DOM to sprites.
@@ -214,7 +222,7 @@ choreography to a high bar. What remains fragile is the *substrate*:
   `self`), before vs after re-homing — comparing the returned move, RNG
   consumption/final state, and every permitted `self` mutation; (iii) the
   fixed-seed monte-carlo digest unchanged. All three legs are `npm test` checks.
-- **Internal keys, card/relic/status ids, and the post-PR15 save shape are
+- **Internal keys, card/relic/status ids, and the post-PR16 save shape are
   immutable.** Re-homing content into packs changes file locations, never ids.
   No new save fields for packs. The protected baseline includes `runId`, quest
   snapshots, pending encounters/rewards/Hollow routes/Shade duels,
@@ -308,13 +316,26 @@ choreography to a high bar. What remains fragile is the *substrate*:
   LITE reads intentional, lower DPR cap).
 - **Preview mirrors are untouched.** `previewPlay` / `previewBlock` /
   `previewEnemyDmg` stay pure; only their display layer changes.
-- **PR #15 audio-gallery behaviour is a protected baseline.** Unsaved
+- **PR #15/#16 audio behaviour is a protected baseline.** Unsaved
   per-row selection previews the draft ref; Save posts metadata only, applies
   in place without reload, invalidates SFX/music selection caches and
   re-resolves the active cue; `_raw` audio never enters inventory or bundle;
-  production remains read-only. P1 extraction and P2 theme work preserve these
-  interfaces. A forced gallery preview is not evidence that an unwired Music
-  Cue plays in the game.
+  production remains read-only. `public/audio-selection.json` is the mutable
+  gallery Save output: it must be a valid installed selection and exactly match
+  the canonical serialiser, but tests must not pin a pack version or require
+  empty overrides. PR #16 makes all 22 catalogue rows live and adds the
+  Node-pure `music-resolve.js`: quest combat (`paleOnes`, `ownShade` →
+  `shadeDuel`, `usurper`) takes precedence over Eighth Omen; Eighth Omen owns
+  non-boss map/event/combat; ordinary boss/elite/act fallback remains stable.
+  `hollow` resolves to `hollowLamplighter`; Vigil Rose tab, sealed-door
+  open/close restore, and Dawn `pageRead`/`act4Reveal` own their named ceremony
+  cues. Reward and boss-relic screens make no screen-cue request and preserve
+  the active combat/victory cue. P1 extraction and P2 theme work preserve these
+  call sites, precedence, warm-neighbour edges and tests. `music-resolve.js`
+  imports neither browser audio nor trace; the trace observes the resolved
+  logical id/result only at the real `music.js` playback sink. A forced gallery
+  preview remains preview evidence only; it never substitutes for a real
+  gameplay call-site test.
 - **The Semantic UI Behaviour Trace is a first-class test interface, never a
   second game truth.** Semantic owners emit versioned, immutable, JSON-safe
   records at interaction, routing, queue-playback, ceremony, lifecycle,
@@ -820,10 +841,11 @@ For every screen below, the plan must additionally specify: (a) the
 before aspects/vows/rose-window exist, what teases growth); (b) every
 ceremony beat **mechanically** (element, property, duration, easing token,
 trigger, `REDUCED` end-state) — the pile-chrome spec is the precedent; (c) a
-**wiring-only audio pass** mapping each new ceremony beat to an existing wired
-catalogue cue/fallback, or to an owner-approved logical intent which PE then
-marks, wires and gameplay-tests (`src/audio-catalog.js`) — no new audio assets
-and no inference from forced gallery preview;
+**audio-continuity pass** aligning each ceremony beat with the already-live
+PR #16 cue/call site, an existing tested fallback, or deliberate silence. FE
+does not mark or wire catalogue rows; PE preserves the Node-pure resolver,
+gameplay call sites and audio/trace tests. No new audio assets, cue ids or
+inference from forced gallery preview are authorised;
 (d) the LITE/REDUCED end-state, one line each.
 
 The Phase 2 substate matrix is additional to, not a replacement for, the 70
@@ -873,9 +895,12 @@ this round adds no playable Act 4 screen or route.
   card-composer textures (single-renderer rule); rest gets a firelight
   pulse; event gets art-plate framing; lamplighter boons/picker and both
   Vigil tabs adopt the same panel language.
-- Existing logical Music Cue ids such as `hollowLamplighter`, `roseWindow` and
-  `sealedDoor` are FE intent only until PE explicitly marks/wires them and adds
-  gameplay tests. Forced `?audio=1` preview never counts as runtime evidence.
+- PR #16 already wires all 22 Music Cues. `hollowLamplighter`, `roseWindow` and
+  `sealedDoor` therefore remain PE-owned predecessor behaviour with real call
+  sites; Round 5 adds gameplay/trace coverage before extraction. FE may specify
+  only how the surrounding visual ceremony reads while those cues play. Forced
+  `?audio=1` preview never replaces runtime evidence, and the sealed-door cue
+  never turns the non-path promise into an Act 4 route.
 
 ### Map (kept light — R3 already upgraded it)
 
@@ -1153,8 +1178,8 @@ thermal, latency/touch-feel, and real background-eviction testing (all deferred
 to the Capacitor/hardware round); runtime /
 downloadable DLC (pack *format* only — delivery stays compiled-in); an
 enemy-AI DSL (behaviour stays code); engine mechanics or event-shape changes
-beyond the named `opts.ephemeral` Lab hook; audio redesign (ceremony wiring
-uses existing cues only); analytics / crash telemetry (named for the
+beyond the named `opts.ephemeral` Lab hook; audio redesign or new cue ids
+(Round 5 preserves PR #16's live resolver/call sites); analytics / crash telemetry (named for the
 Capacitor round, not silently dropped); screen-reader support (declared
 deferral — keyboard path is in scope); localisation (registries merely
 centralise strings for it); daily seeds / challenge modes; cutout/skeletal
@@ -1223,8 +1248,9 @@ one occurred rather than blending them into one definition of “done”.
    a clean `npm test` afterwards.
 7. All four screen sets carry **owner contact-sheet sign-offs** (austere,
    grown and every named Phase 2 substate); Fall/Dawn play as specified
-   ceremonies with a gameplay-tested cue/fallback disposition for every audio
-   intent; the title has its ignition; combat has its keyboard path.
+   ceremonies while preserving every PR #16 cue/fallback call site and its
+   gameplay/trace evidence; the title has its ignition; combat has its keyboard
+   path.
 8. Every PR receives the required CI status; the full kit runs on relevant PRs
    and pushes to main, while docs/tooling-only changes receive the required
    no-op success. A red required status blocks merge; the bundle budget is
