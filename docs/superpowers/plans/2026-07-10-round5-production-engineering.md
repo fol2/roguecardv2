@@ -2062,8 +2062,10 @@ git commit -m "refactor: extract shared UI services"
 **Files:**
 - Create: `src/ui/screens/title.js`, `embark.js`, `vigil.js`, `run.js`, `lamplighter.js`, `map.js`, `reward.js`, `rest.js`, `shop.js`, `event.js`, `end.js`, `gallery.js`, `audio-gallery.js`
 - Modify: `src/ui.js`, `src/ui/navigation.js`, `src/ui/overlay.js`
+- Modify/Test: `test/test_engine.js`, `test/test_module_boundaries.mjs`
+- Modify/Test: `test/e2e/trace.spec.js`
 - Test: `test/e2e/stage.spec.js`, `rewards.spec.js`, `visual.spec.js`,
-  `trace.spec.js`, `audio.spec.js`, `emberglass.spec.js`,
+  `audio.spec.js`, `emberglass.spec.js`,
   `emberglass-persistence.spec.js`, `hollow-transaction.spec.js`
 
 **Interfaces:**
@@ -2075,8 +2077,19 @@ git commit -m "refactor: extract shared UI services"
 - PR #18 Title version state/listeners and PR #7 lookup state move exactly once
   with their semantic owner; no timer, tap array, locale lookup or UI string is
   duplicated in the transitional orchestrator.
+- The fixed four-command `uiCommands` facade and its sole binding block remain
+  unchanged. Break extraction cycles with injected late-bound thunks or
+  `uiCommands.show`; do not add commands and do not let one screen import
+  another screen.
 
 - [ ] **Step 1: Freeze the route inventory in a failing assertion**
+
+First record the unchanged CI and module-boundary baseline:
+
+```bash
+set -euo pipefail
+npm run test:ci
+```
 
 Add to `test/e2e/stage.spec.js`:
 
@@ -2117,6 +2130,24 @@ export function createTitleScreen({ context, assets, commands, vigil, music,
 }
 ```
 
+Add Node source assertions for the exact thirteen sole factory export
+surfaces. Each screen module has exactly one ESM export, respectively:
+
+```text
+createTitleScreen, createEmbarkScreen, createVigilScreen, createRunScreen,
+createLamplighterScreen, createMapScreen, createRewardScreen,
+createRestScreen, createShopScreen, createEventScreen, createEndScreen,
+createGalleryScreen, createAudioGalleryScreen
+```
+
+Update the source gates without weakening them. The `tr(...)` inventory must
+recursively aggregate `src/ui/**/*.js`, including the nested `screens/`
+directory. Migrate the run/end transaction-owner assertions, PR #15 audio
+gallery hot-apply assertion, map-coast rAF assertion, `selectMapNode` failure
+span assertion and raw-pointer source guards to their real extracted owners.
+The gates must still prove one owner, the same call order and the same forbidden
+patterns; moving code must never be made green by deleting or relaxing a guard.
+
 Shared Rose asset/fallback state lives only in `rose.js`; title and Vigil keep
 only their screen-local selection/layout state. `end.js` owns only Dawn
 presentation state, panel rendering and cursor/final-clear acknowledgement;
@@ -2131,6 +2162,10 @@ and timer cleanup on screen destruction. It consumes the existing Node-pure
 `getVersionInfo` dependency; it never reconstructs Vite defines. Preserve every
 PR #7 `tr` call and inject the single lookup functions into leaf factories.
 The frozen Task 6 app-version/i18n fixtures compare green after the move.
+Title destruction must genuinely cancel its pending debug timer and invalidate
+the callback, rather than merely suppressing a stale trace after the callback
+runs. Strengthen `trace.spec.js` so leaving Title proves the silent timer
+callback cannot execute after destruction.
 
 Move PR #16's browser call sites once, without moving or rewriting the pure
 `music-resolve.js`: `navigation.js` owns central normal/Eighth/initial-Rose/
@@ -2151,8 +2186,11 @@ in the orchestrator or silently convert draft preview to active selection.
 
 In the temporary `src/ui.js` orchestrator (moved without duplication to
 `ui/index.js` in Task 9), construct the sole `Map` with the ordered names from
-Step 1 and pass it to `createNavigator()`. `navigation.js` only dispatches the
-injected map. Expose only the ordered keys through the probe.
+Step 1 and pass it to `createNavigator()`. `navigation.js` makes a private
+`Map` copy, dispatches only that copy and exposes a frozen ordered route-key
+snapshot; the probe exposes only those ordered keys. Preserve the existing
+`?gallery=1` and `?audio=1` boot behaviour while routing them through the
+declared `gallery` and `audioGallery` entries.
 
 - [ ] **Step 4: Verify zero visual/behaviour drift**
 
@@ -2160,6 +2198,7 @@ Run:
 
 ```bash
 set -euo pipefail
+npm run test:ci
 npm test
 node tools/run-with-strict-e2e-port.mjs -- npx playwright test stage rewards emberglass hollow-transaction audio trace --project=desktop --workers=1
 node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual
@@ -2177,7 +2216,9 @@ git add src/ui.js src/ui/navigation.js src/ui/screens/title.js \
   src/ui/screens/reward.js src/ui/screens/rest.js src/ui/screens/shop.js \
   src/ui/screens/event.js src/ui/screens/end.js src/ui/screens/gallery.js \
   src/ui/screens/audio-gallery.js src/ui/overlay.js \
+  test/test_engine.js test/test_module_boundaries.mjs \
   test/e2e/stage.spec.js test/e2e/audio.spec.js \
+  test/e2e/trace.spec.js test/e2e/rewards.spec.js \
   test/e2e/emberglass.spec.js test/e2e/emberglass-persistence.spec.js \
   test/e2e/hollow-transaction.spec.js
 npm run test:round5:standing -- --profile p1-dom
