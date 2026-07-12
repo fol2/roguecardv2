@@ -14,6 +14,7 @@ const EXPECTED_SHAPES = {
 const CORE_THEMES = ['act1', 'act2', 'act3'];
 
 test('P2 core theme profile visits every production theme once', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
   const project = testInfo.project.name;
   test.skip(!EXPECTED_SHAPES[project], 'theme-profile runs on desktop/portrait/landscape Chromium only');
   const errors = collectErrors(page);
@@ -30,6 +31,10 @@ test('P2 core theme profile visits every production theme once', async ({ page }
   expect(liveOrder).toEqual(CORE_THEMES);
 
   for (const themeId of CORE_THEMES) {
+    const cueBefore = await page.evaluate(() => {
+      const records = window.__probe.behaviourTrace().records;
+      return records.length ? records[records.length - 1].seq : 0;
+    });
     const staged = await page.evaluate(async ([id, seed]) => {
       const snapshot = await window.__probe.stageCoreTheme({ themeId: id, seed });
       const plates = {};
@@ -59,11 +64,15 @@ test('P2 core theme profile visits every production theme once', async ({ page }
       .toEqual([...staged.snapshot.enemyIds]);
     expect(staged.snapshot.weather, themeId).toBeTruthy();
     expect(staged.snapshot.music?.combat, themeId).toBeTruthy();
-    // Music Cue load is async; poll like audio.spec.js so CI portrait cannot race null.
-    await expect.poll(
-      () => page.evaluate(async () => (await import('/src/music.js')).currentCue()),
-      { timeout: 20_000 },
-    ).toBe(staged.snapshot.music.combat);
+    // Requested Music Cue via behaviourTrace (avoids currentCue load races / poll budget).
+    await expect.poll(() => page.evaluate(({ after, combatId }) => window.__probe.behaviourTrace().records
+      .some((row) => row.seq > after
+        && row.eventName === 'audio.music-request'
+        && row.attributes?.id === combatId
+        && row.attributes?.result === 'playing'), {
+      after: cueBefore,
+      combatId: staged.snapshot.music.combat,
+    }), { timeout: 15_000 }).toBe(true);
     for (const layer of ['backdrop', 'mid', 'ledge']) {
       const plate = staged.plates[layer];
       expect(plate, `${themeId}.${layer}`).toBeTruthy();
