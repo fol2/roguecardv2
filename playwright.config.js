@@ -9,9 +9,16 @@ import { e2eServerSettings } from './playwright-server.js';
 
 const e2eServer = e2eServerSettings(process.env.SPIREBOUND_E2E_PORT);
 
+// CI peels the duration-heavy specs into a parallel matrix (SPIREBOUND_E2E_SUITE=main).
+// Unset suite keeps the full local `test:e2e:main` surface.
+const E2E_HEAVY_SPECS = /(?:^|\/)(audio|hollow-transaction|rewards|stage)\.spec\.js$/;
+const e2eSuite = process.env.SPIREBOUND_E2E_SUITE;
+const testIgnore = [/trace-production\.spec\.js/];
+if (e2eSuite === 'main') testIgnore.push(E2E_HEAVY_SPECS);
+
 export default defineConfig({
   testDir: 'test/e2e',
-  testIgnore: /trace-production\.spec\.js/,
+  testIgnore,
   fullyParallel: true,
   // every page runs a full three.js scene + bloom; more than two at once
   // starves the GPU/CPU and turns real animation waits into false timeouts

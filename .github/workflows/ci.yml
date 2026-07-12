@@ -82,24 +82,30 @@ jobs:
       - run: npm ci
       # npm test inspects audio assets with ffmpeg/ffprobe, so pin the same
       # branch used by the development evidence instead of Ubuntu's 6.1.1.
+      # Pin a concrete autobuild — floating `latest/n8.1-latest` 404s when BtbN
+      # republishes the latest tag mid-job.
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         id: ffmpeg-cache
         with:
-          path: /tmp/ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz
-          key: ffmpeg-n8.1-latest-linux64-gpl-8.1
+          path: /tmp/ffmpeg-n8.1.2-22-g94138f6973-linux64-gpl-8.1.tar.xz
+          key: ffmpeg-n8.1.2-22-g94138f6973-linux64-gpl-8.1
       - name: Install ffmpeg 8.1 (matches the dev machine)
+        env:
+          FFMPEG_REL: autobuild-2026-07-11-13-13
+          FFMPEG_ARC: ffmpeg-n8.1.2-22-g94138f6973-linux64-gpl-8.1.tar.xz
         run: |
           cd /tmp
-          if [ ! -f ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz ]; then
-            curl -fsSLO https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz
+          if [ ! -f "$FFMPEG_ARC" ]; then
+            curl -fsSL -o "$FFMPEG_ARC" \
+              "https://github.com/BtbN/FFmpeg-Builds/releases/download/${FFMPEG_REL}/${FFMPEG_ARC}"
           fi
-          curl -fsSL https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/checksums.sha256 \
-            | grep 'ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz$' > ffmpeg.sha256
+          curl -fsSL "https://github.com/BtbN/FFmpeg-Builds/releases/download/${FFMPEG_REL}/checksums.sha256" \
+            | grep " ${FFMPEG_ARC}\$" > ffmpeg.sha256
           sha256sum -c ffmpeg.sha256
-          tar -xJf ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz
-          sudo install -m 755 ffmpeg-n8.1-latest-linux64-gpl-8.1/bin/ffmpeg /usr/local/bin/ffmpeg
-          sudo install -m 755 ffmpeg-n8.1-latest-linux64-gpl-8.1/bin/ffprobe /usr/local/bin/ffprobe
-          rm -rf ffmpeg.sha256 ffmpeg-n8.1-latest-linux64-gpl-8.1
+          tar -xJf "$FFMPEG_ARC"
+          sudo install -m 755 "${FFMPEG_ARC%.tar.xz}/bin/ffmpeg" /usr/local/bin/ffmpeg
+          sudo install -m 755 "${FFMPEG_ARC%.tar.xz}/bin/ffprobe" /usr/local/bin/ffprobe
+          rm -rf ffmpeg.sha256 "${FFMPEG_ARC%.tar.xz}"
       - run: npm run test:ci
       - run: npm test
 
@@ -218,7 +224,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.e2e == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base')
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         shard: [1, 2, 3]
     runs-on: ubuntu-24.04
@@ -240,14 +246,16 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
-  e2e_main:
-    name: e2e main ${{ matrix.shard }}/10
+  # Duration-heavy specs peeled out of main so wall-clock is not dominated by
+  # audio/hollow/rewards/stage landing in the same Playwright count-shards.
+  e2e_heavy:
+    name: e2e heavy ${{ matrix.shard }}/5
     needs: changes
     if: needs.changes.outputs.e2e == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base')
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        shard: [1, 2, 3, 4, 5]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -255,7 +263,34 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-playwright
-      - run: npm run test:e2e:main -- --shard=${{ matrix.shard }}/10
+      - run: npm run test:e2e:heavy -- --shard=${{ matrix.shard }}/5
+      - name: Verify clean checkout
+        if: always()
+        run: test -z "$(git status --porcelain --untracked-files=all)"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-heavy-${{ matrix.shard }}-${{ github.run_id }}
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  e2e_main:
+    name: e2e main ${{ matrix.shard }}/15
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base')
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-playwright
+      - run: SPIREBOUND_E2E_SUITE=main npm run test:e2e:main -- --shard=${{ matrix.shard }}/15
       - name: Verify clean checkout
         if: always()
         run: test -z "$(git status --porcelain --untracked-files=all)"
@@ -272,7 +307,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         project: [desktop, portrait, landscape]
     runs-on: ubuntu-24.04
@@ -297,7 +332,7 @@ jobs:
   e2e_nonvisual:
     name: e2e nonvisual
     if: always()
-    needs: [changes, e2e_aux, e2e_random, e2e_main]
+    needs: [changes, e2e_aux, e2e_random, e2e_heavy, e2e_main]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -310,12 +345,12 @@ jobs:
           CI_RELEVANT: ${{ needs.changes.outputs.e2e == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base') }}
           CI_MODE: p2-base
           CI_RESULTS: >-
-            {"changes":"${{ needs.changes.result }}","e2e-aux":"${{ needs.e2e_aux.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-main":"${{ needs.e2e_main.result }}"}
+            {"changes":"${{ needs.changes.result }}","e2e-aux":"${{ needs.e2e_aux.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-heavy":"${{ needs.e2e_heavy.result }}","e2e-main":"${{ needs.e2e_main.result }}"}
 
   e2e:
     name: e2e
     if: always()
-    needs: [changes, smoke_e2e, e2e_aux, e2e_random, e2e_main, e2e_visual]
+    needs: [changes, smoke_e2e, e2e_aux, e2e_random, e2e_heavy, e2e_main, e2e_visual]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -328,7 +363,7 @@ jobs:
           CI_RELEVANT: ${{ needs.changes.outputs.e2e }}
           CI_MODE: ${{ needs.changes.outputs.mode }}
           CI_RESULTS: >-
-            {"changes":"${{ needs.changes.result }}","smoke-e2e":"${{ needs.smoke_e2e.result }}","e2e-aux":"${{ needs.e2e_aux.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-main":"${{ needs.e2e_main.result }}","e2e-visual":"${{ needs.e2e_visual.result }}"}
+            {"changes":"${{ needs.changes.result }}","smoke-e2e":"${{ needs.smoke_e2e.result }}","e2e-aux":"${{ needs.e2e_aux.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-heavy":"${{ needs.e2e_heavy.result }}","e2e-main":"${{ needs.e2e_main.result }}","e2e-visual":"${{ needs.e2e_visual.result }}"}
 
   p2-base:
     name: p2-base

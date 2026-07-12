@@ -27,7 +27,7 @@ assert.deepEqual(requiredCiLanes('unit', false, 'smoke'), ['changes']);
 assert.deepEqual(requiredCiLanes('unit', true, 'smoke'), ['changes', 'unit-tests', 'build-dist']);
 assert.deepEqual(requiredCiLanes('e2e', true, 'smoke'), ['changes', 'smoke-e2e']);
 assert.deepEqual(requiredCiLanes('e2e', true, 'p2-base'), [
-  'changes', 'e2e-aux', 'e2e-random', 'e2e-main',
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-heavy', 'e2e-main',
 ]);
 assert.deepEqual(requiredCiLanes('p2-base', true, 'p2-base'), [
   'changes', 'unit', 'e2e-nonvisual', 'progression',
@@ -40,7 +40,7 @@ assert.deepEqual(requiredCiLanes('p2-base', false, 'full'), ['changes']);
 assert.throws(() => requiredCiLanes('p2-base', true, 'smoke'), /Unsupported p2-base CI mode/);
 assert.throws(() => requiredCiLanes('p2-base', false, 'smoke'), /Unsupported p2-base CI mode/);
 assert.deepEqual(requiredCiLanes('e2e', true, 'full'), [
-  'changes', 'e2e-aux', 'e2e-random', 'e2e-main', 'e2e-visual',
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-heavy', 'e2e-main', 'e2e-visual',
 ]);
 
 assert.deepEqual(verifyCiGate({
@@ -54,9 +54,9 @@ assert.deepEqual(verifyCiGate({
   gate: 'e2e', relevant: true, mode: 'full',
   results: {
     changes: 'success', 'e2e-aux': 'success', 'e2e-random': 'success',
-    'e2e-main': 'success', 'e2e-visual': 'success',
+    'e2e-heavy': 'success', 'e2e-main': 'success', 'e2e-visual': 'success',
   },
-}).required.length, 5);
+}).required.length, 6);
 assert.deepEqual(verifyCiGate({
   gate: 'p2-base', relevant: true, mode: 'p2-base',
   results: {
@@ -108,13 +108,20 @@ assert.match(workflow, /npm run test:e2e:disk/);
 assert.match(workflow, /npm run test:e2e:trace-production/);
 assert.match(workflow, /npm run test:e2e:serial/);
 assert.match(workflow, /\.\/\.github\/actions\/setup-playwright/);
-assert.match(workflow, /ffmpeg-n8\.1-latest-linux64-gpl-8\.1/);
-assert.match(workflow, /name: e2e main \$\{\{ matrix\.shard \}\}\/10/);
-assert.match(workflow, /shard: \[1, 2, 3, 4, 5, 6, 7, 8, 9, 10\]/);
-assert.match(workflow, /test:e2e:main -- --shard=\$\{\{ matrix\.shard \}\}\/10/);
+assert.match(workflow, /ffmpeg-n8\.1\.2-22-g94138f6973-linux64-gpl-8\.1/);
+assert.match(workflow, /autobuild-2026-07-11-13-13/);
+assert.match(workflow, /name: e2e heavy \$\{\{ matrix\.shard \}\}\/5/);
+assert.match(workflow, /name: e2e main \$\{\{ matrix\.shard \}\}\/15/);
+assert.match(workflow, /shard: \[1, 2, 3, 4, 5\]/);
+assert.match(workflow, /shard: \[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15\]/);
+assert.match(workflow, /test:e2e:heavy -- --shard=\$\{\{ matrix\.shard \}\}\/5/);
+assert.match(workflow, /SPIREBOUND_E2E_SUITE=main npm run test:e2e:main -- --shard=\$\{\{ matrix\.shard \}\}\/15/);
+assert.match(workflow, /fail-fast: true/);
+assert.doesNotMatch(workflow, /fail-fast: false/);
 assert.match(workflow, /e2e_aux:[\s\S]*?name: e2e aux[\s\S]*?npm run test:e2e:serial/);
 assert.match(workflow, /e2e_nonvisual:[\s\S]*?CI_GATE: e2e[\s\S]*?CI_MODE: p2-base/);
 assert.match(workflow, /e2e-aux/);
+assert.match(workflow, /e2e-heavy/);
 assert.doesNotMatch(workflow, /name: e2e disk/);
 assert.doesNotMatch(workflow, /name: e2e serial/);
 assert.doesNotMatch(workflow, /name: e2e trace-production/);
@@ -123,8 +130,13 @@ const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url),
 assert.equal(pkg.scripts['test:e2e'], 'npm run test:e2e:nonvisual && npm run test:e2e:visual');
 assert.equal(pkg.scripts['test:e2e:nonvisual'],
   'npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:main && npm run test:e2e:serial');
+assert.match(pkg.scripts['test:e2e:heavy'], /audio hollow-transaction rewards stage/);
 assert.equal(pkg.scripts['test:boundaries'], 'node test/test_module_boundaries.mjs');
 assert.match(pkg.scripts['test:ci'], /npm run test:boundaries/);
+
+const playwright = readFileSync(new URL('../playwright.config.js', import.meta.url), 'utf8');
+assert.match(playwright, /SPIREBOUND_E2E_SUITE/);
+assert.match(playwright, /E2E_HEAVY_SPECS/);
 
 const agents = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
 assert.match(agents, /test:e2e:perf\s+# performance reference; warns on target misses/);
