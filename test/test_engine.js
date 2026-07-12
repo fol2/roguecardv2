@@ -1347,6 +1347,33 @@ function forceHand(run, cb, ids) {
   });
   assert.equal(failed.status, 1);
   assert.equal(failed.url, 'https://example/fail');
+  const waitForCheckRow = (row) => waitGithubCheck({
+    checkName: 'p2-base',
+    timeoutMs: 1000,
+    pollMs: 10,
+    ...cleanRepo,
+    runCommand: async (argv) => {
+      if (argv[0] === 'gh' && argv[1] === '--version') return ghVersionOk;
+      if (argv[0] === 'gh' && argv[1] === 'api') {
+        return {
+          code: 0,
+          stdout: JSON.stringify({ check_runs: [{ name: 'p2-base', html_url: 'https://example/non-success', ...row }] }),
+          stderr: '',
+        };
+      }
+      return { code: 0, stdout: '', stderr: '' };
+    },
+  });
+  for (const row of [
+    { status: 'completed', conclusion: 'skipped' },
+    { status: 'completed', conclusion: 'neutral' },
+    { state: 'SKIPPED' },
+    { state: 'SUCCESS', conclusion: 'neutral' },
+  ]) {
+    const nonSuccess = await waitForCheckRow(row);
+    assert.equal(nonSuccess.status, 1);
+    assert.equal(nonSuccess.url, 'https://example/non-success');
+  }
   let clock = 0;
   const slept = [];
   const timedOut = await waitGithubCheck({

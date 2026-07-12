@@ -103,11 +103,12 @@ function normalizeCheck(row) {
   const state = String(row.state || row.status || '').toUpperCase();
   const conclusion = String(row.conclusion || '').toUpperCase();
   const url = row.link || row.url || row.html_url || row.details_url;
-  if (state === 'SUCCESS' || (state === 'COMPLETED' && conclusion === 'SUCCESS')) {
+  if ((state === 'SUCCESS' && (!conclusion || conclusion === 'SUCCESS'))
+      || (state === 'COMPLETED' && conclusion === 'SUCCESS')) {
     return { done: true, status: 0, url };
   }
   if (state === 'FAILURE' || state === 'ERROR' || state === 'CANCELLED' || state === 'SKIPPED'
-      || (state === 'COMPLETED' && conclusion && conclusion !== 'SUCCESS')) {
+      || (conclusion && conclusion !== 'SUCCESS')) {
     return { done: true, status: 1, url };
   }
   return { done: false, status: 1, url };

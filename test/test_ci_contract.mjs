@@ -32,7 +32,13 @@ assert.deepEqual(requiredCiLanes('e2e', true, 'p2-base'), [
 assert.deepEqual(requiredCiLanes('p2-base', true, 'p2-base'), [
   'changes', 'unit', 'e2e-nonvisual', 'progression',
 ]);
+assert.deepEqual(requiredCiLanes('p2-base', true, 'full'), [
+  'changes', 'unit', 'e2e-nonvisual', 'progression',
+]);
 assert.deepEqual(requiredCiLanes('p2-base', false, 'p2-base'), ['changes']);
+assert.deepEqual(requiredCiLanes('p2-base', false, 'full'), ['changes']);
+assert.throws(() => requiredCiLanes('p2-base', true, 'smoke'), /Unsupported p2-base CI mode/);
+assert.throws(() => requiredCiLanes('p2-base', false, 'smoke'), /Unsupported p2-base CI mode/);
 assert.deepEqual(requiredCiLanes('e2e', true, 'full'), [
   'changes', 'e2e-disk', 'e2e-random', 'e2e-main', 'e2e-serial', 'e2e-visual',
 ]);
@@ -57,6 +63,20 @@ assert.deepEqual(verifyCiGate({
     changes: 'success', unit: 'success', 'e2e-nonvisual': 'success', progression: 'success',
   },
 }).required, ['changes', 'unit', 'e2e-nonvisual', 'progression']);
+assert.deepEqual(verifyCiGate({
+  gate: 'p2-base', relevant: true, mode: 'full',
+  results: {
+    changes: 'success', unit: 'success', 'e2e-nonvisual': 'success', progression: 'success',
+  },
+}).required, ['changes', 'unit', 'e2e-nonvisual', 'progression']);
+assert.throws(() => verifyCiGate({
+  gate: 'p2-base', relevant: true, mode: 'smoke',
+  results: { changes: 'success' },
+}), /Unsupported p2-base CI mode/);
+assert.throws(() => verifyCiGate({
+  gate: 'p2-base', relevant: false, mode: 'smoke',
+  results: { changes: 'success' },
+}), /Unsupported p2-base CI mode/);
 assert.throws(() => verifyCiGate({
   gate: 'p2-base', relevant: true, mode: 'p2-base',
   results: {
@@ -79,6 +99,7 @@ assert.throws(() => requiredCiLanes('e2e', true, 'unknown'), /Unsupported CI mod
 const workflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 assert.match(workflow, /CI_REF_NAME: \$\{\{ github\.head_ref \|\| github\.ref_name \}\}/);
 assert.match(workflow, /name: p2-base/);
+assert.match(workflow, /p2-base:[\s\S]*?if: always\(\) && \(needs\.changes\.outputs\.mode == 'full' \|\| needs\.changes\.outputs\.mode == 'p2-base'\)/);
 assert.match(workflow, /name: e2e nonvisual/);
 assert.match(workflow, /name: progression/);
 assert.match(workflow, /name: e2e trace-production/);

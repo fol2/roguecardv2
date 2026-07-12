@@ -389,7 +389,7 @@ jobs:
 
   p2-base:
     name: p2-base
-    if: always()
+    if: always() && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base')
     needs: [changes, unit, e2e_nonvisual, progression]
     runs-on: ubuntu-24.04
     timeout-minutes: 5

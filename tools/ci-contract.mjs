@@ -26,12 +26,13 @@ export function resolveCiMode(eventName, draftValue, refName = '') {
 }
 
 export function requiredCiLanes(gate, relevant, mode) {
-  if (!truthy(relevant)) return ['changes'];
-  if (gate === 'unit') return [...UNIT_LANES];
   if (gate === 'p2-base') {
-    if (mode === 'smoke') return ['changes'];
+    if (mode !== 'p2-base' && mode !== 'full') throw new Error(`Unsupported p2-base CI mode: ${mode}`);
+    if (!truthy(relevant)) return ['changes'];
     return [...P2_BASE_GATE_LANES];
   }
+  if (!truthy(relevant)) return ['changes'];
+  if (gate === 'unit') return [...UNIT_LANES];
   if (gate !== 'e2e') throw new Error(`Unsupported CI gate: ${gate}`);
   if (mode === 'smoke') return [...SMOKE_LANES];
   if (mode === 'p2-base') return [...P2_BASE_E2E_LANES];
