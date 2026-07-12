@@ -4134,7 +4134,7 @@ git commit -m "refactor: resolve acts through theme registries"
   registry tests. P2 proves both assembly and engine isolation; UI remains out
   of scope until P3.
 
-- [ ] **Step 1: Write failing isolation, context and engine-behaviour tests**
+- [x] **Step 1: Write failing isolation, context and engine-behaviour tests**
 
 Assert the production registry has no `sampleCard`, `sampleEnemy` or
 `sampleTheme`; a dev registry has all three; `ACTS` production length remains
@@ -4155,7 +4155,7 @@ contains core plus sample; selecting no fixtures from development returns the
 core context, selecting `sample` returns the fourth theme, and any unknown or
 production fixture selection fails. No test supplies a hand-built pack array.
 
-- [ ] **Step 2: Implement the exact fixture content**
+- [x] **Step 2: Implement the exact fixture content**
 
 ```js
 export const sampleCard = {
@@ -4186,7 +4186,7 @@ whose boss id is `sampleEnemy`, with `Test Gallery` owned only by
 `SAMPLE_LOCALE_EN`, and every required theme field. It
 adds no runtime assets.
 
-- [ ] **Step 3: Keep the production graph clean**
+- [x] **Step 3: Keep the production graph clean**
 
 `src/packs/_sample/registration.js` default-exports
 `defineContentRegistration({id:'sample', mechanics:SAMPLE_PACK,
@@ -4212,7 +4212,7 @@ theme/aspect/omen id options. Do not add another engine registry, global active
 context or sample-specific branch. Exercise simultaneous core/sample runs in
 both call orders so a module-global current context cannot pass accidentally.
 
-- [ ] **Step 4: Prove the future paired data drop without adding Act 4**
+- [x] **Step 4: Prove the future paired data drop without adding Act 4**
 
 Add a Node-pure compiler/context fixture block to `test/test_engine.js`. It
 copies the real post-Step3 source tree into a temporary ESM root, including the
@@ -4239,7 +4239,7 @@ starting hashes. Cleanup is in `finally`; the real
 worktree must remain clean outside Task14's declared files. This is the exact
 future content-only Act 4 registration proof, not playable Act 4 content.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 set -euo pipefail
