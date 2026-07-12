@@ -2231,15 +2231,53 @@ git commit -m "refactor: extract non-combat UI screens"
 - Create: `src/ui/combat.js`, `src/ui/drain.js`, `src/ui/probe.js`, `src/ui/index.js`
 - Replace: `src/ui.js` with thin re-exports
 - Modify: `CONTEXT.md`, `docs/README.md`, `test/e2e/helpers.js`
-- Modify/Test: `test/test_engine.js`
+- Modify/Test: `test/test_engine.js`, `test/test_module_boundaries.mjs`
 - Modify/Test: `test/e2e/trace.spec.js`, `test/e2e/trace-fixture.js`
 - Test: full Node and Playwright kits
 
 **Interfaces:**
 - `src/ui.js` exports only `initUI` and `show` from `src/ui/index.js`.
-- `combat.js` exports `startCombatUI`, `renderCombat`, `refitCombat`, semantic handlers and synchronisers.
-- `drain.js` exports `drain` and accepts a frozen handler/dependency object.
-- `probe.js` exports `installProbe({context, combat, navigator, trace})`.
+- `index.js` exports only `initUI` and `show`; it constructs `createCombat()`,
+  `createDrain()` and `installProbe()` in that direction.
+- `combat.js` exports only `createCombat`. Its `Object.freeze` return has the
+  exact key set `startCombatUI`, `renderCombat`, `refitCombat`, `renderHud`,
+  `meshBindTitle`, `syncCombat`, `syncHand`, `setTargeting`, `clearTargeting`,
+  `doPlay`, `onEndTurn`, `useLanternArt`, `afterAction`, `banner`, `flyTo`,
+  `tweenNum`, `freeze`, `startRig`, `drainHandlers`. `freeze` is the Probe-facing
+  presentation freeze, and `startRig` is the sole public rig-start operation
+  that `index.js` invokes.
+- `combatApi.drainHandlers` is also `Object.freeze`d. Its exact key set is
+  `addCrack`, `banner`, `bumpPile`, `captureCardAnchor`, `choreoAttack`,
+  `choreoHit`, `choreoStagger`, `clearPileVisualOverride`, `enemyCenter`,
+  `flyCardBacks`, `flyTo`, `handFaceSize`, `handSeatCenter`, `heroCenter`,
+  `holdPendingPileArrivals`, `holdPileVisual`, `igniteVessel`, `layoutHand`,
+  `peekCardAnchor`, `pileCardByUid`, `pileFaceSize`, `releasePileVisual`,
+  `renderHud`, `scheduleHandReveal`, `semanticUiCheckpoint`, `syncCombat`,
+  `syncHand`, `syncPileWidgets`, `syncWardMesh`, `takeCardAnchor`,
+  `hasPileVisualOverride`, `readPileVisualOverride`, `setPileVisualOverride`,
+  `replacePileVisualOverride`, `clearDrawRevealPlan`, `setDrawRevealPlan`,
+  `deleteDrawRevealPlan`, `setCardFlightAnchor`.
+- The pile-override façade preserves null-versus-present state:
+  `hasPileVisualOverride` reports presence; `readPileVisualOverride` and
+  `setPileVisualOverride` read or set one named pile count;
+  `replacePileVisualOverride` validates then copies `draw`/`discard` values into
+  the combat-owned binding; and `clearPileVisualOverride` restores `null`.
+  The draw-reveal façade operates the combat-owned `Map`:
+  `clearDrawRevealPlan` clears it, while `setDrawRevealPlan` and
+  `deleteDrawRevealPlan` key entries by `String(uid)`.
+  `setCardFlightAnchor` writes a copied anchor under `String(uid)`.
+  `drain.js` may not read or write `pileVisualOverride`, `drawRevealPlan` or
+  `cardFlightAnchor` directly; existing capture/peek/take methods retain their
+  current flows.
+- `drain.js` exports only `createDrain`; its exact input includes frozen
+  `presentation: combatApi.drainHandlers` plus its ordinary injected
+  dependencies, and it returns exactly `Object.freeze({ drain })`.
+- `probe.js` exports only
+  `installProbe({context, combat, drain, navigator, trace})`;
+  it returns the frozen probe object and never writes `window`.
+- `combat.js` and `drain.js` never import each other. `index.js` supplies their
+  late victory/defeat/reward/navigation callbacks, so neither module imports a
+  screen, `navigation.js` or `index.js`.
 - `combat.js` is the sole owner of the loaded PR17 `handChromeCeiling` and
   independent chrome-row packer. Extraction is a byte/behaviour move, not a
   geometry rewrite.
@@ -2256,6 +2294,19 @@ Add a Node source check to `test/test_engine.js`:
 }
 ```
 
+Split the contract proof by the mechanism that can observe it without creating
+a second production seam. `test/test_module_boundaries.mjs` source-checks the
+sole ESM exports, exact literal key sets, raw-binding ownership and import
+direction. `test/test_engine.js` checks the thin `ui.js` re-export plus the PR17
+marker/hash. In `test/e2e/trace.spec.js`, call the read-only
+`window.__probe.moduleContracts()`: it returns only sorted combat,
+drain-handler and drain key arrays plus their three `Object.isFrozen` booleans,
+never the functions or API objects. Browser assertions compare the three sorted
+arrays with the exact 19/38/1 key sets above and require every frozen boolean.
+Source ownership contracts also reject the binding names `pileVisualOverride`,
+`drawRevealPlan` and `cardFlightAnchor` in `drain.js` outside calls to the
+declared façade methods. No test relies on property insertion order.
+
 Capture the expected monolith failure:
 
 ```bash
@@ -2270,22 +2321,101 @@ rg 'thin re-export|src/ui\.js' "$RED_LOG"
 rm -f "$RED_LOG"
 ```
 
-Add failing Playwright Chromium/WebKit journeys for trace failure attachments.
+Add failing Playwright Chromium journeys for trace failure attachments.
 For every trace-enabled journey the automatic fixture must read
 `behaviourTrace({format:'ndjson'})` and `behaviourTrace({format:'text'})` before
 page teardown and attach both projections even when a semantic assertion fails.
-The journeys cover representative screen, card-drag/cancel, queue, ceremony,
-persistence-recovery and renderer-recovery contracts through the same fixture.
+The helpers materialise deterministic per-test files named
+`ui-behaviour-trace.ndjson` and `ui-behaviour-trace.txt` with
+`testInfo.outputPath(...)`, then attach both by `path`. Evaluation failure and
+empty bodies are test failures; the fixture may not attach or accept an empty
+fallback. Add an environment-gated canary titled exactly
+`trace attachment canary`, enabled only by
+`SPIREBOUND_TRACE_ATTACHMENT_CANARY=1`. It performs real journey/Probe actions
+that emit `screen.entered`, `input.card-drag`, `playback.queue`, a
+`presentation.` ceremony record and a `persistence.` record, then intentionally
+fails with exact marker `INTENTIONAL_TRACE_ATTACHMENT_CANARY_FAILURE`. WebKit
+journeys in Task 20 inherit this desktop-canary-verified common fixture; no
+separate WebKit forced-failure canary is required or claimed. Renderer-recovery
+attachment proof remains deferred to Task 24 with renderer recovery itself.
+The environment-disabled canary skips during ordinary `test:e2e` runs.
 
 - [ ] **Step 2: Move combat and drain owners exactly once**
 
 Use the P1 state map. Keep queue mutation solely in `drain.js`; keep layout,
-input handlers and renderer synchronisation in `combat.js`. Pass callbacks for
-victory/defeat/reward navigation so neither module imports screens or index.
-Move the exact PR17 geometry algorithms and comments intact. Before and after
-the move, run geometry coverage proving desktop anchors `1000`/`1197`, slack
-`50`, cap `-4`, gap `6`, minimal displacement, dead-member stability, own-art
-overlap, `90`/`80` drift, hover `<=1`, and candle frames
+input handlers and renderer synchronisation in `combat.js`. `index.js` creates
+combat first, passes its frozen presentation-handler surface to `createDrain()`,
+and supplies non-mutating late closures without creating a direct import cycle.
+Use this construction shape exactly:
+
+```js
+let combatApi;
+let drainApi;
+let screenOwners;
+let navigator;
+
+const combatLateCallbacks = Object.freeze({
+  show: (...args) => navigator.show(...args),
+  transition: (...args) => navigator.transition(...args),
+  journalRunEnd: (...args) => screenOwners.end.journalRunEnd(...args),
+});
+const overlayActions = Object.freeze({
+  afterAction: (...args) => combatApi.afterAction(...args),
+  clearTargeting: (...args) => combatApi.clearTargeting(...args),
+  drain: (...args) => drainApi.drain(...args),
+  finalisePendingRunEnd: (...args) => screenOwners.end.finalisePendingRunEnd(...args),
+  journalRunEnd: (...args) => screenOwners.end.journalRunEnd(...args),
+  setTargeting: (...args) => combatApi.setTargeting(...args),
+});
+const overlay = createOverlay({
+  tr,
+  runEffects,
+  cardEl,
+  actions: overlayActions,
+});
+combatApi = createCombat({
+  overlay,
+  drain: (...args) => drainApi.drain(...args),
+  late: combatLateCallbacks,
+});
+drainApi = createDrain({
+  presentation: combatApi.drainHandlers,
+  /* ordinary injected dependencies */
+});
+screenOwners = Object.freeze({
+  /* constructed leaf screen owners, including end */
+});
+navigator = createNavigator({
+  /* frozen ordered route map and late screen/combat closures */
+});
+const probe = installProbe({
+  context,
+  combat: combatApi,
+  drain: drainApi,
+  navigator,
+  trace,
+});
+```
+
+This is the exact construction contract; it contains no undeclared callback
+placeholder. The overlay service, combat factory, drain factory, screen factories and
+navigator factory never invoke a late closure during construction. Assigning
+the lexical variables is the only late wiring: no API or frozen object is
+mutated after construction. `combat.js` and `drain.js` never import each other,
+and Probe installs only after all four lexical targets are assigned.
+
+Move the exact PR17 geometry algorithms and comments intact. Add source-owner
+guards proving that `combat.js` alone owns the `handChromeCeiling` and
+independent-row packing block. The hashed boundary starts at the marker comment
+`/** Resting hand-fan top` and runs through `let chromeClampRaf = 0;` inclusive
+(current pre-extraction `src/ui.js` lines 638–788). Require that exact block to
+retain SHA-256
+`e534720a00981eebe19e7e601b3c4e17d9b05f0d685e996f92360df2ac08766a`, and
+that its comments and constants still encode slack `50`, cap `-4`, natural gap
+`6`, dead-member stability and independent rows. Before and after the move, run
+geometry coverage proving desktop anchors `1000`/`1197`, the same `50`/`-4`/`6`
+values, minimal displacement, dead-member stability, own-art overlap, `90`/`80`
+drift, hover `<=1`, and candle frames
 `120` for `pad-landscape`/`desktop-landscape`, `102` for `pad-portrait`, `84`
 for `phone-portrait` and `72` for `phone-landscape`, with compressed pitch.
 
@@ -2294,7 +2424,10 @@ for `phone-portrait` and `72` for `phone-landscape`, with compressed pitch.
 Move all readers/drivers to `probe.js`. Drivers must invoke the same exported
 semantic handlers as real input; scenario shims remain limited to legal state
 setup. Keep `queueIdle()` as the raw queue fact and `settle()` as the full
-queue/busy/presentation-span barrier.
+queue/busy/presentation-span barrier. `moduleContracts()` is a read-only
+diagnostic projection over the injected frozen combat/drain surfaces: it sorts
+and copies key names, reports freeze booleans and exposes no callable or object
+reference.
 
 - [ ] **Step 4: Wire `index.js` and globals once**
 
@@ -2306,8 +2439,11 @@ window.spirebound = { S, E, startCombatUI, show, meshEnabled, meshDebug, refitCo
 window.__probe = installProbe(...);
 ```
 
-It also owns keyboard/global listeners, HMR change hooks and gallery/editor boot
-routing. It imports `{ t as tr, getLocale }` from `src/i18n/index.js` and
+It also solely owns keyboard/global listeners, observation sinks, rig startup,
+HMR change hooks, BF/UIC/character change subscriptions and gallery/editor boot
+routing. `installProbe()` only returns the probe object for `index.js` to assign;
+no other module writes either global. `index.js` imports
+`{ t as tr, getLocale }` from `src/i18n/index.js` and
 `getVersionInfo` from `src/version.js` once, then injects those exact functions
 into the extracted owners. Source tests require the predecessor `tr` key
 inventory, lazy keyword factories, `$$('.kw', card)`, exact seven i18n exports,
@@ -2326,23 +2462,60 @@ contracts and P1 completion. Do not alter unrelated guidance.
 
 ```bash
 set -euo pipefail
+npm run test:ci
 npm test
 npx vite build --outDir /tmp/spirebound-round5-p1 --emptyOutDir
 node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e
+
+CANARY_OUTPUT=$(mktemp -d)
+CANARY_LOG=$(mktemp)
+cleanup_canary() {
+  rm -rf "$CANARY_OUTPUT"
+  rm -f "$CANARY_LOG"
+}
+trap cleanup_canary EXIT
+if SPIREBOUND_TRACE_ATTACHMENT_CANARY=1 \
+  node tools/run-with-strict-e2e-port.mjs -- npx playwright test trace \
+    --grep 'trace attachment canary' --project=desktop --workers=1 \
+    --output "$CANARY_OUTPUT" --no-deps \
+    >"$CANARY_LOG" 2>&1; then
+  echo 'expected trace attachment canary to fail deliberately' >&2
+  exit 1
+fi
+rg -F 'INTENTIONAL_TRACE_ATTACHMENT_CANARY_FAILURE' "$CANARY_LOG"
+test "$(find "$CANARY_OUTPUT" -type f -name ui-behaviour-trace.ndjson | wc -l | tr -d ' ')" = 1
+test "$(find "$CANARY_OUTPUT" -type f -name ui-behaviour-trace.txt | wc -l | tr -d ' ')" = 1
+NDJSON=$(find "$CANARY_OUTPUT" -type f -name ui-behaviour-trace.ndjson)
+TEXT=$(find "$CANARY_OUTPUT" -type f -name ui-behaviour-trace.txt)
+test -s "$NDJSON"
+test -s "$TEXT"
+for TRACE_FILE in "$NDJSON" "$TEXT"; do
+  for TOKEN in 'screen.entered' 'input.card-drag' 'playback.queue' \
+    'presentation.' 'persistence.'; do
+    rg -F "$TOKEN" "$TRACE_FILE"
+  done
+done
+cleanup_canary
+trap - EXIT
+
 node tools/run-with-strict-e2e-port.mjs -- npx playwright test trace \
-  --project=desktop --project=iphone-webkit --project=ipad-webkit --workers=1
+  --project=desktop --project=portrait --project=landscape --workers=1
 EXPECTED=$({ printf '%s\n' src/ui.js src/ui/combat.js src/ui/drain.js \
   src/ui/probe.js src/ui/index.js CONTEXT.md docs/README.md \
   test/e2e/helpers.js test/e2e/trace.spec.js test/e2e/trace-fixture.js \
-  test/test_engine.js; } | sort -u)
+  test/test_engine.js test/test_module_boundaries.mjs; } | sort -u)
 ACTUAL=$({ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u)
 test "$ACTUAL" = "$EXPECTED"
 ```
 
-Expected: all Chromium/WebKit trace journeys pass, the automatic fixture
-attaches both projections on a forced failure, visual baselines remain byte-for-
-byte unchanged and the tracked worktree is clean apart from declared Task 9
-files. The temporary build never writes `dist/`.
+Expected: all existing desktop/portrait/landscape Chromium trace journeys pass;
+Task 20 adds WebKit journey coverage that inherits the common fixture, without
+claiming a separate WebKit forced-failure canary. The environment-gated desktop
+canary proves that the automatic fixture attaches non-empty NDJSON and text
+projections with screen/drag/queue/ceremony/persistence vocabulary. Visual
+baselines remain byte-for-byte unchanged and the tracked worktree is clean
+apart from the exact twelve declared Task 9 paths. The temporary build never
+writes `dist/`.
 
 - [ ] **Step 7: Commit source/tests/docs, excluding `dist/`**
 
@@ -2350,7 +2523,8 @@ files. The temporary build never writes `dist/`.
 set -euo pipefail
 git add src/ui.js src/ui/combat.js src/ui/drain.js src/ui/probe.js \
   src/ui/index.js CONTEXT.md docs/README.md test/e2e/helpers.js \
-  test/e2e/trace.spec.js test/e2e/trace-fixture.js test/test_engine.js
+  test/e2e/trace.spec.js test/e2e/trace-fixture.js test/test_engine.js \
+  test/test_module_boundaries.mjs
 npm run test:round5:standing -- --profile p1-complete
 git commit -m "refactor: decompose the UI behind stable contracts"
 ```
@@ -3907,8 +4081,8 @@ or locale edits deliberately fall through to Vite's full-page
 reload, so no live-run or exported-object identity is promised.
 
 Add a failing Playwright semantic theme journey in `test/e2e/theme-profile.spec.js`.
-Run it through the strict-port wrapper against desktop Chromium, `iphone-webkit`
-and `ipad-webkit`. The journey uses a not-yet-created
+Run it through the strict-port wrapper against the existing `desktop`,
+`portrait` and `landscape` Chromium projects. The journey uses a not-yet-created
 `__probe.stageCoreTheme({ themeId, seed })` driver and requires the exact three
 production themes once per project. Expected: missing driver support.
 
@@ -3921,12 +4095,13 @@ the validated numeric act as legal scenario setup, regenerates the map, selects
 the first registered normal encounter and enters combat through the real
 handler. It returns only semantic theme, plate, weather, music and enemy ids.
 
-For every Chromium/WebKit project, visit all three themes, start one real normal
+For every existing Chromium project, visit all three themes, start one real normal
 encounter per theme and verify theme id/index, resolved plates or labelled
 fallback, weather snapshot, requested Music Cue/fallback, one real card play,
 End Turn, expected emulated stage shape, locale `en`, no unresolved locale key
 or `{param}`, and no trace drop/error/orphan. The Playwright report and ordinary
-attachments are browser evidence only.
+attachments are browser evidence only. Task 20 creates the phone/pad-shaped
+Playwright WebKit projects and reruns this same `theme-profile` journey there.
 
 - [ ] **Step 3: Run, review and commit the P2 browser source**
 
@@ -3937,7 +4112,7 @@ npm run test:content-registrations
 npm run test:act-coupling
 node tools/run-with-strict-e2e-port.mjs -- npx playwright test \
   theme-profile geometry stage audio --project=desktop \
-  --project=iphone-webkit --project=ipad-webkit --workers=1
+  --project=portrait --project=landscape --workers=1
 npm run test:round5:standing -- --profile p2
 git add src/ui/probe.js test/e2e/theme-profile.spec.js test/test_engine.js
 npm run test:round5:standing -- --profile p2
@@ -3953,9 +4128,10 @@ is required.
 Record commit range, exact commands/output summaries, export inventory, doctor
 counts, generated-manifest hashes/provenance, compiler freshness, locale
 catalogue hashes/provenance, allowlisted act residue, paired sample isolation
-and the Chromium/WebKit semantic-theme results. Update `CONTEXT.md` and
-`docs/README.md` to mark P2 complete and explain deliberate page reload on pack
-or locale edits.
+and the desktop/portrait/landscape Chromium semantic-theme results. Record that
+the WebKit rerun is deferred to Task 20, when those projects are created. Update
+`CONTEXT.md` and `docs/README.md` to mark P2 complete and explain deliberate
+page reload on pack or locale edits.
 
 Only after the complete P2 browser gate and ordered reviewer cycles pass, append
 the closing SHA and `P2 content-table freeze: RELEASED` to the execution ledger.
@@ -4217,10 +4393,14 @@ semantic content summary
 it never exposes registry rows or behaviour functions. No production file may
 branch on `sampleTheme`, `sampleEnemy` or `sampleCard`.
 
-Run the same Lab journey in Playwright Chromium, `iphone-webkit` and
-`ipad-webkit`. Each project opens the encoded URL, proves trace integrity,
+Run the same Lab journey in the existing Playwright `desktop`, `portrait` and
+`landscape` Chromium projects. Each project opens the encoded URL, proves trace integrity,
 replay hydration and ordered content ids, uses only public Probe drivers, and
-inherits NDJSON/text failure attachments from `trace-fixture.js`.
+inherits the `trace-fixture.js` attachment path whose deliberate failure was
+proved by Task 9's desktop canary. These green multi-project journeys do not
+independently prove failure-attachment generation. Task 20 creates the
+phone/pad-shaped Playwright WebKit projects and reruns this same `lab` journey
+there with the same fixture inheritance.
 
 Key assertions:
 
@@ -4326,13 +4506,13 @@ resolves every emitted chunk from `index.html`/manifest and fails on
 never reads tracked `dist/`. Add a Node source test that requires all forbidden
 markers to remain in the verifier's list.
 
-- [ ] **Step 7: Run the Chromium/WebKit Lab gate, review and commit**
+- [ ] **Step 7: Run the Chromium Lab gate, review and commit**
 
 ```bash
 set -euo pipefail
 npm test
 node tools/run-with-strict-e2e-port.mjs -- npx playwright test lab trace \
-  --project=desktop --project=iphone-webkit --project=ipad-webkit --workers=1
+  --project=desktop --project=portrait --project=landscape --workers=1
 node tools/verify-production-surface.mjs
 npm run test:round5:standing -- --profile p3
 git add src/main.js src/ui/dev/lab.js src/ui/dev/replay-preview.js \
@@ -4342,12 +4522,14 @@ npm run test:round5:standing -- --profile p3
 git commit -m "feat: add the trace-driven Content Lab"
 ```
 
-The Chromium/WebKit projects must each prove URL round-trip, real card play,
+The desktop/portrait/landscape Chromium projects must each prove URL round-trip, real card play,
 trace integrity, replay hydration without auto-run, fresh/veteran fixture
-isolation and NDJSON/text failure attachments. Complete fresh spec review,
-fixes/re-review, then fresh code-quality review and fixes/re-review. Playwright
-reports and attachments are browser evidence and are not committed as actual
-Safari or Simulator artefacts.
+isolation and attachment-fixture inheritance. Task 9's desktop canary remains
+the forced-failure proof for NDJSON/text materialisation. Complete fresh spec
+review, fixes/re-review, then fresh code-quality review and fixes/re-review.
+Playwright reports and attachments are browser evidence and are not committed
+as actual Safari or Simulator artefacts. Task 20 owns the deferred WebKit rerun
+after it creates `iphone-webkit` and `ipad-webkit`.
 
 ### Task 18: `[PE]` Add the content doctor dashboard and dev launcher
 
@@ -4561,7 +4743,7 @@ git commit -m "feat: add the schema-driven Content Manager"
 - Modify: `CONTEXT.md`, `docs/README.md`
 
 **Interfaces:**
-- Owns only the existing Playwright WebKit projects, package script and Linux CI lane.
+- Owns creation of the Playwright WebKit projects, package script and Linux CI lane.
 - Playwright WebKit is patched WebKit with device emulation; it is not branded
   Safari, an iOS/iPadOS Simulator, WKWebView, hardware or mobile-support proof.
 - Every browser command continues through `tools/run-with-strict-e2e-port.mjs`.
@@ -4596,6 +4778,10 @@ Define:
 "test:e2e:webkit": "playwright test trace stage lab theme-profile --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps",
 "test:e2e:update": "playwright test visual --update-snapshots --project=desktop --project=portrait --project=landscape --workers=1 --no-deps"
 ```
+
+These green WebKit journeys inherit the already desktop-canary-verified trace
+fixture, but do not independently prove failure-attachment materialisation;
+Task 20 does not add or claim a WebKit forced-failure canary.
 
 Before the first local WebKit run, install the browser once with
 `npx playwright install webkit`; record the Playwright/browser revision. This
