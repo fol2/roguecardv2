@@ -1435,8 +1435,12 @@ cumulative browser gates introduced by its completed phases.
 
 Neither outcome claims branded Safari, actual Safari/iOS Simulator, WKWebView,
 physical-device performance or feel, packaging, App Store readiness or mobile
-support. Those proof contracts belong only to the non-executable
+support. Future actual Safari/iOS Simulator tooling belongs only to the
+non-executable
 [deferred mobile-migration design](./2026-07-11-mobile-migration-simulator-tooling-design.md).
+Physical-device performance/feel and packaging/App Store proof remain separate
+future contracts; neither is authorised by that deferred design, and each
+requires an explicit owner amendment and its own implementation plan.
 
 ## Full-Round success criteria
 
