@@ -77,10 +77,18 @@ assert.throws(() => verifyCiGate({
 assert.throws(() => requiredCiLanes('e2e', true, 'unknown'), /Unsupported CI mode/);
 
 const workflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+assert.match(workflow, /CI_REF_NAME: \$\{\{ github\.head_ref \|\| github\.ref_name \}\}/);
+assert.match(workflow, /name: p2-base/);
+assert.match(workflow, /name: e2e nonvisual/);
+assert.match(workflow, /name: progression/);
+assert.match(workflow, /name: e2e trace-production/);
+assert.match(workflow, /npm run test:progression/);
+assert.match(workflow, /npm run test:e2e:trace-production/);
 assert.match(workflow, /name: e2e main \$\{\{ matrix\.shard \}\}\/10/);
 assert.match(workflow, /shard: \[1, 2, 3, 4, 5, 6, 7, 8, 9, 10\]/);
 assert.match(workflow, /test:e2e:main -- --shard=\$\{\{ matrix\.shard \}\}\/10/);
 assert.match(workflow, /e2e_serial:[\s\S]*?name: e2e serial[\s\S]*?npm run test:e2e:serial/);
+assert.match(workflow, /e2e_nonvisual:[\s\S]*?CI_GATE: e2e[\s\S]*?CI_MODE: p2-base/);
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 assert.equal(pkg.scripts['test:e2e'], 'npm run test:e2e:nonvisual && npm run test:e2e:visual');

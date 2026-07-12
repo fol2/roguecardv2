@@ -57,6 +57,7 @@ jobs:
         run: node tools/ci-contract.mjs mode
         env:
           PR_DRAFT: ${{ github.event.pull_request.draft }}
+          CI_REF_NAME: ${{ github.head_ref || github.ref_name }}
 
   unit_tests:
     name: unit tests
@@ -128,6 +129,23 @@ jobs:
           CI_RESULTS: >-
             {"changes":"${{ needs.changes.result }}","unit-tests":"${{ needs.unit_tests.result }}","build-dist":"${{ needs.build_dist.result }}"}
 
+  progression:
+    name: progression
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:progression
+
   smoke_e2e:
     name: e2e smoke
     needs: changes
@@ -159,7 +177,7 @@ jobs:
   e2e_disk:
     name: e2e disk
     needs: changes
-    if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
+    if: needs.changes.outputs.e2e == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -187,7 +205,7 @@ jobs:
   e2e_random:
     name: e2e random ${{ matrix.shard }}/3
     needs: changes
-    if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
+    if: needs.changes.outputs.e2e == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base')
     strategy:
       fail-fast: false
       matrix:
@@ -219,7 +237,7 @@ jobs:
   e2e_main:
     name: e2e main ${{ matrix.shard }}/10
     needs: changes
-    if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
+    if: needs.changes.outputs.e2e == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base')
     strategy:
       fail-fast: false
       matrix:
@@ -251,7 +269,7 @@ jobs:
   e2e_serial:
     name: e2e serial
     needs: changes
-    if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
+    if: needs.changes.outputs.e2e == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -275,6 +293,27 @@ jobs:
           path: test-results/
           retention-days: 14
           if-no-files-found: ignore
+
+  e2e_trace_production:
+    name: e2e trace-production
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:trace-production
+      - name: Verify clean checkout
+        if: always()
+        run: test -z "$(git status --porcelain --untracked-files=all)"
 
   e2e_visual:
     name: e2e visual ${{ matrix.project }}
@@ -308,6 +347,24 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+  e2e_nonvisual:
+    name: e2e nonvisual
+    if: always()
+    needs: [changes, e2e_disk, e2e_random, e2e_main, e2e_serial, e2e_trace_production]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - run: node tools/ci-contract.mjs gate
+        env:
+          CI_GATE: e2e
+          CI_RELEVANT: ${{ needs.changes.outputs.e2e == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base') }}
+          CI_MODE: p2-base
+          CI_RESULTS: >-
+            {"changes":"${{ needs.changes.result }}","e2e-disk":"${{ needs.e2e_disk.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-main":"${{ needs.e2e_main.result }}","e2e-serial":"${{ needs.e2e_serial.result }}","e2e-trace-production":"${{ needs.e2e_trace_production.result }}"}
+
   e2e:
     name: e2e
     if: always()
@@ -325,3 +382,21 @@ jobs:
           CI_MODE: ${{ needs.changes.outputs.mode }}
           CI_RESULTS: >-
             {"changes":"${{ needs.changes.result }}","smoke-e2e":"${{ needs.smoke_e2e.result }}","e2e-disk":"${{ needs.e2e_disk.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-main":"${{ needs.e2e_main.result }}","e2e-serial":"${{ needs.e2e_serial.result }}","e2e-visual":"${{ needs.e2e_visual.result }}"}
+
+  p2-base:
+    name: p2-base
+    if: always()
+    needs: [changes, unit, e2e_nonvisual, progression]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - run: node tools/ci-contract.mjs gate
+        env:
+          CI_GATE: p2-base
+          CI_RELEVANT: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.e2e == 'true' }}
+          CI_MODE: ${{ needs.changes.outputs.mode }}
+          CI_RESULTS: >-
+            {"changes":"${{ needs.changes.result }}","unit":"${{ needs.unit.result }}","e2e-nonvisual":"${{ needs.e2e_nonvisual.result }}","progression":"${{ needs.progression.result }}"}
