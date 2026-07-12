@@ -2390,6 +2390,41 @@ function forceHand(run, cb, ids) {
   assert.deepEqual(pending, ['remove']);
 }
 {
+  // Bone Gambler: wins are possible, outcomes are announced, each event node resets
+  const ops = EVENTS.gambler.choices[0].ops;
+  const winRun = newRun(1);
+  winRun.player.gold = 100;
+  const win = applyEventOps(winRun, ops, () => 0); // r < 0.45 → win branch
+  assert.equal(winRun.player.gold, 170, 'win pays 40 then grants 110 (net +70)');
+  assert.ok(win.log.some((L) => L.text && /110|win|favour|favor|claim/i.test(L.text)),
+    'win must announce an outcome (silent rolls look like permanent losses)');
+
+  const loseRun = newRun(1);
+  loseRun.player.gold = 100;
+  const lose = applyEventOps(loseRun, ops, () => 0.5); // 0.45 ≤ r < 1 → lose branch
+  assert.equal(loseRun.player.gold, 60, 'lose keeps the 40-gold stake');
+  assert.ok(lose.log.some((L) => L.text && /lose|lost|wager|scatter|rattle/i.test(L.text)),
+    'lose must announce an outcome');
+
+  const multi = newRun(42);
+  multi.player.gold = 500;
+  const eventNodes = multi.map.nodes.filter((n) => n.type === 'event');
+  assert.ok(eventNodes.length >= 2, 'map offers more than one event node');
+  const deltas = [];
+  for (const node of eventNodes.slice(0, 2)) {
+    visitNode(multi, node);
+    const gold0 = multi.player.gold;
+    const once = applyNodeEventChoice(multi, ops);
+    assert.equal(once.already, false, `fresh gamble on node ${node.id}`);
+    finalizeNodeEventChoice(multi);
+    assert.equal(node.rewardClaimed, true);
+    deltas.push(multi.player.gold - gold0);
+  }
+  assert.ok(deltas.every((d) => d === 70 || d === -40), 'each node rolls independently');
+  const again = applyNodeEventChoice(multi, ops);
+  assert.equal(again.already, true, 'same node cannot be gambled twice');
+}
+{
   // node rewards: treasure, events, and boss relics are idempotent per node/act
   const run = newRun(88);
   const treasure = run.map.nodes.find((n) => n.type === 'treasure') || run.map.nodes.find((n) => n.row === 8);

@@ -67,6 +67,18 @@ export function hydrateContent(tables, content) {
           if (dest) applyStrings(dest, ch);
         }
       }
+      // roll branch copy: events.<id>.rolls.<branchId>.text → op.roll[].text
+      if (loc.rolls && row.choices) {
+        for (const ch of row.choices) {
+          for (const op of ch.ops || []) {
+            if (!op.roll) continue;
+            for (const branch of op.roll) {
+              const rollLoc = branch.id != null ? loc.rolls[branch.id] : null;
+              if (rollLoc?.text != null) branch.text = rollLoc.text;
+            }
+          }
+        }
+      }
     }
   }
 

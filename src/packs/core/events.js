@@ -154,6 +154,7 @@ export const EVENTS = {
           {
             roll: [
               {
+                id: 'win',
                 p: 0.45,
                 ops: [
                   {
@@ -162,6 +163,7 @@ export const EVENTS = {
                 ],
               },
               {
+                id: 'lose',
                 p: 0.55,
                 ops: [],
               },
