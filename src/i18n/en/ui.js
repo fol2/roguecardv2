@@ -14,7 +14,7 @@ export const ui = {
   },
 
   brand: {
-    title: 'SPIREBOUND',
+    title: 'GLASSVOW',
     tagline: 'A Roguelite Deckbuilder · The Vigil Remembers',
   },
 
