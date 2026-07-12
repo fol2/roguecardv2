@@ -1,6 +1,8 @@
-# SPIREBOUND
+# GLASSVOW ・ 琉璃誓
 
 A complete roguelite deckbuilder for the browser: a tower of glass creatures with fire inside, climbed by lantern light. Three acts, three bosses, 60 cards, 31 relics, 27 enemy species, 2 playable aspects, and a meta-progression vigil that remembers every fall — combat art, card faces, relics, enemies, events, and stage plates are painted raster PNGs (with procedural SVG fallbacks); structural UI icons and status chips stay hand-drawn SVG in `src/art.js`; SFX are sample-backed with WebAudio synth fallback, and BGM is a versioned Music Cue layer. No UI framework.
+
+**Naming layers:** *Glassvow* (Chinese: **琉璃誓**) is the display/brand title — tagline "The Vigil Remembers"; store flavor line "Climb beneath a vow of glass and flame." The title's Vow is thematic; the in-game five-step Vows difficulty ladder still unlocks after the first dawn, as a deliberate title payoff. *Spirebound* remains the internal engineering name: the repo, `package.json` name, the `spirebound_*` localStorage keys, the `window.spirebound` debug hook, and the in-world tower ("the Spire") are all unchanged, deliberately — saves and test anchors must survive the rename.
 
 ## Play
 
