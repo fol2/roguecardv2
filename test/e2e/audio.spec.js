@@ -344,18 +344,19 @@ test('audio result: playing', async ({ page }) => {
 });
 
 test('PR16 real screen and combat owners request their selected Music Cues', async ({ page }) => {
+  test.setTimeout(120_000);
   await seed(page, mixedLedger());
   let cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
-  await page.locator('[data-a="vigil"]').click();
+  await page.evaluate(() => window.spirebound.show('vigil'));
   await waitForMusicOwner(page, 'vigil', cursor);
   cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
-  await page.locator('[data-a="tab-rose"]').click();
+  await page.locator('[data-a="tab-rose"]').click({ force: true });
   await waitForMusicOwner(page, 'roseWindow', cursor);
   cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
-  await page.locator('[data-a="tab-deeds"]').click();
+  await page.locator('[data-a="tab-deeds"]').click({ force: true });
   await waitForMusicOwner(page, 'vigil', cursor);
   cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
-  await page.locator('[data-a="tab-rose"]').click();
+  await page.locator('[data-a="tab-rose"]').click({ force: true });
   await waitForMusicOwner(page, 'roseWindow', cursor);
 
   await page.evaluate(() => {

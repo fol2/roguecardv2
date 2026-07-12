@@ -13,7 +13,7 @@ import {
   rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, finalizeNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, nodeEventInFlight, saveRun, loadRun, genCombatRewards, genShop, buyQuestItem, gainRelic, randomRelic,
   rollBossRelics, addCardToDeck, removableCards, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
   MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, grantBequest, markShadeFall, resolveCombatant, cardPool, relicPool,
-  gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
+  gainEmbers, kindleFromHand, canKindle, canPlay, canUseArt, useArt, rollOmen, restHealFrac, effCost,
   previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
   revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter,
   setPendingReward, takePendingReward, clearPendingReward, pendingRewardHasUntaken, hasPendingBossRelic, recordRunEnd, commitRunStats,
@@ -22,6 +22,7 @@ import {
   shopSessionKey, shopStockForSession,
   finaliseTerminalOutbox, journalTerminalOutcome, savedRunRequiresFinalisation,
   SHADE_DUEL_TX, shadeVictorySkipsRewards, shadeLossBequestState,
+  contentIdFor, isEphemeralRun, themeCount, isFinalTheme, _normaliseRunSnapshotForTest,
 } from '../src/engine.js';
 import * as EngineApi from '../src/engine.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS, ACTS, PLAYER } from '../src/data.js';
@@ -66,7 +67,7 @@ import {
 import {
   CONTENT_SCHEMAS, MERGE_POLICIES, PROGRESSION_MERGE_POLICIES,
   createContentContext, createContentRegistry, definePack, doctorContent,
-  formatContentReport, isFinalTheme, joinLocaleContent, themeById, themeForAct,
+  formatContentReport, isFinalTheme as registryIsFinalTheme, joinLocaleContent, themeById, themeForAct,
 } from '../src/registry.js';
 import {
   compileContentRegistrations, defineContentRegistration,
@@ -76,6 +77,21 @@ import { STATIC_REFERENCE_CATALOGUES } from '../src/content-resources.js';
 import {
   discoverContentRegistrations, renderContentRegistrationManifest,
 } from '../tools/compile-content-registrations.mjs';
+import { CORE_CONTENT } from '../src/content.js';
+import { createCoreAuthoring } from '../src/packs/core/index.js';
+import * as englishContent from '../src/i18n/en/content.js';
+
+function makeTunedContent(overrides = {}, id = 'tuned', mutateAuthoring = null) {
+  const authoring = createCoreAuthoring(overrides);
+  if (typeof mutateAuthoring === 'function') mutateAuthoring(authoring);
+  const pack = definePack({ id, ...authoring });
+  return createContentContext([pack], {
+    id,
+    resources: STATIC_REFERENCE_CATALOGUES,
+    localeContent: englishContent,
+    localeToken: 'en',
+  });
+}
 
 {
   const oracle = JSON.parse(readFileSync(new URL('./fixtures/round5-content-oracle-v1.json', import.meta.url), 'utf8'));
@@ -3726,146 +3742,198 @@ function forceHand(run, cb, ids) {
   _setStore(null);
 }
 {
-  // Emberglass scheduler/save bounds derive from authored tunables rather
-  // than retaining the launch values 2, 3, and 5 in parallel.
-  const oldGuaranteeRuns = PROGRESSION.emberglass.eighthOmen.guaranteeRuns;
-  const oldEmberDebt = PROGRESSION.emberglass.hollowLamplighter.emberDebt;
-  const oldPageTarget = QUESTS.unreadablePage.target;
-  const oldHiddenPerRun = PROGRESSION.emberglass.paleOnes.hiddenPerRun;
-  const oldMarkedAct1 = PROGRESSION.emberglass.paleOnes.markedAct1;
-  const oldMaxMeetings = PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun;
+  // Task 12B: simultaneous frozen core + tuned contexts (no global PROGRESSION mutation).
+  const core = CORE_CONTENT;
+  const tuned = makeTunedContent({
+    progression: { features: { emberglass: {
+      eighthOmen: { guaranteeRuns: 4, saveDueInMax: 4 },
+      paleOnes: { hiddenPerRun: 2, markedAct1: 2 },
+      hollowLamplighter: { maxMeetingsPerRun: 2, emberDebt: 4, saveEmberDebtMax: 4 },
+      unreadablePage: { completeAt: 6 },
+    } } },
+  }, 'tuned-context');
+  assert.equal(Object.isFrozen(core), true, 'core context is frozen');
+  assert.equal(Object.isFrozen(tuned), true, 'tuned context is frozen');
+  assert.throws(() => { core.progression.emberglass.eighthOmen.guaranteeRuns = 99; }, TypeError,
+    'core context nested writes throw');
+  assert.throws(() => { tuned.progression.emberglass.paleOnes.hiddenPerRun = 99; }, TypeError,
+    'tuned context nested writes throw');
+  assert.notEqual(tuned.progression.emberglass.eighthOmen.guaranteeRuns,
+    core.progression.emberglass.eighthOmen.guaranteeRuns,
+    'tuned context does not observe core progression');
+  assert.equal(tuned.quests.hollowLamplighter.target, core.quests.hollowLamplighter.target,
+    'Hollow target re-derived from tuned progression completeAt unless overridden');
+  assert.equal(tuned.quests.unreadablePage.target, 6);
+  assert.equal(tuned.variants.paleDuskfang.statMods,
+    tuned.progression.emberglass.variantStats.pale,
+    'tuned variant stat aliases re-derived from the clone');
+
+  EngineApi._setQuestRng(() => 0.99);
+  const questSet = (activeId, memory = {}) => Object.fromEntries(QUEST_IDS.map((id) => [id, {
+    state: id === activeId ? 'revealed' : 'dormant', progress: 0,
+    memory: id === activeId ? { ...memory } : {},
+  }]));
+  const eighthQuests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+    state: id === 'eighthOmen' ? 'armed' : 'dormant', progress: 0,
+    memory: id === 'eighthOmen' ? { dueIn: 4 } : {},
+  }]));
+  const missed = newRun(466, { ephemeral: true, content: tuned, quests: eighthQuests, reveals: [] });
+  assert.equal(contentIdFor(missed), 'tuned-context');
+  assert.equal(isEphemeralRun(missed), true);
+  assert.deepEqual(missed.questScratch.eighthOmen, { active: false });
+  assert.equal(missed.quests.eighthOmen.memory.dueIn, 3,
+    'a configured four-run guarantee decrements instead of assuming two');
+  eighthQuests.eighthOmen.memory.dueIn = 1;
+  const forced = newRun(467, { ephemeral: true, content: tuned, quests: eighthQuests, reveals: [] });
+  assert.deepEqual(forced.questScratch.eighthOmen, { active: true },
+    'the final configured guarantee run remains forced');
+
+  const hidden = newRun(468, { ephemeral: true, content: tuned, quests: questSet('paleOnes'), reveals: [] });
+  assert.equal(hidden.questScratch.paleOnes.hiddenRemaining, 2);
+  assert.equal(rollEncounter(hidden, 'monster', 1)[0], 'paleDuskfang');
+  assert.equal(rollEncounter(hidden, 'monster', 2)[0], 'paleDuskfang');
+  assert.ok(!rollEncounter(hidden, 'monster', 3)[0].startsWith('pale'),
+    'hiddenPerRun controls the exact unmarked encounter count');
+
+  const marked = newRun(469, {
+    ephemeral: true, content: tuned,
+    quests: questSet('paleOnes'), unlocks: ['insight:witchlightLens'], reveals: [],
+  });
+  const actOneCandidates = marked.map.nodes.filter((node) => node.row === 0 && node.type === 'monster');
+  assert.equal(actOneCandidates.filter((node) => node.questMarked).length,
+    Math.min(2, actOneCandidates.length), 'markedAct1 controls distinct marked nodes');
+
+  const hollow = newRun(470, {
+    ephemeral: true, content: tuned,
+    quests: questSet('hollowLamplighter', {
+      eligibleMisses: tuned.progression.emberglass.hollowLamplighter.pityEligibleRuns - 1,
+    }),
+    reveals: [],
+  });
+  const meetingNodes = hollow.map.nodes.slice(0, 3);
+  meetingNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
+  assert.equal(visitNode(hollow, meetingNodes[0]).hollow, true);
+  hollow.pendingHollow = null;
+  assert.equal(visitNode(hollow, meetingNodes[1]).hollow, true);
+  hollow.pendingHollow = null;
+  assert.equal(visitNode(hollow, meetingNodes[2]).hollow, undefined,
+    'maxMeetingsPerRun caps later eligible nodes');
+  assert.equal(hollow.questScratch.hollowLamplighter.meetings, 2);
+
+  const debtHollow = newRun(473, {
+    ephemeral: true, content: tuned,
+    quests: questSet('hollowLamplighter', {
+      eligibleMisses: tuned.progression.emberglass.hollowLamplighter.pityEligibleRuns - 1,
+    }),
+    reveals: [],
+  });
+  const debtNodes = debtHollow.map.nodes.slice(0, 2);
+  debtNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
+  assert.equal(visitNode(debtHollow, debtNodes[0]).hollow, true);
+  assert.equal(payHollowPrice(debtHollow).deferred, true);
+  const debtCombat = startCombat(debtHollow, ['sporeling']);
+  gainEmbers(debtHollow, debtCombat, tuned.progression.emberglass.hollowLamplighter.emberDebt - 1);
+  assert.equal(debtHollow.quests.hollowLamplighter.memory.emberDebt, 1);
+  debtHollow.pendingHollow = null;
+  assert.equal(visitNode(debtHollow, debtNodes[1]).hollow, undefined,
+    'an outstanding deferred ember price blocks a repeated meeting');
+  assert.equal(debtHollow.quests.hollowLamplighter.memory.emberDebt, 1,
+    'a later unlit node cannot reset an outstanding ember debt');
+  assert.equal(debtHollow.questScratch.hollowLamplighter.meetings, 1);
+
+  const completeHollow = newRun(474, {
+    ephemeral: true, content: tuned,
+    quests: Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'hollowLamplighter' ? 'revealed' : 'dormant',
+      progress: id === 'hollowLamplighter' ? tuned.quests.hollowLamplighter.target - 1 : 0,
+      memory: id === 'hollowLamplighter'
+        ? { eligibleMisses: tuned.progression.emberglass.hollowLamplighter.pityEligibleRuns - 1 }
+        : {},
+    }])),
+    reveals: [],
+  });
+  const completeNodes = completeHollow.map.nodes.slice(0, 2);
+  completeNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
+  assert.equal(visitNode(completeHollow, completeNodes[0]).hollow, true);
+  assert.equal(payHollowPrice(completeHollow).ok, true);
+  assert.equal(completeHollow.quests.hollowLamplighter.state, 'complete');
+  completeHollow.pendingHollow = null;
+  assert.equal(visitNode(completeHollow, completeNodes[1]).hollow, undefined,
+    'a completed Hollow Trail cannot open another meeting');
+  assert.equal(completeHollow.questScratch.hollowLamplighter.meetings, 1);
+
+  const shadeTierIds = Object.keys(tuned.variants)
+    .filter((id) => /^ownShade[1-9]\d*$/.test(id))
+    .sort((a, b) => Number(a.slice('ownShade'.length)) - Number(b.slice('ownShade'.length)));
+  assert.equal(tuned.progression.emberglass.ownShade.tiers.length, tuned.quests.ownShade.target,
+    'each fixed Shade stage has one authored stat tier');
+  assert.deepEqual(shadeTierIds,
+    tuned.progression.emberglass.ownShade.tiers.map((_, index) => `ownShade${index + 1}`),
+    'each fixed Shade stage has one contiguous combat variant');
+  assert.equal(tuned.quests.hollowLamplighter.meetings.length, tuned.quests.hollowLamplighter.target,
+    'each configured Hollow completion step has one authored price conversation');
+
+  // Core run must not observe tuned progression / encounters / cards.
+  const coreRun = newRun(480);
+  assert.equal(contentIdFor(coreRun), 'core');
+  assert.equal(isEphemeralRun(coreRun), false);
+  assert.equal(themeCount(coreRun), 3);
+  assert.equal(isFinalTheme({ ...coreRun, act: 2 }), true);
+  assert.equal(cardData(makeCard(coreRun, 'strike'), coreRun).name, cardData(makeCard(missed, 'strike'), missed).name);
+  const corePale = newRun(482, { quests: questSet('paleOnes'), reveals: [] });
+  assert.equal(corePale.questScratch.paleOnes.hiddenRemaining, 1);
+  assert.notEqual(hidden.questScratch.paleOnes.hiddenRemaining, corePale.questScratch.paleOnes.hiddenRemaining);
+
+  assert.throws(() => newRun(1, { ephemeral: true, content: tuned, art: 'not-a-real-art' }), /unknown art/);
+  assert.throws(() => newRun(1, { ephemeral: true, content: { id: 'raw' } }), /frozen|missing domain/i);
+  assert.throws(() => newRun(1, { ephemeral: true, content: tuned, boon: 'not-a-real-boon' }), /unknown boon/);
+
   const previousLocalStorage = globalThis.localStorage;
   const mem = new Map();
   try {
-    assert.ok(PROGRESSION.emberglass.eighthOmen.saveDueInMax >= oldGuaranteeRuns,
-      'the Eighth save ceiling covers the shipped guarantee');
-    assert.ok(PROGRESSION.emberglass.hollowLamplighter.saveEmberDebtMax >= oldEmberDebt,
-      'the Hollow save ceiling covers the shipped deferred price');
-    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = 4;
-    EngineApi._setQuestRng(() => 0.99);
-    const eighthQuests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
-      state: id === 'eighthOmen' ? 'armed' : 'dormant', progress: 0,
-      memory: id === 'eighthOmen' ? { dueIn: 4 } : {},
-    }]));
-    const missed = newRun(466, { quests: eighthQuests, reveals: [] });
-    assert.deepEqual(missed.questScratch.eighthOmen, { active: false });
-    assert.equal(missed.quests.eighthOmen.memory.dueIn, 3,
-      'a configured four-run guarantee decrements instead of assuming two');
-    eighthQuests.eighthOmen.memory.dueIn = 1;
-    const forced = newRun(467, { quests: eighthQuests, reveals: [] });
-    assert.deepEqual(forced.questScratch.eighthOmen, { active: true },
-      'the final configured guarantee run remains forced');
-
-    const questSet = (activeId, memory = {}) => Object.fromEntries(QUEST_IDS.map((id) => [id, {
-      state: id === activeId ? 'revealed' : 'dormant', progress: 0,
-      memory: id === activeId ? { ...memory } : {},
-    }]));
-    PROGRESSION.emberglass.paleOnes.hiddenPerRun = 2;
-    const hidden = newRun(468, { quests: questSet('paleOnes'), reveals: [] });
-    assert.equal(hidden.questScratch.paleOnes.hiddenRemaining, 2);
-    assert.equal(rollEncounter(hidden, 'monster', 1)[0], 'paleDuskfang');
-    assert.equal(rollEncounter(hidden, 'monster', 2)[0], 'paleDuskfang');
-    assert.ok(!rollEncounter(hidden, 'monster', 3)[0].startsWith('pale'),
-      'hiddenPerRun controls the exact unmarked encounter count');
-
-    PROGRESSION.emberglass.paleOnes.markedAct1 = 2;
-    const marked = newRun(469, {
-      quests: questSet('paleOnes'), unlocks: ['insight:witchlightLens'], reveals: [],
-    });
-    const actOneCandidates = marked.map.nodes.filter((node) => node.row === 0 && node.type === 'monster');
-    assert.equal(actOneCandidates.filter((node) => node.questMarked).length,
-      Math.min(2, actOneCandidates.length), 'markedAct1 controls distinct marked nodes');
-
-    PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun = 2;
-    const hollow = newRun(470, {
-      quests: questSet('hollowLamplighter', {
-        eligibleMisses: PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1,
-      }),
-      reveals: [],
-    });
-    const meetingNodes = hollow.map.nodes.slice(0, 3);
-    meetingNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
-    assert.equal(visitNode(hollow, meetingNodes[0]).hollow, true);
-    hollow.pendingHollow = null;
-    assert.equal(visitNode(hollow, meetingNodes[1]).hollow, true);
-    hollow.pendingHollow = null;
-    assert.equal(visitNode(hollow, meetingNodes[2]).hollow, undefined,
-      'maxMeetingsPerRun caps later eligible nodes');
-    assert.equal(hollow.questScratch.hollowLamplighter.meetings, 2);
-
-    const debtHollow = newRun(473, {
-      quests: questSet('hollowLamplighter', {
-        eligibleMisses: PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1,
-      }),
-      reveals: [],
-    });
-    const debtNodes = debtHollow.map.nodes.slice(0, 2);
-    debtNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
-    assert.equal(visitNode(debtHollow, debtNodes[0]).hollow, true);
-    assert.equal(payHollowPrice(debtHollow).deferred, true);
-    const debtCombat = startCombat(debtHollow, ['sporeling']);
-    gainEmbers(debtHollow, debtCombat, PROGRESSION.emberglass.hollowLamplighter.emberDebt - 1);
-    assert.equal(debtHollow.quests.hollowLamplighter.memory.emberDebt, 1);
-    debtHollow.pendingHollow = null;
-    assert.equal(visitNode(debtHollow, debtNodes[1]).hollow, undefined,
-      'an outstanding deferred ember price blocks a repeated meeting');
-    assert.equal(debtHollow.quests.hollowLamplighter.memory.emberDebt, 1,
-      'a later unlit node cannot reset an outstanding ember debt');
-    assert.equal(debtHollow.questScratch.hollowLamplighter.meetings, 1);
-
-    const completeHollow = newRun(474, {
-      quests: Object.fromEntries(QUEST_IDS.map((id) => [id, {
-        state: id === 'hollowLamplighter' ? 'revealed' : 'dormant',
-        progress: id === 'hollowLamplighter' ? QUESTS.hollowLamplighter.target - 1 : 0,
-        memory: id === 'hollowLamplighter'
-          ? { eligibleMisses: PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1 }
-          : {},
-      }])),
-      reveals: [],
-    });
-    const completeNodes = completeHollow.map.nodes.slice(0, 2);
-    completeNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
-    assert.equal(visitNode(completeHollow, completeNodes[0]).hollow, true);
-    assert.equal(payHollowPrice(completeHollow).ok, true);
-    assert.equal(completeHollow.quests.hollowLamplighter.state, 'complete');
-    completeHollow.pendingHollow = null;
-    assert.equal(visitNode(completeHollow, completeNodes[1]).hollow, undefined,
-      'a completed Hollow Trail cannot open another meeting');
-    assert.equal(completeHollow.questScratch.hollowLamplighter.meetings, 1);
-
-    const shadeTierIds = Object.keys(VARIANTS)
-      .filter((id) => /^ownShade[1-9]\d*$/.test(id))
-      .sort((a, b) => Number(a.slice('ownShade'.length)) - Number(b.slice('ownShade'.length)));
-    assert.equal(PROGRESSION.emberglass.ownShade.tiers.length, QUESTS.ownShade.target,
-      'each fixed Shade stage has one authored stat tier');
-    assert.deepEqual(shadeTierIds,
-      PROGRESSION.emberglass.ownShade.tiers.map((_, index) => `ownShade${index + 1}`),
-      'each fixed Shade stage has one contiguous combat variant');
-    assert.equal(QUESTS.hollowLamplighter.meetings.length, QUESTS.hollowLamplighter.target,
-      'each configured Hollow completion step has one authored price conversation');
-
-    PROGRESSION.emberglass.hollowLamplighter.emberDebt = 4;
-    QUESTS.unreadablePage.target = 6;
     globalThis.localStorage = {
       getItem: (key) => mem.get(key) ?? null,
       setItem: (key, value) => mem.set(key, value),
       removeItem: (key) => mem.delete(key),
     };
 
+    const ephemeral = newRun(481, { ephemeral: true, content: tuned });
+    assert.equal(saveRun(ephemeral), true, 'ephemeral saveRun returns predecessor success');
+    assert.equal(mem.size, 0, 'ephemeral saveRun does not touch storage');
+    assert.equal(commitRunStats(ephemeral, true), true);
+    assert.equal(mem.size, 0, 'ephemeral commitRunStats does not touch storage');
+    assert.equal(recordRunEnd(ephemeral, false), true);
+    assert.equal(mem.size, 0, 'ephemeral recordRunEnd does not touch storage');
+
+    const high = makeTunedContent({
+      progression: { features: { emberglass: {
+        paleOnes: { hiddenPerRun: 2 },
+        eighthOmen: { guaranteeRuns: 4, saveDueInMax: 4 },
+        hollowLamplighter: { emberDebt: 4, saveEmberDebtMax: 4, maxMeetingsPerRun: 2 },
+        unreadablePage: { completeAt: 6 },
+      } } },
+    }, 'tuned-high');
+    const low = makeTunedContent({
+      progression: { features: { emberglass: {
+        paleOnes: { hiddenPerRun: 1 },
+        eighthOmen: { guaranteeRuns: 1, saveDueInMax: 2 },
+        hollowLamplighter: { emberDebt: 2, saveEmberDebtMax: 3, maxMeetingsPerRun: 1 },
+      } } },
+    }, 'tuned-low');
+
     const historicalQuests = questSet('paleOnes');
     historicalQuests.hollowLamplighter = {
       state: 'revealed', progress: 1, memory: { eligibleMisses: 0 },
     };
-    const historical = newRun(471, { quests: historicalQuests, reveals: [] });
+    const historical = newRun(471, { content: high, quests: historicalQuests, reveals: [] });
     historical.questScratch.hollowLamplighter = {
       due: true, met: true, meetings: 2, debtActive: false,
     };
     assert.equal(saveRun(historical), true);
     const durableHistorical = JSON.parse(mem.get('spirebound_save_v2'));
-    PROGRESSION.emberglass.paleOnes.hiddenPerRun = 1;
-    PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun = 1;
-    const historicalReload = loadRun();
+    const historicalReload = _normaliseRunSnapshotForTest(durableHistorical, low);
     assert.ok(historicalReload, 'lower tuning does not invalidate historical scheduler counters');
+    assert.equal(contentIdFor(historicalReload), 'tuned-low');
     assert.equal(historicalReload.questScratch.paleOnes.hiddenRemaining, 2);
     assert.equal(historicalReload.questScratch.hollowLamplighter.meetings, 2);
     assert.equal(rollEncounter(historicalReload, 'monster', 1)[0], 'paleDuskfang');
@@ -3874,36 +3942,31 @@ function forceHand(run, cb, ids) {
 
     const inconsistentPale = structuredClone(durableHistorical);
     inconsistentPale.questScratch.paleOnes.hiddenDue = false;
-    mem.set('spirebound_save_v2', JSON.stringify(inconsistentPale));
-    assert.equal(loadRun(), null, 'redundant Pale scheduler fields must agree');
+    assert.equal(_normaliseRunSnapshotForTest(inconsistentPale, low), null,
+      'redundant Pale scheduler fields must agree');
     const inconsistentHollow = structuredClone(durableHistorical);
     inconsistentHollow.questScratch.hollowLamplighter.met = false;
-    mem.set('spirebound_save_v2', JSON.stringify(inconsistentHollow));
-    assert.equal(loadRun(), null, 'redundant Hollow scheduler fields must agree');
+    assert.equal(_normaliseRunSnapshotForTest(inconsistentHollow, low), null,
+      'redundant Hollow scheduler fields must agree');
 
-    const dynamicSave = newRun(472);
+    const dynamicSave = newRun(472, { content: high });
     dynamicSave.quests.eighthOmen = { state: 'armed', progress: 0, memory: { dueIn: 4 } };
     dynamicSave.quests.hollowLamplighter = { state: 'revealed', progress: 0, memory: { emberDebt: 4 } };
     dynamicSave.endQueue = [{ t: 'pageRead', index: 6, text: 'A sixth configured page.' }];
     assert.equal(saveRun(dynamicSave), true);
-    assert.ok(loadRun(), 'configured guarantee, ember debt, and Page target pass save validation');
+    assert.ok(_normaliseRunSnapshotForTest(JSON.parse(mem.get('spirebound_save_v2')), high),
+      'configured guarantee, ember debt, and Page target pass save validation');
 
-    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = oldGuaranteeRuns;
-    PROGRESSION.emberglass.hollowLamplighter.emberDebt = oldEmberDebt;
     const compatibilitySave = newRun(475);
     compatibilitySave.quests.eighthOmen = {
-      state: 'armed', progress: 0, memory: { dueIn: oldGuaranteeRuns },
+      state: 'armed', progress: 0, memory: { dueIn: PROGRESSION.emberglass.eighthOmen.guaranteeRuns },
     };
     compatibilitySave.quests.hollowLamplighter = {
-      state: 'revealed', progress: 0, memory: { emberDebt: oldEmberDebt },
+      state: 'revealed', progress: 0,
+      memory: { emberDebt: PROGRESSION.emberglass.hollowLamplighter.emberDebt },
     };
     assert.equal(saveRun(compatibilitySave), true);
-    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = 1;
-    PROGRESSION.emberglass.hollowLamplighter.emberDebt = 2;
-    const lowerTuningReload = loadRun();
-    assert.ok(lowerTuningReload, 'lower memory tunables do not invalidate an existing run contract');
-    assert.equal(lowerTuningReload.quests.eighthOmen.memory.dueIn, oldGuaranteeRuns);
-    assert.equal(lowerTuningReload.quests.hollowLamplighter.memory.emberDebt, oldEmberDebt);
+    assert.ok(loadRun(), 'core loadRun still accepts shipped memory contracts');
 
     const excessiveDue = structuredClone(JSON.parse(mem.get('spirebound_save_v2')));
     excessiveDue.quests.eighthOmen.memory.dueIn =
@@ -3915,17 +3978,117 @@ function forceHand(run, cb, ids) {
       PROGRESSION.emberglass.hollowLamplighter.saveEmberDebtMax + 1;
     mem.set('spirebound_save_v2', JSON.stringify(excessiveDebt));
     assert.equal(loadRun(), null, 'Hollow historical compatibility remains schema-bounded');
+    assert.equal(_normaliseRunSnapshotForTest(excessiveDebt, low), null,
+      'explicit tuned normaliser rejects above-ceiling ember debt');
   } finally {
     EngineApi._setQuestRng(null);
-    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = oldGuaranteeRuns;
-    PROGRESSION.emberglass.hollowLamplighter.emberDebt = oldEmberDebt;
-    QUESTS.unreadablePage.target = oldPageTarget;
-    PROGRESSION.emberglass.paleOnes.hiddenPerRun = oldHiddenPerRun;
-    PROGRESSION.emberglass.paleOnes.markedAct1 = oldMarkedAct1;
-    PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun = oldMaxMeetings;
     if (previousLocalStorage) globalThis.localStorage = previousLocalStorage;
     else delete globalThis.localStorage;
   }
+}
+{
+  // Task 12B fix: dawn validators must observe the run-bound quest targets.
+  assert.equal(QUESTS.unreadablePage.target, 5, 'core Unreadable Page target remains 5');
+  const dawnTuned = makeTunedContent({
+    progression: { features: { emberglass: { unreadablePage: { completeAt: 6 } } } },
+  }, 'dawn-tuned');
+  assert.equal(dawnTuned.quests.unreadablePage.target, 6);
+  const prevLs = globalThis.localStorage;
+  const store = new Map();
+  try {
+    globalThis.localStorage = {
+      getItem: (k) => store.get(k) ?? null,
+      setItem: (k, v) => store.set(k, v),
+      removeItem: (k) => store.delete(k),
+    };
+    const dawnRun = newRun(512, { content: dawnTuned });
+    dawnRun.pendingRunEnd = { outcome: 'win' };
+    assert.equal(saveRun(dawnRun), true);
+    const tunedDawnEvents = [
+      { t: 'pageRead', index: 6, text: 'SIXTH PAGE — Tuned ceiling.' },
+      { t: 'questProgress', id: 'unreadablePage', progress: 6, target: 6 },
+    ];
+    assert.equal(stagePendingDawn(dawnRun, tunedDawnEvents, []), true,
+      'stagePendingDawn accepts tuned pageRead/questProgress targets');
+    assert.equal(dawnRun.pendingDawn.events.length, 2);
+    assert.equal(advancePendingDawn(dawnRun, 1), true,
+      'advancePendingDawn re-validates against run-bound content');
+    assert.equal(advancePendingDawn(dawnRun, 2), true);
+    assert.equal(completePendingDawn(dawnRun), true,
+      'completePendingDawn re-validates against run-bound content');
+
+    const coreDawn = newRun(513);
+    coreDawn.pendingRunEnd = { outcome: 'win' };
+    assert.equal(saveRun(coreDawn), true);
+    assert.equal(stagePendingDawn(coreDawn, tunedDawnEvents, []), false,
+      'core content still rejects above-ceiling dawn events');
+  } finally {
+    if (prevLs) globalThis.localStorage = prevLs;
+    else delete globalThis.localStorage;
+  }
+}
+{
+  // Task 12B fix: run-capable cardData callers must pass run.
+  const cardTuned = makeTunedContent({}, 'card-tuned', (authoring) => {
+    authoring.cards.strike.cost = 2;
+    authoring.cards.strike.effects = [{ kind: 'dmg', n: 99 }];
+    authoring.cards.burn.endTurnDmg = 7;
+    authoring.cards.defend.unremovable = true;
+    authoring.cards.hex.type = 'skill';
+  });
+  const tunedRun = newRun(514, { ephemeral: true, content: cardTuned });
+  const strike = makeCard(tunedRun, 'strike');
+  assert.equal(cardData(strike).cost, 1, 'one-argument cardData stays on the core catalogue');
+  assert.equal(cardData(strike).effects[0].n, 6);
+  assert.equal(cardData(strike, tunedRun).cost, 2, 'run-bound cardData observes tuned cost');
+  assert.equal(cardData(strike, tunedRun).effects[0].n, 99, 'run-bound cardData observes tuned effects');
+
+  assert.ok(!removableCards(tunedRun).some((c) => c.id === 'defend'),
+    'removableCards observes tuned unremovable via run');
+  const defend = tunedRun.player.deck.find((c) => c.id === 'defend');
+  assert.ok(defend);
+  assert.equal(removeCardFromDeck(tunedRun, defend.uid), false,
+    'removeCardFromDeck observes tuned unremovable via run');
+
+  const previewCb = startCombat(tunedRun, ['gravewarden']);
+  const handStrike = previewCb.hand.find((c) => c.id === 'strike') || (() => {
+    const c = makeCard(tunedRun, 'strike');
+    previewCb.hand.push(c);
+    return c;
+  })();
+  assert.equal(effCost(tunedRun, previewCb, handStrike), 2, 'effCost observes tuned cost via run');
+  assert.equal(canPlay(tunedRun, previewCb, handStrike, 0), true);
+  assert.equal(previewPlay(tunedRun, previewCb, handStrike, 0).hits[0].dmg, 99,
+    'previewPlay observes tuned damage via run');
+
+  const kindleRun = newRun(516, { ephemeral: true, content: cardTuned });
+  const kindleCombat = startCombat(kindleRun, ['sporeling']);
+  const tunedHex = makeCard(kindleRun, 'hex');
+  kindleCombat.hand = [tunedHex];
+  assert.equal(cardData(tunedHex).type, 'curse', 'one-argument cardData still sees core hex as curse');
+  assert.equal(canKindle(kindleRun, kindleCombat, tunedHex), true,
+    'canKindle observes tuned type via run (hex retuned off curse)');
+
+  const burnRun = newRun(517, { ephemeral: true, content: cardTuned });
+  const burnCb = startCombat(burnRun, ['sporeling']);
+  burnCb.hand = [makeCard(burnRun, 'burn')];
+  burnCb.queue.length = 0;
+  endTurn(burnRun, burnCb);
+  const burnHit = burnCb.queue.find((e) => e.t === 'hitPlayer' && e.source === 'burn');
+  assert.equal(burnHit?.amount, 7, 'endTurn observes tuned endTurnDmg via run');
+
+  const playRun = newRun(518, { ephemeral: true, content: cardTuned });
+  const playCb = startCombat(playRun, ['gravewarden']);
+  const playStrike = playCb.hand.find((c) => c.id === 'strike') || (() => {
+    const c = makeCard(playRun, 'strike');
+    playCb.hand.push(c);
+    return c;
+  })();
+  playCb.enemies[0].block = 0;
+  playCb.queue.length = 0;
+  assert.equal(playCard(playRun, playCb, playStrike.uid, 0), true);
+  const hit = playCb.queue.find((e) => e.t === 'hitEnemy');
+  assert.equal(hit?.amount, 99, 'playCard applies tuned damage via run-bound cardData');
 }
 {
   const q = Object.fromEntries(QUEST_IDS.map((id) => [id, {
@@ -6221,8 +6384,8 @@ function randomAgentRun(seed) {
   assert.equal(themeById(context, 'missing'), null);
   assert.equal(themeForAct(context, 0), context.themes.actOne);
   assert.equal(themeForAct(context, -1), null);
-  assert.equal(isFinalTheme(context, 0), true);
-  assert.equal(isFinalTheme(context, 1), false);
+  assert.equal(registryIsFinalTheme(context, 0), true);
+  assert.equal(registryIsFinalTheme(context, 1), false);
   assert.throws(() => { context.quests.extra = {}; }, TypeError);
   assert.throws(() => createContentContext([completePack], {
     id: '', resources, localeContent: completeLocale, localeToken: 'en',

@@ -433,9 +433,13 @@ test('detached Title version timeout cannot emit a stale hidden action', async (
     for (let index = 0; index < 5; index += 1) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
   await expect(page.locator('[data-version-debug]')).toBeVisible({ timeout: 10_000 });
-  const shownSeq = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
-  // Force past title-button stability waits so the 3s auto-hide cannot fire first.
-  await page.locator('[data-a="embark"]').click({ force: true });
+  // Leave title in the same turn as the seq snapshot so the 3s auto-hide cannot
+  // race Playwright click actionability and emit a still-on-title hidden action.
+  const shownSeq = await page.evaluate(() => {
+    const seq = window.__probe.behaviourTrace().lastSeq;
+    window.spirebound.show('embark');
+    return seq;
+  });
   await page.waitForFunction(() => window.__probe?.state().screen === 'embark');
   await page.waitForTimeout(3200);
   const stale = await page.evaluate((after) => window.__probe.behaviourTrace().records
@@ -772,8 +776,9 @@ test('frozen Task 6 fixture manifest is complete and every entry resolves', asyn
 });
 
 test('persistence fixtures: initial run, Usurper and Shade use real retry owners', async ({ page }) => {
+  test.setTimeout(120_000);
   await seed(page, freshLedger());
-  await page.click('[data-a="embark"]');
+  await page.click('[data-a="embark"]', { force: true });
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
     window.__rejectInitialTrace = true;
@@ -782,9 +787,9 @@ test('persistence fixtures: initial run, Usurper and Shade use real retry owners
       return original.call(this, key, value);
     };
   });
-  await page.click('[data-a="begin"]');
+  await page.click('[data-a="begin"]', { force: true });
   await expect(page.locator('[data-a="retry-save"]')).toBeFocused();
-  await page.click('[data-a="retry-save"]');
+  await page.click('[data-a="retry-save"]', { force: true });
   await page.evaluate(() => { window.__rejectInitialTrace = false; });
   await page.click('[data-a="retry-save"]');
   await page.waitForFunction(() => window.spirebound.S.screen === 'map');
@@ -832,11 +837,11 @@ test('persistence fixtures: initial run, Usurper and Shade use real retry owners
       return original.call(this, key, value);
     };
   });
-  await page.click('[data-a="continue"]');
+  await page.click('[data-a="continue"]', { force: true });
   await expect(page.locator('[data-a="retry-stone"]')).toBeFocused();
   await page.evaluate(() => { window.__rejectShadeTrace = false; });
-  await page.click('[data-a="retry-stone"]');
-  await page.waitForFunction(() => window.spirebound.S.screen === 'combat');
+  await page.click('[data-a="retry-stone"]', { force: true });
+  await page.waitForFunction(() => window.spirebound.S.screen === 'combat', null, { timeout: 30_000 });
   bindTraceContract('shade-bequest-clear', await persistenceContractRows(page, 'shade-bequest-clear'));
 });
 

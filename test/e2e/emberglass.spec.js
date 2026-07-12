@@ -311,36 +311,59 @@ test('normal-motion reload resumes only unacknowledged dawn panels', async ({ pa
   test.skip(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches),
     'the checkpoint timing contract is specifically normal motion');
   const staged = await stagePendingRunEnd(page, 'win');
-  // Capture the cursor===2 checkpoint inside waitForFunction so Playwright
-  // round-trips cannot miss the ~550ms normal-motion panel window.
+  // Capture, pin, freeze durable save mutations, and reload in one page-side
+  // poller. A Playwright round-trip after cursor===2 lets the in-flight 550ms
+  // panel acknowledge and overwrite a localStorage pin before navigation lands.
   await page.reload();
-  await page.waitForFunction(() => {
-    if (!(window.spirebound && window.__probe?.state().screen === 'end')) return false;
-    const run = JSON.parse(localStorage.getItem('spirebound_save_v2') || 'null');
-    const pending = run?.pendingDawn;
-    if (!pending || pending.cursor !== 2 || pending.cursor >= pending.events.length) return false;
-    if (!sessionStorage.getItem('spirebound_dawn_checkpoint')) {
-      sessionStorage.setItem('spirebound_dawn_checkpoint', JSON.stringify({
-        cursor: pending.cursor,
-        acknowledged: pending.events.slice(0, pending.cursor),
-        remaining: pending.events.slice(pending.cursor),
-        vigilRaw: localStorage.getItem('spirebound_vigil_v2'),
-        statsRaw: localStorage.getItem('spirebound_stats_v1'),
-      }));
-    }
-    return true;
-  });
-  // Pin cursor at the snapshot before reload — an in-flight ceremony can otherwise
-  // advance past questProgress between capture and navigation on a loaded CI runner.
   const reloaded = page.waitForEvent('load');
-  await page.evaluate(() => {
-    const run = JSON.parse(localStorage.getItem('spirebound_save_v2') || 'null');
-    if (run?.pendingDawn) {
-      run.pendingDawn.cursor = 2;
-      localStorage.setItem('spirebound_save_v2', JSON.stringify(run));
-    }
-    location.reload();
-  });
+  await page.evaluate(() => new Promise((resolve, reject) => {
+    const started = Date.now();
+    const tick = () => {
+      if (Date.now() - started > 30_000) {
+        reject(new Error('missed the normal-motion cursor===2 dawn window'));
+        return;
+      }
+      if (!(window.spirebound && window.__probe?.state().screen === 'end')) {
+        setTimeout(tick, 10);
+        return;
+      }
+      const run = JSON.parse(localStorage.getItem('spirebound_save_v2') || 'null');
+      const pending = run?.pendingDawn;
+      if (!pending || pending.cursor !== 2 || pending.cursor >= pending.events.length) {
+        setTimeout(tick, 10);
+        return;
+      }
+      if (!sessionStorage.getItem('spirebound_dawn_checkpoint')) {
+        sessionStorage.setItem('spirebound_dawn_checkpoint', JSON.stringify({
+          cursor: pending.cursor,
+          acknowledged: pending.events.slice(0, pending.cursor),
+          remaining: pending.events.slice(pending.cursor),
+          vigilRaw: localStorage.getItem('spirebound_vigil_v2'),
+          statsRaw: localStorage.getItem('spirebound_stats_v1'),
+        }));
+      }
+      // Pin cursor===2 and freeze further save-key mutations. Patching E.saveRun is
+      // useless here — advancePendingDawn closes over the module-local saveRun.
+      pending.cursor = 2;
+      if (window.spirebound.S.run?.pendingDawn) {
+        window.spirebound.S.run.pendingDawn.cursor = 2;
+      }
+      const setItem = Storage.prototype.setItem;
+      const removeItem = Storage.prototype.removeItem;
+      setItem.call(localStorage, 'spirebound_save_v2', JSON.stringify(run));
+      Storage.prototype.setItem = function freezeDawnSave(key, value) {
+        if (key === 'spirebound_save_v2') return;
+        return setItem.call(this, key, value);
+      };
+      Storage.prototype.removeItem = function freezeDawnClear(key) {
+        if (key === 'spirebound_save_v2') return;
+        return removeItem.call(this, key);
+      };
+      location.reload();
+      resolve();
+    };
+    tick();
+  }));
   await reloaded;
   const checkpoint = await page.evaluate(() =>
     JSON.parse(sessionStorage.getItem('spirebound_dawn_checkpoint')));

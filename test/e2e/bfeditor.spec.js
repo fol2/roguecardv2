@@ -35,9 +35,13 @@ async function openBfEditor(page, params = {}) {
     mesh: '0',
     ...params,
   });
-  // bf-editor pushScenarioToUrl() replaceState during boot interrupts Playwright's
-  // default waitUntil:'load' — settle on DOM then wait for the editor probe.
-  await page.goto(`/?${query.toString()}`, { waitUntil: 'domcontentloaded' });
+  // Editor immediately rewrites the query (bfa/bfh/bft); that second navigation
+  // aborts Playwright's goto wait even at domcontentloaded — commit + settle.
+  try {
+    await page.goto(`/?${query.toString()}`, { waitUntil: 'commit' });
+  } catch (error) {
+    if (!/interrupted by another navigation/i.test(String(error?.message || error))) throw error;
+  }
   await page.waitForFunction(() => Boolean(
     typeof window.__bfEditor?.resolved === 'function'
     && typeof window.__bfEditor?.working === 'function'
