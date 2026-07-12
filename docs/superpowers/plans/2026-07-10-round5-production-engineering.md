@@ -191,14 +191,18 @@ exit, allocates and records a new strict `SPIREBOUND_E2E_PORT` for every
 Playwright-backed command, and exports its frozen profile table for Node tests.
 Every invocation appends its own ledger row. The task reviewer rejects a commit
 whose immediately preceding invocation lacks the profile, command list, port
-list and exit codes.
+list and exit codes. For Tasks 10–12, `p2-base` is CI-backed: iterate with
+local `test:ci` + `npm test`, exact-path commit, `git push`, then
+`npm run test:round5:standing -- --profile p2-base` (Node + wait for check
+`p2-base` on `HEAD`); do not run unstaged then staged local full-gate doubles.
+See [`2026-07-12-p2-base-ci-standing-design.md`](../specs/2026-07-12-p2-base-ci-standing-design.md).
 
 | Tasks | Profile | Exact cumulative standing commands |
 |---|---|---|
 | 5 | `p1-node` | `npm run test:ci`; `npm test` |
 | 6–8 | `p1-dom` | all `p1-node`; `npx playwright test trace battle audio --project=desktop --workers=1`; `npm run test:e2e:trace-production` |
 | 9 | `p1-complete` | all `p1-dom`; `npm run test:e2e:nonvisual` |
-| 10–12 | `p2-base` | all `p1-complete`; `npm run test:progression` |
+| 10–12 | `p2-base` | local: `npm run test:ci`; `npm test`; post-push standing waits on GitHub check `p2-base` (≥ legacy `p1-complete` + `test:progression`; see [`2026-07-12-p2-base-ci-standing-design.md`](../specs/2026-07-12-p2-base-ci-standing-design.md)) |
 | 13–16 | `p2` | all `p2-base`; `npm run test:content-registrations`; `npm run test:act-coupling` |
 | 17–23 | `p3` | all `p2`; `node tools/verify-production-surface.mjs`; optional `npm run test:e2e:content-disk` when the script is defined |
 | 24–28 | `p4` | all `p3`; `npm run test:e2e:webkit`; `npm run test:e2e:perf`; `node tools/check-bundle-budget.mjs` |
@@ -207,8 +211,9 @@ list and exit codes.
 | 40 | `full` | all `p6`; `npm run test:e2e:webkit`; `npm run test:e2e:visual` |
 
 The cumulative relation is literal, expands each named command once in first-
-occurrence order and is unit-tested: `p2-base` preserves the merged guided/
-unguided pacing contract from the first registry task, and `p2` makes both the
+occurrence order and is unit-tested: `p2-base` preserves legacy fidelity via
+local Node plus the CI `p2-base` check after push (not a serial local browser
+matrix), and `p2` makes both the
 compiled-registration freshness check and act-coupling sweep stand in every
 later P2+ task; `p3` makes the production-surface verifier stand
 in every P3+ task, including Pixi, P5, P6 and ship-front source commits, and
@@ -3449,17 +3454,21 @@ independently.
 
 - [x] **Step 7: Verify, review and commit the registry kernel**
 
+Standing for `p2-base` is CI-backed; see
+[`2026-07-12-p2-base-ci-standing-design.md`](../specs/2026-07-12-p2-base-ci-standing-design.md).
+
 ```bash
 set -euo pipefail
+npm run test:ci
 npm test
-npm run test:round5:standing -- --profile p2-base
 git add src/registry.js src/content-registration.js \
   src/presentation-catalog.js src/content-resources.js src/ui/tokens.js \
   src/i18n/hydrate-content.js src/i18n/index.js \
   tools/compile-content-registrations.mjs package.json \
   test/test_engine.js test/test_module_boundaries.mjs
-npm run test:round5:standing -- --profile p2-base
 git commit -m "feat: add content registries and schema doctor"
+git push
+npm run test:round5:standing -- --profile p2-base
 ```
 
 ### Task 12: `[PE]` Re-home the complete core pack without changing exports
@@ -3637,9 +3646,10 @@ Expected: green before cut-over.
 
 - [ ] **Step 4 (12A): Commit the reviewed candidate without changing the live graph**
 
-Run `npm run test:round5:standing -- --profile p2-base`, obtain fresh reviews
-of the candidate projection, freeze/accessor rules and progression derivation,
-then commit only the candidate/tool/test paths:
+Obtain fresh reviews of the candidate projection, freeze/accessor rules and
+progression derivation, then commit only the candidate/tool/test paths and run
+CI-backed `p2-base` standing after push (see
+[`2026-07-12-p2-base-ci-standing-design.md`](../specs/2026-07-12-p2-base-ci-standing-design.md)):
 
 ```bash
 set -euo pipefail
@@ -3648,6 +3658,7 @@ npm run test:content-registrations
 node tools/compile-content-registrations.mjs --check
 node tools/check-core-candidate.mjs --all
 npm run test:ci
+npm test
 git add src/content.js src/packs/core/player.js src/packs/core/cards.js \
   src/packs/core/statuses.js src/packs/core/relics.js \
   src/packs/core/potions.js src/packs/core/enemies.js \
@@ -3658,8 +3669,9 @@ git add src/content.js src/packs/core/player.js src/packs/core/cards.js \
   src/packs/compiled/development.js test/test_engine.js \
   test/test_module_boundaries.mjs \
   tools/capture-content-oracle.mjs tools/check-core-candidate.mjs
-npm run test:round5:standing -- --profile p2-base
 git commit -m "refactor: assemble the frozen core content candidate"
+git push
+npm run test:round5:standing -- --profile p2-base
 ```
 
 `src/data.js` and `src/engine.js` remain byte-identical to their pre-12A forms
@@ -3800,9 +3812,9 @@ exception); leg two compares the four protocols, RegExp cases and exact export
 set; leg three compares exactly 29 arity-one enemy/shade AI functions, their
 schedules and the monte-carlo digest. The raw-mechanics ownership, English
 catalogue digest/provenance, seven APIs, 18 domains and hydrated alias identities
-are additional mandatory oracle legs. Also run
-`npm run test:ci`, `npm run test:progression` and the `p2-base` standing
-profile. Task 13 creates the act-coupling gate; Task 12 may not invoke a future
+are additional mandatory oracle legs. Also run `npm run test:ci`, `npm test` and the post-push `p2-base` standing
+profile (progression and browser lanes are covered by the CI check, not re-run
+locally). Task 13 creates the act-coupling gate; Task 12 may not invoke a future
 script. If one leg changes, repair the seam/candidate/cut-over;
 never regenerate the oracle.
 
@@ -3810,11 +3822,14 @@ never regenerate the oracle.
 
 ```bash
 set -euo pipefail
+npm run test:ci
+npm test
 git add src/data.js src/content-protocol.js src/engine.js test/test_engine.js \
   tools/capture-content-oracle.mjs tools/check-core-candidate.mjs \
   test/test_module_boundaries.mjs
-npm run test:round5:standing -- --profile p2-base
 git commit -m "refactor: cut the engine over to frozen run content"
+git push
+npm run test:round5:standing -- --profile p2-base
 ```
 
 Fresh reviewers must inspect both 12A..12B commits together and confirm: exact

@@ -48,6 +48,7 @@ Standard commands are in `README.md` and `package.json` (`dev`, `build`, `previe
 - **Tests need no browser/service.** `npm test` runs `node test/test_engine.js` (unit checks + a 300-run monte-carlo). Expected output ends with a line like `unit checks passed; monte-carlo: 300 runs, ...` — the monte-carlo is mostly deaths by design (a random agent), so a low win count is normal, not a failure.
 - **No lint tooling** is configured (no ESLint/Prettier); "lint" for this repo is effectively `npm test` + `npm run build`.
 - **Combat scene render delay:** when a fight starts, the three.js enemy can pop in a beat after the scene loads. This is expected rendering latency, not a bug.
+- **Round 5 `p2-base` standing (Tasks 10–12):** CI-backed — local `npm run test:ci` + `npm test`, exact-path commit, `git push`, then `npm run test:round5:standing -- --profile p2-base` waits for GitHub check `p2-base` on `HEAD` (requires `gh` auth). See [`docs/superpowers/specs/2026-07-12-p2-base-ci-standing-design.md`](docs/superpowers/specs/2026-07-12-p2-base-ci-standing-design.md).
 
 ## Architecture
 
