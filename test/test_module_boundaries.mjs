@@ -94,7 +94,9 @@ assert.match(dataSource, /from\s+['"]\.\/content-protocol\.js['"]/);
 const defaultPlaywright = readFileSync(new URL('../playwright.config.js', import.meta.url), 'utf8');
 const productionPlaywright = readFileSync(new URL('../playwright.trace-production.config.js', import.meta.url), 'utf8');
 const productionTraceSpec = readFileSync(new URL('./e2e/trace-production.spec.js', import.meta.url), 'utf8');
-assert.match(defaultPlaywright, /testIgnore:\s*\/trace-production\\\.spec\\\.js\//);
+assert.match(defaultPlaywright, /testIgnore[\s\S]*?trace-production\\\.spec\\\.js/);
+assert.match(defaultPlaywright, /SPIREBOUND_E2E_SUITE/);
+assert.match(defaultPlaywright, /E2E_SLOW_SPECS/);
 assert.match(productionPlaywright, /testMatch:\s*\/trace-production\\\.spec\\\.js\//);
 assert.match(productionPlaywright, /testIgnore:\s*\[\]/);
 assert.match(productionPlaywright, /spirebound-trace-production-\$\{server\.port\}/,

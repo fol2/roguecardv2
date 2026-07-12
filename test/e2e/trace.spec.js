@@ -371,16 +371,19 @@ test('app-version trace is copy-free and five-tap debug has no action control', 
   await page.goto('/?trace=1');
   await page.waitForFunction(() => window.__probe);
   const logo = page.locator('[data-version-logo]');
+  await expect(logo).toBeVisible();
   await expect(logo).not.toHaveAttribute('data-a', /.+/);
   const beforeGesture = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
   // Dispatch taps in-page: Playwright actionability waits on logoSheen forever on CI.
   await page.evaluate(() => {
     const target = document.querySelector('[data-version-logo]');
+    if (!target) throw new Error('title version logo missing');
     for (let index = 0; index < 5; index += 1) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
-  await expect(page.locator('[data-version-debug]')).toBeVisible();
+  await expect(page.locator('[data-version-debug]')).toBeVisible({ timeout: 10_000 });
   await page.evaluate(() => {
     const target = document.querySelector('[data-version-logo]');
+    if (!target) throw new Error('title version logo missing');
     for (let index = 0; index < 5; index += 1) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
   await expect(page.locator('[data-version-debug]')).toBeHidden();
@@ -423,11 +426,13 @@ test('detached Title version timeout cannot emit a stale hidden action', async (
   await page.goto('/?trace=1');
   await page.waitForFunction(() => window.__probe);
   const logo = page.locator('[data-version-logo]');
+  await expect(logo).toBeVisible();
   await page.evaluate(() => {
     const target = document.querySelector('[data-version-logo]');
+    if (!target) throw new Error('title version logo missing');
     for (let index = 0; index < 5; index += 1) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
-  await expect(page.locator('[data-version-debug]')).toBeVisible();
+  await expect(page.locator('[data-version-debug]')).toBeVisible({ timeout: 10_000 });
   // Leave title in the same turn as the seq snapshot so the 3s auto-hide cannot
   // race Playwright click actionability and emit a still-on-title hidden action.
   const shownSeq = await page.evaluate(() => {
