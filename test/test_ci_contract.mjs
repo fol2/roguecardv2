@@ -4,11 +4,21 @@ import {
   resolveCiMode,
   requiredCiLanes,
   verifyCiGate,
+  isRound5StandingRef,
 } from '../tools/ci-contract.mjs';
 
+assert.equal(isRound5StandingRef('jamesto/round5-production-engineering-continuation'), true);
+assert.equal(isRound5StandingRef('cursor/round5-foo'), true);
+assert.equal(isRound5StandingRef('cursor/entrance-progressive-delivery-0e31'), false);
+assert.equal(isRound5StandingRef('main'), false);
+
 assert.equal(resolveCiMode('push', ''), 'full');
+assert.equal(resolveCiMode('push', '', 'main'), 'full');
 assert.equal(resolveCiMode('pull_request', true), 'smoke');
+assert.equal(resolveCiMode('pull_request', true, 'feature/x'), 'smoke');
 assert.equal(resolveCiMode('pull_request', 'true'), 'smoke');
+assert.equal(resolveCiMode('pull_request', true, 'jamesto/round5-production-engineering-continuation'), 'p2-base');
+assert.equal(resolveCiMode('pull_request', false, 'jamesto/round5-x'), 'full');
 assert.equal(resolveCiMode('pull_request', false), 'full');
 assert.equal(resolveCiMode('pull_request', 'false'), 'full');
 assert.throws(() => resolveCiMode('workflow_dispatch', false), /Unsupported CI event/);
@@ -16,6 +26,13 @@ assert.throws(() => resolveCiMode('workflow_dispatch', false), /Unsupported CI e
 assert.deepEqual(requiredCiLanes('unit', false, 'smoke'), ['changes']);
 assert.deepEqual(requiredCiLanes('unit', true, 'smoke'), ['changes', 'unit-tests', 'build-dist']);
 assert.deepEqual(requiredCiLanes('e2e', true, 'smoke'), ['changes', 'smoke-e2e']);
+assert.deepEqual(requiredCiLanes('e2e', true, 'p2-base'), [
+  'changes', 'e2e-disk', 'e2e-random', 'e2e-main', 'e2e-serial', 'e2e-trace-production',
+]);
+assert.deepEqual(requiredCiLanes('p2-base', true, 'p2-base'), [
+  'changes', 'unit', 'e2e-nonvisual', 'progression',
+]);
+assert.deepEqual(requiredCiLanes('p2-base', false, 'p2-base'), ['changes']);
 assert.deepEqual(requiredCiLanes('e2e', true, 'full'), [
   'changes', 'e2e-disk', 'e2e-random', 'e2e-main', 'e2e-serial', 'e2e-visual',
 ]);
@@ -34,6 +51,18 @@ assert.deepEqual(verifyCiGate({
     'e2e-main': 'success', 'e2e-serial': 'success', 'e2e-visual': 'success',
   },
 }).required.length, 6);
+assert.deepEqual(verifyCiGate({
+  gate: 'p2-base', relevant: true, mode: 'p2-base',
+  results: {
+    changes: 'success', unit: 'success', 'e2e-nonvisual': 'success', progression: 'success',
+  },
+}).required, ['changes', 'unit', 'e2e-nonvisual', 'progression']);
+assert.throws(() => verifyCiGate({
+  gate: 'p2-base', relevant: true, mode: 'p2-base',
+  results: {
+    changes: 'success', unit: 'success', 'e2e-nonvisual': 'success',
+  },
+}), /progression=missing/);
 
 for (const result of ['failure', 'cancelled', 'skipped', undefined]) {
   assert.throws(() => verifyCiGate({
