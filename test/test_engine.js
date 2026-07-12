@@ -101,6 +101,28 @@ function forceHand(run, cb, ids) {
   assert.deepEqual(exportNames(sourceOf('tooltip')), ['createTooltip']);
   assert.deepEqual(exportNames(sourceOf('overlay')), ['createOverlay']);
   assert.deepEqual(exportNames(sourceOf('navigation')), ['createNavigator']);
+  const screenFactories = {
+    title: ['createTitleScreen', ['renderTitle']],
+    embark: ['createEmbarkScreen', ['renderEmbark']],
+    vigil: ['createVigilScreen', ['renderVigil']],
+    run: ['createRunScreen', ['resumePendingHollowRoute', 'startRun']],
+    lamplighter: ['createLamplighterScreen', ['renderLamplighter', 'renderHollow']],
+    map: ['createMapScreen', ['renderMap', 'routeVisitedNode', 'claimMonumentNode']],
+    reward: ['createRewardScreen', ['renderReward', 'renderBossRelic', 'omenBanner']],
+    rest: ['createRestScreen', ['renderRest', 'renderTreasure']],
+    shop: ['createShopScreen', ['renderShop']],
+    event: ['createEventScreen', ['renderEvent']],
+    end: ['createEndScreen', ['journalRunEnd', 'finalisePendingRunEnd', 'renderEnd']],
+    gallery: ['createGalleryScreen', ['renderGallery']],
+    'audio-gallery': ['createAudioGalleryScreen', ['renderAudioGallery']],
+  };
+  for (const [name, [factory, surface]] of Object.entries(screenFactories)) {
+    const source = sourceOf(`screens/${name}`);
+    assert.deepEqual(exportNames(source), [factory], `${name} screen exposes only its factory`);
+    const returned = source.match(/return\s+Object\.freeze\(\{\s*([^}]+?)\s*\}\);/)?.[1]
+      .split(',').map((entry) => entry.trim()).filter(Boolean);
+    assert.deepEqual(returned, surface, `${name} screen returns its exact frozen surface`);
+  }
 
   const uiSource = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
   const overlaySource = sourceOf('overlay');
@@ -111,6 +133,10 @@ function forceHand(run, cb, ids) {
     'overlay retains the one-shot choice guard owner');
   assert.match(navigationSource, /function\s+wipe\s*\(/);
   assert.match(navigationSource, /let\s+transitionSeq\s*=\s*0/);
+  assert.match(navigationSource, /const\s+routeMap\s*=\s*new Map\(routes\)/,
+    'navigator owns a private route Map copy');
+  assert.match(navigationSource, /const\s+routeKeys\s*=\s*Object\.freeze\(\[\.\.\.routeMap\.keys\(\)\]\)/,
+    'navigator freezes the ordered route-key snapshot');
   assert.equal((uiSource.match(/\bbindUICommands\s*\(/g) || []).length, 1,
     'the transitional monolith contains exactly one command binding block');
 }
@@ -120,11 +146,14 @@ function forceHand(run, cb, ids) {
   const expectedTrKeys = [
     'ui.keywords.facetDesc','ui.keywords.kindle','ui.keywords.ward','ui.keywords.energy','ui.keywords.ember','ui.keywords.ember','ui.keywords.chip','ui.keywords.staggered','ui.keywords.unplayable','ui.keywords.shard','ui.keywords.hex','ui.keywords.cinder','ui.menu.howToPlay','ui.menu.abandonRun','ui.menu.abandonConfirmTitle','ui.menu.abandonConfirmBody','ui.menu.abandon','ui.menu.keepClimbing','ui.help.title','ui.help.climbTitle','ui.help.climbBody','ui.help.combatTitle','ui.help.combatBody','ui.help.glassTitle','ui.help.glassBody','ui.help.lanternTitle','ui.help.lanternBody','ui.help.wardTitle','ui.help.wardBody','ui.help.firesTitle','ui.help.firesBody','ui.help.vigilTitle','ui.help.vigilBody','ui.menu.fightOn','ui.rose.shardRecoveredShort','ui.rose.dormantPane','ui.rose.unknownPane','ui.rose.shardRecovered','ui.rose.shardRecoveredShort','ui.rose.paneDark','ui.rose.selectedPane','ui.rose.finalWhisper','ui.rose.whisperLogTitle','ui.rose.openLabel','ui.brand.title','ui.brand.title','ui.brand.tagline','ui.menu.continueClimb','ui.menu.beginClimb','ui.menu.theVigil','ui.menu.howToPlay','ui.embark.aspectLabel','ui.embark.noVows','ui.embark.title','ui.embark.subChoose','ui.embark.subWait','ui.embark.warnSaved','ui.menu.beginAnew','ui.menu.beginClimb','ui.menu.back','ui.menu.beginAnewTitle','ui.menu.beginAnewBody','ui.menu.beginAnew','ui.menu.keepClimbing','ui.menu.theVigil','ui.vigil.deeds','ui.vigil.roseWindow','ui.menu.return','ui.lamp.title','ui.lamp.sub','ui.lamp.boonLabel','ui.lamp.artLabel','ui.lamp.artHint','ui.menu.lightTheWay','ui.menu.chooseBoon','ui.map.node.monster','ui.map.node.elite','ui.map.node.event','ui.map.node.rest','ui.map.node.shop','ui.map.node.treasure','ui.map.hint.monster','ui.map.hint.elite','ui.map.hint.event','ui.map.hint.rest','ui.map.hint.shop','ui.map.hint.treasure','ui.map.hint.boss','ui.map.travelHere','ui.map.tap','ui.map.click','ui.map.unlitTitle','ui.map.unlitBody','ui.combat.stoneRemembers','ui.combat.end','ui.combat.draw','ui.combat.discard','ui.combat.ashes','ui.combat.staggered','ui.combat.reshuffle','ui.combat.shatter','ui.combat.glassHolds','ui.combat.staggered','ui.combat.yourTurn','ui.combat.enemyTurn','ui.combat.guardShattered','ui.combat.guardShattered','ui.reward.bossVanquished','ui.reward.eliteSlain','ui.reward.victory','ui.end.floors','ui.end.slain','ui.end.elitesBosses','ui.end.deckSize','ui.end.dmgDealt','ui.end.dmgTaken','ui.end.cardsPlayed','ui.end.runTime','ui.end.viewDeck','ui.end.returnVigil','ui.end.ascended','ui.end.ascendedSub','ui.end.fallen',
   ];
-  const uiSources = ['ui.js', ...readdirSync(new URL('../src/ui/', import.meta.url))
-    .filter((name) => name.endsWith('.js'))
-    .map((name) => `ui/${name}`)]
-    .map((name) => readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8'))
-    .join('\n');
+  const readJsRecursively = (directory) => readdirSync(directory, { withFileTypes: true })
+    .flatMap((entry) => entry.isDirectory()
+      ? readJsRecursively(new URL(`${entry.name}/`, directory))
+      : entry.name.endsWith('.js') ? [readFileSync(new URL(entry.name, directory), 'utf8')] : []);
+  const uiSources = [
+    readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8'),
+    ...readJsRecursively(new URL('../src/ui/', import.meta.url)),
+  ].join('\n');
   const actualTrKeys = [...uiSources.matchAll(/\btr\(\s*(['"])([^'"\n]+)\1/g)].map((match) => match[2]);
   assert.deepEqual(actualTrKeys.sort(), [...expectedTrKeys].sort(),
     'P1 extraction preserves the predecessor tr(...) locale-key multiset');
@@ -270,6 +299,12 @@ function forceHand(run, cb, ids) {
   const runEffectsSource = readFileSync(new URL('../src/ui/run-effects.js', import.meta.url), 'utf8');
   const uiSource = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
   const overlaySource = readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8');
+  const screenSources = readdirSync(new URL('../src/ui/screens/', import.meta.url))
+    .filter((name) => name.endsWith('.js'))
+    .map((name) => readFileSync(new URL(`../src/ui/screens/${name}`, import.meta.url), 'utf8'))
+    .join('\n');
+  const uiOwnersSource = `${uiSource}\n${overlaySource}\n${screenSources}`;
+  const endSource = readFileSync(new URL('../src/ui/screens/end.js', import.meta.url), 'utf8');
   assert.doesNotMatch(runEffectsSource, /\b(?:window|document|location|HTMLElement|requestAnimationFrame)\b/,
     'run-effects stays DOM-free and Node-runnable');
   for (const owner of [
@@ -278,7 +313,7 @@ function forceHand(run, cb, ids) {
     'finaliseTerminalOutbox', 'stagePendingDawn', 'advancePendingDawn',
     'completePendingDawn',
   ]) {
-    assert.doesNotMatch(uiSource, new RegExp(`\\bE\\.${owner}\\s*\\(`), `${owner} has one owner in run-effects`);
+    assert.doesNotMatch(uiOwnersSource, new RegExp(`\\bE\\.${owner}\\s*\\(`), `${owner} has one owner in run-effects`);
     assert.equal((runEffectsSource.match(new RegExp(`\\bengine\\.${owner}\\s*\\(`, 'g')) || []).length, 1,
       `${owner} has exactly one engine delegation in run-effects`);
   }
@@ -287,23 +322,23 @@ function forceHand(run, cb, ids) {
     const vigilNamespacePattern = new RegExp(`\\bVigil\\.${owner}\\s*\\(`);
     assert.match(`Vigil.${owner}()`, vigilNamespacePattern,
       `${owner} guard recognises a forbidden Vigil namespace call`);
-    assert.doesNotMatch(uiSource, bareOwnerPattern, `${owner} has no bare owner in the monolith`);
-    assert.doesNotMatch(uiSource, vigilNamespacePattern, `${owner} has no Vigil namespace owner in the monolith`);
+    assert.doesNotMatch(uiOwnersSource, bareOwnerPattern, `${owner} has no bare UI owner`);
+    assert.doesNotMatch(uiOwnersSource, vigilNamespacePattern, `${owner} has no Vigil namespace UI owner`);
     assert.equal((runEffectsSource.match(new RegExp(`\\bvigil\\.${owner}\\s*\\(`, 'g')) || []).length, 1,
       `${owner} has exactly one Vigil delegation in run-effects`);
   }
-  assert.match(uiSource, /runEffects\.finaliseRunEnd\s*\(/,
-    'the end-screen owner delegates mutation while remaining in the monolith');
-  assert.doesNotMatch(uiSource, /function\s+dawnQueue\s*\(/,
-    'Dawn queue construction has no duplicate monolith owner');
-  assert.doesNotMatch(uiSource, /function\s+openPersistenceDialog\s*\(/,
-    'retry UI no longer has a duplicate monolith owner');
+  assert.match(endSource, /runEffects\.finaliseRunEnd\s*\(/,
+    'the extracted end-screen owner delegates mutation');
+  assert.doesNotMatch(uiOwnersSource, /function\s+dawnQueue\s*\(/,
+    'Dawn queue construction has no duplicate UI owner');
+  assert.doesNotMatch(`${uiSource}\n${screenSources}`, /function\s+openPersistenceDialog\s*\(/,
+    'retry UI has no duplicate screen or orchestrator owner');
   assert.match(overlaySource, /function\s+openPersistenceDialog\s*\(/,
     'retry UI is physically owned by overlay');
   assert.match(overlaySource, /let\s+persistenceDialogTransaction\s*=\s*null/,
     'overlay alone owns the persistence dialog transaction');
-  assert.match(uiSource, /function\s+(?:renderEnd|finalisePendingRunEnd)\s*\(/,
-    'end-screen presentation remains physically owned by the monolith');
+  assert.match(endSource, /function\s+(?:renderEnd|finalisePendingRunEnd)\s*\(/,
+    'end-screen presentation is physically owned by its leaf module');
   assert.match(uiSource, /function\s+(?:startCombatUI|renderCombat)\s*\(/,
     'combat remains physically owned by the monolith');
 }

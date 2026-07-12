@@ -248,6 +248,28 @@ test('app-version trace is copy-free and five-tap debug has no action control', 
 });
 
 test('detached Title version timeout cannot emit a stale hidden action', async ({ page }) => {
+  await page.addInitScript(() => {
+    const nativeSetTimeout = window.setTimeout.bind(window);
+    const nativeClearTimeout = window.clearTimeout.bind(window);
+    const probe = { scheduled: 0, cleared: 0, fired: 0, timerId: null };
+    window.__titleTimerProbe = probe;
+    window.setTimeout = (callback, delay, ...args) => {
+      if (delay !== 3000 || callback.name !== 'hideDebug') {
+        return nativeSetTimeout(callback, delay, ...args);
+      }
+      probe.scheduled++;
+      const timerId = nativeSetTimeout(() => {
+        probe.fired++;
+        callback(...args);
+      }, delay);
+      probe.timerId = timerId;
+      return timerId;
+    };
+    window.clearTimeout = (timerId) => {
+      if (timerId === probe.timerId) probe.cleared++;
+      return nativeClearTimeout(timerId);
+    };
+  });
   await page.goto('/?trace=1');
   await page.waitForFunction(() => window.__probe);
   const logo = page.locator('[data-version-logo]');
@@ -259,6 +281,11 @@ test('detached Title version timeout cannot emit a stale hidden action', async (
   const stale = await page.evaluate((after) => window.__probe.behaviourTrace().records
     .filter((record) => record.seq > after && record.eventName === 'app.version-debug'), shownSeq);
   expect(stale).toEqual([]);
+  expect(await page.evaluate(() => ({
+    scheduled: window.__titleTimerProbe.scheduled,
+    cleared: window.__titleTimerProbe.cleared,
+    fired: window.__titleTimerProbe.fired,
+  }))).toEqual({ scheduled: 1, cleared: 1, fired: 0 });
 });
 
 test('enabled and disabled observers preserve identical detached-presentation state', async ({ page }) => {

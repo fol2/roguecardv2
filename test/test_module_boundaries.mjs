@@ -78,14 +78,26 @@ assert.match(productionTraceSpec, /test\.afterAll\([\s\S]*?rmSync\(productionOut
 
 const uiSource = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
 const overlaySource = readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8');
+const screenSources = Object.fromEntries(readdirSync(new URL('../src/ui/screens/', import.meta.url))
+  .filter((name) => name.endsWith('.js'))
+  .map((name) => [name, readFileSync(new URL(`../src/ui/screens/${name}`, import.meta.url), 'utf8')]));
+const mapSource = screenSources['map.js'];
+const audioGallerySource = screenSources['audio-gallery.js'];
+for (const name of Object.keys(screenSources)) {
+  assert.deepEqual(importSpecifiers(`../src/ui/screens/${name}`), [],
+    `${name} receives dependencies and stays a leaf`);
+  assert.doesNotMatch(screenSources[name], /(?:from\s+|import\s*\()['"][^'"]*(?:\/screens\/|\/navigation\.js|\/index\.js|\/ui\.js|pixi)[^'"]*['"]/i,
+    `${name} must not import screens, navigation, index, ui or Pixi`);
+}
 const audioAssetsSource = readFileSync(new URL('../src/audio-assets.js', import.meta.url), 'utf8');
 assert.match(audioAssetsSource, /!\.\/assets\/musics\/_raw\/\*\*/,
   'Music Vite glob must exclude authoring-time _raw assets');
 assert.match(audioAssetsSource, /!\.\/assets\/sfx\/_raw\/\*\*/,
   'SFX Vite glob must exclude authoring-time _raw assets');
-assert.match(uiSource, /applyAudioSelection\(payload\);\s*invalidateSfxSelection\(\);\s*music\.invalidateMusicSelection\(\);/,
+assert.match(audioGallerySource, /applyAudioSelection\(payload\);\s*invalidateSfxSelection\(\);\s*music\.invalidateMusicSelection\(\);/,
   'PR15 hot apply must update selection then invalidate both gameplay caches');
-const rawPointerHandlers = [...uiSource.matchAll(
+const rawPointerSource = [uiSource, ...Object.values(screenSources)].join('\n');
+const rawPointerHandlers = [...rawPointerSource.matchAll(
   /addEventListener\(['"]pointermove['"],[\s\S]*?=>\s*\{([\s\S]*?)\n\s*\}\);/g,
 )];
 assert.ok(rawPointerHandlers.length >= 3, 'source gate must inspect every inline raw pointermove owner');
@@ -99,7 +111,7 @@ assert.doesNotMatch(aimMoveSource, /trace\.(?:emit|begin)/,
 const tweenNumSource = sourceBlock(uiSource, 'function tweenNum(node, from, to, ms = 640) {');
 const igniteVesselSource = sourceBlock(uiSource, 'function igniteVessel(x, dur = 200) {');
 const animationLoopOwners = [
-  ['map coast', sourceBlock(uiSource, 'const coast = () => {')],
+  ['map coast', sourceBlock(mapSource, 'const coast = () => {')],
   ['tweenNum step', sourceBlock(tweenNumSource, 'const step = (now) => {')],
   ['living-glass rigTick', sourceBlock(uiSource, 'function rigTick(t) {')],
   ['igniteVessel step', sourceBlock(igniteVesselSource, 'const step = () => {')],
@@ -114,7 +126,7 @@ assert.equal((overlaySource.match(/function\s+usePotionOn\s*\(/g) || []).length,
   'overlay must own exactly one traced usePotionOn handler');
 for (const [marker, source] of [
   ['function usePotionOn(', overlaySource],
-  ['function selectMapNode(', uiSource],
+  ['function selectMapNode(', mapSource],
   ['function useLanternArt(', uiSource],
   ['function doKindle(', uiSource],
   ['function doPlay(', uiSource],

@@ -135,6 +135,11 @@ test('viewport maps to its canonical stage shape', async ({ page }) => {
 
 test('P1 shared UI modules preserve exact browser boundaries and live commands', async ({ page }) => {
   await boot(page, { query: 'trace=1' });
+  expect(await page.evaluate(() => window.__probe.routes())).toEqual([
+    'title', 'embark', 'vigil', 'lamplighter', 'hollow', 'map', 'combat',
+    'reward', 'bossRelic', 'rest', 'treasure', 'shop', 'event', 'end',
+    'gallery', 'audioGallery',
+  ]);
   const result = await page.evaluate(async () => {
     const modules = {
       context: await import('/src/ui/context.js'),
@@ -230,6 +235,73 @@ test('P1 shared UI modules preserve exact browser boundaries and live commands',
     empty: true,
   });
   expect(result.live).toEqual({ screen: 'combat', enemies: 1 });
+});
+
+test('asset gallery query boots every category and opens and closes its lightbox', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'developer gallery runs once on desktop');
+  await page.goto('/?gallery=1');
+  await expect(page.locator('.gallery-mode .g-cell').first()).toBeVisible();
+  expect(await page.locator('.gallery-mode .g-cell').count()).toBeGreaterThan(50);
+  await page.locator('.gallery-mode .g-open').first().click();
+  await expect(page.locator('#overlay.open .gallery-lightbox')).toBeVisible();
+  await page.locator('#overlay [data-a="close"]').click();
+  await expect(page.locator('#overlay.open')).toHaveCount(0);
+});
+
+test('pending Lamplighter routes once, owns one cue, and persists Begin before Map', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'Lamplighter transaction runs once on desktop');
+  await page.goto('/?trace=1');
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  await page.evaluate(() => {
+    localStorage.clear();
+    const run = window.spirebound.E.newRun(88771, { lamplighter: true, reveals: ['lamplighter'] });
+    window.spirebound.E.saveRun(run);
+  });
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  const cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.locator('[data-a="continue"]').click();
+  await expect(page.locator('.lamp-screen')).toBeVisible();
+  await expect.poll(() => page.evaluate((after) => window.__probe.behaviourTrace().records
+    .filter((record) => record.seq > after && record.eventName === 'audio.music-request' &&
+      record.attributes?.id === 'map' && record.attributes?.mode === 'active').length, cursor),
+  { timeout: 20_000 }).toBe(1);
+  expect(await page.evaluate((after) => {
+    const records = window.__probe.behaviourTrace().records.filter((record) => record.seq > after);
+    return {
+      requested: records.filter((record) => record.eventName === 'screen.requested' && record.attributes?.screenId === 'lamplighter').length,
+      entered: records.filter((record) => record.eventName === 'screen.entered' && record.attributes?.screenId === 'lamplighter').length,
+    };
+  }, cursor)).toEqual({ requested: 1, entered: 1 });
+  await page.locator('.lamp-boon').first().click();
+  await page.locator('[data-a="begin"]').click();
+  await expect(page.locator('.map-screen')).toBeVisible();
+  expect(await page.evaluate(() => {
+    const durable = window.spirebound.E.loadRun();
+    return {
+      screen: window.spirebound.S.screen,
+      livePending: !!window.spirebound.S.run.pendingLamplighter,
+      durablePending: !!durable?.pendingLamplighter,
+      boon: durable?.boon ?? null,
+      lampCleared: window.spirebound.S.lamp === null,
+    };
+  })).toEqual({ screen: 'map', livePending: false, durablePending: false, boon: expect.any(String), lampCleared: true });
+});
+
+test('Eighth Omen floor echo survives its delayed real map-selection callback', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'map callback runs once on desktop');
+  await boot(page, { query: 'trace=1&mesh=0' });
+  await page.evaluate(() => {
+    window.spirebound.S.run.omens[window.spirebound.S.run.act] = 'eighthOmen';
+    window.spirebound.show('map');
+  });
+  const beforeFloor = await page.evaluate(() => window.spirebound.S.run.floorsClimbed);
+  await page.evaluate(() => document.querySelector('.mnode.avail')
+    .dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  await expect.poll(() => page.evaluate(() => window.spirebound.S.run.floorsClimbed))
+    .toBeGreaterThan(beforeFloor);
+  await expect(page.locator('.eighth-floor-echo')).toBeVisible();
+  await expect(page.locator('.eighth-floor-echo .efe-text')).not.toHaveText('');
 });
 
 test('?shape= override forces the remaining shapes', async ({ page }) => {
@@ -439,6 +511,8 @@ test('fresh profile title has no aspect row; Embark shows zero sections', async 
   await expect(page.locator('.embark-screen .aspect-row')).toHaveCount(0);
   await expect(page.locator('.embark-screen .vow-block')).toHaveCount(0);
   await expect(page.locator('.embark-screen [data-a="begin"]')).toHaveText('Begin the Climb');
+  await page.click('.embark-screen [data-a="back"]');
+  await expect(page.locator('.title-screen')).toBeVisible();
 });
 
 test('seeded veteran Embark shows aspect and vow sections', async ({ page }) => {

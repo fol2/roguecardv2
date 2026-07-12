@@ -11,7 +11,8 @@ import { omenIconName, warmAssets } from './assets.js';
 import { uiCommands } from './commands.js';
 
 export function createNavigator({ routes, beforeShow, publishMapWarmReader, trace }) {
-  const routeMap = Object.freeze({ ...routes });
+  const routeMap = new Map(routes);
+  const routeKeys = Object.freeze([...routeMap.keys()]);
 
   function wipe() {
     if (REDUCED) return;
@@ -67,8 +68,9 @@ export function createNavigator({ routes, beforeShow, publishMapWarmReader, trac
   }
   publishMapWarmReader?.((run) => Object.freeze([...liveMapWarmIds(run)]));
 
+  let activeRouteCleanup = null;
   function show(name, data) {
-    const renderer = routeMap[name];
+    const renderer = routeMap.get(name);
     if (typeof renderer !== 'function') {
       trace.emit('error.ui', {
         outcome: 'failed', attributes: { code: 'unknown-route' },
@@ -81,12 +83,15 @@ export function createNavigator({ routes, beforeShow, publishMapWarmReader, trac
     S.screen = name;
     if (name !== 'end') $('#toasts')?.remove();
     const checkpoint = beforeShow?.({ name, data, previous });
+    activeRouteCleanup?.();
+    activeRouteCleanup = null;
     if (name !== 'map') { exitMapMode(); clearOverlay(); }
     V.setWeather(null);
     const screen = screenEl();
     screen.className = '';
     screen.onclick = null;
-    renderer(data);
+    const cleanup = renderer(data);
+    if (typeof cleanup === 'function') activeRouteCleanup = cleanup;
     if (name === 'map') warmAssets();
     if (name !== 'combat' && name !== 'title') meshClear();
     if (S.screen === name && name !== 'combat' && name !== 'end') {
@@ -109,5 +114,5 @@ export function createNavigator({ routes, beforeShow, publishMapWarmReader, trac
     trace.emit('checkpoint.ui', { outcome: 'completed', checkpoint: checkpoint?.() });
   }
 
-  return Object.freeze({ show, transition });
+  return Object.freeze({ show, transition, routeKeys });
 }
