@@ -1035,7 +1035,7 @@ test -z "$(git status --short)"
 
 Only after this commit and the recorded `48/48` result may Task 5 begin.
 
-- [ ] **Step 5: Re-enter PR #21/#22 after the monolith split**
+- [x] **Step 5: Re-enter PR #21/#22 after the monolith split**
 
 Freeze this exact provenance:
 
@@ -1155,6 +1155,12 @@ test "$(git rev-parse HEAD)" = \
 
 Only then return to Task 9. Its source commit remains exactly the declared
 twenty-two paths and never absorbs these baselines.
+
+**Closure:** COMPLETE. The golden amendment landed at `4fc76e0f`, its zsh-safe
+staging correction at `88ff592c`, and the independently reviewed three-file
+Darwin baseline commit at `ce1de074`. Focused reward passed `3/3`; the complete
+visual suite passed `48/48`. Task 9 then closed the mechanically ported source
+at `fc075a63` without any baseline path.
 
 ### Task 2: `[FE]` Bounded Round 5 experience contract — completed proposal
 
@@ -2431,7 +2437,7 @@ git commit -m "refactor: extract non-combat UI screens"
   independent chrome-row packer. Extraction is a byte/behaviour move, not a
   geometry rewrite.
 
-- [ ] **Step 1: Write a failing public-surface assertion**
+- [x] **Step 1: Write a failing public-surface assertion**
 
 Add a Node source check to `test/test_engine.js`:
 
@@ -2489,7 +2495,7 @@ separate WebKit forced-failure canary is required or claimed. Renderer-recovery
 attachment proof remains deferred to Task 24 with renderer recovery itself.
 The environment-disabled canary skips during ordinary `test:e2e` runs.
 
-- [ ] **Step 2: Move combat and drain owners exactly once**
+- [x] **Step 2: Move combat and drain owners exactly once**
 
 Use the P1 state map. Keep queue mutation solely in `drain.js`; keep layout,
 input handlers and renderer synchronisation in `combat.js`. `index.js` creates
@@ -2568,7 +2574,7 @@ drift, hover `<=1`, and candle frames
 `120` for `pad-landscape`/`desktop-landscape`, `102` for `pad-portrait`, `84`
 for `phone-portrait` and `72` for `phone-landscape`, with compressed pitch.
 
-- [ ] **Step 3: Move and harden the probe**
+- [x] **Step 3: Move and harden the probe**
 
 Move all readers/drivers to `probe.js`. Drivers must invoke the same exported
 semantic handlers as real input; scenario shims remain limited to legal state
@@ -2578,7 +2584,7 @@ diagnostic projection over the injected frozen combat/drain surfaces: it sorts
 and copies key names, reports freeze booleans and exposes no callable or object
 reference.
 
-- [ ] **Step 4: Wire `index.js` and globals once**
+- [x] **Step 4: Wire `index.js` and globals once**
 
 `index.js` imports every leaf, constructs dependencies/routes, calls
 `bindUICommands()`, and is the sole installer of:
@@ -2602,12 +2608,12 @@ and absence of new hardcoded player copy. Replace `src/ui.js` with:
 export { initUI, show } from './ui/index.js';
 ```
 
-- [ ] **Step 5: Update the module graph docs in the same task**
+- [x] **Step 5: Update the module graph docs in the same task**
 
 Update `CONTEXT.md` and `docs/README.md` to name the new modules, trace/probe
 contracts and P1 completion. Do not alter unrelated guidance.
 
-- [ ] **Step 6: Run the P1 gate**
+- [x] **Step 6: Run the P1 gate**
 
 ```bash
 set -euo pipefail
@@ -2689,7 +2695,7 @@ baselines remain byte-for-byte unchanged and the tracked worktree is clean
 apart from the exact twenty-two declared post-drift Task 9 paths. The temporary build never
 writes `dist/`.
 
-- [ ] **Step 7: Commit source/tests/docs, excluding `dist/`**
+- [x] **Step 7: Commit source/tests/docs, excluding `dist/`**
 
 Before staging, a fresh spec-compliance reviewer must approve the complete
 twenty-two-path diff, PR16/PR21/PR22 multiset/behaviour preservation, exact 19/38/1
@@ -2715,6 +2721,16 @@ git commit -m "refactor: decompose the UI behind stable contracts"
 
 The task reviewer must report both zero visual drift and a complete state-owner
 mapping before P2 starts.
+
+**Closure:** COMPLETE at `fc075a6351030913a72e7eaa93ec950df6df438c`.
+The exact twenty-two-path commit passed both final independent reviews,
+`test:ci`, module boundaries, 300 engine runs, temporary build, disk `1/1`,
+random-agent `3/3`, main `255` with `201` intended skips, serial `5/5`, visual
+`48/48`, deliberate attachment canary, three-shape trace `70` with `3` intended
+skips, focused desktop `69` with `1` intended skip, exact i18n `298/272`, and
+the staged `p1-complete` standing profile. State-owner mapping: PASS. Zero
+visual drift relative to the separately committed baselines: PASS. WebKit-safe
+API review: PASS.
 
 ---
 
