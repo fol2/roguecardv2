@@ -23,8 +23,8 @@ export function resolveCiMode(eventName, draftValue, refName = '') {
 
 /** Core nonvisual lanes always required when e2e is relevant. */
 function e2eCoreLanes(mode) {
-  if (mode === 'p2-base') return ['changes', 'e2e-aux', 'e2e-random', 'e2e-main'];
-  if (mode === 'full') return ['changes', 'e2e-aux', 'e2e-random', 'e2e-main', 'e2e-visual'];
+  if (mode === 'p2-base') return ['changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-main'];
+  if (mode === 'full') return ['changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-main', 'e2e-visual'];
   return null;
 }
 
@@ -49,8 +49,8 @@ export function requiredCiLanes(gate, relevant, mode, opts = {}) {
   // Default slow=true so standing / unspecified callers keep full fidelity.
   if (opts.slow !== undefined && !truthy(opts.slow)) return core;
   const withSlow = [...core];
-  const mainIdx = withSlow.indexOf('e2e-main');
-  withSlow.splice(mainIdx, 0, 'e2e-audio', 'e2e-heavy');
+  const battleIdx = withSlow.indexOf('e2e-battle');
+  withSlow.splice(battleIdx, 0, 'e2e-audio', 'e2e-heavy');
   return withSlow;
 }
 

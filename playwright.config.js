@@ -11,7 +11,7 @@ const e2eServer = e2eServerSettings(process.env.SPIREBOUND_E2E_PORT);
 
 // CI peels duration-heavy specs out of main (SPIREBOUND_E2E_SUITE=main).
 // Unset suite keeps the full local `test:e2e:main` surface.
-const E2E_SLOW_SPECS = /(?:^|\/)(audio|hollow-transaction|rewards|stage)\.spec\.js$/;
+const E2E_SLOW_SPECS = /(?:^|\/)(audio|battle|hollow-transaction|rewards|stage)\.spec\.js$/;
 const e2eSuite = process.env.SPIREBOUND_E2E_SUITE;
 const testIgnore = [/trace-production\.spec\.js/];
 if (e2eSuite === 'main') testIgnore.push(E2E_SLOW_SPECS);

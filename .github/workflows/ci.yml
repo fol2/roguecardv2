@@ -1,5 +1,5 @@
 name: ci
-# wall-clock: fail-fast + heavy peel
+# wall-clock: fail-fast + battle/audio/heavy peel
 
 on:
   push:
@@ -293,14 +293,15 @@ jobs:
           if-no-files-found: ignore
 
   # hollow / rewards / stage — duration-heavy but separate from audio.
+  # 10 shards: desktop hollow/rewards previously clustered on shard 1/5 (~6m).
   e2e_heavy:
-    name: e2e heavy ${{ matrix.shard }}/5
+    name: e2e heavy ${{ matrix.shard }}/10
     needs: changes
     if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.e2e_slow == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base')
     strategy:
       fail-fast: true
       matrix:
-        shard: [1, 2, 3, 4, 5]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -308,7 +309,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-playwright
-      - run: npm run test:e2e:heavy -- --shard=${{ matrix.shard }}/5
+      - run: npm run test:e2e:heavy -- --shard=${{ matrix.shard }}/10
       - name: Verify clean checkout
         if: always()
         run: test -z "$(git status --porcelain --untracked-files=all)"
@@ -320,14 +321,15 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
-  e2e_main:
-    name: e2e main ${{ matrix.shard }}/15
+  # battle alone owned main 1/15 (~6m desktop cluster) — peel and shard.
+  e2e_battle:
+    name: e2e battle ${{ matrix.shard }}/8
     needs: changes
     if: needs.changes.outputs.e2e == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base')
     strategy:
       fail-fast: true
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -335,7 +337,34 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-playwright
-      - run: SPIREBOUND_E2E_SUITE=main npm run test:e2e:main -- --shard=${{ matrix.shard }}/15
+      - run: npm run test:e2e:battle -- --shard=${{ matrix.shard }}/8
+      - name: Verify clean checkout
+        if: always()
+        run: test -z "$(git status --porcelain --untracked-files=all)"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-battle-${{ matrix.shard }}-${{ github.run_id }}
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  e2e_main:
+    name: e2e main ${{ matrix.shard }}/12
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base')
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-playwright
+      - run: SPIREBOUND_E2E_SUITE=main npm run test:e2e:main -- --shard=${{ matrix.shard }}/12
       - name: Verify clean checkout
         if: always()
         run: test -z "$(git status --porcelain --untracked-files=all)"
@@ -377,7 +406,7 @@ jobs:
   e2e_nonvisual:
     name: e2e nonvisual
     if: always()
-    needs: [changes, e2e_aux, e2e_random, e2e_audio, e2e_heavy, e2e_main]
+    needs: [changes, e2e_aux, e2e_random, e2e_audio, e2e_heavy, e2e_battle, e2e_main]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -391,12 +420,12 @@ jobs:
           CI_SLOW_RELEVANT: ${{ needs.changes.outputs.e2e_slow }}
           CI_MODE: p2-base
           CI_RESULTS: >-
-            {"changes":"${{ needs.changes.result }}","e2e-aux":"${{ needs.e2e_aux.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-audio":"${{ needs.e2e_audio.result }}","e2e-heavy":"${{ needs.e2e_heavy.result }}","e2e-main":"${{ needs.e2e_main.result }}"}
+            {"changes":"${{ needs.changes.result }}","e2e-aux":"${{ needs.e2e_aux.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-audio":"${{ needs.e2e_audio.result }}","e2e-heavy":"${{ needs.e2e_heavy.result }}","e2e-battle":"${{ needs.e2e_battle.result }}","e2e-main":"${{ needs.e2e_main.result }}"}
 
   e2e:
     name: e2e
     if: always()
-    needs: [changes, smoke_e2e, e2e_aux, e2e_random, e2e_audio, e2e_heavy, e2e_main, e2e_visual]
+    needs: [changes, smoke_e2e, e2e_aux, e2e_random, e2e_audio, e2e_heavy, e2e_battle, e2e_main, e2e_visual]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -410,7 +439,7 @@ jobs:
           CI_SLOW_RELEVANT: ${{ needs.changes.outputs.e2e_slow }}
           CI_MODE: ${{ needs.changes.outputs.mode }}
           CI_RESULTS: >-
-            {"changes":"${{ needs.changes.result }}","smoke-e2e":"${{ needs.smoke_e2e.result }}","e2e-aux":"${{ needs.e2e_aux.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-audio":"${{ needs.e2e_audio.result }}","e2e-heavy":"${{ needs.e2e_heavy.result }}","e2e-main":"${{ needs.e2e_main.result }}","e2e-visual":"${{ needs.e2e_visual.result }}"}
+            {"changes":"${{ needs.changes.result }}","smoke-e2e":"${{ needs.smoke_e2e.result }}","e2e-aux":"${{ needs.e2e_aux.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-audio":"${{ needs.e2e_audio.result }}","e2e-heavy":"${{ needs.e2e_heavy.result }}","e2e-battle":"${{ needs.e2e_battle.result }}","e2e-main":"${{ needs.e2e_main.result }}","e2e-visual":"${{ needs.e2e_visual.result }}"}
 
   p2-base:
     name: p2-base
