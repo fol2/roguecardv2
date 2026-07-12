@@ -3871,7 +3871,7 @@ engine-only boundary plus `themeCount(run)`/`isFinalTheme(run)`; it never
 returns a presentation theme. UI resolves it and passes the record to
 scene/VFX/music.
 
-- [ ] **Step 1: Write failing fourth-theme and coupling checks**
+- [x] **Step 1: Write failing fourth-theme and coupling checks**
 
 Add a pure test that passes a four-theme context to the registry and asserts
 `themeForAct(context, 3).id === 'sampleTheme'`, the fourth reward row resolves,
@@ -3907,7 +3907,7 @@ rg 'check-act-coupling\.mjs|MODULE_NOT_FOUND|not found' "$RED_LOG"
 rm -f "$RED_LOG"
 ```
 
-- [ ] **Step 2: Verify and freeze each complete theme record**
+- [x] **Step 2: Verify and freeze each complete theme record**
 
 Each core theme contains exactly:
 
@@ -3931,7 +3931,7 @@ The ordered `src/i18n/en/content.js` `acts` overlay owns `name`, `tagline` and
 12 values project to the exact legacy `ACTS`, `ENCOUNTERS`
 and `REWARD_GOLD` oracle; this task changes consumers, not theme values.
 
-- [ ] **Step 3: Replace scattered act decisions**
+- [x] **Step 3: Replace scattered act decisions**
 
 Replace `act1-*` construction, weather arrays, palette branches, music act
 switches, roster lookups and `Math.min(act, 2)` clamps with registry theme
@@ -4025,7 +4025,7 @@ colour/duration/easing literals in CSS. Do not transcribe the unapproved FE
 Round 5 values yet; Task 21 adds the owner-approved `ROUND5_TOKENS` export and
 switches the same injection call to it.
 
-- [ ] **Step 4: Implement the static sweep**
+- [x] **Step 4: Implement the static sweep**
 
 Scan non-pack production JS **and `src/i18n/**` catalogues** for all of these families:
 
@@ -4088,7 +4088,7 @@ victory → Non-final boss ceremony and final run victory / end(won)
 Asset README historical authorship prose is documentation, not scanned
 production JS.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 set -euo pipefail
