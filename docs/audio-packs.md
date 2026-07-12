@@ -1,6 +1,6 @@
 # Versioned audio packs
 
-Spirebound resolves every Music Cue and SFX id through one runtime selection.
+Glassvow resolves every Music Cue and SFX id through one runtime selection.
 The current binaries stay at their original paths and are permanent base
 versions:
 

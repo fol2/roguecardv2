@@ -1,6 +1,6 @@
 # App versioning
 
-Spirebound’s player-visible version comes from `package.json` `"version"`.
+Glassvow’s player-visible version comes from `package.json` `"version"` (package `"name"` remains the engineering id `spirebound`).
 Vite injects it at build/dev time (`__SPIRE_VERSION__`, `__SPIRE_GIT_SHA__`,
 `__SPIRE_RELEASE__`). The title screen shows the display string bottom-right.
 

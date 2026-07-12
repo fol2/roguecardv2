@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Rename the game's display/brand title from **Spirebound** to **Glassvow** (Chinese title **琉璃誓**) across every player-facing surface, while leaving the internal engineering name Spirebound untouched everywhere it is load-bearing.
+**Goal:** Rename the game's display/brand title from **Spirebound** to **Glassvow** (Chinese title **琉璃誓言**) across every player-facing surface, while leaving the internal engineering name Spirebound untouched everywhere it is load-bearing.
 
 **Architecture:** This is a display-layer-only rename. The brand lives in exactly four runtime surfaces (i18n brand strings, `index.html` metadata, PWA manifest, and the raster wordmark `src/assets/title/title.png`) plus two docs surfaces (`README.md`, `AGENTS.md`). The wordmark is regenerated as stained-glass art via the Codex imagegen workflow, which invalidates six visual baselines per platform (title + title-emberglass × desktop/portrait/landscape). Linux baselines can only be produced by the `update-baselines.yml` GitHub workflow.
 
@@ -17,7 +17,7 @@
   - env var `SPIREBOUND_E2E_PORT` (test/e2e/config.spec.js asserts its error message)
   - file-header comments (`// SPIREBOUND engine — …` etc.) and internal docs' style vocabulary ("Spirebound raster style" in art bibles)
   - the in-world tower name "the Spire" (lore, card text, meta descriptions like "Climb the Spire")
-- **Exact brand strings** (copy verbatim): wordmark/all-caps `GLASSVOW`; prose `Glassvow`; Chinese title `琉璃誓`; tagline is unchanged: `A Roguelite Deckbuilder · The Vigil Remembers`.
+- **Exact brand strings** (copy verbatim): wordmark/all-caps `GLASSVOW`; prose `Glassvow`; Chinese title `琉璃誓言`; tagline is unchanged: `A Roguelite Deckbuilder · The Vigil Remembers`.
 - The Chinese title appears in docs/store copy only — **not** in runtime UI (the game ships no CJK glyphs).
 - `CLAUDE.md` is a symlink to `AGENTS.md` — edit **AGENTS.md only**, never the symlink.
 - All work on branch `feat/glassvow-rename`. `dist/` is committed in this repo; it is rebuilt once, in Task 5, not in every task.
@@ -154,13 +154,13 @@ Replace line 1 of `README.md`:
 with:
 
 ```markdown
-# GLASSVOW ・ 琉璃誓
+# GLASSVOW ・ 琉璃誓言
 ```
 
 Then insert this paragraph immediately after the existing first paragraph (after README line 3):
 
 ```markdown
-**Naming layers:** *Glassvow* (Chinese: **琉璃誓**) is the display/brand title — tagline "The Vigil Remembers"; store flavor line "Climb beneath a vow of glass and flame." The title's Vow is thematic; the in-game five-step Vows difficulty ladder still unlocks after the first dawn, as a deliberate title payoff. *Spirebound* remains the internal engineering name: the repo, `package.json` name, the `spirebound_*` localStorage keys, the `window.spirebound` debug hook, and the in-world tower ("the Spire") are all unchanged, deliberately — saves and test anchors must survive the rename.
+**Naming layers:** *Glassvow* (Chinese: **琉璃誓言**) is the display/brand title — tagline "The Vigil Remembers"; store flavor line "Climb beneath a vow of glass and flame." The title's Vow is thematic; the in-game five-step Vows difficulty ladder still unlocks after the first dawn, as a deliberate title payoff. *Spirebound* remains the internal engineering name: the repo, `package.json` name, the `spirebound_*` localStorage keys, the `window.spirebound` debug hook, and the in-world tower ("the Spire") are all unchanged, deliberately — saves and test anchors must survive the rename.
 ```
 
 - [ ] **Step 2: Update AGENTS.md intro line**
@@ -183,13 +183,13 @@ with:
 head -1 README.md; rg -n "Glassvow" README.md AGENTS.md | head
 ```
 
-Expected: heading `# GLASSVOW ・ 琉璃誓`; both files show the new name.
+Expected: heading `# GLASSVOW ・ 琉璃誓言`; both files show the new name.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add README.md AGENTS.md
-git commit -m "docs: document Glassvow / 琉璃誓 brand and naming layers
+git commit -m "docs: document Glassvow / 琉璃誓言 brand and naming layers
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ```
@@ -354,7 +354,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ```bash
 git push -u origin feat/glassvow-rename
 gh pr create --draft --title "Glassvow brand rename (display layer only)" --body "$(cat <<'EOF'
-Renames the display/brand title Spirebound → **Glassvow ・ 琉璃誓** across runtime strings (i18n brand, index.html metas, PWA manifest), the stained-glass title wordmark, README/AGENTS naming docs, and the affected title visual baselines (darwin + linux). Internal names are deliberately untouched: `spirebound_*` save keys, `window.spirebound`, package name, `SPIREBOUND_E2E_PORT`, and the in-world tower "the Spire".
+Renames the display/brand title Spirebound → **Glassvow ・ 琉璃誓言** across runtime strings (i18n brand, index.html metas, PWA manifest), the stained-glass title wordmark, README/AGENTS naming docs, and the affected title visual baselines (darwin + linux). Internal names are deliberately untouched: `spirebound_*` save keys, `window.spirebound`, package name, `SPIREBOUND_E2E_PORT`, and the in-world tower "the Spire".
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF

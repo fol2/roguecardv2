@@ -1,4 +1,6 @@
-# Spirebound Music Ledger v2
+# Glassvow Music Ledger v2
+
+*(Engineering repo / package: Spirebound.)*
 
 ## Runtime integration
 
@@ -8,7 +10,7 @@ The rendered `stained-glass-v2` pack is installed: 22 selected Suno Pro sources 
 
 ## Purpose
 
-This ledger defines the BGM cue strategy and SUNO prompts for Spirebound. The cue ids below are the canonical Music Cue contract shared by the catalogue, pack resolver, manifests, and playback layer.
+This ledger defines the BGM cue strategy and SUNO prompts for Glassvow. The cue ids below are the canonical Music Cue contract shared by the catalogue, pack resolver, manifests, and playback layer.
 
 ## Production priority
 
@@ -16,7 +18,7 @@ This ledger defines the BGM cue strategy and SUNO prompts for Spirebound. The cu
 
 ## Global music direction
 
-Spirebound music is classical gothic stained-glass chamber music. It should feel old, crafted, glass-lit, and playable for long sessions. Do not push it into generic horror, church organ gothic, fantasy trailer music, or busy orchestral bombast.
+Glassvow music is classical gothic stained-glass chamber music. It should feel old, crafted, glass-lit, and playable for long sessions. Do not push it into generic horror, church organ gothic, fantasy trailer music, or busy orchestral bombast.
 
 Core palette:
 
