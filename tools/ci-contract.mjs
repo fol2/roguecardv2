@@ -23,8 +23,12 @@ export function resolveCiMode(eventName, draftValue, refName = '') {
 
 /** Core nonvisual lanes always required when e2e is relevant. */
 function e2eCoreLanes(mode) {
-  if (mode === 'p2-base') return ['changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-main'];
-  if (mode === 'full') return ['changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-main', 'e2e-visual'];
+  if (mode === 'p2-base') {
+    return ['changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main'];
+  }
+  if (mode === 'full') {
+    return ['changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main', 'e2e-visual'];
+  }
   return null;
 }
 

@@ -27,10 +27,10 @@ assert.deepEqual(requiredCiLanes('unit', false, 'smoke'), ['changes']);
 assert.deepEqual(requiredCiLanes('unit', true, 'smoke'), ['changes', 'unit-tests', 'build-dist']);
 assert.deepEqual(requiredCiLanes('e2e', true, 'smoke'), ['changes', 'smoke-e2e']);
 assert.deepEqual(requiredCiLanes('e2e', true, 'p2-base'), [
-  'changes', 'e2e-aux', 'e2e-random', 'e2e-audio', 'e2e-heavy', 'e2e-battle', 'e2e-main',
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-audio', 'e2e-heavy', 'e2e-battle', 'e2e-emberglass', 'e2e-main',
 ]);
 assert.deepEqual(requiredCiLanes('e2e', true, 'p2-base', { slow: false }), [
-  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-main',
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main',
 ]);
 assert.deepEqual(requiredCiLanes('p2-base', true, 'p2-base'), [
   'changes', 'unit', 'e2e-nonvisual', 'progression',
@@ -43,10 +43,10 @@ assert.deepEqual(requiredCiLanes('p2-base', false, 'full'), ['changes']);
 assert.throws(() => requiredCiLanes('p2-base', true, 'smoke'), /Unsupported p2-base CI mode/);
 assert.throws(() => requiredCiLanes('p2-base', false, 'smoke'), /Unsupported p2-base CI mode/);
 assert.deepEqual(requiredCiLanes('e2e', true, 'full'), [
-  'changes', 'e2e-aux', 'e2e-random', 'e2e-audio', 'e2e-heavy', 'e2e-battle', 'e2e-main', 'e2e-visual',
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-audio', 'e2e-heavy', 'e2e-battle', 'e2e-emberglass', 'e2e-main', 'e2e-visual',
 ]);
 assert.deepEqual(requiredCiLanes('e2e', true, 'full', { slow: false }), [
-  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-main', 'e2e-visual',
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main', 'e2e-visual',
 ]);
 
 assert.deepEqual(verifyCiGate({
@@ -61,16 +61,16 @@ assert.deepEqual(verifyCiGate({
   results: {
     changes: 'success', 'e2e-aux': 'success', 'e2e-random': 'success',
     'e2e-audio': 'success', 'e2e-heavy': 'success', 'e2e-battle': 'success',
-    'e2e-main': 'success', 'e2e-visual': 'success',
+    'e2e-emberglass': 'success', 'e2e-main': 'success', 'e2e-visual': 'success',
   },
-}).required.length, 8);
+}).required.length, 9);
 assert.deepEqual(verifyCiGate({
   gate: 'e2e', relevant: true, mode: 'p2-base', slow: false,
   results: {
     changes: 'success', 'e2e-aux': 'success', 'e2e-random': 'success',
-    'e2e-battle': 'success', 'e2e-main': 'success',
+    'e2e-battle': 'success', 'e2e-emberglass': 'success', 'e2e-main': 'success',
   },
-}).required, ['changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-main']);
+}).required, ['changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main']);
 assert.deepEqual(verifyCiGate({
   gate: 'p2-base', relevant: true, mode: 'p2-base',
   results: {
@@ -128,11 +128,13 @@ assert.match(workflow, /e2e_slow:/);
 assert.match(workflow, /name: e2e audio \$\{\{ matrix\.shard \}\}\/6/);
 assert.match(workflow, /name: e2e heavy \$\{\{ matrix\.shard \}\}\/10/);
 assert.match(workflow, /name: e2e battle \$\{\{ matrix\.shard \}\}\/8/);
-assert.match(workflow, /name: e2e main \$\{\{ matrix\.shard \}\}\/12/);
+assert.match(workflow, /name: e2e emberglass \$\{\{ matrix\.shard \}\}\/6/);
+assert.match(workflow, /name: e2e main \$\{\{ matrix\.shard \}\}\/10/);
 assert.match(workflow, /test:e2e:audio -- --shard=\$\{\{ matrix\.shard \}\}\/6/);
 assert.match(workflow, /test:e2e:heavy -- --shard=\$\{\{ matrix\.shard \}\}\/10/);
 assert.match(workflow, /test:e2e:battle -- --shard=\$\{\{ matrix\.shard \}\}\/8/);
-assert.match(workflow, /SPIREBOUND_E2E_SUITE=main npm run test:e2e:main -- --shard=\$\{\{ matrix\.shard \}\}\/12/);
+assert.match(workflow, /test:e2e:emberglass -- --shard=\$\{\{ matrix\.shard \}\}\/6/);
+assert.match(workflow, /SPIREBOUND_E2E_SUITE=main npm run test:e2e:main -- --shard=\$\{\{ matrix\.shard \}\}\/10/);
 assert.match(workflow, /fail-fast: true/);
 assert.doesNotMatch(workflow, /fail-fast: false/);
 assert.match(workflow, /CI_SLOW_RELEVANT/);
@@ -141,6 +143,7 @@ assert.match(workflow, /e2e-aux/);
 assert.match(workflow, /e2e-audio/);
 assert.match(workflow, /e2e-heavy/);
 assert.match(workflow, /e2e-battle/);
+assert.match(workflow, /e2e-emberglass/);
 assert.doesNotMatch(workflow, /name: e2e disk/);
 assert.doesNotMatch(workflow, /name: e2e serial/);
 assert.doesNotMatch(workflow, /name: e2e trace-production/);
@@ -151,6 +154,7 @@ assert.equal(pkg.scripts['test:e2e:nonvisual'],
   'npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:main && npm run test:e2e:serial');
 assert.match(pkg.scripts['test:e2e:audio'], /^playwright test audio /);
 assert.match(pkg.scripts['test:e2e:battle'], /^playwright test battle /);
+assert.match(pkg.scripts['test:e2e:emberglass'], /emberglass emberglass-persistence/);
 assert.match(pkg.scripts['test:e2e:heavy'], /hollow-transaction rewards stage/);
 assert.doesNotMatch(pkg.scripts['test:e2e:heavy'], /\baudio\b/);
 assert.doesNotMatch(pkg.scripts['test:e2e:heavy'], /\bbattle\b/);
