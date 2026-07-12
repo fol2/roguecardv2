@@ -3089,7 +3089,7 @@ git commit -m "test: freeze the pre-registry content oracle"
   all derived/hydrated legacy views come from that same assembly.
 - Does not yet modify `src/data.js`.
 
-- [ ] **Step 1: Write failing registry unit blocks**
+- [x] **Step 1: Write failing registry unit blocks**
 
 Add tests covering:
 
@@ -3147,7 +3147,7 @@ warnings. Enemy behaviour schema accepts arity 1 here and in `_sample`.
 
 Run `npm test`; expected `ERR_MODULE_NOT_FOUND`.
 
-- [ ] **Step 2: Define the exact merge policies**
+- [x] **Step 2: Define the exact merge policies**
 
 Export this frozen policy map:
 
@@ -3242,7 +3242,7 @@ and combines core/sample overlays before hydration; attempting to submit
 the predecessor exactly. A pack cannot submit a separate reveal table. Tests
 prove parity and reject divergent/duplicate threshold ownership.
 
-- [ ] **Step 3: Define schemas once**
+- [x] **Step 3: Define schemas once**
 
 `CONTENT_SCHEMAS` describes required primitive/object/array fields and
 cross-references. Every field carries exactly `source:'pack'` or
@@ -3304,7 +3304,7 @@ hydrated `ACTS` compatibility row. Never reconstruct the six legacy theme
 values from palette token ids. The oracle proves the joined result remains
 byte-identical.
 
-- [ ] **Step 4: Implement deterministic registry assembly**
+- [x] **Step 4: Implement deterministic registry assembly**
 
 Validate pack ids, reject duplicate pack registration, merge in supplied pack
 order according to the fixed policies, validate cross-references only after all
@@ -3370,7 +3370,7 @@ metadata. `doctorContentRegistrations()` uses the identical selection, locale
 join and provenance before delegating to the schema-driven doctor; Lab, doctor
 and Manager never construct a parallel pack list.
 
-- [ ] **Step 5: Implement the deterministic registration compiler**
+- [x] **Step 5: Implement the deterministic registration compiler**
 
 Create import-safe `tools/compile-content-registrations.mjs`. Its pure exports
 discover only convention-based `src/packs/*/registration.js` modules (excluding
@@ -3410,7 +3410,7 @@ and import no UI, DOM, stage, audio playback or Vite module. Task 12 adds the
 concrete generated-manifest and production-exclusion assertions once core
 registration exists.
 
-- [ ] **Step 6: Implement the pure doctor**
+- [x] **Step 6: Implement the pure doctor**
 
 `doctorContent(packs, resources)` returns:
 
@@ -3447,7 +3447,7 @@ entry rows, so Task 18 does not recompute a parallel completeness model.
 used by `npm test` and the dev dashboard; neither consumer formats problems
 independently.
 
-- [ ] **Step 7: Verify, review and commit the registry kernel**
+- [x] **Step 7: Verify, review and commit the registry kernel**
 
 ```bash
 set -euo pipefail
