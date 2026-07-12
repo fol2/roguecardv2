@@ -232,6 +232,7 @@ function cardEl(inst, { inCombat = false, size = null } = {}) {
     const r = c.getBoundingClientRect();
     const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
     const inner = $('.card-inner', c);
+    c.classList.add('tilting');
     inner.style.setProperty('--ry', `${(px - 0.5) * 16}deg`);
     inner.style.setProperty('--rx', `${(0.5 - py) * 12}deg`);
     inner.style.setProperty('--mx', `${px * 100}%`);
@@ -240,6 +241,7 @@ function cardEl(inst, { inCombat = false, size = null } = {}) {
   });
   c.addEventListener('mouseleave', () => {
     const inner = $('.card-inner', c);
+    c.classList.remove('tilting');
     inner.style.setProperty('--ry', '0deg');
     inner.style.setProperty('--rx', '0deg');
   });
