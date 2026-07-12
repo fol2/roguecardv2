@@ -35,7 +35,8 @@ async function openBfEditor(page, params = {}) {
     mesh: '0',
     ...params,
   });
-  await page.goto(`/?${query.toString()}`);
+  // Editor immediately rewrites the query (bfa/bfh/bft); don't require a clean load.
+  await page.goto(`/?${query.toString()}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => Boolean(
     typeof window.__bfEditor?.resolved === 'function'
     && typeof window.__bfEditor?.working === 'function'

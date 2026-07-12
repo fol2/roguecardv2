@@ -428,9 +428,13 @@ test('detached Title version timeout cannot emit a stale hidden action', async (
     for (let index = 0; index < 5; index += 1) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
   await expect(page.locator('[data-version-debug]')).toBeVisible();
-  const shownSeq = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
-  // Force past title-button stability waits so the 3s auto-hide cannot fire first.
-  await page.locator('[data-a="embark"]').click({ force: true });
+  // Leave title in the same turn as the seq snapshot so the 3s auto-hide cannot
+  // race Playwright click actionability and emit a still-on-title hidden action.
+  const shownSeq = await page.evaluate(() => {
+    const seq = window.__probe.behaviourTrace().lastSeq;
+    window.spirebound.show('embark');
+    return seq;
+  });
   await page.waitForFunction(() => window.__probe?.state().screen === 'embark');
   await page.waitForTimeout(3200);
   const stale = await page.evaluate((after) => window.__probe.behaviourTrace().records
