@@ -1,8 +1,12 @@
-# GLASSVOW ・ 琉璃誓
+# GLASSVOW ・ 琉璃誓言
 
 A complete roguelite deckbuilder for the browser: a tower of glass creatures with fire inside, climbed by lantern light. Three acts, three bosses, 60 cards, 31 relics, 27 enemy species, 2 playable aspects, and a meta-progression vigil that remembers every fall — combat art, card faces, relics, enemies, events, and stage plates are painted raster PNGs (with procedural SVG fallbacks); structural UI icons and status chips stay hand-drawn SVG in `src/art.js`; SFX are sample-backed with WebAudio synth fallback, and BGM is a versioned Music Cue layer. No UI framework.
 
-**Naming layers:** *Glassvow* (Chinese: **琉璃誓**) is the display/brand title — tagline "The Vigil Remembers"; store flavor line "Climb beneath a vow of glass and flame." The title's Vow is thematic; the in-game five-step Vows difficulty ladder still unlocks after the first dawn, as a deliberate title payoff. *Spirebound* remains the internal engineering name: the repo, `package.json` name, the `spirebound_*` localStorage keys, the `window.spirebound` debug hook, and the in-world tower ("the Spire") are all unchanged, deliberately — saves and test anchors must survive the rename.
+**Naming layers:**
+- **Glassvow** (Chinese: **琉璃誓言**) — official display / brand title. Tagline "The Vigil Remembers"; store flavor "Climb beneath a vow of glass and flame." The title's *Vow* is thematic; the in-game five-step **Vows** difficulty ladder still unlocks after the first dawn (deliberate title payoff).
+- **Spirebound** — internal engineering name only: repo, `package.json` `"name"`, `spirebound_*` localStorage keys, `window.spirebound`, `SPIREBOUND_E2E_PORT`, and file-header comments. Saves and test anchors depend on these; do not rename.
+- **Emberglass** — in-game quest / Rose Window chain (shards, panes, Act 4 door). Not the product title. Internal keys (`reveals: emberglass`, `PROGRESSION.emberglass`, `test/e2e/emberglass.spec.js`) and player copy ("Emberglass pane") stay on purpose.
+- **the Spire** — in-world tower name (unchanged).
 
 ## Play
 
@@ -32,7 +36,7 @@ The game renders to a **fixed virtual resolution** (one of five iPhone/iPad shap
 
 ### The look: glass & ink
 
-Spirebound is an ink-black world climbed by lantern light, where every living thing is glass with fire inside it. Creatures are leaded stained glass — every landed hit scores a visible crack into the body, and death shatters it into flying shards. Your HP is your lantern: the world itself darkens as you bleed, closing to a guttering circle of light at death's door. Energy is a row of candles that go out as they're spent; Block is a visible ward of held light. Boss kills stop the world — color drains, the cracks blaze, one silent beat, then the glass gives way. Defeat carves your run into a monument in the dark; victory floods the Spire with the only sunrise in the game.
+Glassvow is an ink-black world climbed by lantern light, where every living thing is glass with fire inside it. Creatures are leaded stained glass — every landed hit scores a visible crack into the body, and death shatters it into flying shards. Your HP is your lantern: the world itself darkens as you bleed, closing to a guttering circle of light at death's door. Energy is a row of candles that go out as they're spent; Block is a visible ward of held light. Boss kills stop the world — color drains, the cracks blaze, one silent beat, then the glass gives way. Defeat carves your run into a monument in the dark; victory floods the Spire with the only sunrise in the game.
 
 And the glass is alive. No two creatures breathe alike; their eyes turn to follow whoever they mean to kill, the fire inside them flares as they wind up to strike and gutters as they die, and each one casts a pool of its own colored light on the ledge it stands on — a lit line of tower-stone underfoot, so every fight is visibly fought *on* the Spire. Each act has weather: ash sifts down through the Woods, drowned light sinks through the City, and storm embers streak past the Obsidian Spire between silent flashes of heat lightning. Enemy intents are chips of lit glass that blaze in the beat before the blow lands, damage numbers wear ink outlines like the leading on the glass, and the title itself is a stained-glass inscription.
 

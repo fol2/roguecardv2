@@ -1,6 +1,6 @@
-# Spirebound documentation index
+# Glassvow documentation index
 
-Quick map for agents and humans. Operational truth for running the game lives in the repo root [`README.md`](../README.md) and [`AGENTS.md`](../AGENTS.md).
+Quick map for agents and humans. Operational truth for running the game lives in the repo root [`README.md`](../README.md) and [`AGENTS.md`](../AGENTS.md). Product title is **Glassvow** / **琉璃誓言**; **Spirebound** is the engineering name; **Emberglass** is the in-game Rose Window quest chain (not the product title).
 
 ## Run & architecture
 

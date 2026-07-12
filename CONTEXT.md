@@ -1,6 +1,8 @@
-# Spirebound
+# Glassvow ・ 琉璃誓言
 
 Browser roguelite deckbuilder: glass creatures, lantern light, The Vigil, and a climb through the Spire.
+
+*(Engineering name: **Spirebound**. In-game long quest chain: **Emberglass**. See README naming layers.)*
 
 ## Language
 

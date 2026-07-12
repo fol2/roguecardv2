@@ -4,7 +4,7 @@ Guidance for AI coding agents (Claude Code, Cursor, Codex, …) working in this 
 
 ## What this is
 
-**Glassvow** (display title; the internal engineering name **Spirebound** stays on the repo, package, `spirebound_*` save keys, and `window.spirebound` hook) — a complete browser roguelite deckbuilder (Vite + vanilla JS + three.js, no UI framework). Combat art, cards, relics, enemies, events, and stage plates are raster assets in `src/assets/` (resolved through `assetUrl()` with SVG fallbacks); structural UI icons and status chips are hand-drawn SVG in `src/art.js`; SFX are sample-backed with synth fallback (`src/audio.js`); BGM is a Music Cue layer (`src/music.js`). Music/SFX assets are versioned and selected through `public/audio-selection.json`; see `docs/audio-packs.md`. Deeper design/lore context lives in `README.md`.
+**Glassvow** / **琉璃誓言** (official display title; engineering name **Spirebound** stays on the repo, package, `spirebound_*` save keys, and `window.spirebound` hook; **Emberglass** is the in-game Rose Window quest chain, not the product name — see README naming layers) — a complete browser roguelite deckbuilder (Vite + vanilla JS + three.js, no UI framework). Combat art, cards, relics, enemies, events, and stage plates are raster assets in `src/assets/` (resolved through `assetUrl()` with SVG fallbacks); structural UI icons and status chips are hand-drawn SVG in `src/art.js`; SFX are sample-backed with synth fallback (`src/audio.js`); BGM is a Music Cue layer (`src/music.js`). Music/SFX assets are versioned and selected through `public/audio-selection.json`; see `docs/audio-packs.md`. Deeper design/lore context lives in `README.md`.
 
 ## Agent skills
 
