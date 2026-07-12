@@ -1055,7 +1055,8 @@ extracted owner. This is not new copy or a visual redesign. Required proofs:
   `9c4f7e5:src/ui.js` exactly: 298 calls over 272 unique keys;
 - reward uses `uiIcon('coin')`/`uiIcon('deck')`, calls
   `pendingRewardHasUntaken()`, and preserves both confirm and fully-claimed
-  journeys;
+  journeys; both PR16 boss-reward Music Cue journeys cross Continue plus the
+  confirmation action without emitting another `audio.music-request`;
 - combat uses `relicBarLayout()` and distinguishes an empty Omen seat from a
   present Omen without changing authored geometry;
 - all 278 English UI catalogue leaves remain reachable, with no residual
@@ -2294,7 +2295,8 @@ git commit -m "refactor: extract non-combat UI screens"
   `src/ui/screens/rest.js`, `src/ui/screens/reward.js`,
   `src/ui/screens/shop.js`, `src/ui/screens/title.js`
 - Modify/Test: `test/test_engine.js`, `test/test_module_boundaries.mjs`
-- Modify/Test: `test/e2e/trace.spec.js`, `test/e2e/trace-fixture.js`
+- Modify/Test: `test/e2e/audio.spec.js`, `test/e2e/trace.spec.js`,
+  `test/e2e/trace-fixture.js`
 - Test: full Node and Playwright kits
 
 **Interfaces:**
@@ -2577,7 +2579,7 @@ rm -f "$BASE_CALLS" "$CURRENT_CALLS"
 rg -n 'pendingRewardHasUntaken|leaveConfirm' src/ui/screens/reward.js
 rg -n 'relicBarLayout' src/ui/combat.js
 node tools/run-with-strict-e2e-port.mjs -- npx playwright test \
-  rewards stage trace --project=desktop --workers=1
+  audio rewards stage trace --project=desktop --workers=1
 
 EXPECTED=$({ printf '%s\n' src/ui.js src/ui/combat.js src/ui/drain.js \
   src/ui/probe.js src/ui/index.js src/ui/overlay.js \
@@ -2586,7 +2588,8 @@ EXPECTED=$({ printf '%s\n' src/ui.js src/ui/combat.js src/ui/drain.js \
   src/ui/screens/rest.js src/ui/screens/reward.js \
   src/ui/screens/shop.js src/ui/screens/title.js \
   CONTEXT.md docs/README.md \
-  test/e2e/helpers.js test/e2e/trace.spec.js test/e2e/trace-fixture.js \
+  test/e2e/audio.spec.js test/e2e/helpers.js \
+  test/e2e/trace.spec.js test/e2e/trace-fixture.js \
   test/test_engine.js test/test_module_boundaries.mjs; } | sort -u)
 ACTUAL=$({ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u)
 test "$ACTUAL" = "$EXPECTED"
@@ -2598,13 +2601,13 @@ claiming a separate WebKit forced-failure canary. The environment-gated desktop
 canary proves that the automatic fixture attaches non-empty NDJSON and text
 projections with screen/drag/queue/ceremony/persistence vocabulary. Visual
 baselines remain byte-for-byte unchanged and the tracked worktree is clean
-apart from the exact twenty-one declared post-drift Task 9 paths. The temporary build never
+apart from the exact twenty-two declared post-drift Task 9 paths. The temporary build never
 writes `dist/`.
 
 - [ ] **Step 7: Commit source/tests/docs, excluding `dist/`**
 
 Before staging, a fresh spec-compliance reviewer must approve the complete
-twenty-one-path diff, PR21/PR22 multiset/behaviour preservation, exact 19/38/1
+twenty-two-path diff, PR16/PR21/PR22 multiset/behaviour preservation, exact 19/38/1
 surfaces, state-owner map, zero visual drift and
 `WebKit-safe API review: PASS`. Fix and repeat that review before a separate
 fresh code-quality reviewer receives the same final diff and evidence. Fix and
@@ -2618,7 +2621,7 @@ git add src/ui.js src/ui/combat.js src/ui/drain.js src/ui/probe.js \
   src/ui/screens/event.js src/ui/screens/lamplighter.js \
   src/ui/screens/map.js src/ui/screens/rest.js src/ui/screens/reward.js \
   src/ui/screens/shop.js src/ui/screens/title.js \
-  CONTEXT.md docs/README.md test/e2e/helpers.js \
+  CONTEXT.md docs/README.md test/e2e/audio.spec.js test/e2e/helpers.js \
   test/e2e/trace.spec.js test/e2e/trace-fixture.js test/test_engine.js \
   test/test_module_boundaries.mjs
 npm run test:round5:standing -- --profile p1-complete
