@@ -874,7 +874,10 @@ export const EVENTS = {
   gambler: { glyph: '⚄', hue: 50,
     choices: [
       { needGold: 40,
-        ops: [{ gold: -40 }, { roll: [{ p: 0.45, ops: [{ gold: 110 }]}, { p: 0.55, ops: []}] }]
+        ops: [{ gold: -40 }, { roll: [
+          { id: 'win', p: 0.45, ops: [{ gold: 110 }] },
+          { id: 'lose', p: 0.55, ops: [] },
+        ] }]
       },
       { ops: [] },
     ]
