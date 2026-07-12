@@ -205,6 +205,51 @@ test('shop cards stay sharp at rest: no idle 3D tilt transform', async ({ page }
   ).toBeGreaterThan(1500);
 });
 
+// Vigil deed rows share listIn with the shop. The old keyframes left filter:blur(0px)
+// (and a transform fill) on every .deed-row — same soft-sample class as merchant cards.
+test('Vigil deed rows release listIn without a sticky filter/transform', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'compositor soft-sample is scale-sensitive');
+  await boot(page, { query: 'mesh=0' });
+  await page.evaluate(() => {
+    localStorage.setItem('spirebound_vigil_v2', JSON.stringify({
+      v: 2,
+      deeds: {
+        runs: 40, wins: 9, slain: 500, shatters: 90, kindles: 60, perfects: 12,
+        smolderKills: 60, unlitVisited: 30, embersSpent: 900, bestVow: 5, bestFloor: 45,
+      },
+      unlocks: ['aspect2'], vowUnlocked: 5, lastFall: null,
+      runsPlayed: 40, quests: {}, shards: [], whispers: 12, news: true,
+    }));
+  });
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  await page.evaluate(() => window.spirebound.show('vigil'));
+  await page.waitForSelector('.deed-list .deed-row');
+  await page.waitForTimeout(700);
+
+  const settle = await page.evaluate(() =>
+    [...document.querySelectorAll('.deed-list .deed-row')].map((el) => ({
+      filter: getComputedStyle(el).filter,
+      transform: getComputedStyle(el).transform,
+    })));
+  expect(settle.length).toBeGreaterThan(3);
+  for (const row of settle) {
+    expect(row.filter).toBe('none');
+    expect(row.transform).toBe('none');
+  }
+
+  // Tab away and back re-mounts the deed list — must not re-stick blur(0px).
+  if (await page.locator('[data-a="tab-rose"]').count()) {
+    await page.click('[data-a="tab-rose"]');
+    await page.click('[data-a="tab-deeds"]');
+    await page.waitForSelector('.deed-list .deed-row');
+    await page.waitForTimeout(700);
+    const again = await page.evaluate(() =>
+      [...document.querySelectorAll('.deed-list .deed-row')].map((el) => getComputedStyle(el).filter));
+    for (const filter of again) expect(filter).toBe('none');
+  }
+});
+
 test('?shape= override forces the remaining shapes', async ({ page }) => {
   test.skip(test.info().project.name !== 'desktop', 'one project is enough');
   await boot(page, { query: 'shape=pad-portrait' });

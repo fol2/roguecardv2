@@ -1674,13 +1674,12 @@ html.mesh-on .enemy-art.warded::before { display: none; }
 .reward-row .ric .relic-art { width: 30px; height: 30px; object-fit: contain; }
 .reward-row .ric svg { width: 30px; height: 30px; }
 /* crafted cascade: list children arrive lit, row by row.
-   No filter in the keyframes — a finished fill of blur(0px) is still a filter
-   containing block (soft-samples descendants; merchant card 4). Fill is
-   backwards only so the transform layer is released after entrance (forwards
-   fill of identity still flattens card 3D tilt). */
-@keyframes listIn { from { opacity: 0; transform: translateY(10px); } }
+   Opacity only — no filter (finished blur(0px) is still a filter containing
+   block) and no transform (avoids sticky compositor layers on shop cards /
+   Vigil deed rows at non-integer stage scales). Stagger remains via --si. */
+@keyframes listIn { from { opacity: 0; } }
 .reward-list .reward-row, .shop-row .shop-item, .deed-list .deed-row {
-  animation: listIn 0.42s var(--ease-spring) backwards;
+  animation: listIn 0.42s var(--ease-out-soft) backwards;
   animation-delay: calc(var(--si, 0) * 45ms);
 }
 .reward-list .reward-row:nth-child(1), .shop-row .shop-item:nth-child(1), .deed-list .deed-row:nth-child(1) { --si: 0; }
