@@ -311,4 +311,40 @@ const traceOwnedFixtureIds = [...traceSpecSource.matchAll(/bindTraceContract\(['
 assert.deepEqual([...new Set(traceOwnedFixtureIds)].sort(), [...fixtureManifest.fixtures].sort(),
   'the exact playwright test trace update command must own all frozen Task 6 fixtures');
 
+// Task 12A — compiled core registration graph stays off the live engine/data path.
+{
+  const contentSource = readFileSync(new URL('../src/content.js', import.meta.url), 'utf8');
+  assert.match(contentSource, /CONTENT_REGISTRATION_MANIFEST/);
+  assert.match(contentSource, /compileContentRegistrations/);
+  assert.doesNotMatch(contentSource, /\b(?:definePack|joinLocaleContent|createContentContext)\s*\(/);
+  assert.doesNotMatch(contentSource, /packs\s*:\s*\[|registrations\s*:\s*\[/);
+  assert.doesNotMatch(contentSource, /i18n\/en\/(?:index|ui)\.js/);
+  assert.doesNotMatch(contentSource, /from\s+['"]\.\/packs\/core\//);
+
+  const productionManifest = readFileSync(new URL('../src/packs/compiled/production.js', import.meta.url), 'utf8');
+  const developmentManifest = readFileSync(new URL('../src/packs/compiled/development.js', import.meta.url), 'utf8');
+  assert.match(productionManifest, /from\s+['"]\.\.\/core\/registration\.js['"]/);
+  assert.doesNotMatch(productionManifest, /_sample|development\/|fixture/);
+  assert.equal([...productionManifest.matchAll(/from\s+['"][^'"]+registration\.js['"]/g)].length, 1);
+  assert.match(developmentManifest, /from\s+['"]\.\.\/core\/registration\.js['"]/);
+
+  const registrationSource = readFileSync(new URL('../src/packs/core/registration.js', import.meta.url), 'utf8');
+  assert.match(registrationSource, /i18n\/en\/content\.js/);
+  assert.doesNotMatch(registrationSource, /i18n\/en\/(?:index|ui)\.js/);
+
+  const dataStillMonolith = readFileSync(new URL('../src/data.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(dataStillMonolith, /from\s+['"]\.\/(?:content|content-protocol|packs)\b/);
+  const engineStillDataOnly = importSpecifiers('../src/engine.js');
+  assert.deepEqual(engineStillDataOnly, ['./data.js']);
+
+  for (const modulePath of [
+    '../src/content.js', '../src/packs/core/index.js', '../src/packs/core/registration.js',
+    '../src/packs/core/progression.js', '../tools/check-core-candidate.mjs',
+  ]) {
+    const source = readFileSync(new URL(modulePath, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /\b(?:document|window|localStorage)\b|import\.meta\.glob/,
+      `${modulePath} stays Node-pure`);
+  }
+}
+
 console.log('module boundary checks passed');

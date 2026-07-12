@@ -84,7 +84,7 @@ const KNOWN_ENTRY_FIELDS = Object.freeze({
   shadeKits: new Set(['art', 'moves', 'ai']),
   boons: new Set(['ops', 'name', 'text']),
   themes: new Set(['legacyAct', 'plates', 'weather', 'palette', 'music', 'roster', 'encounters', 'rewardGold', 'mapHaze', 'lanternLights', 'bossPlates', 'name', 'tagline', 'bossName']),
-  aspects: new Set(['id', 'hue', 'art', 'maxHp', 'hp', 'energy', 'handSize', 'potionSlots', 'startDeck', 'deck', 'startRelic', 'startGold', 'gold', 'name', 'blurb']),
+  aspects: new Set(['id', 'hue', 'art', 'maxHp', 'hp', 'energy', 'handSize', 'potionSlots', 'startDeck', 'deck', 'startRelic', 'startGold', 'gold', 'name', 'blurb', 'unlock']),
   vows: new Set(['mods', 'name', 'desc']),
 });
 
@@ -221,7 +221,8 @@ function validatePackShape(pack, problems) {
       if (!Object.hasOwn(theme, required)) problems.push(problem('required-field-missing', { packId, domain: 'themes', entryId: id, field: `themes.${id}.${required}`, expected: 'required theme field', actual: 'missing', hint: `Declare themes.${id}.${required}.` }));
     }
     const legacy = theme.legacyAct;
-    if (legacy && (!isPlainObject(legacy.theme) || typeof legacy.boss !== 'string' || !['sky', 'fog', 'particles', 'glow', 'accent', 'ember'].every((key) => typeof legacy.theme[key] === 'string'))) {
+    const themeValueOk = (value) => typeof value === 'string' || typeof value === 'number';
+    if (legacy && (!isPlainObject(legacy.theme) || typeof legacy.boss !== 'string' || !['sky', 'fog', 'particles', 'glow', 'accent', 'ember'].every((key) => themeValueOk(legacy.theme[key])))) {
       problems.push(problem('invalid-legacy-act', { packId, domain: 'themes', entryId: id, field: `themes.${id}.legacyAct`, expected: '{boss,theme:{sky,fog,particles,glow,accent,ember}}', actual: 'incomplete object', hint: 'Supply the exact legacy compatibility values.' }));
     }
     if (Object.hasOwn(theme, 'lanternLights') && !Array.isArray(theme.lanternLights)) {
@@ -373,7 +374,7 @@ export function validateContentReferences(registry, resources = STATIC_REFERENCE
   return problems;
 }
 
-const OPTIONAL_LOCALE_FIELDS = new Set(['tagline']);
+const OPTIONAL_LOCALE_FIELDS = new Set(['tagline', 'textUp', 'deathDialogue']);
 const localeDomain = (domain) => ({ statuses: 'status', themes: 'acts' }[domain] || domain);
 const localeOwnedFieldEntries = (domain) => Object.entries(CONTENT_SCHEMAS[domain]?.fields || {})
   .filter(([key, spec]) => spec.source === 'locale' && !OPTIONAL_LOCALE_FIELDS.has(key));
@@ -477,8 +478,8 @@ function compatibilityGraph(registry, localeContent) {
     const loc = localeContent.acts?.[index] || {};
     for (const key of ['name', 'tagline', 'bossName']) if (loc[key] !== undefined) theme[key] = loc[key];
   }
-  const acts = themes.map(([id, theme]) => ({
-    id, ...theme.legacyAct,
+  const acts = themes.map(([, theme]) => ({
+    ...theme.legacyAct,
     ...(theme.name !== undefined ? { name: theme.name } : {}),
     ...(theme.tagline !== undefined ? { tagline: theme.tagline } : {}),
     ...(theme.bossName !== undefined ? { bossName: theme.bossName } : {}),
@@ -498,14 +499,18 @@ function compatibilityGraph(registry, localeContent) {
 }
 
 function derivedPools(registry) {
-  const cardPools = {}, relicPools = {}, poolGate = { cards: {}, relics: {} };
+  const cardPools = { common: [], uncommon: [], rare: [] };
+  const relicPools = { common: [], uncommon: [], rare: [], boss: [] };
+  const poolGate = { cards: {}, relics: {} };
   for (const [id, card] of Object.entries(registry.cards || {})) {
-    if (typeof card.rarity !== 'string') continue;
-    (cardPools[card.rarity] ||= []).push(id);
+    if (typeof card.rarity !== 'string' || card.locked) continue;
+    if (!Object.hasOwn(cardPools, card.rarity)) continue;
+    cardPools[card.rarity].push(id);
   }
   for (const [id, relic] of Object.entries(registry.relics || {})) {
-    if (typeof relic.rarity !== 'string') continue;
-    (relicPools[relic.rarity] ||= []).push(id);
+    if (typeof relic.rarity !== 'string' || relic.locked) continue;
+    if (!Object.hasOwn(relicPools, relic.rarity)) continue;
+    relicPools[relic.rarity].push(id);
   }
   for (const [gate, wave] of Object.entries(registry.progression.poolWaves || {})) {
     for (const id of wave.cards || []) poolGate.cards[id] = gate;
@@ -533,7 +538,7 @@ export function createContentContext(packs, { id, resources = STATIC_REFERENCE_C
     player: graph.PLAYER, cards: graph.CARDS, cardPools: pools.cardPools,
     statuses: graph.STATUS_INFO, relics: graph.RELICS, relicPools: pools.relicPools,
     potions: graph.POTIONS, enemies: graph.ENEMIES, events: graph.EVENTS,
-    rewardGold: themeOrder.map((themeId) => [...graph.THEMES[themeId].rewardGold]), shop: graph.SHOP,
+    rewardGold: themeOrder.map((themeId) => cloneGraph(graph.THEMES[themeId].rewardGold)), shop: graph.SHOP,
     omens: graph.OMENS, affixes: graph.AFFIXES, arts: graph.ARTS, deeds: graph.DEEDS,
     progression: graph.PROGRESSION,
     reveals: Object.entries(graph.PROGRESSION.revealThresholds || {}).map(([revealId, trigger]) => ({ id: revealId, trigger })),

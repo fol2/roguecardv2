@@ -60,8 +60,8 @@ import {
 } from '../tools/run-round5-standing-gates.mjs';
 import {
   CONTENT_EXPORT_NAMES, PROTOCOL_EXPORT_NAMES, canonicalise, canonicalJson,
-  assertCaptureWorktreeIdentity, captureContentOracle, descriptorInventory,
-  inspectExactSourceRoot, inspectSourceRoot,
+  assertCaptureWorktreeIdentity, captureContentOracle, captureLiveContentOracle,
+  descriptorInventory, inspectExactSourceRoot, inspectSourceRoot,
 } from '../tools/capture-content-oracle.mjs';
 import {
   CONTENT_SCHEMAS, MERGE_POLICIES, PROGRESSION_MERGE_POLICIES,
@@ -189,6 +189,19 @@ import {
   const expectedRng = EngineApi.makeRng(rngCase.seed);
   for (let call = 0; call < rngCase.rng.calls; call++) expectedRng();
   assert.equal(rngCase.rng.state, expectedRng.getState(), 'AI oracle records production Mulberry32 state');
+}
+
+// Task 12A Step 1: live monolith still matches the frozen oracle legs.
+{
+  const expected = JSON.parse(readFileSync(new URL('./fixtures/round5-content-oracle-v1.json', import.meta.url), 'utf8'));
+  const actual = await captureLiveContentOracle();
+  assert.deepEqual(actual.contentExports, expected.contentExports);
+  assert.deepEqual(actual.protocolExports, expected.protocolExports);
+  assert.deepEqual(actual.enemyAi, expected.enemyAi);
+  assert.deepEqual(actual.shadeAi, expected.shadeAi);
+  assert.deepEqual(actual.rawMechanics, expected.rawMechanics);
+  assert.deepEqual(actual.i18n, expected.i18n);
+  assert.equal(actual.monteCarlo.sha256, expected.monteCarlo.sha256);
 }
 
 // Oracle helpers are import-safe, deterministic and source-root selected.

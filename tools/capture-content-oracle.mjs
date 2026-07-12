@@ -570,18 +570,21 @@ function provenance(sourceRoot, captureRoot) {
   };
 }
 
-export async function captureContentOracle({ sourceWorktree, captureWorktree }) {
-  const sourceRoot = realpathSync(requireAbsoluteRoot(sourceWorktree, 'sourceWorktree'));
-  const captureRoot = assertCaptureWorktreeIdentity(captureWorktree);
-  if (sourceRoot === captureRoot) throw new Error('source and capture worktrees must be distinct');
-  const { data, engine, i18n, english, ui } = await importSourceModules(sourceRoot);
+export function buildContentOracleFromModules({ data, engine, i18n, english, ui }, {
+  provenance: provenanceValue = null,
+  allowAccessors = false,
+} = {}) {
   const roots = Object.fromEntries(CONTENT_EXPORT_NAMES.map((name) => [name, data[name]]));
   const descriptors = descriptorInventory(roots);
-  if (descriptors.accessors.length !== 1
-    || descriptors.accessors[0].path !== 'QUESTS.hollowLamplighter.target') {
-    throw new Error(`unexpected accessor inventory: ${JSON.stringify(descriptors.accessors)}`);
+  if (!allowAccessors) {
+    if (descriptors.accessors.length !== 1
+      || descriptors.accessors[0].path !== 'QUESTS.hollowLamplighter.target') {
+      throw new Error(`unexpected accessor inventory: ${JSON.stringify(descriptors.accessors)}`);
+    }
   }
-  descriptors.accessors[0].value = canonicalise(data.QUESTS.hollowLamplighter.target);
+  if (descriptors.accessors[0]?.path === 'QUESTS.hollowLamplighter.target') {
+    descriptors.accessors[0].value = canonicalise(data.QUESTS.hollowLamplighter.target);
+  }
   const { contentExports, protocolExports } = sourceProjection(data);
   const englishContent = Object.fromEntries(Object.keys(CONTENT_DOMAIN_TO_EXPORT)
     .map((domain) => [domain, english[domain]]));
@@ -623,8 +626,32 @@ export async function captureContentOracle({ sourceWorktree, captureWorktree }) 
     shadeAi: ai.shadeAi,
     sovereignSequence: captureSovereign(engine, data),
     monteCarlo: captureMonteCarlo(engine, data),
-    provenance: provenance(sourceRoot, captureRoot),
+    provenance: provenanceValue,
   };
+}
+
+/** Live in-process capture against this package root (Step 12A oracle wiring). */
+export async function captureLiveContentOracle(root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')) {
+  const sourceRoot = realpathSync(requireAbsoluteRoot(root, 'liveRoot'));
+  const modules = await importSourceModules(sourceRoot);
+  return buildContentOracleFromModules(modules, {
+    provenance: {
+      mode: 'live',
+      sourceSha: git(sourceRoot, ['rev-parse', 'HEAD']),
+      sourceTree: git(sourceRoot, ['rev-parse', 'HEAD^{tree}']),
+      sourceModules: { data: 'src/data.js', engine: 'src/engine.js', i18n: 'src/i18n/index.js' },
+    },
+  });
+}
+
+export async function captureContentOracle({ sourceWorktree, captureWorktree }) {
+  const sourceRoot = realpathSync(requireAbsoluteRoot(sourceWorktree, 'sourceWorktree'));
+  const captureRoot = assertCaptureWorktreeIdentity(captureWorktree);
+  if (sourceRoot === captureRoot) throw new Error('source and capture worktrees must be distinct');
+  const modules = await importSourceModules(sourceRoot);
+  return buildContentOracleFromModules(modules, {
+    provenance: provenance(sourceRoot, captureRoot),
+  });
 }
 
 function parseCli(argv) {
