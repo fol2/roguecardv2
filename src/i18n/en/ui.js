@@ -1,10 +1,16 @@
 // English UI chrome catalogue.
-// Core surfaces extracted after Emberglass Phase 2 rebase.
-// Remaining shop/rest/reward/rose microcopy can follow the same pattern.
+// Core surfaces + shop/rest/hollow/dawn/settings/treasure/persistence expansion.
 
 export const ui = {
   smoke: {
     hello: 'Hello, {name}',
+  },
+
+  common: {
+    skip: 'Skip',
+    continue: 'Continue',
+    cancel: 'Cancel',
+    retry: 'Retry',
   },
 
   brand: {
@@ -23,6 +29,7 @@ export const ui = {
 
   menu: {
     howToPlay: 'How to Play',
+    settings: 'Settings',
     mute: 'Mute',
     unmute: 'Unmute',
     muteSound: 'Mute Sound',
@@ -44,6 +51,31 @@ export const ui = {
     lightTheWay: 'Light the Way',
     chooseBoon: 'Choose a boon',
     close: 'Close',
+  },
+
+  settings: {
+    title: 'Settings',
+    music: 'Music',
+    sfx: 'SFX',
+    debugLabel: 'Debug',
+    resetSave: 'Reset Save',
+    resetWarn: 'Wipes the current climb and all Vigil progress. Cannot be undone.',
+    resetConfirmTitle: 'Reset Save?',
+    resetConfirmBody: 'This erases your <b>current climb</b> and the entire <b>Vigil</b> — deeds, unlocks, vows, monuments, and whispers.<br><br><span style="color:#ff8d8d">This cannot be undone.</span>',
+    eraseEverything: 'Erase Everything',
+  },
+
+  hud: {
+    usePotion: 'Use {name}',
+    tossPotion: 'Toss it',
+    potionTip: 'Click to use or toss',
+    actFloor: 'Act {act} · Floor {floor}',
+    omenTitle: 'Omen — {name}',
+    omenSub: 'hangs over Act {act}',
+    deckTitle: 'Your Deck',
+    deckCount: '{n} cards',
+    deckAria: 'Deck',
+    menuAria: 'Menu',
   },
 
   map: {
@@ -71,6 +103,19 @@ export const ui = {
     travelHere: '{action} to travel here.',
     tap: 'Tap',
     click: 'Click',
+    survey: '{action} to survey the Spire',
+    drag: 'drag',
+    scroll: 'scroll',
+    witchlightTitle: 'Witchlight trembles',
+    witchlightBody: 'Pale glass waits here.',
+    sealedDoor: {
+      aria: 'The sealed door',
+      label: 'THE SEALED DOOR',
+      title: 'THE SEALED DOOR',
+      sub: 'Six panes burn behind you. The lock answers, but does not open.',
+      inscription: 'the climb continues',
+      return: 'Return to the summit',
+    },
   },
 
   combat: {
@@ -86,6 +131,29 @@ export const ui = {
     guardShattered: 'GUARD SHATTERED',
     reshuffle: 'Reshuffle',
     stoneRemembers: 'THE STONE REMEMBERS',
+    energyAria: 'Energy',
+    drawPileAria: 'Draw pile',
+    discardPileAria: 'Discard pile',
+    ashesPileAria: 'Ashes pile',
+    drawPileTitle: 'Draw Pile',
+    drawPileSub: 'Order hidden — shown alphabetically',
+    discardPileTitle: 'Discard Pile',
+    ashesTitle: 'The Ashes',
+    ashesSub: 'Burned away — each fed the lantern an ember',
+    facetsTitle: 'Facets',
+    facetsBody: 'Every creature is glass. Attacks that draw unblocked blood chip a facet; fill the gauge and the glass <b>shatters</b> — it loses its next action, is Cracked, and spills Embers into your lantern.',
+    affixTitle: '{name} — an elite\'s title',
+    lanternTitleArt: 'Lantern Art — {name}',
+    lanternTitle: 'The Lantern',
+    lanternBodyLead: '<b>{cost} Embers, once a turn:</b> {text}<br><br>',
+    lanternBody: 'The lantern holds the <b>Embers</b> spilled by shattered and slain glass. Drag any card onto it to <b>kindle</b> — burn the card away for an ember, once a turn. Curses refuse the fire.',
+    lanternSub: 'A · use Art',
+    debuff: 'Debuff',
+    buff: 'Buff',
+    staggeredTipTitle: 'Staggered',
+    staggeredTipBody: 'The glass has shattered — this creature loses its next action while it reseams.',
+    monumentGift: 'THE STONE RETURNS ITS GIFT',
+    perfectBanner: 'PERFECT',
   },
 
   reward: {
@@ -96,12 +164,117 @@ export const ui = {
     leaveConfirmBody: 'You still have unclaimed spoils on the glass. Move on without them?',
     leaveConfirmYes: 'Leave Them',
     leaveConfirmNo: 'Stay',
+    perfectSeal: '✦ PERFECT — the glass untouched ✦',
+    goldRow: '<b class="gold-num">{n}</b> gold',
+    potionSlotsFull: 'Potion slots full!',
+    addCardRow: 'Add a card to your deck',
+    chooseCardTitle: 'Choose a Card',
+    chooseCardSub: 'Add one card to your deck — or skip to keep it lean.',
+    cardAdded: '{name} added',
+    bossRelicTitle: 'A BOSS RELIC CALLS',
+    bossRelicSub: 'Choose one — its power is permanent.',
+    takeNone: 'Take none',
+  },
+
+  rest: {
+    title: 'REST SITE',
+    sub: 'The fire crackles. For a moment, the Spire is quiet.',
+    restBtn: 'Rest',
+    restHeal: '— heal {hp} HP',
+    smithBtn: 'Smith',
+    smithSub: '— upgrade a card',
+    healedFloat: '+{hp} HP',
+    upgradeTitle: 'Upgrade a Card',
+    upgradeSub: 'Forge one card into its + form.',
+    upgradedTitle: 'Upgraded!',
+    upgradedSub: 'It gleams with new power.',
+  },
+
+  shop: {
+    title: 'THE MERCHANT',
+    greeting: '"Gold for glory, stranger. Everything\'s fair-priced — for the doomed."',
+    leave: 'Leave the Shop',
+    potionSlotsFull: 'Potion slots full!',
+    cardRemoval: {
+      title: 'Card Removal',
+      desc: 'Remove a card from your deck forever.',
+      pickTitle: 'Remove a Card',
+      pickSub: 'Cut the dead weight.',
+    },
+  },
+
+  treasure: {
+    title: 'TREASURE',
+    sub: 'A heavy chest, banded in gold. Open it?',
+    openBtn: 'Open the Chest',
+    empty: 'The chest lies empty.',
+    coinsOnly: 'Only coins remain — <b class="gold-num">+{gold} gold</b>.',
+    relicClaim: 'You claim <b style="color:{tone}">{name}</b> — <i>{text}</i>',
+  },
+
+  hollow: {
+    kicker: 'THE UNLIT WAY · PRICE {current} OF {total}',
+    title: 'THE HOLLOW LAMPLIGHTER',
+    payPrice: 'Pay the Price',
+    pricePaid: 'Price Paid',
+    returnLater: 'Return Later',
+    saveFailed: 'The price is not yet secured. Retry the save.',
+    routeFailed: 'The way onward could not be prepared.',
+    routeSaveFailed: 'The way onward is not secured. Retry when storage is available.',
+  },
+
+  dawn: {
+    whisperKicker: 'A whisper reaches the dawn',
+    questRevealKicker: '{mode} revealed',
+    questProgressKicker: 'The trail continues',
+    questUnlockKicker: 'Insight awakened',
+    witchlightLens: 'Witchlight Lens',
+    witchlightCopy: 'Pale paths will now be marked.',
+    pageKicker: 'Page {n}',
+    eighthResolvedKicker: 'The broken glyphs resolve',
+    shadeResolvedKicker: 'The shade speaks plainly',
+    questCompleteKicker: '{mode} complete',
+    shardGrantCopy: 'One pane answers.',
+    act4RevealCopy: 'Six panes burn. Something waits above the crown.',
+    saveFailedTitle: 'The Dawn Could Not Hold',
+    saveFailedClear: 'Every panel has been seen, but the saved dawn could not be released. Retry before leaving this screen.',
+    saveFailedCursor: 'This panel was shown, but its place in the dawn could not be secured. Retry before the ceremony continues.',
+    reloadSaved: 'Reload Saved Dawn',
+  },
+
+  event: {
+    removeTitle: 'Remove a Card',
+    removeSub: 'Let it go.',
+    upgradeTitle: 'Upgrade a Card',
+    upgradeSub: 'The forge hungers.',
+    duplicateTitle: 'Duplicate a Card',
+    duplicateSub: 'The mirror remembers.',
+    chooseCardTitle: 'Choose a Card',
+    chooseCardSub: 'One page still glows.',
+  },
+
+  persistence: {
+    saveFailedTitle: 'Save Failed',
+    retrySave: 'Retry Save',
+    reloadClimb: 'Reload Saved Climb',
+    runSaveBody: 'The climb could not be secured. Free storage and retry, or reload the last durable climb state.',
+    runSaveRetryFail: 'The save is still unavailable. Free storage, then retry or reload the last durable climb state.',
+    hollowRouteBody: 'This destination is still pending. Free storage and retry, or reload the exact saved destination.',
+    reloadDestination: 'Reload Saved Destination',
+    stoneTitle: 'The Stone Could Not Hold',
+    stoneBody: 'The stone could not hold this duel. Free storage and try again.',
+    reloadDuel: 'Reload Saved Duel',
+    vigilTitle: 'The Vigil Could Not Hold',
+    vigilBody: 'This run end is safely journalled, but its ledgers or final dawn could not be secured. Free storage and retry, or reload this saved finalisation.',
+    retryFinalisation: 'Retry Finalisation',
+    reloadFinalisation: 'Reload Saved Finalisation',
   },
 
   end: {
     ascended: 'ASCENDED',
     fallen: 'FALLEN',
     ascendedSub: 'The Eternal Sovereign is dust. Dawn breaks over the Spire — the first in an age.',
+    fallenSub: 'Here ended a climb, on floor <b>{floor}</b>.<br>The Spire keeps what it takes — but the Vigil remembers.',
     viewDeck: 'View Final Deck',
     returnVigil: 'Return to the Vigil',
     floors: 'Floors',
@@ -112,6 +285,23 @@ export const ui = {
     dmgTaken: 'Damage Taken',
     cardsPlayed: 'Cards Played',
     runTime: 'Run Time',
+    finalDeckTitle: 'Final Deck',
+    bequestTitle: 'Carve one thing into the stone — the next climb may recover it in {act}.',
+    bequestUnpaid: 'The unpaid gift remains in the standing stone',
+    bequestDone: '✦ The stone keeps your {name}.<br>It will wait for you in {act}.',
+    bequestNote: {
+      relic: 'your rarest relic',
+      card: 'your finest card',
+      gold: '{n} gold',
+      goldCache: 'a cache of gold',
+    },
+    unlock: {
+      aspect: 'Aspect Unlocked',
+      ashwarden: 'The Ashwarden',
+      card: 'Card Unlocked',
+      relic: 'Relic Unlocked',
+      header: '✦ {kind}',
+    },
   },
 
   vigil: {

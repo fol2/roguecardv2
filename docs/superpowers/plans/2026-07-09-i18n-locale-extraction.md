@@ -51,12 +51,15 @@
 
 `quests.*` (incl. hollow `meetings`), `whispers[]`, `variants.*`, `shadeKits.*.moves.*.name`, new omen `eighthOmen`, card `unreadablePage`.
 
-### Task 6: UI chrome maps in ui.js — DONE (core surfaces)
+### Task 6: UI chrome maps in ui.js — DONE (core + deferred chrome)
 
-Title / embark / map / combat piles / banners / vigil / rose / lamplighter / end-screen / help / keywords. Remaining shop/rest/hollow/dawn microcopy deferred.
+Title / embark / map / combat piles / banners / vigil / rose / lamplighter / end-screen / help / keywords.
+Shop / rest / hollow / dawn / settings / treasure / sealed door / persistence / reward leftovers / event pick grids — extracted + wired (2026-07-11 pool expansion).
+
+**Still deferred:** intent/event sentence composers, title/vigil/map act-title composers, second locale / language picker.
 
 ### Task 7: KEYWORDS + FACET_DESC + help essay — DONE
 
 ### Task 8: Final parity sweep — DONE (content + Emberglass)
 
-**Deferred (later slices):** intent/event composers, remaining shop/rest/hollow/dawn chrome literals, `fmtText` keyword redesign, second locale, language picker, shell/PWA, `dist/` rebuild.
+**Deferred (later slices):** intent/event composers, title/vigil/map act-title composers, `fmtText` keyword redesign, second locale, language picker, shell/PWA.
