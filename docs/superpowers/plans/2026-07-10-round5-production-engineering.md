@@ -4283,7 +4283,7 @@ git commit -m "test: add the isolated sample content pack"
   raw-mechanics versus locale ownership, joined locale completeness/provenance,
   sample locale isolation and full-page reload for either source type.
 
-- [ ] **Step 1: Add one aggregate P2 assertion**
+- [x] **Step 1: Add one aggregate P2 assertion**
 
 Build `resourceManifest` in the Node test from a recursive `readdirSync()` of
 `src/assets/`, normalised to the same `category/id` keys used by the registry;
@@ -4346,7 +4346,7 @@ Run it through the strict-port wrapper against the existing `desktop`,
 `__probe.stageCoreTheme({ themeId, seed })` driver and requires the exact three
 production themes once per project. Expected: missing driver support.
 
-- [ ] **Step 2: Implement the bounded core-theme Probe and browser journey**
+- [x] **Step 2: Implement the bounded core-theme Probe and browser journey**
 
 Extend `installProbe` with `stageCoreTheme({themeId,seed})`, available only on
 the existing QA Probe surface. It validates `themeId` against the injected
@@ -4363,7 +4363,7 @@ or `{param}`, and no trace drop/error/orphan. The Playwright report and ordinary
 attachments are browser evidence only. Task 20 creates the phone/pad-shaped
 Playwright WebKit projects and reruns this same `theme-profile` journey there.
 
-- [ ] **Step 3: Run, review and commit the P2 browser source**
+- [x] **Step 3: Run, review and commit the P2 browser source**
 
 ```bash
 set -euo pipefail
@@ -4383,7 +4383,7 @@ Complete fresh spec review, fixes/re-review, then fresh code-quality review and
 fixes/re-review. No source-SHA capture ledger or separate browser-artefact commit
 is required.
 
-- [ ] **Step 4: Write evidence/current docs and release the freeze**
+- [x] **Step 4: Write evidence/current docs and release the freeze**
 
 Record commit range, exact commands/output summaries, export inventory, doctor
 counts, generated-manifest hashes/provenance, compiler freshness, locale
@@ -4397,7 +4397,7 @@ Only after the complete P2 browser gate and ordered reviewer cycles pass, append
 the closing SHA and `P2 content-table freeze: RELEASED` to the execution ledger.
 If the gate is red, leave it ACTIVE and fix P2.
 
-- [ ] **Step 5: Commit the documentation closure**
+- [x] **Step 5: Commit the documentation closure**
 
 ```bash
 set -euo pipefail
