@@ -1,5 +1,5 @@
 export function createGalleryScreen(deps) {
-  const { assetSetIds, assetSetLabel, ENEMIES, enemySvg, heroSvg, ASPECTS, CARDS, cardArtSvg, POTIONS, potionSvg, ARTS, OMENS, EVENTS, eventArtSvg, RELICS, DEEDS, QUEST_IDS, UI_CHROME_IDS, uiFallbackName, assetUrl, iconSvg, escHtml, screenEl, $, openOverlay, closeOverlay, omenIconName, BOONS, STATUS_INFO, campfireSvg, chestSvg, merchantSvg } = deps;
+  const { assetSetIds, assetSetLabel, ENEMIES, enemySvg, heroSvg, ASPECTS, CARDS, cardArtSvg, POTIONS, potionSvg, ARTS, OMENS, EVENTS, eventArtSvg, RELICS, DEEDS, QUEST_IDS, UI_CHROME_IDS, uiFallbackName, assetUrl, iconSvg, escHtml, screenEl, $, openOverlay, closeOverlay, omenIconName, BOONS, STATUS_INFO, campfireSvg, chestSvg, merchantSvg, CORE_CONTENT } = deps;
 
 let galleryLightboxWired = false;
 function wireGalleryLightbox() {
@@ -56,7 +56,10 @@ function renderGallery() {
     events: Object.entries(EVENTS).map(([k, ev]) => [k, () => eventArtSvg(ev.glyph, ev.hue)]),
     title: [['title', () => '<div class="title-banner-ph">title</div>']],
     'title-background': [['background', () => '<div class="title-banner-ph">background</div>']],
-    stage: ['act1', 'act2', 'act3'].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => [`${a}-${l}`, () => '<div class="title-banner-ph">stage</div>'])),
+    stage: (CORE_CONTENT?.themeOrder || []).flatMap((themeId) => {
+      const plates = CORE_CONTENT.themes[themeId]?.plates || {};
+      return ['backdrop', 'mid', 'ledge'].map((l) => [plates[l] || `${themeId}-${l}`, () => '<div class="title-banner-ph">stage</div>']);
+    }),
     relics: Object.entries(RELICS).map(([k, r]) => [k, () => `<div class="title-banner-ph" style="color:${r.tone}">${r.glyph}</div>`]),
     deeds: Object.keys(DEEDS).map((k) => [k, () => iconSvg(`deed-${k}`, 64)]),
     bequests: ['relic', 'card', 'gold'].map((k) => [k, () => iconSvg(`bequest-${k}`, 64)]),

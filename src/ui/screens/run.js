@@ -1,5 +1,5 @@
 export function createRunScreen(deps) {
-  const { S, E, setTheme, setAltitude, persistenceDialogActive, requireRunSave, show, finalisePendingRunEnd, startCombatUI, renderHud, resumeSavedCombat, routeVisitedNode, claimMonumentNode, requireBequestClear, omenBanner } = deps;
+  const { S, E, setTheme, setAltitude, persistenceDialogActive, requireRunSave, show, finalisePendingRunEnd, startCombatUI, renderHud, resumeSavedCombat, routeVisitedNode, claimMonumentNode, requireBequestClear, omenBanner, themeForRun } = deps;
 
 function resumePendingHollowRoute(run) {
   const route = run.pendingHollowRoute;
@@ -13,7 +13,7 @@ function startRun(run, resumed = false) {
   if (!resumed && persistenceDialogActive()) return;
   S.run = run;
   S.cb = null;
-  setTheme(run.act);
+  setTheme(themeForRun(run));
   const curNode = run.nodeId ? run.map.nodes.find((n) => n.id === run.nodeId) : null;
   setAltitude(run.act, curNode ? curNode.row : 0);
   const continueStart = () => routeStartedRun(run, resumed, curNode);

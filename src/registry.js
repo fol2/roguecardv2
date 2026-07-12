@@ -1,5 +1,6 @@
 import { hydrateContent } from './i18n/hydrate-content.js';
 import { STATIC_REFERENCE_CATALOGUES } from './content-resources.js';
+import { isAtmosphere } from './theme-atmosphere.js';
 
 export const MERGE_POLICIES = Object.freeze({
   player: 'singleton', shop: 'singleton',
@@ -54,9 +55,9 @@ export const CONTENT_SCHEMAS = Object.freeze({
   shadeKits: schema({ moves: field('object'), ai: field('function', 'pack', { arity: 1 }) }),
   boons: schema({ name: field('string', 'locale'), text: field('string', 'locale') }),
   themes: schema({
-    legacyAct: field('object'), plates: field('object'), weather: field('object'),
-    palette: field('object'), music: field('string', 'pack', { reference: 'music-id' }),
-    roster: field('array'), encounters: field('array'), rewardGold: field('array'),
+    legacyAct: field('object'), plates: field('object'), atmosphere: field('string'), weather: field('object'),
+    palette: field('object'), music: field('object'),
+    roster: field('object'), encounters: field('object'), rewardGold: field('object'),
     mapHaze: field('string', 'pack', { reference: 'token-id' }), lanternLights: field('array'),
     bossPlates: field('object'), name: field('string', 'locale'), tagline: field('string', 'locale'),
     bossName: field('string', 'locale'),
@@ -83,7 +84,7 @@ const KNOWN_ENTRY_FIELDS = Object.freeze({
   variants: new Set(['id', 'base', 'tint', 'scale', 'statMods', 'drop', 'name', 'dialogue', 'deathDialogue']),
   shadeKits: new Set(['art', 'moves', 'ai']),
   boons: new Set(['ops', 'name', 'text']),
-  themes: new Set(['legacyAct', 'plates', 'weather', 'palette', 'music', 'roster', 'encounters', 'rewardGold', 'mapHaze', 'lanternLights', 'bossPlates', 'name', 'tagline', 'bossName']),
+  themes: new Set(['legacyAct', 'plates', 'atmosphere', 'weather', 'palette', 'music', 'roster', 'encounters', 'rewardGold', 'mapHaze', 'lanternLights', 'bossPlates', 'name', 'tagline', 'bossName']),
   aspects: new Set(['id', 'hue', 'art', 'maxHp', 'hp', 'energy', 'handSize', 'potionSlots', 'startDeck', 'deck', 'startRelic', 'startGold', 'gold', 'name', 'blurb', 'unlock']),
   vows: new Set(['mods', 'name', 'desc']),
 });
@@ -217,13 +218,16 @@ function validatePackShape(pack, problems) {
     for (const required of ['hp', 'moves', 'ai']) if (!Object.hasOwn(enemy, required)) problems.push(problem('required-field-missing', { packId, domain: 'enemies', entryId: id, field: `enemies.${id}.${required}`, expected: 'required pack field', actual: 'missing', hint: `Declare enemies.${id}.${required}.` }));
   }
   for (const [id, theme] of Object.entries(pack.themes || {})) {
-    for (const required of ['legacyAct', 'plates', 'weather', 'palette', 'music', 'roster', 'encounters', 'rewardGold', 'mapHaze', 'lanternLights', 'bossPlates']) {
+    for (const required of ['legacyAct', 'plates', 'atmosphere', 'weather', 'palette', 'music', 'roster', 'encounters', 'rewardGold', 'mapHaze', 'lanternLights', 'bossPlates']) {
       if (!Object.hasOwn(theme, required)) problems.push(problem('required-field-missing', { packId, domain: 'themes', entryId: id, field: `themes.${id}.${required}`, expected: 'required theme field', actual: 'missing', hint: `Declare themes.${id}.${required}.` }));
     }
     const legacy = theme.legacyAct;
     const themeValueOk = (value) => typeof value === 'string' || typeof value === 'number';
     if (legacy && (!isPlainObject(legacy.theme) || typeof legacy.boss !== 'string' || !['sky', 'fog', 'particles', 'glow', 'accent', 'ember'].every((key) => themeValueOk(legacy.theme[key])))) {
       problems.push(problem('invalid-legacy-act', { packId, domain: 'themes', entryId: id, field: `themes.${id}.legacyAct`, expected: '{boss,theme:{sky,fog,particles,glow,accent,ember}}', actual: 'incomplete object', hint: 'Supply the exact legacy compatibility values.' }));
+    }
+    if (Object.hasOwn(theme, 'atmosphere') && !isAtmosphere(theme.atmosphere)) {
+      problems.push(problem('invalid-atmosphere', { packId, domain: 'themes', entryId: id, field: `themes.${id}.atmosphere`, expected: "'ash'|'mire'|'astral'", actual: actualLabel(theme.atmosphere), hint: 'Declare atmosphere as ash, mire, or astral.' }));
     }
     if (Object.hasOwn(theme, 'lanternLights') && !Array.isArray(theme.lanternLights)) {
       problems.push(problem('invalid-lantern-lights', { packId, domain: 'themes', entryId: id, field: `themes.${id}.lanternLights`, expected: 'array', actual: actualLabel(theme.lanternLights), hint: 'Declare lanternLights as an ambient light-position array.' }));
@@ -362,7 +366,17 @@ export function validateContentReferences(registry, resources = STATIC_REFERENCE
     if (kind && !resources.characterKindIds?.has(kind)) problems.push(referenceProblem('unknown-character-kind-id', domain, id, `${domain}.${id}.art.kind`, 'character-kind-id', kind, owner(domain, id)));
   }
   for (const [id, theme] of Object.entries(registry.themes || {})) {
-    if (theme.music && !resources.musicIds?.has(theme.music)) problems.push(referenceProblem('unknown-music-id', 'themes', id, `themes.${id}.music`, 'music-id', theme.music, owner('themes', id)));
+    const music = theme.music;
+    if (music && typeof music === 'object' && !Array.isArray(music)) {
+      for (const key of ['map', 'combat', 'boss', 'victory']) {
+        const cue = music[key];
+        if (typeof cue === 'string' && !resources.musicIds?.has(cue)) {
+          problems.push(referenceProblem('unknown-music-id', 'themes', id, `themes.${id}.music.${key}`, 'music-id', cue, owner('themes', id)));
+        }
+      }
+    } else if (typeof music === 'string' && !resources.musicIds?.has(music)) {
+      problems.push(referenceProblem('unknown-music-id', 'themes', id, `themes.${id}.music`, 'music-id', music, owner('themes', id)));
+    }
     const tokenRefs = [['mapHaze', theme.mapHaze], ...Object.entries(theme.palette || {}).map(([key, value]) => [`palette.${key}`, value])];
     for (const [key, value] of tokenRefs) if (typeof value === 'string' && !resources.tokenIds?.has(value)) problems.push(referenceProblem('unknown-token-id', 'themes', id, `themes.${id}.${key}`, 'token-id', value, owner('themes', id)));
     if (includeAssets && resources.assetManifest) for (const [key, value] of Object.entries(theme.plates || {})) {
@@ -533,6 +547,11 @@ export function createContentContext(packs, { id, resources = STATIC_REFERENCE_C
   const graph = compatibilityGraph(registry, localeContent);
   const pools = derivedPools({ cards: graph.CARDS, relics: graph.RELICS, progression: graph.PROGRESSION });
   const themeOrder = Object.keys(registry.themes);
+  const themesWithIds = Object.fromEntries(themeOrder.map((themeId) => {
+    const row = cloneGraph(graph.THEMES[themeId]);
+    row.id = themeId;
+    return [themeId, row];
+  }));
   const context = {
     contextVersion: 1, id, localeToken, packIds: [...(registryMetadata.get(registry)?.packIds || [])],
     player: graph.PLAYER, cards: graph.CARDS, cardPools: pools.cardPools,
@@ -545,7 +564,7 @@ export function createContentContext(packs, { id, resources = STATIC_REFERENCE_C
     poolGate: pools.poolGate, questIds: graph.QUEST_IDS, whispers: graph.WHISPERS,
     quests: graph.QUESTS, shadeKits: graph.SHADE_KITS, variants: graph.VARIANTS,
     aspects: graph.ASPECTS, vows: graph.VOWS, boons: graph.BOONS,
-    themes: graph.THEMES, themeOrder, acts: graph.ACTS,
+    themes: themesWithIds, themeOrder, acts: graph.ACTS,
     encounters: themeOrder.map((themeId) => graph.THEMES[themeId].encounters),
   };
   return freezeGraph(context);

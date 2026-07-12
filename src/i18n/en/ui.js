@@ -346,7 +346,7 @@ export const ui = {
   help: {
     title: 'How to Play',
     climbTitle: 'The Climb',
-    climbBody: 'Choose a path of lanterns up the Spire. Fight monsters, gather cards, relics and phials, and defeat the boss of each of the <b>3 acts</b>. Unlit lanterns hide what they hold — but pay a bounty for the walking.',
+    climbBody: 'Choose a path of lanterns up the Spire. Fight monsters, gather cards, relics and phials, and defeat the boss of each of the <b>{count} acts</b>. Unlit lanterns hide what they hold — but pay a bounty for the walking.',
     combatTitle: 'Combat',
     combatBody: 'Each turn you draw <b>5 cards</b> and gain <b>3 Energy</b> (⬤). Play a card by clicking or dragging — attacks need a target when several enemies remain. Enemies telegraph their <b>intent</b> above their heads.',
     glassTitle: 'The Glass',

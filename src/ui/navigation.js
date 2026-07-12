@@ -6,6 +6,7 @@ import { clearOverlay, exitMapMode } from '../scene3d.js';
 import { meshClear } from '../mesh.js';
 import { stageH, stageW } from '../stage.js';
 import { $, S, screenEl } from './context.js';
+import { themeForRun } from './content.js';
 import { REDUCED } from './policy.js';
 import { omenIconName, warmAssets } from './assets.js';
 import { uiCommands } from './commands.js';
@@ -53,7 +54,7 @@ export function createNavigator({ routes, beforeShow, publishMapWarmReader, trac
     if (kind === 'defeat') return run('<div class="tr-crack"></div>', [{ opacity: 0 }, { opacity: 1 }], 700);
     if (kind === 'act-change') {
       const omen = OMENS[S.run.omens?.[S.run.act]];
-      return run(`<div class="tr-plate"><div class="tp-act">ACT ${S.run.act + 1} - ${ACTS[S.run.act].name.toUpperCase()}</div>
+      return run(`<div class="tr-plate"><div class="tp-act">${(themeForRun(S.run)).name.toUpperCase()}</div>
         ${omen ? `<div class="tp-omen" style="color:${omen.tone}">${iconSvg(omenIconName(S.run.omens[S.run.act]), 16)} OMEN - ${omen.name.toUpperCase()}</div>` : ''}</div>`,
       [{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }], 2200);
     }
@@ -61,8 +62,8 @@ export function createNavigator({ routes, beforeShow, publishMapWarmReader, trac
 
   function liveMapWarmIds(run = S.run) {
     if (!run) return [];
-    const act = (run.act | 0) + 1;
-    const ids = [`act${act}Combat`, `act${act}Boss`, 'elite', 'safeNodes', 'hollowLamplighter'];
+    const music = themeForRun(run)?.music || {};
+    const ids = [music.combat, music.boss, 'elite', 'safeNodes', 'hollowLamplighter'].filter(Boolean);
     if (run.omens?.[run.act] === 'eighthOmen') ids.push('eighthOmen');
     return ids;
   }

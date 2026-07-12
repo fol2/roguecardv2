@@ -1,5 +1,5 @@
 export function createEndScreen(deps) {
-  const { S, E, Vigil, TERMINAL_OUTCOMES, PROGRESSION, QUESTS, RELICS, CARDS, ACTS, tr, runEffects, requireRunSave, persistObserved, showRunEndPersistenceFailure, show, presentationBarrier, trace, music, el, REDUCED, sleep, persistDawnOrRetry, assetUrl, iconSvg, relicArt, escHtml, $, $$, stageEl, sfx, screenEl, metaBg, sunrise, V, stageW, stageH, showCardGrid } = deps;
+  const { S, E, Vigil, TERMINAL_OUTCOMES, PROGRESSION, QUESTS, RELICS, CARDS, ACTS, themeForRun, tr, runEffects, requireRunSave, persistObserved, showRunEndPersistenceFailure, show, presentationBarrier, trace, music, el, REDUCED, sleep, persistDawnOrRetry, assetUrl, iconSvg, relicArt, escHtml, $, $$, stageEl, sfx, screenEl, metaBg, sunrise, V, stageW, stageH, showCardGrid} = deps;
 
 function journalRunEnd(run, outcome, onFinalised = null) {
   runEffects.journalRunEnd(run, outcome);
@@ -17,7 +17,7 @@ function finalisePendingRunEnd(run, onFinalised = null) {
   return runEffects.finaliseRunEnd(
     run,
     {
-      revealThreshold: PROGRESSION.revealThresholds.act4.shards,
+      revealThreshold: E.sealedSummitShardThreshold(run),
       persist: (action) => persistObserved('run-end', action),
       onPersistenceFailure: () => showRunEndPersistenceFailure(run, onFinalised),
       onFinalised: ({ newUnlocks, ledger }) => {
@@ -194,7 +194,7 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
     const bequestHtml = unpaidBequest
       ? `<div class="bequest"><div class="bequest-done">${tr('ui.end.bequestUnpaid')}</div></div>`
       : offers.length ? `<div class="bequest" id="bequest">
-        <div class="bequest-title">${tr('ui.end.bequestTitle', { act: `<b>${ACTS[fallAct].name}</b>` })}</div>
+        <div class="bequest-title">${tr('ui.end.bequestTitle', { act: `<b>${themeForRun({ act: fallAct })?.name || ''}</b>` })}</div>
         <div class="bequest-opts">${offers.map((o, i) => {
       const L = bequestLabel(o);
       return `<button class="bequest-opt" data-a="bequest" data-i="${i}"><span class="bq-icon">${L.icon}</span><span class="bq-name">${L.name}</span><span class="bq-note">${L.note}</span></button>`;
@@ -222,7 +222,7 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
       const o = offers[+t.dataset.i];
       runEffects.setBequest(fallAct, fallRow, o);
       const L = bequestLabel(o);
-      $('#bequest').innerHTML = `<div class="bequest-done">${tr('ui.end.bequestDone', { name: `<b>${L.name}</b>`, act: ACTS[fallAct].name })}</div>`;
+      $('#bequest').innerHTML = `<div class="bequest-done">${tr('ui.end.bequestDone', { name: `<b>${L.name}</b>`, act: themeForRun({ act: fallAct })?.name || '' })}</div>`;
       return;
     }
     sfx.click();

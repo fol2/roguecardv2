@@ -44,6 +44,8 @@ import { createRunEffects } from './run-effects.js';
 import {
   $, $$, COARSE, S, el, escHtml, presentationBarrier, screenEl, sleep, trace,
 } from './context.js';
+import { CORE_CONTENT, themeForRun } from './content.js';
+import { UI_TOKENS, applyExperienceTokens, tokenValue } from './tokens.js';
 import { REDUCED } from './policy.js';
 import { ROMAN } from './format.js';
 import {
@@ -186,21 +188,21 @@ const screenLate = Object.freeze({
 screenOwners = Object.freeze({
   title: createTitleScreen({
     S, E, Vigil, QUEST_IDS, REDUCED, tr, getLocale, getVersionInfo, trace,
-    setRoseAssetsReady, setDisclosedRoseStateIds, runEffects, setTheme, assetUrl,
+    setRoseAssetsReady, setDisclosedRoseStateIds, runEffects, setTheme, themeForRun, assetUrl,
     roseAssets, escHtml, $, $$, screenEl, unlock, sfx,
     meshBindTitle: combatApi.meshBindTitle,
     semanticUiCheckpoint: combatApi.drainHandlers.semanticUiCheckpoint,
     startRun: screenLate.startRun, show: screenLate.show, showHelp, openSettingsPanel,
   }),
   embark: createEmbarkScreen({
-    S, E, Vigil, ASPECTS, VOWS, ROMAN, tr, runEffects, setTheme, heroArt,
+    S, E, Vigil, ASPECTS, VOWS, ROMAN, tr, runEffects, setTheme, themeForRun, heroArt,
     screenEl, unlock, sfx, startRun: screenLate.startRun, openOverlay, closeOverlay,
     journalRunEnd: screenLate.journalRunEnd, show: screenLate.show,
   }),
   vigil: createVigilScreen({
     E, Vigil, QUESTS, QUEST_IDS, WHISPERS, DEEDS, CARDS, RELICS, ROMAN, tr,
     runEffects, setRoseAssetsReady, setDisclosedRoseStateIds, roseAssets, assetUrl,
-    iconSvg, escHtml, $, $$, screenEl, setTheme, trace,
+    iconSvg, escHtml, $, $$, screenEl, setTheme, themeForRun, trace,
     semanticUiCheckpoint: combatApi.drainHandlers.semanticUiCheckpoint,
     sfx, music, show: screenLate.show,
   }),
@@ -209,12 +211,12 @@ screenOwners = Object.freeze({
     show: screenLate.show, finalisePendingRunEnd: screenLate.finalisePendingRunEnd,
     startCombatUI: screenLate.startCombatUI, renderHud: screenLate.renderHud, resumeSavedCombat,
     routeVisitedNode: screenLate.routeVisitedNode, claimMonumentNode: screenLate.claimMonumentNode,
-    requireBequestClear, omenBanner: screenLate.omenBanner,
+    requireBequestClear, omenBanner: screenLate.omenBanner, themeForRun,
   }),
   lamplighter: createLamplighterScreen({
     S, E, BOONS, ASPECTS, ARTS, QUESTS, REDUCED, tr, runEffects, assetUrl,
     iconSvg, fmtText, sceneBg, heroArt, escHtml, $, $$, screenEl, unlock, sfx,
-    setTheme,
+    setTheme, themeForRun,
     renderHud: screenLate.renderHud, show: screenLate.show, omenBanner: screenLate.omenBanner,
     routeVisitedNode: screenLate.routeVisitedNode, persistObserved, requireRunSave,
   }),
@@ -227,13 +229,14 @@ screenOwners = Object.freeze({
     requireRunSave, resumePendingHollowRoute: screenLate.resumePendingHollowRoute,
     show: screenLate.show, showRunSaveFailure, showStonePersistenceFailure,
     requireBequestClear, flyTo: screenLate.flyTo, banner: screenLate.banner, el, escHtml,
+    themeForRun, tokenValue,
   }),
   reward: createRewardScreen({
     S, E, POTIONS, RELICS, OMENS, tr, sceneBg, $, el, iconSvg, uiIcon, stageW, stageH,
     V, flyTo: screenLate.flyTo, tweenNum: screenLate.tweenNum, sfx, rasterOr, potionSvg,
     relicArt, requireRunSave, renderHud: screenLate.renderHud, show: screenLate.show,
     showCardGrid, openOverlay, closeOverlay, runEffects, setTheme, setAltitude, transition: screenLate.transition,
-    assetUrl, omenIconName, screenEl,
+    assetUrl, omenIconName, screenEl, themeForRun,
   }),
   rest: createRestScreen({
     S, E, CARDS, RELICS, tr, sceneBg, rasterOr, campfireSvg, iconSvg, $, $$,
@@ -253,7 +256,7 @@ screenOwners = Object.freeze({
   }),
   end: createEndScreen({
     S, E, Vigil, TERMINAL_OUTCOMES, PROGRESSION, QUESTS, RELICS, CARDS, ACTS,
-    tr, runEffects, requireRunSave, persistObserved, showRunEndPersistenceFailure,
+    themeForRun, tr, runEffects, requireRunSave, persistObserved, showRunEndPersistenceFailure,
     show: screenLate.show, presentationBarrier, trace, music, el, REDUCED, sleep,
     persistDawnOrRetry, assetUrl, iconSvg, relicArt, escHtml, $, $$, stageEl,
     sfx, screenEl, metaBg, sunrise, V, stageW, stageH, showCardGrid,
@@ -263,7 +266,7 @@ screenOwners = Object.freeze({
     cardArtSvg, POTIONS, potionSvg, ARTS, OMENS, EVENTS, eventArtSvg, RELICS,
     DEEDS, QUEST_IDS, UI_CHROME_IDS, uiFallbackName, assetUrl, iconSvg, escHtml, screenEl,
     $, openOverlay, closeOverlay, omenIconName, BOONS, STATUS_INFO,
-    campfireSvg, chestSvg, merchantSvg,
+    campfireSvg, chestSvg, merchantSvg, CORE_CONTENT,
   }),
   audioGallery: createAudioGalleryScreen({
     SFX_CATALOG, MUSIC_CATALOG, getAudioSelection, getAudioSelectionProblems,
@@ -353,6 +356,11 @@ function installGlobalOwners() {
 }
 
 export function initUI() {
+  applyExperienceTokens(document.documentElement, UI_TOKENS);
+  music.configureThemeMusic({
+    themes: CORE_CONTENT.themes,
+    themeOrder: CORE_CONTENT.themeOrder,
+  });
   bindUICommands({
     show,
     startCombat: combatApi.startCombatUI,

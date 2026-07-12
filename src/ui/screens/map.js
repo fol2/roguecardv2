@@ -1,5 +1,5 @@
 export function createMapScreen(deps) {
-  const { S, E, ACTS, OMENS, PROGRESSION, QUESTS, RELICS, CARDS, COARSE, REDUCED, tr, runEffects, nodeGlyphId, uiIconUrl, assetUrl, iconInline, iconSvg, omenMark, $, $$, screenEl, unlock, sfx, music, openOverlay, closeOverlay, stageW, stageH, mapNodePos, enterMapMode, setOverlay, V, peekMap, trace, setAltitude, transition, startCombatUI, resumeSavedCombat, requireRunSave, resumePendingHollowRoute, show, showRunSaveFailure, showStonePersistenceFailure, requireBequestClear, flyTo, banner, el, escHtml } = deps;
+  const { S, E, ACTS, OMENS, PROGRESSION, QUESTS, RELICS, CARDS, COARSE, REDUCED, tr, runEffects, nodeGlyphId, uiIconUrl, assetUrl, iconInline, iconSvg, omenMark, $, $$, screenEl, unlock, sfx, music, openOverlay, closeOverlay, stageW, stageH, mapNodePos, enterMapMode, setOverlay, V, peekMap, trace, setAltitude, transition, startCombatUI, resumeSavedCombat, requireRunSave, resumePendingHollowRoute, show, showRunSaveFailure, showStonePersistenceFailure, requireBequestClear, flyTo, banner, el, escHtml, themeForRun, tokenValue } = deps;
 
 const NODE_ICONS = { monster: 'sword', elite: 'skull', event: 'question', rest: 'flame', shop: 'coin', treasure: 'chest', boss: 'crown', monument: 'monument' };
 function renderMap() {
@@ -82,11 +82,13 @@ function renderMap() {
       ${hit}<g class="nwrap">${sil}${artHtml}</g>${paleMark}
     </g>`;
   }
-  const act = ACTS[run.act];
+  const theme = themeForRun(run);
+  const act = theme;
   const omenId = run.omens?.[run.act];
   const omen = OMENS[omenId];
-  const sealedDoorVisible = run.act === 2 && E.runRevealed(run, 'act4') &&
-    run.shards.length >= PROGRESSION.revealThresholds.act4.shards;
+  const sealedRevealId = E.sealedSummitRevealId(run);
+  const sealedDoorVisible = E.isFinalTheme(run) && sealedRevealId && E.runRevealed(run, sealedRevealId) &&
+    run.shards.length >= E.sealedSummitShardThreshold(run);
   // map-node-outline: dilate alpha → ring only (mirrors #aim-outline-*)
   const mapDefs = `<defs><filter id="map-node-outline" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
     <feMorphology in="SourceAlpha" operator="dilate" radius="2.4" result="dilated"/>
@@ -94,10 +96,11 @@ function renderMap() {
     <feFlood flood-color="#fff6e0" flood-opacity="1" result="fill"/>
     <feComposite in="fill" in2="ring" operator="in"/>
   </filter></defs>`;
+  const haze = tokenValue(theme?.mapHaze) || tokenValue(theme?.palette?.haze) || '#2a3a2e';
   screenEl().innerHTML = `
-    <div class="map-title">ACT ${run.act + 1} — <b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits${omen ? ` &nbsp;·&nbsp; <span class="mt-omen" style="color:${omen.tone}">${omenMark(omenId, 'mt-omen-art', 'mt-omen-fallback', 18)}<span class="mt-omen-name">${omen.name}</span></span>` : ''}</div>
+    <div class="map-title"><b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits${omen ? ` &nbsp;·&nbsp; <span class="mt-omen" style="color:${omen.tone}">${omenMark(omenId, 'mt-omen-art', 'mt-omen-fallback', 18)}<span class="mt-omen-name">${omen.name}</span></span>` : ''}</div>
     <div class="map-screen screen-enter">
-      <div class="map-haze" style="--haze:${['#2a3a2e', '#1f2e40', '#3a2030'][run.act] ?? '#2a3a2e'}"></div>
+      <div class="map-haze" style="--haze:${haze}"></div>
       <svg class="map-svg" width="100%" height="100%">${mapDefs}${edges}${dots}</svg>
       ${sealedDoorVisible ? `<button class="sealed-door" data-a="sealed-door" aria-label="${tr('ui.map.sealedDoor.aria')}">
         <span>${iconSvg('sealedDoor', 42)}</span><small>${tr('ui.map.sealedDoor.label')}</small>
@@ -145,7 +148,7 @@ function renderMap() {
     const names = {
       monster: tr('ui.map.node.monster'), elite: tr('ui.map.node.elite'), event: tr('ui.map.node.event'),
       rest: tr('ui.map.node.rest'), shop: tr('ui.map.node.shop'), treasure: tr('ui.map.node.treasure'),
-      boss: ACTS[run.act].bossName,
+      boss: themeForRun(run).bossName,
     };
     const hints = {
       monster: tr('ui.map.hint.monster'), elite: tr('ui.map.hint.elite'), event: tr('ui.map.hint.event'),
@@ -192,7 +195,7 @@ function renderMap() {
       }
     }
   });
-  V.setWeather(run.act, { mult: 0.3 });
+  V.setWeather(themeForRun(run)?.weather, { mult: 0.3 });
   const ms = $('.map-screen');
   ms.addEventListener('wheel', (e) => {
     e.preventDefault();

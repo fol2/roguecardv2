@@ -532,7 +532,7 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
   function showHelp() {
     openOverlay(`<div class="panel ov-panel howto">
       <div class="ov-title">${tr('ui.help.title')}</div>
-      <h3>${tr('ui.help.climbTitle')}</h3>${tr('ui.help.climbBody')}
+      <h3>${tr('ui.help.climbTitle')}</h3>${tr('ui.help.climbBody', { count: E.themeCount(S.run) || E.themeCount(null) })}
       <h3>${tr('ui.help.combatTitle')}</h3>${tr('ui.help.combatBody')}
       <h3>${tr('ui.help.glassTitle')}</h3>${tr('ui.help.glassBody')}
       <h3>${tr('ui.help.lanternTitle')}</h3>${tr('ui.help.lanternBody')}

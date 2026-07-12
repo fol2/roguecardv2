@@ -1,0 +1,114 @@
+[
+  {
+    "file": "src/audio-catalog.js",
+    "ruleId": "act-cue-key",
+    "match": "act1Boss",
+    "contextHash": "6490fb9718d9bdbbc594bf177edb1e5ea394e32b822531f87435c505155889e6",
+    "owner": "audio-catalog",
+    "reason": "immutable saved audio-selection key"
+  },
+  {
+    "file": "src/audio-catalog.js",
+    "ruleId": "act-cue-key",
+    "match": "act1Combat",
+    "contextHash": "2292527cec19937691a83dcf491e65d2559f88f3669e0dd701339ef49e3fbdd7",
+    "owner": "audio-catalog",
+    "reason": "immutable saved audio-selection key"
+  },
+  {
+    "file": "src/audio-catalog.js",
+    "ruleId": "act-cue-key",
+    "match": "act2Boss",
+    "contextHash": "772bbb8086050b88a9d97bde3dc291fd2962691536d3b9c61055c12a7c7d8140",
+    "owner": "audio-catalog",
+    "reason": "immutable saved audio-selection key"
+  },
+  {
+    "file": "src/audio-catalog.js",
+    "ruleId": "act-cue-key",
+    "match": "act2Combat",
+    "contextHash": "3450e2b8e650ee8c24ad6f857b553987279fb9456caa32e1600b3dd71ff5d620",
+    "owner": "audio-catalog",
+    "reason": "immutable saved audio-selection key"
+  },
+  {
+    "file": "src/audio-catalog.js",
+    "ruleId": "act-cue-key",
+    "match": "act3Boss",
+    "contextHash": "b0a5c080a2676b62b77a5a5e76c4be9ed7f04e632d0cbfc5489213c6a7ea4074",
+    "owner": "audio-catalog",
+    "reason": "immutable saved audio-selection key"
+  },
+  {
+    "file": "src/audio-catalog.js",
+    "ruleId": "act-cue-key",
+    "match": "act3Combat",
+    "contextHash": "c047f0a8304c38c3312a0122ac87c3ff3eaa27050ebe269a9eaa6325b0397174",
+    "owner": "audio-catalog",
+    "reason": "immutable saved audio-selection key"
+  },
+  {
+    "file": "src/dev/bf-editor.js",
+    "ruleId": "act-minmax-clamp",
+    "match": "Math.min(Math.max(0, act | 0), 2)",
+    "contextHash": "ea1e5db89804cf2415bb5e012c745e2685ee21d4796721390e90e852f5ad034b",
+    "owner": "battlefield-editor",
+    "reason": "fixed three-act editor scenario coordinates"
+  },
+  {
+    "file": "src/engine.js",
+    "ruleId": "act-compare",
+    "match": "act >= 0",
+    "contextHash": "6547e3cff3b45b526956e0db4709ed0996ca5b41c2995fb0771077331f71ced3",
+    "owner": "engine-theme-boundary",
+    "reason": "named engine isFinalTheme / save theme-index lower bound"
+  },
+  {
+    "file": "src/engine.js",
+    "ruleId": "act-compare",
+    "match": "act >= 0",
+    "contextHash": "8c722978cb74ec183ced95468fe6b231e957db48c5c5778ed698ab7cbf3a1c18",
+    "owner": "engine-theme-boundary",
+    "reason": "named engine isFinalTheme / save theme-index lower bound"
+  },
+  {
+    "file": "src/engine.js",
+    "ruleId": "act-compare",
+    "match": "run.act >= 0",
+    "contextHash": "a6d59a76c88507819571e54ce38e3ec4e6dcfd6744d5f75075f7f26ed71ffb8c",
+    "owner": "engine-theme-boundary",
+    "reason": "named engine isFinalTheme / save theme-index lower bound"
+  },
+  {
+    "file": "src/engine.js",
+    "ruleId": "run-act-index",
+    "match": "encounters[run.act]",
+    "contextHash": "febed883d6bd1014c2258d7633ce3542308289dcc336539a25bcd3ec05259dd9",
+    "owner": "engine-theme-boundary",
+    "reason": "engine content view indexed by legacy run.act theme index"
+  },
+  {
+    "file": "src/engine.js",
+    "ruleId": "run-act-index",
+    "match": "rewardGold[run.act]",
+    "contextHash": "48fc950524d4d1c6020d6a67e4803749bd16da2040f8732ae03e5d88898dfba2",
+    "owner": "engine-theme-boundary",
+    "reason": "engine content view indexed by legacy run.act theme index"
+  },
+  {
+    "file": "src/scene3d.js",
+    "ruleId": "act-minmax-clamp",
+    "match": "Math.min(Math.max(0, act | 0), 2)",
+    "contextHash": "02ceed8a643fbe918a61126285a2e2a63b8c50df548b55ad73f9c06f1cf2760f",
+    "owner": "scene3d-tower",
+    "reason": "fixed three-act tower geometry clamp"
+  },
+  {
+    "file": "src/ui/screens/reward.js",
+    "ruleId": "run-act-index",
+    "match": "run.omens[run.act]",
+    "contextHash": "0774d1d168d14eed7078b4ec1c057ad1386381a895fbddfb3114dfdad28d91c7",
+    "owner": "run-omen-history",
+    "reason": "legal per-run omen history array indexed by theme index"
+  }
+]

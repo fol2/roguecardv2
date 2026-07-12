@@ -18,6 +18,7 @@ export const THEMES = {
       mid: "act1-mid",
       ledge: "act1-ledge",
     },
+    atmosphere: "ash",
     weather: {
       rate: 1,
       colors: [
@@ -44,18 +45,29 @@ export const THEMES = {
       glow: "gold",
       haze: "text-dim",
     },
-    music: "act1Combat",
-    roster: [
-      "sporeling",
-      "duskfang",
-      "gloomslime",
-      "ashAcolyte",
-      "waylayer",
-      "thornling",
-      "gravewarden",
-      "alphaFang",
-      "rootheart",
-    ],
+    music: {
+      map: "map",
+      combat: "act1Combat",
+      boss: "act1Boss",
+      victory: "victory",
+    },
+    roster: {
+      normal: [
+        "sporeling",
+        "duskfang",
+        "gloomslime",
+        "ashAcolyte",
+        "waylayer",
+        "thornling",
+      ],
+      elite: [
+        "gravewarden",
+        "alphaFang",
+      ],
+      boss: [
+        "rootheart",
+      ],
+    },
     encounters: {
       weak: [
         [
@@ -151,6 +163,7 @@ export const THEMES = {
       mid: "act2-mid",
       ledge: "act2-ledge",
     },
+    atmosphere: "mire",
     weather: {
       rate: 0.75,
       colors: [
@@ -177,18 +190,29 @@ export const THEMES = {
       glow: "gold",
       haze: "text-dim",
     },
-    music: "act2Combat",
-    roster: [
-      "voltEel",
-      "mirelurker",
-      "drownedOne",
-      "tidecaller",
-      "shellback",
-      "deepmaw",
-      "abyssalKnight",
-      "siren",
-      "leviathan",
-    ],
+    music: {
+      map: "map",
+      combat: "act2Combat",
+      boss: "act2Boss",
+      victory: "victory",
+    },
+    roster: {
+      normal: [
+        "voltEel",
+        "mirelurker",
+        "drownedOne",
+        "tidecaller",
+        "shellback",
+        "deepmaw",
+      ],
+      elite: [
+        "abyssalKnight",
+        "siren",
+      ],
+      boss: [
+        "leviathan",
+      ],
+    },
     encounters: {
       weak: [
         [
@@ -278,6 +302,7 @@ export const THEMES = {
       mid: "act3-mid",
       ledge: "act3-ledge",
     },
+    atmosphere: "astral",
     weather: {
       rate: 1.25,
       colors: [
@@ -304,18 +329,29 @@ export const THEMES = {
       glow: "gold",
       haze: "text-dim",
     },
-    music: "act3Combat",
-    roster: [
-      "voidWisp",
-      "shade",
-      "starCultist",
-      "obsidianGolem",
-      "chaosHound",
-      "watcherEye",
-      "voidColossus",
-      "heraldOfEnd",
-      "sovereign",
-    ],
+    music: {
+      map: "map",
+      combat: "act3Combat",
+      boss: "act3Boss",
+      victory: "victory",
+    },
+    roster: {
+      normal: [
+        "voidWisp",
+        "shade",
+        "starCultist",
+        "obsidianGolem",
+        "chaosHound",
+        "watcherEye",
+      ],
+      elite: [
+        "voidColossus",
+        "heraldOfEnd",
+      ],
+      boss: [
+        "sovereign",
+      ],
+    },
     encounters: {
       weak: [
         [
@@ -393,4 +429,3 @@ export const THEMES = {
     bossPlates: {},
   },
 };
-

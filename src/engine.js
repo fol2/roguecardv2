@@ -405,7 +405,34 @@ export function runRng(run) {
 }
 
 const PALE_BY_ACT = ['paleDuskfang', 'paleDrownedOne', 'paleVoidWisp'];
-export const paleVariantForAct = (act) => PALE_BY_ACT[clamp(act | 0, 0, 2)];
+export const paleVariantForAct = (act) => PALE_BY_ACT[clamp(act | 0, 0, PALE_BY_ACT.length - 1)];
+
+/** Theme-index mark schedule for Pale Ones (no digit equality on run.act). */
+function paleMarkCount(run) {
+  const pale = run.questScratch?.paleOnes;
+  if (!run.unlocks.includes('insight:witchlightLens') || !pale) return 0;
+  const cfg = T(run).progression.emberglass.paleOnes;
+  const schedule = [
+    Math.max(0, Math.floor(cfg.markedAct1)),
+    pale.markedAct2 ? 1 : 0,
+  ];
+  return schedule.at(run.act) ?? 0;
+}
+
+/** Sole shards-gated reveal id (legacy key lives in progression tables, not call sites). */
+export function sealedSummitRevealId(run) {
+  const thresholds = T(run).progression?.revealThresholds || {};
+  for (const [id, trigger] of Object.entries(thresholds)) {
+    if (Number.isFinite(trigger?.shards)) return id;
+  }
+  return null;
+}
+
+export function sealedSummitShardThreshold(run) {
+  const id = sealedSummitRevealId(run);
+  if (!id) return 0;
+  return Math.max(0, Math.floor(T(run).progression.revealThresholds[id].shards));
+}
 
 function preparePaleRun(run) {
   const q = questRecord(run, 'paleOnes');
@@ -504,12 +531,7 @@ export function genMap(run) {
       delete best.unlit; delete best.bounty;
     }
   }
-  const pale = run.questScratch?.paleOnes;
-  const markCount = run.unlocks.includes('insight:witchlightLens') && pale
-    ? run.act === 0
-      ? Math.max(0, Math.floor(T(run).progression.emberglass.paleOnes.markedAct1))
-      : run.act === 1 && pale.markedAct2 ? 1 : 0
-    : 0;
+  const markCount = paleMarkCount(run);
   if (markCount > 0) {
     const candidates = nodes.filter((n) => n.row === 0 && n.type === 'monster');
     for (let i = 0; i < markCount && candidates.length; i++) {
@@ -999,7 +1021,7 @@ export function rollEncounter(run, type, row, node) {
     pale.hiddenDue = pale.hiddenRemaining > 0;
     return [paleVariantForAct(run.act)];
   }
-  if (type === 'boss' && run.act === 2 && run.questScratch?.usurper?.bought) {
+  if (type === 'boss' && isFinalTheme(run) && run.questScratch?.usurper?.bought) {
     return ['usurpedSovereign'];
   }
   const rng = runRng(run);
@@ -1775,7 +1797,7 @@ export function endTurn(run, cb) {
 function winCombat(run, cb) {
   cb.over = true;
   cb.result = 'win';
-  if (cb.kind === 'boss' && run.act === 2 && run.questScratch?.eighthOmen?.active) {
+  if (cb.kind === 'boss' && isFinalTheme(run) && run.questScratch?.eighthOmen?.active) {
     const wasComplete = questRecord(run, 'eighthOmen')?.state === 'complete';
     const q = advanceQuest(run, 'eighthOmen', 1, run.endQueue);
     if (!wasComplete && q?.state === 'complete' &&
@@ -1784,7 +1806,7 @@ function winCombat(run, cb) {
     }
   }
   const pageQuest = questRecord(run, 'unreadablePage');
-  if (cb.kind === 'boss' && run.act === 2 &&
+  if (cb.kind === 'boss' && isFinalTheme(run) &&
       run.player.deck.some((card) => card.id === 'unreadablePage') &&
       pageQuest && QUEST_ACTIVE_STATES.includes(pageQuest.state) &&
       pageQuest.progress < T(run).quests.unreadablePage.target &&
@@ -2013,8 +2035,9 @@ function normaliseRunSnapshot(run, content) {
       (b.kind === 'relic' && hasOwn(content.relics, b.id)) ||
       (b.kind === 'gold' && Number.isFinite(b.amount) && b.amount >= 0)
     ));
+    const themeBound = (content.themeOrder?.length ?? content.acts.length) - 1;
     const validMonument = (monument) => monument == null || (
-      Number.isInteger(monument.act) && monument.act >= 0 && monument.act <= 2 &&
+      Number.isInteger(monument.act) && monument.act >= 0 && monument.act <= themeBound &&
       Number.isInteger(monument.row) && monument.row >= 0 &&
       validBequest(monument.bequest) && typeof monument.claimed === 'boolean' && (
         hasExactRecordKeys(monument, ['act', 'row', 'bequest', 'claimed']) ||
@@ -2136,7 +2159,7 @@ function normaliseRunSnapshot(run, content) {
         if (id === 'ownShade') {
           const fall = x.fall;
           const validFall = fall == null || (isPlainRecord(fall) && onlyKeys(fall, ['act', 'row', 'shadeAspect', 'bequest']) &&
-            Number.isInteger(fall.act) && fall.act >= 0 && fall.act <= 2 && Number.isInteger(fall.row) && fall.row >= 0 &&
+            Number.isInteger(fall.act) && fall.act >= 0 && fall.act <= themeBound && Number.isInteger(fall.row) && fall.row >= 0 &&
             validAspectIndex(fall.shadeAspect, content) && validBequest(fall.bequest));
           if (!(onlyKeys(x, ['fall', 'pendingBequest']) && validFall && validBequest(x.pendingBequest))) return false;
         }

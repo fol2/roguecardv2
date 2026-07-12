@@ -164,8 +164,11 @@ const state = { working: null, meta: null, sel: null, dirty: false, scenario: nu
 const q = () => new URLSearchParams(location.search);
 function scenarioFromUrl() {
   const p = q();
+  // Fixed three-act editor coordinates: keep the literal clamp digit visible to
+  // the act-coupling sweep (allowlisted residue; do not hide behind a named max).
+  const act = Number(p.get('bfa') ?? 0);
   return {
-    act: Math.min(2, Math.max(0, Number(p.get('bfa') ?? 0))),
+    act: Math.min(Math.max(0, act | 0), 2),
     aspect: Math.min(ASPECTS.length - 1, Math.max(0, Number(p.get('bfh') ?? 0))),
     ids: (p.get('bft') ?? 'duskfang,sporeling').split(',').filter((k) => ENEMIES[k]),
   };

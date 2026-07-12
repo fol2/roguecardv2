@@ -1,9 +1,9 @@
 export function createLamplighterScreen(deps) {
-  const { S, E, BOONS, ASPECTS, ARTS, QUESTS, REDUCED, tr, runEffects, assetUrl, iconSvg, fmtText, sceneBg, heroArt, escHtml, $, $$, screenEl, unlock, sfx, setTheme, renderHud, show, omenBanner, routeVisitedNode, persistObserved, requireRunSave } = deps;
+  const { S, E, BOONS, ASPECTS, ARTS, QUESTS, REDUCED, tr, runEffects, assetUrl, iconSvg, fmtText, sceneBg, heroArt, escHtml, $, $$, screenEl, unlock, sfx, setTheme, themeForRun, renderHud, show, omenBanner, routeVisitedNode, persistObserved, requireRunSave } = deps;
 
 function renderLamplighter() {
   const run = S.run;
-  setTheme(0);
+  setTheme(themeForRun({ act: 0 }));
   if (!S.lamp) {
     const rng = E.runRng(run);
     const pool = Object.keys(BOONS).filter((id) => E.runRevealed(run, 'phials') || !BOONS[id].ops.some((op) => op.potion));

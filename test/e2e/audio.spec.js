@@ -516,3 +516,60 @@ test('PR16 pending reward recovery holds the pre-navigation cue through boss rel
     .filter((record) => record.seq > after && record.eventName === 'audio.music-request'), cursor)).toEqual([]);
   expect(await page.evaluate(async () => (await import('/src/music.js')).currentCue())).toBe('title');
 });
+
+test('Task 13 gallery use strings and theme-configured warm graph', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => window.__probe);
+  const catalog = await page.evaluate(async () => {
+    const { MUSIC_CATALOG } = await import('/src/audio-catalog.js');
+    return Object.fromEntries(MUSIC_CATALOG.map((row) => [row.id, row.use]));
+  });
+  expect(catalog.act1Combat).toBe('Ashen Woods normal fights');
+  expect(catalog.act1Boss).toBe('Ashen Woods boss — Rootheart');
+  expect(catalog.act2Combat).toBe('Sunken City normal fights');
+  expect(catalog.act2Boss).toBe('Sunken City boss — Leviathan');
+  expect(catalog.act3Combat).toBe('Astral Court normal fights');
+  expect(catalog.act3Boss).toBe('Astral Court boss — Eternal Sovereign');
+  expect(catalog.sealedDoor).toBe('Sealed summit door / act4Reveal Dawn');
+  expect(catalog.victory).toBe('Non-final boss ceremony and final run victory / end(won)');
+  expect(Object.keys(catalog).filter((id) => /^act[123](Combat|Boss)$/.test(id)).sort()).toEqual([
+    'act1Boss', 'act1Combat', 'act2Boss', 'act2Combat', 'act3Boss', 'act3Combat',
+  ]);
+
+  const fourGraph = await page.evaluate(async () => {
+    const { configureThemeMusic, REGISTRY } = await import('/src/music.js');
+    configureThemeMusic({
+      themeOrder: ['t1', 't2', 't3', 't4'],
+      themes: {
+        t1: { music: { map: 'map', combat: 'paleOnes', boss: 'usurper', victory: 'victory' } },
+        t2: { music: { map: 'map', combat: 'shadeDuel', boss: 'eighthOmen', victory: 'victory' } },
+        t3: { music: { map: 'map', combat: 'hollowLamplighter', boss: 'sealedDoor', victory: 'victory' } },
+        t4: { music: { map: 'map', combat: 'unreadablePage', boss: 'defeat', victory: 'victory' } },
+      },
+    });
+    return {
+      map: [...(REGISTRY.map.warmWith || [])],
+      paleOnes: [...(REGISTRY.paleOnes.warmWith || [])],
+      usurper: [...(REGISTRY.usurper.warmWith || [])],
+      unreadablePage: [...(REGISTRY.unreadablePage.warmWith || [])],
+      defeat: [...(REGISTRY.defeat.warmWith || [])],
+    };
+  });
+  expect(fourGraph.map).toEqual(expect.arrayContaining(['paleOnes', 'safeNodes', 'elite', 'hollowLamplighter']));
+  expect(fourGraph.paleOnes).toEqual(expect.arrayContaining(['usurper', 'map', 'elite']));
+  expect(fourGraph.usurper).toEqual(expect.arrayContaining(['map', 'victory']));
+  expect(fourGraph.unreadablePage).toEqual(expect.arrayContaining(['defeat', 'map', 'elite']));
+  expect(fourGraph.defeat).toEqual(expect.arrayContaining(['title', 'vigil', 'victory', 'defeat']));
+
+  await page.reload();
+  await page.waitForFunction(() => window.__probe);
+  const productionGraph = await page.evaluate(async () => {
+    const { REGISTRY } = await import('/src/music.js');
+    return Object.fromEntries(Object.entries(REGISTRY)
+      .filter(([, entry]) => entry.warmWith)
+      .map(([id, entry]) => [id, [...entry.warmWith]]));
+  });
+  expect(productionGraph.map).toEqual(['safeNodes', 'elite', 'hollowLamplighter', 'act1Combat']);
+  expect(productionGraph.act1Combat).toEqual(['act1Boss', 'map', 'elite']);
+  expect(productionGraph.act3Boss).toEqual(['victory', 'defeat']);
+});

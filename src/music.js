@@ -43,13 +43,11 @@ function observe(id, mode, result) {
   try { observationSink?.({ id, mode, result }); } catch { /* observation never owns playback */ }
 }
 
-const WARM_WITH = {
+/** Semantic global warm edges — no theme-specific cue ids. */
+const SEMANTIC_WARM = {
   title: ['embark', 'vigil'], embark: ['map'], vigil: ['title', 'roseWindow'],
   roseWindow: ['vigil'],
-  map: ['act1Combat', 'safeNodes', 'elite', 'hollowLamplighter'], safeNodes: ['map'],
-  act1Combat: ['act1Boss', 'map', 'elite'], act1Boss: ['map', 'victory'],
-  act2Combat: ['act2Boss', 'map', 'elite'], act2Boss: ['map', 'victory'],
-  act3Combat: ['act3Boss', 'map', 'elite'], act3Boss: ['victory', 'defeat'],
+  map: ['safeNodes', 'elite', 'hollowLamplighter'], safeNodes: ['map'],
   elite: ['map'],
   paleOnes: ['map'], shadeDuel: ['map'], usurper: ['victory', 'defeat'],
   eighthOmen: ['map', 'elite'], unreadablePage: ['victory', 'vigil'],
@@ -57,12 +55,51 @@ const WARM_WITH = {
   victory: ['title', 'vigil'], defeat: ['title', 'vigil'],
 };
 
+/** @type {Record<string, string[]>} */
+let themeWarmEdges = Object.create(null);
+
 /** @type {Record<string, { title: string, wired: boolean, warmWith?: string[] }>} */
 export const REGISTRY = Object.fromEntries(MUSIC_CATALOG.map((row) => [row.id, {
   title: row.title,
   wired: row.wired,
-  ...(WARM_WITH[row.id] ? { warmWith: WARM_WITH[row.id] } : {}),
 }]));
+
+function rebuildRegistryWarm() {
+  for (const id of Object.keys(REGISTRY)) {
+    const merged = [...(SEMANTIC_WARM[id] || []), ...(themeWarmEdges[id] || [])];
+    if (merged.length) REGISTRY[id].warmWith = Object.freeze([...new Set(merged)]);
+    else delete REGISTRY[id].warmWith;
+  }
+}
+rebuildRegistryWarm();
+
+/**
+ * Derive per-theme combat→boss/map/elite adjacency from theme music records.
+ * First theme combat is warmed from the shared map row via themeOrder.
+ */
+export function configureThemeMusic({ themes, themeOrder } = {}) {
+  const next = Object.create(null);
+  const order = Array.isArray(themeOrder) ? themeOrder : [];
+  const table = themes && typeof themes === 'object' ? themes : {};
+  const firstMusic = order[0] ? table[order[0]]?.music : null;
+  if (firstMusic?.combat) next.map = [firstMusic.combat];
+  for (let i = 0; i < order.length; i++) {
+    const music = table[order[i]]?.music;
+    if (!music?.combat || !music?.boss) continue;
+    const final = i === order.length - 1;
+    next[music.combat] = [music.boss, music.map || 'map', 'elite'];
+    next[music.boss] = final
+      ? ['victory', 'defeat']
+      : [music.map || 'map', music.victory || 'victory'];
+  }
+  themeWarmEdges = next;
+  rebuildRegistryWarm();
+  return Object.freeze(Object.fromEntries(
+    Object.keys(REGISTRY)
+      .filter((id) => REGISTRY[id].warmWith)
+      .map((id) => [id, [...REGISTRY[id].warmWith]]),
+  ));
+}
 
 export { QUEST_COMBAT_CUES, SCREEN_CUES, resolveCombatCue, resolveScreenCue, dawnEventCue };
 
@@ -231,8 +268,8 @@ export function playForScreen(name, overrideCue = null) {
   if (cue) return play(cue);
 }
 
-export function playForCombat(kind, actIdx, opts = {}) {
-  return play(resolveCombatCue(kind, actIdx, opts));
+export function playForCombat(kind, themeMusic, opts = {}) {
+  return play(resolveCombatCue(kind, themeMusic, opts));
 }
 
 export function playForRunEnd(won) {

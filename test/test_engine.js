@@ -25,7 +25,7 @@ import {
   contentIdFor, isEphemeralRun, themeCount, isFinalTheme, _normaliseRunSnapshotForTest,
 } from '../src/engine.js';
 import * as EngineApi from '../src/engine.js';
-import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS, ACTS, PLAYER } from '../src/data.js';
+import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS, ACTS, ENCOUNTERS, REWARD_GOLD, PLAYER } from '../src/data.js';
 import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, commitPendingRunEnd, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFrame, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
@@ -80,6 +80,7 @@ import {
 import { CORE_CONTENT } from '../src/content.js';
 import { createCoreAuthoring } from '../src/packs/core/index.js';
 import * as englishContent from '../src/i18n/en/content.js';
+import { resolveAtmosphere } from '../src/theme-atmosphere.js';
 
 function makeTunedContent(overrides = {}, id = 'tuned', mutateAuthoring = null) {
   const authoring = createCoreAuthoring(overrides);
@@ -1610,15 +1611,16 @@ function forceHand(run, cb, ids) {
     assert.ok(item.prompt_influence >= 0 && item.prompt_influence <= 1, `audio packs: ${id} records prompt influence`);
   }
   assert.ok(MUSIC_CATALOG.every((row) => row.wired), 'audio catalog: every Music Cue is wired');
-  assert.equal(resolveCombatCue('monster', 0), 'act1Combat');
-  assert.equal(resolveCombatCue('elite', 1), 'elite');
-  assert.equal(resolveCombatCue('boss', 2), 'act3Boss');
-  assert.equal(resolveCombatCue('monster', 0, { questId: 'paleOnes' }), 'paleOnes');
-  assert.equal(resolveCombatCue('monster', 1, { questId: 'ownShade' }), 'shadeDuel');
-  assert.equal(resolveCombatCue('boss', 2, { questId: 'usurper' }), 'usurper');
-  assert.equal(resolveCombatCue('elite', 0, { omenId: 'eighthOmen' }), 'eighthOmen');
-  assert.equal(resolveCombatCue('boss', 0, { omenId: 'eighthOmen' }), 'act1Boss', 'Eighth Omen does not steal boss cues');
-  assert.equal(resolveCombatCue('monster', 0, { questId: 'paleOnes', omenId: 'eighthOmen' }), 'paleOnes');
+  const sampleMusic = { combat: 'paleOnes', boss: 'usurper' };
+  assert.equal(resolveCombatCue('monster', sampleMusic), 'paleOnes');
+  assert.equal(resolveCombatCue('elite', sampleMusic), 'elite');
+  assert.equal(resolveCombatCue('boss', sampleMusic), 'usurper');
+  assert.equal(resolveCombatCue('monster', { combat: 'act1Combat', boss: 'act1Boss' }, { questId: 'paleOnes' }), 'paleOnes');
+  assert.equal(resolveCombatCue('monster', { combat: 'act2Combat', boss: 'act2Boss' }, { questId: 'ownShade' }), 'shadeDuel');
+  assert.equal(resolveCombatCue('boss', { combat: 'act3Combat', boss: 'act3Boss' }, { questId: 'usurper' }), 'usurper');
+  assert.equal(resolveCombatCue('elite', sampleMusic, { omenId: 'eighthOmen' }), 'eighthOmen');
+  assert.equal(resolveCombatCue('boss', { combat: 'act1Combat', boss: 'act1Boss' }, { omenId: 'eighthOmen' }), 'act1Boss', 'Eighth Omen does not steal boss cues');
+  assert.equal(resolveCombatCue('monster', sampleMusic, { questId: 'paleOnes', omenId: 'eighthOmen' }), 'paleOnes');
   assert.equal(resolveScreenCue('hollow'), 'hollowLamplighter');
   assert.equal(resolveScreenCue('map', 'eighthOmen'), 'eighthOmen');
   assert.equal(resolveScreenCue('reward'), null, 'reward holds the cue selected before navigation');
@@ -6334,9 +6336,13 @@ function randomAgentRun(seed) {
       sky: '#000', fog: '#111', particles: '#222', glow: '#333', accent: '#444', ember: '#555',
     } },
     plates: { background: 'theme/bg', midground: 'theme/mid', foreground: 'theme/fg' },
+    atmosphere: 'ash',
     weather: { kind: 'ash', intensity: 1 }, palette: { accent: 'accent', haze: 'haze' },
-    music: 'combat', roster: ['sampleEnemy'], encounters: [['sampleEnemy']],
-    rewardGold: [10, 20], mapHaze: 'haze', lanternLights: [], bossPlates: {},
+    music: { map: 'map', combat: 'combat', boss: 'combat', victory: 'combat' },
+    roster: { normal: ['sampleEnemy'], elite: [], boss: ['sampleEnemy'] },
+    encounters: { weak: [['sampleEnemy']], normal: [['sampleEnemy']], elite: [['sampleEnemy']], boss: [['sampleEnemy']] },
+    rewardGold: { normal: [10, 20], elite: [10, 20], boss: [10, 20] },
+    mapHaze: 'haze', lanternLights: [], bossPlates: {},
   };
   const completePack = definePack({
     id: 'complete',
@@ -6374,8 +6380,11 @@ function randomAgentRun(seed) {
   assert.equal(context.cards.sampleCard.name, 'Sample');
   assert.equal(context.acts[0].name, 'The Sample');
   assert.equal(context.acts[0].theme.sky, '#000');
-  assert.deepEqual(context.encounters, [[['sampleEnemy']]]);
-  assert.deepEqual(context.rewardGold, [[10, 20]]);
+  assert.deepEqual(context.encounters, [{
+    weak: [['sampleEnemy']], normal: [['sampleEnemy']], elite: [['sampleEnemy']], boss: [['sampleEnemy']],
+  }]);
+  assert.deepEqual(context.rewardGold, [{ normal: [10, 20], elite: [10, 20], boss: [10, 20] }]);
+  assert.equal(context.themes.actOne.id, 'actOne');
   assert.deepEqual(context.cardPools.common, ['sampleCard']);
   assert.equal(context.poolGate.cards.sampleCard, 'core');
   assert.deepEqual(context.reveals, []);
@@ -6675,6 +6684,128 @@ function randomAgentRun(seed) {
     assert.doesNotMatch(fixtureSource, new RegExp(tempRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+// ---- Task 13: fourth-theme registry + theme-music combat cues --------------
+{
+  const sampleEnemy = { hp: [8, 8], facets: 1, art: { kind: 'wisp' }, moves: { wait: { intent: 'block', block: 1 } }, ai: (_ctx) => 'wait' };
+  const sampleCard = {
+    type: 'attack', rarity: 'common', cost: 1, target: 'enemy', vfx: 'slash',
+    effects: [{ kind: 'dmg', n: 1 }],
+  };
+  const baseTheme = {
+    legacyAct: { boss: 'sampleEnemy', theme: {
+      sky: 1, fog: 2, particles: 3, glow: 4, accent: '#444', ember: '#555',
+    } },
+    plates: { backdrop: 'theme/bg', mid: 'theme/mid', ledge: 'theme/fg' },
+    atmosphere: 'ash',
+    weather: { rate: 1, colors: ['#fff'], vx: [0, 1], vy: [1, 2], size: [1, 2], drift: 0.1, emberRate: 0.1 },
+    palette: { tint: 'gold', glow: 'gold', haze: 'text-dim' },
+    music: { map: 'map', combat: 'combat', boss: 'combat', victory: 'victory' },
+    roster: { normal: ['sampleEnemy'], elite: [], boss: ['sampleEnemy'] },
+    encounters: { weak: [['sampleEnemy']], normal: [['sampleEnemy']], elite: [['sampleEnemy']], boss: [['sampleEnemy']] },
+    rewardGold: { normal: [1, 1], elite: [1, 1], boss: [1, 1] },
+    mapHaze: 'text-dim', lanternLights: [], bossPlates: {},
+  };
+  const fourThemes = {
+    actOne: baseTheme,
+    actTwo: { ...baseTheme, atmosphere: 'mire', music: { map: 'map', combat: 'shadeDuel', boss: 'usurper', victory: 'victory' }, rewardGold: { normal: [2, 2], elite: [2, 2], boss: [2, 2] } },
+    actThree: { ...baseTheme, atmosphere: 'astral', music: { map: 'map', combat: 'eighthOmen', boss: 'sealedDoor', victory: 'victory' }, rewardGold: { normal: [3, 3], elite: [3, 3], boss: [3, 3] } },
+    // Explicit astral with ash-like falling vy — prove atmosphere wins over heuristic.
+    sampleTheme: {
+      ...baseTheme,
+      atmosphere: 'astral',
+      weather: { ...baseTheme.weather, vy: [10, 26] },
+      music: { map: 'map', combat: 'paleOnes', boss: 'usurper', victory: 'victory' },
+      rewardGold: { normal: [4, 4], elite: [4, 4], boss: [4, 4] },
+    },
+  };
+  const fourPack = definePack({
+    id: 'four-theme',
+    player: { id: 'aspectA', hp: 10, gold: 0, deck: ['sampleCard'] },
+    shop: { cardCount: 1, relicCount: 1, potionCount: 1 },
+    cards: { sampleCard }, statuses: {}, relics: {}, potions: {},
+    enemies: { sampleEnemy }, events: {}, omens: {}, affixes: {}, arts: {}, deeds: {},
+    quests: {}, variants: {}, shadeKits: {}, boons: {}, themes: fourThemes,
+    aspects: [{ id: 'aspectA', hp: 10 }], vows: [], questIds: [],
+    progression: { revealThresholds: {}, poolWaves: { define: { core: { cards: ['sampleCard'], relics: [] } }, extend: {} }, features: {} },
+  });
+  const fourLocale = {
+    cards: { sampleCard: { name: 'Sample', text: 'Deal @1@ damage.' } },
+    enemies: { sampleEnemy: { name: 'Sample Enemy', moves: { wait: { name: 'Wait' } } } },
+    acts: [
+      { name: 'One', bossName: 'B1', tagline: 't' },
+      { name: 'Two', bossName: 'B2', tagline: 't' },
+      { name: 'Three', bossName: 'B3', tagline: 't' },
+      { name: 'Sample', bossName: 'Sample Enemy', tagline: 'fourth' },
+    ],
+    aspects: { aspectA: { name: 'Aspect A', blurb: 'An aspect.' } }, whispers: ['A whisper.'],
+  };
+  const fourResources = {
+    ...STATIC_REFERENCE_CATALOGUES,
+    vfxIds: new Set([...STATIC_REFERENCE_CATALOGUES.vfxIds, 'slash']),
+    musicIds: new Set([...STATIC_REFERENCE_CATALOGUES.musicIds, 'combat']),
+    assetManifest: new Set(['theme/bg', 'theme/mid', 'theme/fg']),
+  };
+  const four = createContentContext([fourPack], {
+    id: 'four-theme-context', resources: fourResources, localeContent: fourLocale, localeToken: 'en',
+  });
+  assert.equal(themeForAct(four, 3).id, 'sampleTheme');
+  assert.deepEqual(four.rewardGold[3], { normal: [4, 4], elite: [4, 4], boss: [4, 4] });
+  assert.equal(registryIsFinalTheme(four, 3), true);
+  assert.equal(registryIsFinalTheme(four, 2), false);
+  // Atmosphere comes from the theme record, not weather.vy heuristics.
+  assert.equal(resolveAtmosphere(themeForAct(four, 3)), 'astral');
+  assert.equal(resolveAtmosphere({ weather: { vy: [10, 26] } }), 'ash', 'vy-only fallback still works');
+  const themeMusic = { combat: 'paleOnes', boss: 'usurper' };
+  assert.equal(resolveCombatCue('monster', themeMusic), 'paleOnes');
+  assert.equal(resolveCombatCue('boss', themeMusic), 'usurper');
+  assert.equal(resolveCombatCue('elite', themeMusic), 'elite');
+
+  assert.deepEqual(CORE_CONTENT.themeOrder, ['act1', 'act2', 'act3']);
+  assert.deepEqual(
+    CORE_CONTENT.themeOrder.map((id) => CORE_CONTENT.themes[id].atmosphere),
+    ['ash', 'mire', 'astral'],
+  );
+  for (const themeId of CORE_CONTENT.themeOrder) {
+    const theme = CORE_CONTENT.themes[themeId];
+    assert.equal(theme.id, themeId);
+    for (const key of [
+      'legacyAct', 'plates', 'atmosphere', 'weather', 'palette', 'music', 'roster', 'encounters',
+      'rewardGold', 'mapHaze', 'lanternLights', 'bossPlates',
+    ]) assert.ok(Object.hasOwn(theme, key), `core theme ${themeId} missing ${key}`);
+    assert.equal(resolveAtmosphere(theme), theme.atmosphere);
+    assert.equal(typeof theme.music.map, 'string');
+    assert.equal(typeof theme.music.combat, 'string');
+    assert.equal(typeof theme.music.boss, 'string');
+    assert.equal(typeof theme.music.victory, 'string');
+    assert.ok(theme.roster.normal && theme.roster.elite && theme.roster.boss);
+    assert.ok(!Object.hasOwn(theme.legacyAct, 'name'));
+    assert.ok(!Object.hasOwn(theme.legacyAct, 'bossName'));
+  }
+  assert.equal(ACTS.length, 3);
+  assert.equal(ENCOUNTERS.length, 3);
+  assert.equal(REWARD_GOLD.length, 3);
+  assert.deepEqual(REWARD_GOLD, CORE_CONTENT.rewardGold);
+  assert.deepEqual(ENCOUNTERS, CORE_CONTENT.encounters);
+
+  const {
+    BASE_COLOUR, BASE_TYPE, BASE_EASING, TOKEN_IDS, createExperienceTokens,
+    cssVariables, applyExperienceTokens, UI_TOKENS,
+  } = await import('../src/ui/tokens.js');
+  assert.ok(TOKEN_IDS.has('gold'));
+  assert.equal(BASE_COLOUR.gold, UI_TOKENS.gold);
+  assert.ok(BASE_TYPE['font-body']);
+  assert.ok(BASE_EASING['ease-out-soft']);
+  const tokens = createExperienceTokens({ gold: '#f2c14e', 'ease-out-soft': BASE_EASING['ease-out-soft'] });
+  assert.deepEqual(cssVariables(tokens)['--r5-gold'], '#f2c14e');
+  const fakeRoot = { style: { props: Object.create(null), setProperty(k, v) { this.props[k] = v; } } };
+  applyExperienceTokens(fakeRoot, tokens);
+  assert.equal(fakeRoot.style.props['--r5-gold'], '#f2c14e');
+  const cssText = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  for (const banned of ['#f4e7c5', '#ece7df', '#aaa6b8', '#8fd0ff']) {
+    assert.ok(!cssText.includes(banned), `styles.css must not embed Round 5 raw literal ${banned}`);
   }
 }
 

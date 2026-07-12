@@ -1,8 +1,8 @@
 export function createEmbarkScreen(deps) {
-  const { S, E, Vigil, ASPECTS, VOWS, ROMAN, tr, runEffects, setTheme, heroArt, screenEl, unlock, sfx, startRun, openOverlay, closeOverlay, journalRunEnd, show } = deps;
+  const { S, E, Vigil, ASPECTS, VOWS, ROMAN, tr, runEffects, setTheme, themeForRun, heroArt, screenEl, unlock, sfx, startRun, openOverlay, closeOverlay, journalRunEnd, show } = deps;
 
 function renderEmbark() {
-  setTheme(0);
+  setTheme(themeForRun({ act: 0 }));
   const vigil = runEffects.syncVigil();
   const saved = E.loadRun();
   if (E.savedRunRequiresFinalisation(saved)) { startRun(saved, true); return; }

@@ -29,6 +29,7 @@ import { charAim, charCssFloat, charShadowLive } from '../char-meta.js';
 import {
   $, $$, COARSE, FINE, S, el, presentationBarrier, screenEl, sleep, trace,
 } from './context.js';
+import { themeForRun } from './content.js';
 import { REDUCED } from './policy.js';
 import { getRoseState } from './rose.js';
 import {
@@ -141,14 +142,15 @@ function renderHud() {
   const p = S.run.player;
   const hp = S.cb && !S.cb.over ? S.cb.player.hp : p.hp;
   document.body.classList.toggle('low-hp', hp / p.maxHp <= 0.3);
-  const act = ACTS[S.run.act];
+  const theme = themeForRun(S.run);
+  const act = theme;
   hud.innerHTML = `<div class="hud-bar">
       <div class="hud-hp-wrap">
         <div class="hud-stat">${uiIcon('heart', 14)} <span class="hp-num">${hp} / ${p.maxHp}</span></div>
         <div class="hud-hpbar"><div style="width:${(100 * hp) / p.maxHp}%"></div></div>
       </div>
       <div class="hud-stat">${uiIcon('coin', 14)} <span class="gold-num">${p.gold}</span></div>
-      <div class="hud-mid"><b>${act.name.toUpperCase()}</b> &nbsp;·&nbsp; Act ${S.run.act + 1} &nbsp;·&nbsp; Floor ${S.run.floorsClimbed} &nbsp;·&nbsp; ${act.bossName}</div>
+      <div class="hud-mid"><b>${act.name.toUpperCase()}</b> &nbsp;·&nbsp; Floor ${S.run.floorsClimbed} &nbsp;·&nbsp; ${act.bossName}</div>
       <div class="hud-right">
         ${E.runRevealed(S.run, 'phials') ? p.potions.map((id, i) => `<button class="potion-slot ${id ? 'full' : ''}" data-slot="${i}">${id ? rasterOr('potions', id, potionSvg(POTIONS[id].tone)) : ''}</button>`).join('') : ''}
         <button class="icon-btn deck-btn" data-act="deck" aria-label="${tr('ui.hud.deckAria')}">${uiIcon('deck', 32)}<span class="deck-count">${p.deck.length}</span></button>
@@ -194,11 +196,12 @@ function startCombatUI(enemyIds, kind) {
   if (S.screen !== 'combat') transition('wipe');
   S.cb = E.startCombat(S.run, enemyIds, kind);
   S.screen = 'combat';
-  music.playForCombat(kind, S.run.act, {
+  const theme = themeForRun(S.run);
+  music.playForCombat(kind, theme?.music, {
     questId: S.run.pendingQuestId,
     omenId: S.run.omens?.[S.run.act] ?? null,
   });
-  V.setWeather(S.run.act, { boss: kind === 'boss' });
+  V.setWeather(theme?.weather, { boss: kind === 'boss' });
   renderCombat();
   renderHud();
   drain().then(afterAction);
@@ -207,10 +210,13 @@ function renderCombat() {
   const cb = S.cb;
   const sc = screenEl();
   sc.onclick = null;
-  const ledge = `#${ACTS[S.run.act].theme.glow.toString(16).padStart(6, '0')}`;
+  const theme = themeForRun(S.run);
+  const glow = theme?.legacyAct?.theme?.glow ?? 0x66ff9e;
+  const ledge = `#${glow.toString(16).padStart(6, '0')}`;
+  const plates = theme?.plates || {};
   sc.innerHTML = `<div class="combat-screen screen-enter intro" style="--ledge:${ledge}">
     ${['backdrop', 'mid', 'ledge'].map((l) => {
-      const u = assetUrl('stage', `act${S.run.act + 1}-${l}`);
+      const u = assetUrl('stage', plates[l]);
       return u ? `<img class="sl sl-${l}" src="${u}" alt="" aria-hidden="true">` : '';
     }).join('')}
     <div class="stage-dim" aria-hidden="true"></div>
@@ -2018,7 +2024,7 @@ function victoryFlow() {
   transition('victory-out');
   const run = S.run, kind = S.cb.kind, affix = S.cb.affix;
   const skipOrdinaryRewards = E.shadeVictorySkipsRewards(run);
-  if (kind === 'boss' && run.act >= 2) {
+  if (kind === 'boss' && E.isFinalTheme(run)) {
     late.journalRunEnd(run, 'win');
     return;
   }

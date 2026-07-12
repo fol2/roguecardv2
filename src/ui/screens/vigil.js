@@ -1,5 +1,5 @@
 export function createVigilScreen(deps) {
-  const { E, Vigil, QUESTS, QUEST_IDS, WHISPERS, DEEDS, CARDS, RELICS, ROMAN, tr, runEffects, setRoseAssetsReady, setDisclosedRoseStateIds, roseAssets, assetUrl, iconSvg, escHtml, $, $$, screenEl, setTheme, trace, semanticUiCheckpoint, sfx, music, show } = deps;
+  const { E, Vigil, QUESTS, QUEST_IDS, WHISPERS, DEEDS, CARDS, RELICS, ROMAN, tr, runEffects, setRoseAssetsReady, setDisclosedRoseStateIds, roseAssets, assetUrl, iconSvg, escHtml, $, $$, screenEl, setTheme, themeForRun, trace, semanticUiCheckpoint, sfx, music, show } = deps;
 
 const ROSE_LABEL_POSITIONS = [
   [50, 15], [78, 34], [78, 69], [50, 84], [22, 69], [22, 34],
@@ -149,7 +149,7 @@ function decodeRoseAssets(root) {
 
 function renderVigil({ tab = 'deeds' } = {}) {
   setRoseAssetsReady(false);
-  setTheme(0);
+  setTheme(themeForRun({ act: 0 }));
   const v = runEffects.clearNews(); // opening the hall reads the news
   setDisclosedRoseStateIds(Object.entries(Vigil.questSnapshot(v))
     .map(([id, record]) => `${id}:${record.state}`));

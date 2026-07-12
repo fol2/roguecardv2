@@ -114,7 +114,7 @@
       "selected_variant": "b",
       "title": "Ashen Woods Scherzo",
       "wired": true,
-      "use": "Act 1 normal fights"
+      "use": "Ashen Woods normal fights"
     },
     "act1Boss": {
       "file": "act1-boss.mp3",
@@ -129,7 +129,7 @@
       "selected_variant": "b",
       "title": "The Rootheart Awakens",
       "wired": true,
-      "use": "Act 1 boss \u2014 Rootheart"
+      "use": "Ashen Woods boss — Rootheart"
     },
     "act2Combat": {
       "file": "act2-combat.mp3",
@@ -144,7 +144,7 @@
       "selected_variant": "a",
       "title": "Sunken City Waltz",
       "wired": true,
-      "use": "Act 2 normal fights"
+      "use": "Sunken City normal fights"
     },
     "act2Boss": {
       "file": "act2-boss.mp3",
@@ -159,7 +159,7 @@
       "selected_variant": "b",
       "title": "Leviathan's Maw",
       "wired": true,
-      "use": "Act 2 boss \u2014 Leviathan"
+      "use": "Sunken City boss — Leviathan"
     },
     "act3Combat": {
       "file": "act3-combat.mp3",
@@ -174,7 +174,7 @@
       "selected_variant": "a",
       "title": "The Cracked Astral Court",
       "wired": true,
-      "use": "Act 3 normal fights"
+      "use": "Astral Court normal fights"
     },
     "act3Boss": {
       "file": "act3-boss.mp3",
@@ -189,7 +189,7 @@
       "selected_variant": "b",
       "title": "The Eternal Sovereign",
       "wired": true,
-      "use": "Act 3 boss \u2014 Eternal Sovereign"
+      "use": "Astral Court boss — Eternal Sovereign"
     },
     "elite": {
       "file": "elite.mp3",
@@ -249,7 +249,7 @@
       "selected_variant": "a",
       "title": "Lantern With No Flame",
       "wired": true,
-      "use": "Usurped Act 3 summit boss"
+      "use": "Usurped summit boss"
     },
     "eighthOmen": {
       "file": "eighth-omen.mp3",
@@ -264,7 +264,7 @@
       "selected_variant": "b",
       "title": "Broken Glyph Run",
       "wired": true,
-      "use": "Eighth Omen act \u2014 map / non-boss combat"
+      "use": "Eighth Omen — map / non-boss combat"
     },
     "unreadablePage": {
       "file": "unreadable-page.mp3",
@@ -309,7 +309,7 @@
       "selected_variant": "a",
       "title": "The Climb Continues",
       "wired": true,
-      "use": "Sealed Act 4 door / act4Reveal dawn"
+      "use": "Sealed summit door / act4Reveal Dawn"
     },
     "victory": {
       "file": "victory.mp3",
@@ -324,7 +324,7 @@
       "selected_variant": "b",
       "title": "The Only Sunrise",
       "wired": true,
-      "use": "Act 1/2 boss kill ceremony + final run victory / end(won)"
+      "use": "Non-final boss ceremony and final run victory / end(won)"
     },
     "defeat": {
       "file": "defeat.mp3",

@@ -1,5 +1,5 @@
 export function createTitleScreen(deps) {
-  const { S, E, Vigil, QUEST_IDS, REDUCED, tr, getLocale, getVersionInfo, trace, setRoseAssetsReady, setDisclosedRoseStateIds, runEffects, setTheme, assetUrl, roseAssets, escHtml, $, $$, screenEl, unlock, sfx, meshBindTitle, semanticUiCheckpoint, startRun, show, showHelp, openSettingsPanel } = deps;
+  const { S, E, Vigil, QUEST_IDS, REDUCED, tr, getLocale, getVersionInfo, trace, setRoseAssetsReady, setDisclosedRoseStateIds, runEffects, setTheme, themeForRun, assetUrl, roseAssets, escHtml, $, $$, screenEl, unlock, sfx, meshBindTitle, semanticUiCheckpoint, startRun, show, showHelp, openSettingsPanel } = deps;
 
 function titleRoseMedallion(v, assets) {
   if (!assets || v.shards.length < 1) return '';
@@ -39,7 +39,7 @@ let destroyTitle = () => {};
 function renderTitle() {
   destroyTitle();
   setRoseAssetsReady(false);
-  setTheme(0);
+  setTheme(themeForRun({ act: 0 }));
   const vigil = runEffects.syncVigil(); // reconcile any owed unlocks (e.g. seeded from old stats)
   setDisclosedRoseStateIds(Object.entries(Vigil.questSnapshot(vigil))
     .map(([id, record]) => `${id}:${record.state}`));

@@ -1,5 +1,5 @@
 export function createRewardScreen(deps) {
-  const { S, E, POTIONS, RELICS, OMENS, tr, sceneBg, $, el, iconSvg, uiIcon, stageW, stageH, V, flyTo, tweenNum, sfx, rasterOr, potionSvg, relicArt, requireRunSave, renderHud, show, showCardGrid, openOverlay, closeOverlay, runEffects, setTheme, setAltitude, transition, assetUrl, omenIconName, screenEl } = deps;
+  const { S, E, POTIONS, RELICS, OMENS, tr, sceneBg, $, el, iconSvg, uiIcon, stageW, stageH, V, flyTo, tweenNum, sfx, rasterOr, potionSvg, relicArt, requireRunSave, renderHud, show, showCardGrid, openOverlay, closeOverlay, runEffects, setTheme, setAltitude, transition, assetUrl, omenIconName, screenEl, themeForRun } = deps;
 
 // ------------------------------------------------------------ rewards
 function renderReward() {
@@ -174,7 +174,7 @@ function advanceAct() {
   run.nodeId = null;
   run.map = E.genMap(run);
   E.healPlayer(run, Math.round(run.player.maxHp * 0.35));
-  setTheme(run.act);
+  setTheme(themeForRun(run));
   setAltitude(run.act, 0);
   runEffects.saveRun(run);
   transition('act-change');
