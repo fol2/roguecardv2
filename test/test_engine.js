@@ -63,6 +63,19 @@ import {
   assertCaptureWorktreeIdentity, captureContentOracle, descriptorInventory,
   inspectExactSourceRoot, inspectSourceRoot,
 } from '../tools/capture-content-oracle.mjs';
+import {
+  CONTENT_SCHEMAS, MERGE_POLICIES, PROGRESSION_MERGE_POLICIES,
+  createContentContext, createContentRegistry, definePack, doctorContent,
+  formatContentReport, isFinalTheme, joinLocaleContent, themeById, themeForAct,
+} from '../src/registry.js';
+import {
+  compileContentRegistrations, defineContentRegistration,
+  doctorContentRegistrations, withContentRegistration,
+} from '../src/content-registration.js';
+import { STATIC_REFERENCE_CATALOGUES } from '../src/content-resources.js';
+import {
+  discoverContentRegistrations, renderContentRegistrationManifest,
+} from '../tools/compile-content-registrations.mjs';
 
 {
   const oracle = JSON.parse(readFileSync(new URL('./fixtures/round5-content-oracle-v1.json', import.meta.url), 'utf8'));
@@ -5761,6 +5774,505 @@ function randomAgentRun(seed) {
   const pct = feetToOriginPct({ footX: 50, footRow: 199 }, 100, 200, 100, 200);
   assert.equal(pct.ox, 50, 'feet-scan: origin ox');
   assert.equal(pct.oy, 99.5, 'feet-scan: origin oy near bottom');
+}
+
+// ---- Round 5 Task 11: content registry, registrations and doctor ------------
+{
+  assert.deepEqual(MERGE_POLICIES, Object.freeze({
+    player: 'singleton', shop: 'singleton',
+    cards: 'keyed-unique', statuses: 'keyed-unique', relics: 'keyed-unique',
+    potions: 'keyed-unique', enemies: 'keyed-unique', events: 'keyed-unique',
+    omens: 'keyed-unique', affixes: 'keyed-unique', arts: 'keyed-unique',
+    deeds: 'keyed-unique', quests: 'keyed-unique', variants: 'keyed-unique',
+    shadeKits: 'keyed-unique', boons: 'keyed-unique', themes: 'keyed-unique',
+    aspects: 'append-unique-id', vows: 'append', questIds: 'append-unique',
+    progression: 'nested-declared',
+  }));
+  assert.deepEqual(PROGRESSION_MERGE_POLICIES, Object.freeze({
+    revealThresholds: 'keyed-unique',
+    poolWaves: Object.freeze({
+      definitions: 'keyed-unique', extensions: 'existing-key-explicit',
+      members: 'append-unique', gateAssignment: 'globally-unique',
+    }),
+    features: 'keyed-unique-flatten',
+  }));
+  assert.ok(Object.isFrozen(CONTENT_SCHEMAS));
+  assert.equal(CONTENT_SCHEMAS.themes.fields.bossPlates.kind, 'object');
+  assert.equal(CONTENT_SCHEMAS.themes.fields.lanternLights.kind, 'array');
+  assert.equal(CONTENT_SCHEMAS.themes.fields.tagline.source, 'locale');
+
+  const sampleInput = {
+    id: 'sample',
+    cards: { sampleCard: {
+      type: 'attack', rarity: 'common', cost: 1,
+      target: 'enemy', vfx: 'slash', effects: [{ kind: 'dmg', n: 1 }],
+    } },
+    enemies: { sampleEnemy: {
+      hp: [1, 1], facets: 2,
+      moves: { wait: { intent: 'buff' } }, ai: (_ctx) => 'wait',
+    } },
+  };
+  const sample = definePack(sampleInput);
+  const sampleLocale = {
+    cards: { sampleCard: { name: 'Sample', text: 'Deal @1@ damage.' } },
+    enemies: { sampleEnemy: { name: 'Sample Enemy', moves: { wait: { name: 'Wait' } } } },
+  };
+  sampleInput.cards.sampleCard.effects[0].n = 99;
+  assert.equal(sample.cards.sampleCard.effects[0].n, 1, 'definePack snapshots caller-owned data');
+  assert.equal(sample.enemies.sampleEnemy.ai, sampleInput.enemies.sampleEnemy.ai,
+    'declared behaviour hooks retain function identity');
+  const registry = createContentRegistry([sample]);
+  assert.equal(registry.cards.sampleCard.name, undefined);
+  assert.equal(registry.enemies.sampleEnemy.ai.length, 1);
+  assert.equal(Object.isFrozen(registry.cards), true);
+  assert.equal(Object.isFrozen(registry.cards.sampleCard.effects), true);
+  assert.throws(() => { registry.cards.sampleCard.effects[0].n = 2; }, TypeError);
+  assert.throws(() => createContentRegistry([sample, sample]), /duplicate pack.*sample/i);
+  const sample2 = definePack({ id: 'sample2', cards: { sampleCard: sample.cards.sampleCard } });
+  assert.throws(() => createContentRegistry([sample, sample2]), /duplicate.*sampleCard/i);
+  assert.throws(() => definePack({ id: 'bad', cards: { bad: { text: 'locale leak' } } }),
+    /source.*locale|cards\.bad/i);
+  assert.throws(() => definePack({ id: 'bad-protocol', QUEST_STATES: [] }), /protocol|unknown domain/i);
+  assert.throws(() => definePack({ id: 'bad-whispers', whispers: [] }), /locale-field-in-pack|whispers/i);
+  assert.throws(() => definePack({ id: 'bad-reveals', reveals: [] }), /derived|unknown domain|reveals/i);
+  let getterRuns = 0;
+  const accessorCard = {};
+  Object.defineProperty(accessorCard, 'cost', { enumerable: true, get() { getterRuns++; return 1; } });
+  assert.throws(() => definePack({ id: 'accessor', cards: { accessorCard } }), (error) =>
+    error.problems.some((problem) => problem.code === 'accessor-not-allowed'
+      && problem.field === 'cards.accessorCard.cost'));
+  assert.equal(getterRuns, 0, 'descriptor validation never invokes accessors');
+  assert.throws(() => definePack({ id: 'function-data', cards: { bad: { cost: () => 1 } } }),
+    /function|cards\.bad\.cost/i);
+
+  const coreProgression = definePack({
+    id: 'progression-core',
+    aspects: [{ id: 'aspectA', hp: 1 }],
+    progression: {
+      revealThresholds: { poolWave2: { runsPlayed: 2 } },
+      poolWaves: { define: { poolWave2: { cards: ['executioner'], relics: ['reapersBell'] } }, extend: {} },
+      features: { emberglass: { enabled: true, nested: { value: 1 } } },
+    },
+  });
+  const expansionProgression = definePack({
+    id: 'progression-expansion',
+    progression: {
+      revealThresholds: { expansionGate: { runsPlayed: 7 } },
+      poolWaves: {
+        define: { expansionGate: { cards: ['expansionCard'], relics: [] } },
+        extend: { poolWave2: { cards: ['expansionCommon'], relics: [] } },
+      },
+      features: { expansionQuest: { enabled: true } },
+    },
+  });
+  const progressionRegistry = createContentRegistry([coreProgression, expansionProgression]);
+  assert.deepEqual(progressionRegistry.progression, {
+    revealThresholds: { poolWave2: { runsPlayed: 2 }, expansionGate: { runsPlayed: 7 } },
+    poolWaves: {
+      poolWave2: { cards: ['executioner', 'expansionCommon'], relics: ['reapersBell'] },
+      expansionGate: { cards: ['expansionCard'], relics: [] },
+    },
+    emberglass: { enabled: true, nested: { value: 1 } },
+    expansionQuest: { enabled: true },
+  });
+  assert.throws(() => { progressionRegistry.progression.emberglass.nested.value = 2; }, TypeError);
+  const secondExtension = definePack({ id: 'progression-extension-2', progression: {
+    revealThresholds: {}, poolWaves: { define: {}, extend: { poolWave2: { cards: ['later'], relics: [] } } }, features: {},
+  } });
+  assert.deepEqual(createContentRegistry([coreProgression, expansionProgression, secondExtension])
+    .progression.poolWaves.poolWave2.cards, ['executioner', 'expansionCommon', 'later']);
+  const progressionFailures = [
+    { id: 'forward', progression: { revealThresholds: {}, poolWaves: { define: {}, extend: { later: { cards: [], relics: [] } } }, features: {} } },
+    { id: 'threshold', progression: { revealThresholds: { poolWave2: {} }, poolWaves: { define: {}, extend: {} }, features: {} } },
+    { id: 'wave', progression: { revealThresholds: {}, poolWaves: { define: { poolWave2: { cards: [], relics: [] } }, extend: {} }, features: {} } },
+    { id: 'feature', progression: { revealThresholds: {}, poolWaves: { define: {}, extend: {} }, features: { emberglass: {} } } },
+    { id: 'reserved', progression: { revealThresholds: {}, poolWaves: { define: {}, extend: {} }, features: { poolWaves: {} } } },
+    { id: 'member', progression: { revealThresholds: {}, poolWaves: { define: {}, extend: { poolWave2: { cards: ['executioner'], relics: [] } } }, features: {} } },
+    { id: 'gate', progression: { revealThresholds: {}, poolWaves: { define: { other: { cards: ['executioner'], relics: [] } }, extend: {} }, features: {} } },
+  ];
+  for (const bad of progressionFailures) {
+    assert.throws(() => createContentRegistry([coreProgression, definePack(bad)]), /progression|poolWave2|emberglass|duplicate|reserved|extension/i);
+  }
+  assert.throws(() => createContentRegistry([coreProgression,
+    definePack({ id: 'aspect-duplicate', aspects: [{ id: 'aspectA' }] })]), /aspectA|duplicate/i);
+
+  assert.throws(() => definePack({
+    id: 'bad-theme',
+    themes: {
+      bad: {
+        name: 'Locale leak',
+        plates: { background: 'x' },
+        weather: { kind: 'ash' },
+        palette: {},
+        music: 'combat',
+        roster: [],
+        encounters: [],
+        rewardGold: [1, 2],
+        mapHaze: 'haze',
+        lanternLights: [],
+        bossPlates: [],
+      },
+    },
+  }), (error) => {
+    assert.ok(error.problems.length >= 2, 'invalid theme aggregates every problem');
+    assert.ok(error.problems.some((problem) => problem.code === 'locale-field-in-pack'
+      && problem.field === 'themes.bad.name'));
+    assert.ok(error.problems.some((problem) => problem.code === 'required-field-missing'
+      && problem.field === 'themes.bad.legacyAct'));
+    assert.ok(error.problems.some((problem) => problem.code === 'invalid-boss-plates'
+      && problem.field === 'themes.bad.bossPlates'));
+    assert.ok(!error.problems.some((problem) => problem.code === 'unknown-field'
+      && problem.severity === 'error'), 'success path must not depend on unknown-key failures');
+    return true;
+  });
+
+  const completeTheme = {
+    legacyAct: { boss: 'sampleEnemy', theme: {
+      sky: '#000', fog: '#111', particles: '#222', glow: '#333', accent: '#444', ember: '#555',
+    } },
+    plates: { background: 'theme/bg', midground: 'theme/mid', foreground: 'theme/fg' },
+    weather: { kind: 'ash', intensity: 1 }, palette: { accent: 'accent', haze: 'haze' },
+    music: 'combat', roster: ['sampleEnemy'], encounters: [['sampleEnemy']],
+    rewardGold: [10, 20], mapHaze: 'haze', lanternLights: [], bossPlates: {},
+  };
+  const completePack = definePack({
+    id: 'complete',
+    player: { id: 'aspectA', hp: 10, gold: 0, deck: ['sampleCard'] },
+    shop: { cardCount: 1, relicCount: 1, potionCount: 1 },
+    cards: sample.cards, statuses: {}, relics: {}, potions: {}, enemies: sample.enemies,
+    events: {}, omens: {}, affixes: {}, arts: {}, deeds: {}, quests: {}, variants: {},
+    shadeKits: {}, boons: {}, themes: { actOne: completeTheme },
+    aspects: [{ id: 'aspectA', hp: 10 }], vows: [], questIds: [],
+    progression: { revealThresholds: {}, poolWaves: { define: { core: { cards: ['sampleCard'], relics: [] } }, extend: {} }, features: {} },
+  });
+  const completeLocale = {
+    cards: {
+      sampleCard: { name: 'Sample', text: 'Deal @1@ damage.', textUp: 'Deal @2@ damage.' },
+    },
+    enemies: sampleLocale.enemies,
+    acts: [{ name: 'The Sample', bossName: 'Sample Enemy', tagline: 'Optional words' }],
+    aspects: { aspectA: { name: 'Aspect A', blurb: 'An aspect.' } }, whispers: ['A whisper.'],
+  };
+  const resources = {
+    ...STATIC_REFERENCE_CATALOGUES,
+    vfxIds: new Set([...STATIC_REFERENCE_CATALOGUES.vfxIds, 'slash']),
+    musicIds: new Set([...STATIC_REFERENCE_CATALOGUES.musicIds, 'combat']),
+    tokenIds: new Set([...STATIC_REFERENCE_CATALOGUES.tokenIds, 'accent', 'haze']),
+    assetManifest: new Set(['theme/bg', 'theme/mid', 'theme/fg']),
+  };
+  assert.throws(() => createContentContext([sample], {
+    id: 'incomplete', resources, localeContent: sampleLocale, localeToken: 'en',
+  }), /player|themes/i);
+  const context = createContentContext([completePack], {
+    id: 'fixture-context', resources, localeContent: completeLocale, localeToken: 'en',
+  });
+  assert.equal(context.contextVersion, 1);
+  assert.deepEqual(context.packIds, ['complete']);
+  assert.equal(context.cards.sampleCard.name, 'Sample');
+  assert.equal(context.acts[0].name, 'The Sample');
+  assert.equal(context.acts[0].theme.sky, '#000');
+  assert.deepEqual(context.encounters, [[['sampleEnemy']]]);
+  assert.deepEqual(context.rewardGold, [[10, 20]]);
+  assert.deepEqual(context.cardPools.common, ['sampleCard']);
+  assert.equal(context.poolGate.cards.sampleCard, 'core');
+  assert.deepEqual(context.reveals, []);
+  assert.deepEqual(context.whispers, ['A whisper.']);
+  assert.equal(themeById(context, 'actOne'), context.themes.actOne);
+  assert.equal(themeById(context, 'missing'), null);
+  assert.equal(themeForAct(context, 0), context.themes.actOne);
+  assert.equal(themeForAct(context, -1), null);
+  assert.equal(isFinalTheme(context, 0), true);
+  assert.equal(isFinalTheme(context, 1), false);
+  assert.throws(() => { context.quests.extra = {}; }, TypeError);
+  assert.throws(() => createContentContext([completePack], {
+    id: '', resources, localeContent: completeLocale, localeToken: 'en',
+  }), /non-empty|id/i);
+  assert.throws(() => createContentContext([completePack], {
+    id: 'no-locale', resources, localeContent: {}, localeToken: '',
+  }), /locale/i);
+
+  const revealPack = definePack({
+    id: 'reveal-order',
+    player: completePack.player, shop: completePack.shop, cards: completePack.cards,
+    statuses: {}, relics: {}, potions: {}, enemies: completePack.enemies, events: {},
+    omens: {}, affixes: {}, arts: {}, deeds: {}, quests: {}, variants: {}, shadeKits: {},
+    boons: {}, themes: completePack.themes, aspects: completePack.aspects, vows: [],
+    questIds: [],
+    progression: {
+      revealThresholds: { firstGate: { runsPlayed: 1 }, secondGate: { runsPlayed: 2 } },
+      poolWaves: { define: { firstGate: { cards: ['sampleCard'], relics: [] } }, extend: {} },
+      features: {},
+    },
+  });
+  const revealContext = createContentContext([revealPack], {
+    id: 'reveal-context', resources, localeContent: completeLocale, localeToken: 'en',
+  });
+  assert.deepEqual(revealContext.reveals.map((row) => row.id), ['firstGate', 'secondGate']);
+  assert.equal(revealContext.reveals[0].trigger, revealContext.progression.revealThresholds.firstGate);
+
+  assert.deepEqual(joinLocaleContent([
+    { cards: { a: { name: 'A' } }, whispers: ['one'] },
+    { cards: { b: { name: 'B' } }, whispers: ['two'] },
+  ]), { cards: { a: { name: 'A' }, b: { name: 'B' } }, whispers: ['one', 'two'] });
+
+  const bootWithoutAssets = createContentContext([completePack], {
+    id: 'boot-no-assets',
+    resources: { ...resources, assetManifest: new Set() },
+    localeContent: completeLocale, localeToken: 'en',
+  });
+  assert.equal(bootWithoutAssets.themes.actOne.plates.background, 'theme/bg',
+    'missing raster inventory is not a production-boot error');
+
+  const badVfxPack = definePack({
+    id: 'bad-vfx',
+    player: completePack.player, shop: completePack.shop,
+    cards: { badVfxCard: {
+      type: 'attack', rarity: 'common', cost: 1, target: 'enemy', vfx: 'not-a-vfx',
+      effects: [{ kind: 'dmg', n: 1 }],
+    } },
+    statuses: {}, relics: {}, potions: {}, enemies: completePack.enemies, events: {},
+    omens: {}, affixes: {}, arts: {}, deeds: {}, quests: {}, variants: {}, shadeKits: {},
+    boons: {}, themes: completePack.themes, aspects: completePack.aspects, vows: [],
+    questIds: [],
+    progression: completePack.progression,
+  });
+  const badVfxLocale = {
+    ...completeLocale,
+    cards: { badVfxCard: { name: 'Bad', text: 'Bad.' } },
+  };
+  let bootVfxProblem = null;
+  try {
+    createContentContext([badVfxPack], {
+      id: 'bad-vfx-boot', resources, localeContent: badVfxLocale, localeToken: 'en',
+    });
+  } catch (error) {
+    bootVfxProblem = error.problems.find((problem) => problem.code === 'unknown-vfx-id');
+  }
+  assert.ok(bootVfxProblem, 'boot rejects unknown card VFX');
+  const doctorVfxReport = doctorContent([badVfxPack], {
+    ...resources, localeContent: badVfxLocale, localeToken: 'en',
+  });
+  const doctorVfxProblem = doctorVfxReport.problems.find((problem) => problem.code === 'unknown-vfx-id');
+  assert.ok(doctorVfxProblem, 'doctor rejects unknown card VFX');
+  assert.equal(bootVfxProblem.field, doctorVfxProblem.field);
+  assert.equal(bootVfxProblem.code, doctorVfxProblem.code);
+  assert.equal(bootVfxProblem.field, 'cards.badVfxCard.vfx');
+
+  const doctorReport = doctorContent([completePack], {
+    ...resources, localeContent: completeLocale, localeToken: 'en', assetManifest: new Set(),
+  });
+  assert.equal(doctorReport.ok, false);
+  assert.ok(doctorReport.problems.every((problem) => problem.code && problem.severity
+    && problem.packId && problem.domain && problem.entryId && problem.field
+    && problem.expected && problem.actual && problem.hint));
+  assert.ok(doctorReport.problems.some((problem) => problem.code === 'asset-missing'
+    && problem.field.includes('themes.actOne.plates')));
+  assert.equal(doctorReport.domains.themes.entries.find((entry) => entry.id === 'actOne').badges.art.status,
+    'missing', 'art badge is missing when asset refs fail the supplied manifest');
+  assert.equal(doctorReport.domains.cards.entries.find((entry) => entry.id === 'sampleCard').badges.art.status,
+    'not-applicable', 'art badge is not-applicable when an entry has no asset refs');
+  const doctorArtComplete = doctorContent([completePack], {
+    ...resources, localeContent: completeLocale, localeToken: 'en',
+  });
+  assert.equal(doctorArtComplete.domains.themes.entries.find((entry) => entry.id === 'actOne').badges.art.status,
+    'complete', 'art badge is complete when assetManifest is supplied and every ref resolves');
+  assert.equal(doctorArtComplete.domains.cards.entries.find((entry) => entry.id === 'sampleCard').badges.art.status,
+    'not-applicable');
+
+  const relicPack = definePack({
+    id: 'relic-locale-gap',
+    player: completePack.player, shop: completePack.shop, cards: completePack.cards,
+    statuses: {}, relics: { gapRelic: { rarity: 'common', glyph: '◆', tone: 'ash' } },
+    potions: {}, enemies: completePack.enemies, events: {}, omens: {}, affixes: {}, arts: {},
+    deeds: {}, quests: {}, variants: {}, shadeKits: {}, boons: {}, themes: completePack.themes,
+    aspects: completePack.aspects, vows: [], questIds: [], progression: completePack.progression,
+  });
+  const relicLocaleGap = doctorContent([relicPack], {
+    ...resources, localeContent: completeLocale, localeToken: 'en',
+  });
+  assert.ok(relicLocaleGap.problems.some((problem) => problem.code === 'locale-field-missing'
+    && problem.field === 'relics.gapRelic.name'),
+  'schema-driven locale coverage reports exact-path locale-field-missing');
+  assert.ok(relicLocaleGap.problems.some((problem) => problem.code === 'locale-field-missing'
+    && problem.field === 'relics.gapRelic.text'));
+  assert.equal(relicLocaleGap.domains.relics.entries.find((entry) => entry.id === 'gapRelic').badges.locale.status,
+    'missing', 'missing required locale-owned fields prevent a false locale: complete badge');
+  const actsWithoutTagline = {
+    ...completeLocale,
+    acts: [{ name: 'The Sample', bossName: 'Sample Enemy' }],
+  };
+  assert.doesNotThrow(() => createContentContext([completePack], {
+    id: 'optional-tagline', resources, localeContent: actsWithoutTagline, localeToken: 'en',
+  }), 'optional tagline remains optional');
+
+  const progressionMergeDoctor = doctorContent([
+    coreProgression,
+    definePack({
+      id: 'dup-progression-threshold',
+      progression: {
+        revealThresholds: { poolWave2: { runsPlayed: 9 } },
+        poolWaves: { define: {}, extend: {} },
+        features: {},
+      },
+    }),
+  ], { ...resources, localeContent: completeLocale, localeToken: 'en' });
+  assert.ok(progressionMergeDoctor.domains.progression.problems.some((problem) =>
+    problem.severity === 'error'
+    && problem.code === 'duplicate-progression-threshold'
+    && problem.entryId === 'poolWave2'),
+  'progression domain surfaces merge errors whose entryId is a threshold id');
+  const progressionEntry = progressionMergeDoctor.domains.progression.entries
+    .find((entry) => entry.id === 'progression');
+  assert.ok(progressionEntry, 'progression inventory is a synthetic singleton row');
+  assert.equal(progressionEntry.complete, false,
+    'progression entry is incomplete when a merge problem uses a non-matching entryId');
+  assert.ok(progressionEntry.problems.some((problem) => problem.code === 'duplicate-progression-threshold'
+    && problem.entryId === 'poolWave2'),
+  'unmatched progression problems fold into the synthetic progression entry');
+  assert.equal(progressionMergeDoctor.domains.progression.complete, 0,
+    'domain complete count is not falsely green when progression has errors');
+
+  const orphanActsLocale = {
+    ...completeLocale,
+    acts: [
+      { name: 'The Sample', bossName: 'Sample Enemy', tagline: 'Optional words' },
+      { name: 'Orphan Act', bossName: 'Nobody', tagline: 'Extra' },
+    ],
+  };
+  const orphanActsDoctor = doctorContent([completePack], {
+    ...resources, localeContent: orphanActsLocale, localeToken: 'en',
+  });
+  assert.ok(orphanActsDoctor.problems.some((problem) => problem.code === 'orphan-locale-entry'
+    && problem.domain === 'themes'
+    && problem.field === 'acts.1'
+    && problem.entryId === '1'),
+  'extra localeContent.acts rows report orphan-locale-entry like other domains');
+
+  assert.deepEqual(Object.keys(doctorReport.domains).sort(), Object.keys(MERGE_POLICIES).sort());
+  for (const domain of Object.values(doctorReport.domains)) {
+    for (const entry of domain.entries) {
+      assert.deepEqual(Object.keys(entry.badges).sort(), ['art', 'audio', 'charMeta', 'locale', 'pool', 'vfx']);
+      assert.ok(entry.links.gallery && entry.links.lab);
+    }
+  }
+  const formatted = formatContentReport(doctorReport);
+  assert.equal(typeof formatted, 'string');
+  assert.match(formatted, /cards|themes/);
+
+  const registration = defineContentRegistration({
+    id: 'core-registration', mechanics: completePack,
+    locales: { en: completeLocale }, targets: { production: 0, development: 0 },
+  });
+  assert.deepEqual(Object.keys(registration), ['id', 'mechanics', 'locales', 'targets']);
+  assert.ok(Object.isFrozen(registration.targets));
+  for (const bad of [
+    { id: 'no-en', mechanics: completePack, locales: {}, targets: { production: 0 } },
+    { id: 'empty-en', mechanics: completePack, locales: { en: {} }, targets: { production: 0 } },
+    { id: 'bad-locale', mechanics: completePack, locales: { '': completeLocale, en: completeLocale }, targets: { production: 0 } },
+    { id: 'bad-target', mechanics: completePack, locales: { en: completeLocale }, targets: { production: -1 } },
+    { id: 'unknown-target', mechanics: completePack, locales: { en: completeLocale }, targets: { mystery: 0 } },
+  ]) assert.throws(() => defineContentRegistration(bad), /locale|target|English|en/i);
+
+  const fixturePack = definePack({ id: 'fixture-pack', cards: { fixtureCard: {
+    type: 'skill', rarity: 'common', cost: 0, target: 'self', vfx: 'slash', effects: [],
+  } } });
+  const fixtureRegistration = defineContentRegistration({
+    id: 'fixture-registration', mechanics: fixturePack,
+    locales: { en: { cards: { fixtureCard: { name: 'Fixture', text: 'Fixture.', textUp: 'Fixture+' } } } },
+    targets: { development: 1, fixture: 1 },
+  });
+  const manifest = Object.freeze({
+    version: 1, target: 'development',
+    registrations: Object.freeze([registration, fixtureRegistration]),
+    provenance: Object.freeze([
+      { id: registration.id, sourcePath: 'src/packs/core/registration.js' },
+      { id: fixtureRegistration.id, sourcePath: 'src/packs/_sample/registration.js' },
+    ]),
+  });
+  let createContextCalls = 0;
+  const compiled = compileContentRegistrations(manifest, {
+    id: 'compiled', resources, localeToken: 'en', fixtures: ['fixture-registration'],
+    createContext: (...args) => {
+      createContextCalls += 1;
+      return createContentContext(...args);
+    },
+  });
+  assert.equal(createContextCalls, 1, 'compileContentRegistrations invokes createContentContext exactly once');
+  assert.deepEqual(compiled.context.packIds, ['complete', 'fixture-pack']);
+  assert.equal(compiled.context.cards.fixtureCard.name, 'Fixture');
+  assert.deepEqual(compiled.provenance.registrationIds, ['core-registration', 'fixture-registration']);
+  assert.throws(() => compileContentRegistrations({
+    version: 1, target: 'production', registrations: [registration],
+  }, {
+    id: 'production-fixtures', resources, localeToken: 'en', fixtures: ['fixture-registration'],
+  }), /production.*fixture|fixture selection/i);
+  assert.throws(() => compileContentRegistrations(manifest, {
+    id: 'missing-fixture', resources, localeToken: 'en', fixtures: ['absent'],
+  }), /fixture.*absent|absent.*fixture/i);
+  assert.throws(() => compileContentRegistrations({ ...manifest, registrations: [registration, registration] }, {
+    id: 'duplicate-registration', resources, localeToken: 'en', fixtures: [],
+  }), /duplicate registration/i);
+  const duplicateMechanics = defineContentRegistration({
+    id: 'other-registration', mechanics: completePack, locales: { en: completeLocale }, targets: { development: 2 },
+  });
+  assert.throws(() => compileContentRegistrations({ ...manifest, registrations: [registration, duplicateMechanics] }, {
+    id: 'duplicate-mechanics', resources, localeToken: 'en', fixtures: [],
+  }), /duplicate mechanics|complete/i);
+  const sameOrder = defineContentRegistration({
+    id: 'same-order', mechanics: fixturePack, locales: { en: completeLocale }, targets: { development: 0 },
+  });
+  assert.throws(() => compileContentRegistrations({ ...manifest, registrations: [registration, sameOrder] }, {
+    id: 'duplicate-order', resources, localeToken: 'en', fixtures: [],
+  }), /order|duplicate/i);
+  const replacement = defineContentRegistration({
+    id: fixtureRegistration.id, mechanics: definePack({ id: 'fixture-replacement' }),
+    locales: { en: { cards: { replacement: { name: 'Replacement' } } } },
+    targets: fixtureRegistration.targets,
+  });
+  const replacedManifest = withContentRegistration(manifest, replacement);
+  assert.equal(replacedManifest.registrations.length, manifest.registrations.length);
+  assert.equal(replacedManifest.registrations[1].mechanics.id, 'fixture-replacement');
+  assert.deepEqual(replacedManifest.registrations.map((row) => row.id), manifest.registrations.map((row) => row.id));
+  assert.throws(() => withContentRegistration(manifest,
+    defineContentRegistration({ id: 'new', mechanics: fixturePack, locales: { en: completeLocale }, targets: { development: 3 } })),
+  /replace|existing/i);
+  const registrationDoctor = doctorContentRegistrations(manifest, {
+    id: 'doctor', resources: { ...resources, assetManifest: new Set() }, localeToken: 'en', fixtures: ['fixture-registration'],
+  });
+  assert.ok(registrationDoctor.report && registrationDoctor.provenance);
+
+  const tempRoot = mkdtempSync(join(tmpdir(), 'glassvow-content-registrations-'));
+  try {
+    const sourceRoot = join(tempRoot, 'src', 'packs');
+    mkdirSync(join(sourceRoot, 'core'), { recursive: true });
+    mkdirSync(join(sourceRoot, 'expansion'), { recursive: true });
+    mkdirSync(join(sourceRoot, '_sample'), { recursive: true });
+    writeFileSync(join(sourceRoot, 'core', 'registration.js'), 'export default { id: "core", mechanics: { id: "core-pack" }, locales: { en: { cards: { core: { name: "Core" } } } }, targets: { production: 0 } };\n');
+    writeFileSync(join(sourceRoot, 'expansion', 'registration.js'), 'export default { id: "expansion", mechanics: { id: "expansion-pack" }, locales: { en: { cards: { expansion: { name: "Expansion" } } } }, targets: { production: 1, development: 1 } };\n');
+    writeFileSync(join(sourceRoot, '_sample', 'registration.js'), 'export default { id: "sample", mechanics: { id: "sample-pack" }, locales: { en: { cards: { sample: { name: "Sample" } } } }, targets: { development: 2, fixture: 2 } };\n');
+    const discovered = await discoverContentRegistrations(sourceRoot);
+    assert.deepEqual(discovered.map((row) => row.registration.id), ['core', 'expansion', 'sample']);
+    const productionSource = renderContentRegistrationManifest(discovered, 'production');
+    assert.match(productionSource, /core\/registration\.js/);
+    assert.match(productionSource, /expansion\/registration\.js/);
+    assert.doesNotMatch(productionSource, /_sample|sample\/registration\.js/);
+    assert.ok(productionSource.endsWith('\n'));
+    assert.equal(productionSource, renderContentRegistrationManifest(discovered, 'production'));
+    const developmentSource = renderContentRegistrationManifest(discovered, 'development');
+    assert.match(developmentSource, /core\/registration\.js/,
+      'development manifest includes production-base registrations even without a development target key');
+    assert.match(developmentSource, /expansion\/registration\.js/);
+    assert.match(developmentSource, /_sample\/registration\.js/);
+    assert.ok(developmentSource.indexOf('core/registration.js')
+      < developmentSource.indexOf('_sample/registration.js'));
+    const fixtureSource = renderContentRegistrationManifest(discovered, 'fixture');
+    assert.match(fixtureSource, /core\/registration\.js/);
+    assert.match(fixtureSource, /expansion\/registration\.js/);
+    assert.match(fixtureSource, /_sample\/registration\.js/);
+    assert.doesNotMatch(fixtureSource, new RegExp(tempRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
 }
 
 let wins = 0, deaths = 0;

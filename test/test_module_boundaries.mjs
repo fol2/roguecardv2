@@ -63,6 +63,29 @@ assert.doesNotMatch(musicResolveSource, /behaviour-trace|\bdocument\b|\bwindow\b
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 assert.equal(packageJson.scripts['test:e2e'], 'npm run test:e2e:nonvisual && npm run test:e2e:visual');
 assert.equal(packageJson.scripts['test:e2e:nonvisual'], 'npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:main && npm run test:e2e:serial');
+assert.equal(packageJson.scripts['content:compile'], 'node tools/compile-content-registrations.mjs');
+assert.equal(packageJson.scripts['test:content-registrations'], 'node tools/compile-content-registrations.mjs --check');
+
+for (const modulePath of [
+  '../src/registry.js', '../src/content-registration.js',
+  '../src/presentation-catalog.js', '../src/content-resources.js',
+  '../src/ui/tokens.js', '../src/i18n/hydrate-content.js',
+  '../tools/compile-content-registrations.mjs',
+]) {
+  const source = readFileSync(new URL(modulePath, import.meta.url), 'utf8');
+  const imports = importSpecifiers(modulePath).join('\n');
+  assert.doesNotMatch(imports, /(?:ui\.js|stage\.js|audio\.js|music\.js|audio-assets|vite)/,
+    `${modulePath} imports no browser, playback or Vite owner`);
+  assert.doesNotMatch(source, /\b(?:document|window|localStorage)\b|import\.meta\.glob/,
+    `${modulePath} stays Node-pure and DOM-free`);
+}
+const registryImports = importSpecifiers('../src/registry.js');
+assert.ok(registryImports.includes('./i18n/hydrate-content.js'));
+assert.ok(!registryImports.some((specifier) => /i18n\/index\.js|i18n\/en\/ui\.js/.test(specifier)));
+const dataSource = readFileSync(new URL('../src/data.js', import.meta.url), 'utf8');
+for (const name of ['QUEST_ACTIVE_STATES', 'QUEST_STATES', 'RUN_ID_RE', 'TERMINAL_OUTCOMES']) {
+  assert.match(dataSource, new RegExp(`export const ${name}\\b`), `${name} remains owned by data.js platform/save grammar`);
+}
 const defaultPlaywright = readFileSync(new URL('../playwright.config.js', import.meta.url), 'utf8');
 const productionPlaywright = readFileSync(new URL('../playwright.trace-production.config.js', import.meta.url), 'utf8');
 const productionTraceSpec = readFileSync(new URL('./e2e/trace-production.spec.js', import.meta.url), 'utf8');

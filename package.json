@@ -14,6 +14,8 @@
     "test": "node test/test_engine.js",
     "test:round5:standing": "node tools/run-round5-standing-gates.mjs",
     "test:progression": "node tools/emberglass-pacing.mjs",
+    "content:compile": "node tools/compile-content-registrations.mjs",
+    "test:content-registrations": "node tools/compile-content-registrations.mjs --check",
     "test:e2e": "npm run test:e2e:nonvisual && npm run test:e2e:visual",
     "test:e2e:nonvisual": "npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:main && npm run test:e2e:serial",
     "test:e2e:trace-production": "playwright test --config=playwright.trace-production.config.js",
