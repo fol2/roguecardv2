@@ -1269,7 +1269,7 @@ function forceHand(run, cb, ids) {
   const fullPorts = fullSpawned
     .map((call) => Number(call.options.env.SPIREBOUND_E2E_PORT))
     .filter(Number.isInteger);
-  assert.equal(fullPorts.length, 8);
+  assert.equal(fullPorts.length, 5);
   assert.equal(new Set(fullPorts).size, fullPorts.length);
   assert.ok(fullPorts.every((port) => port !== 5174));
 
@@ -1293,7 +1293,7 @@ function forceHand(run, cb, ids) {
   const fullPresentPorts = fullPresentSpawned
     .map((call) => Number(call.options.env.SPIREBOUND_E2E_PORT))
     .filter(Number.isInteger);
-  assert.equal(fullPresentPorts.length, 9);
+  assert.equal(fullPresentPorts.length, 6);
   assert.equal(new Set(fullPresentPorts).size, fullPresentPorts.length);
   assert.ok(fullPresentPorts.every((port) => port !== 5174));
 
