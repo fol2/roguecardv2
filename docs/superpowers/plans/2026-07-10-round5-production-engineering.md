@@ -2754,14 +2754,14 @@ API review: PASS.
   PR17 base/head/merge, the exact four source/test paths and three changed Linux
   baseline paths; it does not treat geometry or pixels as content data.
 
-- [ ] **Step 1: Activate the P2 content-table freeze**
+- [x] **Step 1: Activate the P2 content-table freeze**
 
 Append to `.superpowers/sdd/progress.md`: source SHA, `P2 content-table freeze:
 ACTIVE`, owner `PE`, and allowed parallel changes `assets and planning only`.
 Before each Task 10–15 commit, reject any concurrent content-table diff not
 owned by this PE sequence. FE work remains disjoint.
 
-- [ ] **Step 2: Add a failing fixture assertion before moving content**
+- [x] **Step 2: Add a failing fixture assertion before moving content**
 
 Add to `test/test_engine.js`:
 
@@ -2830,7 +2830,7 @@ rg 'ENOENT.*round5-content-oracle-v1\.json|round5-content-oracle-v1\.json.*ENOEN
 rm -f "$RED_LOG"
 ```
 
-- [ ] **Step 3: Implement deterministic projection helpers**
+- [x] **Step 3: Implement deterministic projection helpers**
 
 `capture-content-oracle.mjs` imports all 32 named exports and exports an
 import-safe `captureContentOracle()` function. Its CLI body runs only behind a
@@ -2919,13 +2919,13 @@ compare every intermediate return value, complete self mutation and RNG state.
 The test rejects an oracle missing this sequence or containing an unexpected
 AI error.
 
-- [ ] **Step 4: Capture the fixed engine digest**
+- [x] **Step 4: Capture the fixed engine digest**
 
 Run 300 seeded agent runs with seeds `2026071000..2026071299`, recording only
 terminal outcome, act, floor, HP, deck ids, relic ids and the engine RNG state.
 Hash the ordered canonical array. Do not use wall clock or UI events.
 
-- [ ] **Step 5: Generate and inspect the oracle once**
+- [x] **Step 5: Generate and inspect the oracle once**
 
 Run:
 
@@ -3014,7 +3014,7 @@ removes an exact clean source; forensic dirt or SHA drift blocks removal. The
 successful path calls the same cleanup and then disables the trap. Never use
 `--write` after the first content table moves.
 
-- [ ] **Step 6: Commit the before oracle**
+- [x] **Step 6: Commit the before oracle**
 
 ```bash
 set -euo pipefail
@@ -3022,6 +3022,37 @@ git add tools/capture-content-oracle.mjs test/fixtures/round5-content-oracle-v1.
 npm run test:round5:standing -- --profile p2-base
 git commit -m "test: freeze the pre-registry content oracle"
 ```
+
+**Task 10 closure evidence — 12 July 2026**
+
+- Implementation commit: `b41bd0efe7e4e86827b08542f6243bad1791ffe1`.
+- Exact committed scope: `tools/capture-content-oracle.mjs`,
+  `test/fixtures/round5-content-oracle-v1.json`, and
+  `test/test_engine.js`.
+- Frozen SHA-256 inputs: tool
+  `4ddb09cff7454a06c3fa7302b95cfec2b2eda11ba8d51fc8b5c14a73139618ee`,
+  test
+  `96efcda756dbf44f655b6a3aa4f3e4a8648540f9132d3501d6ba89854fb58270`,
+  and fixture
+  `d4c7dbb0b13928eef4b68d50982b0705bb08cf036629316ebc9002e257c8afe0`.
+- The detached exact-`9c4f7e5` `--check --expect-monolith` capture passed
+  and the clean source worktree was removed. Source and capture roots are
+  canonicalised through real paths, false capture checkouts and same-physical
+  symlink aliases are rejected, and provenance hashes the executing checkout.
+- The fixture contains 28 content views, four protocol exports, the 7/18/278
+  i18n inventories, all 29 AI definitions across 15,870 Cartesian cases, the
+  separated Sovereign caller-progression sequence, and 300 exact seven-field
+  engine records using `run.rngState`.
+- Final independent spec review: PASS with zero findings. Final independent
+  quality review: PASS with no Critical or Important findings. WebKit-safe API
+  review: PASS.
+- Final staged `p2-base` standing profile: PASS. Its first browser dependency
+  attempt timed out on a blank dev-server boot without changing source; the
+  isolated `bfeditor-disk` rerun passed 1/1 in 4.2 seconds, and the complete
+  staged rerun then passed every row. No snapshot was updated.
+- Stop point: Task 10 is complete. The P2 content-table freeze remains ACTIVE;
+  the next executor starts at Task 11 Step 1 and must not regenerate this
+  before-move oracle.
 
 ### Task 11: `[PE]` Implement the registry kernel, schemas and doctor
 
