@@ -1085,6 +1085,10 @@ export const events = {
         sub: "",
       },
     },
+    rolls: {
+      win: { text: "The bones land in your favour. You claim 110 gold." },
+      lose: { text: "The bones rattle against you. The wager is lost." },
+    },
   },
   mirror: {
     name: "The Silvered Mirror",

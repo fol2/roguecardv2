@@ -2202,7 +2202,7 @@ export function applyEventOps(run, ops, rng = runRng(run)) {
       for (const branch of op.roll) {
         acc += branch.p;
         if (r < acc) {
-          log.push({ text: branch.text });
+          if (branch.text) log.push({ text: branch.text });
           const sub = applyEventOps(run, branch.ops, rng);
           pending.push(...sub.pending);
           log.push(...sub.log);
