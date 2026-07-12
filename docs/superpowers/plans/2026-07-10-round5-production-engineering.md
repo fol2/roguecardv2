@@ -582,8 +582,11 @@ is unblocked; Tasks 3–4 remain retired tombstones.
   `test/test_module_boundaries.mjs`, `CONTEXT-MAP.md`,
   `docs/domain/climb/CONTEXT.md`, `docs/domain/vigil/CONTEXT.md`,
   `docs/README.md`
-- Permitted mutation/commit: exactly the three reviewed Darwin baseline files
-  named in Step 4; no product/source/Linux-baseline/`dist/**` mutation
+- Historical permitted mutation: exactly the three reviewed PR #17 Darwin
+  baseline files named in Step 4, already committed in ancestry.
+- Current permitted mutation/commit: exactly the three reviewed PR #21 reward
+  Darwin baseline files named in Step 5, in a baseline-only commit separate
+  from Task 9; no product/source/Linux-baseline/`dist/**` mutation
 
 **Interfaces:**
 - Produces: clean PR #14 + PR #15 + PR #16 + PR #18 + PR #7 + PR #17 +
@@ -592,8 +595,9 @@ is unblocked; Tasks 3–4 remain retired tombstones.
 - Status: the original `40eb357` re-entry and Darwin reconciliation are
   historical and complete. On 2026-07-11, `origin/main` advanced to `9c4f7e5`;
   the active continuation branch rebased onto that exact head. Step 5 is the
-  required modular-call-site reconciliation before Task 9 may close. Do not
-  replay Task 0; a later `main` change opens a new audit.
+  required modular-call-site and PR #21 Darwin reward-baseline reconciliation
+  before Task 9 may close. Do not replay Task 0; a later `main` change opens a
+  new audit.
 
 - [x] **Step 1: Recorded original final ancestry after Task 0 — historical transcript**
 
@@ -1070,6 +1074,84 @@ extracted owner. This is not new copy or a visual redesign. Required proofs:
 The source port is reviewed and committed with Task 9 because the final combat
 and composition owners do not exist before that extraction. Therefore Task 9's
 post-drift path gate supersedes its original twelve-path pre-drift gate.
+
+The first complete Darwin visual run of that reviewed source passed `45/48` and
+failed only the three pre-PR #21 reward captures below. PR #21 intentionally
+replaced the reward coin/card glyphs with `uiIcon('coin')`/`uiIcon('deck')` and
+updated the Linux desktop/portrait captures; the same approved wiring also
+changes the clipped landscape reward row. A fresh visual reviewer must inspect
+each existing Darwin image, actual and diff beside the approved PR #21 Linux
+captures and source contract. Any unexplained geometry, copy, colour, spacing,
+HUD or fourth-file change returns to the source review; it is not accepted as a
+baseline refresh.
+
+Only after that reviewer reports PASS, update and verify exactly:
+
+```bash
+set -euo pipefail
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test visual \
+  --project=desktop --project=portrait --project=landscape \
+  --grep 'reward screen' --update-snapshots --workers=1 --no-deps
+EXPECTED=$(printf '%s\n' \
+  test/e2e/visual.spec.js-snapshots/reward-desktop-darwin.png \
+  test/e2e/visual.spec.js-snapshots/reward-landscape-darwin.png \
+  test/e2e/visual.spec.js-snapshots/reward-portrait-darwin.png | sort)
+ACTUAL=$(git diff --name-only -- test/e2e/visual.spec.js-snapshots | sort)
+test "$ACTUAL" = "$EXPECTED"
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test visual \
+  --workers=1 --no-deps
+git diff --check
+```
+
+Expected: the complete visual suite passes `48/48`; exactly those three Darwin
+files change. Obtain a fresh review of the resulting images and exact path set,
+then close the baseline boundary mechanically while the twenty-two Task 9 paths
+remain dirty:
+
+```bash
+set -euo pipefail
+BASELINES=$(printf '%s\n' \
+  test/e2e/visual.spec.js-snapshots/reward-desktop-darwin.png \
+  test/e2e/visual.spec.js-snapshots/reward-landscape-darwin.png \
+  test/e2e/visual.spec.js-snapshots/reward-portrait-darwin.png | sort)
+git add -- $BASELINES
+test "$(git diff --cached --name-only | sort)" = "$BASELINES"
+git diff --cached --check
+git commit -m "test: reconcile PR21 Darwin reward baselines"
+
+TASK9=$(printf '%s\n' \
+  CONTEXT.md \
+  docs/README.md \
+  src/ui.js \
+  src/ui/combat.js \
+  src/ui/drain.js \
+  src/ui/index.js \
+  src/ui/overlay.js \
+  src/ui/probe.js \
+  src/ui/screens/end.js \
+  src/ui/screens/event.js \
+  src/ui/screens/lamplighter.js \
+  src/ui/screens/map.js \
+  src/ui/screens/rest.js \
+  src/ui/screens/reward.js \
+  src/ui/screens/shop.js \
+  src/ui/screens/title.js \
+  test/e2e/audio.spec.js \
+  test/e2e/helpers.js \
+  test/e2e/trace-fixture.js \
+  test/e2e/trace.spec.js \
+  test/test_engine.js \
+  test/test_module_boundaries.mjs | sort)
+DIRTY=$({ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u)
+test "$DIRTY" = "$TASK9"
+BRANCH=$(git branch --show-current)
+git push origin "HEAD:$BRANCH"
+test "$(git rev-parse HEAD)" = \
+  "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')"
+```
+
+Only then return to Task 9. Its source commit remains exactly the declared
+twenty-two paths and never absorbs these baselines.
 
 ### Task 2: `[FE]` Bounded Round 5 experience contract — completed proposal
 
