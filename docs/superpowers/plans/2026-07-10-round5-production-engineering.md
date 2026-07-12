@@ -3499,7 +3499,7 @@ npm run test:round5:standing -- --profile p2-base
   performs one atomic cut-over. Each subtask gets its own fresh spec/quality
   review before the next begins.
 
-- [ ] **Step 1 (12A): Add the live-oracle comparison before moving the first table**
+- [x] **Step 1 (12A): Add the live-oracle comparison before moving the first table**
 
 Import the already export-safe oracle helper and add:
 
@@ -3524,7 +3524,7 @@ Run `npm test`; expected PASS before the move, proving the comparison is wired.
 Do not add the final cut-over assertion yet; `src/data.js` remains the live
 monolith while candidates are compared independently.
 
-- [ ] **Step 2 (12A): Copy and compare every candidate domain while live data stays green**
+- [x] **Step 2 (12A): Copy and compare every candidate domain while live data stays green**
 
 First create import-safe `tools/check-core-candidate.mjs`; `--all` initially
 fails because the candidate files are absent. It imports live `src/data.js`,
@@ -3621,7 +3621,7 @@ alter rendering in this move. They still must be complete enough for
 Task 13 will publish; keep the exact legacy numeric/hex values separately in
 `legacyAct.theme` for the 28-content-view oracle leg.
 
-- [ ] **Step 3 (12A): Define and validate the complete candidate context**
+- [x] **Step 3 (12A): Define and validate the complete candidate context**
 
 `src/packs/core/index.js` calls `definePack()` once with id `core` and the
 policy-domain names from Task 11. Theme order is `act1`, `act2`, `act3`; each
@@ -3644,7 +3644,7 @@ exports its `.context` as `CORE_CONTENT` plus compiled provenance privately.
 The engine monte-carlo remains on the live monolith until the atomic cut-over.
 Expected: green before cut-over.
 
-- [ ] **Step 4 (12A): Commit the reviewed candidate without changing the live graph**
+- [x] **Step 4 (12A): Commit the reviewed candidate without changing the live graph**
 
 Obtain fresh reviews of the candidate projection, freeze/accessor rules and
 progression derivation, then commit only the candidate/tool/test paths and run
