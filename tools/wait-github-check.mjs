@@ -6,11 +6,20 @@ import { pathToFileURL } from 'node:url';
 
 const DEFAULT_TIMEOUT_MS = 600000;
 const DEFAULT_POLL_MS = 15000;
+const COMMAND_TIMEOUT_CODE = 124;
 
-export function runCommand(argv) {
+class WaitTimeoutError extends Error {
+  constructor(checkName, timeoutMs) {
+    super(`Timed out waiting for GitHub check ${checkName} after ${timeoutMs} ms`);
+    this.name = 'WaitTimeoutError';
+  }
+}
+
+export function runCommand(argv, { timeoutMs = null } = {}) {
   if (!Array.isArray(argv) || argv.length === 0) {
     throw new TypeError('runCommand requires a non-empty argv array');
   }
+  const timeout = timeoutMs === null ? null : validateDuration(timeoutMs, 'timeoutMs');
   return new Promise((resolveCommand) => {
     const child = spawn(argv[0], argv.slice(1), {
       shell: false,
@@ -18,15 +27,41 @@ export function runCommand(argv) {
     });
     let stdout = '';
     let stderr = '';
-    child.stdout.setEncoding('utf8');
-    child.stderr.setEncoding('utf8');
-    child.stdout.on('data', (chunk) => { stdout += chunk; });
-    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    let settled = false;
+    let timeoutId = null;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      resolveCommand(result);
+    };
+    if (timeout !== null) {
+      timeoutId = setTimeout(() => {
+        const detail = `command timed out after ${timeout} ms: ${argv.join(' ')}`;
+        try { child.kill('SIGKILL'); } catch {}
+        finish({
+          code: COMMAND_TIMEOUT_CODE,
+          stdout,
+          stderr: stderr ? `${stderr}\n${detail}` : detail,
+          timedOut: true,
+        });
+      }, timeout);
+      timeoutId.unref?.();
+    }
+    child.stdout?.setEncoding('utf8');
+    child.stderr?.setEncoding('utf8');
+    child.stdout?.on('data', (chunk) => { stdout += chunk; });
+    child.stderr?.on('data', (chunk) => { stderr += chunk; });
     child.on('error', (error) => {
-      resolveCommand({ code: 127, stdout, stderr: stderr || error.message });
+      finish({ code: 127, stdout, stderr: stderr || error.message });
     });
-    child.on('close', (code) => {
-      resolveCommand({ code: Number.isInteger(code) ? code : 1, stdout, stderr });
+    child.on('close', (code, signal) => {
+      finish({
+        code: Number.isInteger(code) ? code : 1,
+        stdout,
+        stderr,
+        signal: signal ?? null,
+      });
     });
   });
 }
@@ -37,25 +72,12 @@ function trimSha(value, label) {
   return sha;
 }
 
-async function checkedStdout(runCommandImpl, argv, label) {
-  const result = await runCommandImpl(argv);
+function checkedStdoutResult(result, label) {
   if (result.code !== 0) {
     const detail = String(result.stderr || result.stdout || '').trim();
     throw new Error(`${label} failed${detail ? `: ${detail}` : ''}`);
   }
   return String(result.stdout || '').trim();
-}
-
-async function defaultGitStatusPorcelain(runCommandImpl) {
-  return checkedStdout(runCommandImpl, ['git', 'status', '--porcelain'], 'git status --porcelain');
-}
-
-async function defaultHeadSha(runCommandImpl) {
-  return checkedStdout(runCommandImpl, ['git', 'rev-parse', 'HEAD'], 'git rev-parse HEAD');
-}
-
-async function defaultUpstreamSha(runCommandImpl) {
-  return checkedStdout(runCommandImpl, ['git', 'rev-parse', '@{upstream}'], 'git rev-parse @{upstream}');
 }
 
 function parseChecks(stdout) {
@@ -66,12 +88,14 @@ function parseChecks(stdout) {
 }
 
 function parseChecksResult(result) {
+  if (result.code !== 0) {
+    const detail = String(result.stderr || result.stdout || '').trim();
+    throw new Error(`gh check-runs failed with exit code ${result.code}${detail ? `: ${detail}` : ''}`);
+  }
   try {
     return parseChecks(result.stdout);
   } catch (error) {
-    if (result.code === 0) throw error;
-    const detail = String(result.stderr || result.stdout || '').trim();
-    throw new Error(`gh pr checks failed${detail ? `: ${detail}` : ''}`);
+    throw new Error(`gh check-runs returned invalid JSON: ${error.message}`);
   }
 }
 
@@ -103,38 +127,78 @@ export async function waitGithubCheck({
   sleep = (ms) => new Promise((resolveSleep) => { setTimeout(resolveSleep, ms); }),
   now = () => Date.now(),
   runCommand: runCommandImpl = runCommand,
-  getGitStatusPorcelain = () => defaultGitStatusPorcelain(runCommandImpl),
-  getHeadSha = () => defaultHeadSha(runCommandImpl),
-  getUpstreamSha = () => defaultUpstreamSha(runCommandImpl),
+  getGitStatusPorcelain = null,
+  getHeadSha = null,
+  getUpstreamSha = null,
 } = {}) {
   if (typeof checkName !== 'string' || checkName.length === 0) {
     throw new TypeError('waitGithubCheck requires a non-empty checkName');
   }
   const timeout = validateDuration(timeoutMs, 'timeoutMs');
   const poll = validateDuration(pollMs, 'pollMs');
-  const headSha = trimSha(sha ?? await getHeadSha(), 'HEAD');
-  const porcelain = String(await getGitStatusPorcelain());
-  if (porcelain.trim()) throw new Error('Cannot wait for GitHub checks with a dirty working tree');
-  const upstreamSha = trimSha(await getUpstreamSha(), 'upstream');
-  if (upstreamSha !== headSha) {
-    throw new Error(`HEAD ${headSha} is not pushed to upstream ${upstreamSha}`);
-  }
-  const ghVersion = await runCommandImpl(['gh', '--version']);
-  if (ghVersion.code !== 0) {
-    const detail = String(ghVersion.stderr || ghVersion.stdout || '').trim();
-    throw new Error(`gh CLI is required to wait for GitHub checks${detail ? `: ${detail}` : ''}`);
-  }
-
   const started = now();
-  for (;;) {
-    const checks = await runCommandImpl(['gh', 'pr', 'checks', '--json', 'name,state,link']);
-    const match = parseChecksResult(checks).find((row) => row?.name === checkName);
-    if (match) {
-      const outcome = normalizeCheck(match);
-      if (outcome.done) return Object.freeze({ status: outcome.status, ...(outcome.url ? { url: outcome.url } : {}) });
+  const timeoutError = () => new WaitTimeoutError(checkName, timeout);
+  const remainingMs = () => timeout - (now() - started);
+  const withDeadline = async (action) => {
+    const remaining = remainingMs();
+    if (remaining <= 0) throw timeoutError();
+    let timeoutId = null;
+    try {
+      const result = await Promise.race([
+        Promise.resolve().then(action),
+        new Promise((_resolve, reject) => {
+          timeoutId = setTimeout(() => { reject(timeoutError()); }, remaining);
+        }),
+      ]);
+      if (remainingMs() < 0) throw timeoutError();
+      return result;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
-    if (now() - started > timeout) return Object.freeze({ status: 1 });
-    await sleep(poll);
+  };
+  const boundedCommand = (argv) => {
+    const remaining = remainingMs();
+    if (remaining <= 0) throw timeoutError();
+    return withDeadline(() => runCommandImpl(argv, { timeoutMs: remaining }));
+  };
+  const checkedStdout = async (argv, label) => checkedStdoutResult(await boundedCommand(argv), label);
+  const checkedValue = async (override, argv, label) => String(
+    override
+      ? await withDeadline(() => override())
+      : await checkedStdout(argv, label),
+  ).trim();
+
+  try {
+    const headSha = trimSha(sha ?? await checkedValue(getHeadSha, ['git', 'rev-parse', 'HEAD'], 'git rev-parse HEAD'), 'HEAD');
+    const porcelain = String(await checkedValue(getGitStatusPorcelain, ['git', 'status', '--porcelain'], 'git status --porcelain'));
+    if (porcelain.trim()) throw new Error('Cannot wait for GitHub checks with a dirty working tree');
+    const upstreamSha = trimSha(await checkedValue(getUpstreamSha, ['git', 'rev-parse', '@{upstream}'], 'git rev-parse @{upstream}'), 'upstream');
+    if (upstreamSha !== headSha) {
+      throw new Error(`HEAD ${headSha} is not pushed to upstream ${upstreamSha}`);
+    }
+    const ghVersion = await boundedCommand(['gh', '--version']);
+    if (ghVersion.code !== 0) {
+      const detail = String(ghVersion.stderr || ghVersion.stdout || '').trim();
+      throw new Error(`gh CLI is required to wait for GitHub checks${detail ? `: ${detail}` : ''}`);
+    }
+
+    const endpoint = `repos/{owner}/{repo}/commits/${headSha}/check-runs?per_page=100`;
+    for (;;) {
+      const checks = await boundedCommand([
+        'gh', 'api', '--method', 'GET', endpoint, '--header', 'Accept: application/vnd.github+json',
+      ]);
+      const match = parseChecksResult(checks).find((row) => row?.name === checkName);
+      if (match) {
+        const outcome = normalizeCheck(match);
+        if (outcome.done) return Object.freeze({ status: outcome.status, ...(outcome.url ? { url: outcome.url } : {}) });
+      }
+      const remaining = remainingMs();
+      if (remaining <= 0) throw timeoutError();
+      await withDeadline(() => sleep(Math.min(poll, remaining)));
+    }
+  } catch (error) {
+    if (error instanceof WaitTimeoutError) return Object.freeze({ status: 1 });
+    throw error;
   }
 }
 

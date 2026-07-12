@@ -5,8 +5,15 @@ import { pathToFileURL } from 'node:url';
 import { allocateStrictE2EPort } from './run-with-strict-e2e-port.mjs';
 import { e2eServerSettings } from '../playwright-server.js';
 
-const command = (argv, { playwright = false, optional = false } = {}) =>
-  Object.freeze({ argv: Object.freeze(argv), playwright, optional });
+const WAIT_GITHUB_CHECK_TIMEOUT_MS = 600000;
+
+const command = (argv, { playwright = false, optional = false, timeoutMs = null } = {}) =>
+  Object.freeze({
+    argv: Object.freeze(argv),
+    playwright,
+    optional,
+    ...(timeoutMs === null ? {} : { timeoutMs }),
+  });
 
 const CI = command(['npm', 'run', 'test:ci']);
 const NODE = command(['npm', 'test']);
@@ -15,8 +22,8 @@ const TRACE = command(
   { playwright: true },
 );
 const WAIT_P2_BASE = command([
-  'node', 'tools/wait-github-check.mjs', '--check', 'p2-base', '--timeout-ms', '600000',
-]);
+  'node', 'tools/wait-github-check.mjs', '--check', 'p2-base', '--timeout-ms', String(WAIT_GITHUB_CHECK_TIMEOUT_MS),
+], { timeoutMs: WAIT_GITHUB_CHECK_TIMEOUT_MS });
 const TRACE_PRODUCTION = command(['npm', 'run', 'test:e2e:trace-production'], { playwright: true });
 const NONVISUAL = command(['npm', 'run', 'test:e2e:nonvisual'], { playwright: true });
 const PROGRESSION = command(['npm', 'run', 'test:progression']);
@@ -96,6 +103,7 @@ export async function runStandingGates({
       shell: false,
       stdio: 'inherit',
       env: portEnvironment(env, port),
+      ...(Number.isFinite(row.timeoutMs) ? { timeout: row.timeoutMs } : {}),
     });
     const status = Number.isInteger(child?.status) ? child.status : 1;
     const result = Object.freeze({

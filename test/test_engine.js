@@ -1193,14 +1193,17 @@ function forceHand(run, cb, ids) {
   const p2BaseResult = await runStandingGates({
     profile: 'p2-base',
     allocatePort: async () => { throw new Error('p2-base profile allocated a port'); },
-    spawn: (executable, args) => {
-      p2BaseSpawned.push([executable, ...args]);
+    spawn: (executable, args, options) => {
+      p2BaseSpawned.push({ argv: [executable, ...args], options });
       return { status: 0, signal: null };
     },
     record: () => {},
   });
   assert.equal(p2BaseResult.status, 0);
-  assert.deepEqual(p2BaseSpawned, commands['p2-base']);
+  assert.deepEqual(p2BaseSpawned.map((call) => call.argv), commands['p2-base']);
+  assert.equal(p2BaseSpawned[0].options.timeout, undefined);
+  assert.equal(p2BaseSpawned[1].options.timeout, undefined);
+  assert.equal(p2BaseSpawned[2].options.timeout, 600000);
 
   let fullPort = 62000;
   const fullSpawned = [];
@@ -1262,7 +1265,19 @@ function forceHand(run, cb, ids) {
   await assert.rejects(runStandingGates({ profile: 'not-a-profile' }), /Unknown standing-gate profile/);
 }
 {
-  const { waitGithubCheck } = await import('../tools/wait-github-check.mjs');
+  const { runCommand, waitGithubCheck } = await import('../tools/wait-github-check.mjs');
+  const cleanRepo = Object.freeze({
+    getGitStatusPorcelain: () => '',
+    getHeadSha: () => 'abc123',
+    getUpstreamSha: () => 'abc123',
+  });
+  const ghVersionOk = { code: 0, stdout: 'gh version 2.0.0', stderr: '' };
+  const killedCommand = await runCommand([
+    process.execPath, '--eval', 'setInterval(() => {}, 1000)',
+  ], { timeoutMs: 20 });
+  assert.equal(killedCommand.code, 124);
+  assert.equal(killedCommand.timedOut, true);
+  assert.match(killedCommand.stderr, /command timed out after 20 ms/);
   await assert.rejects(
     () => waitGithubCheck({
       checkName: 'p2-base',
@@ -1283,20 +1298,108 @@ function forceHand(run, cb, ids) {
     }),
     /not pushed|upstream/i,
   );
+  await assert.rejects(
+    () => waitGithubCheck({
+      checkName: 'p2-base',
+      ...cleanRepo,
+      runCommand: async (argv) => {
+        if (argv[0] === 'gh' && argv[1] === '--version') return { code: 127, stdout: '', stderr: 'gh: command not found' };
+        return { code: 0, stdout: '', stderr: '' };
+      },
+    }),
+    /gh CLI is required.*command not found/i,
+  );
+  await assert.rejects(
+    () => waitGithubCheck({
+      checkName: 'p2-base',
+      ...cleanRepo,
+      runCommand: async (argv) => {
+        if (argv[0] === 'gh' && argv[1] === '--version') return ghVersionOk;
+        if (argv[0] === 'gh' && argv[1] === 'api') return { code: 1, stdout: '[]', stderr: '' };
+        return { code: 0, stdout: '', stderr: '' };
+      },
+    }),
+    /gh check-runs failed with exit code 1/i,
+  );
+  const failed = await waitGithubCheck({
+    checkName: 'p2-base',
+    timeoutMs: 1000,
+    pollMs: 10,
+    ...cleanRepo,
+    runCommand: async (argv) => {
+      if (argv[0] === 'gh' && argv[1] === '--version') return ghVersionOk;
+      if (argv[0] === 'gh' && argv[1] === 'api') {
+        return {
+          code: 0,
+          stdout: JSON.stringify({
+            check_runs: [{
+              name: 'p2-base',
+              status: 'completed',
+              conclusion: 'failure',
+              html_url: 'https://example/fail',
+            }],
+          }),
+          stderr: '',
+        };
+      }
+      return { code: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.equal(failed.status, 1);
+  assert.equal(failed.url, 'https://example/fail');
+  let clock = 0;
+  const slept = [];
+  const timedOut = await waitGithubCheck({
+    checkName: 'p2-base',
+    timeoutMs: 25,
+    pollMs: 10,
+    now: () => clock,
+    sleep: async (ms) => { slept.push(ms); clock += ms; },
+    ...cleanRepo,
+    runCommand: async (argv) => {
+      if (argv[0] === 'gh' && argv[1] === '--version') return ghVersionOk;
+      if (argv[0] === 'gh' && argv[1] === 'api') return { code: 0, stdout: JSON.stringify({ check_runs: [] }), stderr: '' };
+      return { code: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.equal(timedOut.status, 1);
+  assert.deepEqual(slept, [10, 10, 5]);
+  const hungStarted = Date.now();
+  const hung = await waitGithubCheck({
+    checkName: 'p2-base',
+    timeoutMs: 20,
+    pollMs: 1,
+    ...cleanRepo,
+    runCommand: async (argv) => {
+      if (argv[0] === 'gh' && argv[1] === '--version') return ghVersionOk;
+      if (argv[0] === 'gh' && argv[1] === 'api') return new Promise(() => {});
+      return { code: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.equal(hung.status, 1);
+  assert.ok(Date.now() - hungStarted < 500, 'hung gh command is bounded by the wait timeout');
+  const apiCalls = [];
   const ok = await waitGithubCheck({
     checkName: 'p2-base',
     timeoutMs: 1000,
     pollMs: 10,
     now: (() => { let t = 0; return () => { t += 5; return t; }; })(),
     sleep: async () => {},
-    getGitStatusPorcelain: () => '',
-    getHeadSha: () => 'abc123',
-    getUpstreamSha: () => 'abc123',
+    ...cleanRepo,
     runCommand: async (argv) => {
-      if (argv[0] === 'gh' && argv.includes('checks')) {
+      if (argv[0] === 'gh' && argv[1] === '--version') return ghVersionOk;
+      if (argv[0] === 'gh' && argv[1] === 'api') {
+        apiCalls.push(argv);
         return {
           code: 0,
-          stdout: JSON.stringify([{ name: 'p2-base', state: 'SUCCESS', link: 'https://example/run' }]),
+          stdout: JSON.stringify({
+            check_runs: [{
+              name: 'p2-base',
+              status: 'completed',
+              conclusion: 'success',
+              html_url: 'https://example/run',
+            }],
+          }),
           stderr: '',
         };
       }
@@ -1304,6 +1407,11 @@ function forceHand(run, cb, ids) {
     },
   });
   assert.equal(ok.status, 0);
+  assert.equal(ok.url, 'https://example/run');
+  assert.equal(apiCalls.length, 1);
+  assert.deepEqual(apiCalls[0].slice(0, 4), ['gh', 'api', '--method', 'GET']);
+  assert.match(apiCalls[0][4], /repos\/\{owner\}\/\{repo\}\/commits\/abc123\/check-runs\?per_page=100/);
+  assert.equal(apiCalls[0].includes('checks'), false);
 }
 
 // ---- unit checks -----------------------------------------------------------
