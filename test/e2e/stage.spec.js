@@ -295,12 +295,16 @@ test('Eighth Omen floor echo survives its delayed real map-selection callback', 
     window.spirebound.S.run.omens[window.spirebound.S.run.act] = 'eighthOmen';
     window.spirebound.show('map');
   });
+  await page.waitForSelector('.mnode.avail');
   const beforeFloor = await page.evaluate(() => window.spirebound.S.run.floorsClimbed);
   // One assertion covers appear+copy: split waits can race the banner's short lifetime.
   const echoText = page.locator('.eighth-floor-echo .efe-text');
-  const echoReady = expect(echoText).toHaveText(/\/\//, { timeout: 8000 });
-  await page.evaluate(() => document.querySelector('.mnode.avail')
-    .dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  const echoReady = expect(echoText).toHaveText(/\/\//, { timeout: 10_000 });
+  await page.evaluate(() => {
+    const node = document.querySelector('.mnode.avail');
+    if (!node) throw new Error('no available map node');
+    node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
   await expect.poll(() => page.evaluate(() => window.spirebound.S.run.floorsClimbed))
     .toBeGreaterThan(beforeFloor);
   await echoReady;

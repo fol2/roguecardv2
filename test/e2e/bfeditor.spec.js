@@ -35,7 +35,9 @@ async function openBfEditor(page, params = {}) {
     mesh: '0',
     ...params,
   });
-  await page.goto(`/?${query.toString()}`);
+  // bf-editor pushScenarioToUrl() replaceState during boot interrupts Playwright's
+  // default waitUntil:'load' — settle on DOM then wait for the editor probe.
+  await page.goto(`/?${query.toString()}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => Boolean(
     typeof window.__bfEditor?.resolved === 'function'
     && typeof window.__bfEditor?.working === 'function'

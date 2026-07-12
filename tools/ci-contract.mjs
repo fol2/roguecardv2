@@ -3,9 +3,9 @@ import { pathToFileURL } from 'node:url';
 
 const UNIT_LANES = ['changes', 'unit-tests', 'build-dist'];
 const SMOKE_LANES = ['changes', 'smoke-e2e'];
-const FULL_E2E_LANES = ['changes', 'e2e-disk', 'e2e-random', 'e2e-main', 'e2e-serial', 'e2e-visual'];
+const FULL_E2E_LANES = ['changes', 'e2e-aux', 'e2e-random', 'e2e-main', 'e2e-visual'];
 const P2_BASE_E2E_LANES = [
-  'changes', 'e2e-disk', 'e2e-random', 'e2e-main', 'e2e-serial', 'e2e-trace-production',
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-main',
 ];
 const P2_BASE_GATE_LANES = ['changes', 'unit', 'e2e-nonvisual', 'progression'];
 
