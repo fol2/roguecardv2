@@ -1154,7 +1154,7 @@ function forceHand(run, cb, ids) {
       ['npm', 'run', 'test:e2e:trace-production'],
     ],
     'p1-complete': [['npm', 'run', 'test:ci'], ['npm', 'test'], ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'], ['npm', 'run', 'test:e2e:trace-production'], ['npm', 'run', 'test:e2e:nonvisual']],
-    'p2-base': [['npm', 'run', 'test:ci'], ['npm', 'test'], ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'], ['npm', 'run', 'test:e2e:trace-production'], ['npm', 'run', 'test:e2e:nonvisual'], ['npm', 'run', 'test:progression']],
+    'p2-base': [['npm', 'run', 'test:ci'], ['npm', 'test'], ['node', 'tools/wait-github-check.mjs', '--check', 'p2-base', '--timeout-ms', '600000']],
     p2: [['npm', 'run', 'test:ci'], ['npm', 'test'], ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'], ['npm', 'run', 'test:e2e:trace-production'], ['npm', 'run', 'test:e2e:nonvisual'], ['npm', 'run', 'test:progression'], ['npm', 'run', 'test:content-registrations'], ['npm', 'run', 'test:act-coupling']],
     p3: [['npm', 'run', 'test:ci'], ['npm', 'test'], ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'], ['npm', 'run', 'test:e2e:trace-production'], ['npm', 'run', 'test:e2e:nonvisual'], ['npm', 'run', 'test:progression'], ['npm', 'run', 'test:content-registrations'], ['npm', 'run', 'test:act-coupling'], ['node', 'tools/verify-production-surface.mjs'], ['npm', 'run', 'test:e2e:content-disk']],
     p4: [['npm', 'run', 'test:ci'], ['npm', 'test'], ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'], ['npm', 'run', 'test:e2e:trace-production'], ['npm', 'run', 'test:e2e:nonvisual'], ['npm', 'run', 'test:progression'], ['npm', 'run', 'test:content-registrations'], ['npm', 'run', 'test:act-coupling'], ['node', 'tools/verify-production-surface.mjs'], ['npm', 'run', 'test:e2e:content-disk'], ['npm', 'run', 'test:e2e:webkit'], ['npm', 'run', 'test:e2e:perf'], ['node', 'tools/check-bundle-budget.mjs']],
@@ -1188,6 +1188,19 @@ function forceHand(run, cb, ids) {
   assert.deepEqual(spawned.filter((call) => call.options.env.SPIREBOUND_E2E_PORT).map((call) => Number(call.options.env.SPIREBOUND_E2E_PORT)), [61001, 61002]);
   assert.ok(spawned.every((call) => call.options.shell === false));
   assert.deepEqual(recorded.map((row) => row.status), [0, 0, 0, 0]);
+
+  const p2BaseSpawned = [];
+  const p2BaseResult = await runStandingGates({
+    profile: 'p2-base',
+    allocatePort: async () => { throw new Error('p2-base profile allocated a port'); },
+    spawn: (executable, args) => {
+      p2BaseSpawned.push([executable, ...args]);
+      return { status: 0, signal: null };
+    },
+    record: () => {},
+  });
+  assert.equal(p2BaseResult.status, 0);
+  assert.deepEqual(p2BaseSpawned, commands['p2-base']);
 
   let fullPort = 62000;
   const fullSpawned = [];
@@ -1247,6 +1260,50 @@ function forceHand(run, cb, ids) {
   assert.equal(failFast.status, 7);
   assert.equal(failures, 1);
   await assert.rejects(runStandingGates({ profile: 'not-a-profile' }), /Unknown standing-gate profile/);
+}
+{
+  const { waitGithubCheck } = await import('../tools/wait-github-check.mjs');
+  await assert.rejects(
+    () => waitGithubCheck({
+      checkName: 'p2-base',
+      getGitStatusPorcelain: () => ' M src/x.js',
+      getHeadSha: () => 'abc',
+      getUpstreamSha: () => 'abc',
+      runCommand: async () => ({ code: 0, stdout: '', stderr: '' }),
+    }),
+    /dirty working tree/i,
+  );
+  await assert.rejects(
+    () => waitGithubCheck({
+      checkName: 'p2-base',
+      getGitStatusPorcelain: () => '',
+      getHeadSha: () => 'abc',
+      getUpstreamSha: () => 'def',
+      runCommand: async () => ({ code: 0, stdout: '', stderr: '' }),
+    }),
+    /not pushed|upstream/i,
+  );
+  const ok = await waitGithubCheck({
+    checkName: 'p2-base',
+    timeoutMs: 1000,
+    pollMs: 10,
+    now: (() => { let t = 0; return () => { t += 5; return t; }; })(),
+    sleep: async () => {},
+    getGitStatusPorcelain: () => '',
+    getHeadSha: () => 'abc123',
+    getUpstreamSha: () => 'abc123',
+    runCommand: async (argv) => {
+      if (argv[0] === 'gh' && argv.includes('checks')) {
+        return {
+          code: 0,
+          stdout: JSON.stringify([{ name: 'p2-base', state: 'SUCCESS', link: 'https://example/run' }]),
+          stderr: '',
+        };
+      }
+      return { code: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.equal(ok.status, 0);
 }
 
 // ---- unit checks -----------------------------------------------------------

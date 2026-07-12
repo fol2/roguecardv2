@@ -14,6 +14,9 @@ const TRACE = command(
   ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'],
   { playwright: true },
 );
+const WAIT_P2_BASE = command([
+  'node', 'tools/wait-github-check.mjs', '--check', 'p2-base', '--timeout-ms', '600000',
+]);
 const TRACE_PRODUCTION = command(['npm', 'run', 'test:e2e:trace-production'], { playwright: true });
 const NONVISUAL = command(['npm', 'run', 'test:e2e:nonvisual'], { playwright: true });
 const PROGRESSION = command(['npm', 'run', 'test:progression']);
@@ -36,7 +39,7 @@ export const STANDING_GATE_PROFILES = Object.freeze({
   'p1-node': freezeProfile([CI, NODE]),
   'p1-dom': freezeProfile([CI, NODE, TRACE, TRACE_PRODUCTION]),
   'p1-complete': freezeProfile([CI, NODE, TRACE, TRACE_PRODUCTION, NONVISUAL]),
-  'p2-base': freezeProfile([CI, NODE, TRACE, TRACE_PRODUCTION, NONVISUAL, PROGRESSION]),
+  'p2-base': freezeProfile([CI, NODE, WAIT_P2_BASE]),
   p2: freezeProfile([CI, NODE, TRACE, TRACE_PRODUCTION, NONVISUAL, PROGRESSION, REGISTRATIONS, ACT_COUPLING]),
   p3: freezeProfile([CI, NODE, TRACE, TRACE_PRODUCTION, NONVISUAL, PROGRESSION, REGISTRATIONS, ACT_COUPLING, PRODUCTION_SURFACE, CONTENT_DISK]),
   p4: freezeProfile([CI, NODE, TRACE, TRACE_PRODUCTION, NONVISUAL, PROGRESSION, REGISTRATIONS, ACT_COUPLING, PRODUCTION_SURFACE, CONTENT_DISK, WEBKIT, PERF, BUNDLE]),
