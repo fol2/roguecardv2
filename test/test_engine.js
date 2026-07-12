@@ -1,8 +1,11 @@
 // Engine self-check: unit math + asset manifest + monte-carlo random-agent full runs.
 import assert from 'node:assert';
-import { readFileSync, readdirSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { inflateSync } from 'node:zlib';
 import { createServer as createViteServer } from 'vite';
 import {
@@ -55,6 +58,195 @@ import {
 import {
   STANDING_GATE_PROFILES, runStandingGates,
 } from '../tools/run-round5-standing-gates.mjs';
+import {
+  CONTENT_EXPORT_NAMES, PROTOCOL_EXPORT_NAMES, canonicalise, canonicalJson,
+  assertCaptureWorktreeIdentity, captureContentOracle, descriptorInventory,
+  inspectExactSourceRoot, inspectSourceRoot,
+} from '../tools/capture-content-oracle.mjs';
+
+{
+  const oracle = JSON.parse(readFileSync(new URL('./fixtures/round5-content-oracle-v1.json', import.meta.url), 'utf8'));
+  assert.equal(oracle.version, 1);
+  assert.equal(oracle.contentExports.length, 28);
+  assert.deepEqual(oracle.contentExports.map((row) => row.name), CONTENT_EXPORT_NAMES);
+  assert.equal(PROTOCOL_EXPORT_NAMES.length, 4);
+  assert.deepEqual(Object.keys(oracle.protocolExports), [
+    'QUEST_STATES', 'QUEST_ACTIVE_STATES', 'TERMINAL_OUTCOMES', 'RUN_ID_RE',
+  ]);
+  assert.deepEqual(oracle.protocolExports.QUEST_STATES, ['dormant', 'armed', 'revealed', 'complete']);
+  assert.deepEqual(oracle.protocolExports.QUEST_ACTIVE_STATES, ['armed', 'revealed']);
+  assert.deepEqual(oracle.protocolExports.TERMINAL_OUTCOMES, ['win', 'death', 'abandon']);
+  const runIdPattern = new RegExp(
+    oracle.protocolExports.RUN_ID_RE.source, oracle.protocolExports.RUN_ID_RE.flags,
+  );
+  for (const id of ['run-alpha-1', 'legacy-abc-def', 'run-a-b-c-d']) assert.match(id, runIdPattern);
+  for (const id of ['run-a', '__proto__', 'run-a-b-c-d-e', 'RUN-a-b']) assert.doesNotMatch(id, runIdPattern);
+  assert.equal(oracle.enemyAi.length, Object.values(ENEMIES).filter((e) => e.ai).length);
+  assert.equal(oracle.shadeAi.length, Object.values(SHADE_KITS).filter((e) => e.ai).length);
+  assert.equal(oracle.enemyAi.length + oracle.shadeAi.length, 29);
+  assert.ok([...oracle.enemyAi, ...oracle.shadeAi].every((row) => row.arity === 1));
+  assert.deepEqual(oracle.i18n.apis, [
+    'getContent', 'getLocale', 'hydrateContent', 'lookup',
+    'registerLocale', 'setLocale', 't',
+  ]);
+  assert.equal(oracle.i18n.defaultLocale, 'en');
+  assert.equal(Object.keys(oracle.i18n.domains).length, 18);
+  assert.equal(oracle.i18n.uiLeafCount, 278);
+  assert.match(oracle.i18n.catalogueSha256, /^[a-f0-9]{64}$/);
+  assert.ok(oracle.i18n.hydratedAliases.some((paths) =>
+    paths.includes('ASPECTS.0') && paths.includes('PLAYER')));
+  assert.match(oracle.rawMechanics.sha256, /^[a-f0-9]{64}$/);
+  assert.match(oracle.rawMechanics.descriptorSha256, /^[a-f0-9]{64}$/);
+  assert.equal(oracle.rawMechanics.value.CARDS.strike.name, undefined);
+  assert.equal(oracle.rawMechanics.value.CARDS.strike.type, CARDS.strike.type);
+  assert.ok(oracle.rawMechanics.mechanicsPaths.includes('CARDS.strike.type'));
+  assert.ok(oracle.rawMechanics.localeOwnedPaths.includes('CARDS.strike.name'));
+  assert.ok(oracle.rawMechanics.localeOwnedPaths.includes('ACTS.0.bossName'));
+  assert.ok(oracle.rawMechanics.localeOwnedPaths.includes('ASPECTS.0.blurb'));
+  assert.ok(oracle.rawMechanics.mechanicsPaths.every((path) => !/^(?:src|test)\//.test(path)));
+  assert.ok(oracle.rawMechanics.localeOwnedPaths.every((path) => !/^(?:src|test)\//.test(path)));
+  assert.deepEqual(oracle.descriptors.accessors, [{
+    path: 'QUESTS.hollowLamplighter.target', value: QUESTS.hollowLamplighter.target,
+  }]);
+  assert.match(oracle.monteCarlo.sha256, /^[a-f0-9]{64}$/);
+  assert.deepEqual(oracle.monteCarlo.seeds, [2026071000, 2026071299]);
+  assert.equal(oracle.monteCarlo.count, 300);
+  assert.equal(oracle.monteCarlo.records.length, 300);
+  assert.ok(oracle.monteCarlo.records.every((row) =>
+    canonicalJson(Object.keys(row).sort()) === canonicalJson([
+      'act', 'deckIds', 'engineRngState', 'floor', 'hp', 'outcome', 'relicIds',
+    ])));
+  assert.deepEqual(oracle.sovereignSequence.map((row) => row.returned), [
+    'ascend', 'starfall', 'ruin', 'annihilation',
+  ]);
+  assert.equal(oracle.sovereignSequence[0].self.moveKey, null,
+    'Sovereign post-call snapshot precedes harness progression');
+  assert.ok(oracle.sovereignSequence.every((row) =>
+    row.progression.moveKey === row.returned
+    && row.progression.lastMoves.at(-1) === row.returned),
+  'Sovereign harness progression is recorded separately');
+  assert.equal(oracle.provenance.sourceSha,
+    '9c4f7e5624b1c7eae8eb6fd3e7c27ff5ec0df5f8');
+  assert.match(oracle.provenance.sourceTree, /^[a-f0-9]{40}$/);
+  assert.match(oracle.provenance.captureParentHead, /^[a-f0-9]{40}$/);
+  assert.match(oracle.provenance.captureParentTree, /^[a-f0-9]{40}$/);
+  assert.match(oracle.provenance.captureInputs.toolSha256, /^[a-f0-9]{64}$/);
+  assert.match(oracle.provenance.captureInputs.testSha256, /^[a-f0-9]{64}$/);
+  assert.notEqual(oracle.provenance.captureParentHead, oracle.provenance.sourceSha);
+  assert.deepEqual(oracle.provenance.sourceModules, {
+    data: 'src/data.js', engine: 'src/engine.js', i18n: 'src/i18n/index.js',
+  });
+  assert.deepEqual(oracle.provenance.pr17, {
+    base: 'b285b815509d5c700b2b76847302c01bc595db47',
+    head: '5cd1c555219a18e25b8ffa11646e7899d6764fd2',
+    merge: '40eb3576870f2a94b50e1a616ec40d4c37075018',
+  });
+  assert.deepEqual(oracle.provenance.pr17Paths, [
+    'src/battlefield-layout.js', 'src/styles.css', 'src/ui.js',
+    'test/e2e/geometry.spec.js',
+    'test/e2e/visual.spec.js-snapshots/combat-act1-landscape-linux.png',
+    'test/e2e/visual.spec.js-snapshots/combat-act2-landscape-linux.png',
+    'test/e2e/visual.spec.js-snapshots/combat-act2-portrait-linux.png',
+  ]);
+  assert.deepEqual(oracle.provenance.pr21, {
+    base: '40eb3576870f2a94b50e1a616ec40d4c37075018',
+    head: 'c42279609f2379cd6be6ba695205a131f029de28',
+    merge: '45677c1a676d19b1590192a4dbaf8425801dc97e',
+  });
+  assert.deepEqual(oracle.provenance.pr22, {
+    base: '45677c1a676d19b1590192a4dbaf8425801dc97e',
+    head: 'fe330a077ba847900f08be0121b65081b84e21ae',
+    merge: '9c4f7e5624b1c7eae8eb6fd3e7c27ff5ec0df5f8',
+  });
+  for (const row of [...oracle.enemyAi, ...oracle.shadeAi]) {
+    assert.match(row.functionSha256, /^[a-f0-9]{64}$/);
+    const lastHistory = new Set(row.cases.map((entry) => entry.last).filter(Boolean));
+    const prevHistory = new Set(row.cases.map((entry) => entry.prev).filter(Boolean));
+    assert.deepEqual([...lastHistory].sort(), [...row.moveKeys].sort(), `${row.id}: complete last keys`);
+    assert.deepEqual([...prevHistory].sort(), [...row.moveKeys].sort(), `${row.id}: complete prev keys`);
+    assert.ok(row.cases.every((entry) => row.moveKeys.includes(entry.returned)), `${row.id}: legal returns`);
+    assert.ok(row.cases.every((entry) => entry.self.moveKey === null),
+      `${row.id}: snapshots precede harness intent progression`);
+    assert.equal(row.cases.length, 5 * (row.moveKeys.length + 1) ** 2 * 3 * 2,
+      `${row.id}: full Cartesian schedule`);
+  }
+  const rngCase = oracle.enemyAi.flatMap((row) => row.cases)
+    .find((entry) => entry.rng.calls > 0);
+  assert.ok(rngCase, 'AI oracle includes a production-RNG consumer');
+  const expectedRng = EngineApi.makeRng(rngCase.seed);
+  for (let call = 0; call < rngCase.rng.calls; call++) expectedRng();
+  assert.equal(rngCase.rng.state, expectedRng.getState(), 'AI oracle records production Mulberry32 state');
+}
+
+// Oracle helpers are import-safe, deterministic and source-root selected.
+{
+  assert.equal(canonicalJson({ z: 1, fn() {}, a: [2, 1] }), '{"a":[2,1],"z":1}');
+  for (const value of [NaN, Infinity, Symbol('x'), 1n]) {
+    assert.throws(() => canonicalise(value), /non-finite|unsupported/);
+  }
+  const cycle = {};
+  cycle.self = cycle;
+  assert.throws(() => canonicalise(cycle), /cyclic/);
+  let unexpectedGetterCalls = 0;
+  const unexpected = {};
+  Object.defineProperty(unexpected, 'trap', {
+    enumerable: true,
+    get() { unexpectedGetterCalls++; return 1; },
+  });
+  assert.deepEqual(descriptorInventory({ ROOT: unexpected }).accessors, [{ path: 'ROOT.trap' }]);
+  assert.equal(unexpectedGetterCalls, 0, 'descriptor inventory never executes an unapproved getter');
+
+  const roots = [];
+  const makeRoot = (marker, dataSource = null) => {
+    const root = mkdtempSync(join(tmpdir(), `spirebound-oracle-${marker}-`));
+    roots.push(root);
+    mkdirSync(join(root, 'src/i18n/en'), { recursive: true });
+    writeFileSync(join(root, 'src/data.js'), dataSource
+      || `export const PLAYER = { id: ${JSON.stringify(marker)} };\n`);
+    writeFileSync(join(root, 'src/engine.js'), `export const marker = ${JSON.stringify(marker)};\n`);
+    writeFileSync(join(root, 'src/i18n/index.js'), [
+      `const content = { marker: ${JSON.stringify(marker)} };`,
+      `export const getLocale = () => ${JSON.stringify(`locale-${marker}`)};`,
+      'export const getContent = () => content;',
+    ].join('\n'));
+    writeFileSync(join(root, 'src/i18n/en/content.js'), `export const marker = ${JSON.stringify(marker)};\n`);
+    writeFileSync(join(root, 'src/i18n/en/ui.js'), `export const ui = { marker: ${JSON.stringify(marker)} };\n`);
+    return root;
+  };
+  try {
+    const falseCaptureRoot = mkdtempSync(join(tmpdir(), 'spirebound-oracle-false-capture-'));
+    roots.push(falseCaptureRoot);
+    mkdirSync(join(falseCaptureRoot, 'tools'), { recursive: true });
+    writeFileSync(join(falseCaptureRoot, 'tools/capture-content-oracle.mjs'), '// not the executing tool\n');
+    assert.throws(() => assertCaptureWorktreeIdentity(falseCaptureRoot),
+      /captureWorktree does not contain the executing oracle tool/);
+    const aliasParent = mkdtempSync(join(tmpdir(), 'spirebound-oracle-alias-parent-'));
+    roots.push(aliasParent);
+    const actualCaptureRoot = fileURLToPath(new URL('..', import.meta.url));
+    const captureAlias = join(aliasParent, 'capture-alias');
+    symlinkSync(actualCaptureRoot, captureAlias, 'dir');
+    await assert.rejects(captureContentOracle({
+      sourceWorktree: actualCaptureRoot,
+      captureWorktree: captureAlias,
+    }), /source and capture worktrees must be distinct/);
+    const first = await inspectSourceRoot(makeRoot('first'));
+    const second = await inspectSourceRoot(makeRoot('second'));
+    assert.equal(first.data.PLAYER.id, 'first');
+    assert.equal(first.i18n.defaultLocale, 'locale-first');
+    assert.equal(first.i18n.ui.marker, 'first');
+    assert.equal(second.data.PLAYER.id, 'second');
+    assert.equal(second.i18n.defaultLocale, 'locale-second');
+    assert.equal(second.i18n.ui.marker, 'second');
+    assert.notEqual(first.dataSha256, second.dataSha256);
+    assert.notEqual(first.i18nSha256, second.i18nSha256);
+    const completeExports = [...CONTENT_EXPORT_NAMES, ...PROTOCOL_EXPORT_NAMES]
+      .map((name) => `export const ${name} = {};`).join('\n');
+    const extraRoot = makeRoot('extra', `${completeExports}\nexport const EXTRA = {};\n`);
+    await assert.rejects(inspectExactSourceRoot(extraRoot), /undeclared: EXTRA/);
+  } finally {
+    for (const root of roots) rmSync(root, { recursive: true, force: true });
+  }
+}
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
