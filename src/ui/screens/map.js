@@ -304,14 +304,16 @@ function routeVisitedNode(node, type, { enemyIds = null, eventId = null } = {}) 
 function showEighthFloorEcho(run) {
   if (run.omens?.[run.act] !== 'eighthOmen') return;
   const echoes = QUESTS.eighthOmen.floorEchoes;
-  const text = echoes[run.floorsClimbed % echoes.length];
+  const text = echoes?.[run.floorsClimbed % echoes.length];
   setTimeout(() => {
     if (S.run?.runId !== run.runId || !text) return;
     const b = el('div', 'turn-banner eighth-floor-echo broken-omen',
       `<span class="efe-icon">${iconSvg('eighthOmen', 24)}</span><span class="efe-text">${escHtml(text)}</span>`);
-    screenEl().appendChild(b);
-    setTimeout(() => b.remove(), 2200);
-  }, REDUCED ? 0 : 180);
+    // Floaties outlive #screen replacements (combat-in wipes map markup).
+    const host = document.getElementById('floaties') || screenEl();
+    host.appendChild(b);
+    setTimeout(() => b.remove(), 3200);
+  }, REDUCED ? 0 : 220);
 }
 // stepping onto the stone a past self left behind
 function claimMonumentNode(node) {

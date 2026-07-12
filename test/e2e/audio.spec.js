@@ -445,12 +445,13 @@ test('PR16 sealed-door close restores the selected Eighth Map cue', async ({ pag
   await expect(page.locator('[data-a="sealed-door"]')).toBeVisible();
 
   cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
-  await page.locator('[data-a="sealed-door"]').click();
+  // Map overlay repositions the door every frame — force past Playwright stability waits.
+  await page.locator('[data-a="sealed-door"]').click({ force: true });
   await waitForMusicOwner(page, 'sealedDoor', cursor);
   expect(await page.evaluate(async () => (await import('/src/music.js')).currentCue())).toBe('sealedDoor');
 
   cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
-  await page.locator('[data-a="close-door"]').click();
+  await page.locator('[data-a="close-door"]').click({ force: true });
   await waitForMusicOwner(page, 'eighthOmen', cursor);
   expect(await page.evaluate(async () => (await import('/src/music.js')).currentCue())).toBe('eighthOmen');
 });

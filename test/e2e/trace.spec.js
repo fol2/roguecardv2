@@ -373,9 +373,16 @@ test('app-version trace is copy-free and five-tap debug has no action control', 
   const logo = page.locator('[data-version-logo]');
   await expect(logo).not.toHaveAttribute('data-a', /.+/);
   const beforeGesture = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
-  for (let index = 0; index < 5; index += 1) await logo.click();
+  // Dispatch taps in-page: Playwright actionability waits on logoSheen forever on CI.
+  await page.evaluate(() => {
+    const target = document.querySelector('[data-version-logo]');
+    for (let index = 0; index < 5; index += 1) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
   await expect(page.locator('[data-version-debug]')).toBeVisible();
-  for (let index = 0; index < 5; index += 1) await logo.click();
+  await page.evaluate(() => {
+    const target = document.querySelector('[data-version-logo]');
+    for (let index = 0; index < 5; index += 1) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
   await expect(page.locator('[data-version-debug]')).toBeHidden();
   const records = await page.evaluate(() => window.__probe.behaviourTrace().records);
   const version = records.filter((record) => record.eventName === 'app.version');
@@ -416,7 +423,10 @@ test('detached Title version timeout cannot emit a stale hidden action', async (
   await page.goto('/?trace=1');
   await page.waitForFunction(() => window.__probe);
   const logo = page.locator('[data-version-logo]');
-  for (let index = 0; index < 5; index += 1) await logo.click();
+  await page.evaluate(() => {
+    const target = document.querySelector('[data-version-logo]');
+    for (let index = 0; index < 5; index += 1) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
   await expect(page.locator('[data-version-debug]')).toBeVisible();
   const shownSeq = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
   await page.locator('[data-a="embark"]').click();
