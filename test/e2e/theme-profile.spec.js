@@ -41,12 +41,10 @@ test('P2 core theme profile visits every production theme once', async ({ page }
           resolved: !!src,
         };
       }
-      const music = await import('/src/music.js');
       const { getLocale } = await import('/src/i18n/index.js');
       return {
         snapshot,
         plates,
-        cue: music.currentCue(),
         locale: getLocale(),
         stage: window.__probe.stage(),
         state: window.__probe.state(),
@@ -61,7 +59,11 @@ test('P2 core theme profile visits every production theme once', async ({ page }
       .toEqual([...staged.snapshot.enemyIds]);
     expect(staged.snapshot.weather, themeId).toBeTruthy();
     expect(staged.snapshot.music?.combat, themeId).toBeTruthy();
-    expect(staged.cue, themeId).toBe(staged.snapshot.music.combat);
+    // Music Cue load is async; poll like audio.spec.js so CI portrait cannot race null.
+    await expect.poll(
+      () => page.evaluate(async () => (await import('/src/music.js')).currentCue()),
+      { timeout: 20_000 },
+    ).toBe(staged.snapshot.music.combat);
     for (const layer of ['backdrop', 'mid', 'ledge']) {
       const plate = staged.plates[layer];
       expect(plate, `${themeId}.${layer}`).toBeTruthy();
