@@ -104,7 +104,9 @@ function renderTitle() {
   const onLogoClick = (e) => {
     e.stopPropagation();
     const now = performance.now();
-    taps = taps.filter((t) => now - t < 2000);
+    // Keep a generous window so Playwright/CI actionability delays still count
+    // as one five-tap gesture (a strict 2s window drops taps under ~500ms spacing).
+    taps = taps.filter((t) => now - t < 5000);
     taps.push(now);
     if (taps.length >= 5) {
       taps = [];

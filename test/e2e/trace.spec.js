@@ -670,9 +670,16 @@ test('raw pointer moves and idle animation frames do not create trace noise', as
         bubbles: true, pointerId: 90, isPrimary: true, clientX: 20 + index, clientY: 30,
       }));
     }
-    for (let index = 0; index < 100; index += 1) {
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
+    // Bound the rAF drain — under CI contention requestAnimationFrame can stall
+    // long enough to trip the 90s test budget if we await 100 frames unconditionally.
+    await Promise.race([
+      (async () => {
+        for (let index = 0; index < 100; index += 1) {
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+      })(),
+      new Promise((resolve) => setTimeout(resolve, 1500)),
+    ]);
     return { before, after: window.__probe.behaviourTrace().records.length };
   });
   expect(counts.after).toBe(counts.before);

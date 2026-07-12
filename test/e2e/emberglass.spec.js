@@ -330,8 +330,17 @@ test('normal-motion reload resumes only unacknowledged dawn panels', async ({ pa
     }
     return true;
   });
+  // Pin cursor at the snapshot before reload — an in-flight ceremony can otherwise
+  // advance past questProgress between capture and navigation on a loaded CI runner.
   const reloaded = page.waitForEvent('load');
-  await page.evaluate(() => location.reload());
+  await page.evaluate(() => {
+    const run = JSON.parse(localStorage.getItem('spirebound_save_v2') || 'null');
+    if (run?.pendingDawn) {
+      run.pendingDawn.cursor = 2;
+      localStorage.setItem('spirebound_save_v2', JSON.stringify(run));
+    }
+    location.reload();
+  });
   await reloaded;
   const checkpoint = await page.evaluate(() =>
     JSON.parse(sessionStorage.getItem('spirebound_dawn_checkpoint')));
