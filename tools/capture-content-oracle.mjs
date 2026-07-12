@@ -576,14 +576,25 @@ export function buildContentOracleFromModules({ data, engine, i18n, english, ui 
 } = {}) {
   const roots = Object.fromEntries(CONTENT_EXPORT_NAMES.map((name) => [name, data[name]]));
   const descriptors = descriptorInventory(roots);
+  const hollowPath = 'QUESTS.hollowLamplighter.target';
+  const hollowDesc = Object.getOwnPropertyDescriptor(data.QUESTS?.hollowLamplighter || {}, 'target');
+  const hollowHardened = !!hollowDesc
+    && Object.hasOwn(hollowDesc, 'value')
+    && typeof hollowDesc.value === 'number'
+    && typeof hollowDesc.get !== 'function';
   if (!allowAccessors) {
-    if (descriptors.accessors.length !== 1
-      || descriptors.accessors[0].path !== 'QUESTS.hollowLamplighter.target') {
+    const legacyGetter = descriptors.accessors.length === 1
+      && descriptors.accessors[0].path === hollowPath;
+    const hardenedNumeric = descriptors.accessors.length === 0 && hollowHardened;
+    if (!legacyGetter && !hardenedNumeric) {
       throw new Error(`unexpected accessor inventory: ${JSON.stringify(descriptors.accessors)}`);
     }
   }
-  if (descriptors.accessors[0]?.path === 'QUESTS.hollowLamplighter.target') {
+  if (descriptors.accessors[0]?.path === hollowPath) {
     descriptors.accessors[0].value = canonicalise(data.QUESTS.hollowLamplighter.target);
+  } else if (hollowHardened) {
+    // Task 12B getter→numeric hardening: project the observable value for leg parity.
+    descriptors.accessors = [{ path: hollowPath, value: canonicalise(data.QUESTS.hollowLamplighter.target) }];
   }
   const { contentExports, protocolExports } = sourceProjection(data);
   const englishContent = Object.fromEntries(Object.keys(CONTENT_DOMAIN_TO_EXPORT)

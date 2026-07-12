@@ -83,9 +83,14 @@ const registryImports = importSpecifiers('../src/registry.js');
 assert.ok(registryImports.includes('./i18n/hydrate-content.js'));
 assert.ok(!registryImports.some((specifier) => /i18n\/index\.js|i18n\/en\/ui\.js/.test(specifier)));
 const dataSource = readFileSync(new URL('../src/data.js', import.meta.url), 'utf8');
+const protocolSourceEarly = readFileSync(new URL('../src/content-protocol.js', import.meta.url), 'utf8');
 for (const name of ['QUEST_ACTIVE_STATES', 'QUEST_STATES', 'RUN_ID_RE', 'TERMINAL_OUTCOMES']) {
-  assert.match(dataSource, new RegExp(`export const ${name}\\b`), `${name} remains owned by data.js platform/save grammar`);
+  assert.match(protocolSourceEarly, new RegExp(`export const ${name}\\b`),
+    `${name} is owned by content-protocol.js`);
+  assert.match(dataSource, new RegExp(`${name}\\b`),
+    `${name} remains on the data.js assembler surface`);
 }
+assert.match(dataSource, /from\s+['"]\.\/content-protocol\.js['"]/);
 const defaultPlaywright = readFileSync(new URL('../playwright.config.js', import.meta.url), 'utf8');
 const productionPlaywright = readFileSync(new URL('../playwright.trace-production.config.js', import.meta.url), 'utf8');
 const productionTraceSpec = readFileSync(new URL('./e2e/trace-production.spec.js', import.meta.url), 'utf8');
@@ -311,7 +316,7 @@ const traceOwnedFixtureIds = [...traceSpecSource.matchAll(/bindTraceContract\(['
 assert.deepEqual([...new Set(traceOwnedFixtureIds)].sort(), [...fixtureManifest.fixtures].sort(),
   'the exact playwright test trace update command must own all frozen Task 6 fixtures');
 
-// Task 12A — compiled core registration graph stays off the live engine/data path.
+// Task 12B — data.js cut over to CORE_CONTENT + content-protocol; engine stays data-only.
 {
   const contentSource = readFileSync(new URL('../src/content.js', import.meta.url), 'utf8');
   assert.match(contentSource, /CONTENT_REGISTRATION_MANIFEST/);
@@ -332,18 +337,121 @@ assert.deepEqual([...new Set(traceOwnedFixtureIds)].sort(), [...fixtureManifest.
   assert.match(registrationSource, /i18n\/en\/content\.js/);
   assert.doesNotMatch(registrationSource, /i18n\/en\/(?:index|ui)\.js/);
 
-  const dataStillMonolith = readFileSync(new URL('../src/data.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(dataStillMonolith, /from\s+['"]\.\/(?:content|content-protocol|packs)\b/);
+  const dataSource = readFileSync(new URL('../src/data.js', import.meta.url), 'utf8');
+  assert.match(dataSource, /CORE_CONTENT/);
+  assert.match(dataSource, /from\s+['"]\.\/content\.js['"]/);
+  assert.match(dataSource, /from\s+['"]\.\/content-protocol\.js['"]/);
+  assert.doesNotMatch(dataSource, /hydrateContent/);
+  assert.doesNotMatch(dataSource, /\bfunction\s+\w+\s*\([^)]*\)\s*\{/);
+  assert.doesNotMatch(dataSource, /\bai\s*:\s*/);
+  // Exact 32-name inventory — no default / 33rd export.
+  const namedConsts = [...dataSource.matchAll(/^export const ([A-Z0-9_]+)\b/gm)].map((m) => m[1]);
+  const reexported = [...dataSource.matchAll(/^export \{([^}]+)\} from/gm)]
+    .flatMap((match) => match[1].split(',').map((part) => part.trim().split(/\s+as\s+/)[0].trim()).filter(Boolean));
+  const exportNames = [...new Set([...namedConsts, ...reexported])].sort();
+  assert.equal(exportNames.length, 32, '32-name data.js surface');
+  assert.deepEqual(exportNames, [
+    'ACTS', 'AFFIXES', 'ARTS', 'ASPECTS', 'BOONS', 'CARDS', 'CARD_POOLS', 'DEEDS',
+    'ENCOUNTERS', 'ENEMIES', 'EVENTS', 'OMENS', 'PLAYER', 'POOL_GATE', 'POTIONS',
+    'PROGRESSION', 'QUESTS', 'QUEST_ACTIVE_STATES', 'QUEST_IDS', 'QUEST_STATES',
+    'RELICS', 'RELIC_POOLS', 'REVEALS', 'REWARD_GOLD', 'RUN_ID_RE', 'SHADE_KITS',
+    'SHOP', 'STATUS_INFO', 'TERMINAL_OUTCOMES', 'VARIANTS', 'VOWS', 'WHISPERS',
+  ].sort());
+  assert.doesNotMatch(dataSource, /\bexport\s+default\b/);
+  assert.match(dataSource, /QUEST_STATES/);
+  assert.match(dataSource, /QUEST_ACTIVE_STATES/);
+  assert.match(dataSource, /TERMINAL_OUTCOMES/);
+  assert.match(dataSource, /RUN_ID_RE/);
+
+  const protocolSource = readFileSync(new URL('../src/content-protocol.js', import.meta.url), 'utf8');
+  assert.match(protocolSource, /QUEST_STATES/);
+  assert.match(protocolSource, /RUN_ID_RE/);
+  assert.doesNotMatch(protocolSource, /\b(?:document|window|localStorage)\b|import\.meta\.glob/);
+
   const engineStillDataOnly = importSpecifiers('../src/engine.js');
   assert.deepEqual(engineStillDataOnly, ['./data.js']);
 
   for (const modulePath of [
-    '../src/content.js', '../src/packs/core/index.js', '../src/packs/core/registration.js',
+    '../src/content.js', '../src/content-protocol.js',
+    '../src/packs/core/index.js', '../src/packs/core/registration.js',
     '../src/packs/core/progression.js', '../tools/check-core-candidate.mjs',
   ]) {
     const source = readFileSync(new URL(modulePath, import.meta.url), 'utf8');
     assert.doesNotMatch(source, /\b(?:document|window|localStorage)\b|import\.meta\.glob/,
       `${modulePath} stays Node-pure`);
+  }
+}
+
+// Task 12B Step 6 — core-only cardData catalogue allowlist.
+// Engine run-capable paths must pass `run`. Remaining one-arg callers are the
+// deliberate core-catalogue surfaces (UI until Task 16 binding; oracle/tools).
+{
+  const CORE_ONLY_CARD_DATA_ALLOWLIST = Object.freeze([
+    Object.freeze({ file: 'src/ui/combat.js', reason: 'combat chrome still resolves the core catalogue until Task 16 UI binding' }),
+    Object.freeze({ file: 'src/ui/overlay.js', reason: 'deck/overlay sort labels still resolve the core catalogue until Task 16 UI binding' }),
+    Object.freeze({ file: 'src/ui/tooltip.js', reason: 'tooltip card copy still resolves the core catalogue until Task 16 UI binding' }),
+    Object.freeze({ file: 'src/ui/screens/reward.js', reason: 'reward float text still resolves the core catalogue until Task 16 UI binding' }),
+    Object.freeze({ file: 'tools/capture-content-oracle.mjs', reason: 'oracle capture reads the core catalogue by design' }),
+    Object.freeze({ file: 'tools/emberglass-pacing.mjs', reason: 'pacing harness drives core runs without a custom content bind' }),
+  ]);
+
+  const oneArgCardDataSites = (relativePath) => {
+    const source = readFileSync(new URL(`../${relativePath}`, import.meta.url), 'utf8');
+    const sites = [];
+    const pattern = /\b(?:E\.)?cardData\s*\(/g;
+    let match;
+    while ((match = pattern.exec(source))) {
+      const start = match.index + match[0].length;
+      let depth = 1;
+      let i = start;
+      let topComma = false;
+      while (i < source.length && depth > 0) {
+        const ch = source[i];
+        if (ch === '(') depth += 1;
+        else if (ch === ')') depth -= 1;
+        else if (ch === ',' && depth === 1) topComma = true;
+        else if (ch === "'" || ch === '"' || ch === '`') {
+          const quote = ch;
+          i += 1;
+          while (i < source.length && source[i] !== quote) {
+            if (source[i] === '\\') i += 1;
+            i += 1;
+          }
+        }
+        i += 1;
+      }
+      const line = source.slice(0, match.index).split('\n').length;
+      const snippet = source.slice(match.index, i).replace(/\s+/g, ' ').trim();
+      // Definition / export signature is not a catalogue call site.
+      if (/^export\s+function\s+cardData\s*\(/.test(source.slice(Math.max(0, match.index - 24), i))) continue;
+      if (!topComma) sites.push({ line, snippet });
+    }
+    return sites;
+  };
+
+  const engineOneArg = oneArgCardDataSites('src/engine.js');
+  assert.deepEqual(engineOneArg, [],
+    `engine.js must pass run into every cardData call; found one-arg sites: ${JSON.stringify(engineOneArg)}`);
+
+  const found = [];
+  for (const relativePath of [
+    'src/ui/combat.js', 'src/ui/overlay.js', 'src/ui/tooltip.js', 'src/ui/screens/reward.js',
+    'tools/capture-content-oracle.mjs', 'tools/emberglass-pacing.mjs',
+    'src/ui/run-effects.js', 'src/ui/drain.js', 'src/ui/format.js', 'src/ui/commands.js',
+    'src/ui/screens/embark.js', 'src/ui/screens/map.js', 'src/ui/screens/run.js',
+  ]) {
+    const sites = oneArgCardDataSites(relativePath);
+    for (const site of sites) found.push({ file: relativePath, ...site });
+  }
+
+  const allowFiles = new Set(CORE_ONLY_CARD_DATA_ALLOWLIST.map((row) => row.file));
+  for (const site of found) {
+    assert.ok(allowFiles.has(site.file),
+      `one-arg cardData at ${site.file}:${site.line} (${site.snippet}) is not on the Step 6 core-only allowlist`);
+  }
+  for (const row of CORE_ONLY_CARD_DATA_ALLOWLIST) {
+    assert.ok(found.some((site) => site.file === row.file),
+      `stale core-only cardData allowlist entry for ${row.file}: ${row.reason}`);
   }
 }
 
