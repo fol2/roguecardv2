@@ -334,10 +334,58 @@ assert.deepEqual([...new Set(traceOwnedFixtureIds)].sort(), [...fixtureManifest.
   assert.doesNotMatch(productionManifest, /_sample|development\/|fixture/);
   assert.equal([...productionManifest.matchAll(/from\s+['"][^'"]+registration\.js['"]/g)].length, 1);
   assert.match(developmentManifest, /from\s+['"]\.\.\/core\/registration\.js['"]/);
+  assert.match(developmentManifest, /from\s+['"]\.\.\/_sample\/registration\.js['"]/);
+  assert.match(developmentManifest, /"sample"/);
+  assert.equal([...developmentManifest.matchAll(/from\s+['"][^'"]+registration\.js['"]/g)].length, 2);
 
   const registrationSource = readFileSync(new URL('../src/packs/core/registration.js', import.meta.url), 'utf8');
   assert.match(registrationSource, /i18n\/en\/content\.js/);
   assert.doesNotMatch(registrationSource, /i18n\/en\/(?:index|ui)\.js/);
+
+  // Task 14 — only registration, tests, and DEV-only dynamic imports may touch _sample.
+  {
+    const sampleImporters = [];
+    const walkJs = (dirUrl, prefix = '') => {
+      for (const entry of readdirSync(dirUrl, { withFileTypes: true })) {
+        if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === '.git') continue;
+        const next = new URL(entry.name + (entry.isDirectory() ? '/' : ''), dirUrl);
+        if (entry.isDirectory()) walkJs(next, `${prefix}${entry.name}/`);
+        else if (/\.(?:js|mjs|cjs)$/.test(entry.name)) {
+          const source = readFileSync(next, 'utf8');
+          if (/packs\/_sample|_sample\//.test(source) || /from\s+['"][^'"]*_sample[^'"]*['"]/.test(source)) {
+            sampleImporters.push(`${prefix}${entry.name}`);
+          }
+        }
+      }
+    };
+    walkJs(new URL('../src/', import.meta.url));
+    walkJs(new URL('./', import.meta.url));
+    const allowed = new Set([
+      'packs/_sample/index.js',
+      'packs/_sample/card.js',
+      'packs/_sample/enemy.js',
+      'packs/_sample/theme.js',
+      'packs/_sample/locale-en.js',
+      'packs/_sample/registration.js',
+      'packs/compiled/development.js',
+      'packs/dev.js',
+      'test_engine.js',
+      'test_module_boundaries.mjs',
+    ]);
+    for (const path of sampleImporters) {
+      assert.ok(allowed.has(path) || path.startsWith('packs/_sample/'),
+        `_sample import surface leak: ${path}`);
+    }
+    assert.ok(sampleImporters.includes('packs/compiled/development.js'));
+    assert.ok(sampleImporters.includes('test_engine.js') || sampleImporters.includes('test_module_boundaries.mjs')
+      || sampleImporters.some((p) => p.includes('test')));
+  }
+
+  const devSource = readFileSync(new URL('../src/packs/dev.js', import.meta.url), 'utf8');
+  assert.match(devSource, /createDevRegistry/);
+  assert.match(devSource, /compiled\/development\.js/);
+  assert.doesNotMatch(devSource, /SAMPLE_PACK|CORE_PACK|joinLocaleContent|createContentContext/);
+  assert.doesNotMatch(devSource, /fixtures\s*===\s*['"]sample['"]|case\s+['"]sample['"]/);
 
   const dataSource = readFileSync(new URL('../src/data.js', import.meta.url), 'utf8');
   assert.match(dataSource, /CORE_CONTENT/);

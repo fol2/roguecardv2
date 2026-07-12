@@ -1,11 +1,11 @@
 // Engine self-check: unit math + asset manifest + monte-carlo random-agent full runs.
 import assert from 'node:assert';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync, cpSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { inflateSync } from 'node:zlib';
 import { createServer as createViteServer } from 'vite';
 import {
@@ -76,11 +76,16 @@ import {
 import { STATIC_REFERENCE_CATALOGUES } from '../src/content-resources.js';
 import {
   discoverContentRegistrations, renderContentRegistrationManifest,
+  compileRegistrationFiles,
 } from '../tools/compile-content-registrations.mjs';
 import { CORE_CONTENT } from '../src/content.js';
 import { createCoreAuthoring } from '../src/packs/core/index.js';
 import * as englishContent from '../src/i18n/en/content.js';
 import { resolveAtmosphere } from '../src/theme-atmosphere.js';
+import { createDevRegistry } from '../src/packs/dev.js';
+import {
+  SAMPLE_PACK, SAMPLE_LOCALE_EN, sampleCard, sampleEnemy, sampleTheme,
+} from '../src/packs/_sample/index.js';
 
 function makeTunedContent(overrides = {}, id = 'tuned', mutateAuthoring = null) {
   const authoring = createCoreAuthoring(overrides);
@@ -6807,6 +6812,309 @@ function randomAgentRun(seed) {
   for (const banned of ['#f4e7c5', '#ece7df', '#aaa6b8', '#8fd0ff']) {
     assert.ok(!cssText.includes(banned), `styles.css must not embed Round 5 raw literal ${banned}`);
   }
+}
+
+// ---- Task 14: isolated sample pack + fourth-theme fixture -------------------
+{
+  const sha256 = (value) => createHash('sha256').update(value).digest('hex');
+  const projectRoot = fileURLToPath(new URL('..', import.meta.url));
+
+  assert.equal(Object.hasOwn(CORE_CONTENT.cards, 'sampleCard'), false);
+  assert.equal(Object.hasOwn(CORE_CONTENT.enemies, 'sampleEnemy'), false);
+  assert.equal(Object.hasOwn(CORE_CONTENT.themes, 'sampleTheme'), false);
+  assert.equal(CORE_CONTENT.acts.length, 3);
+  assert.equal(ACTS.length, 3);
+
+  const coreOnly = createDevRegistry({ fixtures: [] });
+  assert.deepEqual(coreOnly.context.packIds, ['core']);
+  assert.deepEqual(coreOnly.context.themeOrder, ['act1', 'act2', 'act3']);
+  assert.equal(Object.hasOwn(coreOnly.context.cards, 'sampleCard'), false);
+  assert.deepEqual(coreOnly.provenance.registrationIds, ['core']);
+
+  const sampleReg = createDevRegistry({ fixtures: ['sample'] });
+  assert.equal(sampleReg.context.id, 'dev:_sample');
+  assert.deepEqual(sampleReg.context.packIds, ['core', 'sample']);
+  assert.deepEqual(sampleReg.provenance.registrationIds, ['core', 'sample']);
+  assert.ok(sampleReg.context.cards.sampleCard);
+  assert.ok(sampleReg.context.enemies.sampleEnemy);
+  assert.ok(sampleReg.context.themes.sampleTheme);
+  assert.equal(sampleReg.context.themeOrder.at(-1), 'sampleTheme');
+  assert.equal(sampleReg.context.acts.length, 4);
+  assert.equal(sampleReg.context.acts[3].name, 'Test Gallery');
+  assert.equal(sampleReg.context.acts[3].bossName, 'Test Pane');
+  assert.deepEqual(sampleReg.context.rewardGold[3], { normal: [1, 1], elite: [1, 1], boss: [1, 1] });
+  assert.equal(sampleReg.context.cards.sampleCard.name, 'Test Spark');
+  assert.equal(sampleReg.context.enemies.sampleEnemy.name, 'Test Pane');
+  assert.equal(sampleReg.context.enemies.sampleEnemy.moves.wait.name, 'Wait');
+
+  const sampleMusic = sampleReg.context.themes.sampleTheme.music;
+  assert.equal(resolveCombatCue('monster', sampleMusic), 'paleOnes');
+  assert.equal(resolveCombatCue('boss', sampleMusic), 'usurper');
+  assert.equal(resolveCombatCue('elite', sampleMusic), 'elite');
+
+  assert.throws(() => createDevRegistry({ fixtures: ['sample'], packs: [] }), /Unknown createDevRegistry option/);
+  assert.throws(() => createDevRegistry({ fixtures: ['sample', 'sample'] }), /Duplicate fixture/);
+  assert.throws(() => createDevRegistry({ fixtures: ['missing'] }), /Unknown fixture|absent/i);
+  assert.throws(() => createDevRegistry({ fixtures: ['core'] }), /development\+fixture|lacks/i);
+  const productionManifestModule = await import('../src/packs/compiled/production.js');
+  assert.throws(() => compileContentRegistrations(
+    productionManifestModule.CONTENT_REGISTRATION_MANIFEST,
+    { id: 'prod-fixtures', fixtures: ['sample'] },
+  ), /production.*fixture|fixture selection/i);
+
+  const productionManifestSource = readFileSync(new URL('../src/packs/compiled/production.js', import.meta.url), 'utf8');
+  const developmentManifestSource = readFileSync(new URL('../src/packs/compiled/development.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(productionManifestSource, /_sample|sample\/registration/);
+  assert.match(developmentManifestSource, /_sample\/registration\.js/);
+  assert.match(developmentManifestSource, /"sample"/);
+
+  // Mechanics fixtures must not own display strings.
+  for (const [label, row] of [
+    ['sampleCard', sampleCard],
+    ['sampleEnemy', sampleEnemy],
+    ['sampleTheme', sampleTheme],
+  ]) {
+    const json = JSON.stringify(row);
+    assert.doesNotMatch(json, /"(?:name|text|tagline|bossName|dialogue)"\s*:/,
+      `${label} mechanics must not embed locale display fields`);
+  }
+  assert.equal(SAMPLE_PACK.cards.sampleCard.effects[0].n, 3);
+  assert.equal(SAMPLE_LOCALE_EN.cards.sampleCard.name, 'Test Spark');
+  assert.equal(SAMPLE_LOCALE_EN.acts.sampleTheme.name, 'Test Gallery');
+  assert.deepEqual(Object.keys(SAMPLE_LOCALE_EN).sort(), [
+    'acts', 'affixes', 'arts', 'aspects', 'boons', 'cards', 'deeds', 'enemies',
+    'events', 'omens', 'potions', 'quests', 'relics', 'shadeKits', 'status',
+    'variants', 'vows', 'whispers',
+  ].sort());
+
+  const exerciseSampleJourney = (content, seed, label) => {
+    const run = newRun(seed, { ephemeral: true, content });
+    assert.equal(contentIdFor(run), content.id, `${label} content id`);
+    assert.equal(isEphemeralRun(run), true);
+    assert.equal(themeCount(run), 4, `${label} theme count`);
+    assert.ok(run.player.deck.length > 0, `${label} starter deck`);
+    assert.ok(run.map?.nodes?.length > 0, `${label} map`);
+    assert.equal(isFinalTheme(run), false, `${label} act 0 non-final`);
+    run.act = 2;
+    assert.equal(isFinalTheme(run), false, `${label} Act 3 (index 2) non-final with sample`);
+    run.act = 3;
+    assert.equal(isFinalTheme(run), true, `${label} theme index 3 final`);
+    const enc = rollEncounter(run, 'monster', 5);
+    assert.deepEqual(enc, ['sampleEnemy'], `${label} sample encounter`);
+    const cb = startCombat(run, enc, 'normal');
+    assert.equal(cb.enemies[0].key, 'sampleEnemy');
+    assert.equal(cb.enemies[0].name, 'Test Pane');
+    assert.deepEqual(EngineApi.enemyMove(cb.enemies[0]), { intent: 'block', block: 1, name: 'Wait' });
+    const boss = startCombat(run, ['sampleEnemy'], 'boss');
+    assert.equal(boss.enemies[0].key, 'sampleEnemy');
+    assert.equal(boss.enemies[0].hp, 12);
+    const spark = makeCard(run, 'sampleCard');
+    assert.equal(cardData(spark, run).name, 'Test Spark');
+    return run;
+  };
+
+  // Isolation in both call orders (no module-global current context).
+  {
+    const sampleFirst = createDevRegistry({ fixtures: ['sample'] }).context;
+    const sampleRunA = exerciseSampleJourney(sampleFirst, 1401, 'sample-then-core');
+    const coreRunA = newRun(1402);
+    assert.equal(contentIdFor(coreRunA), 'core');
+    assert.equal(themeCount(coreRunA), 3);
+    assert.ok(!coreRunA.player.deck.some((id) => id === 'sampleCard'));
+    coreRunA.act = 2;
+    assert.equal(isFinalTheme(coreRunA), true);
+    assert.equal(isEphemeralRun(coreRunA), false);
+    assert.equal(contentIdFor(sampleRunA), 'dev:_sample');
+    assert.equal(themeCount(sampleRunA), 4);
+
+    const coreRunB = newRun(1403);
+    const sampleSecond = createDevRegistry({ fixtures: ['sample'] }).context;
+    const sampleRunB = exerciseSampleJourney(sampleSecond, 1404, 'core-then-sample');
+    assert.equal(contentIdFor(coreRunB), 'core');
+    assert.equal(themeCount(coreRunB), 3);
+    assert.equal(contentIdFor(sampleRunB), 'dev:_sample');
+  }
+
+  // Engine-owned persistence writes are success-shaped no-ops for sample runs.
+  const previousLocalStorage = globalThis.localStorage;
+  const mem = new Map();
+  try {
+    globalThis.localStorage = {
+      getItem: (key) => mem.get(key) ?? null,
+      setItem: (key, value) => mem.set(key, value),
+      removeItem: (key) => mem.delete(key),
+    };
+    const ephemeralSample = newRun(1405, {
+      ephemeral: true,
+      content: createDevRegistry({ fixtures: ['sample'] }).context,
+    });
+    assert.equal(saveRun(ephemeralSample), true);
+    assert.equal(mem.size, 0);
+    assert.equal(commitRunStats(ephemeralSample, true), true);
+    assert.equal(mem.size, 0);
+    assert.equal(recordRunEnd(ephemeralSample, false), true);
+    assert.equal(mem.size, 0);
+  } finally {
+    globalThis.localStorage = previousLocalStorage;
+  }
+
+  // Future paired Act 4 data-drop proof (temporary tree; worktree stays clean).
+  const protectedHashes = Object.freeze({
+    content: sha256(readFileSync(join(projectRoot, 'src/content.js'))),
+    i18n: sha256(readFileSync(join(projectRoot, 'src/i18n/index.js'))),
+    i18nEn: sha256(readFileSync(join(projectRoot, 'src/i18n/en/index.js'))),
+    engine: sha256(readFileSync(join(projectRoot, 'src/engine.js'))),
+    actCoupling: sha256(spawnSync('npm', ['run', '-s', 'test:act-coupling'], {
+      cwd: projectRoot, encoding: 'utf8',
+    }).stdout || ''),
+  });
+  const tempRoot = mkdtempSync(join(tmpdir(), 'glassvow-act4-drop-'));
+  try {
+    const tempSrc = join(tempRoot, 'src');
+    cpSync(join(projectRoot, 'src'), tempSrc, { recursive: true });
+    const packsRoot = join(tempSrc, 'packs');
+    const productionPath = join(packsRoot, 'compiled/production.js');
+    const developmentPath = join(packsRoot, 'compiled/development.js');
+    const productionBefore = sha256(readFileSync(productionPath));
+    const developmentBefore = sha256(readFileSync(developmentPath));
+
+    const act4Dir = join(packsRoot, '_act4_drop');
+    mkdirSync(act4Dir, { recursive: true });
+    writeFileSync(join(act4Dir, 'theme.js'), `export const act4Theme = {
+  legacyAct: { boss: 'rootheart', theme: {
+    sky: 1, fog: 2, particles: 3, glow: 4, accent: '#111', ember: '#222',
+  } },
+  plates: { backdrop: 'act1-backdrop', mid: 'act1-mid', ledge: 'act1-ledge' },
+  atmosphere: 'mire',
+  weather: { rate: 1, colors: ['#aaa'], vx: [0, 1], vy: [1, 2], size: [1, 2], drift: 0.1, emberRate: 0.1 },
+  palette: { tint: 'good', glow: 'gold', haze: 'text-dim' },
+  music: { map: 'map', combat: 'shadeDuel', boss: 'sealedDoor', victory: 'victory' },
+  roster: { normal: ['sporeling'], elite: [], boss: ['rootheart'] },
+  encounters: { weak: [['sporeling']], normal: [['sporeling']], elite: [['sporeling']], boss: [['rootheart']] },
+  rewardGold: { normal: [9, 9], elite: [9, 9], boss: [9, 9] },
+  mapHaze: 'text-dim', lanternLights: [], bossPlates: {},
+};
+`);
+    writeFileSync(join(act4Dir, 'locale-en.js'), `export const ACT4_LOCALE_EN = {
+  cards: {}, status: {}, relics: {}, potions: {}, arts: {}, boons: {},
+  enemies: {}, events: {}, omens: {}, affixes: {},
+  acts: { act4: { name: 'The Fourth Climb', bossName: 'The Fourth Keeper', tagline: 'Paired drop.' } },
+  aspects: {}, vows: {}, deeds: {}, quests: {}, whispers: [], variants: {}, shadeKits: {},
+};
+`);
+    writeFileSync(join(act4Dir, 'index.js'), `import { definePack } from '../../registry.js';
+import { act4Theme } from './theme.js';
+export const ACT4_PACK = definePack({ id: 'act4', themes: { act4: act4Theme } });
+`);
+    writeFileSync(join(act4Dir, 'registration.js'), `import { defineContentRegistration } from '../../content-registration.js';
+import { ACT4_PACK } from './index.js';
+import { ACT4_LOCALE_EN } from './locale-en.js';
+export default defineContentRegistration({
+  id: 'act4',
+  mechanics: ACT4_PACK,
+  locales: { en: ACT4_LOCALE_EN },
+  targets: { production: 3, development: 3, fixture: 3 },
+});
+`);
+
+    await compileRegistrationFiles({
+      sourceRoot: packsRoot,
+      outputs: { production: productionPath, development: developmentPath },
+    });
+    const productionAfterDrop = readFileSync(productionPath, 'utf8');
+    const developmentAfterDrop = readFileSync(developmentPath, 'utf8');
+    assert.match(productionAfterDrop, /_act4_drop\/registration\.js/);
+    assert.doesNotMatch(productionAfterDrop, /_sample/);
+    assert.match(developmentAfterDrop, /_act4_drop\/registration\.js/);
+    assert.match(developmentAfterDrop, /_sample\/registration\.js/);
+
+    const prodManifest = (await import(`${pathToFileURL(productionPath).href}?drop=${Date.now()}`))
+      .CONTENT_REGISTRATION_MANIFEST;
+    const prodCompiled = compileContentRegistrations(prodManifest, {
+      id: 'production-act4', resources: STATIC_REFERENCE_CATALOGUES, localeToken: 'en',
+    });
+    assert.deepEqual(prodCompiled.provenance.registrationIds, ['core', 'act4']);
+    assert.deepEqual(prodCompiled.context.themeOrder, ['act1', 'act2', 'act3', 'act4']);
+    assert.equal(prodCompiled.context.themeOrder.at(-1), 'act4');
+    assert.equal(registryIsFinalTheme(prodCompiled.context, 3), true);
+    assert.deepEqual(prodCompiled.context.rewardGold[3], { normal: [9, 9], elite: [9, 9], boss: [9, 9] });
+    assert.equal(prodCompiled.context.acts[3].name, 'The Fourth Climb');
+    assert.equal(prodCompiled.context.acts[3].bossName, 'The Fourth Keeper');
+    assert.equal(prodCompiled.context.acts[3].tagline, 'Paired drop.');
+
+    const devManifest = (await import(`${pathToFileURL(developmentPath).href}?drop=${Date.now() + 1}`))
+      .CONTENT_REGISTRATION_MANIFEST;
+    assert.deepEqual(devManifest.provenance.map((row) => row.id), ['core', 'act4', 'sample']);
+    const devCompiled = compileContentRegistrations(devManifest, {
+      id: 'dev-act4-sample', resources: STATIC_REFERENCE_CATALOGUES, localeToken: 'en',
+      fixtures: ['sample'],
+    });
+    assert.deepEqual(devCompiled.provenance.registrationIds, ['core', 'act4', 'sample']);
+    assert.deepEqual(devCompiled.context.themeOrder, ['act1', 'act2', 'act3', 'act4', 'sampleTheme']);
+    assert.equal(devCompiled.context.themes.sampleTheme.name, 'Test Gallery');
+    assert.equal(devCompiled.context.acts[4].name, 'Test Gallery');
+    const dropSampleRun = newRun(1410, { ephemeral: true, content: devCompiled.context });
+    dropSampleRun.act = 4;
+    assert.equal(isFinalTheme(dropSampleRun), true);
+    assert.deepEqual(rollEncounter(dropSampleRun, 'monster', 5), ['sampleEnemy']);
+
+    const walk = (dir, base = dir) => {
+      const out = [];
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        const rel = full.slice(base.length + 1).split('\\').join('/');
+        if (entry.isDirectory()) out.push(...walk(full, base));
+        else out.push(rel);
+      }
+      return out;
+    };
+    const originalPackFiles = new Set(walk(join(projectRoot, 'src/packs')).map((p) => `packs/${p}`));
+    const tempPackFiles = walk(packsRoot).map((p) => `packs/${p}`);
+    const delta = tempPackFiles.filter((p) => !originalPackFiles.has(p)
+      && p !== 'packs/compiled/production.js'
+      && p !== 'packs/compiled/development.js');
+    assert.ok(delta.every((p) => p.startsWith('packs/_act4_drop/')),
+      `unexpected pack delta outside _act4_drop: ${delta.join(',')}`);
+    assert.ok(delta.some((p) => p.endsWith('registration.js')));
+
+    assert.equal(sha256(readFileSync(join(projectRoot, 'src/content.js'))), protectedHashes.content);
+    assert.equal(sha256(readFileSync(join(projectRoot, 'src/i18n/index.js'))), protectedHashes.i18n);
+    assert.equal(sha256(readFileSync(join(projectRoot, 'src/i18n/en/index.js'))), protectedHashes.i18nEn);
+    assert.equal(sha256(readFileSync(join(projectRoot, 'src/engine.js'))), protectedHashes.engine);
+
+    rmSync(act4Dir, { recursive: true, force: true });
+    await compileRegistrationFiles({
+      sourceRoot: packsRoot,
+      outputs: { production: productionPath, development: developmentPath },
+    });
+    assert.equal(sha256(readFileSync(productionPath)), productionBefore,
+      'production manifest returns to baseline after Act 4 removal');
+    assert.equal(sha256(readFileSync(developmentPath)), developmentBefore,
+      'development manifest returns to baseline after Act 4 removal');
+    const restoredDev = (await import(`${pathToFileURL(developmentPath).href}?restored=${Date.now()}`))
+      .CONTENT_REGISTRATION_MANIFEST;
+    const restored = compileContentRegistrations(restoredDev, {
+      id: 'dev-restored', resources: STATIC_REFERENCE_CATALOGUES, localeToken: 'en',
+      fixtures: ['sample'],
+    });
+    assert.deepEqual(restored.context.themeOrder, ['act1', 'act2', 'act3', 'sampleTheme']);
+    exerciseSampleJourney(restored.context, 1411, 'post-act4-removal');
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/content.js'))), protectedHashes.content);
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/i18n/index.js'))), protectedHashes.i18n);
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/i18n/en/index.js'))), protectedHashes.i18nEn);
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/engine.js'))), protectedHashes.engine);
+  assert.equal(sha256(spawnSync('npm', ['run', '-s', 'test:act-coupling'], {
+    cwd: projectRoot, encoding: 'utf8',
+  }).stdout || ''), protectedHashes.actCoupling);
+
+  assert.doesNotMatch(
+    readFileSync(join(projectRoot, 'src/packs/compiled/production.js'), 'utf8'),
+    /_act4_drop|_sample/,
+  );
 }
 
 let wins = 0, deaths = 0;

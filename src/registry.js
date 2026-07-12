@@ -413,7 +413,9 @@ function validateLocaleCoverage(registry, localeContent, packId = 'registry') {
     }
     for (const rowTuple of rows) {
       const [locId, row, entryId = locId] = rowTuple;
-      const loc = Array.isArray(locRows) ? locRows[locId] : locRows?.[locId];
+      const loc = Array.isArray(locRows)
+        ? locRows[locId]
+        : (locRows?.[locId] ?? locRows?.[entryId]);
       for (const [key, spec] of fieldEntries) {
         const path = `${locKey}.${locId}.${key}`;
         if (spec.kind === 'array') {
@@ -444,7 +446,11 @@ function validateLocaleCoverage(registry, localeContent, packId = 'registry') {
         }
       }
     }
-    const ids = new Set(rows.map(([id]) => String(id)));
+    const ids = new Set();
+    for (const [locId, , entryId = locId] of rows) {
+      ids.add(String(locId));
+      ids.add(String(entryId));
+    }
     for (const id of Object.keys(locRows || {})) {
       if (!ids.has(String(id))) {
         problems.push(problem('orphan-locale-entry', {
@@ -488,8 +494,15 @@ export function joinLocaleContent(fragments) {
 function compatibilityGraph(registry, localeContent) {
   const mutable = cloneGraph(registry);
   const themes = Object.entries(mutable.themes || {});
-  for (const [index, [, theme]] of themes.entries()) {
-    const loc = localeContent.acts?.[index] || {};
+  for (const [index, [themeId, theme]] of themes.entries()) {
+    const actsRows = localeContent.acts;
+    let loc = {};
+    if (Array.isArray(actsRows)) loc = actsRows[index] || {};
+    else if (actsRows && typeof actsRows === 'object') {
+      loc = Object.hasOwn(actsRows, index) ? actsRows[index]
+        : Object.hasOwn(actsRows, themeId) ? actsRows[themeId]
+          : {};
+    }
     for (const key of ['name', 'tagline', 'bossName']) if (loc[key] !== undefined) theme[key] = loc[key];
   }
   const acts = themes.map(([, theme]) => ({
