@@ -296,15 +296,14 @@ test('Eighth Omen floor echo survives its delayed real map-selection callback', 
     window.spirebound.show('map');
   });
   const beforeFloor = await page.evaluate(() => window.spirebound.S.run.floorsClimbed);
-  // Arm the echo waiter before the click so a slow floorsClimbed poll cannot
-  // burn the ~2.2s banner lifetime on a contended CI runner.
-  const echoVisible = page.waitForSelector('.eighth-floor-echo', { state: 'visible', timeout: 8000 });
+  // One assertion covers appear+copy: split waits can race the banner's short lifetime.
+  const echoText = page.locator('.eighth-floor-echo .efe-text');
+  const echoReady = expect(echoText).toHaveText(/\/\//, { timeout: 8000 });
   await page.evaluate(() => document.querySelector('.mnode.avail')
     .dispatchEvent(new MouseEvent('click', { bubbles: true })));
   await expect.poll(() => page.evaluate(() => window.spirebound.S.run.floorsClimbed))
     .toBeGreaterThan(beforeFloor);
-  await echoVisible;
-  await expect(page.locator('.eighth-floor-echo .efe-text')).not.toHaveText('');
+  await echoReady;
 });
 
 // Idle rotateX(0)/rotateY(0) under perspective promotes a 3D layer that Chromium

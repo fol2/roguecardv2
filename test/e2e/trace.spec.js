@@ -429,7 +429,9 @@ test('detached Title version timeout cannot emit a stale hidden action', async (
   });
   await expect(page.locator('[data-version-debug]')).toBeVisible();
   const shownSeq = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
-  await page.locator('[data-a="embark"]').click();
+  // Force past title-button stability waits so the 3s auto-hide cannot fire first.
+  await page.locator('[data-a="embark"]').click({ force: true });
+  await page.waitForFunction(() => window.__probe?.state().screen === 'embark');
   await page.waitForTimeout(3200);
   const stale = await page.evaluate((after) => window.__probe.behaviourTrace().records
     .filter((record) => record.seq > after && record.eventName === 'app.version-debug'), shownSeq);
