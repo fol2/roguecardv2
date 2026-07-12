@@ -42,7 +42,7 @@ import { createChoiceLatch } from '../src/choice-latch.js';
 import { formatVersionDisplay } from '../src/version.js';
 import { MUSIC_CATALOG } from '../src/audio-catalog.js';
 import {
-  resolveCombatCue, resolveScreenCue, dawnEventCue, SCREEN_CUES,
+  resolveCombatCue, resolveScreenCue, dawnEventCue, SCREEN_CUES, QUEST_COMBAT_CUES,
 } from '../src/music-resolve.js';
 import { t, getLocale, setLocale, getContent } from '../src/i18n/index.js';
 import {
@@ -78,7 +78,7 @@ import {
   discoverContentRegistrations, renderContentRegistrationManifest,
   compileRegistrationFiles,
 } from '../tools/compile-content-registrations.mjs';
-import { CORE_CONTENT } from '../src/content.js';
+import { CORE_CONTENT, _CORE_CONTENT_PROVENANCE } from '../src/content.js';
 import { createCoreAuthoring } from '../src/packs/core/index.js';
 import * as englishContent from '../src/i18n/en/content.js';
 import { resolveAtmosphere } from '../src/theme-atmosphere.js';
@@ -86,6 +86,15 @@ import { createDevRegistry } from '../src/packs/dev.js';
 import {
   SAMPLE_PACK, SAMPLE_LOCALE_EN, sampleCard, sampleEnemy, sampleTheme,
 } from '../src/packs/_sample/index.js';
+import { CHAR_META } from '../src/char-meta.js';
+import {
+  CHARACTER_KIND_IDS, STRUCTURAL_FALLBACK_IDS, VFX_IDS,
+} from '../src/presentation-catalog.js';
+import { SFX_CATALOG } from '../src/audio-catalog.js';
+import { UI_TOKEN_IDS } from '../src/ui/tokens.js';
+import {
+  QUEST_STATES, QUEST_ACTIVE_STATES, TERMINAL_OUTCOMES, RUN_ID_RE,
+} from '../src/content-protocol.js';
 
 function makeTunedContent(overrides = {}, id = 'tuned', mutateAuthoring = null) {
   const authoring = createCoreAuthoring(overrides);
@@ -7115,6 +7124,518 @@ export default defineContentRegistration({
     readFileSync(join(projectRoot, 'src/packs/compiled/production.js'), 'utf8'),
     /_act4_drop|_sample/,
   );
+}
+
+// ---- Task 15: aggregate P2 registry equivalence / doctor / freeze ----------
+{
+  const sha256 = (value) => createHash('sha256').update(value).digest('hex');
+  const projectRoot = fileURLToPath(new URL('..', import.meta.url));
+  const assetsRoot = join(projectRoot, 'src', 'assets');
+
+  const walkAssetKeys = (dir, out = []) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walkAssetKeys(path, out);
+      else if (/\.(png|jpg|jpeg|webp)$/i.test(entry.name)) {
+        const rel = path.slice(assetsRoot.length + 1).split(/[/\\]/).join('/');
+        const slash = rel.indexOf('/');
+        if (slash > 0) {
+          const category = rel.slice(0, slash);
+          const id = rel.slice(slash + 1).replace(/\.(png|jpg|jpeg|webp)$/i, '');
+          out.push(`${category}/${id}`);
+        }
+      }
+    }
+    return out;
+  };
+
+  const resourceManifest = {
+    assetManifest: new Set(walkAssetKeys(assetsRoot)),
+    vfxIds: new Set(VFX_IDS),
+    characterKindIds: new Set(CHARACTER_KIND_IDS),
+    fallbackIds: new Set(STRUCTURAL_FALLBACK_IDS),
+    musicIds: new Set(MUSIC_CATALOG.map(({ id }) => id)),
+    sfxIds: new Set(SFX_CATALOG.map(({ id }) => id)),
+    tokenIds: new Set(UI_TOKEN_IDS),
+    // Documented default-fallback: missing CHAR_META keys use CHAR_*_DEFAULT.
+    charMetaIds: new Set(Object.keys(CHAR_META)),
+    charMetaDefaultFallback: true,
+  };
+
+  assert.deepEqual([...resourceManifest.vfxIds].sort(), [...STATIC_REFERENCE_CATALOGUES.vfxIds].sort());
+  assert.deepEqual([...resourceManifest.characterKindIds].sort(), [...STATIC_REFERENCE_CATALOGUES.characterKindIds].sort());
+  assert.deepEqual([...resourceManifest.fallbackIds].sort(), [...STATIC_REFERENCE_CATALOGUES.fallbackIds].sort());
+  assert.deepEqual([...resourceManifest.musicIds].sort(), [...STATIC_REFERENCE_CATALOGUES.musicIds].sort());
+  assert.deepEqual([...resourceManifest.sfxIds].sort(), [...STATIC_REFERENCE_CATALOGUES.sfxIds].sort());
+  assert.deepEqual([...resourceManifest.tokenIds].sort(), [...STATIC_REFERENCE_CATALOGUES.tokenIds].sort());
+
+  const productionManifestModule = await import('../src/packs/compiled/production.js');
+  const PRODUCTION_CONTENT_REGISTRATION_MANIFEST = productionManifestModule.CONTENT_REGISTRATION_MANIFEST;
+  const doctorResources = { ...STATIC_REFERENCE_CATALOGUES, ...resourceManifest };
+  const registrationDoctor = doctorContentRegistrations(PRODUCTION_CONTENT_REGISTRATION_MANIFEST, {
+    resources: doctorResources, localeToken: 'en',
+  });
+  assert.equal(registrationDoctor.report.ok, true, 'production doctor has zero errors');
+  assert.equal(registrationDoctor.report.summary.errors, 0);
+  assert.equal(registrationDoctor.report.problems.some((p) => p.code === 'asset-missing'), false,
+    'production doctor has zero asset-missing with filesystem assetManifest');
+  for (const [domain, row] of Object.entries(registrationDoctor.report.domains)) {
+    assert.equal(row.complete, row.total, `domain ${domain} complete === total`);
+  }
+  for (const entry of registrationDoctor.report.domains.themes.entries) {
+    assert.equal(entry.badges.art.status, 'complete',
+      `theme ${entry.id} art badge is complete when plates resolve against assetManifest`);
+  }
+  const formattedDoctor = formatContentReport(registrationDoctor.report);
+  assert.match(formattedDoctor, /^content: ok/);
+  console.log(formattedDoctor.trimEnd());
+
+  const expectedExports = [
+    'PLAYER', 'ACTS', 'CARDS', 'CARD_POOLS', 'STATUS_INFO', 'RELICS', 'RELIC_POOLS', 'POTIONS',
+    'ENEMIES', 'ENCOUNTERS', 'EVENTS', 'REWARD_GOLD', 'SHOP', 'OMENS', 'AFFIXES', 'ARTS', 'DEEDS',
+    'PROGRESSION', 'REVEALS', 'POOL_GATE', 'QUEST_IDS', 'WHISPERS', 'QUESTS', 'SHADE_KITS',
+    'VARIANTS', 'ASPECTS', 'VOWS', 'BOONS',
+    'QUEST_STATES', 'QUEST_ACTIVE_STATES', 'TERMINAL_OUTCOMES', 'RUN_ID_RE',
+  ];
+  assert.deepEqual([...CONTENT_EXPORT_NAMES, ...PROTOCOL_EXPORT_NAMES], expectedExports);
+  assert.equal(expectedExports.length, 32);
+  const dataNamespace = await import('../src/data.js');
+  for (const name of expectedExports) {
+    assert.ok(Object.hasOwn(dataNamespace, name), `data.js exports ${name}`);
+  }
+  assert.deepEqual(QUEST_STATES, ['dormant', 'armed', 'revealed', 'complete']);
+  assert.deepEqual(QUEST_ACTIVE_STATES, ['armed', 'revealed']);
+  assert.deepEqual(TERMINAL_OUTCOMES, ['win', 'death', 'abandon']);
+  assert.equal(RUN_ID_RE.source, dataNamespace.RUN_ID_RE.source);
+  assert.equal(RUN_ID_RE.flags, dataNamespace.RUN_ID_RE.flags);
+  for (const domain of Object.keys(CORE_CONTENT)) {
+    assert.ok(!PROTOCOL_EXPORT_NAMES.includes(domain), `protocol ${domain} is not a pack domain`);
+  }
+  assert.equal(Object.hasOwn(CORE_CONTENT, 'QUEST_STATES'), false);
+  assert.equal(Object.hasOwn(CORE_CONTENT, 'RUN_ID_RE'), false);
+
+  for (const schema of Object.values(CONTENT_SCHEMAS)) {
+    for (const [fieldName, field] of Object.entries(schema.fields || {})) {
+      assert.ok(field.source === 'pack' || field.source === 'locale',
+        `schema field ${fieldName} source must be pack|locale`);
+    }
+  }
+  for (const [domain, row] of Object.entries(registrationDoctor.report.domains)) {
+    for (const entry of row.entries) {
+      if (entry.badges.locale.status !== 'not-applicable') {
+        assert.equal(entry.badges.locale.status, 'complete',
+          `${domain}.${entry.id} locale badge`);
+      }
+      if (['cards', 'relics'].includes(domain)) {
+        assert.equal(entry.badges.pool.status, 'complete',
+          `${domain}.${entry.id} pool membership or schema no-pool`);
+      }
+    }
+  }
+
+  // Task 15 three-leg golden equality (Task 12A shape) + Task 10 catalogue legs.
+  const oracle = JSON.parse(readFileSync(new URL('./fixtures/round5-content-oracle-v1.json', import.meta.url), 'utf8'));
+  const liveOracle = await captureLiveContentOracle();
+  assert.deepEqual(liveOracle.contentExports, oracle.contentExports);
+  assert.deepEqual(liveOracle.protocolExports, oracle.protocolExports);
+  assert.deepEqual(liveOracle.enemyAi, oracle.enemyAi);
+  assert.deepEqual(liveOracle.shadeAi, oracle.shadeAi);
+  assert.deepEqual(liveOracle.rawMechanics, oracle.rawMechanics);
+  assert.deepEqual(liveOracle.i18n, oracle.i18n);
+  assert.equal(liveOracle.monteCarlo.sha256, oracle.monteCarlo.sha256);
+  assert.equal(Object.keys(oracle.i18n.domains).length, 18);
+  assert.equal(Object.keys(liveOracle.i18n.domains).length, 18);
+  assert.deepEqual(Object.keys(liveOracle.i18n.domains).sort(), Object.keys(oracle.i18n.domains).sort());
+  assert.equal(liveOracle.i18n.catalogueSha256, oracle.i18n.catalogueSha256);
+  assert.match(oracle.i18n.catalogueSha256, /^[a-f0-9]{64}$/);
+  assert.equal(oracle.rawMechanics.value.CARDS.strike.name, undefined);
+  assert.equal(oracle.rawMechanics.value.CARDS.strike.type, CARDS.strike.type);
+  assert.ok(oracle.rawMechanics.mechanicsPaths.includes('CARDS.strike.type'));
+  assert.ok(oracle.rawMechanics.localeOwnedPaths.includes('CARDS.strike.name'));
+  assert.equal(oracle.provenance.sourceSha, '9c4f7e5624b1c7eae8eb6fd3e7c27ff5ec0df5f8');
+  assert.match(oracle.provenance.sourceTree, /^[a-f0-9]{40}$/);
+  assert.throws(() => definePack({ id: 'p2-locale-leak', cards: {
+    leak: { type: 'attack', rarity: 'common', cost: 1, target: 'enemy', vfx: 'slash', effects: [], name: 'Leak' },
+  } }), /locale.field.in.pack|source.*locale/i);
+
+  assert.equal(getLocale(), 'en');
+  const i18nApis = ['getContent', 'getLocale', 'hydrateContent', 'lookup', 'registerLocale', 'setLocale', 't'];
+  const i18nModule = await import('../src/i18n/index.js');
+  assert.deepEqual(Object.keys(i18nModule).filter((k) => i18nApis.includes(k)).sort(), i18nApis.sort());
+  assert.equal(i18nModule.setLocale('zz'), false);
+  assert.equal(getLocale(), 'en');
+  assert.equal(PLAYER.name, getContent().aspects.duskblade.name);
+  assert.equal(ASPECTS[0], PLAYER);
+
+  // No save key/shape change vs the 9c4f7e5 contract.
+  const engineSource = readFileSync(join(projectRoot, 'src/engine.js'), 'utf8');
+  assert.match(engineSource, /const SAVE_KEY = 'spirebound_save_v2'/);
+  assert.match(engineSource, /const STATS_KEY = 'spirebound_stats_v1'/);
+  assert.match(readFileSync(join(projectRoot, 'src/vigil.js'), 'utf8'), /spirebound_vigil_v2/);
+  assert.doesNotMatch(engineSource, /spirebound_save_v3/);
+  assert.doesNotMatch(engineSource, /localStorage\.setItem\([^)]*contentId/);
+
+  const coreAccessors = descriptorInventory({ CORE_CONTENT }).accessors;
+  assert.deepEqual(coreAccessors, [], 'core context has no schema-visible accessors');
+  assert.equal(Object.isFrozen(CORE_CONTENT), true);
+  assert.throws(() => { CORE_CONTENT.themeOrder.push('x'); }, TypeError);
+  assert.equal(CORE_CONTENT.quests.hollowLamplighter.target, 5,
+    'materialised Hollow target retains Phase 2 numeric value');
+  const hollowDesc = Object.getOwnPropertyDescriptor(CORE_CONTENT.quests.hollowLamplighter, 'target');
+  assert.equal(hollowDesc.get, undefined);
+  assert.equal(hollowDesc.value, 5);
+
+  const authoringSnap = createCoreAuthoring();
+  authoringSnap.cards.strike.cost = 99;
+  assert.equal(CORE_CONTENT.cards.strike.cost, CARDS.strike.cost);
+  assert.notEqual(CORE_CONTENT.cards.strike.cost, 99);
+
+  const tuned = makeTunedContent({}, 'p2-tuned', (authoring) => {
+    authoring.progression.features.emberglass.hollowLamplighter.completeAt = 5;
+  });
+  assert.equal(tuned.quests.hollowLamplighter.target, 5);
+  assert.equal(Object.isFrozen(tuned), true);
+  const coreRun = newRun(1501);
+  const sampleReg = createDevRegistry({ fixtures: ['sample'] });
+  const sampleRun = newRun(1502, { ephemeral: true, content: sampleReg.context });
+  assert.equal(contentIdFor(coreRun), 'core');
+  assert.equal(contentIdFor(sampleRun), 'dev:_sample');
+  assert.equal(themeCount(coreRun), 3);
+  assert.equal(themeCount(sampleRun), 4);
+  assert.equal(isEphemeralRun(sampleRun), true);
+  assert.equal(isEphemeralRun(coreRun), false);
+  assert.equal(Object.hasOwn(CORE_CONTENT.cards, 'sampleCard'), false,
+    'P2 equivalence is not claimed from an assembly-only sample');
+
+  // Sample locale badges complete via development+fixture doctor.
+  const developmentManifestModule = await import('../src/packs/compiled/development.js');
+  const sampleDoctor = doctorContentRegistrations(
+    developmentManifestModule.CONTENT_REGISTRATION_MANIFEST,
+    { resources: doctorResources, localeToken: 'en', fixtures: ['sample'] },
+  );
+  assert.equal(sampleDoctor.report.ok, true, 'sample/dev doctor has zero errors');
+  for (const [domain, row] of Object.entries(sampleDoctor.report.domains)) {
+    for (const entry of row.entries) {
+      if (entry.badges.locale.status !== 'not-applicable') {
+        assert.equal(entry.badges.locale.status, 'complete',
+          `sample ${domain}.${entry.id} locale badge`);
+      }
+    }
+  }
+  assert.ok(sampleDoctor.report.domains.cards.entries.some((e) => e.id === 'sampleCard'));
+  assert.ok(sampleDoctor.report.domains.themes.entries.some((e) => e.id === 'sampleTheme'));
+  assert.deepEqual(Object.keys(SAMPLE_LOCALE_EN).sort(), [
+    'acts', 'affixes', 'arts', 'aspects', 'boons', 'cards', 'deeds', 'enemies',
+    'events', 'omens', 'potions', 'quests', 'relics', 'shadeKits', 'status',
+    'variants', 'vows', 'whispers',
+  ].sort());
+
+  // Task 12B: tuned high/low save-validation projections.
+  {
+    const high = makeTunedContent({
+      progression: { features: { emberglass: {
+        paleOnes: { hiddenPerRun: 2 },
+        eighthOmen: { guaranteeRuns: 4, saveDueInMax: 4 },
+        hollowLamplighter: { emberDebt: 4, saveEmberDebtMax: 4, maxMeetingsPerRun: 2 },
+        unreadablePage: { completeAt: 6 },
+      } } },
+    }, 'p2-tuned-high');
+    const low = makeTunedContent({
+      progression: { features: { emberglass: {
+        paleOnes: { hiddenPerRun: 1 },
+        eighthOmen: { guaranteeRuns: 1, saveDueInMax: 2 },
+        hollowLamplighter: { emberDebt: 2, saveEmberDebtMax: 3, maxMeetingsPerRun: 1 },
+      } } },
+    }, 'p2-tuned-low');
+    const prevLs = globalThis.localStorage;
+    const mem = new Map();
+    try {
+      globalThis.localStorage = {
+        getItem: (key) => mem.get(key) ?? null,
+        setItem: (key, value) => mem.set(key, value),
+        removeItem: (key) => mem.delete(key),
+      };
+      const questSet = (activeId) => Object.fromEntries(QUEST_IDS.map((id) => [id, {
+        state: id === activeId ? 'revealed' : 'dormant', progress: 0, memory: {},
+      }]));
+      const historicalQuests = questSet('paleOnes');
+      historicalQuests.hollowLamplighter = {
+        state: 'revealed', progress: 1, memory: { eligibleMisses: 0 },
+      };
+      const historical = newRun(1510, { content: high, quests: historicalQuests, reveals: [] });
+      historical.questScratch.hollowLamplighter = {
+        due: true, met: true, meetings: 2, debtActive: false,
+      };
+      assert.equal(saveRun(historical), true);
+      const durable = JSON.parse(mem.get('spirebound_save_v2'));
+      const reloaded = _normaliseRunSnapshotForTest(durable, low);
+      assert.ok(reloaded, 'lower tuning accepts historical scheduler counters');
+      assert.equal(contentIdFor(reloaded), 'p2-tuned-low');
+      assert.equal(reloaded.questScratch.paleOnes.hiddenRemaining, 2);
+      assert.equal(reloaded.questScratch.hollowLamplighter.meetings, 2);
+      const dynamic = newRun(1511, { content: high });
+      dynamic.quests.eighthOmen = { state: 'armed', progress: 0, memory: { dueIn: 4 } };
+      dynamic.quests.hollowLamplighter = { state: 'revealed', progress: 0, memory: { emberDebt: 4 } };
+      dynamic.endQueue = [{ t: 'pageRead', index: 6, text: 'A sixth configured page.' }];
+      assert.equal(saveRun(dynamic), true);
+      assert.ok(_normaliseRunSnapshotForTest(JSON.parse(mem.get('spirebound_save_v2')), high),
+        'high tuning accepts configured guarantee/debt/Page target');
+      const excessiveDebt = structuredClone(dynamic);
+      excessiveDebt.quests.hollowLamplighter.memory.emberDebt =
+        high.progression.emberglass.hollowLamplighter.saveEmberDebtMax + 1;
+      assert.equal(_normaliseRunSnapshotForTest(excessiveDebt, low), null,
+        'tuned normaliser rejects above-ceiling ember debt');
+    } finally {
+      if (prevLs) globalThis.localStorage = prevLs;
+      else delete globalThis.localStorage;
+    }
+  }
+
+  // CORE_CONTENT compiled with static catalogues only (no filesystem assetManifest).
+  assert.deepEqual(_CORE_CONTENT_PROVENANCE.registrationIds, ['core']);
+  assert.equal(Object.hasOwn(STATIC_REFERENCE_CATALOGUES, 'assetManifest'), false);
+  const contentSource = readFileSync(join(projectRoot, 'src/content.js'), 'utf8');
+  assert.match(contentSource, /STATIC_REFERENCE_CATALOGUES/);
+  assert.doesNotMatch(contentSource, /assetManifest/);
+
+  // Negative: unknown VFX + unknown music share stable code/entry/field across boot+doctor.
+  const coreRegistration = (await import('../src/packs/core/registration.js')).default;
+  const corePack = coreRegistration.mechanics;
+  const coreLocale = coreRegistration.locales.en;
+  const orphanLocale = {
+    ...coreLocale,
+    acts: { ...coreLocale.acts, orphanAct: { name: 'Orphan', bossName: 'Nobody', tagline: 'Extra' } },
+  };
+  const orphanDoctor = doctorContent([corePack], {
+    ...STATIC_REFERENCE_CATALOGUES, localeContent: orphanLocale, localeToken: 'en',
+  });
+  assert.ok(orphanDoctor.problems.some((p) => p.code === 'orphan-locale-entry'),
+    'orphan locale rows are reported');
+  const negAuthoring = createCoreAuthoring();
+  negAuthoring.cards.strike = { ...negAuthoring.cards.strike, vfx: 'not-a-live-vfx' };
+  negAuthoring.themes.act1 = {
+    ...negAuthoring.themes.act1,
+    music: { ...negAuthoring.themes.act1.music, combat: 'not-a-live-cue' },
+  };
+  const badPack = definePack({ id: 'p2-neg-vfx-music', ...negAuthoring });
+  let bootProblems = [];
+  try {
+    createContentContext([badPack], {
+      id: 'p2-neg', resources: STATIC_REFERENCE_CATALOGUES, localeContent: coreLocale, localeToken: 'en',
+    });
+  } catch (error) {
+    bootProblems = error.problems || [];
+  }
+  const doctorNeg = doctorContent([badPack], {
+    ...STATIC_REFERENCE_CATALOGUES, localeContent: coreLocale, localeToken: 'en',
+  });
+  for (const code of ['unknown-vfx-id', 'unknown-music-id']) {
+    const bootHit = bootProblems.find((p) => p.code === code);
+    const doctorHit = doctorNeg.problems.find((p) => p.code === code);
+    assert.ok(bootHit, `boot reports ${code}`);
+    assert.ok(doctorHit, `doctor reports ${code}`);
+    assert.equal(bootHit.field, doctorHit.field);
+    assert.equal(bootHit.entryId, doctorHit.entryId);
+    assert.equal(bootHit.code, doctorHit.code);
+  }
+  assert.equal(CONTENT_SCHEMAS.cards.fields.vfx.reference, 'vfx-id');
+  assert.equal(CONTENT_SCHEMAS.themes.fields.music.kind, 'object');
+  assert.equal(CONTENT_SCHEMAS.themes.fields.music.reference, 'music-id',
+    'Manager schema music reference kind matches VFX-style music-id');
+
+  // Neither schema nor UI modules carry an independent id enum.
+  const registrySource = readFileSync(join(projectRoot, 'src/registry.js'), 'utf8');
+  assert.doesNotMatch(registrySource, /(?:VFX_IDS|MUSIC_CATALOG|CHARACTER_KIND_IDS)\s*=/);
+  assert.doesNotMatch(registrySource, /new Set\(\[\s*['\"]slash['\"]/);
+  for (const rel of ['src/ui/assets.js', 'src/ui/content.js', 'src/ui/context.js']) {
+    const src = readFileSync(join(projectRoot, rel), 'utf8');
+    assert.doesNotMatch(src, /(?:const|let|var)\s+(?:VFX_IDS|MUSIC_IDS|CHARACTER_KIND_IDS)\s*=/,
+      `${rel} must not define an independent id enum`);
+  }
+
+  // Negative: missing raster is doctor-only; runtime boot fallback remains valid.
+  const missingAssetDoctor = doctorContent([corePack], {
+    ...STATIC_REFERENCE_CATALOGUES, localeContent: coreLocale, localeToken: 'en',
+    assetManifest: new Set([...resourceManifest.assetManifest]
+      .filter((key) => key !== `stage/${corePack.themes.act1.plates.backdrop}`)),
+  });
+  const assetProblem = missingAssetDoctor.problems.find((p) => p.code === 'asset-missing'
+    && p.field === 'themes.act1.plates.backdrop');
+  assert.ok(assetProblem, 'doctor reports asset-missing at exact plate path');
+  assert.doesNotThrow(() => createContentContext([corePack], {
+    id: 'p2-asset-boot',
+    resources: { ...STATIC_REFERENCE_CATALOGUES, assetManifest: new Set() },
+    localeContent: coreLocale, localeToken: 'en',
+  }), 'missing raster inventory is not a createContentContext error');
+
+  // Music contract (Task 6/13): five exports, 22 live cues, Rose/Hollow/Dawn/summit, fourth theme.
+  const musicResolveSource = readFileSync(join(projectRoot, 'src/music-resolve.js'), 'utf8');
+  const musicExports = [...musicResolveSource.matchAll(/^export (?:const|function) (\w+)/gm)]
+    .map((m) => m[1]).sort();
+  assert.deepEqual(musicExports, [
+    'QUEST_COMBAT_CUES', 'SCREEN_CUES', 'dawnEventCue', 'resolveCombatCue', 'resolveScreenCue',
+  ].sort());
+  assert.equal(MUSIC_CATALOG.length, 22);
+  assert.ok(MUSIC_CATALOG.every((row) => row.wired));
+  assert.equal(QUEST_COMBAT_CUES.paleOnes, 'paleOnes');
+  assert.equal(resolveCombatCue('monster', { combat: 'act1Combat' }, { questId: 'paleOnes' }), 'paleOnes');
+  assert.equal(resolveCombatCue('monster', { combat: 'act1Combat' }, { omenId: 'eighthOmen' }), 'eighthOmen');
+  assert.equal(resolveCombatCue('boss', { combat: 'act1Combat', boss: 'act1Boss' }, { omenId: 'eighthOmen' }), 'act1Boss');
+  assert.equal(SCREEN_CUES.hollow, 'hollowLamplighter');
+  assert.equal(resolveScreenCue('hollow'), 'hollowLamplighter');
+  assert.equal(SCREEN_CUES.vigil, 'vigil');
+  assert.equal(resolveScreenCue('vigil'), 'vigil');
+  assert.ok(MUSIC_CATALOG.some((row) => row.id === 'roseWindow'), 'Rose Window cue remains live');
+  assert.equal(dawnEventCue({ t: 'pageRead' }), 'unreadablePage');
+  assert.equal(dawnEventCue({ t: 'act4Reveal' }), 'sealedDoor');
+  assert.ok(MUSIC_CATALOG.some((row) => row.id === 'sealedDoor'), 'summit sealedDoor cue remains live');
+  assert.equal(resolveScreenCue('map', 'eighthOmen'), 'eighthOmen');
+  assert.equal(resolveScreenCue('reward'), null);
+  assert.equal(resolveScreenCue('bossRelic'), null);
+  const fourthThemeMusic = { combat: 'paleOnes', boss: 'usurper' };
+  assert.equal(resolveCombatCue('monster', fourthThemeMusic), 'paleOnes');
+  assert.equal(resolveCombatCue('boss', fourthThemeMusic), 'usurper');
+  assert.doesNotMatch(musicResolveSource, /Math\.min\([^)]*2[^)]*\)|act\$\{|`act\$\{/);
+  assert.doesNotMatch(musicResolveSource, /from ['\"]\.\/(?:audio|music|stage|ui)/);
+
+  // Compiler freshness + paired Act-4 drop/restore (Task 14 equivalent inside aggregate).
+  const checkCompile = spawnSync('npm', ['run', '-s', 'test:content-registrations'], {
+    cwd: projectRoot, encoding: 'utf8',
+  });
+  assert.equal(checkCompile.status, 0, checkCompile.stderr || checkCompile.stdout);
+  const productionBefore = sha256(readFileSync(join(projectRoot, 'src/packs/compiled/production.js')));
+  const developmentBefore = sha256(readFileSync(join(projectRoot, 'src/packs/compiled/development.js')));
+  assert.match(productionBefore, /^[a-f0-9]{64}$/);
+  assert.match(developmentBefore, /^[a-f0-9]{64}$/);
+  assert.doesNotMatch(readFileSync(join(projectRoot, 'src/packs/compiled/production.js'), 'utf8'), /_sample/);
+  assert.match(readFileSync(join(projectRoot, 'src/packs/compiled/development.js'), 'utf8'), /_sample/);
+
+  const protectedHashes = Object.freeze({
+    content: sha256(readFileSync(join(projectRoot, 'src/content.js'))),
+    i18n: sha256(readFileSync(join(projectRoot, 'src/i18n/index.js'))),
+    i18nEn: sha256(readFileSync(join(projectRoot, 'src/i18n/en/index.js'))),
+    engine: sha256(readFileSync(join(projectRoot, 'src/engine.js'))),
+    actCoupling: sha256(spawnSync('npm', ['run', '-s', 'test:act-coupling'], {
+      cwd: projectRoot, encoding: 'utf8',
+    }).stdout || ''),
+  });
+  const tempRoot = mkdtempSync(join(tmpdir(), 'glassvow-t15-act4-'));
+  try {
+    const tempSrc = join(tempRoot, 'src');
+    cpSync(join(projectRoot, 'src'), tempSrc, { recursive: true });
+    const packsRoot = join(tempSrc, 'packs');
+    const productionPath = join(packsRoot, 'compiled/production.js');
+    const developmentPath = join(packsRoot, 'compiled/development.js');
+    const act4Dir = join(packsRoot, '_act4_drop');
+    mkdirSync(act4Dir, { recursive: true });
+    writeFileSync(join(act4Dir, 'theme.js'), `export const act4Theme = {
+  legacyAct: { boss: 'rootheart', theme: {
+    sky: 1, fog: 2, particles: 3, glow: 4, accent: '#111', ember: '#222',
+  } },
+  plates: { backdrop: 'act1-backdrop', mid: 'act1-mid', ledge: 'act1-ledge' },
+  atmosphere: 'mire',
+  weather: { rate: 1, colors: ['#aaa'], vx: [0, 1], vy: [1, 2], size: [1, 2], drift: 0.1, emberRate: 0.1 },
+  palette: { tint: 'good', glow: 'gold', haze: 'text-dim' },
+  music: { map: 'map', combat: 'shadeDuel', boss: 'sealedDoor', victory: 'victory' },
+  roster: { normal: ['sporeling'], elite: [], boss: ['rootheart'] },
+  encounters: { weak: [['sporeling']], normal: [['sporeling']], elite: [['sporeling']], boss: [['rootheart']] },
+  rewardGold: { normal: [9, 9], elite: [9, 9], boss: [9, 9] },
+  mapHaze: 'text-dim', lanternLights: [], bossPlates: {},
+};
+`);
+    writeFileSync(join(act4Dir, 'locale-en.js'), `export const ACT4_LOCALE_EN = {
+  cards: {}, status: {}, relics: {}, potions: {}, arts: {}, boons: {},
+  enemies: {}, events: {}, omens: {}, affixes: {},
+  acts: { act4: { name: 'The Fourth Climb', bossName: 'The Fourth Keeper', tagline: 'Paired drop.' } },
+  aspects: {}, vows: {}, deeds: {}, quests: {}, whispers: [], variants: {}, shadeKits: {},
+};
+`);
+    writeFileSync(join(act4Dir, 'index.js'), `import { definePack } from '../../registry.js';
+import { act4Theme } from './theme.js';
+export const ACT4_PACK = definePack({ id: 'act4', themes: { act4: act4Theme } });
+`);
+    writeFileSync(join(act4Dir, 'registration.js'), `import { defineContentRegistration } from '../../content-registration.js';
+import { ACT4_PACK } from './index.js';
+import { ACT4_LOCALE_EN } from './locale-en.js';
+export default defineContentRegistration({
+  id: 'act4',
+  mechanics: ACT4_PACK,
+  locales: { en: ACT4_LOCALE_EN },
+  targets: { production: 3, development: 3, fixture: 3 },
+});
+`);
+    await compileRegistrationFiles({
+      sourceRoot: packsRoot,
+      outputs: { production: productionPath, development: developmentPath },
+    });
+    const productionAfterDrop = readFileSync(productionPath, 'utf8');
+    const developmentAfterDrop = readFileSync(developmentPath, 'utf8');
+    assert.match(productionAfterDrop, /_act4_drop\/registration\.js/);
+    assert.doesNotMatch(productionAfterDrop, /_sample/);
+    assert.match(developmentAfterDrop, /_act4_drop\/registration\.js/);
+    assert.match(developmentAfterDrop, /_sample\/registration\.js/);
+    const prodManifest = (await import(`${pathToFileURL(productionPath).href}?t15drop=${Date.now()}`))
+      .CONTENT_REGISTRATION_MANIFEST;
+    const prodCompiled = compileContentRegistrations(prodManifest, {
+      id: 't15-production-act4', resources: STATIC_REFERENCE_CATALOGUES, localeToken: 'en',
+    });
+    assert.deepEqual(prodCompiled.provenance.registrationIds, ['core', 'act4']);
+    assert.deepEqual(prodCompiled.context.themeOrder, ['act1', 'act2', 'act3', 'act4']);
+    assert.equal(prodCompiled.context.acts[3].name, 'The Fourth Climb');
+    rmSync(act4Dir, { recursive: true, force: true });
+    await compileRegistrationFiles({
+      sourceRoot: packsRoot,
+      outputs: { production: productionPath, development: developmentPath },
+    });
+    assert.equal(sha256(readFileSync(productionPath)), productionBefore,
+      'production manifest returns to baseline after Act 4 removal');
+    assert.equal(sha256(readFileSync(developmentPath)), developmentBefore,
+      'development manifest returns to baseline after Act 4 removal');
+    const restoredDev = (await import(`${pathToFileURL(developmentPath).href}?t15restored=${Date.now()}`))
+      .CONTENT_REGISTRATION_MANIFEST;
+    const restored = compileContentRegistrations(restoredDev, {
+      id: 't15-dev-restored', resources: STATIC_REFERENCE_CATALOGUES, localeToken: 'en',
+      fixtures: ['sample'],
+    });
+    assert.deepEqual(restored.context.themeOrder, ['act1', 'act2', 'act3', 'sampleTheme']);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/content.js'))), protectedHashes.content);
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/i18n/index.js'))), protectedHashes.i18n);
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/i18n/en/index.js'))), protectedHashes.i18nEn);
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/engine.js'))), protectedHashes.engine);
+  const actCouplingAfter = spawnSync('npm', ['run', '-s', 'test:act-coupling'], {
+    cwd: projectRoot, encoding: 'utf8',
+  });
+  assert.equal(actCouplingAfter.status, 0, actCouplingAfter.stderr || actCouplingAfter.stdout);
+  assert.equal(sha256(actCouplingAfter.stdout || ''), protectedHashes.actCoupling,
+    'act-coupling stdout hash unchanged through Act-4 drop/restore');
+  assert.doesNotMatch(readFileSync(join(projectRoot, 'src/packs/compiled/production.js'), 'utf8'), /_act4_drop/);
+
+  // No HMR accept on pack/locale/data/registry — edits force full-page reload.
+  const noHmrPaths = [
+    'src/data.js', 'src/registry.js', 'src/packs/_sample/locale-en.js',
+  ];
+  for (const rel of noHmrPaths) {
+    assert.doesNotMatch(readFileSync(join(projectRoot, rel), 'utf8'), /import\.meta\.hot|hot\.accept/,
+      `${rel} must not own an HMR accept handler`);
+  }
+  const walkJs = (dir, out = []) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walkJs(path, out);
+      else if (entry.name.endsWith('.js')) out.push(path);
+    }
+    return out;
+  };
+  for (const path of [
+    ...walkJs(join(projectRoot, 'src/packs/core')),
+    ...walkJs(join(projectRoot, 'src/i18n/en')),
+  ]) {
+    assert.doesNotMatch(readFileSync(path, 'utf8'), /import\.meta\.hot|hot\.accept/,
+      `${path} must not own an HMR accept handler`);
+  }
 }
 
 let wins = 0, deaths = 0;

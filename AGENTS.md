@@ -69,7 +69,8 @@ audio-packs.js          ← pure version/override validation + resolution; impor
 audio-selection-fetch.js ← pure bounded host-config fetch helper, imports nothing
 audio-assets.js         ← Vite asset glob + runtime selection bridge (browser-only)
 audio.js  ← WebAudio SFX + shared AudioContext; imports audio-packs/assets/catalog (browser-only)
-music.js  ← Music Cue playback; imports audio.js + audio-packs/assets/catalog (browser-only)
+music-resolve.js ← Node-pure Music Cue resolve (quest/Eighth/theme/screen/Dawn); imports no audio/trace/DOM/stage
+music.js  ← Music Cue playback; imports audio.js + music-resolve + audio-packs/assets/catalog (browser-only)
 engine.js ← imports data.js only         (game logic; localStorage save/load is try/catch-guarded → no-ops in Node)
 vigil.js  ← imports data.js only         (meta-progression; Node-safe storage adapter + _setStore() test hook)
 scene3d.js← imports three + data.js + stage.js  (the 3D tower / camera)

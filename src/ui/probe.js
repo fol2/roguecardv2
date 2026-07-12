@@ -9,7 +9,7 @@ export function installProbe({
   trace,
 }) {
   const {
-    $, $$, S, E, combatantView, openPersistenceDialog, presentationBarrier,
+    $, $$, S, E, CORE_CONTENT, combatantView, openPersistenceDialog, presentationBarrier,
     readMapWarmIds, setForceRoseFallback, stageH, stageInfo, stageRect, stageW,
     tr, usePotionOn,
   } = context;
@@ -205,6 +205,40 @@ export function installProbe({
     },
 
     // -- scenario setup: engine-legal state only -----------------------
+    /**
+     * Bounded core-theme driver for the P2 semantic theme journey.
+     * Validates themeId against injected CORE_CONTENT.themeOrder, creates a
+     * normal core run, sets the act index, regenerates the map, and enters the
+     * first registered normal encounter through the real combat handler.
+     */
+    async stageCoreTheme({ themeId, seed } = {}) {
+      const order = CORE_CONTENT?.themeOrder;
+      if (!Array.isArray(order) || !order.includes(themeId)) {
+        throw new Error(`stageCoreTheme: unknown core themeId ${String(themeId)}`);
+      }
+      const themeIndex = order.indexOf(themeId);
+      const theme = CORE_CONTENT.themes[themeId];
+      const encounter = theme?.encounters?.normal?.[0];
+      if (!Array.isArray(encounter) || !encounter.length) {
+        throw new Error(`stageCoreTheme: theme ${themeId} has no normal encounter`);
+      }
+      const run = E.newRun(seed);
+      run.act = themeIndex;
+      run.map = E.genMap(run);
+      run.pendingLamplighter = false;
+      S.run = run;
+      S.cb = null;
+      combat.startCombatUI([...encounter], 'monster');
+      await probe.settle();
+      return Object.freeze({
+        themeId,
+        themeIndex,
+        plates: Object.freeze({ ...(theme.plates || {}) }),
+        weather: theme.weather || null,
+        music: Object.freeze({ ...(theme.music || {}) }),
+        enemyIds: Object.freeze([...encounter]),
+      });
+    },
     forceHand(ids) {
       S.cb.hand = ids.map((id) => E.makeCard(S.run, id));
       combat.syncHand();

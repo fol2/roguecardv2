@@ -16,7 +16,8 @@ function expectOrderedSubsequence(actual, expected) {
 
 const PR16_WARM_GRAPH = {
   title: ['embark', 'vigil'], embark: ['map'], vigil: ['title', 'roseWindow'],
-  roseWindow: ['vigil'], map: ['act1Combat', 'safeNodes', 'elite', 'hollowLamplighter'],
+  // Semantic map edges first; first-theme combat appended by configureThemeMusic.
+  roseWindow: ['vigil'], map: ['safeNodes', 'elite', 'hollowLamplighter', 'act1Combat'],
   safeNodes: ['map'], act1Combat: ['act1Boss', 'map', 'elite'],
   act1Boss: ['map', 'victory'], act2Combat: ['act2Boss', 'map', 'elite'],
   act2Boss: ['map', 'victory'], act3Combat: ['act3Boss', 'map', 'elite'],

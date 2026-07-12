@@ -306,7 +306,7 @@ navigatorApi = createNavigator({
 });
 
 const probeContext = Object.freeze({
-  $, $$, S, E, combatantView, openPersistenceDialog, presentationBarrier,
+  $, $$, S, E, CORE_CONTENT, combatantView, openPersistenceDialog, presentationBarrier,
   readMapWarmIds: (...args) => readMapWarmIds(...args),
   setForceRoseFallback, stageH, stageInfo, stageRect, stageW, tr, usePotionOn,
 });

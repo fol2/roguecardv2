@@ -128,8 +128,8 @@ Act 1/2 boss-victory transitions and the final victory end screen play the victo
 _Avoid_: victory sting after every combat
 
 **Music Module**:
-`src/music.js` owns the Music Registry and playback (`play` / `stop` / `warm` / bus controls). `src/audio.js` owns SFX and the shared AudioContext unlock.
-_Avoid_: stuffing BGM into audio.js, splitting music into many tiny files
+`src/music.js` owns the Music Registry and playback (`play` / `stop` / `warm` / bus controls). `src/audio.js` owns SFX and the shared AudioContext unlock. Node-pure cue resolution lives in `src/music-resolve.js` (quest/Eighth/theme precedence, screen overrides, Dawn ceremony cues); it imports no audio, trace, DOM or stage module and sits below browser-only `music.js` in the dependency graph.
+_Avoid_: stuffing BGM into audio.js, splitting music into many tiny files, importing music-resolve from engine for side effects
 
 **Cue Id**:
 camelCase Music Cue identity used at call sites (`act1Combat`, `safeNodes`). Display titles stay on the asset / ledger only.
@@ -154,3 +154,31 @@ _Avoid_: both buses at 0.5 as the designed default
 **Audio Panel**:
 A small settings panel with Music and SFX rows (mute toggle + volume slider each). Opened from title and the in-run hamburger; replaces the single Mute Sound control.
 _Avoid_: inline four-control sprawl on the title screen
+
+### Content registry (P2)
+
+**Content Context**:
+A frozen, versioned assembly of pack mechanics plus joined locale fragments (`CORE_CONTENT` for production). Engine and UI read tables from the context; packs never own English display strings.
+_Avoid_: mutable global content registry, locale fields inside mechanics packs
+
+**Content Doctor**:
+`doctorContent` / `doctorContentRegistrations` validate reference completeness (VFX, character kinds, music, tokens, optional filesystem `assetManifest`) and locale coverage. Physical raster inventory is doctor/test-only; production boot tolerates missing rasters via SVG/`assetUrl` fallback.
+_Avoid_: independent id enums in UI modules, treating assetManifest as a runtime boot requirement
+
+**Pack / locale edit reload**:
+`src/data.js`, `src/registry.js`, `src/packs/core/**`, `src/i18n/en/**` and `_sample/locale-en.js` deliberately own no Vite HMR accept handlers. Pack or locale edits fall through to a full-page reload; no live-run or exported-object identity is promised across those edits.
+_Avoid_: soft-apply HMR for content tables, promising object identity after a pack edit
+
+## Module dependency notes (P2)
+
+```
+content-protocol.js ← four immutable protocol exports
+content-resources.js / presentation-catalog.js / ui/tokens.js ← static catalogues
+registry.js ← schemas, merge, context, doctor (Node-pure)
+content-registration.js ← paired registration compile/doctor
+packs/compiled/{production,development}.js ← generated manifests
+content.js ← CORE_CONTENT assembler over production manifest
+data.js ← 28 content-view aliases + 4 protocol re-exports
+music-resolve.js ← Node-pure cue resolve (below browser-only music.js)
+music.js ← Music Cue playback; imports audio.js + music-resolve (browser-only)
+```

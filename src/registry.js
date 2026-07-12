@@ -56,7 +56,7 @@ export const CONTENT_SCHEMAS = Object.freeze({
   boons: schema({ name: field('string', 'locale'), text: field('string', 'locale') }),
   themes: schema({
     legacyAct: field('object'), plates: field('object'), atmosphere: field('string'), weather: field('object'),
-    palette: field('object'), music: field('object'),
+    palette: field('object'), music: field('object', 'pack', { reference: 'music-id' }),
     roster: field('object'), encounters: field('object'), rewardGold: field('object'),
     mapHaze: field('string', 'pack', { reference: 'token-id' }), lanternLights: field('array'),
     bossPlates: field('object'), name: field('string', 'locale'), tagline: field('string', 'locale'),
@@ -354,6 +354,12 @@ function referenceProblem(code, domain, entryId, path, expected, actual, packId 
   return problem(code, { packId, domain, entryId, field: path, expected, actual, hint: `Register a valid ${expected} or correct ${path}.` });
 }
 
+/** Resolve theme plate strings to assetManifest `category/id` keys (runtime: assetUrl('stage', id)). */
+function plateAssetManifestKey(value) {
+  if (typeof value !== 'string' || !value) return null;
+  return value.includes('/') ? value : `stage/${value}`;
+}
+
 export function validateContentReferences(registry, resources = STATIC_REFERENCE_CATALOGUES, { includeAssets = false } = {}) {
   const problems = [];
   const meta = registryMetadata.get(registry);
@@ -380,7 +386,10 @@ export function validateContentReferences(registry, resources = STATIC_REFERENCE
     const tokenRefs = [['mapHaze', theme.mapHaze], ...Object.entries(theme.palette || {}).map(([key, value]) => [`palette.${key}`, value])];
     for (const [key, value] of tokenRefs) if (typeof value === 'string' && !resources.tokenIds?.has(value)) problems.push(referenceProblem('unknown-token-id', 'themes', id, `themes.${id}.${key}`, 'token-id', value, owner('themes', id)));
     if (includeAssets && resources.assetManifest) for (const [key, value] of Object.entries(theme.plates || {})) {
-      if (typeof value === 'string' && !resources.assetManifest.has(value)) problems.push(referenceProblem('asset-missing', 'themes', id, `themes.${id}.plates.${key}`, 'asset-id present in supplied manifest', value, owner('themes', id)));
+      const manifestKey = plateAssetManifestKey(value);
+      if (manifestKey && !resources.assetManifest.has(manifestKey)) {
+        problems.push(referenceProblem('asset-missing', 'themes', id, `themes.${id}.plates.${key}`, 'asset-id present in supplied manifest', value, owner('themes', id)));
+      }
     }
   }
   const variantBases = new Set(['hero', ...Object.keys(registry.enemies || {})]);
@@ -632,15 +641,46 @@ export function doctorContent(packs, resources = STATIC_REFERENCE_CATALOGUES) {
       const artStatus = assetProblemRefs.length
         ? 'missing'
         : (plateRefs.length && resources.assetManifest ? 'complete' : 'not-applicable');
+      const poolRarities = domain === 'cards'
+        ? new Set(['common', 'uncommon', 'rare'])
+        : domain === 'relics' ? new Set(['common', 'uncommon', 'rare', 'boss']) : null;
+      const noPoolRarities = domain === 'cards'
+        ? new Set(['starter', 'special'])
+        : domain === 'relics' ? new Set(['starter']) : null;
+      let poolStatus = 'not-applicable';
+      let poolRefs = [];
+      if (poolRarities) {
+        const rarity = row?.rarity;
+        if (row?.locked || noPoolRarities.has(rarity)) {
+          // Schema-level no-pool: locked rows and starter/special (cards) / starter (relics).
+          poolStatus = 'complete';
+        } else if (poolRarities.has(rarity)) {
+          poolStatus = 'complete';
+        } else {
+          poolStatus = 'missing';
+          poolRefs = [`${domain}.${entryId}.rarity`];
+        }
+      }
+      const charMetaIds = resources.charMetaIds;
+      const charMetaDefaultFallback = resources.charMetaDefaultFallback !== false;
+      let charMetaStatus = refsFor('character').length
+        ? 'missing'
+        : ['enemies', 'shadeKits'].includes(domain) ? 'complete' : 'not-applicable';
+      let charMetaRefs = refsFor('character');
+      if (charMetaStatus === 'complete' && charMetaIds && !charMetaDefaultFallback
+        && !charMetaIds.has(String(entryId))) {
+        charMetaStatus = 'missing';
+        charMetaRefs = [`${domain}.${entryId}`];
+      }
       return Object.freeze({
         id: String(entryId), packId: meta?.owners?.[domain]?.get(entryId) || meta?.owners?.[domain]?.get(domain) || 'registry', complete,
         badges: Object.freeze({
           locale: badge(refsFor('locale').length ? 'missing' : 'complete', refsFor('locale')),
           art: badge(artStatus, assetProblemRefs),
           vfx: badge(refsFor('vfx').length ? 'missing' : domain === 'cards' ? 'complete' : 'not-applicable', refsFor('vfx')),
-          charMeta: badge(refsFor('character').length ? 'missing' : ['enemies', 'shadeKits'].includes(domain) ? 'complete' : 'not-applicable', refsFor('character')),
+          charMeta: badge(charMetaStatus, charMetaRefs),
           audio: badge(refsFor('music').length || refsFor('sfx').length ? 'missing' : domain === 'themes' ? 'complete' : 'not-applicable', [...refsFor('music'), ...refsFor('sfx')]),
-          pool: badge(['cards', 'relics'].includes(domain) ? 'complete' : 'not-applicable', []),
+          pool: badge(poolStatus, poolRefs),
         }),
         links: Object.freeze({ gallery: Object.freeze({ route: 'gallery', domain, id: String(entryId) }), lab: Object.freeze({ route: 'lab', domain, id: String(entryId) }) }),
         problems: Object.freeze(entryProblems),
