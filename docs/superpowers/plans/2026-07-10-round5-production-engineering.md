@@ -2482,7 +2482,7 @@ if SPIREBOUND_TRACE_ATTACHMENT_CANARY=1 \
   echo 'expected trace attachment canary to fail deliberately' >&2
   exit 1
 fi
-rg -F 'INTENTIONAL_TRACE_ATTACHMENT_CANARY_FAILURE' "$CANARY_LOG"
+rg -F 'Error: INTENTIONAL_TRACE_ATTACHMENT_CANARY_FAILURE' "$CANARY_LOG"
 test "$(find "$CANARY_OUTPUT" -type f -name ui-behaviour-trace.ndjson | wc -l | tr -d ' ')" = 1
 test "$(find "$CANARY_OUTPUT" -type f -name ui-behaviour-trace.txt | wc -l | tr -d ' ')" = 1
 NDJSON=$(find "$CANARY_OUTPUT" -type f -name ui-behaviour-trace.ndjson)
