@@ -1,4 +1,5 @@
 name: ci
+# wall-clock: fail-fast + heavy peel
 
 on:
   push:
