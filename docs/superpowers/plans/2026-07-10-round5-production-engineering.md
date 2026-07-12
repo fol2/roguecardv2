@@ -3683,7 +3683,7 @@ array or locale join in `src/content.js`. They also prove the engine/data
 compiled-registration graph reaches `src/i18n/en/content.js` only and cannot
 reach the UI catalogue through `src/i18n/en/index.js` or `src/i18n/en/ui.js`.
 
-- [ ] **Step 5 (12B): Write the run-bound and tuned-context failures before cut-over**
+- [x] **Step 5 (12B): Write the run-bound and tuned-context failures before cut-over**
 
 With live `data.js` still authoritative, add RED tests for two simultaneous
 frozen contexts: exact core and a fresh tuned authoring clone. Apply overrides
@@ -3724,7 +3724,7 @@ rg 'contentIdFor|isEphemeralRun|_normaliseRunSnapshotForTest|tuned context' "$RE
 rm -f "$RED_LOG"
 ```
 
-- [ ] **Step 6 (12B): Move the engine content seam while live data remains authoritative**
+- [x] **Step 6 (12B): Move the engine content seam while live data remains authoritative**
 
 At module scope in `engine.js`, create private `RUN_CONTENT` and
 `EPHEMERAL_RUNS` weak collections plus `engineContentFor(run)`. Build the
@@ -3749,7 +3749,7 @@ production `loadRun()` validates/hydrates only core and binds no custom
 context. Run the full core/tuned isolation suite while `data.js` is still the
 monolith; it must pass before alias cut-over.
 
-- [ ] **Step 7 (12B): Observe one final red, then atomically cut over 28 views plus four protocols**
+- [x] **Step 7 (12B): Observe one final red, then atomically cut over 28 views plus four protocols**
 
 Now add the source assertion that `src/data.js` imports `CORE_CONTENT` from
 `./content.js`, re-exports the four constants from `./content-protocol.js`,
@@ -3802,7 +3802,7 @@ export const POOL_GATE = CORE_CONTENT.poolGate;
 Keep the export names/order inventory in this plan. `src/engine.js` and every
 consumer retain their existing `data.js` import boundary.
 
-- [ ] **Step 8 (12B): Run the three-leg oracle after the atomic cut-over**
+- [x] **Step 8 (12B): Run the three-leg oracle after the atomic cut-over**
 
 Run `node tools/check-core-candidate.mjs --all`,
 `npm run test:content-registrations`, `npm test` and
@@ -3818,7 +3818,7 @@ locally). Task 13 creates the act-coupling gate; Task 12 may not invoke a future
 script. If one leg changes, repair the seam/candidate/cut-over;
 never regenerate the oracle.
 
-- [ ] **Step 9 (12B): Commit the engine seam and atomic live cut-over**
+- [x] **Step 9 (12B): Commit the engine seam and atomic live cut-over**
 
 ```bash
 set -euo pipefail
