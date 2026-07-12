@@ -250,6 +250,34 @@ test('Vigil deed rows release listIn without a sticky filter/transform', async (
   }
 });
 
+// Reward rows share the same listIn cascade as shop/Vigil.
+test('reward rows release listIn without a sticky filter/transform', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'compositor soft-sample is scale-sensitive');
+  await boot(page, { query: 'mesh=0' });
+  await page.evaluate(() => {
+    const sp = window.spirebound;
+    sp.E.setPendingReward(sp.S.run, 'normal', {
+      gold: 25,
+      cards: ['strike', 'defend', 'chisel'],
+      potion: null,
+      relic: null,
+    });
+    sp.show('reward');
+  });
+  await page.waitForSelector('.reward-list .reward-row');
+  await page.waitForTimeout(700);
+  const rows = await page.evaluate(() =>
+    [...document.querySelectorAll('.reward-list .reward-row')].map((el) => ({
+      filter: getComputedStyle(el).filter,
+      transform: getComputedStyle(el).transform,
+    })));
+  expect(rows.length).toBeGreaterThan(0);
+  for (const row of rows) {
+    expect(row.filter).toBe('none');
+    expect(row.transform).toBe('none');
+  }
+});
+
 test('?shape= override forces the remaining shapes', async ({ page }) => {
   test.skip(test.info().project.name !== 'desktop', 'one project is enough');
   await boot(page, { query: 'shape=pad-portrait' });
