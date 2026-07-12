@@ -3,10 +3,16 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use Superpowers 6.1.1 `superpowers:subagent-driven-development` to implement this plan task-by-task with a fresh implementer and fresh spec/code reviewers. Do not substitute `executing-plans`. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 > **Predecessor re-entry (2026-07-11):** Re-authored against loaded PR #14,
-> PR #15, PR #16, PR #18, PR #7 and PR #17 at the minimum baseline
+> PR #15, PR #16, PR #18, PR #7 and PR #17 at the PR17 provenance baseline
 > `40eb3576870f2a94b50e1a616ec40d4c37075018`. PR #17 used base
 > `b285b815509d5c700b2b76847302c01bc595db47` and reviewed head
-> `5cd1c555219a18e25b8ffa11646e7899d6764fd2`. The prior plan is
+> `5cd1c555219a18e25b8ffa11646e7899d6764fd2`. PR #21 then merged at
+> `45677c1a676d19b1590192a4dbaf8425801dc97e` (reviewed head
+> `c42279609f2379cd6be6ba695205a131f029de28`) and PR #22 merged at the
+> current executable baseline `9c4f7e5624b1c7eae8eb6fd3e7c27ff5ec0df5f8`
+> (reviewed head `fe330a077ba847900f08be0121b65081b84e21ae`). `40eb357`
+> remains the immutable PR17 geometry provenance; it is no longer the source
+> root for post-drift runtime or oracle work. The prior plan is
 > not executable by assumption: terminal/Dawn transactions, the 32-export
 > surface, parallel CI, progression gates, PR #15 audio hot-apply and PR #16's
 > complete live Music Cue resolver/call sites, PR #18 app versioning/release
@@ -27,15 +33,20 @@
   PR #16 merge `7b8e01ab5ab5f7be0a3a8cbd3c61b3b41549a419`,
   PR #18 merge `de84c3015c9726d573106f2de97d0972cf283c32`, and
   PR #7 merge `b285b815509d5c700b2b76847302c01bc595db47`, followed by PR #17
-  merge/current baseline `40eb3576870f2a94b50e1a616ec40d4c37075018`
-  (reviewed head `5cd1c555219a18e25b8ffa11646e7899d6764fd2`).
+  merge/provenance baseline `40eb3576870f2a94b50e1a616ec40d4c37075018`
+  (reviewed head `5cd1c555219a18e25b8ffa11646e7899d6764fd2`), PR #21 merge
+  `45677c1a676d19b1590192a4dbaf8425801dc97e`, and PR #22 merge/current
+  executable baseline `9c4f7e5624b1c7eae8eb6fd3e7c27ff5ec0df5f8`.
   `src/data.js` must expose the complete 32-name post-Phase-2 contract,
   transactional Dawn/Rose/sealed-door surfaces and PR #15 hot audio-gallery
   behaviour. `src/music-resolve.js`, all 22 live catalogue rows, their PR #16
   precedence and real gameplay call sites must also be present. Package version
   `0.5.0`, version/release build semantics, exact seven i18n APIs, default `en`,
-  18 English content domains and module-init hydration must also be present
-  without a save change. A later
+  18 English content domains, the exact 278-leaf English UI catalogue and
+  module-init hydration must also be present without a save change. The pure
+  `pendingRewardHasUntaken()` and `relicBarLayout()` helpers, claim-all-or-
+  confirm reward exit, empty-Omen relic packing and PR #21/#22 browser journeys
+  are protected predecessor behaviour. A later
   `origin/main` change triggers a fresh drift audit before runtime work; a
   local predecessor worktree never passes.
 - Keep `src/engine.js`, `src/vigil.js`, `src/data.js`, `src/content.js`, `src/registry.js`,
@@ -51,7 +62,7 @@
   `src/ui/presentation-barrier.js`
   plus `src/ui/run-effects.js` Node-runnable and DOM-free.
 - Preserve the load-bearing import graph: `src/engine.js` and `src/vigil.js` import `src/data.js`, never i18n/version/UI. `src/data.js` aliases one already-hydrated frozen content context, performs no post-freeze mutation, and keeps the complete post-predecessor named-export surface.
-- Keep all current internal ids and the complete `40eb357` save keys/shapes
+- Keep all current internal ids and the complete `9c4f7e5` save keys/shapes
   immutable, including `runId`, pending encounter/reward/Hollow/Shade state,
   `pendingRunEnd`, `pendingDawn`, Vigil receipts and bequests. Packs add no save
   field. New mechanics, a playable Act 4, runtime DLC, AI DSL, screen-reader
@@ -555,7 +566,7 @@ and post-push `ls-remote` equality are recorded in the ignored ledger. Task 5
 is unblocked; Tasks 3–4 remain retired tombstones.
 
 
-### Task 1: `[PE]` Loaded Phase 2 + version + i18n + PR17 geometry re-entry
+### Task 1: `[PE]` Loaded Phase 2 + version + i18n + PR17/PR21/PR22 re-entry
 
 **Files:**
 - Read-only predecessor/source audit: `src/data.js`, `src/ui.js`, `src/engine.js`, `src/vigil.js`,
@@ -575,19 +586,22 @@ is unblocked; Tasks 3–4 remain retired tombstones.
   named in Step 4; no product/source/Linux-baseline/`dist/**` mutation
 
 **Interfaces:**
-- Produces: clean PR #14 + PR #15 + PR #16 + PR #18 + PR #7 + PR #17 ancestry and the
-  semantic baseline consumed by every runtime task.
-- Status: Task 0's retirement publication and this
-  final-head ancestry/semantic rerun are pending. The exact `40eb357` browser
-  baseline exposed three expected Darwin snapshot mismatches and remains
-  blocked only on their reviewed reconciliation. Do not replay Task 0 after it
-  closes; a later `main` change opens a new audit.
+- Produces: clean PR #14 + PR #15 + PR #16 + PR #18 + PR #7 + PR #17 +
+  PR #21 + PR #22 ancestry and the semantic baseline consumed by every runtime
+  task.
+- Status: the original `40eb357` re-entry and Darwin reconciliation are
+  historical and complete. On 2026-07-11, `origin/main` advanced to `9c4f7e5`;
+  the active continuation branch rebased onto that exact head. Step 5 is the
+  required modular-call-site reconciliation before Task 9 may close. Do not
+  replay Task 0; a later `main` change opens a new audit.
 
-- [ ] **Step 1: Verify final ancestry after Task 0 closes**
+- [x] **Step 1: Recorded original final ancestry after Task 0 — historical transcript**
 
-Task 0 records the final PE/FE heads. They are evidence, never arguments for a
-further `rebase --onto`. Run these read-only provenance commands after the
-reviewed retirement publication:
+> **Recorded evidence only — do not execute this obsolete `40eb357` block.**
+> Task 1 Step 5 is the current `9c4f7e5` re-entry gate.
+
+Task 0 recorded the final PE/FE heads. They are evidence, never arguments for a
+further `rebase --onto`. The recorded read-only provenance commands were:
 
 ```bash
 set -euo pipefail
@@ -715,9 +729,12 @@ test -z "$(git -C ../round5-front-end status --short)"
 Do not fall back to the obsolete historical old/new pair. This prevents a
 subsequent FE merge from replaying already-rebased commits.
 
-- [ ] **Step 2: Run the semantic predecessor assertion from final PE**
+- [x] **Step 2: Recorded original semantic predecessor assertion — historical transcript**
 
-Run:
+> **Recorded evidence only — do not execute.** The current modular assertion
+> is Task 1 Step 5.
+
+The recorded command was:
 
 ```bash
 set -euo pipefail
@@ -909,7 +926,10 @@ pending.
 
 - [x] **Step 3: Recorded clean `40eb357` post-merge baseline gap — historical command transcript**
 
-Run:
+> **Recorded evidence only — do not execute.** This deliberately captured the
+> pre-reconciliation non-zero visual result.
+
+The recorded command transcript was:
 
 ```bash
 set -euo pipefail
@@ -953,18 +973,17 @@ PR #17 itself has 24 successful remote checks plus the one expected skipped
 exact commands, port and counts under `Loaded predecessor 40eb local baseline:`
 in the ledger.
 
-- [ ] **Step 4: Reconcile exactly the three PR17 Darwin baselines**
+- [x] **Step 4: Reconciled exactly the three PR17 Darwin baselines — historical closure**
 
-Inspect each Playwright `actual` and `diff` image beside its existing Darwin and
-changed Linux baseline. A fresh spec reviewer must confirm that every changed
-pixel is explained only by PR #17's under-foe chrome/fixed-candle movement. PE
-fixes/re-presents any finding; then a fresh code-quality reviewer checks the
-path gate and update commands, followed by fixes/re-review. Do not update a
-baseline before both approvals, do not accept unexplained pixels, and do not
-silently refresh any fourth file.
+> **Recorded evidence only — do not execute, update or commit these snapshots
+> again.** The three-file reconciliation is already in ancestry.
 
-Run the two targeted updates on separate fresh strict ports, then a complete
-visual verification on a third fresh strict port:
+The completed review inspected each Playwright `actual` and `diff` image beside
+its existing Darwin and changed Linux baseline. Fresh spec and code-quality
+reviewers confirmed that every changed pixel was explained only by PR #17's
+under-foe chrome/fixed-candle movement and that no fourth file changed.
+
+The recorded two targeted updates and complete visual verification were:
 
 ```bash
 set -euo pipefail
@@ -993,8 +1012,7 @@ git diff --check
 
 Expected: complete visual `48/48`; the exact sorted dirty set is the three
 Darwin files above; Linux baselines, source/tests and `dist/**` are untouched.
-Re-run both independent review cycles on the final images/diff, then commit
-only those three files:
+The recorded closure then staged and committed only those three files:
 
 ```bash
 set -euo pipefail
@@ -1012,6 +1030,45 @@ test -z "$(git status --short)"
 ```
 
 Only after this commit and the recorded `48/48` result may Task 5 begin.
+
+- [ ] **Step 5: Re-enter PR #21/#22 after the monolith split**
+
+Freeze this exact provenance:
+
+```text
+PR #21 base  40eb3576870f2a94b50e1a616ec40d4c37075018
+PR #21 head  c42279609f2379cd6be6ba695205a131f029de28
+PR #21 merge 45677c1a676d19b1590192a4dbaf8425801dc97e
+PR #22 base  45677c1a676d19b1590192a4dbaf8425801dc97e
+PR #22 head  fe330a077ba847900f08be0121b65081b84e21ae
+PR #22 merge 9c4f7e5624b1c7eae8eb6fd3e7c27ff5ec0df5f8
+```
+
+The rebase must preserve upstream `src/engine.js`, `src/uic.js`,
+`src/i18n/en/ui.js`, `src/styles.css`, `test/e2e/rewards.spec.js`,
+`test/test_engine.js`, the two PR #21 Linux reward baselines and generated
+`dist/**` as baseline inputs. Because the Round 5 commits split the old
+`src/ui.js`, port each PR #21/#22 call-site hunk mechanically into its sole
+extracted owner. This is not new copy or a visual redesign. Required proofs:
+
+- the sorted `tr('ui.*')` call multiset under `src/ui/**` equals the multiset in
+  `9c4f7e5:src/ui.js` exactly: 298 calls over 272 unique keys;
+- reward uses `uiIcon('coin')`/`uiIcon('deck')`, calls
+  `pendingRewardHasUntaken()`, and preserves both confirm and fully-claimed
+  journeys;
+- combat uses `relicBarLayout()` and distinguishes an empty Omen seat from a
+  present Omen without changing authored geometry;
+- all 278 English UI catalogue leaves remain reachable, with no residual
+  predecessor literal restored;
+- `npm test`, module boundaries, reward/trace/stage browser journeys, the full
+  standing profile and visual suite pass; and
+- the fresh spec reviewer and fresh code-quality reviewer each report
+  `WebKit-safe API review: PASS`, zero unexplained visual drift and no
+  Simulator/mobile-support claim.
+
+The source port is reviewed and committed with Task 9 because the final combat
+and composition owners do not exist before that extraction. Therefore Task 9's
+post-drift path gate supersedes its original twelve-path pre-drift gate.
 
 ### Task 2: `[FE]` Bounded Round 5 experience contract — completed proposal
 
@@ -1233,7 +1290,7 @@ and requires fresh owner activation, drift audit, planning, review and evidence.
 - Produces: `createBehaviourTrace(options)` returning `emit`, `begin`, `read`, `activeSpans`, `assertIntegrity`, `reset` and `enabled`.
 - Consumed by: `src/ui/context.js`, `src/ui/drain.js`, `src/ui/probe.js`, Content Lab and the Playwright Chromium/WebKit projects.
 
-- [ ] **Step 1: Write the failing trace contract block**
+- [x] **Step 1: Write the failing trace contract block**
 
 Import `createBehaviourTrace` into `test/test_engine.js` and add:
 
@@ -1282,7 +1339,7 @@ profile/command table above, literal cumulative inclusion from `p1-node` through
 for each simulated Playwright-backed command. Assert import performs no process
 spawn and the optional content-disk row is the only conditional command.
 
-- [ ] **Step 2: Verify the red state**
+- [x] **Step 2: Verify the red state**
 
 ```bash
 set -euo pipefail
@@ -1299,7 +1356,7 @@ rm -f "$RED_LOG"
 Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `behaviour-trace.js` or the
 standing-gate runner.
 
-- [ ] **Step 3: Implement the strict-port wrapper and standing-gate runner**
+- [x] **Step 3: Implement the strict-port wrapper and standing-gate runner**
 
 In `run-with-strict-e2e-port.mjs`, export `allocateStrictE2EPort()` and
 `runWithStrictE2EPort({argv, spawn, env, allocatePort})`. Keep CLI execution
@@ -1325,7 +1382,7 @@ first failure. Add exactly:
 Run `npm run test:round5:standing -- --profile p1-node`; expected: the existing
 Node suite passes and no browser command is spawned.
 
-- [ ] **Step 4: Implement the fixed record contract**
+- [x] **Step 4: Implement the fixed record contract**
 
 Use these constants and signature exactly:
 
@@ -1424,7 +1481,7 @@ resets to the current first record. Unit tests parse `.text` without consulting
 records and prove the same sequence/reason/cause facts; parse `.ndjson` line by
 line without consulting raw records.
 
-- [ ] **Step 5: Verify green**
+- [x] **Step 5: Verify green**
 
 Run:
 
@@ -1436,7 +1493,7 @@ npm run test:round5:standing -- --profile p1-node
 
 Expected: all trace blocks plus the existing monte-carlo pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 set -euo pipefail
@@ -1479,7 +1536,7 @@ git commit -m "feat: add the semantic UI behaviour trace"
   contract journeys and failure attachments.
 - Consumes: `createBehaviourTrace`; the real existing handlers and queue.
 
-- [ ] **Step 1: Write failing end-to-end trace assertions**
+- [x] **Step 1: Write failing end-to-end trace assertions**
 
 Create `test/e2e/trace.spec.js` with one helper that reduces records to
 `eventName/phase/outcome`, then assert these ordered subsequences. For this
@@ -1558,7 +1615,7 @@ In `test_engine.js`, import the not-yet-created presentation barrier and write
 pure failing tests for nested work, cancellation, double-finish strict/runtime
 policy, destruction and `whenIdle()` resolution order.
 
-- [ ] **Step 2: Verify red**
+- [x] **Step 2: Verify red**
 
 Run:
 
@@ -1587,7 +1644,7 @@ rm -f "$BROWSER_RED_LOG"
 Expected: Node fails on the missing barrier module and Playwright fails because
 `behaviourTrace` is absent. Keep both red tests intact for implementation.
 
-- [ ] **Step 3: Instantiate trace before UI boot**
+- [x] **Step 3: Instantiate trace before UI boot**
 
 At module initialisation, define a compile-time QA gate:
 
@@ -1640,7 +1697,7 @@ add a Node source assertion for both exact mappings. This changes no individual
 Playwright project and prevents pixel-moving implementation commits from
 weakening or prematurely updating the visual suite.
 
-- [ ] **Step 4: Instrument semantic owners**
+- [x] **Step 4: Instrument semantic owners**
 
 First implement `createPresentationBarrier()` as a Node-pure token owner:
 
@@ -1782,7 +1839,7 @@ warm call: current act combat/boss plus shared `elite`, `safeNodes` and
 current-theme warm set is not conflated with the registry's first-theme
 look-ahead row.
 
-- [ ] **Step 5: Expose read-only probe and presentation settle**
+- [x] **Step 5: Expose read-only probe and presentation settle**
 
 Add:
 
@@ -1802,7 +1859,7 @@ keep calling `settle()`, which now additionally waits for `S.busy` and every
 always-on presentation token. Trace integrity is asserted separately whenever
 trace is enabled; trace status never controls the wait.
 
-- [ ] **Step 6: Attach trace artifacts on every trace-enabled failure**
+- [x] **Step 6: Attach trace artifacts on every trace-enabled failure**
 
 Create `test/e2e/trace-fixture.js`, extending Playwright's `test` with an
 automatic page fixture. When `testInfo.status !== testInfo.expectedStatus`, it
@@ -1813,7 +1870,7 @@ Lab/input/presentation/P6 spec to import `{ test, expect }` from this fixture.
 Add a source test enumerating every trace-enabled spec and asserting no direct
 `@playwright/test` import remains. No suite hand-writes its own failure hook.
 
-- [ ] **Step 7: Verify green and commit**
+- [x] **Step 7: Verify green and commit**
 
 Run:
 
@@ -1899,7 +1956,7 @@ git commit -m "feat: trace real UI behaviour boundaries"
   while overlay/end/combat remain in the monolith; only then may 7B move shared
   DOM owners.
 
-- [ ] **Step 1 (7A): Freeze and fail the normal transaction seam**
+- [x] **Step 1 (7A): Freeze and fail the normal transaction seam**
 
 Run the complete Task 6 Phase-2 fixture manifest and the focused
 `emberglass`, `emberglass-persistence` and `hollow-transaction` suites against
@@ -1911,7 +1968,7 @@ terminal journal→finalise→commit and Dawn stage/cursor/final-clear ordering,
 return shapes, retries and idempotence. Run `npm test`; expected RED is the
 missing module/source owner only.
 
-- [ ] **Step 2 (7A): Extract and delegate to `run-effects.js` before moving DOM owners**
+- [x] **Step 2 (7A): Extract and delegate to `run-effects.js` before moving DOM owners**
 
 Move only the dependency-injected transaction coordinator into Node-pure
 `run-effects.js`. It owns the normal mutation/acknowledgement order and Dawn
@@ -1921,7 +1978,7 @@ functions and all other shared owners physically in `src/ui.js`, but make their
 mutation calls delegate to this reviewed seam. No transaction implementation
 may remain duplicated in the monolith.
 
-- [ ] **Step 3 (7A): Verify, review and commit the seam alone**
+- [x] **Step 3 (7A): Verify, review and commit the seam alone**
 
 ```bash
 set -euo pipefail
@@ -1939,7 +1996,7 @@ A fresh spec reviewer and fresh quality reviewer must approve 7A before 7B.
 Their package explicitly proves overlay/end/combat owners have not moved and
 normal Phase-2 results are unchanged.
 
-- [ ] **Step 4 (7B): Add a failing module-boundary smoke**
+- [x] **Step 4 (7B): Add a failing module-boundary smoke**
 
 In `test/e2e/stage.spec.js`, evaluate after boot:
 
@@ -1973,7 +2030,7 @@ key, requires `FACET_DESC` and `KEYWORDS` to remain functions evaluated lazily,
 and requires keyword decoration to use `$$('.kw', card)` rather than the
 single-node `$`. Each transitional commit must preserve that inventory exactly.
 
-- [ ] **Step 5 (7B): Create `context.js` and `commands.js`**
+- [x] **Step 5 (7B): Create `context.js` and `commands.js`**
 
 `context.js` alone exports the trace singleton and always-on presentation
 barrier plus its other assigned bindings. `policy.js`, `format.js` and
@@ -2002,7 +2059,7 @@ browser assertion that all four commands are bound and real handlers run. Task
 9 moves that exact sole binding block to `ui/index.js` and removes it from the
 thin re-export; no task boundary contains an unbound facade or two binders.
 
-- [ ] **Step 6 (7B): Move the remaining shared owners mechanically**
+- [x] **Step 6 (7B): Move the remaining shared owners mechanically**
 
 Move, without rewriting, every binding listed for `assets.js`, `tooltip.js` and
 `overlay.js`. Export only functions consumed outside the module. Replace direct
@@ -2016,7 +2073,7 @@ owns `persistenceDialogTransaction`, its retry modal, inert background and
 focus trap, and delegates all mutation/acknowledgement calls downward. Source
 checks prove the transaction seam still has one owner.
 
-- [ ] **Step 7 (7B): Move navigation and preserve route semantics**
+- [x] **Step 7 (7B): Move navigation and preserve route semantics**
 
 `navigation.js` owns `wipe`, `transitionSeq`, `transition` and `show`. Its
 constructor receives a frozen route map:
@@ -2030,7 +2087,7 @@ export function createNavigator({ routes, beforeShow, trace }) {
 `show()` must clear `screenEl().onclick` before dispatch, emit the existing
 trace span and reject unknown route names with `error.ui` plus a thrown error.
 
-- [ ] **Step 8 (7B): Run phase-applicable gates**
+- [x] **Step 8 (7B): Run phase-applicable gates**
 
 ```bash
 set -euo pipefail
@@ -2041,7 +2098,7 @@ node tools/run-with-strict-e2e-port.mjs -- npx playwright test stage rewards emb
 
 Expected: green and no screenshot changes.
 
-- [ ] **Step 9 (7B): Review and commit the remaining shared services**
+- [x] **Step 9 (7B): Review and commit the remaining shared services**
 
 ```bash
 set -euo pipefail
@@ -2082,7 +2139,7 @@ git commit -m "refactor: extract shared UI services"
   `uiCommands.show`; do not add commands and do not let one screen import
   another screen.
 
-- [ ] **Step 1: Freeze the route inventory in a failing assertion**
+- [x] **Step 1: Freeze the route inventory in a failing assertion**
 
 First record the unchanged CI and module-boundary baseline:
 
@@ -2116,7 +2173,7 @@ rg 'routes|toEqual' "$RED_LOG"
 rm -f "$RED_LOG"
 ```
 
-- [ ] **Step 2: Move screen functions according to the state map**
+- [x] **Step 2: Move screen functions according to the state map**
 
 Move exact named function groups, retaining existing HTML and listeners. A
 screen factory receives only the dependencies it calls; its return value is
@@ -2182,7 +2239,7 @@ invalidations and active-cue re-resolution, with no reload. Preserve the
 production read-only path. A screen extraction may not leave half of hot apply
 in the orchestrator or silently convert draft preview to active selection.
 
-- [ ] **Step 3: Build and expose the exact route map**
+- [x] **Step 3: Build and expose the exact route map**
 
 In the temporary `src/ui.js` orchestrator (moved without duplication to
 `ui/index.js` in Task 9), construct the sole `Map` with the ordered names from
@@ -2192,7 +2249,7 @@ snapshot; the probe exposes only those ordered keys. Preserve the existing
 `?gallery=1` and `?audio=1` boot behaviour while routing them through the
 declared `gallery` and `audioGallery` entries.
 
-- [ ] **Step 4: Verify zero visual/behaviour drift**
+- [x] **Step 4: Verify zero visual/behaviour drift**
 
 Run:
 
@@ -2206,7 +2263,7 @@ node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual
 
 Expected: all current baselines match exactly; do not update snapshots.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 set -euo pipefail
@@ -2231,6 +2288,11 @@ git commit -m "refactor: extract non-combat UI screens"
 - Create: `src/ui/combat.js`, `src/ui/drain.js`, `src/ui/probe.js`, `src/ui/index.js`
 - Replace: `src/ui.js` with thin re-exports
 - Modify: `CONTEXT.md`, `docs/README.md`, `test/e2e/helpers.js`
+- Post-PR21/PR22 re-entry owners: `src/ui/overlay.js`,
+  `src/ui/screens/end.js`, `src/ui/screens/event.js`,
+  `src/ui/screens/lamplighter.js`, `src/ui/screens/map.js`,
+  `src/ui/screens/rest.js`, `src/ui/screens/reward.js`,
+  `src/ui/screens/shop.js`, `src/ui/screens/title.js`
 - Modify/Test: `test/test_engine.js`, `test/test_module_boundaries.mjs`
 - Modify/Test: `test/e2e/trace.spec.js`, `test/e2e/trace-fixture.js`
 - Test: full Node and Playwright kits
@@ -2500,8 +2562,30 @@ trap - EXIT
 
 node tools/run-with-strict-e2e-port.mjs -- npx playwright test trace \
   --project=desktop --project=portrait --project=landscape --workers=1
+
+BASE_CALLS=$(mktemp)
+CURRENT_CALLS=$(mktemp)
+git show 9c4f7e5624b1c7eae8eb6fd3e7c27ff5ec0df5f8:src/ui.js \
+  | rg -o "tr\\('ui\\.[^']+" | sed "s/^tr('//" | sort > "$BASE_CALLS"
+rg -o "tr\\('ui\\.[^']+" src/ui --glob '*.js' \
+  | sed -E "s#^[^:]+:tr\\('##" | sort > "$CURRENT_CALLS"
+cmp "$BASE_CALLS" "$CURRENT_CALLS"
+test "$(wc -l < "$CURRENT_CALLS" | tr -d ' ')" = 298
+test "$(sort -u "$CURRENT_CALLS" | wc -l | tr -d ' ')" = 272
+rm -f "$BASE_CALLS" "$CURRENT_CALLS"
+
+rg -n 'pendingRewardHasUntaken|leaveConfirm' src/ui/screens/reward.js
+rg -n 'relicBarLayout' src/ui/combat.js
+node tools/run-with-strict-e2e-port.mjs -- npx playwright test \
+  rewards stage trace --project=desktop --workers=1
+
 EXPECTED=$({ printf '%s\n' src/ui.js src/ui/combat.js src/ui/drain.js \
-  src/ui/probe.js src/ui/index.js CONTEXT.md docs/README.md \
+  src/ui/probe.js src/ui/index.js src/ui/overlay.js \
+  src/ui/screens/end.js src/ui/screens/event.js \
+  src/ui/screens/lamplighter.js src/ui/screens/map.js \
+  src/ui/screens/rest.js src/ui/screens/reward.js \
+  src/ui/screens/shop.js src/ui/screens/title.js \
+  CONTEXT.md docs/README.md \
   test/e2e/helpers.js test/e2e/trace.spec.js test/e2e/trace-fixture.js \
   test/test_engine.js test/test_module_boundaries.mjs; } | sort -u)
 ACTUAL=$({ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u)
@@ -2514,15 +2598,27 @@ claiming a separate WebKit forced-failure canary. The environment-gated desktop
 canary proves that the automatic fixture attaches non-empty NDJSON and text
 projections with screen/drag/queue/ceremony/persistence vocabulary. Visual
 baselines remain byte-for-byte unchanged and the tracked worktree is clean
-apart from the exact twelve declared Task 9 paths. The temporary build never
+apart from the exact twenty-one declared post-drift Task 9 paths. The temporary build never
 writes `dist/`.
 
 - [ ] **Step 7: Commit source/tests/docs, excluding `dist/`**
 
+Before staging, a fresh spec-compliance reviewer must approve the complete
+twenty-one-path diff, PR21/PR22 multiset/behaviour preservation, exact 19/38/1
+surfaces, state-owner map, zero visual drift and
+`WebKit-safe API review: PASS`. Fix and repeat that review before a separate
+fresh code-quality reviewer receives the same final diff and evidence. Fix and
+repeat again on any quality finding; neither role may be combined with the
+implementer.
+
 ```bash
 set -euo pipefail
 git add src/ui.js src/ui/combat.js src/ui/drain.js src/ui/probe.js \
-  src/ui/index.js CONTEXT.md docs/README.md test/e2e/helpers.js \
+  src/ui/index.js src/ui/overlay.js src/ui/screens/end.js \
+  src/ui/screens/event.js src/ui/screens/lamplighter.js \
+  src/ui/screens/map.js src/ui/screens/rest.js src/ui/screens/reward.js \
+  src/ui/screens/shop.js src/ui/screens/title.js \
+  CONTEXT.md docs/README.md test/e2e/helpers.js \
   test/e2e/trace.spec.js test/e2e/trace-fixture.js test/test_engine.js \
   test/test_module_boundaries.mjs
 npm run test:round5:standing -- --profile p1-complete
@@ -2541,14 +2637,14 @@ mapping before P2 starts.
 - Create: `test/fixtures/round5-content-oracle-v1.json`
 - Modify/Test: `test/test_engine.js`
 - Temporary detached source worktree:
-  `/Users/jamesto/Coding/roguecardv2/.worktrees/round5-oracle-40eb`
+  `/Users/jamesto/Coding/roguecardv2/.worktrees/round5-oracle-9c4f`
 
 **Interfaces:**
-- Produces: the only valid before-move `40eb357` hydrated 28-view projection,
+- Produces: the only valid before-move `9c4f7e5` hydrated 28-view projection,
   raw-mechanics ownership projection, English catalogue digest/provenance,
   exact seven-i18n-API inventory, enemy-AI schedule and monte-carlo digest.
 - Consumes: the unmodified post-predecessor `src/data.js` and `src/engine.js`.
-- Records provenance SHA `40eb3576870f2a94b50e1a616ec40d4c37075018`,
+- Records provenance SHA `9c4f7e5624b1c7eae8eb6fd3e7c27ff5ec0df5f8`,
   its exact Git tree, the later dirty implementation's parent `HEAD`/tree and
   exact SHA-256 for the working capture tool/test inputs,
   PR17 base/head/merge, the exact four source/test paths and three changed Linux
@@ -2583,11 +2679,12 @@ Add to `test/test_engine.js`:
   ]);
   assert.equal(oracle.i18n.defaultLocale, 'en');
   assert.equal(Object.keys(oracle.i18n.domains).length, 18);
+  assert.equal(oracle.i18n.uiLeafCount, 278);
   assert.match(oracle.i18n.catalogueSha256, /^[a-f0-9]{64}$/);
   assert.match(oracle.rawMechanics.sha256, /^[a-f0-9]{64}$/);
   assert.match(oracle.monteCarlo.sha256, /^[a-f0-9]{64}$/);
   assert.equal(oracle.provenance.sourceSha,
-    '40eb3576870f2a94b50e1a616ec40d4c37075018');
+    '9c4f7e5624b1c7eae8eb6fd3e7c27ff5ec0df5f8');
   assert.match(oracle.provenance.sourceTree, /^[a-f0-9]{40}$/);
   assert.match(oracle.provenance.captureParentHead, /^[a-f0-9]{40}$/);
   assert.match(oracle.provenance.captureParentTree, /^[a-f0-9]{40}$/);
@@ -2595,12 +2692,22 @@ Add to `test/test_engine.js`:
   assert.match(oracle.provenance.captureInputs.testSha256, /^[a-f0-9]{64}$/);
   assert.notEqual(oracle.provenance.captureParentHead, oracle.provenance.sourceSha);
   assert.deepEqual(oracle.provenance.sourceModules, {
-    data: 'src/data.js', i18n: 'src/i18n/index.js',
+    data: 'src/data.js', engine: 'src/engine.js', i18n: 'src/i18n/index.js',
   });
   assert.deepEqual(oracle.provenance.pr17, {
     base: 'b285b815509d5c700b2b76847302c01bc595db47',
     head: '5cd1c555219a18e25b8ffa11646e7899d6764fd2',
     merge: '40eb3576870f2a94b50e1a616ec40d4c37075018',
+  });
+  assert.deepEqual(oracle.provenance.pr21, {
+    base: '40eb3576870f2a94b50e1a616ec40d4c37075018',
+    head: 'c42279609f2379cd6be6ba695205a131f029de28',
+    merge: '45677c1a676d19b1590192a4dbaf8425801dc97e',
+  });
+  assert.deepEqual(oracle.provenance.pr22, {
+    base: '45677c1a676d19b1590192a4dbaf8425801dc97e',
+    head: 'fe330a077ba847900f08be0121b65081b84e21ae',
+    merge: '9c4f7e5624b1c7eae8eb6fd3e7c27ff5ec0df5f8',
   });
 }
 ```
@@ -2648,7 +2755,7 @@ only locale-owned fields from a fresh canonical projection; it records every
 mechanics descriptor/path and proves names/text/dialogue do not become pack
 ownership merely because the runtime graph is hydrated. The i18n leg records
 exactly the seven sorted exports, default `en`, all 18 sorted content domains,
-canonical English catalogue SHA-256 and source provenance
+the exact 278-leaf UI catalogue, canonical English catalogue SHA-256 and source provenance
 `src/i18n/en/{content,ui,index}.js`. It also records the hydrated-alias identity
 inventory that PR #7 preserves. Both legs are checked after every P2 move and
 are **never regenerated**; deliberate source re-homing must preserve the
@@ -2662,6 +2769,8 @@ tree and exact PR17 path manifest:
 `src/battlefield-layout.js`, `src/styles.css`, `src/ui.js`,
 `test/e2e/geometry.spec.js`, and exactly the three changed Linux snapshots. It
 asserts those files remain outside every mechanics/locale ownership projection.
+It separately records PR #21 and PR #22 base/head/merge provenance so the
+`9c4f7e5` source cannot be mistaken for the older PR17-only baseline.
 
 Capture a descriptor inventory before reading values. The live monolith is
 expected to contain exactly one schema-visible accessor,
@@ -2718,14 +2827,14 @@ Run:
 
 ```bash
 set -euo pipefail
-CAPTURE_ROOT=/Users/jamesto/Coding/roguecardv2/.worktrees/round5-production-engineering
-SOURCE_ROOT=/Users/jamesto/Coding/roguecardv2/.worktrees/round5-oracle-40eb
-SOURCE_SHA=40eb3576870f2a94b50e1a616ec40d4c37075018
+CAPTURE_ROOT=/Users/jamesto/Coding/roguecardv2/.worktrees/round5-production-engineering-continuation
+SOURCE_ROOT=/Users/jamesto/Coding/roguecardv2/.worktrees/round5-oracle-9c4f
+SOURCE_SHA=9c4f7e5624b1c7eae8eb6fd3e7c27ff5ec0df5f8
 OUTPUT=$CAPTURE_ROOT/test/fixtures/round5-content-oracle-v1.json
 cd "$CAPTURE_ROOT"
 test "$PWD" = "$CAPTURE_ROOT"
 if test -e "$SOURCE_ROOT"; then
-  test "$SOURCE_ROOT" = /Users/jamesto/Coding/roguecardv2/.worktrees/round5-oracle-40eb
+  test "$SOURCE_ROOT" = /Users/jamesto/Coding/roguecardv2/.worktrees/round5-oracle-9c4f
   test "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$SOURCE_SHA"
   test -z "$(git -C "$SOURCE_ROOT" status --short)"
   git worktree remove "$SOURCE_ROOT"
@@ -2738,7 +2847,7 @@ TOOL_SHA256=$(shasum -a 256 tools/capture-content-oracle.mjs | awk '{print $1}')
 TEST_SHA256=$(shasum -a 256 test/test_engine.js | awk '{print $1}')
 git worktree add --detach "$SOURCE_ROOT" "$SOURCE_SHA"
 cleanup_oracle_source() {
-  test "$SOURCE_ROOT" = /Users/jamesto/Coding/roguecardv2/.worktrees/round5-oracle-40eb
+  test "$SOURCE_ROOT" = /Users/jamesto/Coding/roguecardv2/.worktrees/round5-oracle-9c4f
   test "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$SOURCE_SHA"
   test -z "$(git -C "$SOURCE_ROOT" status --short)"
   git worktree remove "$SOURCE_ROOT"
@@ -2775,6 +2884,7 @@ node --input-type=module -e '
     || o.provenance.captureInputs.testSha256 !== testSha)
     process.exit(1);
   if (o.provenance.sourceModules.data !== "src/data.js"
+    || o.provenance.sourceModules.engine !== "src/engine.js"
     || o.provenance.sourceModules.i18n !== "src/i18n/index.js") process.exit(1);
 ' "$OUTPUT" "$SOURCE_SHA" "$SOURCE_TREE" "$CAPTURE_PARENT_HEAD" \
   "$CAPTURE_PARENT_TREE" "$TOOL_SHA256" "$TEST_SHA256"

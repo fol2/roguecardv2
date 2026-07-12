@@ -19,7 +19,11 @@ its combat-chrome grounding, fixed energy-candle frame and geometry regression
 proof are inherited production behaviour, not styling to rediscover; revised
 again on 2026-07-11 after the owner officially retired Round 5 Phase 0.5 and
 moved all actual Safari/iOS Simulator automation to the
-[deferred mobile-migration design](./2026-07-11-mobile-migration-simulator-tooling-design.md))
+[deferred mobile-migration design](./2026-07-11-mobile-migration-simulator-tooling-design.md);
+revised again after PR #21 and PR #22 advanced `main` to `9c4f7e5`: optional
+reward abandonment now requires confirmation, an empty Omen seat yields its
+HUD origin to the relic strip, and the approved English UI catalogue/wiring is
+the inherited 278-leaf production baseline)
 **Goal:** The commercial-grade production-engineering and final visual-hardening
 round. Replace the fragile CSS-composited
 combat UI with a **game-rendered PixiJS layer** (chrome *and* hand cards),
@@ -49,10 +53,12 @@ hot audio-gallery preview/apply at `4dc1af7`; PR #16 then wired the complete
 established package-sourced app versioning and the manual release convention at
 `de84c30`; PR #7 extracted the default English catalogue and Node-pure i18n API
 at `b285b81`; PR #17 then landed combat-chrome geometry and fixed candle-frame
-behaviour from base `b285b81`, reviewed head `5cd1c55`, at merge/current minimum
-baseline `40eb357`. Every Round 5 execution branch must contain all six merges before
-runtime work. The merged surfaces and contracts are inputs, never work for
-Round 5 to reimplement.)
+behaviour from base `b285b81`, reviewed head `5cd1c55`, at merge/provenance
+baseline `40eb357`; PR #21 then landed reward-leave confirmation and empty-Omen
+relic packing at `45677c1`; PR #22 expanded and wired the approved English UI
+catalogue at current executable baseline `9c4f7e5`. Every Round 5 execution
+branch must contain all eight merges before runtime work. The merged surfaces
+and contracts are inputs, never work for Round 5 to reimplement.)
 
 ## Decisions record (owner-approved)
 
@@ -63,7 +69,7 @@ Round 5 to reimplement.)
 | UI end-state | **Canvas/WebGL chrome**, not data-driven DOM and not a framework migration |
 | Canvas migration depth | **Full combat UI including hand cards** — P1 begins after the loaded-predecessor/drift gate, and the cumulative P4 Playwright Chromium/WebKit browser gate must pass before the hand migrates. "Pixi chrome + DOM hand" is a declared-acceptable shipped state if P5 stops |
 | Engine | **PixiJS v8**, strictly WebGL with `preference: ['webgl']` (never the fall-through string form and never WebGPU) |
-| Ordering vs content line | **Progressive Delivery Phase 2, PR #15/#16, PR #18 app versioning, PR #7 English i18n and PR #17 combat geometry are loaded** at the `40eb357` minimum baseline. A later `main` change triggers a fresh drift audit before execution. During Round 5 P2 (re-homing) the mechanics and English-catalogue lines observe a **content-table freeze** (assets/plans only) |
+| Ordering vs content line | **Progressive Delivery Phase 2, PR #15/#16, PR #18 app versioning, PR #7/#22 English i18n, PR #17 combat geometry and PR #21 reward/HUD behaviour are loaded** at the `9c4f7e5` executable baseline. `40eb357` remains PR #17 provenance, not the current capture base. A later `main` change triggers a fresh drift audit before execution. During Round 5 P2 (re-homing) the mechanics and English-catalogue lines observe a **content-table freeze** (assets/plans only) |
 | Delivery lanes | **Production Engineering (PE) is the primary lane; Front-end Experience (FE) is a small, design-led lane.** PE owns all substrate, refactoring, Content Lab/manager, renderer mechanics, tooling, tests and integration. FE owns only authored player-facing presentation. Separate fresh spec-compliance and code-quality review cycles verify each unit; owner taste checkpoints stay with the owner |
 | Parallel execution | PE and FE may run concurrently only from separate worktrees on a written disjoint-file manifest. A shared file is a sequential hand-off, never a concurrent edit. Every implementation-plan task has exactly one `[PE]`, `[FE]`, `[QA]`, or `[OWNER]` lead |
 | Content substrate | **Full paired content architecture**: per-domain schemas join mechanics/behaviour from the `core` pack to English display data retained in the PR #7 locale overlay; `data.js` aliases the resulting hydrated frozen context. Registry work lands **before any production Pixi migration**. Enemy `ai` stays code; the legacy Hollow target getter is materialised from merged progression rather than copied with a global closure; an AI-DSL is explicitly out of scope |
@@ -75,7 +81,9 @@ Round 5 to reimplement.)
 | Phase 2 domain language | A successful Climb ends at **Dawn** and a death is a **Fall**. Internal compatibility values (`win`, `death`), route names and Music Cue ids (`victory`, `defeat`) stay unchanged |
 | Phase 2 music baseline | PR #16 makes **all 22 existing Music Cues live**. `src/music-resolve.js` is the Node-pure resolution truth; quest overrides beat Eighth Omen, Eighth Omen beats ordinary non-boss act music, and bosses retain their boss cue. Rose/Vigil, Hollow, sealed-door and Dawn exceptions are protected live call sites, not FE wiring requests |
 | App-version baseline | PR #18 makes `package.json` version `0.5.0` the authored source; DEV embeds a live short SHA, ordinary builds show `0.5.0+unknown`, and only explicit release builds show clean semver. The safe-area Title label and hidden debug gesture are protected behaviour. Release scripts remain manual preparation and never commit, tag or push |
-| English i18n baseline | PR #7 keeps the default locale `en`, exposes exactly seven Node-pure i18n APIs, owns English display strings in 18 content domains plus the UI catalogue, and hydrates the compatibility graph once at module initialisation without changing saves. Round 5 completes/preserves English coverage; it does not ship a second locale or runtime language switch |
+| English i18n baseline | PR #7 keeps the default locale `en`, exposes exactly seven Node-pure i18n APIs, owns English display strings in 18 content domains, and hydrates the compatibility graph once at module initialisation without changing saves. PR #22 makes the 278-leaf English UI catalogue and its 298 `tr('ui.*')` calls over 272 unique keys across settings, persistence, Hollow, map, combat, reward, rest, treasure, shop, event, Fall and Dawn inherited behaviour. Round 5 preserves that exact multiset; it does not ship a second locale or runtime language switch |
+| Reward-leave baseline | PR #21 keeps pending rewards durable until the player either claims every offered row or confirms **Leave Rewards Behind?**; a fully claimed reward leaves without the dialog. The engine's pure `pendingRewardHasUntaken()` helper and the reward e2e journeys are protected behaviour |
+| Empty-Omen HUD baseline | PR #21 collapses the empty Omen seat and resolves the relic strip from the Omen origin through the pure `relicBarLayout()` helper. When an Omen is present, the authored relic origin is unchanged |
 | Combat-geometry baseline | PR #17 is PE-owned behaviour: foe chrome remains naturally under its own foe with stable dead-member packing, the resting-hand floor is static across hover, and energy slots compress inside shape-specific fixed frames. FE owns treatment only and may not move, relax or reinterpret these bounds |
 | Store kit | Keep the **capture script + shot list** (rerunnable assets); the captured set is labelled **provisional/marketing-only**; trailer capture is raw reference footage only; device-framed store matrices and store-grade capture re-run in the Capacitor round |
 | Screens in scope | All four sets: Fall/Dawn, title + Embark, non-combat panels (rewards/shop/event/rest/lamplighter/vigil), map re-upgrade (light) |
@@ -210,8 +218,10 @@ choreography to a high bar. What remains fragile is the *substrate*:
 - **The predecessor gate is a hard runtime stop.** Before P1, PE verifies
   from the execution branch itself that PR #14 merge `4698906`, PR #15 merge
   `4dc1af7`, PR #16 merge `7b8e01a`, PR #18 merge `de84c30`, and PR #7 merge
-  `b285b81`, followed by PR #17 merge/current baseline `40eb357` (base
-  `b285b81`, reviewed head `5cd1c55`), are in its ancestry. PR #17's final
+  `b285b81`, followed by PR #17 merge/provenance baseline `40eb357` (base
+  `b285b81`, reviewed head `5cd1c55`), PR #21 merge `45677c1` (reviewed head
+  `c422796`) and PR #22 merge/current executable baseline `9c4f7e5` (reviewed
+  head `fe330a0`), are in its ancestry. PR #17's final
   required roll-up is 24 `SUCCESS` checks plus only the expected skipped
   `e2e smoke`. The branch must
   expose all 32 current
@@ -222,9 +232,11 @@ choreography to a high bar. What remains fragile is the *substrate*:
   Phase 2 cue call sites must also be present. It must retain `package.json`
   version `0.5.0`, the version/release UI and build contracts, the unchanged 32
   data exports, exactly seven i18n APIs, default `en`, all 18 English content
-  domains, and module-init hydration with no save-shape change. A later `main`
-  change reopens the drift audit. A local dirty predecessor worktree never
-  satisfies this gate.
+  domains, the 278-leaf English UI catalogue, and module-init hydration with no
+  save-shape change. It must also retain `pendingRewardHasUntaken()`, the
+  claim-all-or-confirm reward exit, `relicBarLayout()`, and empty-Omen relic
+  packing. A later `main` change reopens the drift audit. A local dirty
+  predecessor worktree never satisfies this gate.
 - **PR #17 geometry is inherited PE behaviour.** Desktop dual-foe authored x
   positions remain exactly `1000` and `1197`. The combat-chrome hand floor is
   computed from the resting hand with `50` stage-px slack and clamped at
@@ -745,7 +757,8 @@ only and zero-argument; no content id enters the save shape. This ordering makes
 the `_sample` engine proof real before the Lab UI exists.
 
 Before moving the first table, PE commits the **before oracle** from a clean,
-detached exact `40eb357` post-PR17 production worktree. The later capture tool
+detached exact `9c4f7e5` post-PR22 production worktree. `40eb357` remains the
+embedded PR17 geometry provenance inside that oracle, not its source root. The later capture tool
 accepts that explicit source root and output path; data/engine/i18n imports
 resolve from the detached root. Source SHA/tree and capture-parent HEAD/tree are
 recorded separately as source and capture-parent provenance; exact working
@@ -1355,6 +1368,7 @@ reduced-scope exit and does not satisfy Full-Round success.
 | English copy silently changes during visual work | PE owns keys/values and requires owner approval for new wording; FE owns fit/hierarchy/wrapping/placement only; copy-invariance and unresolved-key gates stand |
 | App version becomes volatile or a mid-round build looks released | Keep `0.5.0` package source, ordinary build `+unknown`, DEV-only live SHA, and never invoke release scripts during Round 5 closure |
 | Refactor collides with parallel content commits | Mechanics/English-catalogue freeze during P2; named owner re-homes `VARIANTS` mechanics while `WHISPERS` and all display/dialogue remain locale-owned |
+| A merged monolith change disappears when old extraction commits are rebased | Every post-baseline `src/ui.js` hunk is mapped to its extracted owner; exact UI-locale-key parity, PR21 reward journeys, empty-Omen layout tests, full browser/visual gates and fresh dual review close the re-entry before P2 |
 | PE/FE agents collide or silently cross ownership | Separate worktrees, task-level disjoint write manifests, one lead per task, sequential shared-file hand-offs, exact commit/interface records and separate fresh spec/code-quality review cycles before integration |
 | Pointer/drag regressions on the canvas boundary | Single stage-level router specified up front; real-pointer router + pointercancel e2e |
 | Migrated chrome stops shaking / motion regressions | Shake-mirror invariant; named trace span plus real-pointer Chromium/WebKit motion assertions and reviewed capture/video, not just static pixels |
