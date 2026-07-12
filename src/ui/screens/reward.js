@@ -1,5 +1,5 @@
 export function createRewardScreen(deps) {
-  const { S, E, POTIONS, RELICS, OMENS, tr, sceneBg, $, el, iconSvg, stageW, stageH, V, flyTo, tweenNum, sfx, rasterOr, potionSvg, relicArt, requireRunSave, renderHud, show, showCardGrid, runEffects, setTheme, setAltitude, transition, assetUrl, omenIconName, screenEl } = deps;
+  const { S, E, POTIONS, RELICS, OMENS, tr, sceneBg, $, el, iconSvg, uiIcon, stageW, stageH, V, flyTo, tweenNum, sfx, rasterOr, potionSvg, relicArt, requireRunSave, renderHud, show, showCardGrid, openOverlay, closeOverlay, runEffects, setTheme, setAltitude, transition, assetUrl, omenIconName, screenEl } = deps;
 
 // ------------------------------------------------------------ rewards
 function renderReward() {
@@ -9,13 +9,13 @@ function renderReward() {
   const { kind, rewards, taken, perfect } = pending;
   const sc = screenEl();
   const title = kind === 'boss' ? tr('ui.reward.bossVanquished') : kind === 'elite' ? tr('ui.reward.eliteSlain') : tr('ui.reward.victory');
-  const seal = perfect ? '<div class="perfect-seal">✦ PERFECT — the glass untouched ✦</div>' : '<div class="ornament">✦ ✦ ✦</div>';
+  const seal = perfect ? `<div class="perfect-seal">${tr('ui.reward.perfectSeal')}</div>` : '<div class="ornament">✦ ✦ ✦</div>';
   S.lastPerfect = false;
   sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
     <div class="ov-title">${title}</div>
     ${seal}
     <div class="reward-list"></div>
-    <div class="ov-actions"><button class="btn btn-primary" data-a="continue">Continue</button></div>
+    <div class="ov-actions"><button class="btn btn-primary" data-a="continue">${tr('ui.common.continue')}</button></div>
   </div></div>`;
   const list = $('.reward-list', sc);
   const settleRow = (row, onSaved) => {
@@ -38,7 +38,7 @@ function renderReward() {
     list.appendChild(row);
     return row;
   };
-  addRow('gold', iconSvg('coin', 18), `<b class="gold-num">${rewards.gold}</b> gold`,
+  addRow('gold', uiIcon('coin', 28), tr('ui.reward.goldRow', { n: rewards.gold }),
     () => E.takePendingReward(run, 'gold'), () => {
       sfx.coin();
       // the coins travel to the purse only after their taken flag is durable
@@ -56,7 +56,7 @@ function renderReward() {
     const p = POTIONS[rewards.potion];
     addRow('potion', rasterOr('potions', rewards.potion, potionSvg(p.tone)), `${p.name}`, () => {
       if (E.takePendingReward(run, 'potion')) return true;
-      V.floatText(stageW() / 2, stageH() / 2, 'Potion slots full!', 'notice');
+      V.floatText(stageW() / 2, stageH() / 2, tr('ui.reward.potionSlotsFull'), 'notice');
       return false;
     }, () => sfx.potion(), { title: p.name, body: p.text });
   }
@@ -76,27 +76,48 @@ function renderReward() {
         });
       }, { title: r.name, body: r.text });
   }
-  const cardRow = addRow('card', iconSvg('cards', 26), 'Add a card to your deck');
+  const cardRow = addRow('card', uiIcon('deck', 28), tr('ui.reward.addCardRow'));
   cardRow.dataset.cardrow = '1';
   if (!taken.card) cardRow.onclick = () => pickCardReward(rewards.cards);
 
-  $('[data-a="continue"]', sc).onclick = () => {
-    sfx.click();
+  const leaveReward = () => {
     E.clearPendingReward(run);
     const continueReward = () => { if (kind === 'boss') show('bossRelic'); else show('map'); };
     if (!requireRunSave(run, continueReward)) return;
     continueReward();
   };
+  $('[data-a="continue"]', sc).onclick = () => {
+    sfx.click();
+    if (!E.pendingRewardHasUntaken(run)) {
+      leaveReward();
+      return;
+    }
+    openOverlay(`<div class="panel ov-panel" style="text-align:center">
+      <div class="ov-title">${tr('ui.reward.leaveConfirmTitle')}</div>
+      <div class="ov-sub">${tr('ui.reward.leaveConfirmBody')}</div>
+      <div class="ov-actions"><button class="btn danger" data-a="yes">${tr('ui.reward.leaveConfirmYes')}</button><button class="btn ghost" data-a="no">${tr('ui.reward.leaveConfirmNo')}</button></div>
+    </div>`, (root) => {
+      root.onclick = (event) => {
+        const action = event.target.dataset.a;
+        if (action === 'yes') {
+          root.onclick = null;
+          closeOverlay();
+          leaveReward();
+        }
+        if (action === 'no') closeOverlay();
+      };
+    });
+  };
 
   function pickCardReward(ids) {
-    showCardGrid('Choose a Card', ids.map((id) => ({ id, up: false, uid: null })), {
-      sub: 'Add one card to your deck — or skip to keep it lean.',
+    showCardGrid(tr('ui.reward.chooseCardTitle'), ids.map((id) => ({ id, up: false, uid: null })), {
+      sub: tr('ui.reward.chooseCardSub'),
       pick: (inst) => {
         if (!E.takePendingReward(run, 'card', inst?.id ?? null)) return;
         const finish = () => settleRow(cardRow, () => {
           if (!inst) return;
           sfx.upgrade();
-          V.floatText(stageW() / 2, stageH() / 2, `${E.cardData(inst).name} added`, 'notice');
+          V.floatText(stageW() / 2, stageH() / 2, tr('ui.reward.cardAdded', { name: E.cardData(inst).name }), 'notice');
         });
         if (!requireRunSave(run, finish)) return;
         finish();
@@ -114,8 +135,8 @@ function renderBossRelic() {
   const picks = E.rollBossRelics(run);
   const sc = screenEl();
   sc.innerHTML = `<div class="center-panel screen-enter"><div class="panel" style="width:min(620px,94vw)">
-    <div class="ov-title">A BOSS RELIC CALLS</div>
-    <div class="ov-sub">Choose one — its power is permanent.</div>
+    <div class="ov-title">${tr('ui.reward.bossRelicTitle')}</div>
+    <div class="ov-sub">${tr('ui.reward.bossRelicSub')}</div>
     <div class="big-choices" style="flex-direction:column"></div>
   </div></div>`;
   const wrap = $('.big-choices', sc);
@@ -141,7 +162,7 @@ function renderBossRelic() {
     b.onclick = () => pick(id);
     wrap.appendChild(b);
   }
-  const skip = el('button', 'btn ghost', 'Take none');
+  const skip = el('button', 'btn ghost', tr('ui.reward.takeNone'));
   skip.style.marginTop = '10px';
   skip.onclick = () => pick(null);
   wrap.appendChild(skip);

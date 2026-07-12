@@ -99,10 +99,10 @@ function renderMap() {
     <div class="map-screen screen-enter">
       <div class="map-haze" style="--haze:${['#2a3a2e', '#1f2e40', '#3a2030'][run.act] ?? '#2a3a2e'}"></div>
       <svg class="map-svg" width="100%" height="100%">${mapDefs}${edges}${dots}</svg>
-      ${sealedDoorVisible ? `<button class="sealed-door" data-a="sealed-door" aria-label="The sealed door">
-        <span>${iconSvg('sealedDoor', 42)}</span><small>THE SEALED DOOR</small>
+      ${sealedDoorVisible ? `<button class="sealed-door" data-a="sealed-door" aria-label="${tr('ui.map.sealedDoor.aria')}">
+        <span>${iconSvg('sealedDoor', 42)}</span><small>${tr('ui.map.sealedDoor.label')}</small>
       </button>` : ''}
-      <div class="map-hint">${COARSE ? 'drag' : 'scroll'} to survey the Spire</div>
+      <div class="map-hint">${tr('ui.map.survey', { action: COARSE ? tr('ui.map.drag') : tr('ui.map.scroll') })}</div>
     </div>`;
   const svg = $('.map-svg');
   const sealedDoor = $('.sealed-door');
@@ -114,11 +114,11 @@ function renderMap() {
       sfx.click();
       music.play('sealedDoor');
       openOverlay(`<div class="panel sealed-door-panel">
-        <div class="ov-title">THE SEALED DOOR</div>
+        <div class="ov-title">${tr('ui.map.sealedDoor.title')}</div>
         <div class="sealed-door-mark">${iconSvg('sealedDoor', 96)}</div>
-        <div class="ov-sub">Six panes burn behind you. The lock answers, but does not open.</div>
-        <div class="door-inscription">the climb continues</div>
-        <div class="ov-actions"><button class="btn" data-a="close-door">Return to the summit</button></div>
+        <div class="ov-sub">${tr('ui.map.sealedDoor.sub')}</div>
+        <div class="door-inscription">${tr('ui.map.sealedDoor.inscription')}</div>
+        <div class="ov-actions"><button class="btn" data-a="close-door">${tr('ui.map.sealedDoor.return')}</button></div>
       </div>`, (root) => {
         root.onclick = (closeEvent) => {
           if (closeEvent.target.closest('[data-a="close-door"]')) {
@@ -154,7 +154,7 @@ function renderMap() {
     };
     const travel = tr('ui.map.travelHere', { action: COARSE ? tr('ui.map.tap') : tr('ui.map.click') });
     g._tip = n.questMarked
-      ? { title: 'Witchlight trembles', body: 'Pale glass waits here.' }
+      ? { title: tr('ui.map.witchlightTitle'), body: tr('ui.map.witchlightBody') }
       : n.unlit && !visited.has(n.id)
         ? { title: tr('ui.map.unlitTitle'), body: `${tr('ui.map.unlitBody')}${avail.has(n.id) ? ` ${travel}` : ''}` }
         : { title: names[n.type], body: avail.has(n.id) ? travel : '', sub: hints[n.type] };
@@ -331,7 +331,7 @@ function claimMonumentNode(node) {
     const reloadPending = transaction.status === E.SHADE_DUEL_TX.RELOAD_PENDING;
     showStonePersistenceFailure(
       reloadPending ? () => location.reload() : () => claimMonumentNode(node),
-      reloadPending ? 'Reload Saved Duel' : 'Retry',
+      reloadPending ? tr('ui.persistence.reloadDuel') : tr('ui.common.retry'),
     );
     return;
   }

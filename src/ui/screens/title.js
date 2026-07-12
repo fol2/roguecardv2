@@ -70,7 +70,7 @@ function renderTitle() {
       <button class="btn" data-a="embark">${tr('ui.menu.beginClimb')}</button>
       <button class="btn ghost${vigil.news && !REDUCED ? ' news' : ''}" data-a="vigil">${tr('ui.menu.theVigil')}</button>
       <button class="btn ghost" data-a="help">${tr('ui.menu.howToPlay')}</button>
-      <button class="btn ghost" data-a="settings">Settings</button>
+      <button class="btn ghost" data-a="settings">${tr('ui.menu.settings')}</button>
     </div>
     <div class="title-stats">${d.runs} climbs · ${d.wins} dawns · ${d.slain} slain${vigil.unlocks.length ? ` · ${vigil.unlocks.length} secrets unearthed` : ''}</div>
     <div class="title-version" data-version-display aria-label="App version">${escHtml(ver.display)}</div>

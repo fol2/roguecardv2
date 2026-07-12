@@ -1,5 +1,5 @@
 export function createEventScreen(deps) {
-  const { S, E, EVENTS, RELICS, CARDS, sceneBg, rasterOr, eventArtSvg, $, el, sfx, leaveHollowDestination, show, runEffects, renderHud, showCardGrid, screenEl } = deps;
+  const { S, E, EVENTS, RELICS, CARDS, tr, sceneBg, rasterOr, eventArtSvg, $, el, sfx, leaveHollowDestination, show, runEffects, renderHud, showCardGrid, screenEl } = deps;
 
 function renderEvent(eventId) {
   const run = S.run;
@@ -16,7 +16,7 @@ function renderEvent(eventId) {
   const leaveEvent = () => leaveHollowDestination(run, () => show('map'));
   const showEventContinue = () => {
     choices.innerHTML = '';
-    const done = el('button', 'btn btn-primary', 'Continue');
+    const done = el('button', 'btn btn-primary', tr('ui.common.continue'));
     done.onclick = () => { sfx.click(); leaveEvent(); };
     choices.appendChild(done);
   };
@@ -79,16 +79,16 @@ function renderEvent(eventId) {
       if (p === 'remove') {
         const removable = E.removableCards(run);
         if (!removable.length) return resolve();
-        showCardGrid('Remove a Card', removable, { sub: 'Let it go.', pick: (inst) => { if (inst && E.removeCardFromDeck(run, inst.uid)) sfx.card(); resolve(); }, canSkip: false });
+        showCardGrid(tr('ui.event.removeTitle'), removable, { sub: tr('ui.event.removeSub'), pick: (inst) => { if (inst && E.removeCardFromDeck(run, inst.uid)) sfx.card(); resolve(); }, canSkip: false });
       } else if (p === 'upgrade') {
         const ups = run.player.deck.filter((c) => !c.up && CARDS[c.id].up);
         if (!ups.length) return resolve();
-        showCardGrid('Upgrade a Card', ups, { sub: 'The forge hungers.', pick: (inst) => { if (inst) { E.upgradeCardInDeck(run, inst.uid); sfx.upgrade(); } resolve(); } });
+        showCardGrid(tr('ui.event.upgradeTitle'), ups, { sub: tr('ui.event.upgradeSub'), pick: (inst) => { if (inst) { E.upgradeCardInDeck(run, inst.uid); sfx.upgrade(); } resolve(); } });
       } else if (p === 'duplicate') {
-        showCardGrid('Duplicate a Card', run.player.deck, { sub: 'The mirror remembers.', pick: (inst) => { if (inst) { E.duplicateCardInDeck(run, inst.uid); sfx.upgrade(); } resolve(); } });
+        showCardGrid(tr('ui.event.duplicateTitle'), run.player.deck, { sub: tr('ui.event.duplicateSub'), pick: (inst) => { if (inst) { E.duplicateCardInDeck(run, inst.uid); sfx.upgrade(); } resolve(); } });
       } else if (p.pickCard) {
-        showCardGrid('Choose a Card', E.rollEventCards(run, p.pickCard).map((id) => ({ id, up: false, uid: null })), {
-          sub: 'One page still glows.',
+        showCardGrid(tr('ui.event.chooseCardTitle'), E.rollEventCards(run, p.pickCard).map((id) => ({ id, up: false, uid: null })), {
+          sub: tr('ui.event.chooseCardSub'),
           pick: (inst) => { if (inst) { E.addCardToDeck(run, inst.id); sfx.upgrade(); } resolve(); }, canSkip: true,
         });
       } else resolve();

@@ -2,6 +2,7 @@
 // window.__probe / window.spirebound (src/ui.js) — the tests never poke
 // engine internals beyond the probe's documented shims.
 import { expect } from '@playwright/test';
+import { writeFile } from 'node:fs/promises';
 
 // One fixed seed for the whole kit: runs, maps, encounters, enemy AI and
 // reward rolls are all derived from it, so every scenario is replayable.
@@ -46,14 +47,21 @@ export function settle(page) {
 
 export async function attachBehaviourTrace(page, testInfo) {
   const artifact = await page.evaluate(() => ({
-    ndjson: window.__probe?.behaviourTrace?.({ format: 'ndjson' })?.ndjson ?? '',
-    text: window.__probe?.behaviourTrace?.({ format: 'text' })?.text ?? '',
-  })).catch(() => ({ ndjson: '', text: '' }));
+    ndjson: window.__probe.behaviourTrace({ format: 'ndjson' }).ndjson,
+    text: window.__probe.behaviourTrace({ format: 'text' }).text,
+  }));
+  if (!artifact.ndjson?.trim() || !artifact.text?.trim()) {
+    throw new Error('behaviour trace attachment body is empty');
+  }
+  const ndjsonPath = testInfo.outputPath('ui-behaviour-trace.ndjson');
+  const textPath = testInfo.outputPath('ui-behaviour-trace.txt');
+  await writeFile(ndjsonPath, artifact.ndjson);
+  await writeFile(textPath, artifact.text);
   await testInfo.attach('ui-behaviour-trace.ndjson', {
-    body: Buffer.from(artifact.ndjson), contentType: 'application/x-ndjson',
+    path: ndjsonPath, contentType: 'application/x-ndjson',
   });
   await testInfo.attach('ui-behaviour-trace.txt', {
-    body: Buffer.from(artifact.text), contentType: 'text/plain',
+    path: textPath, contentType: 'text/plain',
   });
   return artifact;
 }

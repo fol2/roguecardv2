@@ -10,6 +10,17 @@ Quick map for agents and humans. Operational truth for running the game lives in
 | [`../AGENTS.md`](../AGENTS.md) | Agent conventions: module graph, fixed stage, engine purity, commands |
 | [`../CONTEXT-MAP.md`](../CONTEXT-MAP.md) | Ubiquitous language for the Climb and Vigil contexts |
 
+### Round 5 P1 UI runtime — complete
+
+`src/ui.js` is the stable two-export entry. `src/ui/index.js` is the sole
+composition root; it wires the leaf screens and navigator to the frozen combat
+API (`src/ui/combat.js`), the sole queue consumer (`src/ui/drain.js`) and the
+read-only QA contract (`src/ui/probe.js`). Engine queue mutation remains in
+drain; combat layout/input/synchronisation remains in combat; only index installs
+`window.spirebound`, `window.__probe`, global listeners and observation sinks.
+The semantic behaviour trace and presentation barrier remain renderer-neutral
+contracts shared by Playwright regression journeys.
+
 ## Rendering
 
 | Doc | Status |
@@ -52,7 +63,7 @@ Quick map for agents and humans. Operational truth for running the game lives in
 
 - Config: [`../playwright.config.js`](../playwright.config.js) with strict-port resolution in [`../playwright-server.js`](../playwright-server.js) — desktop 1600×900, portrait 375×812, landscape 812×375; dev server **5174** by default. Set `SPIREBOUND_E2E_PORT=<free-port>` for an isolated launch that refuses to reuse an existing server.
 - Suites: [`../test/e2e/`](../test/e2e/) — config/runner contracts, battlefield-editor disk writes, stage and combat geometry, battle/reward flows, Emberglass progression and persistence transactions, Hollow routing, versioned audio selection, visual baselines, random-agent coverage, and performance.
-- In-page API: `window.__probe` in `src/ui.js` — geometry in **stage px**
+- In-page API: `window.__probe`, assembled by [`../src/ui/probe.js`](../src/ui/probe.js) and installed by [`../src/ui/index.js`](../src/ui/index.js) — geometry in **stage px**; failure artefacts include non-empty NDJSON and timestamped text projections.
 
 ## Fixed virtual stage (summary)
 

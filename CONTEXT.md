@@ -47,6 +47,22 @@ _Avoid_: canonical log strings, screenshot narration
 A small, versioned, immutable presentation fixture published by a replayable UI owner and referenced by a trace span. When its span settles, Content Lab writes it to `replay=`; reload hydrates but does not auto-run the isolated visual preview. It never re-runs engine commands, restores game state, or writes a save.
 _Avoid_: command journal, save snapshot, persistent trace, gameplay replay
 
+**UI Orchestrator**:
+`src/ui/index.js` is the sole P1 composition root. It constructs the frozen combat and drain APIs, screen route map, navigator and Probe; binds commands; installs globals/listeners/observation sinks; and owns boot/HMR routing. `src/ui.js` is only the stable `initUI`/`show` re-export.
+_Avoid_: screen-to-index import, second global installer, monolithic UI owner
+
+**Combat Presentation Owner**:
+`src/ui/combat.js` owns combat assembly, layout, semantic input handlers, renderer synchronisation and the byte-preserved PR17 hand/chrome geometry. Its frozen presentation façade is the only way queue playback can touch combat-owned visual state.
+_Avoid_: queue mutation, screen navigation import, direct drain-state access
+
+**Queue Playback Owner**:
+`src/ui/drain.js` alone consumes and mutates the engine animation queue. It batches draw/reshuffle waves and dispatches engine events through the frozen combat presentation façade without importing combat, screens, navigation or the orchestrator.
+_Avoid_: second queue consumer, direct combat binding mutation, engine-side rendering
+
+**QA Probe**:
+`src/ui/probe.js` returns the read-only `window.__probe` contract installed by the orchestrator. Readers expose stage-pixel geometry, semantic state, trace and frozen module diagnostics; drivers reuse the real handlers and add no test-only game logic.
+_Avoid_: second game state, direct engine mutation driver, Probe-owned global assignment
+
 **Playwright WebKit Device Emulation**:
 The active Round 5 mobile-shaped browser lane: Playwright's patched WebKit browser running with an iPhone or iPad descriptor for viewport, user-agent and touch emulation, combined with per-task WebKit-safe API review. It is not branded Safari, an iOS/iPadOS Simulator, WKWebView, physical Mobile Safari, hardware evidence, packaging proof or a mobile-support claim.
 _Avoid_: Mobile Safari test, Simulator proof, WKWebView proof, physical-device gate

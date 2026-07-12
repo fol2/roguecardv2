@@ -477,6 +477,8 @@ test('PR16 nominal boss victory holds its cue through reward and boss-relic navi
 
   cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
   await page.locator('[data-a="continue"]').click();
+  await expect(page.locator('#overlay.open .ov-title')).toHaveText('Leave Rewards Behind?');
+  await page.locator('#overlay [data-a="yes"]').click();
   await settle(page);
   await expect.poll(() => page.evaluate(() => window.spirebound.S.screen)).toBe('bossRelic');
   await page.waitForTimeout(100);
@@ -503,6 +505,8 @@ test('PR16 pending reward recovery holds the pre-navigation cue through boss rel
   await settle(page);
   await expect.poll(() => page.evaluate(() => window.spirebound.S.screen)).toBe('reward');
   await page.locator('[data-a="continue"]').click();
+  await expect(page.locator('#overlay.open .ov-title')).toHaveText('Leave Rewards Behind?');
+  await page.locator('#overlay [data-a="yes"]').click();
   await settle(page);
   await expect.poll(() => page.evaluate(() => window.spirebound.S.screen)).toBe('bossRelic');
   await page.waitForTimeout(100);

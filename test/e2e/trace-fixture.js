@@ -14,9 +14,14 @@ export const test = base.extend({
       const tracedTarget = absolute ? url.href : `${url.pathname}${url.search}${url.hash}`;
       return originalGoto(tracedTarget, options);
     };
-    await use();
-    if (testInfo.status !== testInfo.expectedStatus) {
-      await attachBehaviourTrace(page, testInfo);
+    try {
+      await use();
+    } finally {
+      if (testInfo.status !== testInfo.expectedStatus) {
+        // Deliberately allow evaluation, file-write, empty-body and attach
+        // errors to escape: a missing failure transcript is itself a failure.
+        await attachBehaviourTrace(page, testInfo);
+      }
     }
   }, { auto: true }],
 });

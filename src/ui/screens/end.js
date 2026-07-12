@@ -53,15 +53,15 @@ function bequestLabel(o) {
   const kindIcon = bu
     ? `<img class="bq-kind" src="${bu}" alt="">`
     : `<span class="bq-kind-fallback">${iconSvg(`bequest-${o.kind}`, 22)}</span>`;
-  if (o.kind === 'relic') return { icon: `${kindIcon}${relicArt(o.id, 20)}`, name: RELICS[o.id]?.name || o.id, note: 'your rarest relic' };
-  if (o.kind === 'card') return { icon: `${kindIcon}<span class="bq-card">🂠</span>`, name: (CARDS[o.id]?.name || o.id) + (o.up ? '+' : ''), note: 'your finest card' };
-  return { icon: `${kindIcon}${iconSvg('coin', 20)}`, name: `${o.amount} gold`, note: 'a cache of gold' };
+  if (o.kind === 'relic') return { icon: `${kindIcon}${relicArt(o.id, 20)}`, name: RELICS[o.id]?.name || o.id, note: tr('ui.end.bequestNote.relic') };
+  if (o.kind === 'card') return { icon: `${kindIcon}<span class="bq-card">🂠</span>`, name: (CARDS[o.id]?.name || o.id) + (o.up ? '+' : ''), note: tr('ui.end.bequestNote.card') };
+  return { icon: `${kindIcon}${iconSvg('coin', 20)}`, name: tr('ui.end.bequestNote.gold', { n: o.amount }), note: tr('ui.end.bequestNote.goldCache') };
 }
 function unlockToastInfo(u) {
-  if (u === 'aspect2') return { kind: 'Aspect Unlocked', name: 'The Ashwarden' };
+  if (u === 'aspect2') return { kind: tr('ui.end.unlock.aspect'), name: tr('ui.end.unlock.ashwarden') };
   const [k, id] = u.split(':');
-  if (k === 'card') return { kind: 'Card Unlocked', name: CARDS[id]?.name || id };
-  return { kind: 'Relic Unlocked', name: RELICS[id]?.name || id };
+  if (k === 'card') return { kind: tr('ui.end.unlock.card'), name: CARDS[id]?.name || id };
+  return { kind: tr('ui.end.unlock.relic'), name: RELICS[id]?.name || id };
 }
 function showUnlockToasts(list = [], runId = S.run?.runId) {
   if (!list.length) return;
@@ -73,7 +73,7 @@ function showUnlockToasts(list = [], runId = S.run?.runId) {
     const info = unlockToastInfo(u);
     setTimeout(() => {
       if (!stillOnEnd()) return;
-      const t = el('div', 'unlock-toast', `<div class="ut-kind">✦ ${info.kind}</div><div class="ut-name">${info.name}</div>`);
+      const t = el('div', 'unlock-toast', `<div class="ut-kind">${tr('ui.end.unlock.header', { kind: info.kind })}</div><div class="ut-name">${info.name}</div>`);
       host.appendChild(t);
       globalThis.requestAnimationFrame(() => t.classList.add('in'));
       sfx.relic();
@@ -83,33 +83,33 @@ function showUnlockToasts(list = [], runId = S.run?.runId) {
 }
 
 function dawnEventHtml(event) {
-  if (event.t === 'whisper') return `<div class="dawn-kicker">A whisper reaches the dawn</div>
+  if (event.t === 'whisper') return `<div class="dawn-kicker">${tr('ui.dawn.whisperKicker')}</div>
     <div class="dawn-whisper"><i>${escHtml(event.text)}</i></div>`;
   if (event.t === 'questReveal') {
     const quest = QUESTS[event.id];
-    return `<div class="dawn-kicker">${escHtml(quest.mode)} revealed</div>
+    return `<div class="dawn-kicker">${tr('ui.dawn.questRevealKicker', { mode: quest.mode })}</div>
       <div class="dawn-name">${escHtml(quest.name)}</div>
       <div class="dawn-copy">${escHtml(quest.inscription)}</div>`;
   }
-  if (event.t === 'questProgress') return `<div class="dawn-kicker">The trail continues</div>
+  if (event.t === 'questProgress') return `<div class="dawn-kicker">${tr('ui.dawn.questProgressKicker')}</div>
     <div class="dawn-name">${escHtml(E.questProgressName(event.id, event.target))}</div>
     <div class="dawn-count">${event.progress}/${event.target}</div>`;
-  if (event.t === 'questUnlock') return `<div class="dawn-kicker">Insight awakened</div>
-    <div class="dawn-name">Witchlight Lens</div>
-    <div class="dawn-copy">Pale paths will now be marked.</div>`;
-  if (event.t === 'pageRead') return `<div class="dawn-kicker">Page ${event.index}</div>
+  if (event.t === 'questUnlock') return `<div class="dawn-kicker">${tr('ui.dawn.questUnlockKicker')}</div>
+    <div class="dawn-name">${tr('ui.dawn.witchlightLens')}</div>
+    <div class="dawn-copy">${tr('ui.dawn.witchlightCopy')}</div>`;
+  if (event.t === 'pageRead') return `<div class="dawn-kicker">${tr('ui.dawn.pageKicker', { n: event.index })}</div>
     <div class="dawn-copy">${escHtml(event.text)}</div>`;
-  if (event.t === 'eighthResolved') return `<div class="dawn-kicker broken-omen">The broken glyphs resolve</div>
+  if (event.t === 'eighthResolved') return `<div class="dawn-kicker broken-omen">${tr('ui.dawn.eighthResolvedKicker')}</div>
     <div class="dawn-copy">${escHtml(event.text)}</div>`;
-  if (event.t === 'shadeResolved') return `<div class="dawn-kicker">The shade speaks plainly</div>
+  if (event.t === 'shadeResolved') return `<div class="dawn-kicker">${tr('ui.dawn.shadeResolvedKicker')}</div>
     <div class="dawn-copy">${escHtml(event.text)}</div>`;
-  if (event.t === 'questComplete') return `<div class="dawn-kicker">${escHtml(QUESTS[event.id].mode)} complete</div>
+  if (event.t === 'questComplete') return `<div class="dawn-kicker">${tr('ui.dawn.questCompleteKicker', { mode: QUESTS[event.id].mode })}</div>
     <div class="dawn-name">${escHtml(QUESTS[event.id].name)}</div>`;
   if (event.t === 'shardGrant') return `<div class="dawn-icon">${iconSvg('emberglassShard', 42)}</div>
     <div class="dawn-name">${escHtml(QUESTS[event.id].name)}</div>
-    <div class="dawn-copy">One pane answers.</div>`;
+    <div class="dawn-copy">${tr('ui.dawn.shardGrantCopy')}</div>`;
   if (event.t === 'act4Reveal') return `<div class="dawn-icon">${iconSvg('sealedDoor', 48)}</div>
-    <div class="dawn-copy">Six panes burn. Something waits above the crown.</div>`;
+    <div class="dawn-copy">${tr('ui.dawn.act4RevealCopy')}</div>`;
   return '';
 }
 
@@ -192,9 +192,9 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
   } else {
     // the fallen may carve one thing into the stone for the next climber to find
     const bequestHtml = unpaidBequest
-      ? '<div class="bequest"><div class="bequest-done">The unpaid gift remains in the standing stone</div></div>'
+      ? `<div class="bequest"><div class="bequest-done">${tr('ui.end.bequestUnpaid')}</div></div>`
       : offers.length ? `<div class="bequest" id="bequest">
-        <div class="bequest-title">Carve one thing into the stone — the next climb may recover it in <b>${ACTS[fallAct].name}</b>.</div>
+        <div class="bequest-title">${tr('ui.end.bequestTitle', { act: `<b>${ACTS[fallAct].name}</b>` })}</div>
         <div class="bequest-opts">${offers.map((o, i) => {
       const L = bequestLabel(o);
       return `<button class="bequest-opt" data-a="bequest" data-i="${i}"><span class="bq-icon">${L.icon}</span><span class="bq-name">${L.name}</span><span class="bq-note">${L.note}</span></button>`;
@@ -207,7 +207,7 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
       <div class="monument">
         <div class="mon-flame"></div>
         <div class="end-title lose">${tr('ui.end.fallen')}</div>
-        <div class="ov-sub" style="font-size:16px">Here ended a climb, on floor ${totalFloor}.<br>The Spire keeps what it takes — but the Vigil remembers.</div>
+        <div class="ov-sub" style="font-size:16px">${tr('ui.end.fallenSub', { floor: totalFloor })}</div>
         ${stats}${bequestHtml}${btns}
       </div>
       <div class="embers">${embers}</div>
@@ -222,11 +222,11 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
       const o = offers[+t.dataset.i];
       runEffects.setBequest(fallAct, fallRow, o);
       const L = bequestLabel(o);
-      $('#bequest').innerHTML = `<div class="bequest-done">✦ The stone keeps your <b>${L.name}</b>.<br>It will wait for you in ${ACTS[fallAct].name}.</div>`;
+      $('#bequest').innerHTML = `<div class="bequest-done">${tr('ui.end.bequestDone', { name: `<b>${L.name}</b>`, act: ACTS[fallAct].name })}</div>`;
       return;
     }
     sfx.click();
-    if (a === 'deck') showCardGrid('Final Deck', run.player.deck, {});
+    if (a === 'deck') showCardGrid(tr('ui.end.finalDeckTitle'), run.player.deck, {});
     if (a === 'title') { S.run = null; S.lamp = null; show('title'); }
   };
   ceremony.then((owedUnlocks = newUnlocks) => {

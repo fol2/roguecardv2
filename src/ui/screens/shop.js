@@ -1,5 +1,5 @@
 export function createShopScreen(deps) {
-  const { S, E, QUESTS, RELICS, POTIONS, sceneBg, rasterOr, merchantSvg, $, el, cardEl, uiIcon, sfx, runEffects, renderHud, iconSvg, escHtml, requireRunSave, V, stageW, stageH, potionSvg, relicArt, showCardGrid, leaveHollowDestination, show, screenEl } = deps;
+  const { S, E, QUESTS, RELICS, POTIONS, tr, sceneBg, rasterOr, merchantSvg, $, el, cardEl, uiIcon, sfx, runEffects, renderHud, iconSvg, escHtml, requireRunSave, V, stageW, stageH, potionSvg, relicArt, showCardGrid, leaveHollowDestination, show, screenEl } = deps;
 
 function renderShop() {
   const run = S.run;
@@ -12,13 +12,13 @@ function renderShop() {
   sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel ov-panel" style="width:min(980px,96vw)">
     <div style="display:flex;align-items:center;justify-content:center;gap:18px">
       <div style="width:130px">${rasterOr('props', 'merchant', merchantSvg())}</div>
-      <div><div class="ov-title" style="text-align:left">THE MERCHANT</div>
-      <div class="ov-sub shop-dialogue" style="text-align:left;margin:0">"Gold for glory, stranger. Everything's fair-priced — for the doomed."</div></div>
+      <div><div class="ov-title" style="text-align:left">${tr('ui.shop.title')}</div>
+      <div class="ov-sub shop-dialogue" style="text-align:left;margin:0">${tr('ui.shop.greeting')}</div></div>
     </div>
     <div class="shop-grid">
       <div class="shop-row cards-row"></div>
       <div class="shop-row misc-row"></div>
-      <div class="ov-actions"><button class="btn btn-primary" data-a="leave">Leave the Shop</button></div>
+      <div class="ov-actions"><button class="btn btn-primary" data-a="leave">${tr('ui.shop.leave')}</button></div>
     </div>
   </div></div>`;
   const cardsRow = $('.cards-row', sc), miscRow = $('.misc-row', sc);
@@ -101,7 +101,7 @@ function renderShop() {
       const b = el('button', 'shop-relic', `<span style="width:34px;height:44px">${rasterOr('potions', it.id, potionSvg(p.tone))}</span><b>${p.name}</b>${p.text}`);
       b.onclick = () => {
         if (it.sold || gold() < it.price) return sfx.debuff();
-        if (!E.gainPotion(run, it.id)) { V.floatText(stageW() / 2, stageH() / 2, 'Potion slots full!', 'notice'); return; }
+        if (!E.gainPotion(run, it.id)) { V.floatText(stageW() / 2, stageH() / 2, tr('ui.shop.potionSlotsFull'), 'notice'); return; }
         it.sold = true;
         sfx.potion();
         buy(it.price);
@@ -113,11 +113,11 @@ function renderShop() {
     // card removal service
     const removable = E.removableCards(run);
     const wrap = el('div', `shop-item ${st.removed ? 'sold' : ''} ${gold() < st.removeCost || !removable.length ? 'cant' : ''}`);
-    const b = el('button', 'shop-relic', `<span style="width:34px;display:inline-flex;justify-content:center">${iconSvg('scissors', 26)}</span><b>Card Removal</b>Remove a card from your deck forever.`);
+    const b = el('button', 'shop-relic', `<span style="width:34px;display:inline-flex;justify-content:center">${iconSvg('scissors', 26)}</span><b>${tr('ui.shop.cardRemoval.title')}</b>${tr('ui.shop.cardRemoval.desc')}`);
     b.onclick = () => {
       if (st.removed || gold() < st.removeCost || !removable.length) return sfx.debuff();
-      showCardGrid('Remove a Card', removable, {
-        sub: 'Cut the dead weight.',
+      showCardGrid(tr('ui.shop.cardRemoval.pickTitle'), removable, {
+        sub: tr('ui.shop.cardRemoval.pickSub'),
         pick: (inst) => {
           if (!inst || !E.removeCardFromDeck(run, inst.uid)) return;
           st.removed = true;
@@ -127,7 +127,7 @@ function renderShop() {
           renderHud();
           refresh();
         },
-        canSkip: true, skipLabel: 'Cancel',
+        canSkip: true, skipLabel: tr('ui.common.cancel'),
       });
     };
     wrap.appendChild(b);

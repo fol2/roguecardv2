@@ -1,5 +1,5 @@
 import { test, expect, bindTraceContract } from './trace-fixture.js';
-import { boot, startFight, settle } from './helpers.js';
+import { boot, collectErrors, startFight, settle } from './helpers.js';
 import {
   freshLedger, seed, stagePendingRunEnd, waitForDawnComplete,
 } from './emberglass-fixtures.js';
@@ -100,7 +100,96 @@ async function seedHollowTrace(page, { progress = 1, type = 'shop', gold = 999 }
   await page.waitForSelector('.hollow-lamplighter', { timeout: 10_000 });
 }
 
+const COMBAT_MODULE_KEYS = [
+  'afterAction', 'banner', 'clearTargeting', 'doPlay', 'drainHandlers', 'flyTo',
+  'freeze', 'meshBindTitle', 'onEndTurn', 'refitCombat', 'renderCombat',
+  'renderHud', 'setTargeting', 'startCombatUI', 'startRig', 'syncCombat',
+  'syncHand', 'tweenNum', 'useLanternArt',
+].sort();
+const DRAIN_HANDLER_KEYS = [
+  'addCrack', 'banner', 'bumpPile', 'captureCardAnchor', 'choreoAttack',
+  'choreoHit', 'choreoStagger', 'clearDrawRevealPlan',
+  'clearPileVisualOverride', 'deleteDrawRevealPlan', 'enemyCenter',
+  'flyCardBacks', 'flyTo', 'handFaceSize', 'handSeatCenter',
+  'hasPileVisualOverride', 'heroCenter', 'holdPendingPileArrivals',
+  'holdPileVisual', 'igniteVessel', 'layoutHand', 'peekCardAnchor',
+  'pileCardByUid', 'pileFaceSize', 'readPileVisualOverride',
+  'releasePileVisual', 'renderHud', 'replacePileVisualOverride',
+  'scheduleHandReveal', 'semanticUiCheckpoint', 'setCardFlightAnchor',
+  'setDrawRevealPlan', 'setPileVisualOverride', 'syncCombat', 'syncHand',
+  'syncPileWidgets', 'syncWardMesh', 'takeCardAnchor',
+].sort();
+
+test('runtime UI module contracts expose only sorted diagnostic keys', async ({ page }) => {
+  await page.goto('/?trace=1');
+  await page.waitForFunction(() => window.__probe?.moduleContracts);
+  expect(await page.evaluate(() => window.__probe.moduleContracts())).toEqual({
+    combat: COMBAT_MODULE_KEYS,
+    drainHandlers: DRAIN_HANDLER_KEYS,
+    drain: ['drain'],
+    frozen: { combat: true, drainHandlers: true, drain: true },
+  });
+});
+
+test('trace attachment canary', async ({ page }) => {
+  test.skip(process.env.SPIREBOUND_TRACE_ATTACHMENT_CANARY !== '1',
+    'forced-failure attachment proof runs only in its isolated gate');
+  await seed(page, freshLedger());
+  await page.click('[data-a="embark"]');
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    window.__rejectCanarySave = true;
+    Storage.prototype.setItem = function setItem(key, value) {
+      if (key === 'spirebound_save_v2' && window.__rejectCanarySave) {
+        throw new Error('trace attachment canary initial save failure');
+      }
+      return original.call(this, key, value);
+    };
+  });
+  await page.click('[data-a="begin"]');
+  await expect(page.locator('[data-a="retry-save"]')).toBeFocused();
+  await page.click('[data-a="retry-save"]');
+  await page.evaluate(() => { window.__rejectCanarySave = false; });
+  await page.click('[data-a="retry-save"]');
+  await page.waitForFunction(() => window.spirebound.S.screen === 'map');
+  await page.evaluate(() => window.spirebound.startCombatUI(['sporeling'], 'normal'));
+  await settle(page);
+  await page.evaluate(() => window.__probe.forceHand(['defend']));
+  const card = page.locator('.hand-zone .card');
+  await card.waitFor({ state: 'visible' });
+  await card.evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    const init = { bubbles: true, pointerId: 99, isPrimary: true, pointerType: 'mouse' };
+    node.dispatchEvent(new PointerEvent('pointerdown', {
+      ...init, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2,
+    }));
+    node.dispatchEvent(new PointerEvent('pointermove', {
+      ...init, clientX: rect.left + rect.width / 2, clientY: rect.top - 60,
+    }));
+    node.dispatchEvent(new PointerEvent('pointercancel', {
+      ...init, clientX: rect.left + rect.width / 2, clientY: rect.top - 60,
+    }));
+  });
+  await page.evaluate(() => window.__probe.showBarrierProbe());
+  await settle(page);
+  const uid = await page.evaluate(() => {
+    window.__probe.setEnemyHp(0, 1);
+    return window.__probe.forceHand(['strike'])[0];
+  });
+  await page.evaluate((cardUid) => window.__probe.play(cardUid, 0), uid);
+  await settle(page);
+  const names = await page.evaluate(() => window.__probe.behaviourTrace().records
+    .map((record) => record.eventName));
+  for (const token of ['screen.entered', 'input.card-drag', 'playback.queue']) {
+    expect(names).toContain(token);
+  }
+  expect(names.some((name) => name.startsWith('presentation.'))).toBe(true);
+  expect(names.some((name) => name.startsWith('persistence.'))).toBe(true);
+  throw new Error('INTENTIONAL_TRACE_ATTACHMENT_CANARY_FAILURE');
+});
+
 test('real screen, cancelled drag and card play expose semantic owner order', async ({ page }) => {
+  const errors = collectErrors(page);
   await page.goto('/?trace=1');
   await page.waitForFunction(() => window.__probe);
   await page.locator('[data-a="embark"]').click();
@@ -140,8 +229,16 @@ test('real screen, cancelled drag and card play expose semantic owner order', as
   await page.evaluate(() => window.__probe.showBarrierProbe());
   await settle(page);
   await page.evaluate(() => { window.__probe.setEmbers(9); });
-  expect(await page.evaluate(() => window.__probe.useArt())).toBe(true);
+  const artBefore = await page.evaluate(() => window.spirebound.S.cb.embers);
+  await page.locator('.lantern-btn').click();
   await settle(page);
+  const artAfter = await page.evaluate(() => ({
+    artUsedTurn: window.spirebound.S.cb.artUsedTurn,
+    embers: window.spirebound.S.cb.embers,
+    turn: window.spirebound.S.cb.turn,
+  }));
+  expect(artAfter.artUsedTurn).toBe(artAfter.turn);
+  expect(artAfter.embers).toBeLessThan(artBefore);
 
   const result = await page.evaluate(() => ({
     trace: window.__probe.behaviourTrace(),
@@ -222,6 +319,52 @@ test('real screen, cancelled drag and card play expose semantic owner order', as
   expect(text.text).toMatch(/playback\.queue-event phase=start[^\n]+cause=\d+/);
   expect(text.text).toContain('presentation.banner phase=start');
   expect(text.text).toContain('presentation.banner phase=end outcome=settled');
+  expect(errors).toEqual([]);
+});
+
+test('drain recovery reconstructs card flights without live seats or anchors', async ({ page }) => {
+  const errors = collectErrors(page);
+  await boot(page, { query: 'trace=1&mesh=0' });
+  await startFight(page, ['sporeling']);
+  const seeded = await page.evaluate(() => {
+    const { E, S } = window.spirebound;
+    const [exhaustUid] = window.__probe.forceHand(['strike']);
+    const exhaustInst = S.cb.hand.find((card) => card.uid === exhaustUid);
+    const exhaustSeat = document.querySelector(`.card[data-uid="${exhaustUid}"]`);
+    exhaustSeat.classList.add('played-up');
+    exhaustSeat.style.display = 'none';
+    S.cb.hand = [];
+    S.cb.exhaust.push(exhaustInst);
+
+    const discarded = E.makeCard(S.run, 'defend');
+    const played = E.makeCard(S.run, 'strike');
+    S.cb.discard.push(discarded, played);
+    S.cb.queue.push(
+      { t: 'exhaust', uid: exhaustInst.uid },
+      { t: 'discardHand', uids: [discarded.uid] },
+      { t: 'toDiscard', uid: played.uid },
+    );
+    return { exhaust: exhaustInst.uid, discardHand: discarded.uid, toDiscard: played.uid };
+  });
+
+  await page.locator('.end-turn').click();
+  await settle(page);
+  const result = await page.evaluate(() => ({
+    busy: window.spirebound.S.busy,
+    queueIdle: window.__probe.queueIdle(),
+    presentationIdle: window.__probe.presentationIdle(),
+    records: window.__probe.behaviourTrace().records,
+  }));
+  expect(result.busy).toBe(false);
+  expect(result.queueIdle).toBe(true);
+  expect(result.presentationIdle).toBe(true);
+  const recoveredTypes = result.records
+    .filter((record) => record.eventName === 'playback.queue-event' && record.phase === 'start')
+    .map((record) => record.attributes.eventType);
+  expect(recoveredTypes).toEqual(expect.arrayContaining(['exhaust', 'discardHand', 'toDiscard']));
+  expect(result.records.filter((record) => record.eventName === 'error.playback')).toEqual([]);
+  expect(errors).toEqual([]);
+  expect(Object.values(seeded).every((uid) => uid != null)).toBe(true);
 });
 
 test('app-version trace is copy-free and five-tap debug has no action control', async ({ page }) => {

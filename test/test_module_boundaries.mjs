@@ -77,12 +77,109 @@ assert.match(productionTraceSpec, /test\.afterAll\([\s\S]*?rmSync\(productionOut
   'production trace suite must clean its exact task-owned bundle after tests');
 
 const uiSource = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
+const combatSource = readFileSync(new URL('../src/ui/combat.js', import.meta.url), 'utf8');
+const drainSource = readFileSync(new URL('../src/ui/drain.js', import.meta.url), 'utf8');
+const probeSource = readFileSync(new URL('../src/ui/probe.js', import.meta.url), 'utf8');
+const uiIndexSource = readFileSync(new URL('../src/ui/index.js', import.meta.url), 'utf8');
 const overlaySource = readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8');
+const readUiSources = (directory, prefix = '') => Object.fromEntries(
+  readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    if (entry.isDirectory()) {
+      return Object.entries(readUiSources(new URL(`${entry.name}/`, directory), `${prefix}${entry.name}/`));
+    }
+    return entry.name.endsWith('.js')
+      ? [[`${prefix}${entry.name}`, readFileSync(new URL(entry.name, directory), 'utf8')]]
+      : [];
+  }),
+);
+const uiModuleSources = readUiSources(new URL('../src/ui/', import.meta.url));
+const aggregateUiSource = [uiSource, ...Object.values(uiModuleSources)].join('\n');
+assert.doesNotMatch(aggregateUiSource, /\['armed', 'revealed'\]/,
+  'recursive UI sources use QUEST_ACTIVE_STATES rather than duplicating quest protocol values');
+assert.doesNotMatch(aggregateUiSource, /\['win', 'death', 'abandon'\]/,
+  'recursive UI sources use TERMINAL_OUTCOMES rather than duplicating terminal protocol values');
 const screenSources = Object.fromEntries(readdirSync(new URL('../src/ui/screens/', import.meta.url))
   .filter((name) => name.endsWith('.js'))
   .map((name) => [name, readFileSync(new URL(`../src/ui/screens/${name}`, import.meta.url), 'utf8')]));
 const mapSource = screenSources['map.js'];
 const audioGallerySource = screenSources['audio-gallery.js'];
+
+const exportedNames = (source) => {
+  const names = new Set();
+  for (const match of source.matchAll(/\bexport\s+(?:async\s+)?(?:const|let|function|class)\s+([\w$]+)/g)) {
+    names.add(match[1]);
+  }
+  for (const match of source.matchAll(/\bexport\s*\{([^}]+)\}/g)) {
+    for (const entry of match[1].split(',')) names.add(entry.trim().split(/\s+as\s+/).at(-1));
+  }
+  return [...names].filter(Boolean).sort();
+};
+const shorthandKeys = (source, marker) => sourceBlock(source, marker)
+  .split('\n')
+  .map((line) => line.match(/^\s*([A-Za-z_$][\w$]*)\s*,?\s*$/)?.[1])
+  .filter(Boolean)
+  .sort();
+const objectLiteralKeys = (source, marker) => sourceBlock(source, marker)
+  .split('\n')
+  .map((line) => line.match(/^\s*([A-Za-z_$][\w$]*)\s*(?::|,)/)?.[1])
+  .filter(Boolean)
+  .sort();
+const combatKeys = [
+  'startCombatUI', 'renderCombat', 'refitCombat', 'renderHud', 'meshBindTitle',
+  'syncCombat', 'syncHand', 'setTargeting', 'clearTargeting', 'doPlay',
+  'onEndTurn', 'useLanternArt', 'afterAction', 'banner', 'flyTo', 'tweenNum',
+  'freeze', 'startRig', 'drainHandlers',
+].sort();
+const drainHandlerKeys = [
+  'addCrack', 'banner', 'bumpPile', 'captureCardAnchor', 'choreoAttack',
+  'choreoHit', 'choreoStagger', 'clearPileVisualOverride', 'enemyCenter',
+  'flyCardBacks', 'flyTo', 'handFaceSize', 'handSeatCenter', 'heroCenter',
+  'holdPendingPileArrivals', 'holdPileVisual', 'igniteVessel', 'layoutHand',
+  'peekCardAnchor', 'pileCardByUid', 'pileFaceSize', 'releasePileVisual',
+  'renderHud', 'scheduleHandReveal', 'semanticUiCheckpoint', 'syncCombat',
+  'syncHand', 'syncPileWidgets', 'syncWardMesh', 'takeCardAnchor',
+  'hasPileVisualOverride', 'readPileVisualOverride', 'setPileVisualOverride',
+  'replacePileVisualOverride', 'clearDrawRevealPlan', 'setDrawRevealPlan',
+  'deleteDrawRevealPlan', 'setCardFlightAnchor',
+].sort();
+assert.deepEqual(exportedNames(combatSource), ['createCombat'], 'combat has one ESM factory export');
+assert.deepEqual(exportedNames(drainSource), ['createDrain'], 'drain has one ESM factory export');
+assert.deepEqual(exportedNames(probeSource), ['installProbe'], 'probe has one ESM installer export');
+assert.deepEqual(exportedNames(uiIndexSource), ['initUI', 'show'], 'UI index has the exact public surface');
+assert.deepEqual(shorthandKeys(probeSource, 'export function installProbe({'), [
+  'combat', 'context', 'drain', 'navigator', 'trace',
+].sort(), 'probe installer accepts exactly the five architectural owners');
+assert.match(uiIndexSource, /const probeContext = Object\.freeze\(\{/,
+  'the UI composition root freezes ordinary probe dependencies in one context');
+assert.deepEqual(objectLiteralKeys(uiIndexSource, 'const probe = installProbe({'), [
+  'combat', 'context', 'drain', 'navigator', 'trace',
+].sort(), 'the UI composition root calls the probe installer with exactly five owners');
+assert.deepEqual(shorthandKeys(combatSource, 'const drainHandlers = Object.freeze({'), drainHandlerKeys,
+  'combat owns the exact literal 38-key drain presentation surface');
+assert.deepEqual(shorthandKeys(combatSource, 'return Object.freeze({'), combatKeys,
+  'combat owns the exact literal 19-key caller surface');
+assert.match(drainSource, /return\s+Object\.freeze\(\{\s*drain\s*\}\)/,
+  'drain returns only its frozen drain operation');
+assert.match(drainSource, /createDrain\(\{[\s\S]*?\bQUESTS\b[\s\S]*?presentation[\s\S]*?\}\)/,
+  'drain explicitly receives the quest catalogue used by questReveal playback');
+assert.match(drainSource, /createDrain\(\{[\s\S]*?\bcardEl\b[\s\S]*?presentation[\s\S]*?\}\)/,
+  'drain explicitly receives the immutable card renderer used by recovery flights');
+assert.match(uiIndexSource, /createDrain\(\{[\s\S]*?\bQUESTS\s*,[\s\S]*?presentation:\s*combatApi\.drainHandlers/,
+  'the UI composition root supplies QUESTS to drain');
+assert.match(uiIndexSource, /createDrain\(\{[\s\S]*?\bcardEl\s*,[\s\S]*?presentation:\s*combatApi\.drainHandlers/,
+  'the UI composition root supplies the card renderer to drain');
+assert.doesNotMatch(drainSource, /(^|[^.\w])handFaceSize\(/m,
+  'drain must call handFaceSize only through the frozen presentation surface');
+assert.match(drainSource, /cardEl\(src\.inst,\s*\{\s*inCombat:\s*true,\s*size:\s*layoutW\s*\}\)/,
+  'drain recovery reconstructs a missing live card through its injected renderer');
+assert.doesNotMatch(combatSource, /\bmeshHandoff\b/,
+  'combat must not retain the drain-owned mesh handoff dependency');
+assert.doesNotMatch(drainSource, /\b(?:pileVisualOverride|drawRevealPlan|cardFlightAnchor)\b/,
+  'drain cannot directly name combat-owned mutable bindings');
+assert.doesNotMatch(importSpecifiers('../src/ui/combat.js').join('\n'), /(?:drain|screens|navigation|index)\.js/,
+  'combat imports no drain, screen, navigator or index owner');
+assert.doesNotMatch(importSpecifiers('../src/ui/drain.js').join('\n'), /(?:combat|screens|navigation|index)\.js/,
+  'drain imports no combat, screen, navigator or index owner');
 for (const name of Object.keys(screenSources)) {
   assert.deepEqual(importSpecifiers(`../src/ui/screens/${name}`), [],
     `${name} receives dependencies and stays a leaf`);
@@ -96,7 +193,7 @@ assert.match(audioAssetsSource, /!\.\/assets\/sfx\/_raw\/\*\*/,
   'SFX Vite glob must exclude authoring-time _raw assets');
 assert.match(audioGallerySource, /applyAudioSelection\(payload\);\s*invalidateSfxSelection\(\);\s*music\.invalidateMusicSelection\(\);/,
   'PR15 hot apply must update selection then invalidate both gameplay caches');
-const rawPointerSource = [uiSource, ...Object.values(screenSources)].join('\n');
+const rawPointerSource = aggregateUiSource;
 const rawPointerHandlers = [...rawPointerSource.matchAll(
   /addEventListener\(['"]pointermove['"],[\s\S]*?=>\s*\{([\s\S]*?)\n\s*\}\);/g,
 )];
@@ -105,32 +202,33 @@ for (const [index, match] of rawPointerHandlers.entries()) {
   assert.doesNotMatch(match[1], /trace\.(?:emit|begin)/,
     `raw pointermove handler ${index + 1} must not emit trace records`);
 }
-const aimMoveSource = sourceBlock(uiSource, 'function aimMove(e) {');
+const aimMoveSource = sourceBlock(combatSource, 'function aimMove(e) {');
 assert.doesNotMatch(aimMoveSource, /trace\.(?:emit|begin)/,
   'named raw pointer owner aimMove must not emit trace records');
-const tweenNumSource = sourceBlock(uiSource, 'function tweenNum(node, from, to, ms = 640) {');
-const igniteVesselSource = sourceBlock(uiSource, 'function igniteVessel(x, dur = 200) {');
+const tweenNumSource = sourceBlock(combatSource, 'function tweenNum(node, from, to, ms = 640) {');
+const igniteVesselSource = sourceBlock(combatSource, 'function igniteVessel(x, dur = 200) {');
 const animationLoopOwners = [
   ['map coast', sourceBlock(mapSource, 'const coast = () => {')],
   ['tweenNum step', sourceBlock(tweenNumSource, 'const step = (now) => {')],
-  ['living-glass rigTick', sourceBlock(uiSource, 'function rigTick(t) {')],
+  ['living-glass rigTick', sourceBlock(combatSource, 'function rigTick(t) {')],
   ['igniteVessel step', sourceBlock(igniteVesselSource, 'const step = () => {')],
 ];
 for (const [name, ownerSource] of animationLoopOwners) {
   assert.match(ownerSource, /requestAnimationFrame\(/, `${name} source guard must own an rAF loop`);
   assert.doesNotMatch(ownerSource, /trace\.(?:emit|begin)/, `${name} loop must not emit trace records`);
 }
-assert.doesNotMatch(uiSource, /function\s+usePotionOn\s*\(/,
+assert.doesNotMatch([uiSource, combatSource, drainSource, uiIndexSource, probeSource].join('\n'),
+  /function\s+usePotionOn\s*\(/,
   'usePotionOn must not retain a duplicate monolith owner after overlay extraction');
 assert.equal((overlaySource.match(/function\s+usePotionOn\s*\(/g) || []).length, 1,
   'overlay must own exactly one traced usePotionOn handler');
 for (const [marker, source] of [
   ['function usePotionOn(', overlaySource],
   ['function selectMapNode(', mapSource],
-  ['function useLanternArt(', uiSource],
-  ['function doKindle(', uiSource],
-  ['function doPlay(', uiSource],
-  ['function onEndTurn(', uiSource],
+  ['function useLanternArt(', combatSource],
+  ['function doKindle(', combatSource],
+  ['function doPlay(', combatSource],
+  ['function onEndTurn(', combatSource],
 ]) {
   const ownerSource = sourceBlock(source, marker);
   assert.match(ownerSource, /catch\s*\(/, `${marker} must close its trace span on failure`);
@@ -140,7 +238,10 @@ for (const marker of [
   'function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {',
   'function handleDrawWave(',
 ]) {
-  const ownerSource = sourceBlock(uiSource, marker);
+  const ownerSource = sourceBlock(
+    marker.startsWith('function handleDrawWave(') ? drainSource : combatSource,
+    marker,
+  );
   assert.match(ownerSource, /catch\s*\(/, `${marker} must close every owned span on failure`);
   assert.match(ownerSource, /finish\('failed'/, `${marker} must record failed terminal spans`);
 }

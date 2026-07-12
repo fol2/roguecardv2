@@ -22,7 +22,7 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
     const { x, y } = toStage(cx, cy);
     const menu = el('div', 'pop-menu');
     const terminalLocked = terminalNavigationLocked();
-    menu.innerHTML = `<button data-m="help">${tr('ui.menu.howToPlay')}</button><button data-m="settings">Settings</button>${terminalLocked ? '' : `<button data-m="abandon" style="color:#ff8d8d">${tr('ui.menu.abandonRun')}</button>`}`;
+    menu.innerHTML = `<button data-m="help">${tr('ui.menu.howToPlay')}</button><button data-m="settings">${tr('ui.menu.settings')}</button>${terminalLocked ? '' : `<button data-m="abandon" style="color:#ff8d8d">${tr('ui.menu.abandonRun')}</button>`}`;
     stageEl().appendChild(menu);
     menu.style.left = `${Math.min(x, stageW() - 200)}px`;
     menu.style.top = `${y + 8}px`;
@@ -43,20 +43,20 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
       <div class="audio-row" data-bus="${bus}">
         <div class="audio-row-head">
           <span class="audio-label">${label}</span>
-          <button type="button" class="audio-mute" data-a="mute">${muted ? 'Unmute' : 'Mute'}</button>
+          <button type="button" class="audio-mute" data-a="mute">${muted ? tr('ui.menu.unmute') : tr('ui.menu.mute')}</button>
         </div>
         <input type="range" class="audio-vol" min="0" max="100" step="1" value="${Math.round(volume * 100)}" ${muted ? 'disabled' : ''}>
       </div>`;
     panel.innerHTML = `
-      <div class="audio-panel-title">Settings</div>
-      ${row('Music', music.getMusicVolume(), music.isMusicMuted(), 'music')}
-      ${row('SFX', getSfxVolume(), isSfxMuted(), 'sfx')}
+      <div class="audio-panel-title">${tr('ui.settings.title')}</div>
+      ${row(tr('ui.settings.music'), music.getMusicVolume(), music.isMusicMuted(), 'music')}
+      ${row(tr('ui.settings.sfx'), getSfxVolume(), isSfxMuted(), 'sfx')}
       <div class="settings-debug">
-        <div class="settings-debug-label">Debug</div>
-        <button type="button" class="btn danger settings-reset" data-a="reset"${terminalNavigationLocked() ? ' disabled' : ''}>Reset Save</button>
-        <div class="settings-debug-warn">Wipes the current climb and all Vigil progress. Cannot be undone.</div>
+        <div class="settings-debug-label">${tr('ui.settings.debugLabel')}</div>
+        <button type="button" class="btn danger settings-reset" data-a="reset"${terminalNavigationLocked() ? ' disabled' : ''}>${tr('ui.settings.resetSave')}</button>
+        <div class="settings-debug-warn">${tr('ui.settings.resetWarn')}</div>
       </div>
-      <button type="button" class="audio-close" data-a="close">Close</button>`;
+      <button type="button" class="audio-close" data-a="close">${tr('ui.menu.close')}</button>`;
     stageEl().appendChild(panel);
     const bindRow = (bus) => {
       const root = $(`.audio-row[data-bus="${bus}"]`, panel);
@@ -72,7 +72,7 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
       };
       muteBtn.onclick = () => {
         const on = setMute(!getMute());
-        muteBtn.textContent = on ? 'Unmute' : 'Mute';
+        muteBtn.textContent = on ? tr('ui.menu.unmute') : tr('ui.menu.mute');
         slider.disabled = on;
         slider.value = String(Math.round(getVolume() * 100));
         sfx.click();
@@ -92,9 +92,9 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
   function confirmResetSave() {
     if (terminalNavigationLocked()) return;
     openOverlay(`<div class="panel ov-panel" style="text-align:center">
-      <div class="ov-title">Reset Save?</div>
-      <div class="ov-sub">This erases your <b>current climb</b> and the entire <b>Vigil</b> — deeds, unlocks, vows, monuments, and whispers.<br><br><span style="color:#ff8d8d">This cannot be undone.</span></div>
-      <div class="ov-actions"><button class="btn danger" data-a="yes">Erase Everything</button><button class="btn ghost" data-a="no">Cancel</button></div>
+      <div class="ov-title">${tr('ui.settings.resetConfirmTitle')}</div>
+      <div class="ov-sub">${tr('ui.settings.resetConfirmBody')}</div>
+      <div class="ov-actions"><button class="btn danger" data-a="yes">${tr('ui.settings.eraseEverything')}</button><button class="btn ghost" data-a="no">${tr('ui.common.cancel')}</button></div>
     </div>`, (root) => {
       root.onclick = (event) => {
         const action = event.target.dataset.a;
@@ -122,7 +122,7 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
     const inCombat = S.cb && !S.cb.over && S.screen === 'combat';
     const canUse = !potion.combatOnly || inCombat;
     const menu = el('div', 'pop-menu');
-    menu.innerHTML = `<button data-m="use" ${canUse ? '' : 'disabled style="opacity:.4"'}>Use ${potion.name}</button><button data-m="toss">Toss it</button>`;
+    menu.innerHTML = `<button data-m="use" ${canUse ? '' : 'disabled style="opacity:.4"'}>${tr('ui.hud.usePotion', { name: potion.name })}</button><button data-m="toss">${tr('ui.hud.tossPotion')}</button>`;
     stageEl().appendChild(menu);
     const point = toStage(event.clientX, event.clientY);
     menu.style.left = `${Math.min(point.x - 60, stageW() - 220)}px`;
@@ -353,10 +353,10 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
   function showRunSaveFailure(run, onSaved, kind = null) {
     const html = persistenceFailureHtml({
       id: 'run-save-failure',
-      title: 'Save Failed',
-      description: 'The climb could not be secured. Free storage and retry, or reload the last durable climb state.',
-      retry: { action: 'retry-save', label: 'Retry Save' },
-      reload: { action: 'reload-save', label: 'Reload Saved Climb' },
+      title: tr('ui.persistence.saveFailedTitle'),
+      description: tr('ui.persistence.runSaveBody'),
+      retry: { action: 'retry-save', label: tr('ui.persistence.retrySave') },
+      reload: { action: 'reload-save', label: tr('ui.persistence.reloadClimb') },
     });
     openPersistenceDialog(html, '[data-a="retry-save"]', (root, transaction) => {
       root.onclick = (event) => {
@@ -371,7 +371,7 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
         reload.disabled = true;
         const saved = kind ? persistObserved(kind, () => runEffects.saveRun(run)) : runEffects.saveRun(run);
         if (!saved) {
-          $('.ov-sub', root).textContent = 'The save is still unavailable. Free storage, then retry or reload the last durable climb state.';
+          $('.ov-sub', root).textContent = tr('ui.persistence.runSaveRetryFail');
           retry.disabled = false;
           reload.disabled = false;
           retry.focus();
@@ -395,10 +395,10 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
     if (persistObserved('hollow-route-clear', () => runEffects.completeHollowRoute(run))) return true;
     const html = persistenceFailureHtml({
       id: 'hollow-route-save-failure',
-      title: 'Save Failed',
-      description: 'This destination is still pending. Free storage and retry, or reload the exact saved destination.',
-      retry: { action: 'retry-hollow-route', label: 'Retry Save' },
-      reload: { action: 'reload-hollow-route', label: 'Reload Saved Destination' },
+      title: tr('ui.persistence.saveFailedTitle'),
+      description: tr('ui.persistence.hollowRouteBody'),
+      retry: { action: 'retry-hollow-route', label: tr('ui.persistence.retrySave') },
+      reload: { action: 'reload-hollow-route', label: tr('ui.persistence.reloadDestination') },
     });
     openPersistenceDialog(html, '[data-a="retry-hollow-route"]', (root, transaction) => {
       root.onclick = (event) => {
@@ -421,13 +421,13 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
     onCleared();
   }
 
-  function showStonePersistenceFailure(onRetry, retryLabel = 'Retry') {
+  function showStonePersistenceFailure(onRetry, retryLabel = tr('ui.common.retry')) {
     const html = persistenceFailureHtml({
       id: 'stone-save-failure',
-      title: 'The Stone Could Not Hold',
-      description: 'The stone could not hold this duel. Free storage and try again.',
+      title: tr('ui.persistence.stoneTitle'),
+      description: tr('ui.persistence.stoneBody'),
       retry: { action: 'retry-stone', label: retryLabel },
-      reload: { action: 'reload-stone', label: 'Reload Saved Climb' },
+      reload: { action: 'reload-stone', label: tr('ui.persistence.reloadClimb') },
     });
     openPersistenceDialog(html, '[data-a="retry-stone"]', (root, transaction) => {
       root.onclick = (event) => {
@@ -469,10 +469,10 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
   function showRunEndPersistenceFailure(run, onFinalised = null) {
     const html = persistenceFailureHtml({
       id: 'run-end-save-failure',
-      title: 'The Vigil Could Not Hold',
-      description: 'This run end is safely journalled, but its ledgers or final dawn could not be secured. Free storage and retry, or reload this saved finalisation.',
-      retry: { action: 'retry-end', label: 'Retry Finalisation' },
-      reload: { action: 'reload-end', label: 'Reload Saved Finalisation' },
+      title: tr('ui.persistence.vigilTitle'),
+      description: tr('ui.persistence.vigilBody'),
+      retry: { action: 'retry-end', label: tr('ui.persistence.retryFinalisation') },
+      reload: { action: 'reload-end', label: tr('ui.persistence.reloadFinalisation') },
     });
     openPersistenceDialog(html, '[data-a="retry-end"]', (root, transaction) => {
       root.onclick = (event) => {
@@ -486,7 +486,7 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
     });
   }
 
-  function showCardGrid(title, instances, { sub = '', pick = null, canSkip = false, skipLabel = 'Skip', inCombat = false } = {}) {
+  function showCardGrid(title, instances, { sub = '', pick = null, canSkip = false, skipLabel = tr('ui.common.skip'), inCombat = false } = {}) {
     const panel = el('div', 'panel ov-panel');
     panel.innerHTML = `<div class="ov-title">${title}</div>${sub ? `<div class="ov-sub">${sub}</div>` : ''}`;
     const grid = el('div', `card-grid ${pick ? 'choice-cards' : ''}`);
@@ -519,7 +519,7 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
       buttons.appendChild(skip);
     }
     if (!pick) {
-      const close = el('button', 'btn ghost', 'Close');
+      const close = el('button', 'btn ghost', tr('ui.menu.close'));
       close.onclick = () => { sfx.click(); closeOverlay(); };
       buttons.appendChild(close);
     }
@@ -546,14 +546,14 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
   function showDawnPersistenceFailure(onRetry, phase) {
     const finishing = phase === 'clear';
     const description = finishing
-      ? 'Every panel has been seen, but the saved dawn could not be released. Retry before leaving this screen.'
-      : 'This panel was shown, but its place in the dawn could not be secured. Retry before the ceremony continues.';
+      ? tr('ui.dawn.saveFailedClear')
+      : tr('ui.dawn.saveFailedCursor');
     const html = persistenceFailureHtml({
       id: 'dawn-save-failure',
-      title: 'The Dawn Could Not Hold',
+      title: tr('ui.dawn.saveFailedTitle'),
       description,
-      retry: { action: 'retry-dawn', label: 'Retry Save' },
-      reload: { action: 'reload-dawn', label: 'Reload Saved Dawn' },
+      retry: { action: 'retry-dawn', label: tr('ui.persistence.retrySave') },
+      reload: { action: 'reload-dawn', label: tr('ui.dawn.reloadSaved') },
     });
     openPersistenceDialog(html, '[data-a="retry-dawn"]', (root, transaction) => {
       root.onclick = (event) => {

@@ -80,7 +80,7 @@ function exitHollow(run) {
   const route = runEffects.stageHollowExit(run);
   if (!route) {
     const error = $('.hollow-error', screenEl());
-    if (error) error.textContent = 'The way onward could not be prepared.';
+    if (error) error.textContent = tr('ui.hollow.routeFailed');
     $$('[data-a^="hollow-"]', screenEl()).forEach((button) => {
       if (button.dataset.a === 'hollow-continue') button.disabled = !run.pendingHollow?.paid;
       else if (button.dataset.a === 'hollow-leave') button.disabled = !!run.pendingHollow?.paid;
@@ -88,7 +88,7 @@ function exitHollow(run) {
     return;
   }
   if (!runEffects.saveRun(run)) {
-    restoreDurableHollow('The way onward is not secured. Retry when storage is available.');
+    restoreDurableHollow(tr('ui.hollow.routeSaveFailed'));
     return;
   }
   const node = run.map.nodes.find((candidate) => candidate.id === route.nodeId);
@@ -123,15 +123,15 @@ function renderHollow() {
       </svg>
     </div>
     <div class="hollow-copy screen-enter">
-      <div class="hollow-kicker">THE UNLIT WAY · PRICE ${meetingIndex + 1} OF ${QUESTS.hollowLamplighter.target}</div>
-      <div class="hollow-title">THE HOLLOW LAMPLIGHTER</div>
+      <div class="hollow-kicker">${tr('ui.hollow.kicker', { current: meetingIndex + 1, total: QUESTS.hollowLamplighter.target })}</div>
+      <div class="hollow-title">${tr('ui.hollow.title')}</div>
       <div class="hollow-ask">“${escHtml(meeting.ask)}”</div>
       <div class="hollow-answer${pending.paid ? ' paid' : ''}" aria-live="polite">${pending.paid ? escHtml(pending.answer) : ''}</div>
       <div class="hollow-error" aria-live="assertive"></div>
       <div class="hollow-actions">
-        <button class="btn btn-primary" data-a="hollow-pay"${pending.paid ? ' disabled' : ''}>${pending.paid ? 'Price Paid' : 'Pay the Price'}</button>
-        <button class="btn ghost" data-a="hollow-continue"${pending.paid ? '' : ' disabled'}>Continue</button>
-        <button class="btn ghost" data-a="hollow-leave"${pending.paid ? ' disabled' : ''}>Return Later</button>
+        <button class="btn btn-primary" data-a="hollow-pay"${pending.paid ? ' disabled' : ''}>${pending.paid ? tr('ui.hollow.pricePaid') : tr('ui.hollow.payPrice')}</button>
+        <button class="btn ghost" data-a="hollow-continue"${pending.paid ? '' : ' disabled'}>${tr('ui.common.continue')}</button>
+        <button class="btn ghost" data-a="hollow-leave"${pending.paid ? ' disabled' : ''}>${tr('ui.hollow.returnLater')}</button>
       </div>
     </div>
   </div>`;
@@ -157,8 +157,8 @@ function renderHollow() {
       if (!persistObserved('hollow-payment', () => runEffects.saveRun(run))) {
         answer.textContent = '';
         answer.classList.remove('paid', 'error');
-        error.textContent = 'The price is not yet secured. Retry the save.';
-        target.textContent = 'Retry Save';
+        error.textContent = tr('ui.hollow.saveFailed');
+        target.textContent = tr('ui.persistence.retrySave');
         target.disabled = false;
         continueButton.disabled = true;
         leaveButton.disabled = true;
@@ -168,7 +168,7 @@ function renderHollow() {
       answer.classList.remove('error');
       answer.classList.add('paid');
       error.textContent = '';
-      target.textContent = 'Price Paid';
+      target.textContent = tr('ui.hollow.pricePaid');
       continueButton.disabled = false;
       leaveButton.disabled = true;
       renderHud();
