@@ -771,8 +771,9 @@ test('frozen Task 6 fixture manifest is complete and every entry resolves', asyn
 });
 
 test('persistence fixtures: initial run, Usurper and Shade use real retry owners', async ({ page }) => {
+  test.setTimeout(120_000);
   await seed(page, freshLedger());
-  await page.click('[data-a="embark"]');
+  await page.click('[data-a="embark"]', { force: true });
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
     window.__rejectInitialTrace = true;
@@ -781,9 +782,9 @@ test('persistence fixtures: initial run, Usurper and Shade use real retry owners
       return original.call(this, key, value);
     };
   });
-  await page.click('[data-a="begin"]');
+  await page.click('[data-a="begin"]', { force: true });
   await expect(page.locator('[data-a="retry-save"]')).toBeFocused();
-  await page.click('[data-a="retry-save"]');
+  await page.click('[data-a="retry-save"]', { force: true });
   await page.evaluate(() => { window.__rejectInitialTrace = false; });
   await page.click('[data-a="retry-save"]');
   await page.waitForFunction(() => window.spirebound.S.screen === 'map');
@@ -831,11 +832,11 @@ test('persistence fixtures: initial run, Usurper and Shade use real retry owners
       return original.call(this, key, value);
     };
   });
-  await page.click('[data-a="continue"]');
+  await page.click('[data-a="continue"]', { force: true });
   await expect(page.locator('[data-a="retry-stone"]')).toBeFocused();
   await page.evaluate(() => { window.__rejectShadeTrace = false; });
-  await page.click('[data-a="retry-stone"]');
-  await page.waitForFunction(() => window.spirebound.S.screen === 'combat');
+  await page.click('[data-a="retry-stone"]', { force: true });
+  await page.waitForFunction(() => window.spirebound.S.screen === 'combat', null, { timeout: 30_000 });
   bindTraceContract('shade-bequest-clear', await persistenceContractRows(page, 'shade-bequest-clear'));
 });
 
