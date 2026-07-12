@@ -304,6 +304,151 @@ test('Eighth Omen floor echo survives its delayed real map-selection callback', 
   await expect(page.locator('.eighth-floor-echo .efe-text')).not.toHaveText('');
 });
 
+// Idle rotateX(0)/rotateY(0) under perspective promotes a 3D layer that Chromium
+// soft-samples at non-integer stage scales — merchant row-1 card 4 looked blurred
+// until hovered (hover applies a real tilt and re-rasters cleanly).
+test('shop cards stay sharp at rest: no idle 3D tilt transform', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'compositor soft-sample is scale-sensitive');
+  await boot(page, { query: 'mesh=0', seed: 42 });
+  await page.evaluate(() => {
+    window.spirebound.S.run.player.gold = 999;
+    window.spirebound.show('shop');
+  });
+  await page.waitForSelector('.cards-row .card-inner');
+  await page.waitForTimeout(700);
+
+  const transforms = await page.evaluate(() =>
+    [...document.querySelectorAll('.cards-row .card-inner')].map((el) => getComputedStyle(el).transform));
+  expect(transforms.length).toBe(5);
+  // rotateX(0) rotateY(0) computes to matrix(1,0,0,1,0,0); transform:none stays "none"
+  for (const t of transforms) expect(t).toBe('none');
+
+  // Absolute sharpness floor: seed 42's softest card was ~600 Laplacian variance
+  // while idle-3D; after transform:none it lands above ~2500. Card art differs, so
+  // relative ratios across slots are not a fair gate.
+  const boxes = await page.evaluate(() =>
+    [...document.querySelectorAll('.cards-row .card-inner')].map((el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height };
+    }));
+  const edgeScores = [];
+  for (const box of boxes) {
+    const clip = {
+      x: Math.max(0, box.x + 10),
+      y: Math.max(0, box.y + box.h * 0.55),
+      width: Math.max(1, box.w - 20),
+      height: Math.max(1, box.h * 0.35),
+    };
+    const png = await page.screenshot({ type: 'png', clip });
+    const score = await page.evaluate(async (b64) => {
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      const c = document.createElement('canvas');
+      c.width = bmp.width;
+      c.height = bmp.height;
+      const g = c.getContext('2d', { willReadFrequently: true });
+      g.drawImage(bmp, 0, 0);
+      const { data, width, height } = g.getImageData(0, 0, c.width, c.height);
+      const luma = (i) => 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      let sum = 0, sum2 = 0, n = 0;
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const i = (y * width + x) * 4;
+          const lap = 4 * luma(i)
+            - luma(i - 4) - luma(i + 4)
+            - luma(((y - 1) * width + x) * 4)
+            - luma(((y + 1) * width + x) * 4);
+          sum += lap;
+          sum2 += lap * lap;
+          n++;
+        }
+      }
+      const mean = sum / n;
+      return sum2 / n - mean * mean;
+    }, Buffer.from(png).toString('base64'));
+    edgeScores.push(score);
+  }
+  expect(
+    Math.min(...edgeScores),
+    `shop card sharpness scores=${edgeScores.map((s) => +s.toFixed(1))}`,
+  ).toBeGreaterThan(1500);
+});
+
+// Vigil deed rows share listIn with the shop. The old keyframes left filter:blur(0px)
+// (and a transform fill) on every .deed-row — same soft-sample class as merchant cards.
+test('Vigil deed rows release listIn without a sticky filter/transform', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'compositor soft-sample is scale-sensitive');
+  await boot(page, { query: 'mesh=0' });
+  await page.evaluate(() => {
+    localStorage.setItem('spirebound_vigil_v2', JSON.stringify({
+      v: 2,
+      deeds: {
+        runs: 40, wins: 9, slain: 500, shatters: 90, kindles: 60, perfects: 12,
+        smolderKills: 60, unlitVisited: 30, embersSpent: 900, bestVow: 5, bestFloor: 45,
+      },
+      unlocks: ['aspect2'], vowUnlocked: 5, lastFall: null,
+      runsPlayed: 40, quests: {}, shards: [], whispers: 12, news: true,
+    }));
+  });
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  await page.evaluate(() => window.spirebound.show('vigil'));
+  await page.waitForSelector('.deed-list .deed-row');
+  await page.waitForTimeout(700);
+
+  const settle = await page.evaluate(() =>
+    [...document.querySelectorAll('.deed-list .deed-row')].map((el) => ({
+      filter: getComputedStyle(el).filter,
+      transform: getComputedStyle(el).transform,
+    })));
+  expect(settle.length).toBeGreaterThan(3);
+  for (const row of settle) {
+    expect(row.filter).toBe('none');
+    expect(row.transform).toBe('none');
+  }
+
+  // Tab away and back re-mounts the deed list — must not re-stick blur(0px).
+  if (await page.locator('[data-a="tab-rose"]').count()) {
+    await page.click('[data-a="tab-rose"]');
+    await page.click('[data-a="tab-deeds"]');
+    await page.waitForSelector('.deed-list .deed-row');
+    await page.waitForTimeout(700);
+    const again = await page.evaluate(() =>
+      [...document.querySelectorAll('.deed-list .deed-row')].map((el) => getComputedStyle(el).filter));
+    for (const filter of again) expect(filter).toBe('none');
+  }
+});
+
+// Reward rows share the same listIn cascade as shop/Vigil.
+test('reward rows release listIn without a sticky filter/transform', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'compositor soft-sample is scale-sensitive');
+  await boot(page, { query: 'mesh=0' });
+  await page.evaluate(() => {
+    const sp = window.spirebound;
+    sp.E.setPendingReward(sp.S.run, 'normal', {
+      gold: 25,
+      cards: ['strike', 'defend', 'chisel'],
+      potion: null,
+      relic: null,
+    });
+    sp.show('reward');
+  });
+  await page.waitForSelector('.reward-list .reward-row');
+  await page.waitForTimeout(700);
+  const rows = await page.evaluate(() =>
+    [...document.querySelectorAll('.reward-list .reward-row')].map((el) => ({
+      filter: getComputedStyle(el).filter,
+      transform: getComputedStyle(el).transform,
+    })));
+  expect(rows.length).toBeGreaterThan(0);
+  for (const row of rows) {
+    expect(row.filter).toBe('none');
+    expect(row.transform).toBe('none');
+  }
+});
+
 test('?shape= override forces the remaining shapes', async ({ page }) => {
   test.skip(test.info().project.name !== 'desktop', 'one project is enough');
   await boot(page, { query: 'shape=pad-portrait' });
