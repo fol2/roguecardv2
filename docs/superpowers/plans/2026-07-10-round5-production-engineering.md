@@ -1114,7 +1114,10 @@ BASELINES=$(printf '%s\n' \
   test/e2e/visual.spec.js-snapshots/reward-desktop-darwin.png \
   test/e2e/visual.spec.js-snapshots/reward-landscape-darwin.png \
   test/e2e/visual.spec.js-snapshots/reward-portrait-darwin.png | sort)
-git add -- $BASELINES
+git add -- \
+  test/e2e/visual.spec.js-snapshots/reward-desktop-darwin.png \
+  test/e2e/visual.spec.js-snapshots/reward-landscape-darwin.png \
+  test/e2e/visual.spec.js-snapshots/reward-portrait-darwin.png
 test "$(git diff --cached --name-only | sort)" = "$BASELINES"
 git diff --cached --check
 git commit -m "test: reconcile PR21 Darwin reward baselines"
