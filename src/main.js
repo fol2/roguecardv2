@@ -22,6 +22,16 @@ async function boot() {
     await initLab();
     return;
   }
+  if (import.meta.env.DEV && qs.has('dashboard')) {
+    const { initDoctor } = await import('./ui/dev/doctor.js');
+    await initDoctor();
+    return;
+  }
+  if (import.meta.env.DEV && qs.has('dev')) {
+    const { initDevShell } = await import('./ui/dev/shell.js');
+    await initDevShell();
+    return;
+  }
   if (import.meta.env.DEV && qs.has('charedit')) {
     // stage + mesh boot inside the editor so warp/float match combat
     import('./dev/char-editor.js').then((m) => m.initCharEditor());

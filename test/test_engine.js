@@ -8369,6 +8369,31 @@ export default defineContentRegistration({
   }
 }
 
+// ---- Task 18: content doctor dashboard source contracts ----
+{
+  const doctorPath = new URL('../src/ui/dev/doctor.js', import.meta.url);
+  const doctorSource = readFileSync(doctorPath, 'utf8');
+  assert.match(doctorSource, /doctorContentRegistrations/);
+  assert.match(doctorSource, /DEVELOPMENT_CONTENT_REGISTRATION_MANIFEST/);
+  assert.match(doctorSource, /fixtures:\s*\[\s*['"]sample['"]\s*\]/);
+  assert.doesNotMatch(doctorSource, /from\s+['"][^'"]*packs\/(core|_sample|act4)/);
+  assert.doesNotMatch(doctorSource, /from\s+['"][^'"]*i18n\/en/);
+  assert.doesNotMatch(doctorSource, /from\s+['"][^'"]*locale-en/);
+  assert.doesNotMatch(doctorSource, /PACK_IDS\s*=/);
+  assert.doesNotMatch(doctorSource, /packList\s*=/);
+  assert.doesNotMatch(doctorSource, /packs:\s*\[\s*['"]core['"]/);
+  const shellPath = new URL('../src/ui/dev/shell.js', import.meta.url);
+  const shellSource = readFileSync(shellPath, 'utf8');
+  assert.match(shellSource, /data-dev-shell/);
+  assert.match(shellSource, /data-dev-route=/);
+  for (const route of ['gallery', 'audio', 'bfedit', 'bfuiedit', 'charedit', 'vfxedit', 'lab', 'dashboard', 'contentedit']) {
+    assert.match(shellSource, new RegExp(`id:\\s*['"]${route}['"]`));
+    assert.match(shellSource, new RegExp(`href:\\s*['"]\\?${route}=1['"]`));
+  }
+  assert.match(shellSource, /iconSvg/);
+  assert.doesNotMatch(shellSource, /⚔|♛|✓|✗/);
+}
+
 // ---- Task 17: production-surface verifier marker list + Lab codec normalize ----
 {
   // Pin the full frozen inventory — deleting any marker must fail this gate.
