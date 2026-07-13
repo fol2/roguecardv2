@@ -1,9 +1,10 @@
 export function createEventScreen(deps) {
-  const { S, E, EVENTS, RELICS, CARDS, tr, sceneBg, rasterOr, eventArtSvg, $, el, sfx, leaveHollowDestination, show, runEffects, renderHud, showCardGrid, screenEl } = deps;
+  const { contentViewFor, S, E, tr, sceneBg, rasterOr, eventArtSvg, $, el, sfx, leaveHollowDestination, show, runEffects, renderHud, showCardGrid, screenEl } = deps;
+  const runCatalogues = () => contentViewFor(S.run);
 
 function renderEvent(eventId) {
   const run = S.run;
-  const ev = EVENTS[eventId];
+  const ev = runCatalogues().events[eventId];
   const sc = screenEl();
   sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel event-panel">
     <div class="ov-title">${ev.name.toUpperCase()}</div>
@@ -52,7 +53,7 @@ function renderEvent(eventId) {
       const bits = [];
       for (const L of log) {
         if (L.text) bits.push(L.text);
-        if (L.relic) bits.push(`Gained <b style="color:${RELICS[L.relic].tone}">${RELICS[L.relic].name}</b> — <i>${RELICS[L.relic].text}</i>`);
+        if (L.relic) bits.push(`Gained <b style="color:${runCatalogues().relics[L.relic].tone}">${runCatalogues().relics[L.relic].name}</b> — <i>${runCatalogues().relics[L.relic].text}</i>`);
       }
       if (bits.length) logEl.innerHTML = bits.join('<br>');
       choices.innerHTML = '';
@@ -81,7 +82,7 @@ function renderEvent(eventId) {
         if (!removable.length) return resolve();
         showCardGrid(tr('ui.event.removeTitle'), removable, { sub: tr('ui.event.removeSub'), pick: (inst) => { if (inst && E.removeCardFromDeck(run, inst.uid)) sfx.card(); resolve(); }, canSkip: false });
       } else if (p === 'upgrade') {
-        const ups = run.player.deck.filter((c) => !c.up && CARDS[c.id].up);
+        const ups = run.player.deck.filter((c) => !c.up && runCatalogues().cards[c.id].up);
         if (!ups.length) return resolve();
         showCardGrid(tr('ui.event.upgradeTitle'), ups, { sub: tr('ui.event.upgradeSub'), pick: (inst) => { if (inst) { E.upgradeCardInDeck(run, inst.uid); sfx.upgrade(); } resolve(); } });
       } else if (p === 'duplicate') {

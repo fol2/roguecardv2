@@ -1,5 +1,6 @@
 export function createMapScreen(deps) {
-  const { S, E, ACTS, OMENS, PROGRESSION, QUESTS, RELICS, CARDS, COARSE, REDUCED, tr, runEffects, nodeGlyphId, uiIconUrl, assetUrl, iconInline, iconSvg, omenMark, $, $$, screenEl, unlock, sfx, music, openOverlay, closeOverlay, stageW, stageH, mapNodePos, enterMapMode, setOverlay, V, peekMap, trace, setAltitude, transition, startCombatUI, resumeSavedCombat, requireRunSave, resumePendingHollowRoute, show, showRunSaveFailure, showStonePersistenceFailure, requireBequestClear, flyTo, banner, el, escHtml, themeForRun, tokenValue } = deps;
+  const { contentViewFor, S, E, PROGRESSION, QUESTS, COARSE, REDUCED, tr, runEffects, nodeGlyphId, uiIconUrl, assetUrl, iconInline, iconSvg, omenMark, $, $$, screenEl, unlock, sfx, music, openOverlay, closeOverlay, stageW, stageH, mapNodePos, enterMapMode, setOverlay, V, peekMap, trace, setAltitude, transition, startCombatUI, resumeSavedCombat, requireRunSave, resumePendingHollowRoute, show, showRunSaveFailure, showStonePersistenceFailure, requireBequestClear, flyTo, banner, el, escHtml, themeForRun, tokenValue } = deps;
+  const runCatalogues = () => contentViewFor(S.run);
 
 const NODE_ICONS = { monster: 'sword', elite: 'skull', event: 'question', rest: 'flame', shop: 'coin', treasure: 'chest', boss: 'crown', monument: 'monument' };
 function renderMap() {
@@ -85,7 +86,7 @@ function renderMap() {
   const theme = themeForRun(run);
   const act = theme;
   const omenId = run.omens?.[run.act];
-  const omen = OMENS[omenId];
+  const omen = runCatalogues().omens[omenId];
   const sealedRevealId = E.sealedSummitRevealId(run);
   const sealedDoorVisible = E.isFinalTheme(run) && sealedRevealId && E.runRevealed(run, sealedRevealId) &&
     run.shards.length >= E.sealedSummitShardThreshold(run);
@@ -348,7 +349,7 @@ function claimMonumentNode(node) {
   }
   const finishGift = () => {
     sfx.relic();
-    const label = b.kind === 'relic' ? RELICS[b.id]?.name : b.kind === 'card' ? CARDS[b.id]?.name : `${b.amount} gold`;
+    const label = b.kind === 'relic' ? runCatalogues().relics[b.id]?.name : b.kind === 'card' ? runCatalogues().cards[b.id]?.name : `${b.amount} gold`;
     const g = $(`.mnode[data-node="${node.id}"]`);
     const from = g ? V.centerOf(g) : { x: stageW() / 2, y: stageH() / 2 };
     V.floatText(from.x, from.y - 34, `✦ ${label}`, 'goldf');

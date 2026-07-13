@@ -86,6 +86,10 @@ import { createDevRegistry } from '../src/packs/dev.js';
 import {
   SAMPLE_PACK, SAMPLE_LOCALE_EN, sampleCard, sampleEnemy, sampleTheme,
 } from '../src/packs/_sample/index.js';
+import {
+  CORE_CONTENT as UI_CORE_CONTENT,
+  bindRunContent, contentViewFor, themeForRun,
+} from '../src/ui/content.js';
 import { CHAR_META } from '../src/char-meta.js';
 import {
   CHARACTER_KIND_IDS, STRUCTURAL_FALLBACK_IDS, VFX_IDS,
@@ -548,8 +552,8 @@ function forceHand(run, cb, ids) {
   }), { status: 'ready' });
   assert.equal(shadeAcknowledgements, 1,
     'Shade recovery keeps caller-supplied persistence observation around the bequest acknowledgement');
-  assert.equal(effects.setBequest(2, 7, { kind: 'gold', amount: 50 }), true);
-  assert.equal(effects.clearBequest(), true);
+  assert.equal(effects.setBequest(run, 2, 7, { kind: 'gold', amount: 50 }), true);
+  assert.equal(effects.clearBequest(run), true);
   assert.deepEqual(effects.clearNews(), { news: false });
   assert.equal(effects.clearVigil(), true);
   assert.deepEqual(effects.syncVigil(), { shards: [] });
@@ -7635,6 +7639,457 @@ export default defineContentRegistration({
   ]) {
     assert.doesNotMatch(readFileSync(path, 'utf8'), /import\.meta\.hot|hot\.accept/,
       `${path} must not own an HMR accept handler`);
+  }
+}
+
+// ---- Task 16A: ephemeral presentation binding + run-effects isolation -------
+{
+  // Re-run green Task 12B/14 engine facts against the compiled sample registry.
+  // A failure here returns to P2 — do not “fix” it in UI binding.
+  const sampleReg = createDevRegistry({ fixtures: ['sample'] });
+  const dev = sampleReg.context;
+  assert.equal(dev.id, 'dev:_sample');
+  assert.equal(Object.isFrozen(dev), true);
+  assert.ok(dev.cards.sampleCard);
+  assert.ok(dev.enemies.sampleEnemy);
+  assert.equal(dev.themeOrder.at(-1), 'sampleTheme');
+  assert.doesNotMatch(
+    readFileSync(new URL('../src/packs/dev.js', import.meta.url), 'utf8'),
+    /CORE_PACK|SAMPLE_PACK|locale-en/,
+    'Lab/dev registry must not import pack or locale fragments directly',
+  );
+
+  {
+    const sampleRun = newRun(1601, { ephemeral: true, content: dev });
+    assert.equal(contentIdFor(sampleRun), 'dev:_sample');
+    assert.equal(isEphemeralRun(sampleRun), true);
+    assert.equal(themeCount(sampleRun), 4);
+    sampleRun.act = 3;
+    assert.equal(isFinalTheme(sampleRun), true);
+    assert.deepEqual(rollEncounter(sampleRun, 'monster', 5), ['sampleEnemy']);
+    const coreRun = newRun(1602);
+    assert.equal(contentIdFor(coreRun), 'core');
+    assert.equal(isEphemeralRun(coreRun), false);
+    assert.equal(themeCount(coreRun), 3);
+  }
+
+  // Presentation binding: bind after newRun; identity + theme resolution.
+  {
+    const sampleRun = newRun(1603, { ephemeral: true, content: dev });
+    bindRunContent(sampleRun, dev);
+    assert.equal(contentIdFor(sampleRun), 'dev:_sample');
+    assert.equal(contentViewFor(sampleRun), dev);
+    sampleRun.act = dev.themeOrder.indexOf('sampleTheme');
+    assert.equal(themeForRun(sampleRun).id, 'sampleTheme');
+    assert.ok(contentViewFor(sampleRun).cards.sampleCard);
+    assert.ok(contentViewFor(sampleRun).enemies.sampleEnemy);
+    assert.ok(contentViewFor(sampleRun).themes.sampleTheme);
+    assert.equal(contentViewFor(sampleRun).statuses, dev.statuses);
+  }
+
+  // Non-ephemeral binding throws; normal run view is exact imported CORE_CONTENT.
+  {
+    const normal = newRun(1604);
+    assert.throws(() => bindRunContent(normal, CORE_CONTENT), /ephemeral/i);
+    assert.equal(contentViewFor(normal), CORE_CONTENT);
+    assert.equal(contentViewFor(normal), UI_CORE_CONTENT);
+    assert.equal(themeForRun(normal).id, CORE_CONTENT.themeOrder[0]);
+  }
+
+  // Mismatched content id rejects bind.
+  {
+    const sampleRun = newRun(1605, { ephemeral: true, content: dev });
+    assert.throws(() => bindRunContent(sampleRun, CORE_CONTENT), /content id|mismatch/i);
+  }
+
+  // Simultaneous core/sample isolation in both call orders (presentation + engine).
+  {
+    const sampleA = newRun(1606, { ephemeral: true, content: dev });
+    bindRunContent(sampleA, dev);
+    const coreA = newRun(1607);
+    assert.equal(contentViewFor(sampleA), dev);
+    assert.equal(contentViewFor(coreA), CORE_CONTENT);
+    assert.equal(contentIdFor(sampleA), 'dev:_sample');
+    assert.equal(contentIdFor(coreA), 'core');
+    sampleA.act = dev.themeOrder.indexOf('sampleTheme');
+    assert.equal(themeForRun(sampleA).id, 'sampleTheme');
+    assert.notEqual(themeForRun(coreA).id, 'sampleTheme');
+
+    const coreB = newRun(1608);
+    const sampleB = newRun(1609, { ephemeral: true, content: dev });
+    bindRunContent(sampleB, dev);
+    assert.equal(contentViewFor(coreB), CORE_CONTENT);
+    assert.equal(contentViewFor(sampleB), dev);
+    sampleB.act = dev.themeOrder.indexOf('sampleTheme');
+    assert.equal(themeForRun(sampleB).id, 'sampleTheme');
+  }
+
+  // Ephemeral run-effects: sentinel stores stay byte-identical; success shapes.
+  {
+    const snap = (store) => JSON.stringify([...store.entries()].sort(([a], [b]) => (a < b ? -1 : 1)));
+    const runStore = new Map();
+    const statsStore = new Map();
+    const vigilStore = new Map([['spirebound_vigil_v2', JSON.stringify({
+      v: 2, shards: [], unlocks: [], reveals: [], news: false, bequest: null,
+    })]]);
+    const beforeRun = snap(runStore);
+    const beforeStats = snap(statsStore);
+    const beforeVigil = snap(vigilStore);
+
+    const engine = {
+      ...EngineApi,
+      isEphemeralRun,
+      contentIdFor,
+      saveRun(run) {
+        if (isEphemeralRun(run)) return true;
+        runStore.set('save', JSON.stringify(run.runId));
+        return true;
+      },
+      journalTerminalOutcome(run, outcome) {
+        return EngineApi.journalTerminalOutcome(run, outcome);
+      },
+      finaliseTerminalOutbox(...args) { return EngineApi.finaliseTerminalOutbox(...args); },
+      stagePendingDawn(run, events, unlocks) {
+        runStore.set('dawn', JSON.stringify({ events, unlocks }));
+        return true;
+      },
+      recordRunEnd(run) {
+        statsStore.set('end', JSON.stringify({ id: run.runId, won: false }));
+        return true;
+      },
+      advancePendingDawn(run, cursor) {
+        runStore.set('dawnCursor', String(cursor));
+        return true;
+      },
+      completePendingDawn(run) {
+        runStore.set('dawnClear', run.runId);
+        return true;
+      },
+      buyQuestItem(run, itemId) {
+        runStore.set('buy', itemId);
+        return { ok: true, reason: null };
+      },
+      payHollowPrice(run) {
+        runStore.set('hollowPay', run.runId);
+        return { ok: true, deferred: false, message: 'paid' };
+      },
+      stageHollowExit(run) {
+        runStore.set('hollowExit', run.runId);
+        return { kind: 'destination', nodeId: 'n1', type: 'shop', eventId: null };
+      },
+      completePendingHollowRoute(run) {
+        runStore.set('hollowClear', run.runId);
+        return true;
+      },
+      beginShadeDuel(run, clear) {
+        runStore.set('shadeBegin', run.runId);
+        return { status: clear() ? 'ready' : 'retry' };
+      },
+      resumeShadeDuel(run, clear) {
+        runStore.set('shadeResume', run.runId);
+        return { status: clear() ? 'ready' : 'retry' };
+      },
+      sealedSummitShardThreshold() { return 1; },
+    };
+    const vigil = {
+      syncVigil() {
+        vigilStore.set('sync', '1');
+        return { shards: [] };
+      },
+      setBequest(act, row, bequest) {
+        vigilStore.set('bequest', JSON.stringify({ act, row, bequest }));
+        return true;
+      },
+      clearBequest() {
+        vigilStore.set('bequest', null);
+        return true;
+      },
+      clearNews() {
+        vigilStore.set('news', 'cleared');
+        return { news: false };
+      },
+      clearVigil() {
+        vigilStore.set('cleared', '1');
+        return true;
+      },
+      commitPendingRunEnd(run, acknowledge) {
+        vigilStore.set('commit', run.runId);
+        run.runEndResult = { whisper: 'x', newShards: [], vigil: { shards: [] } };
+        run.vigilResult = { newUnlocks: [] };
+        return {
+          accepted: acknowledge(run),
+          outcome: run.pendingRunEnd?.outcome || 'win',
+          newUnlocks: [],
+          ledger: run.runEndResult,
+        };
+      },
+    };
+    const effects = RunEffectsModule.createRunEffects({ engine, vigil });
+    const ephemeral = newRun(1610, { ephemeral: true, content: dev });
+    bindRunContent(ephemeral, dev);
+
+    assert.equal(effects.saveRun(ephemeral), true);
+    assert.deepEqual(effects.buyQuestItem(ephemeral, 'flamelessLantern'), { ok: true, reason: null });
+    assert.deepEqual(effects.payHollowPrice(ephemeral), { ok: true, deferred: false, message: 'paid' });
+    assert.ok(effects.stageHollowExit(ephemeral)?.kind);
+    assert.equal(effects.completeHollowRoute(ephemeral), true);
+    assert.deepEqual(effects.beginShadeDuel(ephemeral), { status: 'ready' });
+    assert.deepEqual(effects.resumeShadeDuel(ephemeral), { status: 'ready' });
+    assert.equal(effects.setBequest(ephemeral, 1, 2, { kind: 'gold', amount: 10 }), true);
+    assert.equal(effects.clearBequest(ephemeral), true);
+    assert.deepEqual(effects.journalRunEnd(ephemeral, 'win'), { outcome: 'win' });
+
+    let finalisedCalls = 0;
+    const winResult = effects.finaliseRunEnd(ephemeral, {
+      revealThreshold: 1,
+      persist: (action) => action(),
+      onPersistenceFailure: () => assert.fail('ephemeral must not hit persistence failure'),
+      onFinalised: () => { finalisedCalls++; },
+    });
+    assert.equal(winResult?.kind, 'lab-result');
+    assert.equal(winResult.outcome, 'win');
+    assert.equal(winResult.ephemeral, true);
+    assert.equal(winResult.accepted, true);
+    assert.equal(winResult.contentId, 'dev:_sample');
+    assert.equal(Object.isFrozen(winResult), true);
+    assert.equal(finalisedCalls, 0, 'Lab-result path must not enter Dawn/Fall onFinalised');
+
+    const fallRun = newRun(1611, { ephemeral: true, content: dev });
+    bindRunContent(fallRun, dev);
+    effects.journalRunEnd(fallRun, 'death');
+    const fallResult = effects.finaliseRunEnd(fallRun, {
+      revealThreshold: 1,
+      persist: (action) => action(),
+      onPersistenceFailure: () => assert.fail('ephemeral fall must not persist'),
+      onFinalised: () => assert.fail('ephemeral fall must not present Fall'),
+    });
+    assert.equal(fallResult?.kind, 'lab-result');
+    assert.equal(fallResult.outcome, 'death');
+
+    const abandonRun = newRun(1612, { ephemeral: true, content: dev });
+    bindRunContent(abandonRun, dev);
+    effects.journalRunEnd(abandonRun, 'abandon');
+    const abandonResult = effects.finaliseRunEnd(abandonRun, {
+      revealThreshold: 1,
+      persist: (action) => action(),
+      onPersistenceFailure: () => assert.fail('ephemeral abandon must not persist'),
+      onFinalised: () => assert.fail('ephemeral abandon must not present'),
+    });
+    assert.equal(abandonResult?.kind, 'lab-result');
+    assert.equal(abandonResult.outcome, 'abandon');
+
+    assert.equal(effects.advanceDawn(ephemeral, 1), true);
+    assert.equal(effects.completeDawn(ephemeral), true);
+
+    assert.equal(snap(runStore), beforeRun, 'ephemeral effects must not write run-save sentinel');
+    assert.equal(snap(statsStore), beforeStats, 'ephemeral effects must not write stats sentinel');
+    assert.equal(snap(vigilStore), beforeVigil, 'ephemeral effects must not write Vigil sentinel');
+  }
+
+  // Normal journeys still mutate through the same adapter (post-Phase-2 order).
+  {
+    const calls = [];
+    const engine = {
+      saveRun(run) { calls.push(['saveRun', run.runId]); return true; },
+      buyQuestItem(run, itemId) { calls.push(['buyQuestItem', itemId]); return { ok: true, reason: null }; },
+      payHollowPrice(run) { calls.push(['payHollowPrice']); return { ok: true, deferred: false, message: 'paid' }; },
+      stageHollowExit(run) { calls.push(['stageHollowExit']); return { kind: 'destination', nodeId: 'n1', type: 'shop', eventId: null }; },
+      completePendingHollowRoute(run) { calls.push(['completePendingHollowRoute']); return true; },
+      beginShadeDuel(run, clear) { calls.push(['beginShadeDuel']); return { status: clear() ? 'ready' : 'retry' }; },
+      resumeShadeDuel(run, clear) { calls.push(['resumeShadeDuel']); return { status: clear() ? 'ready' : 'retry' }; },
+      journalTerminalOutcome(run, outcome) {
+        calls.push(['journalTerminalOutcome', outcome]);
+        run.pendingRunEnd = { outcome };
+        return run.pendingRunEnd;
+      },
+      stagePendingDawn(run, events, newUnlocks) {
+        calls.push(['stagePendingDawn', events.map((e) => e.t), [...newUnlocks]]);
+        run.pendingRunEnd = null;
+        run.pendingDawn = { events, cursor: 0, newUnlocks };
+        return true;
+      },
+      recordRunEnd(run, won) { calls.push(['recordRunEnd', won]); return true; },
+      finaliseTerminalOutbox(run, persist, blocked, finalised) {
+        calls.push(['finaliseTerminalOutbox']);
+        const result = persist();
+        if (result?.accepted !== true) { blocked(); return false; }
+        finalised(result);
+        return true;
+      },
+      advancePendingDawn(run, nextCursor) { calls.push(['advancePendingDawn', nextCursor]); return true; },
+      completePendingDawn(run) { calls.push(['completePendingDawn']); return true; },
+      isEphemeralRun: () => false,
+      contentIdFor: () => 'core',
+    };
+    const vigil = {
+      syncVigil() { calls.push(['syncVigil']); return { shards: [] }; },
+      setBequest(act, row, bequest) { calls.push(['setBequest', act, row]); return true; },
+      clearBequest() { calls.push(['clearBequest']); return true; },
+      clearNews() { calls.push(['clearNews']); return { news: false }; },
+      clearVigil() { calls.push(['clearVigil']); return true; },
+      commitPendingRunEnd(run, acknowledge) {
+        calls.push(['commitPendingRunEnd']);
+        run.runEndResult = { whisper: 'ok', newShards: ['hollowLamplighter'], vigil: { shards: ['hollowLamplighter'] } };
+        run.vigilResult = { newUnlocks: ['aspect2'] };
+        return {
+          accepted: acknowledge(run), outcome: 'win',
+          newUnlocks: ['aspect2'], ledger: run.runEndResult,
+        };
+      },
+    };
+    const effects = RunEffectsModule.createRunEffects({ engine, vigil });
+    const run = { runId: 'normal-16a', endQueue: [], shards: [], pendingRunEnd: null };
+    assert.equal(effects.saveRun(run), true);
+    assert.equal(effects.setBequest(run, 2, 7, { kind: 'gold', amount: 50 }), true);
+    assert.equal(effects.clearBequest(run), true);
+    effects.journalRunEnd(run, 'win');
+    let completed = null;
+    assert.equal(effects.finaliseRunEnd(run, {
+      revealThreshold: 1,
+      persist: (action) => action(),
+      onPersistenceFailure: () => assert.fail('normal finalise must accept'),
+      onFinalised: (result) => { completed = result; },
+    }), true);
+    assert.equal(completed.outcome, 'win');
+    assert.ok(run.pendingDawn);
+    assert.equal(effects.advanceDawn(run, 1), true);
+    assert.equal(effects.completeDawn(run), true);
+    assert.ok(calls.some(([name]) => name === 'commitPendingRunEnd'));
+    assert.ok(calls.some(([name]) => name === 'stagePendingDawn'));
+    assert.ok(calls.some(([name]) => name === 'setBequest'));
+  }
+
+  // Source: UI mutators for terminal/Vigil/stats/Dawn/Hollow/Shard/bequest live only in run-effects.
+  {
+    const runEffectsSource = readFileSync(new URL('../src/ui/run-effects.js', import.meta.url), 'utf8');
+    const readUiOwners = (directory, prefix = '') => readdirSync(directory, { withFileTypes: true })
+      .flatMap((entry) => entry.isDirectory()
+        ? readUiOwners(new URL(`${entry.name}/`, directory), `${prefix}${entry.name}/`)
+        : entry.name.endsWith('.js')
+          ? [[`${prefix}${entry.name}`, readFileSync(new URL(entry.name, directory), 'utf8')]]
+          : []);
+    const uiOwnersSource = readUiOwners(new URL('../src/ui/', import.meta.url))
+      .filter(([name]) => name !== 'run-effects.js')
+      .map(([, source]) => source)
+      .join('\n');
+    for (const owner of [
+      'saveRun', 'buyQuestItem', 'payHollowPrice', 'stageHollowExit', 'completePendingHollowRoute',
+      'beginShadeDuel', 'resumeShadeDuel', 'journalTerminalOutcome',
+      'finaliseTerminalOutbox', 'stagePendingDawn', 'advancePendingDawn', 'completePendingDawn',
+      'recordRunEnd', 'commitRunStats',
+    ]) {
+      assert.doesNotMatch(uiOwnersSource, new RegExp(`\\bE\\.${owner}\\s*\\(`),
+        `16A: ${owner} remains owned by run-effects`);
+    }
+    for (const owner of ['syncVigil', 'commitPendingRunEnd', 'setBequest', 'clearBequest', 'clearNews', 'clearVigil', 'commitRunEnd', 'commitRunToVigil']) {
+      assert.doesNotMatch(uiOwnersSource, new RegExp(`(?<![.\\w])${owner}\\s*\\(`),
+        `16A: bare ${owner} must not appear outside run-effects`);
+      assert.doesNotMatch(uiOwnersSource, new RegExp(`\\bVigil\\.${owner}\\s*\\(`),
+        `16A: Vigil.${owner} must not appear outside run-effects`);
+    }
+    assert.match(runEffectsSource, /isEphemeralRun|lab-result/,
+      'run-effects must own ephemeral Lab-result suppression');
+  }
+
+  // Active-run UI modules resolve catalogues through contentViewFor; title/gallery stay core-only.
+  // screens/run.js routes via themeForRun only (no catalogue table reads) — not in this list.
+  {
+    const CORE_CATALOGUE_ALLOWLIST = new Set([
+      'index.js',
+      'probe.js',
+      'rose.js',
+      'screens/title.js',
+      'screens/gallery.js',
+      'screens/audio-gallery.js',
+      'screens/vigil.js',
+      'screens/embark.js',
+    ]);
+    const ACTIVE_RUN_MODULES = [
+      'assets.js', 'navigation.js', 'combat.js', 'drain.js', 'overlay.js', 'tooltip.js',
+      'screens/map.js', 'screens/lamplighter.js', 'screens/reward.js',
+      'screens/rest.js', 'screens/shop.js', 'screens/event.js', 'screens/end.js',
+    ];
+    const catalogueImport = /import\s*\{[^}]*\b(?:CARDS|RELICS|ENEMIES|POTIONS|OMENS|AFFIXES|ARTS|STATUS_INFO)\b[^}]*\}\s*from\s*['"][^'"]*data\.js['"]/;
+    const readUi = (rel) => readFileSync(new URL(`../src/ui/${rel}`, import.meta.url), 'utf8');
+    for (const rel of ACTIVE_RUN_MODULES) {
+      const source = readUi(rel);
+      assert.doesNotMatch(source, catalogueImport,
+        `${rel} must not import active catalogues from data.js`);
+      assert.match(source, /contentViewFor/,
+        `${rel} must resolve active-run catalogues through contentViewFor`);
+    }
+    assert.doesNotMatch(readUi('screens/run.js'), /void\s+runCatalogues\s*\(\s*\)/,
+      'run.js must not use a vacuous void runCatalogues() gate');
+    assert.doesNotMatch(readUi('screens/run.js'), catalogueImport,
+      'screens/run.js must not import active catalogues from data.js');
+    assert.match(readUi('screens/run.js'), /themeForRun/,
+      'screens/run.js resolves presentation theme through themeForRun');
+    for (const rel of CORE_CATALOGUE_ALLOWLIST) {
+      const source = readUi(rel);
+      // Allowlist may keep CORE_CONTENT / data catalogues; must not bind sample ids.
+      assert.doesNotMatch(source, /sampleCard|sampleEnemy|sampleTheme|_sample/,
+        `${rel} core-only allowlist must not hard-code sample ids`);
+    }
+    assert.match(readUi('content.js'), /RUN_PRESENTATION_CONTENT|WeakMap/,
+      'presentation binding owns a WeakMap');
+    assert.match(readUi('content.js'), /bindRunContent/,
+      'bindRunContent is exported from ui/content.js');
+  }
+
+  // Card presentation + scene plates must use the run-bound context (not CORE / actN defaults).
+  {
+    const sampleRun = newRun(1620, { ephemeral: true, content: dev });
+    bindRunContent(sampleRun, dev);
+    const sampleCardKey = Object.keys(dev.cards).find((id) => !Object.hasOwn(CORE_CONTENT.cards, id));
+    assert.ok(sampleCardKey, 'sample registry exposes a non-core card');
+    assert.equal(cardData({ id: sampleCardKey }), undefined,
+      'one-arg cardData stays on CORE and cannot resolve a sample-only card');
+    assert.equal(cardData({ id: sampleCardKey }, sampleRun)?.name, dev.cards[sampleCardKey].name,
+      'run-bound cardData resolves the sample card through the presentation path');
+    assert.equal(contentViewFor(sampleRun).cards[sampleCardKey]?.name, dev.cards[sampleCardKey].name);
+
+    sampleRun.act = dev.themeOrder.indexOf('sampleTheme');
+    const theme = themeForRun(sampleRun);
+    assert.equal(theme.id, 'sampleTheme');
+    assert.equal(theme.plates.backdrop, 'act1-backdrop',
+      'sampleTheme reuses act1 plates — sceneBg must not invent act4-backdrop from act index');
+    assert.notEqual(theme.plates.backdrop, `act${sampleRun.act + 1}-backdrop`);
+
+    const readUi = (rel) => readFileSync(new URL(`../src/ui/${rel}`, import.meta.url), 'utf8');
+    const cardPresentationFiles = [
+      'tooltip.js', 'combat.js', 'overlay.js', 'screens/reward.js',
+    ];
+    for (const rel of cardPresentationFiles) {
+      const source = readUi(rel);
+      const oneArg = [...source.matchAll(/\bE\.cardData\s*\(\s*([^)]+)\s*\)/g)]
+        .filter((m) => !m[1].includes(','));
+      assert.equal(oneArg.length, 0,
+        `16A: ${rel} must pass the active run into every E.cardData call`);
+    }
+    const assetsSource = readUi('assets.js');
+    assert.match(assetsSource, /themeForRun/,
+      'sceneBg resolves plates through themeForRun');
+    assert.match(assetsSource, /plates/,
+      'sceneBg reads theme.plates');
+    assert.doesNotMatch(assetsSource, /act\$\{\s*\(?\s*S\.run/,
+      'sceneBg must not hard-code act${n}-backdrop from the act index');
+  }
+
+  // setBequest / clearBequest require a run — omitted run must not fail open to Vigil.
+  {
+    const calls = [];
+    const effects = RunEffectsModule.createRunEffects({
+      engine: { isEphemeralRun, contentIdFor },
+      vigil: {
+        setBequest(...args) { calls.push(['setBequest', ...args]); return true; },
+        clearBequest() { calls.push(['clearBequest']); return true; },
+      },
+    });
+    assert.throws(() => effects.clearBequest(), /run/i);
+    assert.throws(() => effects.clearBequest(null), /run/i);
+    assert.throws(() => effects.setBequest(2, 7, { kind: 'gold', amount: 1 }), /run/i);
+    assert.throws(() => effects.setBequest(null, 2, 7, { kind: 'gold', amount: 1 }), /run/i);
+    assert.deepEqual(calls, [], 'omitted/null run must not touch Vigil bequest APIs');
   }
 }
 

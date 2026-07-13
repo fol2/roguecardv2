@@ -1,9 +1,10 @@
 export function createRestScreen(deps) {
-  const { S, E, CARDS, RELICS, tr, sceneBg, rasterOr, campfireSvg, iconSvg, $, $$, show, showCardGrid, sfx, V, stageW, stageH, requireHollowRouteClear, runEffects, closeOverlay, screenEl, el, chestSvg, renderHud } = deps;
+  const { contentViewFor, S, E, tr, sceneBg, rasterOr, campfireSvg, iconSvg, $, $$, show, showCardGrid, sfx, V, stageW, stageH, requireHollowRouteClear, runEffects, closeOverlay, screenEl, el, chestSvg, renderHud } = deps;
+  const runCatalogues = () => contentViewFor(S.run);
 
 function renderRest() {
   const run = S.run;
-  const canUp = run.player.deck.some((c) => !c.up && CARDS[c.id].up);
+  const canUp = run.player.deck.some((c) => !c.up && runCatalogues().cards[c.id].up);
   screenEl().innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
     <div class="ov-title">${tr('ui.rest.title')}</div>
     <div class="art-lg">${rasterOr('props', 'campfire', campfireSvg())}</div>
@@ -33,7 +34,7 @@ function renderRest() {
   };
   $('[data-a="smith"]').onclick = () => {
     sfx.click();
-    const ups = run.player.deck.filter((c) => !c.up && CARDS[c.id].up);
+    const ups = run.player.deck.filter((c) => !c.up && runCatalogues().cards[c.id].up);
     showCardGrid(tr('ui.rest.upgradeTitle'), ups, {
       sub: tr('ui.rest.upgradeSub'),
       pick: (inst) => {
@@ -94,7 +95,7 @@ function renderTreasure() {
     let sub;
     if (result.relicId) {
       sfx.relic();
-      const r = RELICS[result.relicId];
+      const r = runCatalogues().relics[result.relicId];
       sub = tr('ui.treasure.relicClaim', { tone: r.tone, name: r.name, text: r.text });
     } else {
       sfx.coin();

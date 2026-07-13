@@ -1,6 +1,6 @@
-import { ASPECTS, ENEMIES, RELICS } from '../data.js';
 import { assetList, assetUrl, heroSvg, iconSvg } from '../art.js';
 import { S, escHtml } from './context.js';
+import { contentViewFor, themeForRun } from './content.js';
 
 export const rasterOr = (cat, id, svg) => {
   const url = assetUrl(cat, id);
@@ -8,7 +8,8 @@ export const rasterOr = (cat, id, svg) => {
 };
 
 export function sceneBg() {
-  const url = assetUrl('stage', `act${(S.run?.act ?? 0) + 1}-backdrop`);
+  const plate = themeForRun(S.run)?.plates?.backdrop;
+  const url = plate ? assetUrl('stage', plate) : null;
   return url ? `<div class="scene-bg" style="background-image:url('${url}')"></div>` : '';
 }
 
@@ -19,12 +20,14 @@ export function metaBg(id) {
 
 export const relicArt = (rid, size = 22) => {
   const url = assetUrl('relics', rid);
-  return url ? `<img class="raster-art relic-art" src="${url}" alt="" style="width:${size}px;height:${size}px">` : (RELICS[rid]?.glyph || '◈');
+  const glyph = contentViewFor(S.run).relics[rid]?.glyph || '◈';
+  return url ? `<img class="raster-art relic-art" src="${url}" alt="" style="width:${size}px;height:${size}px">` : glyph;
 };
 
 export const hudRelic = (rid) => {
   const url = assetUrl('relics', rid);
-  return url ? `<img class="relic-art hud-relic-art" src="${url}" alt="">` : `<span class="hud-relic-fallback">${RELICS[rid]?.glyph || '◈'}</span>`;
+  const glyph = contentViewFor(S.run).relics[rid]?.glyph || '◈';
+  return url ? `<img class="relic-art hud-relic-art" src="${url}" alt="">` : `<span class="hud-relic-fallback">${glyph}</span>`;
 };
 
 export const omenIconName = (oid) => oid === 'eighthOmen' ? 'eighthOmen' : `omen-${oid}`;
@@ -38,19 +41,21 @@ export const aimRing = (url, kind) => url
   : '';
 
 export const heroArt = (index) => {
-  const url = assetUrl('heroes', ASPECTS[index].id);
+  const aspects = contentViewFor(S.run).aspects;
+  const url = assetUrl('heroes', aspects[index].id);
   if (!url) return `<div class="hero-sprite">${heroSvg(index)}</div>`;
-  return `<div class="hero-sprite">${aimRing(url, 'self')}${rasterOr('heroes', ASPECTS[index].id, heroSvg(index))}<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg></div>`;
+  return `<div class="hero-sprite">${aimRing(url, 'self')}${rasterOr('heroes', aspects[index].id, heroSvg(index))}<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg></div>`;
 };
 
-export const combatantView = (enemy) => {
+export const combatantView = (enemy, run = S.run) => {
   const presentation = enemy.presentation || {};
+  const enemies = contentViewFor(run).enemies;
   return {
     artCategory: presentation.artCategory || 'enemies',
     artId: presentation.artId || enemy.key,
     layoutKey: presentation.layoutKey || enemy.key,
-    kind: presentation.kind || ENEMIES[enemy.key].art.kind,
-    hue: presentation.hue ?? ENEMIES[enemy.key].art.hue,
+    kind: presentation.kind || enemies[enemy.key].art.kind,
+    hue: presentation.hue ?? enemies[enemy.key].art.hue,
     tint: presentation.tint || null,
     scale: presentation.scale || 1,
   };

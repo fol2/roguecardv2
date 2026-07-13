@@ -1,35 +1,36 @@
 export function createLamplighterScreen(deps) {
-  const { S, E, BOONS, ASPECTS, ARTS, QUESTS, REDUCED, tr, runEffects, assetUrl, iconSvg, fmtText, sceneBg, heroArt, escHtml, $, $$, screenEl, unlock, sfx, setTheme, themeForRun, renderHud, show, omenBanner, routeVisitedNode, persistObserved, requireRunSave } = deps;
+  const { contentViewFor, S, E, QUESTS, REDUCED, tr, runEffects, assetUrl, iconSvg, fmtText, sceneBg, heroArt, escHtml, $, $$, screenEl, unlock, sfx, setTheme, themeForRun, renderHud, show, omenBanner, routeVisitedNode, persistObserved, requireRunSave } = deps;
+  const runCatalogues = () => contentViewFor(S.run);
 
 function renderLamplighter() {
   const run = S.run;
   setTheme(themeForRun({ act: 0 }));
   if (!S.lamp) {
     const rng = E.runRng(run);
-    const pool = Object.keys(BOONS).filter((id) => E.runRevealed(run, 'phials') || !BOONS[id].ops.some((op) => op.potion));
+    const pool = Object.keys(runCatalogues().boons).filter((id) => E.runRevealed(run, 'phials') || !runCatalogues().boons[id].ops.some((op) => op.potion));
     const boons = [];
     while (boons.length < 3 && pool.length) boons.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
     S.lamp = { boons, boon: null, art: run.art };
     runEffects.saveRun(run); // the draw is now fixed for this run
   }
   const L = S.lamp;
-  const asp = ASPECTS[run.aspect];
+  const asp = runCatalogues().aspects[run.aspect];
   const boonCards = L.boons.map((id) => {
-    const b = BOONS[id];
+    const b = runCatalogues().boons[id];
     const bu = assetUrl('boons', id);
     return `<button class="lamp-boon${L.boon === id ? ' on' : ''}" data-a="boon" data-i="${id}">
       ${bu ? `<img class="lb-art-img" src="${bu}" alt="">` : ''}
       <div class="lb-name">${iconSvg(`boon-${id}`, 20)} ${b.name}</div><div class="lb-text">${fmtText(b.text)}</div>
     </button>`;
   }).join('');
-  const artChips = Object.keys(ARTS).map((id) => {
-    const a = ARTS[id];
+  const artChips = Object.keys(runCatalogues().arts).map((id) => {
+    const a = runCatalogues().arts[id];
     const au = assetUrl('arts', id);
     return `<button class="lamp-art${L.art === id ? ' on' : ''}" data-a="art" data-i="${id}">
       ${au ? `<img class="la-art-img" src="${au}" alt="">` : `<span class="la-glyph" style="color:${a.tone}">${iconSvg(`art-${id}`, 18)}</span>`}<span class="la-name">${a.name}</span>
     </button>`;
   }).join('');
-  const chosen = ARTS[L.art];
+  const chosen = runCatalogues().arts[L.art];
   const sc = screenEl();
   sc.innerHTML = `<div class="lamp-screen screen-enter">
     ${sceneBg()}

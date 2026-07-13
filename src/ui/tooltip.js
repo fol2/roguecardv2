@@ -1,15 +1,16 @@
 import * as E from '../engine.js';
-import { STATUS_INFO } from '../data.js';
 import { cardArtSvg } from '../art.js';
 import { stageH, stageW, toStage } from '../stage.js';
 import { $, $$, FINE, S, el } from './context.js';
+import { contentViewFor } from './content.js';
 import { rasterOr } from './assets.js';
 
 export function createTooltip({ tr }) {
+  const statuses = () => contentViewFor(S.run).statuses;
   const FACET_DESC = () => tr('ui.keywords.facetDesc');
   const KEYWORDS = () => ({
-    Cracked: STATUS_INFO.vulnerable.desc, Dimmed: STATUS_INFO.weak.desc, Brittle: STATUS_INFO.frail.desc,
-    Smolder: STATUS_INFO.poison.desc, Fervor: STATUS_INFO.str.desc, Poise: STATUS_INFO.dex.desc,
+    Cracked: statuses().vulnerable.desc, Dimmed: statuses().weak.desc, Brittle: statuses().frail.desc,
+    Smolder: statuses().poison.desc, Fervor: statuses().str.desc, Poise: statuses().dex.desc,
     Kindle: tr('ui.keywords.kindle'),
     Ward: tr('ui.keywords.ward'),
     Energy: tr('ui.keywords.energy'),
@@ -98,7 +99,7 @@ export function createTooltip({ tr }) {
   }
 
   function cardEl(inst, { inCombat = false, size = null } = {}) {
-    const data = E.cardData(inst);
+    const data = E.cardData(inst, S.run);
     const card = el('div', `card t-${data.type} r-${data.rarity}${inst.up ? ' upgraded' : ''}`);
     if (size) card.style.setProperty('--cw', `${size}px`);
     if (inst.uid != null) card.dataset.uid = inst.uid;

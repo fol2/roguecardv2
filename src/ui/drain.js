@@ -1,7 +1,7 @@
 // Engine queue playback and event-to-presentation dispatch.
 
 export function createDrain({
-  E, CARDS, ARTS, STATUS_INFO, QUESTS, cardEl, iconSvg, assetUrl, drawBatchSchedule,
+  E, contentViewFor, QUESTS, cardEl, iconSvg, assetUrl, drawBatchSchedule,
   V, sfx, kick, meshDeath, meshEnabled, meshHandoff, meshRelease,
   $, $$, S, el, escHtml, presentationBarrier, screenEl, sleep, trace,
   REDUCED, combatantView, stageW, stageH, stageRect, tr, presentation,
@@ -12,6 +12,10 @@ export function createDrain({
   if (typeof cardEl !== 'function') {
     throw new TypeError('createDrain requires the immutable card renderer dependency');
   }
+  if (typeof contentViewFor !== 'function') {
+    throw new TypeError('createDrain requires contentViewFor');
+  }
+  const runCatalogues = () => contentViewFor(S.run);
 
 let heroActing = false; // true between a card play and end of turn — gates the hero lunge
 // which card/move caused the hits now playing back — set by 'play'/'enemyAct'/'art'
@@ -386,7 +390,7 @@ async function handleEvent(ev, targetIdx) {
       vfxSource = { archetype: 'fire', cardId: `art:${ev.id}`, enemyIdx: null };
       bespokeFired = false;
       { const { x: lx, y: ly } = V.centerOf(ce.lantern); V.BESPOKE_VFX[`art:${ev.id}`]?.(lx, ly); bespokeFired = true; }
-      const art = ARTS[ev.id];
+      const art = runCatalogues().arts[ev.id];
       const { x: hx, y: hy } = presentation.heroCenter();
       const lc = ce.lantern ? V.centerOf(ce.lantern) : { x: hx, y: hy };
       sfx.art();
@@ -450,7 +454,7 @@ async function handleEvent(ev, targetIdx) {
       sfx.card();
       heroActing = true;
       hitSeq = 0;
-      vfxSource = { archetype: CARDS[ev.id]?.vfx || 'slash', cardId: ev.id, enemyIdx: null };
+      vfxSource = { archetype: runCatalogues().cards[ev.id]?.vfx || 'slash', cardId: ev.id, enemyIdx: null };
       bespokeFired = false;
       choreoDone = false;
       if (!bespokeFired && V.BESPOKE_VFX[ev.id] && ['ascension', 'pyreheart', 'emberdance', 'limitBreak'].includes(ev.id)) {
@@ -631,7 +635,7 @@ async function handleEvent(ev, targetIdx) {
     case 'status': {
       const isP = ev.who === 'player';
       const { x, y } = isP ? presentation.heroCenter() : presentation.enemyCenter(ev.who);
-      const info = STATUS_INFO[ev.id] || { name: ev.id, kind: 'buff' };
+      const info = runCatalogues().statuses[ev.id] || { name: ev.id, kind: 'buff' };
       const isDebuff = info.kind === 'debuff' || (ev.id === 'str' && ev.n < 0);
       (ev.id === 'poison' ? sfx.poison : isDebuff ? sfx.debuff : sfx.buff)();
       V.floatText(x, y - 46, `${ev.n > 0 ? '+' : ''}${ev.n} ${info.name}`, isDebuff ? 'debufff' : 'bufff');
@@ -922,7 +926,7 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'intent': presentation.syncCombat(); break;
     case 'addCard': {
-      V.floatText(stageW() / 2, stageH() * 0.62, `${CARDS[ev.id].name} added to ${ev.where === 'hand' ? 'hand' : 'discard'}`, 'notice');
+      V.floatText(stageW() / 2, stageH() * 0.62, `${runCatalogues().cards[ev.id].name} added to ${ev.where === 'hand' ? 'hand' : 'discard'}`, 'notice');
       sfx.debuff();
       presentation.syncCombat(); presentation.syncHand();
       await sleep(240);

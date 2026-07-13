@@ -1,4 +1,3 @@
-import { ACTS, OMENS } from '../data.js';
 import { iconSvg } from '../art.js';
 import * as V from '../vfx.js';
 import * as music from '../music.js';
@@ -6,7 +5,7 @@ import { clearOverlay, exitMapMode } from '../scene3d.js';
 import { meshClear } from '../mesh.js';
 import { stageH, stageW } from '../stage.js';
 import { $, S, screenEl } from './context.js';
-import { themeForRun } from './content.js';
+import { contentViewFor, themeForRun } from './content.js';
 import { REDUCED } from './policy.js';
 import { omenIconName, warmAssets } from './assets.js';
 import { uiCommands } from './commands.js';
@@ -53,7 +52,7 @@ export function createNavigator({ routes, beforeShow, publishMapWarmReader, trac
     if (kind === 'victory-out') return run('<div class="tr-bloom"></div>', [{ opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 0 }], 900);
     if (kind === 'defeat') return run('<div class="tr-crack"></div>', [{ opacity: 0 }, { opacity: 1 }], 700);
     if (kind === 'act-change') {
-      const omen = OMENS[S.run.omens?.[S.run.act]];
+      const omen = contentViewFor(S.run).omens[S.run.omens?.[S.run.act]];
       return run(`<div class="tr-plate"><div class="tp-act">${(themeForRun(S.run)).name.toUpperCase()}</div>
         ${omen ? `<div class="tp-omen" style="color:${omen.tone}">${iconSvg(omenIconName(S.run.omens[S.run.act]), 16)} OMEN - ${omen.name.toUpperCase()}</div>` : ''}</div>`,
       [{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }], 2200);

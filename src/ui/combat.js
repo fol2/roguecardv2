@@ -2,10 +2,6 @@
 // Browser-only: the pure engine remains independent of this module.
 import * as E from '../engine.js';
 import {
-  ACTS, AFFIXES, ARTS, ASPECTS, CARDS, ENEMIES, OMENS, POTIONS, RELICS,
-  STATUS_INFO,
-} from '../data.js';
-import {
   assetUrl, crackSvg, enemySvg, hasIcon, iconSvg, potionSvg, uiIcon, uiIconUrl,
 } from '../art.js';
 import {
@@ -29,7 +25,7 @@ import { charAim, charCssFloat, charShadowLive } from '../char-meta.js';
 import {
   $, $$, COARSE, FINE, S, el, presentationBarrier, screenEl, sleep, trace,
 } from './context.js';
-import { themeForRun } from './content.js';
+import { contentViewFor, themeForRun } from './content.js';
 import { REDUCED } from './policy.js';
 import { getRoseState } from './rose.js';
 import {
@@ -43,6 +39,8 @@ import {
   bfSlots,
 } from '../battlefield.js';
 import { relicBarLayout, uicResolve } from '../uic.js';
+
+const runCatalogues = () => contentViewFor(S.run);
 
 /**
  * Construct the combat presentation owner. Cross-owner operations are injected
@@ -152,7 +150,7 @@ function renderHud() {
       <div class="hud-stat">${uiIcon('coin', 14)} <span class="gold-num">${p.gold}</span></div>
       <div class="hud-mid"><b>${act.name.toUpperCase()}</b> &nbsp;·&nbsp; Floor ${S.run.floorsClimbed} &nbsp;·&nbsp; ${act.bossName}</div>
       <div class="hud-right">
-        ${E.runRevealed(S.run, 'phials') ? p.potions.map((id, i) => `<button class="potion-slot ${id ? 'full' : ''}" data-slot="${i}">${id ? rasterOr('potions', id, potionSvg(POTIONS[id].tone)) : ''}</button>`).join('') : ''}
+        ${E.runRevealed(S.run, 'phials') ? p.potions.map((id, i) => `<button class="potion-slot ${id ? 'full' : ''}" data-slot="${i}">${id ? rasterOr('potions', id, potionSvg(runCatalogues().potions[id].tone)) : ''}</button>`).join('') : ''}
         <button class="icon-btn deck-btn" data-act="deck" aria-label="${tr('ui.hud.deckAria')}">${uiIcon('deck', 32)}<span class="deck-count">${p.deck.length}</span></button>
         <button class="icon-btn" data-act="menu" aria-label="${tr('ui.hud.menuAria')}">${uiIcon('menu', 19)}</button>
       </div>
@@ -163,7 +161,7 @@ function renderHud() {
   const omenSlot = $('#omen-slot', hud);
   const bar = $('#relicbar', hud);
   const omenId = S.run.omens?.[S.run.act];
-  const omen = OMENS[omenId];
+  const omen = runCatalogues().omens[omenId];
   if (omen) {
     const oc = el('div', 'relic-chip omen-chip', omenMark(omenId, 'hud-omen-art', 'hud-omen-fallback', 24));
     oc.style.setProperty('--tone', omen.tone);
@@ -171,7 +169,7 @@ function renderHud() {
     omenSlot.appendChild(oc);
   }
   for (const rid of p.relics) {
-    const r = RELICS[rid];
+    const r = runCatalogues().relics[rid];
     const chip = el('div', 'hud-relic', hudRelic(rid));
     chip.style.setProperty('--tone', r.tone);
     chip.dataset.relic = rid;
@@ -182,7 +180,7 @@ function renderHud() {
     if (!id) return;
     const slot = $(`.potion-slot[data-slot="${i}"]`, hud);
     if (!slot) return;
-    slot._tip = { title: POTIONS[id].name, body: POTIONS[id].text, sub: tr('ui.hud.potionTip') };
+    slot._tip = { title: runCatalogues().potions[id].name, body: runCatalogues().potions[id].text, sub: tr('ui.hud.potionTip') };
   });
   $('[data-act="deck"]', hud).onclick = () => { sfx.click(); showCardGrid(tr('ui.hud.deckTitle'), S.run.player.deck, { sub: tr('ui.hud.deckCount', { n: S.run.player.deck.length }) }); };
   $('[data-act="menu"]', hud).onclick = (e) => { sfx.click(); openMenu(e.clientX, e.clientY); };
@@ -259,11 +257,11 @@ function renderCombat() {
   </div>`;
   const zone = $('.enemy-zone', sc);
   const ce = { enemies: [], root: $('.combat-screen', sc) };
-  const afx = cb.affix ? AFFIXES[cb.affix] : null;
+  const afx = cb.affix ? runCatalogues().affixes[cb.affix] : null;
   const L = bfResolve(stageInfo().shape, S.run.act);
   const slots = bfSlots(L, cb.enemies.length);
   cb.enemies.forEach((en, i) => {
-    const d = en.def || ENEMIES[en.key];
+    const d = en.def || runCatalogues().enemies[en.key];
     const view = combatantView(en);
     const { size } = bfEnemyFrame(L, view.layoutKey,
       d.boss ? 'boss' : d.elite ? 'elite' : 'normal', slots[i], stageW(), stageH(), view.scale);
@@ -316,7 +314,7 @@ function renderCombat() {
   ce.draw = $('.pile-draw', sc); ce.discard = $('.pile-discard', sc); ce.exhaust = $('.pile-exhaust', sc);
   ce.lantern = $('.lantern-btn', sc);
   const artId = S.run.art;
-  const art = ARTS[artId];
+  const art = runCatalogues().arts[artId];
   /* primary face = Lantern Art raster (or SVG fallback); cost lives in the tip */
   {
     const artU = artId ? assetUrl('arts', artId) : null;
@@ -390,7 +388,7 @@ function applyBattlefieldLayout(resolved) {
     img.style.objectPosition = `${p.posX}% ${p.posY}%`;
     img.style.setProperty('--amp', `${p.drift}px`); // idle parallax amplitude (0 = still)
   }
-  const hero = bfActor('heroes', ASPECTS[S.run.aspect].id);
+  const hero = bfActor('heroes', runCatalogues().aspects[S.run.aspect].id);
   const hw = Math.round(L.hero.w * hero.scale), hh = Math.round(L.hero.h * hero.scale);
   const pz = ce.root.querySelector('.player-zone');
   pz.style.width = `${hw}px`;
@@ -401,7 +399,7 @@ function applyBattlefieldLayout(resolved) {
   const keys = cb.enemies.map((en) => combatantView(en).layoutKey);
   const zOrder = bfEnemyZOrder(slots, keys);
   cb.enemies.forEach((en, i) => {
-    const d = en.def || ENEMIES[en.key];
+    const d = en.def || runCatalogues().enemies[en.key];
     const view = combatantView(en);
     const tier = d.boss ? 'boss' : d.elite ? 'elite' : 'normal';
     const frame = bfEnemyFrame(L, view.layoutKey, tier, slots[i], stageW(), stageH(), view.scale);
@@ -663,7 +661,7 @@ function statusChips(container, statuses, isPlayer) {
   container.innerHTML = '';
   for (const [id, n] of Object.entries(statuses)) {
     if (!n) continue;
-    const info = STATUS_INFO[id] || { name: id, icon: '?', kind: 'buff', desc: '' };
+    const info = runCatalogues().statuses[id] || { name: id, icon: '?', kind: 'buff', desc: '' };
     const kind = id === 'str' && n < 0 ? 'debuff' : info.kind;
     const u = assetUrl('statuses', id);
     const art = u
@@ -691,7 +689,7 @@ function intentFor(e) {
   if (mv.heal) tipBits.push('heal itself');
   if (mv.fx?.some((f) => f.who === 'player')) tipBits.push('afflict you');
   if (mv.fx?.some((f) => f.who !== 'player')) tipBits.push('empower');
-  if (mv.addCards) tipBits.push(`add ${mv.addCards.n} ${CARDS[mv.addCards.id].name}s to your discard`);
+  if (mv.addCards) tipBits.push(`add ${mv.addCards.n} ${runCatalogues().cards[mv.addCards.id].name}s to your discard`);
   return { icon, txt, tip: { title: mv.name, body: `Intends to ${tipBits.join(', ') || 'act'}.` } };
 }
 // the facet gauge: glass chip rasters (CSS diamond fallback); text once boss glass past a row
@@ -999,7 +997,7 @@ function layoutHand() {
     if (!c) return;
     const inst = cb.hand.find((h) => String(h.uid) === uid);
     if (!inst) return;
-    const d = E.cardData(inst);
+    const d = E.cardData(inst, S.run);
     const playableNow = !d.unplayable && (E.effCost(S.run, cb, inst) ?? 99) <= cb.player.energy;
     c.classList.toggle('unplayable-now', !playableNow);
     const armed = S.targeting?.kind === 'card' && String(S.targeting.uid) === uid;
@@ -1115,7 +1113,7 @@ function beginCardDrag(st, c) {
   const cb = S.cb;
   const inst = cb.hand.find((x) => x.uid === st.uid);
   if (!inst) { S.drag = null; return; }
-  const d = E.cardData(inst);
+  const d = E.cardData(inst, S.run);
   if (d.unplayable || E.effCost(S.run, cb, inst) > cb.player.energy) {
     // unplayable panes can still be fuel: the drag lives, but only the lantern will take it
     if (E.canKindle(S.run, cb, inst)) {
@@ -1205,7 +1203,7 @@ function updatePreviews() {
   if (S.targeting?.kind === 'card') inst = cb.hand.find((c) => c.uid === S.targeting.uid);
   else if (S.drag?.live) inst = cb.hand.find((c) => c.uid === S.drag.uid);
   else if (S.hoveredCard != null && !S.busy) inst = cb.hand.find((c) => c.uid === S.hoveredCard);
-  const d = inst ? E.cardData(inst) : null;
+  const d = inst ? E.cardData(inst, S.run) : null;
   const aiming = S.targeting?.kind === 'card' || (S.drag?.live && !S.drag.free);
   const living = cb.enemies.filter((e) => e.hp > 0).length;
   const inspect = !!(inst && !cb.over && !d.unplayable && !aiming);
@@ -1214,7 +1212,7 @@ function updatePreviews() {
   ce.hero?.classList.toggle('aim-target', heroOn);
   if (heroOn) {
     const sprite = $('.hero-sprite', ce.hero) || ce.hero;
-    const heroId = ASPECTS[S.run.aspect].id;
+    const heroId = runCatalogues().aspects[S.run.aspect].id;
     if (meshAim(sprite, true, charAim(heroId))) ce.hero.classList.add('aim-mesh');
     else ce.hero.classList.remove('aim-mesh');
   } else ce.hero?.classList.remove('aim-mesh');
@@ -1272,7 +1270,7 @@ function onCardClick(uid) {
     layoutHand();
     return;
   }
-  const d = E.cardData(inst);
+  const d = E.cardData(inst, S.run);
   const cost = E.effCost(S.run, cb, inst);
   const elc = $(`.card[data-uid="${uid}"]`, S.ce.hand);
   if (d.unplayable || cost > cb.player.energy) {
@@ -1847,7 +1845,7 @@ function rigCombatants() {
     add(ce.enemies[i].root, ce.enemies[i].art, `hsla(${view.hue},90%,66%,.72)`, false, i, view.kind, view.hue,
       assetUrl(view.artCategory, view.artId), view.layoutKey, bfEnemyFootY(slots[i], view.layoutKey));
   });
-  const heroId = ASPECTS[S.run.aspect].id;
+  const heroId = runCatalogues().aspects[S.run.aspect].id;
   add(ce.hero, ce.hero, 'rgba(127,212,255,.62)', true, 0, 'humanoid', 0, assetUrl('heroes', heroId), heroId, bfActor('heroes', heroId).footY);
 }
 function meshBindCombatants() {
@@ -1855,12 +1853,12 @@ function meshBindCombatants() {
   const ce = S.ce, cb = S.cb;
   if (!ce || !cb) return;
   const entries = [];
-  const heroUrl = assetUrl('heroes', ASPECTS[S.run.aspect].id);
+  const heroUrl = assetUrl('heroes', runCatalogues().aspects[S.run.aspect].id);
   // bind the sprite, not .hero-wrap: the raster must be a DIRECT child of the
   // mesh-live element or it stays visible under the warp copy (double vision),
   // and the wrap's rect includes the name label which would stretch the plane
   const heroSprite = ce.hero && ($('.hero-sprite', ce.hero) || ce.hero);
-  if (heroUrl && heroSprite) entries.push({ el: heroSprite, url: heroUrl, kind: 'humanoid', id: ASPECTS[S.run.aspect].id });
+  if (heroUrl && heroSprite) entries.push({ el: heroSprite, url: heroUrl, kind: 'humanoid', id: runCatalogues().aspects[S.run.aspect].id });
   cb.enemies.forEach((en, i) => {
     const view = combatantView(en);
     const url = assetUrl(view.artCategory, view.artId);

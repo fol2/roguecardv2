@@ -1,5 +1,6 @@
 export function createEndScreen(deps) {
-  const { S, E, Vigil, TERMINAL_OUTCOMES, PROGRESSION, QUESTS, RELICS, CARDS, ACTS, themeForRun, tr, runEffects, requireRunSave, persistObserved, showRunEndPersistenceFailure, show, presentationBarrier, trace, music, el, REDUCED, sleep, persistDawnOrRetry, assetUrl, iconSvg, relicArt, escHtml, $, $$, stageEl, sfx, screenEl, metaBg, sunrise, V, stageW, stageH, showCardGrid} = deps;
+  const { contentViewFor, S, E, Vigil, TERMINAL_OUTCOMES, PROGRESSION, QUESTS, themeForRun, tr, runEffects, requireRunSave, persistObserved, showRunEndPersistenceFailure, show, presentationBarrier, trace, music, el, REDUCED, sleep, persistDawnOrRetry, assetUrl, iconSvg, relicArt, escHtml, $, $$, stageEl, sfx, screenEl, metaBg, sunrise, V, stageW, stageH, showCardGrid} = deps;
+  const runCatalogues = () => contentViewFor(S.run);
 
 function journalRunEnd(run, outcome, onFinalised = null) {
   runEffects.journalRunEnd(run, outcome);
@@ -14,7 +15,7 @@ function journalRunEnd(run, outcome, onFinalised = null) {
 function finalisePendingRunEnd(run, onFinalised = null) {
   const outcome = run.pendingRunEnd?.outcome;
   if (!TERMINAL_OUTCOMES.includes(outcome)) return false;
-  return runEffects.finaliseRunEnd(
+  const result = runEffects.finaliseRunEnd(
     run,
     {
       revealThreshold: E.sealedSummitShardThreshold(run),
@@ -46,6 +47,13 @@ function finalisePendingRunEnd(run, onFinalised = null) {
       },
     },
   );
+  // Ephemeral Lab terminal: success-shaped Lab-result descriptor; no Dawn/Fall route.
+  if (result && result.kind === 'lab-result') {
+    S.cb = null;
+    if (onFinalised) onFinalised(result);
+    return result;
+  }
+  return result;
 }
 // ------------------------------------------------------------ end screens
 function bequestLabel(o) {
@@ -53,15 +61,15 @@ function bequestLabel(o) {
   const kindIcon = bu
     ? `<img class="bq-kind" src="${bu}" alt="">`
     : `<span class="bq-kind-fallback">${iconSvg(`bequest-${o.kind}`, 22)}</span>`;
-  if (o.kind === 'relic') return { icon: `${kindIcon}${relicArt(o.id, 20)}`, name: RELICS[o.id]?.name || o.id, note: tr('ui.end.bequestNote.relic') };
-  if (o.kind === 'card') return { icon: `${kindIcon}<span class="bq-card">🂠</span>`, name: (CARDS[o.id]?.name || o.id) + (o.up ? '+' : ''), note: tr('ui.end.bequestNote.card') };
+  if (o.kind === 'relic') return { icon: `${kindIcon}${relicArt(o.id, 20)}`, name: runCatalogues().relics[o.id]?.name || o.id, note: tr('ui.end.bequestNote.relic') };
+  if (o.kind === 'card') return { icon: `${kindIcon}<span class="bq-card">🂠</span>`, name: (runCatalogues().cards[o.id]?.name || o.id) + (o.up ? '+' : ''), note: tr('ui.end.bequestNote.card') };
   return { icon: `${kindIcon}${iconSvg('coin', 20)}`, name: tr('ui.end.bequestNote.gold', { n: o.amount }), note: tr('ui.end.bequestNote.goldCache') };
 }
 function unlockToastInfo(u) {
   if (u === 'aspect2') return { kind: tr('ui.end.unlock.aspect'), name: tr('ui.end.unlock.ashwarden') };
   const [k, id] = u.split(':');
-  if (k === 'card') return { kind: tr('ui.end.unlock.card'), name: CARDS[id]?.name || id };
-  return { kind: tr('ui.end.unlock.relic'), name: RELICS[id]?.name || id };
+  if (k === 'card') return { kind: tr('ui.end.unlock.card'), name: runCatalogues().cards[id]?.name || id };
+  return { kind: tr('ui.end.unlock.relic'), name: runCatalogues().relics[id]?.name || id };
 }
 function showUnlockToasts(list = [], runId = S.run?.runId) {
   if (!list.length) return;
@@ -220,7 +228,7 @@ function renderEnd({ won, newUnlocks = [], offers = [], fallAct = 0, fallRow = 1
     if (a === 'bequest') {
       sfx.relic();
       const o = offers[+t.dataset.i];
-      runEffects.setBequest(fallAct, fallRow, o);
+      runEffects.setBequest(S.run, fallAct, fallRow, o);
       const L = bequestLabel(o);
       $('#bequest').innerHTML = `<div class="bequest-done">${tr('ui.end.bequestDone', { name: `<b>${L.name}</b>`, act: themeForRun({ act: fallAct })?.name || '' })}</div>`;
       return;

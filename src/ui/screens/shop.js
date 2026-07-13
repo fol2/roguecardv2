@@ -1,5 +1,6 @@
 export function createShopScreen(deps) {
-  const { S, E, QUESTS, RELICS, POTIONS, tr, sceneBg, rasterOr, merchantSvg, $, el, cardEl, uiIcon, sfx, runEffects, renderHud, iconSvg, escHtml, requireRunSave, V, stageW, stageH, potionSvg, relicArt, showCardGrid, leaveHollowDestination, show, screenEl } = deps;
+  const { contentViewFor, S, E, QUESTS, tr, sceneBg, rasterOr, merchantSvg, $, el, cardEl, uiIcon, sfx, runEffects, renderHud, iconSvg, escHtml, requireRunSave, V, stageW, stageH, potionSvg, relicArt, showCardGrid, leaveHollowDestination, show, screenEl } = deps;
+  const runCatalogues = () => contentViewFor(S.run);
 
 function renderShop() {
   const run = S.run;
@@ -50,7 +51,7 @@ function renderShop() {
       cardsRow.appendChild(wrap);
     }
     for (const it of st.relics) {
-      const r = RELICS[it.id];
+      const r = runCatalogues().relics[it.id];
       const wrap = el('div', `shop-item ${it.sold ? 'sold' : ''} ${gold() < it.price ? 'cant' : ''}`);
       const b = el('button', 'shop-relic', `<span class="relic-chip" style="--tone:${r.tone}">${relicArt(it.id, 24)}</span><b>${r.name}</b>${r.text}`);
       b.onclick = () => {
@@ -96,7 +97,7 @@ function renderShop() {
       miscRow.appendChild(wrap);
     }
     for (const it of st.potions) {
-      const p = POTIONS[it.id];
+      const p = runCatalogues().potions[it.id];
       const wrap = el('div', `shop-item ${it.sold ? 'sold' : ''} ${gold() < it.price ? 'cant' : ''}`);
       const b = el('button', 'shop-relic', `<span style="width:34px;height:44px">${rasterOr('potions', it.id, potionSvg(p.tone))}</span><b>${p.name}</b>${p.text}`);
       b.onclick = () => {

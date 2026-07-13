@@ -44,7 +44,7 @@ import { createRunEffects } from './run-effects.js';
 import {
   $, $$, COARSE, S, el, escHtml, presentationBarrier, screenEl, sleep, trace,
 } from './context.js';
-import { CORE_CONTENT, themeForRun } from './content.js';
+import { CORE_CONTENT, contentViewFor, themeForRun } from './content.js';
 import { UI_TOKENS, applyExperienceTokens, tokenValue } from './tokens.js';
 import { REDUCED } from './policy.js';
 import { ROMAN } from './format.js';
@@ -136,9 +136,7 @@ combatApi = createCombat({
 });
 drainApi = createDrain({
   E,
-  CARDS,
-  ARTS,
-  STATUS_INFO,
+  contentViewFor,
   QUESTS,
   cardEl,
   iconSvg,
@@ -214,14 +212,14 @@ screenOwners = Object.freeze({
     requireBequestClear, omenBanner: screenLate.omenBanner, themeForRun,
   }),
   lamplighter: createLamplighterScreen({
-    S, E, BOONS, ASPECTS, ARTS, QUESTS, REDUCED, tr, runEffects, assetUrl,
+    S, E, QUESTS, REDUCED, tr, runEffects, assetUrl,
     iconSvg, fmtText, sceneBg, heroArt, escHtml, $, $$, screenEl, unlock, sfx,
-    setTheme, themeForRun,
+    setTheme, themeForRun, contentViewFor,
     renderHud: screenLate.renderHud, show: screenLate.show, omenBanner: screenLate.omenBanner,
     routeVisitedNode: screenLate.routeVisitedNode, persistObserved, requireRunSave,
   }),
   map: createMapScreen({
-    S, E, ACTS, OMENS, PROGRESSION, QUESTS, RELICS, CARDS, COARSE, REDUCED,
+    S, E, PROGRESSION, QUESTS, COARSE, REDUCED,
     tr, runEffects, nodeGlyphId, uiIconUrl, assetUrl, iconInline, iconSvg, omenMark,
     $, $$, screenEl, unlock, sfx, music, openOverlay, closeOverlay, stageW, stageH,
     mapNodePos, enterMapMode, setOverlay, V, peekMap, trace, setAltitude,
@@ -229,37 +227,38 @@ screenOwners = Object.freeze({
     requireRunSave, resumePendingHollowRoute: screenLate.resumePendingHollowRoute,
     show: screenLate.show, showRunSaveFailure, showStonePersistenceFailure,
     requireBequestClear, flyTo: screenLate.flyTo, banner: screenLate.banner, el, escHtml,
-    themeForRun, tokenValue,
+    themeForRun, tokenValue, contentViewFor,
   }),
   reward: createRewardScreen({
-    S, E, POTIONS, RELICS, OMENS, tr, sceneBg, $, el, iconSvg, uiIcon, stageW, stageH,
+    S, E, tr, sceneBg, $, el, iconSvg, uiIcon, stageW, stageH,
     V, flyTo: screenLate.flyTo, tweenNum: screenLate.tweenNum, sfx, rasterOr, potionSvg,
     relicArt, requireRunSave, renderHud: screenLate.renderHud, show: screenLate.show,
     showCardGrid, openOverlay, closeOverlay, runEffects, setTheme, setAltitude, transition: screenLate.transition,
-    assetUrl, omenIconName, screenEl, themeForRun,
+    assetUrl, omenIconName, screenEl, themeForRun, contentViewFor,
   }),
   rest: createRestScreen({
-    S, E, CARDS, RELICS, tr, sceneBg, rasterOr, campfireSvg, iconSvg, $, $$,
+    S, E, tr, sceneBg, rasterOr, campfireSvg, iconSvg, $, $$,
     show: screenLate.show, showCardGrid, sfx, V, stageW, stageH, requireHollowRouteClear,
     runEffects, closeOverlay, screenEl, el, chestSvg, renderHud: screenLate.renderHud,
+    contentViewFor,
   }),
   shop: createShopScreen({
-    S, E, QUESTS, RELICS, POTIONS, tr, sceneBg, rasterOr, merchantSvg, $, el,
+    S, E, QUESTS, tr, sceneBg, rasterOr, merchantSvg, $, el,
     cardEl, uiIcon, sfx, runEffects, renderHud: screenLate.renderHud, iconSvg, escHtml,
     requireRunSave, V, stageW, stageH, potionSvg, relicArt, showCardGrid,
-    leaveHollowDestination, show: screenLate.show, screenEl,
+    leaveHollowDestination, show: screenLate.show, screenEl, contentViewFor,
   }),
   event: createEventScreen({
-    S, E, EVENTS, RELICS, CARDS, tr, sceneBg, rasterOr, eventArtSvg, $, el, sfx,
+    S, E, tr, sceneBg, rasterOr, eventArtSvg, $, el, sfx,
     leaveHollowDestination, show: screenLate.show, runEffects, renderHud: screenLate.renderHud,
-    showCardGrid, screenEl,
+    showCardGrid, screenEl, contentViewFor,
   }),
   end: createEndScreen({
-    S, E, Vigil, TERMINAL_OUTCOMES, PROGRESSION, QUESTS, RELICS, CARDS, ACTS,
+    S, E, Vigil, TERMINAL_OUTCOMES, PROGRESSION, QUESTS,
     themeForRun, tr, runEffects, requireRunSave, persistObserved, showRunEndPersistenceFailure,
     show: screenLate.show, presentationBarrier, trace, music, el, REDUCED, sleep,
     persistDawnOrRetry, assetUrl, iconSvg, relicArt, escHtml, $, $$, stageEl,
-    sfx, screenEl, metaBg, sunrise, V, stageW, stageH, showCardGrid,
+    sfx, screenEl, metaBg, sunrise, V, stageW, stageH, showCardGrid, contentViewFor,
   }),
   gallery: createGalleryScreen({
     assetSetIds, assetSetLabel, ENEMIES, enemySvg, heroSvg, ASPECTS, CARDS,

@@ -1,10 +1,10 @@
 import * as E from '../engine.js';
-import { POTIONS } from '../data.js';
 import { createChoiceLatch } from '../choice-latch.js';
 import { getSfxVolume, isSfxMuted, setSfxMuted, setSfxVolume, sfx } from '../audio.js';
 import * as music from '../music.js';
 import { stageEl, stageW, toStage } from '../stage.js';
 import { $, $$, S, el, presentationBarrier, terminalNavigationLocked, trace } from './context.js';
+import { contentViewFor } from './content.js';
 import { uiCommands } from './commands.js';
 
 export function createOverlay({ tr, runEffects, cardEl, actions }) {
@@ -118,7 +118,7 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
     closeMenus();
     const id = S.run.player.potions[slot];
     if (!id) return;
-    const potion = POTIONS[id];
+    const potion = contentViewFor(S.run).potions[id];
     const inCombat = S.cb && !S.cb.over && S.screen === 'combat';
     const canUse = !potion.combatOnly || inCombat;
     const menu = el('div', 'pop-menu');
@@ -442,9 +442,9 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
   }
 
   function requireBequestClear(onCleared) {
-    if (persistObserved('shade-bequest-clear', () => runEffects.clearBequest())) return true;
+    if (persistObserved('shade-bequest-clear', () => runEffects.clearBequest(S.run))) return true;
     showStonePersistenceFailure(() => {
-      if (persistObserved('shade-bequest-clear', () => runEffects.clearBequest())) onCleared();
+      if (persistObserved('shade-bequest-clear', () => runEffects.clearBequest(S.run))) onCleared();
       else requireBequestClear(onCleared);
     });
     return false;
@@ -490,7 +490,7 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
     const panel = el('div', 'panel ov-panel');
     panel.innerHTML = `<div class="ov-title">${title}</div>${sub ? `<div class="ov-sub">${sub}</div>` : ''}`;
     const grid = el('div', `card-grid ${pick ? 'choice-cards' : ''}`);
-    const sorted = pick ? instances : [...instances].sort((a, b) => E.cardData(a).name.localeCompare(E.cardData(b).name));
+    const sorted = pick ? instances : [...instances].sort((a, b) => E.cardData(a, S.run).name.localeCompare(E.cardData(b, S.run).name));
     const latch = createChoiceLatch();
     let skip = null;
     const choose = (inst, card = null, delay = 0) => {

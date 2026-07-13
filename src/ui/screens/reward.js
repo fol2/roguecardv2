@@ -1,5 +1,6 @@
 export function createRewardScreen(deps) {
-  const { S, E, POTIONS, RELICS, OMENS, tr, sceneBg, $, el, iconSvg, uiIcon, stageW, stageH, V, flyTo, tweenNum, sfx, rasterOr, potionSvg, relicArt, requireRunSave, renderHud, show, showCardGrid, openOverlay, closeOverlay, runEffects, setTheme, setAltitude, transition, assetUrl, omenIconName, screenEl, themeForRun } = deps;
+  const { contentViewFor, S, E, tr, sceneBg, $, el, iconSvg, uiIcon, stageW, stageH, V, flyTo, tweenNum, sfx, rasterOr, potionSvg, relicArt, requireRunSave, renderHud, show, showCardGrid, openOverlay, closeOverlay, runEffects, setTheme, setAltitude, transition, assetUrl, omenIconName, screenEl, themeForRun } = deps;
+  const runCatalogues = () => contentViewFor(S.run);
 
 // ------------------------------------------------------------ rewards
 function renderReward() {
@@ -53,7 +54,7 @@ function renderReward() {
       });
     });
   if (rewards.potion) {
-    const p = POTIONS[rewards.potion];
+    const p = runCatalogues().potions[rewards.potion];
     addRow('potion', rasterOr('potions', rewards.potion, potionSvg(p.tone)), `${p.name}`, () => {
       if (E.takePendingReward(run, 'potion')) return true;
       V.floatText(stageW() / 2, stageH() / 2, tr('ui.reward.potionSlotsFull'), 'notice');
@@ -61,7 +62,7 @@ function renderReward() {
     }, () => sfx.potion(), { title: p.name, body: p.text });
   }
   if (rewards.relic) {
-    const r = RELICS[rewards.relic];
+    const r = runCatalogues().relics[rewards.relic];
     addRow('relic', `<span style="color:${r.tone};text-shadow:0 0 8px ${r.tone}">${relicArt(rewards.relic, 24)}</span>`, `<b>${r.name}</b>`,
       () => E.takePendingReward(run, 'relic'), () => {
         sfx.relic();
@@ -117,7 +118,7 @@ function renderReward() {
         const finish = () => settleRow(cardRow, () => {
           if (!inst) return;
           sfx.upgrade();
-          V.floatText(stageW() / 2, stageH() / 2, tr('ui.reward.cardAdded', { name: E.cardData(inst).name }), 'notice');
+          V.floatText(stageW() / 2, stageH() / 2, tr('ui.reward.cardAdded', { name: E.cardData(inst, S.run).name }), 'notice');
         });
         if (!requireRunSave(run, finish)) return;
         finish();
@@ -156,7 +157,7 @@ function renderBossRelic() {
     advanceAct();
   };
   for (const id of picks) {
-    const r = RELICS[id];
+    const r = runCatalogues().relics[id];
     const b = el('button', 'relic-pick');
     b.innerHTML = `<span class="relic-chip" style="--tone:${r.tone}">${relicArt(id, 26)}</span><span><b>${r.name}</b><span class="rd">${r.text}</span></span>`;
     b.onclick = () => pick(id);
@@ -183,7 +184,7 @@ function advanceAct() {
 }
 // the night declares itself: the omen blooms over the map on act entry
 function omenBanner(run) {
-  const omen = OMENS[run.omens?.[run.act]];
+  const omen = runCatalogues().omens[run.omens?.[run.act]];
   if (!omen || S.screen !== 'map') return;
   const oid = run.omens[run.act];
   const broken = oid === 'eighthOmen';
