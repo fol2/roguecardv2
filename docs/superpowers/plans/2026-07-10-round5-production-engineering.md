@@ -5008,7 +5008,7 @@ git commit -m "feat: add the schema-driven Content Manager"
   Safari, an iOS/iPadOS Simulator, WKWebView, hardware or mobile-support proof.
 - Every browser command continues through `tools/run-with-strict-e2e-port.mjs`.
 
-- [ ] **Step 1: Add failing config assertions**
+- [x] **Step 1: Add failing config assertions**
 
 Extend `test/test_ci_contract.mjs` to require project names `iphone-webkit` and
 `ipad-webkit`, package script `test:e2e:webkit`, CI browser installation
@@ -5023,7 +5023,7 @@ unit job to run `npm run test:content-registrations`. Extend
 port wrapper in the same invocation. The test first fails on the existing bare
 Linux baseline capture.
 
-- [ ] **Step 2: Add WebKit projects and script**
+- [x] **Step 2: Add WebKit projects and script**
 
 Use the exact Playwright device descriptors with `browserName: 'webkit'`:
 
@@ -5047,7 +5047,7 @@ Before the first local WebKit run, install the browser once with
 `npx playwright install webkit`; record the Playwright/browser revision. This
 is a visible local prerequisite, not a test or password flow.
 
-- [ ] **Step 3: Extend the parallel Linux topology**
+- [x] **Step 3: Extend the parallel Linux topology**
 
 Preserve the post-Phase-2 topology. Add one `e2e-webkit` job, one worker, to
 `FULL_E2E_LANES` and the aggregate `e2e` result map. Install `chromium webkit`,
@@ -5063,14 +5063,14 @@ Keep the valid-measurement policy unchanged: missing, invalid, crashed or empty
 measurements fail; a valid 55fps/22ms miss emits `PERF_WARNING` and remains
 non-gating.
 
-- [ ] **Step 4: Update operational docs**
+- [x] **Step 4: Update operational docs**
 
 Document Chromium and Playwright WebKit lanes, cumulative standing gates, the
 strict-port rule and the explicit no-actual-Safari/Simulator/mobile-support
 boundary. Mark P3 complete. No self-hosted runner, actual-Safari workflow, runner
 lookup, exit-75 path or manual dispatch remains in Round 5.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 set -euo pipefail
