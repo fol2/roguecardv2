@@ -29,7 +29,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       # Non-gating by spec: CI runner fps numbers are noisy (software WebGL).
       # The measured numbers are recorded in this step's log, never enforced.
-      - run: npm run test:e2e:perf
+      - run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
       - name: Require a valid performance measurement
         if: always()
         run: |

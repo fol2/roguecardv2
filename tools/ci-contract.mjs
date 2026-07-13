@@ -4,6 +4,12 @@ import { pathToFileURL } from 'node:url';
 const UNIT_LANES = ['changes', 'unit-tests', 'build-dist'];
 const SMOKE_LANES = ['changes', 'smoke-e2e'];
 const P2_BASE_GATE_LANES = ['changes', 'unit', 'e2e-nonvisual', 'progression'];
+const P2_BASE_E2E_LANES = ['changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main'];
+
+/** Full-mode e2e leaf lanes (audio/heavy spliced in when slow is relevant). */
+export const FULL_E2E_LANES = Object.freeze([
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main', 'e2e-webkit', 'e2e-visual',
+]);
 
 const truthy = (value) => value === true || String(value).toLowerCase() === 'true';
 
@@ -23,12 +29,8 @@ export function resolveCiMode(eventName, draftValue, refName = '') {
 
 /** Core nonvisual lanes always required when e2e is relevant. */
 function e2eCoreLanes(mode) {
-  if (mode === 'p2-base') {
-    return ['changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main'];
-  }
-  if (mode === 'full') {
-    return ['changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main', 'e2e-visual'];
-  }
+  if (mode === 'p2-base') return [...P2_BASE_E2E_LANES];
+  if (mode === 'full') return [...FULL_E2E_LANES];
   return null;
 }
 

@@ -32,8 +32,8 @@ contracts shared by Playwright regression journeys.
 | Doc | Status |
 |---|---|
 | [`superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md`](superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md) | **Golden design** — PE-led commercial-grade production engineering with a small, isolated FE presentation lane; execution begins at P1 after loaded-predecessor/drift validation and proceeds through cumulative Playwright Chromium/WebKit browser gates |
-| [`superpowers/plans/2026-07-10-round5-production-engineering.md`](superpowers/plans/2026-07-10-round5-production-engineering.md) | **Active executor** — P1 closed; P2 content registry equivalence COMPLETE (Task 15); freeze RELEASED; Task 16+ starts P3 Lab/Manager |
-| [`superpowers/reports/2026-07-10-round5-p2-registry-evidence.md`](superpowers/reports/2026-07-10-round5-p2-registry-evidence.md) | **P2 evidence** — three-leg equality, 100% core doctor, freeze/no-accessor, sample isolation, Music contract, theme-profile Chromium results; WebKit theme rerun deferred to Task 20 |
+| [`superpowers/plans/2026-07-10-round5-production-engineering.md`](superpowers/plans/2026-07-10-round5-production-engineering.md) | **Active executor** — P1/P2/P3 COMPLETE (Task 20); next is P4 Pixi bootstrap (Task 21+) |
+| [`superpowers/reports/2026-07-10-round5-p2-registry-evidence.md`](superpowers/reports/2026-07-10-round5-p2-registry-evidence.md) | **P2 evidence** — three-leg equality, 100% core doctor, freeze/no-accessor, sample isolation, Music contract, theme-profile Chromium results; WebKit theme rerun owned by Task 20 (`test:e2e:webkit`) |
 | [`superpowers/reports/2026-07-12-round5-task10-handover.md`](superpowers/reports/2026-07-12-round5-task10-handover.md) | **Task 10 handover** — oracle provenance and gates; historical start procedure for Task 11 |
 | [`superpowers/specs/2026-07-11-mobile-migration-simulator-tooling-design.md`](superpowers/specs/2026-07-11-mobile-migration-simulator-tooling-design.md) | **Deferred / non-executable** — future actual Safari/iOS Simulator automation design; requires explicit owner activation, fresh drift audit, a separate tool plan and tool-maturity proof |
 | [`research/2026-07-10-ui-behaviour-trace-ios-simulator.md`](research/2026-07-10-ui-behaviour-trace-ios-simulator.md) | **Historical / superseded for Round 5 execution** — primary-source evidence boundaries and semantic-trace research; dated toolchain snapshot is non-current and any future mobile use flows through the deferred design |
@@ -65,9 +65,14 @@ contracts shared by Playwright regression journeys.
 
 ## Visual QA kit
 
-- Config: [`../playwright.config.js`](../playwright.config.js) with strict-port resolution in [`../playwright-server.js`](../playwright-server.js) — desktop 1600×900, portrait 375×812, landscape 812×375; dev server **5174** by default. Set `SPIREBOUND_E2E_PORT=<free-port>` for an isolated launch that refuses to reuse an existing server.
-- Suites: [`../test/e2e/`](../test/e2e/) — config/runner contracts, battlefield-editor disk writes, stage and combat geometry, battle/reward flows, Emberglass progression and persistence transactions, Hollow routing, versioned audio selection, visual baselines, random-agent coverage, and performance.
+- Config: [`../playwright.config.js`](../playwright.config.js) with strict-port resolution in [`../playwright-server.js`](../playwright-server.js) — desktop 1600×900, portrait 375×812, landscape 812×375; WebKit device projects `iphone-webkit` / `ipad-webkit` (Playwright patched WebKit + descriptors, **not** Safari or Simulator); dev server **5174** by default. Every browser package script and workflow run goes through [`../tools/run-with-strict-e2e-port.mjs`](../tools/run-with-strict-e2e-port.mjs) (`SPIREBOUND_E2E_PORT=<free-port>`, `reuseExistingServer:false`).
+- Suites: [`../test/e2e/`](../test/e2e/) — config/runner contracts, battlefield-editor disk writes, stage and combat geometry, battle/reward flows, Emberglass progression and persistence transactions, Hollow routing, versioned audio selection, visual baselines, random-agent coverage, Lab/theme-profile journeys, and performance.
+- Lanes: Chromium (`desktop` / `portrait` / `landscape`, including canonical visual snapshots) and Playwright WebKit (`npm run test:e2e:webkit` → `iphone-webkit` + `ipad-webkit`). Cumulative standing profiles live in [`../tools/run-round5-standing-gates.mjs`](../tools/run-round5-standing-gates.mjs); Round 5 has no self-hosted Safari/Simulator runner, exit-75 path, or actual-Safari workflow.
 - In-page API: `window.__probe`, assembled by [`../src/ui/probe.js`](../src/ui/probe.js) and installed by [`../src/ui/index.js`](../src/ui/index.js) — geometry in **stage px**; failure artefacts include non-empty NDJSON and timestamped text projections.
+
+### Round 5 P3 — complete
+
+P3 Lab, content doctor, optional Content Manager, production-surface verifier, and the Linux CI WebKit lane (`e2e-webkit` on full mode) are in tree. Playwright WebKit device emulation is the mobile-shaped browser gate; it is not branded Safari, iOS Simulator, WKWebView, or a mobile-support claim.
 
 ## Fixed virtual stage (summary)
 

@@ -65,6 +65,14 @@ assert.equal(packageJson.scripts['test:e2e'], 'npm run test:e2e:nonvisual && npm
 assert.equal(packageJson.scripts['test:e2e:nonvisual'], 'npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:main && npm run test:e2e:serial');
 assert.equal(packageJson.scripts['content:compile'], 'node tools/compile-content-registrations.mjs');
 assert.equal(packageJson.scripts['test:content-registrations'], 'node tools/compile-content-registrations.mjs --check');
+assert.equal(
+  packageJson.scripts['test:e2e:webkit'],
+  'playwright test trace stage lab theme-profile --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
+);
+assert.equal(
+  packageJson.scripts['test:e2e:update'],
+  'playwright test visual --update-snapshots --project=desktop --project=portrait --project=landscape --workers=1 --no-deps',
+);
 
 for (const modulePath of [
   '../src/registry.js', '../src/content-registration.js',
@@ -97,6 +105,17 @@ const productionTraceSpec = readFileSync(new URL('./e2e/trace-production.spec.js
 assert.match(defaultPlaywright, /testIgnore[\s\S]*?trace-production\\\.spec\\\.js/);
 assert.match(defaultPlaywright, /SPIREBOUND_E2E_SUITE/);
 assert.match(defaultPlaywright, /E2E_SLOW_SPECS/);
+assert.match(
+  defaultPlaywright,
+  /name:\s*'iphone-webkit',\s*use:\s*\{\s*\.\.\.devices\['iPhone 17 Pro'\],\s*browserName:\s*'webkit'\s*\}/,
+);
+assert.match(
+  defaultPlaywright,
+  /name:\s*'ipad-webkit',\s*use:\s*\{\s*\.\.\.devices\['iPad Mini landscape'\],\s*browserName:\s*'webkit'\s*\}/,
+);
+assert.match(defaultPlaywright, /name:\s*'desktop'/);
+assert.match(defaultPlaywright, /name:\s*'portrait'/);
+assert.match(defaultPlaywright, /name:\s*'landscape'/);
 assert.match(productionPlaywright, /testMatch:\s*\/trace-production\\\.spec\\\.js\//);
 assert.match(productionPlaywright, /testIgnore:\s*\[\]/);
 assert.match(productionPlaywright, /spirebound-trace-production-\$\{server\.port\}/,

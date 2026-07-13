@@ -455,7 +455,12 @@ test.describe('Content Lab', () => {
 
   test('trace transcript copy copies live panel text after a real beat', async ({ page }) => {
     await seedSentinels(page);
-    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    // Playwright WebKit rejects clipboard-write; a real click is enough for writeText.
+    const project = test.info().project.name;
+    const clipboardPerms = project === 'iphone-webkit' || project === 'ipad-webkit'
+      ? ['clipboard-read']
+      : ['clipboard-read', 'clipboard-write'];
+    await page.context().grantPermissions(clipboardPerms);
     const encoded = encodeLabScenario(COMBAT_SCENARIO);
     await page.goto(`/?lab=1&scenario=${encoded}`);
     await waitLabReady(page);

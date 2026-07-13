@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import {
   resolveCiMode,
   requiredCiLanes,
   verifyCiGate,
   isRound5StandingRef,
+  FULL_E2E_LANES,
 } from '../tools/ci-contract.mjs';
+import { e2eServerSettings } from '../playwright-server.js';
+import { STANDING_GATE_PROFILES } from '../tools/run-round5-standing-gates.mjs';
 
 assert.equal(isRound5StandingRef('jamesto/round5-production-engineering-continuation'), true);
 assert.equal(isRound5StandingRef('cursor/round5-foo'), true);
@@ -22,6 +25,10 @@ assert.equal(resolveCiMode('pull_request', false, 'jamesto/round5-x'), 'full');
 assert.equal(resolveCiMode('pull_request', false), 'full');
 assert.equal(resolveCiMode('pull_request', 'false'), 'full');
 assert.throws(() => resolveCiMode('workflow_dispatch', false), /Unsupported CI event/);
+
+assert.deepEqual(FULL_E2E_LANES, [
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main', 'e2e-webkit', 'e2e-visual',
+]);
 
 assert.deepEqual(requiredCiLanes('unit', false, 'smoke'), ['changes']);
 assert.deepEqual(requiredCiLanes('unit', true, 'smoke'), ['changes', 'unit-tests', 'build-dist']);
@@ -43,10 +50,11 @@ assert.deepEqual(requiredCiLanes('p2-base', false, 'full'), ['changes']);
 assert.throws(() => requiredCiLanes('p2-base', true, 'smoke'), /Unsupported p2-base CI mode/);
 assert.throws(() => requiredCiLanes('p2-base', false, 'smoke'), /Unsupported p2-base CI mode/);
 assert.deepEqual(requiredCiLanes('e2e', true, 'full'), [
-  'changes', 'e2e-aux', 'e2e-random', 'e2e-audio', 'e2e-heavy', 'e2e-battle', 'e2e-emberglass', 'e2e-main', 'e2e-visual',
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-audio', 'e2e-heavy', 'e2e-battle', 'e2e-emberglass', 'e2e-main',
+  'e2e-webkit', 'e2e-visual',
 ]);
 assert.deepEqual(requiredCiLanes('e2e', true, 'full', { slow: false }), [
-  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main', 'e2e-visual',
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main', 'e2e-webkit', 'e2e-visual',
 ]);
 
 assert.deepEqual(verifyCiGate({
@@ -61,9 +69,10 @@ assert.deepEqual(verifyCiGate({
   results: {
     changes: 'success', 'e2e-aux': 'success', 'e2e-random': 'success',
     'e2e-audio': 'success', 'e2e-heavy': 'success', 'e2e-battle': 'success',
-    'e2e-emberglass': 'success', 'e2e-main': 'success', 'e2e-visual': 'success',
+    'e2e-emberglass': 'success', 'e2e-main': 'success', 'e2e-webkit': 'success',
+    'e2e-visual': 'success',
   },
-}).required.length, 9);
+}).required.length, 10);
 assert.deepEqual(verifyCiGate({
   gate: 'e2e', relevant: true, mode: 'p2-base', slow: false,
   results: {
@@ -134,7 +143,7 @@ assert.match(workflow, /test:e2e:audio -- --shard=\$\{\{ matrix\.shard \}\}\/6/)
 assert.match(workflow, /test:e2e:heavy -- --shard=\$\{\{ matrix\.shard \}\}\/10/);
 assert.match(workflow, /test:e2e:battle -- --shard=\$\{\{ matrix\.shard \}\}\/8/);
 assert.match(workflow, /test:e2e:emberglass -- --shard=\$\{\{ matrix\.shard \}\}\/6/);
-assert.match(workflow, /SPIREBOUND_E2E_SUITE=main npm run test:e2e:main -- --shard=\$\{\{ matrix\.shard \}\}\/10/);
+assert.match(workflow, /SPIREBOUND_E2E_SUITE=main node tools\/run-with-strict-e2e-port\.mjs -- npm run test:e2e:main -- --shard=\$\{\{ matrix\.shard \}\}\/10/);
 assert.match(workflow, /fail-fast: true/);
 assert.doesNotMatch(workflow, /fail-fast: false/);
 assert.match(workflow, /CI_SLOW_RELEVANT/);
@@ -148,6 +157,18 @@ assert.doesNotMatch(workflow, /name: e2e disk/);
 assert.doesNotMatch(workflow, /name: e2e serial/);
 assert.doesNotMatch(workflow, /name: e2e trace-production/);
 
+assert.match(workflow, /name: e2e webkit/);
+assert.match(workflow, /e2e_webkit:/);
+assert.match(workflow, /npm run test:e2e:webkit/);
+assert.match(workflow, /e2e-webkit/);
+assert.match(workflow, /needs: \[changes, smoke_e2e, e2e_aux, e2e_random, e2e_audio, e2e_heavy, e2e_battle, e2e_emberglass, e2e_main, e2e_webkit, e2e_visual\]/);
+assert.match(workflow, /"e2e-webkit":"\$\{\{ needs\.e2e_webkit\.result \}\}"/);
+assert.match(workflow, /unit_tests:[\s\S]*?npm run test:content-registrations/);
+assert.match(workflow, /name: unit\b/);
+assert.match(workflow, /name: e2e\b/);
+assert.doesNotMatch(workflow, /self-hosted/);
+assert.doesNotMatch(workflow, /exit.?75|exit-75/i);
+
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 assert.equal(pkg.scripts['test:e2e'], 'npm run test:e2e:nonvisual && npm run test:e2e:visual');
 assert.equal(pkg.scripts['test:e2e:nonvisual'],
@@ -160,15 +181,97 @@ assert.doesNotMatch(pkg.scripts['test:e2e:heavy'], /\baudio\b/);
 assert.doesNotMatch(pkg.scripts['test:e2e:heavy'], /\bbattle\b/);
 assert.equal(pkg.scripts['test:boundaries'], 'node test/test_module_boundaries.mjs');
 assert.match(pkg.scripts['test:ci'], /npm run test:boundaries/);
+assert.equal(pkg.scripts['content:compile'], 'node tools/compile-content-registrations.mjs');
+assert.equal(pkg.scripts['test:content-registrations'], 'node tools/compile-content-registrations.mjs --check');
+assert.equal(
+  pkg.scripts['test:e2e:webkit'],
+  'playwright test trace stage lab theme-profile --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
+);
+assert.equal(
+  pkg.scripts['test:e2e:update'],
+  'playwright test visual --update-snapshots --project=desktop --project=portrait --project=landscape --workers=1 --no-deps',
+);
 
 const playwright = readFileSync(new URL('../playwright.config.js', import.meta.url), 'utf8');
 assert.match(playwright, /SPIREBOUND_E2E_SUITE/);
 assert.match(playwright, /E2E_SLOW_SPECS/);
+assert.match(
+  playwright,
+  /name:\s*'iphone-webkit',\s*use:\s*\{\s*\.\.\.devices\['iPhone 17 Pro'\],\s*browserName:\s*'webkit'\s*\}/,
+);
+assert.match(
+  playwright,
+  /name:\s*'ipad-webkit',\s*use:\s*\{\s*\.\.\.devices\['iPad Mini landscape'\],\s*browserName:\s*'webkit'\s*\}/,
+);
+assert.match(playwright, /name:\s*'desktop'/);
+assert.match(playwright, /name:\s*'portrait'/);
+assert.match(playwright, /name:\s*'landscape'/);
+
+const strict = e2eServerSettings('59123');
+assert.equal(strict.port, 59123);
+assert.equal(strict.isolated, true);
+assert.equal(strict.origin, 'http://127.0.0.1:59123');
+assert.match(strict.command, /--strictPort/);
+assert.equal(strict.reuseExistingServer, false);
+
+const setupPlaywright = readFileSync(
+  new URL('../.github/actions/setup-playwright/action.yml', import.meta.url),
+  'utf8',
+);
+assert.match(setupPlaywright, /playwright install(?: --with-deps)? chromium webkit/);
+assert.match(setupPlaywright, /npx playwright install chromium webkit/);
+assert.match(setupPlaywright, /npx playwright install --with-deps chromium webkit/);
+
+for (const profile of ['p2', 'p3', 'p4', 'p5', 'p6', 'full']) {
+  const rows = STANDING_GATE_PROFILES[profile];
+  assert.ok(rows, `standing profile ${profile} must exist`);
+  assert.ok(
+    rows.some((row) => row.argv.join(' ') === 'npm run test:content-registrations'),
+    `P2+ standing profile ${profile} must run test:content-registrations`,
+  );
+}
+
+const workflowsDir = new URL('../.github/workflows/', import.meta.url);
+const workflowFiles = readdirSync(workflowsDir).filter((name) => name.endsWith('.yml'));
+const browserRunRe = /(?:^|\n)\s*-\s*run:\s*(.+?)(?=\n\s*(?:-\s|uses:|if:|with:|env:|name:)|$)/gs;
+const browserCmdRe = /(?:npm run test:e2e\b|(?:npx\s+)?playwright test\b)/;
+const strictWrapper = 'tools/run-with-strict-e2e-port.mjs';
+const bareBrowserRuns = [];
+for (const name of workflowFiles) {
+  const text = readFileSync(new URL(name, workflowsDir), 'utf8');
+  for (const match of text.matchAll(browserRunRe)) {
+    const command = match[1].replace(/\n\s+/g, ' ').trim();
+    if (!browserCmdRe.test(command)) continue;
+    if (!command.includes(strictWrapper)) {
+      bareBrowserRuns.push(`${name}: ${command}`);
+    }
+  }
+}
+assert.deepEqual(
+  bareBrowserRuns,
+  [],
+  `every workflow browser command must invoke ${strictWrapper} in the same run step; bare:\n${bareBrowserRuns.join('\n')}`,
+);
+
+const updateBaselines = readFileSync(
+  new URL('../.github/workflows/update-baselines.yml', import.meta.url),
+  'utf8',
+);
+assert.match(
+  updateBaselines,
+  /node tools\/run-with-strict-e2e-port\.mjs -- npm run test:e2e:update/,
+);
+assert.match(updateBaselines, /playwright install(?: --with-deps)? chromium/);
+
+const perfWorkflow = readFileSync(new URL('../.github/workflows/perf.yml', import.meta.url), 'utf8');
+assert.match(perfWorkflow, /node tools\/run-with-strict-e2e-port\.mjs -- npm run test:e2e:perf/);
+assert.match(perfWorkflow, /PERF_WARNING|valid performance measurement|invalid perf metrics/);
 
 const agents = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
 assert.match(agents, /test:e2e:perf\s+# performance reference; warns on target misses/);
 assert.match(agents, /disk-writing[\s\S]*random-agent[\s\S]*main[\s\S]*serial-heavy[\s\S]*visual/);
 assert.match(agents, /browser smoke[\s\S]*Draft PRs/);
 assert.match(agents, /Ready PRs[\s\S]*complete parallel Playwright gate/);
+assert.match(agents, /stable aggregate check names are `unit` and `e2e`/);
 
 console.log('ci contract checks passed');

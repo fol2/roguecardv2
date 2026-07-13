@@ -27,7 +27,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       # Regenerate ONLY the visual suite's snapshots on a real ubuntu runner;
       # the darwin reference machine cannot produce linux pixels.
-      - run: npm run test:e2e:update
+      - run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:update
       - name: Verify capture touched only linux baselines
         if: always()
         run: |

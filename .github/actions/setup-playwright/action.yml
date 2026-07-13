@@ -1,5 +1,5 @@
-name: Setup Playwright Chromium
-description: npm ci plus cached Playwright Chromium (deps only on cache miss)
+name: Setup Playwright Chromium + WebKit
+description: npm ci plus cached Playwright Chromium and WebKit (deps only on cache miss)
 
 runs:
   using: composite
@@ -17,12 +17,12 @@ runs:
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ~/.cache/ms-playwright
-        key: playwright-${{ runner.os }}-${{ steps.pwver.outputs.version }}
-    - name: Install Playwright Chromium
+        key: playwright-${{ runner.os }}-${{ steps.pwver.outputs.version }}-chromium-webkit
+    - name: Install Playwright Chromium + WebKit
       shell: bash
       run: |
         if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
-          npx playwright install chromium
+          npx playwright install chromium webkit
         else
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
         fi

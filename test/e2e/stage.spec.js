@@ -9,6 +9,9 @@ const EXPECT_SHAPE = {
   desktop: { shape: 'desktop-landscape', w: 1458, h: 820 },
   portrait: { shape: 'phone-portrait', w: 390, h: 844 },
   landscape: { shape: 'phone-landscape', w: 844, h: 390 },
+  // Playwright WebKit device projects (patched WebKit + descriptors, not Safari).
+  'iphone-webkit': { shape: 'pad-portrait', w: 820, h: 1180 },
+  'ipad-webkit': { shape: 'pad-landscape', w: 1180, h: 820 },
 };
 
 async function combatGeometry(page) {

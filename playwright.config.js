@@ -4,7 +4,7 @@
 // baselines committed only after the §1/§2 fixes land), perf (fps gate),
 // rewards (double-tap guard regression for treasure/events/boss relic).
 // Runs against the dev server (reuses one already on 5174).
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 import { e2eServerSettings } from './playwright-server.js';
 
 const e2eServer = e2eServerSettings(process.env.SPIREBOUND_E2E_PORT);
@@ -69,6 +69,9 @@ export default defineConfig({
     { name: 'desktop', dependencies: ['bfeditor-disk'], use: { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 } },
     { name: 'portrait', dependencies: ['bfeditor-disk'], use: { viewport: { width: 375, height: 812 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } },
     { name: 'landscape', dependencies: ['bfeditor-disk'], use: { viewport: { width: 812, height: 375 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } },
+    // Playwright patched WebKit + device descriptors — not Safari / Simulator.
+    { name: 'iphone-webkit', use: { ...devices['iPhone 17 Pro'], browserName: 'webkit' } },
+    { name: 'ipad-webkit', use: { ...devices['iPad Mini landscape'], browserName: 'webkit' } },
   ],
   webServer: {
     command: e2eServer.command,
