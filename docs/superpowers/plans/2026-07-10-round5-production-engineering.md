@@ -4885,14 +4885,14 @@ git commit -m "feat: add registry doctor developer tools"
   `{ v:1, packId, locale:'en', domain, order, mechanics, display }`, same-origin DEV only.
 - Behaviour fields are absent/read-only; validation occurs before atomic write.
 
-- [ ] **Step 1: Record the pressure-valve decision**
+- [x] **Step 1: Record the pressure-valve decision**
 
 Default to `SHIPPED`. If schedule/risk requires the golden omission, append
 `Task 19: OMITTED (optional pressure valve)` plus reason and PE head to the
 ledger, make no Task 19 file change, and continue directly to Task 20. This is
 not a blocker or prefix exit.
 
-- [ ] **Step 2: Write pure serialiser tests first**
+- [x] **Step 2: Write pure serialiser tests first**
 
 In `test/test_engine.js`, assert stable key order, joined round-trip of a card/theme,
 rejection of `ai`/functions, invalid ids, path traversal and schema failures.
@@ -4904,7 +4904,7 @@ control owns it.
 Assert Manager, Lab and doctor expose the same ordered registration provenance
 and exact `source:'pack'|'locale'` decision for every rendered field.
 
-- [ ] **Step 3: Write the failing disk e2e**
+- [x] **Step 3: Write the failing disk e2e**
 
 Mirror `bfeditor.spec.js`: copy both target mechanics and English-locale source,
 open Content Manager, then run two transactions. A temporary card description
@@ -4914,7 +4914,7 @@ identical. Each save validates the joined context. Restore both originals and
 remove owned `.tmp.mjs`/backup files in `finally`. Run once with one worker.
 Record both original SHA-256 values and require restored exact bytes/hashes.
 
-- [ ] **Step 4: Implement stable serialisation and endpoint**
+- [x] **Step 4: Implement stable serialisation and endpoint**
 
 Allow only `core` and domains `cards`, `relics`, `potions`, `themes`; require
 version 1, unique `order` ids matching both projections, and a body no larger
@@ -4954,14 +4954,14 @@ same bounded JSON-safe primitives as the registry; it cannot smuggle a getter,
 prototype key, import expression or executable source into the generated
 module.
 
-- [ ] **Step 5: Build forms from `CONTENT_SCHEMAS`**
+- [x] **Step 5: Build forms from `CONTENT_SCHEMAS`**
 
 Render required/optional fields, types, enum options, source badge and warnings
 from the schema. Join mechanics and display fields into one form while retaining
 their write target. Omit every `{kind:'function'}` control. The view owns no
 duplicated field list or locale ownership table.
 
-- [ ] **Step 6: Add the serial disk script**
+- [x] **Step 6: Add the serial disk script**
 
 Add:
 
@@ -4971,7 +4971,7 @@ Add:
 
 and a matching one-worker Playwright project.
 
-- [ ] **Step 7: Verify and commit**
+- [x] **Step 7: Verify and commit**
 
 ```bash
 set -euo pipefail
