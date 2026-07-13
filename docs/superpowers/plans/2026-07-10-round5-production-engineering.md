@@ -4614,7 +4614,7 @@ and 16B commits.
 - Lab uses probe drivers and public `newRun` options only.
 - Replay renders an immutable presentation fixture in an isolated host and never mutates `S.run`/`S.cb`.
 
-- [ ] **Step 1: Write failing Lab e2e**
+- [x] **Step 1: Write failing Lab e2e**
 
 Test URL round-trip, one real card play, trace transcript
 copy, replay URL update, reload hydration without auto-run, and manual replay
@@ -4683,7 +4683,7 @@ Then trigger the next real user card-flight beat and assert only that new beat
 changes the replay query. Decode both values and prove the reload preserved the
 incoming descriptor byte-for-byte until publication was armed.
 
-- [ ] **Step 2: Verify red**
+- [x] **Step 2: Verify red**
 
 ```bash
 set -euo pipefail
@@ -4700,7 +4700,7 @@ rm -f "$RED_LOG"
 
 Expected: FAIL because the route is absent.
 
-- [ ] **Step 3: Add the DEV-only route and scenario staging**
+- [x] **Step 3: Add the DEV-only route and scenario staging**
 
 In `main.js`, dynamically import Lab only when `import.meta.env.DEV &&
 qs.has('lab')`. Lab first dynamically imports `createDevRegistry` and creates
@@ -4734,7 +4734,7 @@ returns an ephemeral descriptor. Lab renders that visual result in its isolated
 host. No end-screen module owns or repeats persistence suppression, and normal
 runs follow the unchanged command/route path.
 
-- [ ] **Step 4: Publish replay descriptors at presentation owners**
+- [x] **Step 4: Publish replay descriptors at presentation owners**
 
 `behaviour-trace` records an optional bounded `replay` field only on replayable
 presentation span starts. On settled end in Lab mode, call one injected
@@ -4750,14 +4750,14 @@ never auto-runs or gets overwritten by boot; the next user-triggered replayable
 beat may replace it normally. Add strict tests for missing/invalid incoming
 replay and for the exact byte-preservation/next-beat transition above.
 
-- [ ] **Step 5: Render replay in isolation**
+- [x] **Step 5: Render replay in isolation**
 
 `replay-preview.js` accepts only descriptor data, creates a detached/contained
 preview layer, resolves `kind` through a fixed presentation-factory map and
 disposes it. It cannot import engine, context state or persistence. Unsupported
 `kind` disables the button with stable reason `unsupported-presentation`.
 
-- [ ] **Step 6: Add the production-surface verifier**
+- [x] **Step 6: Add the production-surface verifier**
 
 `tools/verify-production-surface.mjs` builds to a fresh temporary directory,
 resolves every emitted chunk from `index.html`/manifest and fails on
@@ -4766,7 +4766,7 @@ resolves every emitted chunk from `index.html`/manifest and fails on
 never reads tracked `dist/`. Add a Node source test that requires all forbidden
 markers to remain in the verifier's list.
 
-- [ ] **Step 7: Run the Chromium Lab gate, review and commit**
+- [x] **Step 7: Run the Chromium Lab gate, review and commit**
 
 ```bash
 set -euo pipefail
