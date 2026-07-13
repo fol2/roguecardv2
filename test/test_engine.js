@@ -8369,6 +8369,221 @@ export default defineContentRegistration({
   }
 }
 
+
+// ---- Task 19: schema-driven Content Manager serialiser ----
+{
+  const {
+    EDITABLE_DOMAINS, EDITABLE_PACK_IDS, CONTENT_SAVE_VERSION,
+    DOMAIN_MECHANICS_PATH, DOMAIN_LOCALE_PATH, DOMAIN_MECHANICS_EXPORT, DOMAIN_LOCALE_EXPORT,
+    fieldOwnership, splitBySource, joinBySource,
+    serializeMechanicsModule, serializeLocaleExport, applyLocaleExportToSource,
+    validateContentSavePayload, materialiseOwnData,
+  } = await import('../src/dev/content-serialize.js');
+
+  assert.deepEqual([...EDITABLE_DOMAINS], ['cards', 'relics', 'potions', 'themes']);
+  assert.deepEqual([...EDITABLE_PACK_IDS], ['core']);
+  assert.equal(CONTENT_SAVE_VERSION, 1);
+  for (const domain of EDITABLE_DOMAINS) {
+    assert.match(DOMAIN_MECHANICS_PATH[domain], /^src\/packs\/core\//);
+    assert.equal(DOMAIN_LOCALE_PATH[domain], 'src/i18n/en/content.js');
+    assert.ok(DOMAIN_MECHANICS_EXPORT[domain]);
+    assert.ok(DOMAIN_LOCALE_EXPORT[domain]);
+  }
+  assert.equal(DOMAIN_LOCALE_EXPORT.themes, 'acts');
+
+  // Field ownership comes only from CONTENT_SCHEMAS (Manager/Lab/doctor share it).
+  const cardFields = fieldOwnership('cards');
+  assert.deepEqual(cardFields.map((f) => f.name), Object.keys(CONTENT_SCHEMAS.cards.fields));
+  assert.equal(cardFields.find((f) => f.name === 'cost').source, 'pack');
+  assert.equal(cardFields.find((f) => f.name === 'text').source, 'locale');
+  assert.equal(cardFields.find((f) => f.name === 'name').source, 'locale');
+  const themeFields = fieldOwnership('themes');
+  assert.equal(themeFields.find((f) => f.name === 'tagline').source, 'locale');
+  assert.equal(themeFields.find((f) => f.name === 'atmosphere').source, 'pack');
+
+  // Lab + doctor + Manager share ordered registration provenance.
+  const labProv = createDevRegistry({ fixtures: ['sample'] }).provenance;
+  const doctorProv = doctorContentRegistrations(
+    (await import('../src/packs/compiled/development.js')).CONTENT_REGISTRATION_MANIFEST,
+    { fixtures: ['sample'] },
+  ).provenance;
+  assert.deepEqual(labProv.registrationIds, doctorProv.registrationIds);
+  assert.deepEqual(
+    labProv.registrations.map((r) => ({ id: r.id, mechanicsPackId: r.mechanicsPackId, sourcePath: r.sourcePath, targets: r.targets })),
+    doctorProv.registrations.map((r) => ({ id: r.id, mechanicsPackId: r.mechanicsPackId, sourcePath: r.sourcePath, targets: r.targets })),
+  );
+
+  // Joined round-trip for a card.
+  const strikeJoined = {
+    type: 'attack', rarity: 'starter', cost: 1, target: 'enemy', vfx: 'slash',
+    effects: [{ kind: 'dmg', n: 6 }],
+    up: { effects: [{ kind: 'dmg', n: 9 }] },
+    name: 'Edge', text: 'Deal @6@ damage.', textUp: 'Deal @9@ damage.',
+  };
+  const splitCard = splitBySource('cards', strikeJoined);
+  assert.equal(splitCard.mechanics.name, undefined);
+  assert.equal(splitCard.mechanics.text, undefined);
+  assert.equal(splitCard.display.name, 'Edge');
+  assert.equal(splitCard.mechanics.cost, 1);
+  assert.deepEqual(joinBySource('cards', splitCard.mechanics, splitCard.display), strikeJoined);
+
+  // Theme round-trip (locale lives under acts indices, mechanics under theme ids).
+  const themeJoined = {
+    atmosphere: 'ash', mapHaze: 'text-dim', lanternLights: [], bossPlates: {},
+    legacyAct: { boss: 'rootheart', theme: { sky: 1, fog: 2, particles: 3, glow: 4, accent: '#a', ember: '#b' } },
+    plates: { backdrop: 'a', mid: 'b', ledge: 'c' },
+    weather: { rate: 1 }, palette: { tint: 'good' }, music: { map: 'map' },
+    roster: { normal: [], elite: [], boss: [] },
+    encounters: { weak: [], strong: [], elite: [], boss: [] },
+    rewardGold: { combat: [10, 20], elite: [30, 40], boss: [50, 60], treasure: [5, 10] },
+    name: 'The Ashen Woods', bossName: 'The Rootheart', tagline: 'optional',
+  };
+  const splitTheme = splitBySource('themes', themeJoined);
+  assert.equal(splitTheme.display.name, 'The Ashen Woods');
+  assert.equal(splitTheme.mechanics.name, undefined);
+  assert.equal(splitTheme.mechanics.atmosphere, 'ash');
+  assert.deepEqual(joinBySource('themes', splitTheme.mechanics, splitTheme.display), themeJoined);
+
+  // Unknown non-function extension: warn, preserve byte-for-byte across serialise→parse→serialise.
+  const withExt = {
+    type: 'attack', rarity: 'common', cost: 1, target: 'enemy', vfx: 'slash', effects: [],
+    customExt: 42,
+    name: 'X', text: 'Y',
+  };
+  const splitExt = splitBySource('cards', withExt);
+  assert.equal(splitExt.mechanics.customExt, 42);
+  assert.ok(splitExt.warnings.some((w) => /customExt|unknown/i.test(w)));
+  const order = ['extCard'];
+  const mechMod = serializeMechanicsModule('cards', { extCard: splitExt.mechanics }, { order });
+  assert.equal(mechMod.endsWith('\n'), true);
+  assert.equal(mechMod.endsWith('\n\n'), false);
+  const locMod = serializeLocaleExport('cards', { extCard: splitExt.display }, { order });
+  assert.equal(locMod.endsWith('\n'), true);
+  // Deterministic: second serialise identical.
+  assert.equal(serializeMechanicsModule('cards', { extCard: splitExt.mechanics }, { order }), mechMod);
+  assert.equal(serializeLocaleExport('cards', { extCard: splitExt.display }, { order }), locMod);
+  // Parse round-trip preserves extension.
+  const tmpDir = mkdtempSync(join(tmpdir(), 'content-ser-'));
+  try {
+    const mechPath = join(tmpDir, 'cards.tmp.mjs');
+    writeFileSync(mechPath, mechMod);
+    const parsed = await import(`${pathToFileURL(mechPath).href}?t=${Date.now()}`);
+    assert.equal(parsed.CARDS.extCard.customExt, 42);
+    const again = serializeMechanicsModule('cards', parsed.CARDS, { order });
+    assert.equal(again, mechMod);
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+
+  // Reject functions / ai in editable domains.
+  assert.throws(() => splitBySource('cards', { ...strikeJoined, ai: () => {} }), /function|ai/i);
+  assert.throws(() => materialiseOwnData({ get x() { return 1; } }, 'row'), /accessor/i);
+  assert.throws(() => serializeMechanicsModule('cards', { bad: { ...splitCard.mechanics, boom: () => 1 } }, { order: ['bad'] }), /function/i);
+
+  // Reject prototype / meta keys — JSON-parsed own keys must not pollute or serialise.
+  for (const key of ['__proto__', 'prototype', 'constructor']) {
+    const polluted = JSON.parse(`{"a":1,"${key}":{"polluted":true}}`);
+    assert.throws(() => materialiseOwnData(polluted, 'row'), /prototype|meta|forbidden/i);
+    const outProbe = (() => {
+      try { return materialiseOwnData(polluted, 'row'); } catch { return null; }
+    })();
+    assert.equal(outProbe, null);
+    assert.throws(
+      () => serializeMechanicsModule('cards', {
+        bad: { ...splitCard.mechanics, ...JSON.parse(`{"${key}":{"n":1}}`) },
+      }, { order: ['bad'] }),
+      /prototype|meta|forbidden/i,
+    );
+    assert.throws(
+      () => serializeMechanicsModule('cards', {
+        [key]: splitCard.mechanics,
+      }, { order: [key] }),
+      /prototype|meta|forbidden/i,
+    );
+  }
+  {
+    // Independent probe shape: assignment to out['__proto__'] must never succeed.
+    const raw = JSON.parse('{"a":1,"__proto__":{"polluted":true}}');
+    let threw = false;
+    try {
+      const out = materialiseOwnData(raw, 'row');
+      assert.equal(out.polluted, undefined);
+      assert.notEqual(Object.getPrototypeOf(out)?.polluted, true);
+    } catch (err) {
+      threw = /prototype|meta|forbidden/i.test(String(err?.message ?? err));
+    }
+    assert.equal(threw, true);
+  }
+
+  // Payload validation: version, pack, domain, order uniqueness, projection match, path traversal.
+  const goodPayload = {
+    v: 1, packId: 'core', locale: 'en', domain: 'cards',
+    order: ['strike'],
+    mechanics: { strike: splitCard.mechanics },
+    display: { strike: splitCard.display },
+  };
+  assert.deepEqual(validateContentSavePayload(goodPayload), []);
+  assert.ok(validateContentSavePayload({ ...goodPayload, v: 2 }).some((p) => /version/i.test(p)));
+  assert.ok(validateContentSavePayload({ ...goodPayload, packId: 'other' }).some((p) => /pack/i.test(p)));
+  assert.ok(validateContentSavePayload({ ...goodPayload, domain: 'enemies' }).some((p) => /domain/i.test(p)));
+  assert.ok(validateContentSavePayload({ ...goodPayload, order: ['strike', 'strike'] }).some((p) => /unique|duplicate/i.test(p)));
+  assert.ok(validateContentSavePayload({ ...goodPayload, order: ['strike'], mechanics: {}, display: { strike: splitCard.display } }).some((p) => /order|projection|mechanics/i.test(p)));
+  assert.ok(validateContentSavePayload({ ...goodPayload, path: '../etc/passwd' }).some((p) => /path/i.test(p)));
+  assert.ok(validateContentSavePayload({ ...goodPayload, mechanicsFile: 'src/packs/core/../../evil.js' }).some((p) => /path/i.test(p)));
+
+  // Locale splice preserves surrounding exports.
+  const sampleLocale = `// hdr\n\nexport const cards = {\n  a: { name: "A" },\n};\n\nexport const relics = {\n  r: { name: "R" },\n};\n`;
+  const nextCards = serializeLocaleExport('cards', { a: { name: 'B', text: 't' } }, { order: ['a'] });
+  const spliced = applyLocaleExportToSource(sampleLocale, 'cards', nextCards);
+  assert.match(spliced, /name: "B"/);
+  assert.match(spliced, /export const relics/);
+  assert.doesNotMatch(spliced, /name: "A"/);
+
+  // Vite config retains SPIRE defines + existing save endpoints beside __content-save.
+  // Pin the full PR #18 marker set (not a vacuous subset of identifier strings).
+  const viteSrc = readFileSync(new URL('../vite.config.js', import.meta.url), 'utf8');
+  for (const marker of [
+    '__SPIRE_VERSION__',
+    '__SPIRE_GIT_SHA__',
+    '__SPIRE_RELEASE__',
+    'SPIRE_EMBED_SHA',
+    'command === "serve"',
+    '"unknown"',
+    'SPIRE_RELEASE === "1"',
+  ]) {
+    assert.ok(viteSrc.includes(marker), `Vite marker missing: ${marker}`);
+  }
+  for (const route of [
+    '__audio-save',
+    '__bf-save',
+    '__char-save',
+    '__bfui-save',
+    '__ward-save',
+    '__content-save',
+  ]) {
+    assert.match(viteSrc, new RegExp(`middlewares\\.use\\("/${route}"`));
+  }
+  assert.match(viteSrc, /export default defineConfig\(\(\{ command \}\) =>/);
+  assert.doesNotMatch(viteSrc, /export default \{/);
+}
+
+// ---- Task 19: content manager source contracts ----
+{
+  const managerPath = new URL('../src/ui/dev/content-manager.js', import.meta.url);
+  const managerSource = readFileSync(managerPath, 'utf8');
+  assert.match(managerSource, /compileContentRegistrations/);
+  assert.match(managerSource, /DEVELOPMENT_CONTENT_REGISTRATION_MANIFEST/);
+  assert.match(managerSource, /fieldOwnership/);
+  assert.match(managerSource, /__content-save/);
+  assert.doesNotMatch(managerSource, /from\s+['"][^'"]*packs\/(core|_sample)\//);
+  assert.doesNotMatch(managerSource, /PACK_IDS\s*=/);
+  const shellSource = readFileSync(new URL('../src/ui/dev/shell.js', import.meta.url), 'utf8');
+  assert.match(shellSource, /id:\s*['"]contentedit['"][\s\S]*?available:\s*true/);
+  const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.match(mainSource, /contentedit/);
+  assert.match(mainSource, /ui\/dev\/content-manager/);
+}
+
 // ---- Task 18: content doctor dashboard source contracts ----
 {
   const doctorPath = new URL('../src/ui/dev/doctor.js', import.meta.url);

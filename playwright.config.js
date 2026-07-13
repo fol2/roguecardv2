@@ -57,6 +57,12 @@ export default defineConfig({
       grep: /Save writes layout to disk/,
       use: { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 },
     },
+    {
+      name: 'content-manager-disk',
+      testMatch: /content-manager\.spec\.js/,
+      grep: /locale vs mechanics/,
+      use: { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 },
+    },
     // the three layout regimes styles.css targets: desktop, ≤740px portrait,
     // ≤480px-height landscape. deviceScaleFactor pinned so baselines are CSS px.
     // desktop is a 16:9 window → the desktop-landscape (1458×820) stage.

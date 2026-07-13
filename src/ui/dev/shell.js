@@ -12,7 +12,7 @@ const ROUTES = Object.freeze([
   { id: 'vfxedit', href: '?vfxedit=1', label: 'VFX editor', available: true },
   { id: 'lab', href: '?lab=1', label: 'Content Lab', available: true },
   { id: 'dashboard', href: '?dashboard=1', label: 'Content doctor', available: true },
-  { id: 'contentedit', href: '?contentedit=1', label: 'Content Manager', available: false },
+  { id: 'contentedit', href: '?contentedit=1', label: 'Content Manager', available: true },
 ]);
 
 const SHELL_STYLE = `

@@ -27,6 +27,11 @@ async function boot() {
     await initDoctor();
     return;
   }
+  if (import.meta.env.DEV && qs.has('contentedit')) {
+    const { initContentManager } = await import('./ui/dev/content-manager.js');
+    await initContentManager();
+    return;
+  }
   if (import.meta.env.DEV && qs.has('dev')) {
     const { initDevShell } = await import('./ui/dev/shell.js');
     await initDevShell();
