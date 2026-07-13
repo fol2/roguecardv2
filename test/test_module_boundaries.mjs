@@ -432,15 +432,11 @@ assert.deepEqual([...new Set(traceOwnedFixtureIds)].sort(), [...fixtureManifest.
   }
 }
 
-// Task 12B Step 6 — core-only cardData catalogue allowlist.
-// Engine run-capable paths must pass `run`. Remaining one-arg callers are the
-// deliberate core-catalogue surfaces (UI until Task 16 binding; oracle/tools).
+// Task 12B Step 6 / Task 16A — core-only cardData catalogue allowlist.
+// Engine and active-run UI pass `run`. Remaining one-arg callers are deliberate
+// core-catalogue surfaces (oracle / pacing harness).
 {
   const CORE_ONLY_CARD_DATA_ALLOWLIST = Object.freeze([
-    Object.freeze({ file: 'src/ui/combat.js', reason: 'combat chrome still resolves the core catalogue until Task 16 UI binding' }),
-    Object.freeze({ file: 'src/ui/overlay.js', reason: 'deck/overlay sort labels still resolve the core catalogue until Task 16 UI binding' }),
-    Object.freeze({ file: 'src/ui/tooltip.js', reason: 'tooltip card copy still resolves the core catalogue until Task 16 UI binding' }),
-    Object.freeze({ file: 'src/ui/screens/reward.js', reason: 'reward float text still resolves the core catalogue until Task 16 UI binding' }),
     Object.freeze({ file: 'tools/capture-content-oracle.mjs', reason: 'oracle capture reads the core catalogue by design' }),
     Object.freeze({ file: 'tools/emberglass-pacing.mjs', reason: 'pacing harness drives core runs without a custom content bind' }),
   ]);
