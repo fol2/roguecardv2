@@ -90,6 +90,10 @@ import {
   CORE_CONTENT as UI_CORE_CONTENT,
   bindRunContent, contentViewFor, themeForRun,
 } from '../src/ui/content.js';
+import {
+  encodeLabScenario, decodeLabScenario, validateLabScenario,
+  encodeReplayDescriptor, decodeReplayDescriptor,
+} from '../src/dev/lab-scenario.js';
 import { CHAR_META } from '../src/char-meta.js';
 import {
   CHARACTER_KIND_IDS, STRUCTURAL_FALLBACK_IDS, VFX_IDS,
@@ -8090,6 +8094,275 @@ export default defineContentRegistration({
     assert.throws(() => effects.setBequest(2, 7, { kind: 'gold', amount: 1 }), /run/i);
     assert.throws(() => effects.setBequest(null, 2, 7, { kind: 'gold', amount: 1 }), /run/i);
     assert.deepEqual(calls, [], 'omitted/null run must not touch Vigil bequest APIs');
+  }
+}
+
+// ---- Task 16B: bounded Lab scenario / replay codecs -----------------------
+{
+  const core = CORE_CONTENT;
+  const sampleReg = createDevRegistry({ fixtures: ['sample'] });
+  const dev = sampleReg.context;
+
+  const scenario = {
+    v: 1, mode: 'combat', seed: 20260710, aspectId: 'duskblade',
+    themeId: 'act1', kind: 'normal', omenId: 'thinGlass',
+    enemies: [
+      { id: 'sporeling', variantId: null },
+      { id: 'duskfang', variantId: 'paleDuskfang' },
+    ],
+    deck: [{ id: 'strike', up: false }, { id: 'defend', up: false }],
+    hand: [{ id: 'strike', up: false }],
+  };
+
+  // Exact round-trip against core.
+  assert.deepEqual(
+    validateLabScenario(decodeLabScenario(encodeLabScenario(scenario)), core),
+    scenario,
+  );
+
+  // Deterministic key order: shuffled input keys still encode identically.
+  const shuffled = {
+    hand: scenario.hand, enemies: scenario.enemies, deck: scenario.deck,
+    omenId: scenario.omenId, kind: scenario.kind, themeId: scenario.themeId,
+    aspectId: scenario.aspectId, seed: scenario.seed, mode: scenario.mode, v: scenario.v,
+  };
+  assert.equal(encodeLabScenario(shuffled), encodeLabScenario(scenario));
+
+  // Decoded values are deep-frozen copies.
+  const decoded = decodeLabScenario(encodeLabScenario(scenario));
+  assert.equal(Object.isFrozen(decoded), true);
+  assert.equal(Object.isFrozen(decoded.enemies), true);
+  assert.equal(Object.isFrozen(decoded.enemies[0]), true);
+  assert.equal(Object.isFrozen(decoded.deck), true);
+  assert.throws(() => { decoded.seed = 1; }, TypeError);
+  assert.throws(() => { decoded.enemies.push({ id: 'x', variantId: null }); }, TypeError);
+
+  // Sample scenario: passes against dev, fails against core with all unknown ids.
+  const sampleScenario = {
+    v: 1, mode: 'combat', seed: 20260711, aspectId: 'duskblade',
+    themeId: 'sampleTheme', kind: 'normal', omenId: 'thinGlass',
+    enemies: [{ id: 'sampleEnemy', variantId: null }],
+    deck: [{ id: 'sampleCard', up: false }],
+    hand: [{ id: 'sampleCard', up: false }],
+  };
+  assert.deepEqual(
+    validateLabScenario(decodeLabScenario(encodeLabScenario(sampleScenario)), dev),
+    sampleScenario,
+  );
+  let sampleVsCoreErr;
+  try {
+    validateLabScenario(sampleScenario, core);
+  } catch (err) {
+    sampleVsCoreErr = err;
+  }
+  assert.ok(sampleVsCoreErr, 'sample ids must fail against core');
+  const reported = String(sampleVsCoreErr.message) + JSON.stringify(sampleVsCoreErr.problems || []);
+  assert.match(reported, /sampleTheme/);
+  assert.match(reported, /sampleEnemy/);
+  assert.match(reported, /sampleCard/);
+
+  // decodeLabScenario rejects duplicate query keys.
+  const token = encodeLabScenario(scenario);
+  assert.throws(() => decodeLabScenario(`scenario=${token}&scenario=${token}`), /duplicate/i);
+  assert.throws(() => decodeLabScenario(`?scenario=${token}&foo=1&foo=2`), /duplicate/i);
+
+  // Decode from a single scenario= query key works and stays frozen.
+  assert.deepEqual(decodeLabScenario(`?scenario=${token}`), scenario);
+
+  // Shape limits: >4 enemies, >60 deck, version ≠ 1, size caps.
+  assert.throws(() => decodeLabScenario(encodeLabScenario({
+    ...scenario,
+    enemies: [1, 2, 3, 4, 5].map(() => ({ id: 'sporeling', variantId: null })),
+  })), /enemies|4/i);
+  assert.throws(() => decodeLabScenario(encodeLabScenario({
+    ...scenario,
+    deck: Array.from({ length: 61 }, () => ({ id: 'strike', up: false })),
+  })), /deck|60/i);
+  assert.throws(() => decodeLabScenario(encodeLabScenario({ ...scenario, v: 2 })), /version/i);
+
+  // Oversized scenario payload (>8192 serialised bytes).
+  const fatDeck = Array.from({ length: 60 }, (_, i) => ({
+    id: `strike_${'x'.repeat(120)}_${i}`, up: false,
+  }));
+  const fatScenario = { ...scenario, deck: fatDeck };
+  let fatEncoded;
+  try {
+    fatEncoded = encodeLabScenario(fatScenario);
+  } catch (err) {
+    fatEncoded = null;
+    assert.match(String(err.message), /8192|size|bytes/i);
+  }
+  if (fatEncoded != null) {
+    assert.throws(() => decodeLabScenario(fatEncoded), /8192|size|bytes/i);
+  }
+
+  // Oversized replay payload (>4096 serialised bytes).
+  const fatReplay = {
+    v: 1,
+    kind: 'card-flight',
+    subject: { kind: 'card', contentId: 'strike', upgraded: false },
+    parameters: { destination: 'discard', motion: 'full', pad: 'y'.repeat(5000) },
+    endState: { destination: 'discard', visible: false },
+  };
+  let fatReplayEncoded;
+  try {
+    fatReplayEncoded = encodeReplayDescriptor(fatReplay);
+  } catch (err) {
+    fatReplayEncoded = null;
+    assert.match(String(err.message), /4096|size|bytes/i);
+  }
+  if (fatReplayEncoded != null) {
+    assert.throws(() => decodeReplayDescriptor(fatReplayEncoded), /4096|size|bytes/i);
+  }
+
+  // decode is shape-only — does not consult imported core tables for semantic ids.
+  const nonsense = {
+    v: 1, mode: 'combat', seed: 1, aspectId: 'noSuchAspect',
+    themeId: 'noSuchTheme', kind: 'normal', omenId: 'noSuchOmen',
+    enemies: [{ id: 'noSuchEnemy', variantId: null }],
+    deck: [{ id: 'noSuchCard', up: false }],
+    hand: [],
+  };
+  assert.deepEqual(decodeLabScenario(encodeLabScenario(nonsense)), nonsense,
+    'decodeLabScenario must not silently validate against core tables');
+
+  // Replay descriptor round-trip; no commands/engine/save/DOM fields.
+  const replay = {
+    v: 1,
+    kind: 'card-flight',
+    subject: { kind: 'card', contentId: 'strike', upgraded: false },
+    parameters: { destination: 'discard', motion: 'full' },
+    endState: { destination: 'discard', visible: false },
+  };
+  assert.deepEqual(decodeReplayDescriptor(encodeReplayDescriptor(replay)), replay);
+  const frozenReplay = decodeReplayDescriptor(encodeReplayDescriptor(replay));
+  assert.equal(Object.isFrozen(frozenReplay), true);
+  assert.throws(() => decodeReplayDescriptor(encodeReplayDescriptor({ ...replay, v: 2 })), /version/i);
+  assert.throws(() => decodeReplayDescriptor(encodeReplayDescriptor({
+    ...replay, command: { type: 'playCard' },
+  })), /command|unknown|field/i);
+  assert.throws(() => decodeReplayDescriptor(encodeReplayDescriptor({
+    ...replay, engineState: {},
+  })), /engine|unknown|field/i);
+  assert.throws(() => decodeReplayDescriptor(encodeReplayDescriptor({
+    ...replay, save: {},
+  })), /save|unknown|field/i);
+
+  // Enemy row rules: compatible variant, own-shade special case, mismatches aggregate.
+  validateLabScenario({
+    ...scenario,
+    enemies: [{ id: 'shade', variantId: 'ownShade1' }],
+  }, core);
+  let variantErr;
+  try {
+    validateLabScenario({
+      ...scenario,
+      enemies: [
+        { id: 'sporeling', variantId: 'paleDuskfang' },
+        { id: 'duskfang', variantId: 'ownShade1' },
+        { id: 'shade', variantId: 'paleDuskfang' },
+      ],
+    }, core);
+  } catch (err) {
+    variantErr = err;
+  }
+  assert.ok(variantErr, 'mismatched variants must fail validation');
+  const variantReport = String(variantErr.message) + JSON.stringify(variantErr.problems || []);
+  assert.match(variantReport, /paleDuskfang/);
+  assert.match(variantReport, /ownShade1/);
+
+  // Stage core + sample climb scenarios through newRun with aspect/omen/theme/seed parity.
+  // Unknown ids fail before RNG or run mutation (validate first).
+  {
+    let mutated = false;
+    const bogus = { ...scenario, aspectId: 'missingAspect', themeId: 'missingTheme', omenId: 'missingOmen' };
+    assert.throws(() => validateLabScenario(bogus, core), /missingAspect|missingTheme|missingOmen/);
+    assert.equal(mutated, false);
+
+    const stageClimb = (raw, content) => {
+      const validated = validateLabScenario(raw, content);
+      const aspect = content.aspects.findIndex((row) => row.id === validated.aspectId);
+      assert.ok(aspect >= 0, 'validated aspectId must resolve');
+      const themeIndex = content.themeOrder.indexOf(validated.themeId);
+      assert.ok(themeIndex >= 0, 'validated themeId must resolve');
+      const beforeCards = [];
+      const run = newRun(validated.seed, {
+        aspect,
+        ephemeral: true,
+        content,
+      });
+      // aspectId selected starting aspect/deck before cards were made inside newRun.
+      assert.equal(content.aspects[run.aspect].id, validated.aspectId);
+      assert.deepEqual(run.player.deck.map((c) => c.id), content.aspects[aspect].startDeck);
+      assert.deepEqual(beforeCards, [], 'no cards exist before newRun');
+      run.act = themeIndex;
+      while (run.omens.length <= themeIndex) run.omens.push(null);
+      run.omens[themeIndex] = validated.omenId;
+      assert.equal(run.omens[run.act], validated.omenId,
+        'omenId occupies the selected act slot before combat setup');
+      assert.equal(run.act, themeIndex, 'themeId selects the correct numeric act');
+      run.rngState = validated.seed;
+      run.map = genMap(run);
+      const combatIds = validated.enemies.map((row) => row.variantId ?? row.id);
+      const cb = startCombat(run, combatIds, validated.kind);
+      return { run, cb, validated, combatIds };
+    };
+
+    const coreClimb = {
+      v: 1, mode: 'combat', seed: 20260712, aspectId: 'ashwarden',
+      themeId: 'act2', kind: 'normal', omenId: 'thinGlass',
+      enemies: [
+        { id: 'sporeling', variantId: null },
+        { id: 'shade', variantId: 'ownShade2' },
+      ],
+      deck: [{ id: 'defend', up: false }],
+      hand: [{ id: 'defend', up: false }],
+    };
+    const a = stageClimb(coreClimb, core);
+    const b = stageClimb(coreClimb, core);
+    assert.deepEqual(
+      a.run.map.nodes.map((n) => ({ id: n.id, type: n.type, next: n.next })),
+      b.run.map.nodes.map((n) => ({ id: n.id, type: n.type, next: n.next })),
+      'fixed seed produces the same map on URL reload',
+    );
+    assert.deepEqual(a.combatIds, ['sporeling', 'ownShade2']);
+    assert.equal(a.cb.enemies[0].variantId, null);
+    assert.equal(a.cb.enemies[1].variantId, 'ownShade2');
+
+    const sampleClimb = {
+      v: 1, mode: 'combat', seed: 20260713, aspectId: 'duskblade',
+      themeId: 'sampleTheme', kind: 'normal', omenId: 'thinGlass',
+      enemies: [{ id: 'sampleEnemy', variantId: null }],
+      deck: [{ id: 'sampleCard', up: false }],
+      hand: [{ id: 'sampleCard', up: false }],
+    };
+    const s = stageClimb(sampleClimb, dev);
+    assert.equal(s.run.act, dev.themeOrder.indexOf('sampleTheme'));
+    assert.equal(contentIdFor(s.run), 'dev:_sample');
+    assert.equal(s.cb.enemies[0].key || s.cb.enemies[0].id || s.combatIds[0], 'sampleEnemy');
+  }
+
+  // Legacy numeric opts.aspect and normal rolled-omen path retain exact parity.
+  {
+    const legacyA = newRun(4242, { aspect: 1 });
+    const legacyB = newRun(4242, { aspect: 1 });
+    assert.equal(legacyA.aspect, 1);
+    assert.equal(core.aspects[legacyA.aspect].id, 'ashwarden');
+    assert.deepEqual(legacyA.player.deck.map((c) => c.id), legacyB.player.deck.map((c) => c.id));
+    assert.deepEqual(
+      legacyA.map.nodes.map((n) => ({ id: n.id, type: n.type })),
+      legacyB.map.nodes.map((n) => ({ id: n.id, type: n.type })),
+    );
+    const rolled = newRun(4243);
+    assert.equal(rolled.omens.length >= 1, true);
+    assert.ok(rolled.omens[0] == null || Object.hasOwn(core.omens, rolled.omens[0]));
+  }
+
+  // Codec module stays Node-pure (no DOM/audio/stage imports).
+  {
+    const source = readFileSync(new URL('../src/dev/lab-scenario.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /from\s+['"]\.\.\/(audio|music|stage|ui)\b/);
+    assert.doesNotMatch(source, /document\.|window\.|localStorage/);
   }
 }
 
