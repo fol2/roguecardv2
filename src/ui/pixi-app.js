@@ -14,11 +14,19 @@ import {
   GlProgram,
   UPDATE_PRIORITY,
   VERSION as PIXI_VERSION,
+  getTestContext,
 } from 'pixi.js';
 
 import { readShakeOffset } from '../vfx.js';
 
 const RENDERER_PREFERENCE = Object.freeze(['webgl']);
+
+const FULL_TIER_MAX_RESOLUTION = 2;
+const LITE_TIER_MAX_RESOLUTION = 1;
+
+function resolveTierCap(policy) {
+  return policy?.tier === 'lite' ? LITE_TIER_MAX_RESOLUTION : FULL_TIER_MAX_RESOLUTION;
+}
 
 function deepFreeze(value) {
   if (value === null || typeof value !== 'object') return value;
@@ -28,6 +36,45 @@ function deepFreeze(value) {
 
 function cloneImmutable(value) {
   return deepFreeze(JSON.parse(JSON.stringify(value ?? null)));
+}
+
+async function loseDetachedTestContext() {
+  // Pixi's `getTestContext` returns a lazily created WebGL context on a
+  // detached canvas that it uses to compile shader programs. If we leave it
+  // live, the eventual `uigl` context becomes the *fourth* live WebGL owner
+  // on WebKit's ~4-context ceiling. We explicitly lose it here so `uigl` is
+  // always the third and final live owner at steady state.
+  let context;
+  try {
+    context = getTestContext();
+  } catch (error) {
+    return { used: false, reason: error?.message || 'getTestContext-threw' };
+  }
+  if (!context || typeof context.getExtension !== 'function') {
+    return { used: false, reason: 'no-test-context' };
+  }
+  if (context.isContextLost()) return { used: false, reason: 'already-lost' };
+  const extension = context.getExtension('WEBGL_lose_context');
+  if (!extension) return { used: false, reason: 'no-lose-context-ext' };
+  const canvas = context.canvas;
+  const lost = canvas && typeof canvas.addEventListener === 'function'
+    ? new Promise((resolve) => {
+      const handler = (event) => {
+        event.preventDefault?.();
+        resolve();
+      };
+      canvas.addEventListener('webglcontextlost', handler, { once: true });
+    })
+    : Promise.resolve();
+  extension.loseContext();
+  await Promise.race([
+    lost,
+    new Promise((_, reject) => setTimeout(
+      () => reject(new Error('detached test context loss timed out')),
+      5000,
+    )),
+  ]);
+  return { used: true, contextLost: context.isContextLost() };
 }
 
 async function prewarmDetachedShaderContext({ observer, trace }) {
@@ -41,14 +88,36 @@ async function prewarmDetachedShaderContext({ observer, trace }) {
   if (!(foil instanceof ColorMatrixFilter) || !(foil.glProgram instanceof GlProgram)) {
     throw new Error('ColorMatrixFilter is not backed by a real GlProgram');
   }
-  if (!observer) return { filterClass: 'ColorMatrixFilter' };
+  if (observer) {
+    try {
+      const info = await observer.loseSingleDetachedContext();
+      trace?.emit?.('renderer.prewarm', {
+        outcome: 'completed',
+        attributes: {
+          stage: 'shader-prewarm',
+          via: 'observer',
+          contextLost: info.contextLost === true,
+        },
+      });
+      return { filterClass: 'ColorMatrixFilter', detachedContext: info };
+    } catch (error) {
+      trace?.emit?.('renderer.prewarm', {
+        outcome: 'failed',
+        attributes: { code: error.message },
+      });
+      return { filterClass: 'ColorMatrixFilter', prewarmError: error.message };
+    }
+  }
   try {
-    const info = await observer.loseSingleDetachedContext();
+    const info = await loseDetachedTestContext();
     trace?.emit?.('renderer.prewarm', {
-      outcome: 'completed',
+      outcome: info.used ? 'completed' : 'skipped',
       attributes: {
         stage: 'shader-prewarm',
+        via: 'getTestContext',
+        used: info.used === true,
         contextLost: info.contextLost === true,
+        reason: info.reason || null,
       },
     });
     return { filterClass: 'ColorMatrixFilter', detachedContext: info };
@@ -76,13 +145,14 @@ async function prewarmDetachedShaderContext({ observer, trace }) {
  * @returns {Promise<object>} the frozen lifecycle handle.
  */
 export async function createPixiLayer({
-  canvas,
+  canvas: initialCanvas,
   stage,
   policy,
   trace,
   snapshot: initialSnapshot,
   observer,
 } = {}) {
+  let canvas = initialCanvas;
   if (!canvas || typeof canvas.getContext !== 'function') {
     throw new TypeError('createPixiLayer requires a canvas element');
   }
@@ -134,15 +204,21 @@ export async function createPixiLayer({
     shakeHandler = null;
   };
 
+  const computeResolution = () => {
+    const raw = Number(resolutionFn()) || 1;
+    const cap = resolveTierCap(policy);
+    return Math.min(Math.max(raw, 0.5), cap);
+  };
+
   const buildRenderer = async () => {
     application = new Application();
     await application.init({
       canvas,
       width: stage.width(),
       height: stage.height(),
-      resolution: resolutionFn(),
+      resolution: computeResolution(),
       autoDensity: false,
-      antialias: true,
+      antialias: false,
       backgroundAlpha: 0,
       preference: RENDERER_PREFERENCE,
       powerPreference: 'high-performance',
@@ -235,22 +311,20 @@ export async function createPixiLayer({
     if (status !== 'lost') throw new Error(`cannot rebuild Pixi from ${status}`);
     setStatus('rebuilding');
     try {
-      const oldExtension = lossExtension;
-      const oldContext = renderer?.gl;
-      const restored = new Promise((resolve) => {
-        canvas.addEventListener('webglcontextrestored', resolve, { once: true });
-      });
-      if (oldExtension) {
-        oldExtension.restoreContext();
-        await Promise.race([
-          restored,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Pixi context restore timed out')), 5000)),
-        ]);
-      }
-      if (oldContext && !oldContext.isContextLost()) {
-        oldExtension?.loseContext();
-      }
+      const oldCanvas = canvas;
+      // Stop the ticker before touching GL so Pixi does not try to render
+      // into the lost context during teardown.
+      application?.stop?.();
+      // The context is already dead (WEBGL_lose_context.loseContext or a real
+      // browser-initiated loss). Rather than try to restore-then-re-lose the
+      // orphaned context on the same host — which is racy in headless
+      // Chromium — we destroy the old Application and swap in a fresh clone
+      // of the canvas element. This preserves the DOM slot ordering and
+      // guarantees the observer never sees two live `uigl` contexts.
       teardownRenderer({ preserveCanvas: true });
+      const replacement = oldCanvas.cloneNode(false);
+      oldCanvas.replaceWith(replacement);
+      canvas = replacement;
       await buildRenderer();
       setStatus('ready');
     } catch (error) {
@@ -293,7 +367,7 @@ export async function createPixiLayer({
     // roots
     application: () => application,
     root: () => worldRoot,
-    // testing hooks (Task 21 Step 8)
+    // testing hooks
     loseContextForTest,
     rebuild,
     freezeForTest,

@@ -360,10 +360,14 @@ function installGlobalOwners() {
 
 export async function initUI() {
   applyExperienceTokens(document.documentElement, ROUND5_TOKENS);
+  let fontsReady = false;
+  let fontsError = null;
   try {
     await loadRound5Fonts(document);
+    fontsReady = true;
     trace.emit('renderer.fonts-ready', { outcome: 'completed', attributes: { rendererId: 'round5' } });
   } catch (error) {
+    fontsError = error;
     trace.emit('renderer.fonts-ready', {
       outcome: 'failed',
       attributes: { rendererId: 'round5', code: (error && error.message) || 'unknown' },
@@ -423,15 +427,24 @@ export async function initUI() {
 
   const canvas = document.getElementById('uigl');
   let pixiLayer = null;
-  if (canvas) {
+  if (canvas && fontsReady) {
+    const forcedTier = bootQuery.get('tier');
+    const tier = forcedTier === 'lite' || forcedTier === 'full'
+      ? forcedTier
+      : (V.LITE ? 'lite' : 'full');
+    const rendererPolicy = Object.freeze({
+      tier,
+      reducedMotion: REDUCED,
+    });
     try {
       pixiLayer = await createPixiLayer({
         canvas,
         stage: {
           width: stageW,
           height: stageH,
-          resolution: () => Math.min((window.devicePixelRatio || 1) * (stageInfo().scale || 1), 2),
+          resolution: () => (window.devicePixelRatio || 1) * (stageInfo().scale || 1),
         },
+        policy: rendererPolicy,
         trace,
       });
       window.spirebound = Object.freeze({
@@ -439,7 +452,7 @@ export async function initUI() {
         pixi: pixiLayer,
       });
       trace.emit('renderer.ready', {
-        outcome: 'completed', attributes: { rendererId: 'pixi' },
+        outcome: 'completed', attributes: { rendererId: 'pixi', tier },
       });
     } catch (error) {
       trace.emit('renderer.ready', {
@@ -447,6 +460,15 @@ export async function initUI() {
         attributes: { rendererId: 'pixi', code: (error && error.message) || 'unknown' },
       });
     }
+  } else if (canvas && !fontsReady) {
+    trace.emit('renderer.ready', {
+      outcome: 'failed',
+      attributes: {
+        rendererId: 'pixi',
+        code: 'fonts-not-ready',
+        cause: (fontsError && fontsError.message) || 'unknown',
+      },
+    });
   }
 
   show('title');

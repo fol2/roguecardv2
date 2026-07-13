@@ -84,7 +84,7 @@ async function main(argv) {
     }
     const { maxEntryGzipBytes, prePixiEntryGzipBytes } = budget;
     if (!Number.isFinite(maxEntryGzipBytes)) {
-      // Bootstrap moment (Task 21 Step 10): derive the ceiling from the just-
+      // First run against a fresh worktree: derive the ceiling from the
       // measured minimal bootstrap and persist it so future runs enforce it.
       const derived = roundToKb(measurement.gzipBytes);
       budget.minimalBootstrapGzipBytes = measurement.gzipBytes;
