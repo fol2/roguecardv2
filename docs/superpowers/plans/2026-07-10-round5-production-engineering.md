@@ -4806,7 +4806,7 @@ after it creates `iphone-webkit` and `ipad-webkit`.
   editor/gallery/Lab route.
 - No dev-tool module enters a production bundle.
 
-- [ ] **Step 1: Write failing route tests**
+- [x] **Step 1: Write failing route tests**
 
 Record `Task 18 dev shell: SHIPPED` or `OMITTED (optional pressure valve)` in
 the ledger before writing tests. The dashboard is never optional.
@@ -4821,7 +4821,7 @@ individual packs/locales or a dashboard-owned pack list. If the ledger marks the
 `gallery`, `audio`, `bfedit`, `bfuiedit`, `charedit`, `vfxedit`, `lab`,
 `dashboard` and `contentedit` without renaming existing URLs.
 
-- [ ] **Step 2: Verify red**
+- [x] **Step 2: Verify red**
 
 ```bash
 set -euo pipefail
@@ -4836,7 +4836,7 @@ rg 'dashboard|dev-tools|route' "$RED_LOG"
 rm -f "$RED_LOG"
 ```
 
-- [ ] **Step 3: Implement thin views over existing pure APIs**
+- [x] **Step 3: Implement thin views over existing pure APIs**
 
 Dashboard imports `doctorContentRegistrations`, the generated development
 manifest and resource manifests; it never redefines a schema, locale join,
@@ -4844,7 +4844,7 @@ registration provenance or pack list. When shipped, Shell is a static route list
 Both use structural icons from `art.js`, not font glyphs. If omitted, do not
 create a stub route or file; record the omission and continue.
 
-- [ ] **Step 4: Implement and run the production-surface verifier**
+- [x] **Step 4: Implement and run the production-surface verifier**
 
 ```bash
 set -euo pipefail
@@ -4854,7 +4854,7 @@ node tools/verify-production-surface.mjs
 Expected: the Task 17 verifier still rejects every dev marker from the temporary
 production build.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 set -euo pipefail
