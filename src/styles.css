@@ -117,6 +117,10 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 }
 #screen { position: absolute; inset: 0; overflow: hidden; } /* NO z-index: children must join #shake's stacking context so #mesh can slot under the battlefield chrome */
 #vfx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 50; pointer-events: none; }
+/* Round 5 Pixi UI layer — absolute, transparent, non-interactive. Sits above
+   #vfx and below tooltips/pop-menus/toasts. Round 5 tokens come from tokens.js
+   (via applyExperienceTokens); this element declares no raw hex duplicates. */
+#uigl { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 51; pointer-events: none; background: transparent; }
 /* mesh warp planes live INSIDE #shake: above the stage diorama (0-3) but below
    the battlefield (7 — DOM crack seams/plates read over the warp body) and the
    hand/chrome (22+), so hovered cards are never behind a mob */
@@ -2348,7 +2352,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
    whose pixels are inherently nondeterministic (3D star/weather field, 2D
    particle canvas, mesh warp planes, animated grain, in-flight floaters) */
 html.freeze *, html.freeze *::before, html.freeze *::after { animation-play-state: paused !important; transition: none !important; }
-html.freeze #bg3d, html.freeze #vfx, html.freeze #mesh, html.freeze #grain, html.freeze #floaties { visibility: hidden !important; }
+html.freeze #bg3d, html.freeze #vfx, html.freeze #uigl, html.freeze #mesh, html.freeze #grain, html.freeze #floaties { visibility: hidden !important; }
 
 /* ---- entrance redesign: embark screen */
 .embark-screen {

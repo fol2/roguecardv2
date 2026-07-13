@@ -1,0 +1,10 @@
+{
+  "capturedAt": "2026-07-13",
+  "note": "post-P3 pre-Pixi baseline; entry gzip level 9",
+  "outDir": "/tmp/spirebound-round5-pre-pixi",
+  "entryRel": "assets/index-DGmK5gPD.js",
+  "entryBytes": 1436419,
+  "prePixiEntryGzipBytes": 323218,
+  "maxEntryGzipBytes": 451584,
+  "minimalBootstrapGzipBytes": 409945
+}

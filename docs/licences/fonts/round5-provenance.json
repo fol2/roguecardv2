@@ -1,0 +1,77 @@
+{
+  "capturedAt": "2026-07-13",
+  "note": "Round 5 self-hosted display + body fonts. All assets are exact pins; the verifier tools/verify-round5-fonts.mjs cross-checks lockfile integrity, checked-in OFL copies and the seven Latin WOFF2 files.",
+  "packages": [
+    {
+      "name": "@fontsource/cinzel",
+      "version": "5.2.8",
+      "lockIntegrity": "sha512-B9WeF/jPlOJOrcXfX96cy4KfM+s1QcU2C9W2hE3azBOBzPvzFkNpBovT5JmhAeicE/s4HZWKF9LF5hmEcqlbsw==",
+      "licence": {
+        "path": "docs/licences/fonts/cinzel-OFL.txt",
+        "sha256": "f5a242cf68ad6ebd0603b3359a74c593ca080318a681035be5296ba2c6b04ae6"
+      },
+      "assets": [
+        {
+          "family": "Cinzel",
+          "weight": "500",
+          "style": "normal",
+          "file": "@fontsource/cinzel/files/cinzel-latin-500-normal.woff2",
+          "sha256": "2864b2c9db377e10db43d3ca1ab268c0e10cf3ee94b1a325d104b8e4a74dc7da"
+        },
+        {
+          "family": "Cinzel",
+          "weight": "700",
+          "style": "normal",
+          "file": "@fontsource/cinzel/files/cinzel-latin-700-normal.woff2",
+          "sha256": "8efa224fe70fef188a39c095e218b81fd31061809f2752537e33a9ec7b9c2263"
+        },
+        {
+          "family": "Cinzel",
+          "weight": "800",
+          "style": "normal",
+          "file": "@fontsource/cinzel/files/cinzel-latin-800-normal.woff2",
+          "sha256": "47fd3e35a90ae2198df04cdc9f036011f1b58f6e97878de7aa9258c35f6ac665"
+        }
+      ]
+    },
+    {
+      "name": "@fontsource/alegreya",
+      "version": "5.2.8",
+      "lockIntegrity": "sha512-/C4ShWmhyyaDZj9GfFvMaeGrt7pRupgoXdFd26Cg/y5m49UhhifbqBBRNwVhGCt5+wfjmakz7wBhFHJLH5c/mg==",
+      "licence": {
+        "path": "docs/licences/fonts/alegreya-OFL.txt",
+        "sha256": "a616403914fd16d254244f482b348af457a54f7e79a7919daec24129c1bd3571"
+      },
+      "assets": [
+        {
+          "family": "Alegreya",
+          "weight": "400",
+          "style": "normal",
+          "file": "@fontsource/alegreya/files/alegreya-latin-400-normal.woff2",
+          "sha256": "fe33a80f1e2f7200d22980bb3838c168f1e7a36262a3e51ff73f47242e79c21f"
+        },
+        {
+          "family": "Alegreya",
+          "weight": "500",
+          "style": "normal",
+          "file": "@fontsource/alegreya/files/alegreya-latin-500-normal.woff2",
+          "sha256": "6cac80c145da16f6922c4f9b04adf2a49af671320925f923f16a4a8ed1133601"
+        },
+        {
+          "family": "Alegreya",
+          "weight": "700",
+          "style": "normal",
+          "file": "@fontsource/alegreya/files/alegreya-latin-700-normal.woff2",
+          "sha256": "9625138569ede683bc9d5b92b5c304bd2f5a106dadb2ba6ad757b792b79932bc"
+        },
+        {
+          "family": "Alegreya",
+          "weight": "400",
+          "style": "italic",
+          "file": "@fontsource/alegreya/files/alegreya-latin-400-italic.woff2",
+          "sha256": "61f7ea641fb5661f91a379791985c48fdb9b6205b4cae892190f0b2799650cdf"
+        }
+      ]
+    }
+  ]
+}

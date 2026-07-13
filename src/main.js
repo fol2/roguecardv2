@@ -1,9 +1,6 @@
-import '@fontsource/cinzel/500.css';
-import '@fontsource/cinzel/700.css';
-import '@fontsource/cinzel/800.css';
-import '@fontsource/alegreya/400.css';
-import '@fontsource/alegreya/500.css';
-import '@fontsource/alegreya/700.css';
+// Round 5 self-hosts every WOFF2 through src/ui/fonts.js — no @fontsource CSS
+// import is loaded here, so the bundle never contains @font-face fallback CSS
+// or third-party network URLs.
 import './styles.css';
 import { initStage } from './stage.js';
 import { initScene } from './scene3d.js';
@@ -47,7 +44,7 @@ async function boot() {
     initScene();
     initVfx();
     initMesh();
-    initUI();
+    await initUI();
     if (import.meta.env.DEV && qs.has('bfedit')) {
       import('./dev/bf-editor.js').then((m) => m.initBfEditor());
     }

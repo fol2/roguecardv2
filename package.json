@@ -14,6 +14,8 @@
     "test": "node test/test_engine.js",
     "test:round5:standing": "node tools/run-round5-standing-gates.mjs",
     "test:progression": "node tools/emberglass-pacing.mjs",
+    "test:fonts": "node tools/verify-round5-fonts.mjs --check",
+    "test:budget": "node tools/check-bundle-budget.mjs",
     "content:compile": "node tools/compile-content-registrations.mjs",
     "test:content-registrations": "node tools/compile-content-registrations.mjs --check",
     "test:act-coupling": "node tools/check-act-coupling.mjs",
@@ -40,8 +42,9 @@
     "gen:icons": "tools/gen-icons.sh"
   },
   "dependencies": {
-    "@fontsource/alegreya": "^5.2.8",
-    "@fontsource/cinzel": "^5.2.8",
+    "@fontsource/alegreya": "5.2.8",
+    "@fontsource/cinzel": "5.2.8",
+    "pixi.js": "8.19.0",
     "three": "^0.185.1",
     "vite": "^8.1.3"
   },

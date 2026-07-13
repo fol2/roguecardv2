@@ -6832,6 +6832,141 @@ function randomAgentRun(seed) {
   for (const banned of ['#f4e7c5', '#ece7df', '#aaa6b8', '#8fd0ff']) {
     assert.ok(!cssText.includes(banned), `styles.css must not embed Round 5 raw literal ${banned}`);
   }
+
+  // Task 21: owner-approved ROUND5_TOKENS + structured aliases must be present
+  // and exactly match the FE contract's shared-values record.
+  const {
+    ROUND5_TOKENS, EASING, DURATION_MS, COLOUR, TYPE, R5_CSS_VARIABLE_MAP,
+    contrastRatio, POLICY_TIERS, resolveTier, isReducedTier,
+  } = await import('../src/ui/tokens.js');
+  assert.deepEqual(COLOUR, {
+    gold: '#f2c14e', goldDim: '#9c7c34', ink: '#0b0e1a',
+    parchment: '#f4e7c5', text: '#ece7df', textDim: '#aaa6b8',
+    danger: '#ff7060', ward: '#8fd0ff', ember: '#ff9a4d',
+  });
+  assert.deepEqual(TYPE, { display: 'Cinzel', body: 'Alegreya' });
+  assert.deepEqual(EASING.outSoft, [0.22, 1, 0.36, 1]);
+  assert.deepEqual(EASING.spring, [0.34, 1.56, 0.64, 1]);
+  assert.deepEqual(DURATION_MS, { micro: 120, quick: 180, standard: 320, screen: 450, ceremony: 640 });
+  assert.equal(ROUND5_TOKENS.gold, '#f2c14e');
+  assert.equal(ROUND5_TOKENS['gold-dim'], '#9c7c34');
+  assert.equal(ROUND5_TOKENS.parchment, '#f4e7c5');
+  assert.equal(ROUND5_TOKENS.text, '#ece7df');
+  assert.equal(ROUND5_TOKENS['text-dim'], '#aaa6b8');
+  assert.equal(ROUND5_TOKENS.danger, '#ff7060');
+  assert.equal(ROUND5_TOKENS.ward, '#8fd0ff');
+  assert.equal(ROUND5_TOKENS.ember, '#ff9a4d');
+  assert.equal(ROUND5_TOKENS['ease-out-soft'], 'cubic-bezier(0.22, 1, 0.36, 1)');
+  assert.equal(ROUND5_TOKENS['ease-spring'], 'cubic-bezier(0.34, 1.56, 0.64, 1)');
+  assert.equal(ROUND5_TOKENS['dur-micro'], '120ms');
+  assert.equal(ROUND5_TOKENS['dur-ceremony'], '640ms');
+  assert.match(ROUND5_TOKENS['font-body'], /'Alegreya'/);
+  assert.match(ROUND5_TOKENS['font-display'], /'Cinzel'/);
+  for (const key of [
+    'danger', 'ward', 'ember',
+    'dur-micro', 'dur-quick', 'dur-standard', 'dur-screen', 'dur-ceremony',
+  ]) assert.ok(Object.hasOwn(R5_CSS_VARIABLE_MAP, key), `R5 CSS variable map must expose ${key}`);
+  const round5Vars = cssVariables(ROUND5_TOKENS);
+  assert.equal(round5Vars['--r5-parchment'], '#f4e7c5');
+  assert.equal(round5Vars['--r5-danger'], '#ff7060');
+
+  // Approved text/background pairs must clear WCAG AA (≥4.5:1).
+  const backgroundIds = ['ink'];
+  const textIds = ['text', 'parchment', 'gold'];
+  for (const bg of backgroundIds) {
+    for (const fg of textIds) {
+      const ratio = contrastRatio(COLOUR[fg], COLOUR[bg]);
+      assert.ok(
+        ratio >= 4.5,
+        `contrast ${fg} on ${bg} must be >=4.5, was ${ratio.toFixed(3)}`,
+      );
+    }
+  }
+  // Sanity of the WCAG maths (white/black = 21).
+  assert.ok(Math.abs(contrastRatio('#ffffff', '#000000') - 21) < 0.01);
+  // Same colour = 1.
+  assert.ok(Math.abs(contrastRatio('#7f7f7f', '#7f7f7f') - 1) < 0.001);
+
+  // Policy helpers.
+  assert.deepEqual(POLICY_TIERS, ['full', 'lite', 'reduced']);
+  assert.equal(resolveTier(undefined), 'full');
+  assert.equal(resolveTier({ motion: 'reduced' }), 'reduced');
+  assert.equal(resolveTier({ lite: true }), 'lite');
+  assert.equal(resolveTier({ tier: 'FULL' }), 'full');
+  assert.equal(resolveTier({ tier: 'lite' }), 'lite');
+  assert.equal(isReducedTier({ motion: 'reduced' }), true);
+  assert.equal(isReducedTier({}), false);
+
+  // tokens.js remains DOM-free and dependency-clean.
+  const tokensSource = readFileSync(new URL('../src/ui/tokens.js', import.meta.url), 'utf8');
+  for (const forbidden of ['document', 'window', 'localStorage', 'import.meta.glob']) {
+    assert.ok(
+      !new RegExp(`\\b${forbidden.replace('.', '\\.')}\\b`).test(tokensSource),
+      `tokens.js must not reference ${forbidden}`,
+    );
+  }
+
+  // tween.js honours REDUCED policy by applying endState once.
+  const { tween } = await import('../src/ui/tween.js');
+  {
+    let seen = null;
+    const runner = tween({
+      from: 0, to: 1, duration: 500, endState: 'terminal',
+      policy: { motion: 'reduced' },
+      onUpdate(value) { seen = value; },
+    });
+    const outcome = await runner.done;
+    assert.equal(seen, 'terminal', 'REDUCED tween must apply endState once');
+    assert.deepEqual(outcome, { outcome: 'settled', motion: 'reduced' });
+  }
+  // Zero-duration tween settles immediately with the target value.
+  {
+    let seen = null;
+    const runner = tween({
+      from: 0, to: 5, duration: 0,
+      onUpdate(value) { seen = value; },
+    });
+    const outcome = await runner.done;
+    assert.equal(seen, 5);
+    assert.equal(outcome.outcome, 'settled');
+    assert.equal(outcome.motion, 'normal');
+  }
+}
+
+// ---- Task 21: bundle-budget baseline shape --------------------------------
+{
+  const budgetPath = new URL('../test/budgets/round5-bundle.json', import.meta.url);
+  const budget = JSON.parse(readFileSync(budgetPath, 'utf8'));
+  assert.ok(Number.isInteger(budget.prePixiEntryGzipBytes));
+  assert.ok(budget.prePixiEntryGzipBytes > 0);
+  assert.ok(typeof budget.entryRel === 'string' && budget.entryRel.length > 0);
+  if (budget.maxEntryGzipBytes !== null) {
+    assert.ok(Number.isInteger(budget.maxEntryGzipBytes));
+    assert.ok(budget.maxEntryGzipBytes >= budget.prePixiEntryGzipBytes);
+    assert.equal(budget.maxEntryGzipBytes % 1024, 0);
+  }
+}
+
+// ---- Task 21: font provenance verifier hashes align with checked-in evidence
+{
+  const provenance = JSON.parse(readFileSync(
+    new URL('../docs/licences/fonts/round5-provenance.json', import.meta.url),
+    'utf8',
+  ));
+  const packageNames = provenance.packages.map((p) => p.name).sort();
+  assert.deepEqual(packageNames, ['@fontsource/alegreya', '@fontsource/cinzel']);
+  for (const pkg of provenance.packages) {
+    assert.equal(pkg.version, '5.2.8');
+    assert.match(pkg.lockIntegrity, /^sha512-/);
+    assert.ok(pkg.assets.length >= 3);
+    for (const asset of pkg.assets) {
+      assert.match(asset.sha256, /^[0-9a-f]{64}$/);
+      assert.match(asset.file, /\.woff2$/);
+    }
+  }
+  // The plan pins the alegreya italic; provenance must include it.
+  const alegreya = provenance.packages.find((p) => p.name === '@fontsource/alegreya');
+  assert.ok(alegreya.assets.some((asset) => asset.style === 'italic' && asset.weight === '400'));
 }
 
 // ---- Task 14: isolated sample pack + fourth-theme fixture -------------------

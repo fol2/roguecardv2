@@ -145,6 +145,12 @@ function tick(t) {
 }
 
 export function shake(power = 8) { if (REDUCED) return; shakeV = Math.max(shakeV, power); }
+/**
+ * Round 5 shake offset reader. The Pixi world root subscribes to this on
+ * every ticker so its transform stays glued to `#shake`'s DOM transform.
+ * Returns the exact stage-px offset currently applied to `#shake`.
+ */
+export function readShakeOffset() { return { x: shakeX, y: shakeY }; }
 export function hitstop(ms = 60) { if (REDUCED) return; hitstopUntil = performance.now() + ms; }
 export function flash(color = '#fff', alpha = 0.18, dur = 0.25) { if (REDUCED) return; flashes.push({ color, alpha, dur, life: dur }); }
 

@@ -45,7 +45,9 @@ import {
   $, $$, COARSE, S, el, escHtml, presentationBarrier, screenEl, sleep, trace,
 } from './context.js';
 import { CORE_CONTENT, contentViewFor, themeForRun } from './content.js';
-import { UI_TOKENS, applyExperienceTokens, tokenValue } from './tokens.js';
+import { ROUND5_TOKENS, applyExperienceTokens, tokenValue } from './tokens.js';
+import { loadRound5Fonts } from './fonts.js';
+import { createPixiLayer } from './pixi-app.js';
 import { REDUCED } from './policy.js';
 import { ROMAN } from './format.js';
 import {
@@ -356,8 +358,17 @@ function installGlobalOwners() {
   }));
 }
 
-export function initUI() {
-  applyExperienceTokens(document.documentElement, UI_TOKENS);
+export async function initUI() {
+  applyExperienceTokens(document.documentElement, ROUND5_TOKENS);
+  try {
+    await loadRound5Fonts(document);
+    trace.emit('renderer.fonts-ready', { outcome: 'completed', attributes: { rendererId: 'round5' } });
+  } catch (error) {
+    trace.emit('renderer.fonts-ready', {
+      outcome: 'failed',
+      attributes: { rendererId: 'round5', code: (error && error.message) || 'unknown' },
+    });
+  }
   music.configureThemeMusic({
     themes: CORE_CONTENT.themes,
     themeOrder: CORE_CONTENT.themeOrder,
@@ -409,6 +420,35 @@ export function initUI() {
   onCharMetaChange(softCombat);
   onBFChange(softCombat);
   onUICChange(softCombat);
+
+  const canvas = document.getElementById('uigl');
+  let pixiLayer = null;
+  if (canvas) {
+    try {
+      pixiLayer = await createPixiLayer({
+        canvas,
+        stage: {
+          width: stageW,
+          height: stageH,
+          resolution: () => Math.min((window.devicePixelRatio || 1) * (stageInfo().scale || 1), 2),
+        },
+        trace,
+      });
+      window.spirebound = Object.freeze({
+        ...window.spirebound,
+        pixi: pixiLayer,
+      });
+      trace.emit('renderer.ready', {
+        outcome: 'completed', attributes: { rendererId: 'pixi' },
+      });
+    } catch (error) {
+      trace.emit('renderer.ready', {
+        outcome: 'failed',
+        attributes: { rendererId: 'pixi', code: (error && error.message) || 'unknown' },
+      });
+    }
+  }
+
   show('title');
   trace.emit('renderer.ready', {
     outcome: 'completed', attributes: { rendererId: 'dom' },
