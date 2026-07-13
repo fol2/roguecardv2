@@ -48,6 +48,7 @@ import { CORE_CONTENT, contentViewFor, themeForRun } from './content.js';
 import { ROUND5_TOKENS, applyExperienceTokens, tokenValue } from './tokens.js';
 import { loadRound5Fonts } from './fonts.js';
 import { createPixiLayer } from './pixi-app.js';
+import { createCombatRenderer } from './combat-gl.js';
 import { REDUCED } from './policy.js';
 import { ROMAN } from './format.js';
 import {
@@ -97,6 +98,10 @@ let combatApi;
 let drainApi;
 let screenOwners;
 let readMapWarmIds = () => Object.freeze([]);
+// Task 22a — resolved once Pixi + combat renderer boot inside `initUI`. Combat
+// reaches it lazily through `combatLateCallbacks` so the eager createCombat
+// call stays synchronous.
+let combatRenderer = null;
 
 export function show(...args) {
   return navigatorApi.show(...args);
@@ -106,6 +111,8 @@ const combatLateCallbacks = Object.freeze({
   show: (...args) => navigatorApi.show(...args),
   transition: (...args) => navigatorApi.transition(...args),
   journalRunEnd: (...args) => screenOwners.end.journalRunEnd(...args),
+  combatGlMount: (model) => combatRenderer?.mount(model),
+  combatGlSync: (model) => combatRenderer?.sync(model),
 });
 const overlayActions = Object.freeze({
   afterAction: (...args) => combatApi.afterAction(...args),
@@ -312,6 +319,9 @@ const probeContext = Object.freeze({
   $, $$, S, E, CORE_CONTENT, combatantView, openPersistenceDialog, presentationBarrier,
   readMapWarmIds: (...args) => readMapWarmIds(...args),
   setForceRoseFallback, stageH, stageInfo, stageRect, stageW, tr, usePotionOn,
+  // Task 22a — lazy accessor; the combat renderer boots inside initUI after
+  // the Pixi layer is ready, so the probe reads it through this closure.
+  getCombatRenderer: () => combatRenderer,
 });
 const probe = installProbe({
   context: probeContext,
@@ -448,13 +458,42 @@ export async function initUI() {
         settle: () => presentationBarrier.whenIdle(),
         trace,
       });
+      // Task 22a — dual-write combat renderer seam. The scaffold renderer
+      // preloads chrome textures and exposes freeze/lose bridges through the
+      // same Task 21 pixi lifecycle; DOM chrome still owns visuals in 22a.
+      try {
+        combatRenderer = await createCombatRenderer({
+          canvas,
+          pixiLayer,
+          trace,
+          tokens: ROUND5_TOKENS,
+          actions: null,
+          tooltip: null,
+        });
+      } catch (rendererError) {
+        combatRenderer = null;
+        trace.emit('renderer.ready', {
+          outcome: 'failed',
+          attributes: {
+            rendererId: 'combat-gl',
+            code: (rendererError && rendererError.message) || 'unknown',
+          },
+        });
+      }
       window.spirebound = Object.freeze({
         ...window.spirebound,
         pixi: pixiLayer,
+        combatGl: combatRenderer,
       });
       trace.emit('renderer.ready', {
         outcome: 'completed', attributes: { rendererId: 'pixi', tier },
       });
+      if (combatRenderer) {
+        trace.emit('renderer.ready', {
+          outcome: 'completed',
+          attributes: { rendererId: 'combat-gl', tier },
+        });
+      }
     } catch (error) {
       trace.emit('renderer.ready', {
         outcome: 'failed',

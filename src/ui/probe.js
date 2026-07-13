@@ -11,8 +11,11 @@ export function installProbe({
   const {
     $, $$, S, E, CORE_CONTENT, combatantView, openPersistenceDialog, presentationBarrier,
     readMapWarmIds, setForceRoseFallback, stageH, stageInfo, stageRect, stageW,
-    tr, usePotionOn,
+    tr, usePotionOn, getCombatRenderer,
   } = context;
+  const resolveCombatRenderer = typeof getCombatRenderer === 'function'
+    ? getCombatRenderer
+    : () => null;
 
   // All probe geometry is in stage px, so the same run reports the same
   // coordinates independently of the browser viewport resolution.
@@ -162,6 +165,53 @@ export function installProbe({
           drain: Object.isFrozen(drain),
         },
       };
+    },
+    // Task 22a — combat renderer probe surface. Version 2 marks the seam that
+    // Tasks 22b/22c and PR16/PR17 build against; the renderer state and
+    // generation come straight from the combat renderer stats.
+    ui() {
+      const renderer = resolveCombatRenderer();
+      if (!renderer) {
+        return {
+          version: 2,
+          renderer: { kind: null, state: 'absent', generation: 0 },
+          model: null,
+          texturedReady: false,
+        };
+      }
+      const stats = renderer.stats();
+      return {
+        version: 2,
+        renderer: {
+          kind: stats.kind,
+          state: stats.state,
+          generation: stats.generation,
+          transitions: stats.transitions,
+        },
+        model: {
+          hasModel: stats.hasModel,
+          version: stats.modelVersion,
+        },
+        textures: {
+          ready: stats.texturedReady,
+          loaded: stats.blockingLoaded,
+          expected: stats.blockingExpected,
+        },
+        interaction: stats.interactionMode,
+        pixi: {
+          state: stats.pixiState,
+          generation: stats.pixiGeneration,
+          frozen: stats.frozen,
+        },
+      };
+    },
+    combatRendererStats() {
+      const renderer = resolveCombatRenderer();
+      return renderer ? renderer.stats() : null;
+    },
+    combatRendererReadUI() {
+      const renderer = resolveCombatRenderer();
+      return renderer ? renderer.readUI() : null;
     },
 
     // -- drivers: always reuse the real input handlers -----------------

@@ -381,6 +381,109 @@ test.describe('Round 5 production Pixi layer', () => {
     expect(result.afterStatus).toBe('idle');
   });
 
+  test('Task 22a combat renderer scaffold boots and bridges freeze/lose to the Pixi layer', async ({ page }) => {
+    await bootProduction(page);
+    // The combat renderer boots inside initUI right after the Pixi layer is
+    // ready and is exposed at `window.spirebound.combatGl`. It stays hidden
+    // in 22a (DOM still owns visuals) but must already surface the seam.
+    const seam = await page.evaluate(async () => {
+      const renderer = window.spirebound.combatGl;
+      if (!renderer) return { present: false };
+      // Wait for the textured-ready promise BEFORE reading stats so we see the
+      // 17-blocking + 3-piles ledger the scaffold advertises (preload runs
+      // asynchronously in the background once the renderer is constructed).
+      const texturedReady = await renderer.texturedReadyPromise();
+      const stats = renderer.stats();
+      const ui = window.__probe.ui();
+      const readUI = renderer.readUI();
+      return {
+        present: true,
+        interfaceKeys: [
+          'mount', 'sync', 'layout', 'hitTest', 'setInteraction',
+          'readUI', 'stats', 'loseContextForTest', 'freezeForTest',
+          'unfreezeForTest', 'destroy',
+        ].every((key) => typeof renderer[key] === 'function'),
+        version: renderer.version,
+        stats,
+        ui,
+        texturedReady,
+        readUI: {
+          version: readUI?.version ?? null,
+          rendererId: readUI?.rendererId ?? null,
+          pending: readUI?.pending ?? null,
+          hasStage: Boolean(readUI?.stage),
+          hasChrome: Boolean(readUI?.chrome),
+        },
+      };
+    });
+    expect(seam.present).toBe(true);
+    expect(seam.interfaceKeys).toBe(true);
+    expect(seam.version).toBe(2);
+    expect(seam.stats.rendererId).toBe('combat-gl');
+    expect(seam.stats.kind).toBe('pixi');
+    expect(seam.stats.state).toBe('ready');
+    expect(seam.stats.generation).toBeGreaterThanOrEqual(0);
+    expect(seam.stats.blockingExpected).toBe(20);
+    // Real assets should all resolve on the CI runner; if a single texture
+    // fails we still want to see it in the log rather than fail silently.
+    expect({
+      loaded: seam.stats.blockingLoaded,
+      expected: seam.stats.blockingExpected,
+      errors: seam.stats.textureErrors || [],
+    }).toEqual({
+      loaded: seam.stats.blockingExpected,
+      expected: seam.stats.blockingExpected,
+      errors: [],
+    });
+    expect(seam.texturedReady.texturedReady).toBe(true);
+    expect(seam.ui.version).toBe(2);
+    expect(seam.ui.renderer.kind).toBe('pixi');
+    expect(seam.ui.renderer.state).toBe('ready');
+    expect(seam.ui.renderer.generation).toBeGreaterThanOrEqual(0);
+    expect(seam.ui.textures.ready).toBe(true);
+    expect(seam.ui.textures.expected).toBe(20);
+    expect(seam.readUI.version).toBe(2);
+    expect(seam.readUI.rendererId).toBe('combat-gl');
+    expect(seam.readUI.hasStage).toBe(true);
+    expect(seam.readUI.hasChrome).toBe(true);
+
+    // The freeze/lose bridge must delegate to the Task 21 pixi layer.
+    const bridged = await page.evaluate(async () => {
+      const renderer = window.spirebound.combatGl;
+      const before = renderer.stats();
+      const frozen = await renderer.freezeForTest({ atTick: 4 });
+      const thawed = renderer.unfreezeForTest();
+      return {
+        beforeFrozen: before.frozen,
+        frozenTick: frozen.frozenTick,
+        frozenAfter: frozen.frozen,
+        thawedAfter: thawed.frozen,
+      };
+    });
+    expect(bridged.beforeFrozen).toBe(false);
+    expect(bridged.frozenAfter).toBe(true);
+    expect(bridged.frozenTick).toBe(4);
+    expect(bridged.thawedAfter).toBe(false);
+
+    // Dual-write: entering combat must mount + sync a presentation model. We
+    // reuse the existing stageCoreTheme probe helper so we do not invent a
+    // parallel driver; 22a only requires the seam to receive the model.
+    const combatMount = await page.evaluate(async () => {
+      const staged = await window.__probe.stageCoreTheme({ themeId: 'act1' });
+      const stats = window.spirebound.combatGl.stats();
+      const ui = window.__probe.ui();
+      return { staged, stats, ui };
+    });
+    expect(combatMount.staged.themeId).toBe('act1');
+    expect(combatMount.stats.hasModel).toBe(true);
+    expect(combatMount.stats.modelVersion).toBe(2);
+    expect(combatMount.stats.generation).toBeGreaterThanOrEqual(1);
+    expect(combatMount.ui.model.hasModel).toBe(true);
+    expect(combatMount.ui.model.version).toBe(2);
+    expect(combatMount.ui.renderer.state).toBe('ready');
+    expect(combatMount.ui.renderer.generation).toBeGreaterThanOrEqual(1);
+  });
+
   test('font requests are same-origin and complete before renderer.ready with measurable Cinzel/Alegreya proof', async ({ page }) => {
     const { fontRequests } = await bootProduction(page);
     expect(fontRequests.length).toBeGreaterThanOrEqual(7);

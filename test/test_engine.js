@@ -8805,6 +8805,108 @@ export default defineContentRegistration({
   }
 }
 
+// ---- Task 22a: combat Pixi renderer seam (scaffold source contract) --------
+// combat-gl.js imports pixi.js which requires a browser globals; we cannot
+// exercise the factory in Node. Instead we assert the seam's source contract:
+// the interface keys, the blocking-id ledger and the fact that combat/index
+// dual-write through the injected renderer.
+{
+  const combatGlSource = readFileSync(new URL('../src/ui/combat-gl.js', import.meta.url), 'utf8');
+  assert.match(combatGlSource, /export async function createCombatRenderer\(/,
+    'combat-gl exposes the createCombatRenderer factory');
+  for (const key of [
+    'mount', 'sync', 'layout', 'hitTest', 'setInteraction', 'readUI', 'stats',
+    'loseContextForTest', 'freezeForTest', 'unfreezeForTest', 'destroy',
+  ]) {
+    assert.match(combatGlSource, new RegExp(`\\b${key}\\b`),
+      `combat-gl must expose ${key} on the renderer handle`);
+  }
+  assert.match(combatGlSource, /COMBAT_RENDERER_VERSION\s*=\s*2\b/,
+    'combat-gl presentation model version is 2');
+  const blockingListMatch = combatGlSource.match(
+    /COMBAT_BLOCKING_UI_IDS\s*=\s*Object\.freeze\(\[([\s\S]*?)\]\)/,
+  );
+  assert.ok(blockingListMatch, 'combat-gl declares the blocking id ledger');
+  const blockingIds = blockingListMatch[1]
+    .split(',')
+    .map((entry) => entry.trim().replace(/^['"]|['"]$/g, ''))
+    .filter(Boolean);
+  assert.equal(blockingIds.length, 17,
+    'combat-gl blocking id ledger has 17 combat-visible ui ids');
+  const expectedBlockingIds = [
+    'candle-lit', 'candle-spent',
+    'facet-empty', 'facet-chipped',
+    'hp-vial-frame', 'heart', 'coin', 'deck', 'menu', 'ward',
+    'end-turn', 'lantern',
+    'intent-attack', 'intent-block', 'intent-buff', 'intent-debuff', 'intent-heal',
+  ];
+  assert.deepEqual([...blockingIds].sort(), [...expectedBlockingIds].sort(),
+    'combat-gl blocking ids match the 17 combat-visible chrome ledger');
+  const fullListMatch = combatGlSource.match(
+    /COMBAT_UI_TEXTURE_IDS\s*=\s*Object\.freeze\(\[([\s\S]*?)\]\)/,
+  );
+  assert.ok(fullListMatch, 'combat-gl declares the full ui texture ledger');
+  const spreadMatch = /\.{3}COMBAT_BLOCKING_UI_IDS/.test(fullListMatch[1]);
+  assert.ok(spreadMatch, 'full texture ledger spreads the blocking list to stay in sync');
+  const additionalIds = fullListMatch[1]
+    .replace(/\.{3}COMBAT_BLOCKING_UI_IDS,?/, '')
+    .split(',')
+    .map((entry) => entry.trim().replace(/^['"]|['"]$/g, ''))
+    .filter(Boolean);
+  assert.equal(17 + additionalIds.length, 27,
+    'combat-gl total texture ledger is 17 blocking + 10 map-node = 27 ids');
+  const pileMatch = combatGlSource.match(
+    /COMBAT_PILE_TEXTURE_IDS\s*=\s*Object\.freeze\(\[([\s\S]*?)\]\)/,
+  );
+  assert.ok(pileMatch, 'combat-gl declares the pile texture ledger');
+  const pileIds = pileMatch[1]
+    .split(',')
+    .map((entry) => entry.trim().replace(/^['"]|['"]$/g, ''))
+    .filter(Boolean);
+  assert.deepEqual([...pileIds].sort(), ['ashes', 'discard', 'draw'],
+    'combat-gl gates textured-ready on the 3 pile master ids');
+  assert.match(combatGlSource, /pixiLayer\.loseContextForTest\(\)/,
+    'combat-gl bridges loseContextForTest to the Task 21 pixi layer');
+  assert.match(combatGlSource, /pixiLayer\.freezeForTest\(/,
+    'combat-gl bridges freezeForTest to the Task 21 pixi layer');
+  assert.match(combatGlSource, /pixiLayer\.unfreezeForTest\(\)/,
+    'combat-gl bridges unfreezeForTest to the Task 21 pixi layer');
+  assert.match(combatGlSource, /container\.visible\s*=\s*false/,
+    'combat-gl scaffold keeps its root hidden (DOM still owns visuals in 22a)');
+
+  const combatSource = readFileSync(new URL('../src/ui/combat.js', import.meta.url), 'utf8');
+  assert.match(combatSource, /combatGlMount/,
+    'combat.js dual-writes into the combat renderer on mount');
+  assert.match(combatSource, /combatGlSync/,
+    'combat.js dual-writes into the combat renderer on sync');
+  assert.match(combatSource, /buildPresentationModel\(/,
+    'combat.js constructs a stable presentation model for the renderer');
+
+  const indexSource = readFileSync(new URL('../src/ui/index.js', import.meta.url), 'utf8');
+  assert.match(indexSource, /import\s*\{\s*createCombatRenderer\s*\}\s*from\s*'\.\/combat-gl\.js'/,
+    'UI composition root imports the combat renderer factory');
+  assert.match(indexSource, /combatRenderer\s*=\s*await\s+createCombatRenderer\(/,
+    'UI composition root boots the combat renderer after Pixi is ready');
+  assert.match(indexSource, /combatGl:\s*combatRenderer/,
+    'window.spirebound exposes the combat renderer for tests and dev');
+  assert.match(indexSource, /combatGlMount:\s*\(model\)\s*=>\s*combatRenderer\?\.mount\(model\)/,
+    'combat late callbacks wire the renderer mount');
+  assert.match(indexSource, /combatGlSync:\s*\(model\)\s*=>\s*combatRenderer\?\.sync\(model\)/,
+    'combat late callbacks wire the renderer sync');
+  assert.match(indexSource, /getCombatRenderer:\s*\(\)\s*=>\s*combatRenderer/,
+    'probe context resolves the combat renderer lazily');
+
+  const probeSource = readFileSync(new URL('../src/ui/probe.js', import.meta.url), 'utf8');
+  assert.match(probeSource, /ui\(\)\s*\{[\s\S]*?version:\s*2/,
+    'probe.ui() reports the Task 22a seam version 2');
+  assert.match(probeSource, /kind:\s*stats\.kind/,
+    'probe.ui() reports the renderer kind from combat stats');
+  assert.match(probeSource, /state:\s*stats\.state/,
+    'probe.ui() reports the renderer state from combat stats');
+  assert.match(probeSource, /generation:\s*stats\.generation/,
+    'probe.ui() reports the renderer generation from combat stats');
+}
+
 let wins = 0, deaths = 0;
 const RUNS = 300;
 for (let i = 0; i < RUNS; i++) {

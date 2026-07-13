@@ -68,6 +68,55 @@ export function createCombat({
   } = overlay;
   const show = (...args) => late.show(...args);
   const transition = (...args) => late.transition(...args);
+  // Task 22a — dual-write seam. The composition root installs the Pixi combat
+  // renderer after `initUI` boots the Pixi layer; combat calls into it via the
+  // `late` bag so the eager createCombat construction stays synchronous.
+  const glMount = (...args) => late.combatGlMount?.(...args);
+  const glSync = (...args) => late.combatGlSync?.(...args);
+  function buildPresentationModel(phase) {
+    const cb = S.cb;
+    if (!cb) {
+      return {
+        v: 2,
+        phase,
+        stage: { shape: stageInfo().shape },
+        hero: null,
+        enemies: [],
+        embers: 0,
+        turn: 0,
+      };
+    }
+    return {
+      v: 2,
+      phase,
+      stage: { shape: stageInfo().shape },
+      hero: {
+        hp: cb.player.hp,
+        maxHp: cb.player.maxHp,
+        ward: cb.player.block,
+        energy: cb.player.energy,
+        energyMax: cb.player.energyMax,
+      },
+      enemies: cb.enemies.map((enemy, idx) => ({
+        index: idx,
+        key: enemy.key,
+        variantId: enemy.variantId || 'base',
+        hp: enemy.hp,
+        maxHp: enemy.maxHp,
+        ward: enemy.block,
+        chips: enemy.chips,
+        facetMax: enemy.facetMax,
+      })),
+      hand: cb.hand.map((card) => ({ uid: String(card.uid), id: card.id })),
+      piles: {
+        draw: cb.draw.length,
+        discard: cb.discard.length,
+        ashes: cb.exhaust.length,
+      },
+      embers: cb.embers ?? 0,
+      turn: cb.turn ?? 0,
+    };
+  }
 
 function syncWardMesh(el, on, grow = false) {
   if (!el) return;
@@ -202,6 +251,7 @@ function startCombatUI(enemyIds, kind) {
   V.setWeather(theme?.weather, { boss: kind === 'boss' });
   renderCombat();
   renderHud();
+  glMount(buildPresentationModel('mount'));
   drain().then(afterAction);
 }
 function renderCombat() {
@@ -808,6 +858,7 @@ function syncCombat() {
   }
   syncPileWidgets(cb);
   scheduleChromeClamp();
+  glSync(buildPresentationModel('sync-combat'));
 }
 function syncPileWidgets(cb) {
   const ce = S.ce;
@@ -979,6 +1030,7 @@ function syncHand() {
     }
   }
   layoutHand();
+  glSync(buildPresentationModel('sync-hand'));
 }
 function layoutHand() {
   const cb = S.cb, ce = S.ce;
