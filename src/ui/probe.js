@@ -129,6 +129,8 @@ export function installProbe({
           hp: enemy.hp,
           maxHp: enemy.maxHp,
           block: enemy.block,
+          chips: enemy.chips,
+          facetMax: enemy.facetMax,
         })) : null,
         hand: cb ? cb.hand.map((card) => ({ uid: card.uid, id: card.id })) : null,
       };
@@ -250,6 +252,11 @@ export function installProbe({
     },
     setEmbers(value) {
       S.cb.embers = value;
+      combat.syncCombat();
+    },
+    setPlayerHp(value) {
+      if (!S.cb) return;
+      S.cb.player.hp = value;
       combat.syncCombat();
     },
     setEnemyHp(index, hp) {

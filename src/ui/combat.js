@@ -1615,7 +1615,30 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
   const { stagger, flightDur, awaitMs } = opts.schedule || flightSchedule(n, budgetMs);
   if (REDUCED || n === 0) return Promise.resolve(0);
   const token = presentationBarrier.begin('card-flight');
-  const span = trace.begin('presentation.card-flight', { attributes: { count: n } });
+  const sampleInst = fromList.find((src) => src?.inst)?.inst || opts.cardInst || null;
+  const destName = (toEl?.classList?.contains('pile-discard') && 'discard')
+    || (toEl?.classList?.contains('pile-draw') && 'draw')
+    || (toEl?.classList?.contains('pile-exhaust') && 'exhaust')
+    || 'pile';
+  const replay = sampleInst ? {
+    v: 1,
+    kind: 'card-flight',
+    subject: {
+      kind: 'card',
+      contentId: sampleInst.id,
+      upgraded: !!sampleInst.up,
+    },
+    parameters: {
+      destination: destName,
+      motion: REDUCED ? 'reduced' : 'full',
+      count: n,
+    },
+    endState: { destination: destName, visible: false },
+  } : undefined;
+  const span = trace.begin('presentation.card-flight', {
+    attributes: { count: n },
+    ...(replay ? { replay } : {}),
+  });
   const sizePile = opts.sizePile || toEl;
   const artUrl = (opts.face === 'back' || opts.face === 'card')
     ? null
@@ -2021,6 +2044,10 @@ function afterAction() {
 function victoryFlow() {
   transition('victory-out');
   const run = S.run, kind = S.cb.kind, affix = S.cb.affix;
+  if (E.isEphemeralRun(run)) {
+    late.journalRunEnd(run, 'win');
+    return;
+  }
   const skipOrdinaryRewards = E.shadeVictorySkipsRewards(run);
   if (kind === 'boss' && E.isFinalTheme(run)) {
     late.journalRunEnd(run, 'win');

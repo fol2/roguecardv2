@@ -1,5 +1,5 @@
 export function createEndScreen(deps) {
-  const { contentViewFor, S, E, Vigil, TERMINAL_OUTCOMES, PROGRESSION, QUESTS, themeForRun, tr, runEffects, requireRunSave, persistObserved, showRunEndPersistenceFailure, show, presentationBarrier, trace, music, el, REDUCED, sleep, persistDawnOrRetry, assetUrl, iconSvg, relicArt, escHtml, $, $$, stageEl, sfx, screenEl, metaBg, sunrise, V, stageW, stageH, showCardGrid} = deps;
+  const { contentViewFor, S, E, Vigil, TERMINAL_OUTCOMES, PROGRESSION, QUESTS, themeForRun, tr, runEffects, requireRunSave, persistObserved, showRunEndPersistenceFailure, show, presentationBarrier, trace, music, el, REDUCED, sleep, persistDawnOrRetry, assetUrl, iconSvg, relicArt, escHtml, $, $$, stageEl, sfx, screenEl, metaBg, sunrise, V, stageW, stageH, showCardGrid, showLabResult} = deps;
   const runCatalogues = () => contentViewFor(S.run);
 
 function journalRunEnd(run, outcome, onFinalised = null) {
@@ -51,6 +51,7 @@ function finalisePendingRunEnd(run, onFinalised = null) {
   if (result && result.kind === 'lab-result') {
     S.cb = null;
     if (onFinalised) onFinalised(result);
+    else if (typeof showLabResult === 'function') showLabResult(result);
     return result;
   }
   return result;

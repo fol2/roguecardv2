@@ -58,6 +58,7 @@ import {
 import { createTooltip } from './tooltip.js';
 import { createOverlay } from './overlay.js';
 import { bindUICommands } from './commands.js';
+import { uiCommands } from './commands.js';
 import { createNavigator } from './navigation.js';
 import { createCombat } from './combat.js';
 import { createDrain } from './drain.js';
@@ -259,6 +260,7 @@ screenOwners = Object.freeze({
     show: screenLate.show, presentationBarrier, trace, music, el, REDUCED, sleep,
     persistDawnOrRetry, assetUrl, iconSvg, relicArt, escHtml, $, $$, stageEl,
     sfx, screenEl, metaBg, sunrise, V, stageW, stageH, showCardGrid, contentViewFor,
+    showLabResult: (...args) => uiCommands.showLabResult(...args),
   }),
   gallery: createGalleryScreen({
     assetSetIds, assetSetLabel, ENEMIES, enemySvg, heroSvg, ASPECTS, CARDS,
@@ -365,6 +367,7 @@ export function initUI() {
     startCombat: combatApi.startCombatUI,
     renderHud: combatApi.renderHud,
     closeOverlay,
+    showLabResult: () => {},
   });
   const bootQuery = new URLSearchParams(location.search);
   const audioOutcome = (result) => ['sample', 'synth-fallback', 'playing'].includes(result)

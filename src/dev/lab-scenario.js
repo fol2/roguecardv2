@@ -360,6 +360,11 @@ export function decodeReplayDescriptor(input) {
   return deepCopyFreeze(assertReplayShape(parsed));
 }
 
+/** Shape-normalise a Lab Replay Descriptor without base64url encoding. */
+export function normalizeReplayDescriptor(descriptor) {
+  return deepCopyFreeze(assertReplayShape(descriptor));
+}
+
 function aspectIds(content) {
   return (content?.aspects || []).map((row) => row?.id).filter((id) => typeof id === 'string');
 }

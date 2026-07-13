@@ -17,6 +17,11 @@ async function boot() {
   // The host may replace this small JSON without rebuilding JS. Resolve it
   // before any title cue or SFX preload can cache the base selection.
   await loadAudioSelection();
+  if (import.meta.env.DEV && qs.has('lab')) {
+    const { initLab } = await import('./ui/dev/lab.js');
+    await initLab();
+    return;
+  }
   if (import.meta.env.DEV && qs.has('charedit')) {
     // stage + mesh boot inside the editor so warp/float match combat
     import('./dev/char-editor.js').then((m) => m.initCharEditor());

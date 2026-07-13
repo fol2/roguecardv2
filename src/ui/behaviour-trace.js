@@ -41,6 +41,9 @@ const DETAIL_KEYS = new Set([
   'attributes', 'checkpoint', 'replay',
 ]);
 const REPLAY_KEYS = new Set(['v', 'presentationId', 'fixtureId', 'locale', 'params']);
+const LAB_REPLAY_KEYS = new Set(['v', 'kind', 'subject', 'parameters', 'endState']);
+const LAB_REPLAY_SUBJECT_KEYS = new Set(['kind', 'contentId', 'upgraded']);
+const LAB_REPLAY_END_KEYS = new Set(['destination', 'visible']);
 const POINTER_KEYS = new Set([
   'x', 'y', 'clientX', 'clientY', 'pageX', 'pageY', 'screenX', 'screenY',
   'offsetX', 'offsetY', 'movementX', 'movementY', 'pointerId',
@@ -189,10 +192,77 @@ function validateReplayBounds(value, depth = 0, state = { nodes: 0, keys: 0 }) {
   for (const item of Object.values(value)) validateReplayBounds(item, depth + 1, state);
 }
 
-function validateReplay(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new TypeError('Replay Descriptor must be an object');
+function validateLabReplay(value) {
+  for (const key of Object.keys(value)) {
+    if (!LAB_REPLAY_KEYS.has(key)) throw new TypeError(`Replay Descriptor has unexpected field ${key}`);
   }
+  for (const key of LAB_REPLAY_KEYS) {
+    if (!Object.hasOwn(value, key)) throw new TypeError(`Replay Descriptor missing field ${key}`);
+  }
+  if (value.v !== 1) throw new TypeError('Replay Descriptor v must be 1');
+  assertStableString(value.kind, 'Replay Descriptor kind');
+  if (!value.subject || typeof value.subject !== 'object' || Array.isArray(value.subject)) {
+    throw new TypeError('Replay Descriptor subject must be an object');
+  }
+  for (const key of Object.keys(value.subject)) {
+    if (!LAB_REPLAY_SUBJECT_KEYS.has(key)) {
+      throw new TypeError(`Replay Descriptor has unexpected field subject.${key}`);
+    }
+  }
+  assertStableString(value.subject.kind, 'Replay Descriptor subject.kind');
+  assertStableString(value.subject.contentId, 'Replay Descriptor subject.contentId');
+  if (typeof value.subject.upgraded !== 'boolean') {
+    throw new TypeError('Replay Descriptor subject.upgraded must be boolean');
+  }
+  if (!value.parameters || typeof value.parameters !== 'object' || Array.isArray(value.parameters)) {
+    throw new TypeError('Replay Descriptor parameters must be an object');
+  }
+  const parameters = {};
+  for (const [key, child] of Object.entries(value.parameters)) {
+    if (child != null && typeof child === 'object') {
+      throw new TypeError(`Replay Descriptor parameters.${key} must be a primitive`);
+    }
+    if (typeof child === 'string') assertStableString(child, `Replay Descriptor parameters.${key}`);
+    else if (typeof child === 'number' && !Number.isFinite(child)) {
+      throw new TypeError(`Replay Descriptor parameters.${key} must be finite`);
+    } else if (child !== null && typeof child !== 'boolean' && typeof child !== 'number') {
+      throw new TypeError(`Replay Descriptor parameters.${key} must be a primitive`);
+    }
+    parameters[key] = child;
+  }
+  if (!value.endState || typeof value.endState !== 'object' || Array.isArray(value.endState)) {
+    throw new TypeError('Replay Descriptor endState must be an object');
+  }
+  for (const key of Object.keys(value.endState)) {
+    if (!LAB_REPLAY_END_KEYS.has(key)) {
+      throw new TypeError(`Replay Descriptor has unexpected field endState.${key}`);
+    }
+  }
+  assertStableString(value.endState.destination, 'Replay Descriptor endState.destination');
+  if (typeof value.endState.visible !== 'boolean') {
+    throw new TypeError('Replay Descriptor endState.visible must be boolean');
+  }
+  const result = {
+    v: 1,
+    kind: value.kind,
+    subject: {
+      kind: value.subject.kind,
+      contentId: value.subject.contentId,
+      upgraded: value.subject.upgraded,
+    },
+    parameters,
+    endState: {
+      destination: value.endState.destination,
+      visible: value.endState.visible,
+    },
+  };
+  if (utf8Length(JSON.stringify(result)) > REPLAY_MAX_SERIALISED_BYTES) {
+    throw new TypeError(`Replay Descriptor exceeds serialised bytes limit ${REPLAY_MAX_SERIALISED_BYTES}`);
+  }
+  return deepFreeze(result);
+}
+
+function validateLegacyReplay(value) {
   for (const key of Object.keys(value)) {
     if (!REPLAY_KEYS.has(key)) throw new TypeError(`Replay Descriptor has unexpected field ${key}`);
   }
@@ -214,6 +284,18 @@ function validateReplay(value) {
     }
   }
   return deepFreeze(result);
+}
+
+function validateReplay(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError('Replay Descriptor must be an object');
+  }
+  // Lab codec ({ kind, subject, … }) is the Content Lab URL shape; legacy
+  // presentationId/fixtureId remains valid for pre-Lab unit contracts.
+  if (Object.hasOwn(value, 'kind') || Object.hasOwn(value, 'subject')) {
+    return validateLabReplay(value);
+  }
+  return validateLegacyReplay(value);
 }
 
 function validateIdentity(value) {
@@ -349,6 +431,7 @@ export function createBehaviourTrace({
   now = () => performance.now(),
   policy = () => ({}),
   identity = () => ({}),
+  onReplayable = null,
 } = {}) {
   if (!Number.isInteger(capacity) || capacity < 1) throw new TypeError('trace capacity must be a positive integer');
   assertStableString(segment, 'trace segment');
@@ -392,6 +475,11 @@ export function createBehaviourTrace({
   let overflowed = false;
   let originAt = null;
   let lastAt = null;
+  let replayableSink = typeof onReplayable === 'function' ? onReplayable : null;
+
+  function setOnReplayable(callback) {
+    replayableSink = typeof callback === 'function' ? callback : null;
+  }
 
   function makeRecord(eventName, phase, details = {}) {
     assertStableString(eventName, 'trace eventName');
@@ -516,6 +604,7 @@ export function createBehaviourTrace({
       eventName,
       correlationId: validated.correlationId ?? null,
       finished: false,
+      replay: validated.replay ?? null,
     };
     spans.set(start.seq, state);
 
@@ -538,7 +627,11 @@ export function createBehaviourTrace({
         if (correlationId !== undefined) inherited.correlationId = correlationId;
         const end = makeRecord(eventName, 'end', inherited);
         abandon();
-        return append(end);
+        const recorded = append(end);
+        if (outcome === 'settled' && state.replay && replayableSink) {
+          try { replayableSink(state.replay); } catch { /* Lab sink must not break presentation */ }
+        }
+        return recorded;
       } catch (error) {
         return rejectObservation(error, { abandon });
       }
@@ -645,7 +738,7 @@ export function createBehaviourTrace({
   if (identityError) rejectObservation(identityError);
 
   return deepFreeze({
-    emit, begin, read, activeSpans, assertIntegrity, reset,
+    emit, begin, read, activeSpans, assertIntegrity, reset, setOnReplayable,
     enabled: Boolean(enabled),
   });
 }

@@ -92,8 +92,11 @@ import {
 } from '../src/ui/content.js';
 import {
   encodeLabScenario, decodeLabScenario, validateLabScenario,
-  encodeReplayDescriptor, decodeReplayDescriptor,
+  encodeReplayDescriptor, decodeReplayDescriptor, normalizeReplayDescriptor,
 } from '../src/dev/lab-scenario.js';
+import {
+  FORBIDDEN_PRODUCTION_MARKERS, scanProductionSurface,
+} from '../tools/verify-production-surface.mjs';
 import { CHAR_META } from '../src/char-meta.js';
 import {
   CHARACTER_KIND_IDS, STRUCTURAL_FALLBACK_IDS, VFX_IDS,
@@ -8363,6 +8366,67 @@ export default defineContentRegistration({
     const source = readFileSync(new URL('../src/dev/lab-scenario.js', import.meta.url), 'utf8');
     assert.doesNotMatch(source, /from\s+['"]\.\.\/(audio|music|stage|ui)\b/);
     assert.doesNotMatch(source, /document\.|window\.|localStorage/);
+  }
+}
+
+// ---- Task 17: production-surface verifier marker list + Lab codec normalize ----
+{
+  // Pin the full frozen inventory — deleting any marker must fail this gate.
+  assert.deepEqual([...FORBIDDEN_PRODUCTION_MARKERS], [
+    '__content-save',
+    'Content Lab',
+    '_sample',
+    'data-dev-shell',
+    'data-content-doctor',
+    'contentedit',
+    'data-lab-root',
+    'createDevRegistry',
+    'ui/dev/lab',
+    'ui/dev/doctor',
+    'ui/dev/content-manager',
+    'ui/dev/shell',
+  ]);
+  assert.equal(FORBIDDEN_PRODUCTION_MARKERS.length, 12);
+  assert.equal(Object.isFrozen(FORBIDDEN_PRODUCTION_MARKERS), true);
+  // scan helper rejects markers when planted in a synthetic file set.
+  const tmp = mkdtempSync(join(tmpdir(), 'spire-surface-'));
+  try {
+    writeFileSync(join(tmp, 'index.html'), '<script src="/assets/x.js"></script>\n');
+    mkdirSync(join(tmp, 'assets'));
+    writeFileSync(join(tmp, 'assets', 'x.js'), 'console.log("Content Lab")\n');
+    const hits = scanProductionSurface(tmp);
+    assert.ok(hits.some((h) => h.marker === 'Content Lab'));
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+
+  const replay = {
+    v: 1,
+    kind: 'card-flight',
+    subject: { kind: 'card', contentId: 'strike', upgraded: false },
+    parameters: { destination: 'discard', motion: 'full' },
+    endState: { destination: 'discard', visible: false },
+  };
+  assert.deepEqual(normalizeReplayDescriptor(replay), replay);
+  assert.equal(Object.isFrozen(normalizeReplayDescriptor(replay)), true);
+
+  // Production UI modules must not branch on sample ids.
+  {
+    const uiRoot = new URL('../src/ui/', import.meta.url);
+    const walk = (dir, rel = '') => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const nextRel = rel ? `${rel}/${entry.name}` : entry.name;
+        if (entry.isDirectory()) {
+          if (entry.name === 'dev') continue; // Lab/doctor are DEV-only
+          walk(join(dir, entry.name), nextRel);
+        } else if (entry.name.endsWith('.js')) {
+          const source = readFileSync(join(dir, entry.name), 'utf8');
+          assert.doesNotMatch(source, /sampleTheme|sampleEnemy|sampleCard/,
+            `${nextRel} must not branch on sample content ids`);
+        }
+      }
+    };
+    walk(fileURLToPath(uiRoot));
   }
 }
 

@@ -14,4 +14,5 @@ export const uiCommands = Object.freeze({
   startCombat: (...args) => call('startCombat', args),
   renderHud: (...args) => call('renderHud', args),
   closeOverlay: (...args) => call('closeOverlay', args),
+  showLabResult: (...args) => call('showLabResult', args),
 });
