@@ -445,6 +445,7 @@ export async function initUI() {
           resolution: () => (window.devicePixelRatio || 1) * (stageInfo().scale || 1),
         },
         policy: rendererPolicy,
+        settle: () => presentationBarrier.whenIdle(),
         trace,
       });
       window.spirebound = Object.freeze({

@@ -151,6 +151,7 @@ export async function createPixiLayer({
   trace,
   snapshot: initialSnapshot,
   observer,
+  settle,
 } = {}) {
   let canvas = initialCanvas;
   if (!canvas || typeof canvas.getContext !== 'function') {
@@ -162,6 +163,7 @@ export async function createPixiLayer({
   const resolutionFn = typeof stage.resolution === 'function'
     ? stage.resolution
     : () => 1;
+  const awaitSettle = typeof settle === 'function' ? settle : async () => true;
 
   let status = 'idle';
   let generation = 0;
@@ -326,6 +328,18 @@ export async function createPixiLayer({
       oldCanvas.replaceWith(replacement);
       canvas = replacement;
       await buildRenderer();
+      // A rebuild while frozen must keep the new ticker stopped at the same
+      // named tick until unfreezeForTest runs.
+      if (frozen) {
+        clockTick = frozenTick;
+        application?.ticker?.stop?.();
+        writeSnapshot({
+          ...(currentSnapshot && typeof currentSnapshot === 'object' ? currentSnapshot : {}),
+          frozen: true,
+          frozenTick,
+          generation,
+        });
+      }
       setStatus('ready');
     } catch (error) {
       setStatus('failed');
@@ -339,14 +353,27 @@ export async function createPixiLayer({
   };
 
   const freezeForTest = async ({ atTick = 0 } = {}) => {
+    await awaitSettle();
     frozen = true;
     frozenTick = Number.isFinite(atTick) ? Number(atTick) : 0;
+    clockTick = frozenTick;
     application?.ticker?.stop?.();
+    writeSnapshot({
+      ...(currentSnapshot && typeof currentSnapshot === 'object' ? currentSnapshot : {}),
+      frozen: true,
+      frozenTick,
+      generation,
+    });
     return stats();
   };
   const unfreezeForTest = () => {
     frozen = false;
     application?.ticker?.start?.();
+    if (currentSnapshot && typeof currentSnapshot === 'object') {
+      const next = { ...currentSnapshot, frozen: false };
+      delete next.frozenTick;
+      writeSnapshot(next);
+    }
     return stats();
   };
 

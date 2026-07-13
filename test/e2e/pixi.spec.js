@@ -294,28 +294,39 @@ test.describe('Round 5 production Pixi layer', () => {
       const pixi = window.spirebound.pixi;
       pixi.writeSnapshot({ version: 2, phase: 'pre-rebuild', counters: { rebuilds: 0 } });
       const before = pixi.stats();
-      const beforeSnapshot = pixi.snapshot();
+      await pixi.freezeForTest({ atTick: 11 });
+      const afterFreeze = pixi.stats();
       const lossStats = await pixi.loseContextForTest();
       const afterLoss = pixi.status();
       const rebuildStats = await pixi.rebuild();
+      const afterRebuild = pixi.stats();
       const afterSnapshot = pixi.snapshot();
+      const tickerStopped = pixi.application()?.ticker?.started === false;
+      pixi.unfreezeForTest();
       return {
         beforeGeneration: before.generation,
-        beforeTransitions: before.transitions,
+        afterFreeze,
         afterLoss,
         lossStats,
         rebuildStats,
-        beforeSnapshot,
+        afterRebuild,
         afterSnapshot,
+        tickerStopped,
       };
     });
     expect(result.beforeGeneration).toBe(1);
+    expect(result.afterFreeze.frozen).toBe(true);
+    expect(result.afterFreeze.frozenTick).toBe(11);
     expect(result.afterLoss).toBe('lost');
     expect(result.rebuildStats.status).toBe('ready');
     expect(result.rebuildStats.generation).toBeGreaterThanOrEqual(2);
     expect(result.rebuildStats.transitions).toEqual(expect.arrayContaining(['ready', 'lost', 'rebuilding', 'ready']));
-    expect(result.beforeSnapshot).toEqual(result.afterSnapshot);
+    expect(result.afterRebuild.frozen).toBe(true);
+    expect(result.afterRebuild.frozenTick).toBe(11);
+    expect(result.tickerStopped).toBe(true);
     expect(result.afterSnapshot.phase).toBe('pre-rebuild');
+    expect(result.afterSnapshot.frozen).toBe(true);
+    expect(result.afterSnapshot.frozenTick).toBe(11);
   });
 
   test('missing-texture nine-slice renders the vector fallback and stays usable', async ({ page }) => {
