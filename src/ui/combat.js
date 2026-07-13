@@ -77,7 +77,7 @@ export function createCombat({
     const cb = S.cb;
     if (!cb) {
       return {
-        v: 2,
+        version: 2,
         phase,
         stage: { shape: stageInfo().shape },
         hero: null,
@@ -87,7 +87,7 @@ export function createCombat({
       };
     }
     return {
-      v: 2,
+      version: 2,
       phase,
       stage: { shape: stageInfo().shape },
       hero: {

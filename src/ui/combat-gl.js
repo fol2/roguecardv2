@@ -112,8 +112,10 @@ function domRect(selector, root = null) {
  * @param {object} [deps.tokens]                   Design tokens (colour /
  *   type / duration). Unused in 22a but validated so callers pass the
  *   frozen table PR16/PR17 expect.
- * @param {object} deps.pixiLayer                  Task 21 lifecycle handle;
- *   the renderer reuses its root/application and its freeze/lose surface.
+ * @param {object} [deps.pixiLayer]                Optional Task 21 lifecycle
+ *   handle. When omitted, resolves from `globalThis.spirebound.pixi` so the
+ *   frozen plan signature `{ canvas, actions, tooltip, trace, tokens }` still
+ *   boots after `createPixiLayer`.
  * @returns {Promise<object>} the frozen renderer handle.
  */
 export async function createCombatRenderer({
@@ -122,10 +124,13 @@ export async function createCombatRenderer({
   tooltip = null,
   trace = null,
   tokens = null,
-  pixiLayer,
+  pixiLayer: pixiLayerArg = null,
 } = {}) {
+  const pixiLayer = pixiLayerArg
+    || globalThis.spirebound?.pixi
+    || null;
   if (!pixiLayer || typeof pixiLayer.root !== 'function') {
-    throw new TypeError('createCombatRenderer requires a Pixi lifecycle handle');
+    throw new TypeError('createCombatRenderer requires a Pixi lifecycle handle (pass pixiLayer or boot createPixiLayer first)');
   }
 
   // Optional parameters are stashed for later slices; capturing them here
@@ -212,7 +217,7 @@ export async function createCombatRenderer({
     await Promise.all(manifest.map(({ alias, src, blocking }) => preloadOne(alias, src, blocking)));
     texturedReady = blockingLoaded === blockingExpected;
     trace?.emit?.('renderer.textured-ready', {
-      outcome: texturedReady ? 'completed' : 'skipped',
+      outcome: texturedReady ? 'completed' : 'failed',
       attributes: {
         rendererId: RENDERER_ID,
         blockingLoaded,
@@ -402,7 +407,7 @@ export async function createCombatRenderer({
       textureErrors: Object.freeze(textureErrors.map((entry) => Object.freeze({ ...entry }))),
       interactionMode,
       hasModel: presentationModel !== null,
-      modelVersion: presentationModel?.version ?? presentationModel?.v ?? null,
+      modelVersion: presentationModel?.version ?? null,
       frozen: pixiStats.frozen === true,
       frozenTick: pixiStats.frozen === true ? (pixiStats.frozenTick ?? null) : null,
       pixiGeneration: pixiStats.generation ?? null,
