@@ -4443,7 +4443,7 @@ git commit -m "test: close the content registry equivalence gate"
   `validateLabScenario(scenario, content)`, `encodeReplayDescriptor` and
   `decodeReplayDescriptor` are Node-pure.
 
-- [ ] **Step 1 (16A): Write failing UI-binding and effects-isolation tests**
+- [x] **Step 1 (16A): Write failing UI-binding and effects-isolation tests**
 
 Build `createDevRegistry({fixtures:['sample']})` from the compiled development
 manifest and first re-run the green Task 12B/14
@@ -4471,7 +4471,7 @@ bequest mutators occur only inside `run-effects.js`.
 Run `npm test` and the new `content-context.spec.js`; expected RED is missing UI
 binding/suppression, never a changed engine/save assertion.
 
-- [ ] **Step 2 (16A): Bind presentation content and extend the one effects boundary**
+- [x] **Step 2 (16A): Bind presentation content and extend the one effects boundary**
 
 Extend `ui/content.js` with a private `RUN_PRESENTATION_CONTENT` WeakMap.
 `bindRunContent` requires an engine-marked ephemeral run and matching
@@ -4496,7 +4496,7 @@ for Task 17 instead of entering Dawn/Fall/bequest presentation. Normal paths
 retain the exact journal→finalise→commit and Dawn queue sequence. `overlay.js`
 remains the sole retry/focus/inert dialog owner.
 
-- [ ] **Step 3 (16A): Verify, review and commit UI/effects isolation**
+- [x] **Step 3 (16A): Verify, review and commit UI/effects isolation**
 
 ```bash
 set -euo pipefail
@@ -4517,7 +4517,7 @@ git commit -m "feat: isolate ephemeral Lab presentation and effects"
 Fresh reviewers must confirm there is one normal/ephemeral transaction owner,
 no save-shape field, and no P2 engine seam duplicated in UI before 16B.
 
-- [ ] **Step 4 (16B): Write the failing canonical codec tests**
+- [x] **Step 4 (16B): Write the failing canonical codec tests**
 
 Test this exact scenario round-trip:
 
@@ -4559,7 +4559,7 @@ must exist in `VARIANTS` and have `base === id`; own-shade variants are the one
 declared special case `{ id:'shade', variantId:'ownShade1|2|3' }` where
 `base === 'hero'`. Staging passes `variantId ?? id` to the real combat command.
 
-- [ ] **Step 5 (16B): Implement canonical URL codecs**
+- [x] **Step 5 (16B): Implement canonical URL codecs**
 
 Sort object/query keys deterministically while preserving every array's semantic
 order; encode JSON payloads with base64url; deep-copy/freeze decoded values.
@@ -4580,7 +4580,7 @@ Replay descriptor shape is:
 
 It contains no command, engine state, DOM/Pixi data or save snapshot.
 
-- [ ] **Step 6 (16B): Verify, review and commit the pure codec**
+- [x] **Step 6 (16B): Verify, review and commit the pure codec**
 
 ```bash
 set -euo pipefail
