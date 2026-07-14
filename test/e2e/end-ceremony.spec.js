@@ -131,13 +131,19 @@ test.describe('Fall and Dawn ceremonies', () => {
 
     await expect(page.locator('.r5-end')).toHaveAttribute('data-r5-state', 'dawn-closed');
     await expect(page.locator('.r5-end')).toHaveAttribute('data-motion', 'reduced');
+    await expect(page.locator('.r5-dawn-bloom')).toHaveCSS('opacity', '0.42');
 
     const ends = await page.evaluate(() => window.__probe.behaviourTrace().records
       .filter((record) => record.eventName === 'presentation.dawn' && record.phase === 'end'));
     expect(ends.length).toBeGreaterThanOrEqual(1);
     expect(ends.every((record) => record.outcome === 'settled')).toBe(true);
     expect(ends.some((record) => record.attributes?.endState === 'dawn-closed'
-      && record.attributes?.motion === 'reduced')).toBe(true);
+      && record.attributes?.motion === 'reduced'
+      && record.attributes?.phase == null)).toBe(true);
+    const parentStarts = await page.evaluate(() => window.__probe.behaviourTrace().records
+      .filter((record) => record.eventName === 'presentation.dawn' && record.phase === 'start'
+        && record.attributes?.phase == null));
+    expect(parentStarts.length).toBeGreaterThanOrEqual(1);
   });
 
   for (const owner of DAWN_OWNERS) {
@@ -350,10 +356,12 @@ test.describe('Fall and Dawn ceremonies', () => {
     await expect(page.locator('.bequest-done, .r5-bequest-unpaid')).toContainText(
       'The unpaid gift remains in the standing stone',
     );
-    await page.waitForFunction(() => {
-      const state = document.querySelector('.r5-end')?.dataset.r5State;
-      return state === 'monument-engraved' || state === 'fall-unpaid-shade-bequest';
-    });
+    await expect(page.locator('.r5-end')).toHaveAttribute('data-r5-state', 'fall-unpaid-shade-bequest');
+    const fallEnds = await page.evaluate(() => window.__probe.behaviourTrace().records
+      .filter((record) => record.eventName === 'presentation.fall' && record.phase === 'end'
+        && record.attributes?.endState === 'fall-unpaid-shade-bequest'));
+    expect(fallEnds.length).toBeGreaterThanOrEqual(1);
+    expect(fallEnds.at(-1).outcome).toBe('settled');
     const emptyChoice = await page.locator('.bequest-opts, .r5-choice-ring .bequest-opt').count();
     expect(emptyChoice).toBe(0);
   });

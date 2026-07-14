@@ -255,7 +255,10 @@ export function createEndScreen(deps) {
         const rail = root?.querySelector('.r5-dawn-close-rail');
         if (phaseId === 'bloom' && bloom) {
           bloom.dataset.r5State = isReducedPolicy(policy) ? 'ready' : 'rising';
-          if (isReducedPolicy(policy)) bloom.style.opacity = '0.42';
+          if (isReducedPolicy(policy)) {
+            bloom.style.opacity = '0.42';
+            bloom.style.transform = 'scale(1)';
+          }
         }
         if (phaseId === 'ascended-parallax' && parallax) {
           parallax.dataset.r5State = 'ready';
@@ -386,9 +389,7 @@ export function createEndScreen(deps) {
 
     await runPhasedCeremony({
       name: 'fall',
-      endState: terminal === R5_SCREEN_END_STATES.fallUnpaidShadeBequest
-        ? R5_SCREEN_END_STATES.monumentEngraved
-        : terminal,
+      endState: terminal,
       barrier: presentationBarrier,
       trace,
       policy,
@@ -451,14 +452,7 @@ export function createEndScreen(deps) {
       },
     }).done;
 
-    if (root?.isConnected) {
-      root.dataset.r5State = unpaidBequest
-        ? R5_SCREEN_END_STATES.fallUnpaidShadeBequest
-        : R5_SCREEN_END_STATES.monumentEngraved;
-      // Contract: REDUCED/settled Fall always exposes monument-engraved as the
-      // ceremony endState attribute; unpaid is an additive surface state.
-      if (!unpaidBequest) root.dataset.r5State = R5_SCREEN_END_STATES.monumentEngraved;
-    }
+    if (root?.isConnected) root.dataset.r5State = terminal;
   }
 
   function renderEnd({

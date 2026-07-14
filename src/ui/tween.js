@@ -250,8 +250,9 @@ export function runPhasedCeremony({
   const done = new Promise((r) => { resolve = r; });
 
   const finishParent = (outcome, motion) => {
+    // Parent span matches the full-motion parent: endState only, no phase id.
     const span = trace?.begin?.(`presentation.${name}`, {
-      attributes: { endState, phase: phaseIds[phaseIds.length - 1] || null },
+      attributes: { endState },
     }) || { finish() {} };
     // Parent start was deferred for REDUCED — emit start+end as one terminal beat.
     span.finish?.(outcome, { attributes: { motion, endState } });
@@ -278,7 +279,9 @@ export function runPhasedCeremony({
           await invokePhaseHook(id, to, 'reduced');
           if (typeof phase === 'object' && typeof phase.run === 'function') {
             await phase.run({ motion: 'reduced' });
-          } else if (typeof phase === 'object' && phase?.onUpdate) {
+          } else if (typeof onPhase !== 'function' && typeof phase === 'object' && phase?.onUpdate) {
+            // When onPhase owns the REDUCED terminal frame, skip onUpdate(to) so
+            // contract terminals (e.g. bloom opacity 0.42) are not overwritten.
             phase.onUpdate(to);
           }
           stepSpan.finish?.('settled', { attributes: { motion: 'reduced', endState, phase: id } });
