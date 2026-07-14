@@ -9058,6 +9058,176 @@ export default defineContentRegistration({
   assert.doesNotMatch(warningBlock, /process\.exit|throw new Error\(`average/);
 }
 
+// ---- Task 26: card-face layout + bounded composer cache ---------------------
+{
+  const {
+    CARD_FACE_WIDTH, CARD_FACE_HEIGHT, BODY_FONT_STEPS, BODY_MAX_LINES,
+    FACE_CACHE_MAX_ENTRIES, FACE_CACHE_BYTE_CAPS,
+    estimateFaceBytes, faceCacheKey, faceDprCap, faceCacheByteCap,
+    layoutCardFace, layoutCardBody, tokenizeBody, wrapBodyTokens,
+    upgradeDiffRanges, assertFaceContrast, approximateMeasure,
+    layoutRegions,
+  } = await import('../src/ui/cardface-layout.js');
+  const { createCardFaceComposer } = await import('../src/ui/cardface.js');
+  const { registerLocale, setLocale, getLocale: liveLocale } = await import('../src/i18n/index.js');
+  const { ROUND5_TOKENS } = await import('../src/ui/tokens.js');
+
+  assert.equal(CARD_FACE_WIDTH, 152);
+  assert.equal(CARD_FACE_HEIGHT, 216);
+  assert.deepEqual([...BODY_FONT_STEPS], [13, 12, 11]);
+  assert.equal(BODY_MAX_LINES, 6);
+  assert.equal(FACE_CACHE_MAX_ENTRIES, 24);
+  assert.equal(FACE_CACHE_BYTE_CAPS.lite, 4_191_990);
+  assert.equal(FACE_CACHE_BYTE_CAPS.full, 16_767_960);
+
+  const bytes1 = estimateFaceBytes(152, 216, 1);
+  assert.equal(bytes1, Math.ceil(152 * 1) * Math.ceil(216 * 1) * 4 * 1.33);
+  const bytes2 = estimateFaceBytes(152, 216, 2);
+  assert.equal(bytes2, Math.ceil(152 * 2) * Math.ceil(216 * 2) * 4 * 1.33);
+  assert.ok(FACE_CACHE_BYTE_CAPS.lite / bytes1 >= 24);
+  assert.ok(FACE_CACHE_BYTE_CAPS.full / bytes2 >= 24);
+  assert.equal(faceDprCap({ tier: 'lite' }), 1);
+  assert.equal(faceDprCap({ tier: 'full' }), 2);
+  assert.equal(faceCacheByteCap({ tier: 'lite' }), FACE_CACHE_BYTE_CAPS.lite);
+
+  const contrast = assertFaceContrast(4.5);
+  assert.equal(contrast.ok, true, `face contrast failures: ${JSON.stringify(contrast.failures)}`);
+
+  const regions = layoutRegions();
+  assert.ok(regions.body.w > 100);
+  // Keyword icon runs must stay atomic.
+  const tokens = tokenizeBody('Deal @10@ damage. Kindle. Gain #5# Ward.');
+  assert.ok(tokens.some((t) => t.kind === 'keyword' && t.text === 'Kindle'));
+  assert.ok(tokens.some((t) => t.kind === 'keyword' && t.text === 'Ward'));
+  assert.ok(tokens.some((t) => t.kind === 'value' && t.value === 10));
+
+  const narrow = wrapBodyTokens(tokenizeBody('Kindle Kindle Kindle Kindle'), {
+    fontSize: 13,
+    maxWidth: approximateMeasure('Kindle', 13) + 12,
+    maxLines: 6,
+    measure: approximateMeasure,
+  });
+  assert.ok(narrow.lines.length >= 2);
+  for (const line of narrow.lines) {
+    for (const tok of line) {
+      if (tok.kind === 'keyword') assert.equal(tok.text, 'Kindle');
+    }
+  }
+
+  // Overflow ellipsis + diagnostic at 11px.
+  const huge = 'Smolder '.repeat(80).trim();
+  const overflow = layoutCardBody(huge, {
+    maxWidth: regions.body.w,
+    maxLines: 6,
+    measure: approximateMeasure,
+  });
+  assert.equal(overflow.ellipsized, true);
+  assert.ok(overflow.diagnostic);
+  assert.equal(overflow.diagnostic.code, 'cardface-body-overflow');
+  assert.equal(overflow.fontSize, 11);
+
+  // Every base + upgraded core card fits without emergency fallback.
+  for (const [id, card] of Object.entries(CARDS)) {
+    for (const up of [false, true]) {
+      if (up && !card.up) continue;
+      const face = layoutCardFace({ ...card, id }, {
+        up,
+        getLocale: () => 'en',
+        dpr: 1,
+      });
+      assert.equal(face.body.ellipsized, false, `card ${id} up=${up} must fit without ellipsis`);
+      assert.equal(face.contrast.ok, true);
+      assert.match(face.key, /^en\u001f/);
+    }
+  }
+
+  const diffs = upgradeDiffRanges('Deal @6@ damage.', 'Deal @9@ damage.');
+  assert.ok(diffs.length >= 1);
+  assert.ok(diffs.some((r) => 'Deal @9@ damage.'.slice(r.start, r.end).includes('9')));
+
+  // Cache key must read the live getLocale() token — not a fictional constant.
+  let localeToken = 'en';
+  const keyEn = faceCacheKey({
+    getLocale: () => localeToken,
+    id: 'strike',
+    up: false,
+    cost: 1,
+    text: 'Deal @6@ damage.',
+    dpr: 1,
+    rarity: 'starter',
+    type: 'attack',
+  });
+  localeToken = 'xx-cardface';
+  const keyXx = faceCacheKey({
+    getLocale: () => localeToken,
+    id: 'strike',
+    up: false,
+    cost: 1,
+    text: 'Deal @6@ damage.',
+    dpr: 1,
+    rarity: 'starter',
+    type: 'attack',
+  });
+  assert.match(keyEn, /^en\u001f/);
+  assert.match(keyXx, /^xx-cardface\u001f/);
+  assert.notEqual(keyEn, keyXx);
+
+  // Composer LRU + locale invalidation (stub bake — no WebGL).
+  const mockRenderer = { resolution: 1 };
+  const composer = createCardFaceComposer({
+    renderer: mockRenderer,
+    registries: { cards: CARDS },
+    tokens: ROUND5_TOKENS,
+    getLocale: () => liveLocale(),
+    policy: { tier: 'full' },
+    bakeFace: (layout) => ({
+      width: 152, height: 216, destroy() {}, key: layout.key, __stub: true,
+    }),
+  });
+  const a1 = composer.acquire({ id: 'strike' }, { up: false });
+  const a2 = composer.acquire({ id: 'defend' }, { up: false });
+  assert.ok(a1.key.startsWith('en\u001f'));
+  assert.equal(composer.stats().entries, 2);
+  const exported = composer.exportImage({ id: 'strike' }, { up: false });
+  assert.equal(exported.key, a1.key);
+  assert.ok(exported.url);
+
+  // Fill past max entries to force eviction of released faces.
+  a1.release();
+  a2.release();
+  exported.release();
+  for (const id of Object.keys(CARDS).slice(0, 30)) {
+    const handle = composer.acquire({ id }, { up: false });
+    handle.release();
+  }
+  assert.ok(composer.stats().entries <= FACE_CACHE_MAX_ENTRIES);
+  assert.ok(composer.stats().bytes <= FACE_CACHE_BYTE_CAPS.full);
+
+  // Locale invalidation: register/switch a synthetic UI catalogue, observe
+  // the locale token change, invalidate every baked text texture, restore en.
+  assert.equal(liveLocale(), 'en');
+  const beforeKeys = composer.stats().keys.length;
+  assert.ok(beforeKeys > 0);
+  registerLocale('zz-cardface', {
+    content: {},
+    ui: { menu: { beginClimb: 'ZZ climb' } },
+  });
+  assert.equal(setLocale('zz-cardface'), true);
+  assert.equal(liveLocale(), 'zz-cardface');
+  const removed = composer.invalidate({ localeChanged: true });
+  assert.ok(removed >= beforeKeys);
+  assert.equal(composer.stats().entries, 0);
+  // Re-acquire under the new locale — key must carry zz-cardface.
+  const zzFace = composer.acquire({ id: 'strike' }, { up: false });
+  assert.ok(zzFace.key.startsWith('zz-cardface\u001f'), zzFace.key);
+  zzFace.release();
+  assert.equal(setLocale('en'), true);
+  assert.equal(liveLocale(), 'en');
+  composer.invalidate({ localeChanged: true });
+  assert.equal(composer.stats().entries, 0);
+  composer.destroy();
+}
+
 
 let wins = 0, deaths = 0;
 const RUNS = 300;

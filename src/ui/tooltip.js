@@ -5,7 +5,10 @@ import { $, $$, FINE, S, el } from './context.js';
 import { contentViewFor } from './content.js';
 import { rasterOr } from './assets.js';
 
-export function createTooltip({ tr }) {
+export function createTooltip({
+  tr,
+  getCardFaceComposer = () => globalThis.spirebound?.combatGl?.cardFace || null,
+} = {}) {
   const statuses = () => contentViewFor(S.run).statuses;
   const FACET_DESC = () => tr('ui.keywords.facetDesc');
   const KEYWORDS = () => ({
@@ -136,13 +139,63 @@ export function createTooltip({ tr }) {
     const card = el('div', `card t-${data.type} r-${data.rarity}${inst.up ? ' upgraded' : ''}`);
     if (size) card.style.setProperty('--cw', `${size}px`);
     if (inst.uid != null) card.dataset.uid = inst.uid;
-    let costHtml = '';
-    if (data.cost != null) {
-      const effective = inCombat && S.cb ? E.effCost(S.run, S.cb, inst) : data.cost;
-      costHtml = `<div class="card-cost ${effective === 0 ? 'free' : ''}">${effective}</div>`;
-    }
+    const effectiveCost = data.cost == null
+      ? null
+      : (inCombat && S.cb ? E.effCost(S.run, S.cb, inst) : data.cost);
     let text = fmtText(data.text, inCombat);
-    if (inst.bonus) text = text.replace(/<span class="val[^"]*">(\d+)<\/span>/, (match, value) => match.replace(value, +value + inst.bonus));
+    if (inst.bonus) {
+      text = text.replace(/<span class="val[^"]*">(\d+)<\/span>/, (match, value) => match.replace(value, +value + inst.bonus));
+    }
+
+    // Task 26 — prefer the single Pixi card-face composer export when booted.
+    const composer = typeof getCardFaceComposer === 'function' ? getCardFaceComposer() : null;
+    if (composer && typeof composer.exportImage === 'function') {
+      let effectiveText = data.text;
+      if (inst.bonus && typeof effectiveText === 'string') {
+        effectiveText = effectiveText.replace(/@(\d+)@/g, (_, n) => `@${+n + inst.bonus}@`);
+      }
+      const exported = composer.exportImage(
+        { id: inst.id, up: !!inst.up },
+        {
+          up: !!inst.up,
+          effectiveCost,
+          effectiveText,
+        },
+      );
+      card.dataset.cardFaceKey = exported.key;
+      card._cardFaceRelease = exported.release;
+      card.innerHTML = `<div class="card-lift"><div class="card-inner card-inner-export">
+        <img class="card-face-export" alt="" draggable="false"
+          data-card-face-key="${exported.key}"
+          src="${exported.url}"
+          style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none;border-radius:12px"/>
+      </div></div>`;
+      card._tip = { title: data.name, body: text };
+      if (FINE) card.addEventListener('mousemove', (event) => {
+        const rect = card.getBoundingClientRect();
+        const px = (event.clientX - rect.left) / rect.width;
+        const py = (event.clientY - rect.top) / rect.height;
+        const inner = $('.card-inner', card);
+        if (!inner) return;
+        inner.style.setProperty('--ry', `${(px - 0.5) * 16}deg`);
+        inner.style.setProperty('--rx', `${(0.5 - py) * 12}deg`);
+        inner.style.setProperty('--mx', `${px * 100}%`);
+        inner.style.setProperty('--my', `${py * 100}%`);
+        inner.style.setProperty('--gx', (px - 0.5) * 60);
+      });
+      card.addEventListener('mouseleave', () => {
+        const inner = $('.card-inner', card);
+        if (!inner) return;
+        inner.style.setProperty('--ry', '0deg');
+        inner.style.setProperty('--rx', '0deg');
+      });
+      return card;
+    }
+
+    let costHtml = '';
+    if (effectiveCost != null) {
+      costHtml = `<div class="card-cost ${effectiveCost === 0 ? 'free' : ''}">${effectiveCost}</div>`;
+    }
     card.innerHTML = `<div class="card-lift">${costHtml}<div class="card-inner">
       <div class="card-art">${rasterOr('cards', inst.id, cardArtSvg(inst.id, data.type))}</div>
       <div class="card-name">${data.name}</div>

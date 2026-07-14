@@ -111,6 +111,8 @@ function renderReward() {
   };
 
   function pickCardReward(ids) {
+    // Task 26 — reward card grid consumes the same composer export as shop/deck
+    // overlays via showCardGrid → cardEl (data-card-face-key on each face).
     showCardGrid(tr('ui.reward.chooseCardTitle'), ids.map((id) => ({ id, up: false, uid: null })), {
       sub: tr('ui.reward.chooseCardSub'),
       pick: (inst) => {

@@ -38,6 +38,10 @@ import { stageH, stageInfo, stageRect, stageW } from '../stage.js';
 import { energySlotStates } from '../ui-chrome.js';
 import { relicBarLayout, uicResolve } from '../uic.js';
 import { snapStage } from './widgets.js';
+import { createCardFaceComposer } from './cardface.js';
+import { CARDS } from '../data.js';
+import { getLocale } from '../i18n/index.js';
+import { ROUND5_TOKENS } from './tokens.js';
 
 /** Task 21 formula: min(max(dpr * stage.scale, 0.5), tierCap). Prefer the
  *  live Pixi renderer resolution when the layer is already booted. */
@@ -201,8 +205,24 @@ export async function createCombatRenderer({
   }
 
   // Optional parameters are stashed for later slices; capturing them here
-  // keeps the eventual `{ actions, tooltip, tokens }` wiring one edit away.
-  void canvas; void actions; void tooltip; void tokens;
+  // keeps the eventual `{ actions, tooltip }` wiring one edit away.
+  void canvas; void actions; void tooltip;
+
+  // Task 26 — single card-face composer shared by combat acquire + DOM export.
+  const experienceTokens = tokens || ROUND5_TOKENS;
+  const appRenderer = pixiLayer.application?.()?.renderer || null;
+  const cardFace = createCardFaceComposer({
+    renderer: appRenderer || {
+      resolution: paintResolution(pixiLayer),
+      generateTexture: null,
+      extract: null,
+    },
+    registries: { cards: CARDS },
+    assets: null,
+    tokens: experienceTokens,
+    getLocale,
+    policy: pixiLayer.policy || { tier: 'full' },
+  });
 
   const container = new Container();
   container.label = 'combat-gl-root';
@@ -1638,6 +1658,10 @@ export async function createCombatRenderer({
     if (nextRoot && typeof nextRoot.addChild === 'function' && container.parent !== nextRoot) {
       nextRoot.addChild(container);
     }
+    const nextRenderer = pixiLayer.application?.()?.renderer;
+    if (nextRenderer) {
+      try { cardFace.rebuild(nextRenderer); } catch { /* best-effort */ }
+    }
     if (presentationModel) {
       try { sync(presentationModel); } catch { /* remount best-effort */ }
     }
@@ -1669,6 +1693,7 @@ export async function createCombatRenderer({
   const destroy = () => {
     if (destroyed) return;
     destroyed = true;
+    try { cardFace.destroy(); } catch { /* already gone */ }
     try { container.destroy({ children: true }); } catch { /* container already reaped */ }
     textureAliases.clear();
     presentationModel = null;
@@ -1683,6 +1708,8 @@ export async function createCombatRenderer({
     // lifecycle bridge (Task 21 pixiLayer)
     loseContextForTest, rebuildAfterLossForTest, recoverContextForTest,
     freezeForTest, unfreezeForTest, destroy,
+    // Task 26 — single card-face composer
+    cardFace,
     // scaffold introspection (not part of the frozen public seam; PR16 will
     // stabilise these once the renderer actually paints)
     root: () => container,

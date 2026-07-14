@@ -244,6 +244,14 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
   function closeOverlay() {
     if (persistenceDialogTransaction) return false;
     const overlay = $('#overlay');
+    // Task 26 — release exported card-face object URLs / cache refs.
+    $$('[data-card-face-key]', overlay).forEach((node) => {
+      const host = node.closest?.('.card') || node;
+      if (typeof host._cardFaceRelease === 'function') {
+        try { host._cardFaceRelease(); } catch { /* ignore */ }
+        host._cardFaceRelease = null;
+      }
+    });
     overlay.classList.remove('open', 'run-save-lock');
     overlay.innerHTML = '';
     return true;
@@ -508,6 +516,9 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
     };
     for (const inst of sorted) {
       const card = cardEl(inst, { inCombat });
+      if (card.dataset.cardFaceKey) {
+        card.setAttribute('data-card-face-key', card.dataset.cardFaceKey);
+      }
       if (pick) card.onclick = () => { sfx.click(); choose(inst, card, 240); };
       grid.appendChild(card);
     }

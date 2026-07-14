@@ -35,11 +35,19 @@ function renderShop() {
   };
   function refresh() {
     if (shopGrid) shopGrid.classList.toggle('list-seq-done', shopSeeded);
+    // Task 26 — release prior exported faces before rebuilding the stock row.
+    cardsRow.querySelectorAll('.card').forEach((node) => {
+      if (typeof node._cardFaceRelease === 'function') {
+        try { node._cardFaceRelease(); } catch { /* ignore */ }
+        node._cardFaceRelease = null;
+      }
+    });
     cardsRow.innerHTML = '';
     miscRow.innerHTML = '';
     for (const it of st.cards) {
       const wrap = el('div', `shop-item ${it.sold ? 'sold' : ''} ${gold() < it.price ? 'cant' : ''}`);
       const c = cardEl({ id: it.id, up: false, uid: null }, { size: 138 });
+      if (c.dataset.cardFaceKey) wrap.dataset.cardFaceKey = c.dataset.cardFaceKey;
       c.onclick = () => {
         if (it.sold || gold() < it.price) return sfx.debuff();
         it.sold = true;
