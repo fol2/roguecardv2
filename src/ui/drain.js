@@ -243,9 +243,10 @@ async function handleDrawWave(q, queueCauseSeq = null) {
         schedule: sched, ceremony: 'draw',
         uids: draws.map((ev) => ev.uid),
       });
+      // flyCardBacks already awaits stagger*(n-1)+flightDur; hand reveals were
+      // armed to landAt within that same window — no second sleep.
       presentation.bumpPile(ce.draw);
       draws.forEach((_, i) => setTimeout(() => sfx.draw(), i * sched.stagger));
-      await sleep(sched.awaitMs);
     } else {
       presentation.layoutHand();
       await sleep(40);
