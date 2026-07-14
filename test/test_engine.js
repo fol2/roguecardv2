@@ -419,7 +419,7 @@ function forceHand(run, cb, ids) {
     'ui.brand.tagline', 'ui.brand.title', 'ui.brand.title', 'ui.combat.affixTitle', 'ui.combat.ashes', 'ui.combat.ashesPileAria',
     'ui.combat.ashesPileAria', 'ui.combat.ashesSub', 'ui.combat.ashesTitle', 'ui.combat.buff', 'ui.combat.debuff', 'ui.combat.discard',
     'ui.combat.discardPileAria', 'ui.combat.discardPileAria', 'ui.combat.discardPileTitle', 'ui.combat.draw', 'ui.combat.drawPileAria', 'ui.combat.drawPileAria',
-    'ui.combat.drawPileSub', 'ui.combat.drawPileTitle', 'ui.combat.end', 'ui.combat.end',
+    'ui.combat.drawPileSub', 'ui.combat.drawPileTitle', 'ui.combat.end', 'ui.combat.end', 'ui.combat.end',
     'ui.combat.enemyTurn', 'ui.combat.energyAria', 'ui.combat.facetsBody', 'ui.combat.facetsTitle', 'ui.combat.glassHolds', 'ui.combat.guardShattered',
     'ui.combat.guardShattered', 'ui.combat.lanternBody', 'ui.combat.lanternBodyLead', 'ui.combat.lanternSub', 'ui.combat.lanternTitle', 'ui.combat.lanternTitle', 'ui.combat.lanternTitleArt',
     'ui.combat.monumentGift', 'ui.combat.perfectBanner', 'ui.combat.reshuffle', 'ui.combat.shatter', 'ui.combat.staggered', 'ui.combat.staggered',

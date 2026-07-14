@@ -2701,8 +2701,7 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #uigl, html.freeze #mesh, html.
 .pixi-bottom-chrome .pile-btn * {
   visibility: hidden;
 }
-/* Preserve pointer-event hit area for kindle-drag (release-on-lantern) — the
- * DOM node still resolves under `underPointer` even though its paint is gone. */
+/* Keep DOM chrome hittable as a fallback; kindle drag prefers [data-proxy=lantern]. */
 .pixi-bottom-chrome .energy-orb,
 .pixi-bottom-chrome .lantern-btn,
 .pixi-bottom-chrome .end-turn,

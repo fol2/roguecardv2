@@ -553,6 +553,47 @@ test.describe('Round 5 production Pixi layer', () => {
     expect(result.hiddenVisuals.pileKidsHidden).toBe(true);
   });
 
+  test('Task 22b-1 hit proxies: kindle resolves lantern; draw pile click opens card grid', async ({ page }) => {
+    await bootProduction(page);
+    await page.evaluate(async () => {
+      await window.__probe.stageCoreTheme({ themeId: 'act1' });
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    });
+
+    // Mirror combat.js underPointer + LANTERN_DROP closest for kindle targeting.
+    const kindleHit = await page.evaluate(() => {
+      const sample = (key) => {
+        const el = document.querySelector(`[data-proxy="${key}"]`);
+        if (!el) return { key, present: false };
+        const rect = el.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        const under = document.elementsFromPoint(x, y).find((node) => !node.closest('.card'));
+        const lantern = under?.closest('[data-proxy="lantern"], .lantern-btn') ?? null;
+        return {
+          key,
+          present: true,
+          underProxy: under?.getAttribute?.('data-proxy') ?? null,
+          resolvesLantern: !!lantern,
+          lanternIsProxy: lantern?.getAttribute?.('data-proxy') === 'lantern',
+        };
+      };
+      return { lantern: sample('lantern'), draw: sample('draw'), endTurn: sample('end-turn') };
+    });
+    expect(kindleHit.lantern.present).toBe(true);
+    expect(kindleHit.lantern.underProxy).toBe('lantern');
+    expect(kindleHit.lantern.resolvesLantern).toBe(true);
+    expect(kindleHit.lantern.lanternIsProxy).toBe(true);
+    expect(kindleHit.draw.underProxy).toBe('draw');
+    expect(kindleHit.draw.resolvesLantern).toBe(false);
+    expect(kindleHit.endTurn.underProxy).toBe('end-turn');
+    expect(kindleHit.endTurn.resolvesLantern).toBe(false);
+
+    await page.locator('[data-proxy="draw"]').click();
+    await expect(page.locator('#overlay.open .card-grid')).toBeVisible();
+    await expect(page.locator('#overlay.open .ov-title')).toHaveText('Draw Pile');
+  });
+
   test('font requests are same-origin and complete before renderer.ready with measurable Cinzel/Alegreya proof', async ({ page }) => {
     const { fontRequests } = await bootProduction(page);
     expect(fontRequests.length).toBeGreaterThanOrEqual(7);

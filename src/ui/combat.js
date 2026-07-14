@@ -68,20 +68,13 @@ export function createCombat({
   } = overlay;
   const show = (...args) => late.show(...args);
   const transition = (...args) => late.transition(...args);
-  // Task 22a seam / Task 22b-1 dual-write. The composition root installs the
-  // Pixi combat renderer after `initUI` boots the Pixi layer; combat calls
-  // into it via the `late` bag so the eager createCombat construction stays
-  // synchronous.
+  // Pixi combat renderer is installed on `late` after initUI boots the layer.
   const glMount = (...args) => late.combatGlMount?.(...args);
   const glSync = (...args) => late.combatGlSync?.(...args);
   const glActive = () => late.combatGlActive?.() ?? false;
+  // Kindle drop target: proxies sit above .lantern-btn (z:30 vs 24).
+  const LANTERN_DROP = '[data-proxy="lantern"], .lantern-btn';
 
-  function pileTierValue(count) {
-    const n = Math.max(0, Math.floor(Number(count) || 0));
-    if (n <= 0) return 0;
-    if (n >= 5) return 5;
-    return n;
-  }
   function buildBottomChromeModel(cb) {
     const energy = cb.player.energy ?? 0;
     const energyMax = cb.player.energyMax ?? 0;
@@ -100,10 +93,11 @@ export function createCombat({
       lanternReady: S.run ? !!E.canUseArt(S.run, cb) : false,
       lanternArtSpent: cb.artUsedTurn === cb.turn && !cb.over,
       endTurnEnabled: energy === 0 && !cb.over && !S.busy,
+      endTurnLabel: tr('ui.combat.end'),
       piles: {
-        draw: { count: finalDraw, tier: pileTierValue(finalDraw) },
-        discard: { count: finalDiscard, tier: pileTierValue(finalDiscard) },
-        ashes: { count: ashesN, tier: pileTierValue(ashesN) },
+        draw: { count: finalDraw },
+        discard: { count: finalDiscard },
+        ashes: { count: ashesN },
       },
     };
   }
@@ -1182,7 +1176,7 @@ function bindCardDrag(c, uid) {
       const zr = S.ce?.hand ? stageRect(S.ce.hand) : null;
       const cx = zr && zr.width > 2 ? zr.left + zr.width / 2 : stageW() / 2;
       c.style.transform = `translate(calc(-50% + ${p.x - cx}px), ${p.y - stageH() + 130}px) scale(1.12)`;
-      const overL = !!underPointer(e.clientX, e.clientY)?.closest('.lantern-btn');
+      const overL = !!underPointer(e.clientX, e.clientY)?.closest(LANTERN_DROP);
       c.classList.toggle('will-burn', overL);
       c.classList.toggle('will-cast', !st.kindleOnly && !overL && p.y < castLine());
     } else {
@@ -1204,8 +1198,8 @@ function bindCardDrag(c, uid) {
       st.traceSpan?.finish('cancelled', { reason: 'pointer-cancelled' });
       clearTargeting(); layoutHand(); return;
     }
-    // the lantern is always listening: release a card on it to kindle
-    const overLantern = underPointer(e.clientX, e.clientY)?.closest('.lantern-btn');
+    // Release over the lantern proxy (or DOM .lantern-btn) to kindle
+    const overLantern = underPointer(e.clientX, e.clientY)?.closest(LANTERN_DROP);
     if (overLantern) {
       const inst = S.cb.hand.find((x) => x.uid === uid);
       if (inst && E.canKindle(S.run, S.cb, inst)) {

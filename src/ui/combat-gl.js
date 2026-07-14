@@ -532,8 +532,9 @@ export async function createCombatRenderer({
         .stroke({ color: 0xf2c14e, width: 2 });
       endTurnLayer.addChild(g);
     }
+    const endLabel = presentationModel?.bottomChrome?.endTurnLabel ?? 'End';
     const label = new Text({
-      text: 'END',
+      text: String(endLabel),
       style: {
         fontFamily: 'Cinzel',
         fontSize: 18,
