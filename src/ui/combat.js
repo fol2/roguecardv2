@@ -1500,7 +1500,6 @@ function installCombatPointerRouter({
     stage: () => stageEl(),
     toStage,
     renderer: glRenderer(),
-    domHandAdapter: null,
     targetRegions,
     actions,
     tooltip: tipBridge(),
@@ -1740,10 +1739,23 @@ function handleCombatKey(event) {
   if (event.target?.closest?.('.modal, #pop-menu')) return false;
 
   const key = event.key;
+  const KEY_TOKENS = {
+    ' ': 'space',
+    Spacebar: 'space',
+    ArrowLeft: 'arrow-left',
+    ArrowRight: 'arrow-right',
+    ArrowUp: 'arrow-up',
+    ArrowDown: 'arrow-down',
+    Enter: 'enter',
+    Escape: 'escape',
+  };
+  const keyToken = KEY_TOKENS[key]
+    || (key.length === 1 && /^[A-Za-z0-9]$/.test(key) ? key.toLowerCase() : null)
+    || (/^[a-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(key) ? key : 'key:other');
   const emit = (outcome, reason, extra = {}) => {
     trace.emit('input.keyboard', {
       outcome,
-      attributes: { key, reason, ...extra },
+      attributes: { key: keyToken, reason, ...extra },
     });
   };
 
@@ -1875,6 +1887,7 @@ function clearTargeting() {
   updateLantern(); // hand the light back to the lantern
 }
 function aimMove(e) {
+  if (!e) return;
   if (!e.synthetic) aimMove._last = e;
   if (!S.targeting) return;
   // Task 27 — arc paints in Pixi; `#aim` stays an empty structural host.
@@ -1882,7 +1895,8 @@ function aimMove(e) {
   if (aimHost && aimHost.childNodes.length) aimHost.innerHTML = '';
   glSync(buildPresentationModel('aim-move'));
   // the lantern leans toward where you mean to strike: intent illuminates
-  const last = aimMove._last;
+  // Synthetic keyboard aim uses the event itself; live pointer keeps _last.
+  const last = e.synthetic ? e : (aimMove._last || e);
   const { x: mx, y: my } = last.synthetic
     ? { x: last.clientX, y: last.clientY }
     : toStage(last.clientX, last.clientY);

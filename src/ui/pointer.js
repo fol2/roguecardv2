@@ -26,7 +26,6 @@ function pointInRect(x, y, rect) {
  * @param {HTMLElement|(() => HTMLElement|null)} deps.stage
  * @param {(cx:number, cy:number) => {x:number,y:number}} deps.toStage
  * @param {{ hitTest:(x:number,y:number)=>any, setInteraction?:Function }|null} deps.renderer
- * @param {{ hitTest:(pt:{x:number,y:number}, event:PointerEvent)=>any, beginDrag?:Function, moveDrag?:Function, finishDrag?:Function, click?:Function }|null} deps.domHandAdapter
  * @param {(() => { enemies?: Array<{index:number, bounds:any}>, hero?: {bounds:any} })|null} deps.targetRegions
  * @param {object} deps.actions semantic combat handlers
  * @param {{ showFromBounds?:Function, hide?:Function, longPressMove?:Function }|null} deps.tooltip
@@ -36,7 +35,6 @@ export function createCombatPointerRouter({
   stage,
   toStage,
   renderer = null,
-  domHandAdapter = null,
   targetRegions = null,
   actions = {},
   tooltip = null,
@@ -131,8 +129,6 @@ export function createCombatPointerRouter({
       }
       return { source: 'pixi', hit: pixiHit };
     }
-    const handHit = domHandAdapter?.hitTest?.(stagePt, event) || null;
-    if (handHit) return { source: 'hand', hit: handHit };
     const enemyHit = hitEnemy(stagePt);
     if (enemyHit) return { source: 'enemy', hit: enemyHit };
     return null;

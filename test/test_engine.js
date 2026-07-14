@@ -501,6 +501,21 @@ function forceHand(run, cb, ids) {
     'Task 27 keyboard grammar lives on the combat owner');
   assert.doesNotMatch(combatSource, /const domHandAdapter/,
     'Task 27 removes the P4 domHandAdapter');
+  assert.doesNotMatch(combatSource, /domHandAdapter\s*:/,
+    'Task 27 drops the null domHandAdapter residual from the router wiring');
+  const pointerSource = readFileSync(new URL('../src/ui/pointer.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(pointerSource, /domHandAdapter/,
+    'Task 27 pointer router no longer accepts a DOM hand adapter');
+  const combatGlSource = readFileSync(new URL('../src/ui/combat-gl.js', import.meta.url), 'utf8');
+  assert.match(combatGlSource, /ensureHandFace|faceCacheKeyFor/,
+    'Task 27 paintHand reuses card faces by cache key');
+  assert.match(combatGlSource, /handReady = painted === model\.cards\.length/,
+    'Task 27 handReady is strict seat membership, not painted >= 0');
+  assert.doesNotMatch(combatGlSource, /handReady = painted >= 0/,
+    'Task 27 removes the always-true handReady assignment');
+  const probeHandSource = readFileSync(new URL('../src/ui/probe.js', import.meta.url), 'utf8');
+  assert.match(probeHandSource, /combatReady \? painted === cb\.hand\.length/,
+    'Task 27 probe requires painted === hand.length when combat ready');
   assert.match(combatSource, /function flyCardBacks\([\s\S]*?releaseCardFace\(m\)/,
     'flyCardBacks teardown revokes card-face object URLs');
   assert.match(drainSource, /adoptCardFaceRelease\(src\.el,\s*m\)/,

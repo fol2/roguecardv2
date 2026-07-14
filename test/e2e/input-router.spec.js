@@ -1,4 +1,5 @@
 // Task 23 — sole stage combat pointer router + Probe v2 contract.
+// Task 27 Step 2 — Pixi hand + keyboard journeys (no DOM `.hand-zone .card`).
 import { test, expect } from './trace-fixture.js';
 import {
   boot, settle, collectErrors, expectNoErrors, stageBoundsToClient, pointerDrag,
@@ -8,9 +9,9 @@ test.beforeEach(() => {
   test.skip(test.info().project.name !== 'desktop', 'input-router runs on desktop only');
 });
 
-async function bootCombat(page) {
+async function bootCombat(page, { query = '' } = {}) {
   const errors = collectErrors(page);
-  await boot(page);
+  await boot(page, query ? { query } : undefined);
   await page.evaluate(async () => {
     await window.__probe.stageCoreTheme({ themeId: 'act1' });
   });
@@ -18,25 +19,30 @@ async function bootCombat(page) {
   return errors;
 }
 
-test('Pixi hand owns seats — no DOM hand cards; keyboard cycles and plays', async ({ page }) => {
+test('Pixi hand owns seats — no DOM hand cards; hover floor stays put', async ({ page }) => {
   const errors = await bootCombat(page);
   const baseline = await page.evaluate(() => {
     window.__probe.setEnergy(3);
     window.__probe.forceHand(['strike', 'defend', 'strike']);
     const ui = window.__probe.ui();
     const plates = (window.__probe.combatRendererReadUI()?.enemies || []).map((e) => e.plateBounds);
+    const stats = window.spirebound.combatGl?.stats?.();
     return {
       domCards: document.querySelectorAll('.hand-zone .card').length,
       aimChildren: document.querySelector('#aim')?.childElementCount ?? -1,
       hand: ui.hand.length,
       seats: ui.hand.map((c) => c.seatBounds),
       plates,
+      painted: stats?.hand?.painted ?? -1,
+      handReady: stats?.hand?.ready === true,
       sheen: ui.hand.map((c) => c.sheen),
     };
   });
   expect(baseline.domCards).toBe(0);
   expect(baseline.aimChildren).toBe(0);
   expect(baseline.hand).toBeGreaterThan(0);
+  expect(baseline.handReady).toBe(true);
+  expect(baseline.painted).toBe(baseline.hand);
   expect(baseline.seats.every((s) => s && s.width > 0)).toBe(true);
 
   // Hover first seat — foe plates must stay within 1 stage px.
@@ -61,14 +67,239 @@ test('Pixi hand owns seats — no DOM hand cards; keyboard cycles and plays', as
     expect(d.top).toBeLessThanOrEqual(1);
     expect(d.bottom).toBeLessThanOrEqual(1);
   }
+  expectNoErrors(errors);
+});
 
-  // Keyboard: Right cycles, Enter activates defend path / End Turn via E.
-  await page.keyboard.press('ArrowRight');
-  await page.keyboard.press('ArrowRight');
-  const selected = await page.evaluate(() => window.__probe.ui().selectedCardUid);
-  expect(selected).not.toBeNull();
-  await page.keyboard.press('e');
+test('cast-begin plate recheck — resting floor ignores live card lift', async ({ page }) => {
+  const errors = await bootCombat(page);
+  const setup = await page.evaluate(() => {
+    window.__probe.setEnergy(3);
+    const [uid] = window.__probe.forceHand(['defend']);
+    const ui = window.__probe.ui();
+    const card = ui.hand.find((c) => c.uid === uid) || ui.hand[0];
+    const plates = (window.__probe.combatRendererReadUI()?.enemies || []).map((e) => e.plateBounds);
+    const hand = document.querySelector('.hand-zone') || document.querySelector('.hand');
+    const info = window.__probe.stage();
+    const stage = document.getElementById('stage');
+    const sr = stage.getBoundingClientRect();
+    const hr = hand.getBoundingClientRect();
+    const handTop = (hr.top - sr.top) / (info.scale || 1);
+    const castLine = handTop - 24;
+    const cx = (card.bounds.left + card.bounds.right) / 2;
+    return {
+      uid: card.uid,
+      bounds: card.bounds,
+      plates,
+      releaseStage: { left: cx, top: castLine - 40, width: 0, height: 0 },
+    };
+  });
+  const from = await stageBoundsToClient(page, setup.bounds);
+  const to = await stageBoundsToClient(page, setup.releaseStage);
+  // Start the cast gesture but sample plates before settle drains the queue.
+  await pointerDrag(page, from, to, { steps: 8 });
+  const mid = await page.evaluate((before) => {
+    const plates = (window.__probe.combatRendererReadUI()?.enemies || []).map((e) => e.plateBounds);
+    return {
+      drift: plates.map((p, i) => ({
+        top: Math.abs((p?.top ?? 0) - (before[i]?.top ?? 0)),
+        bottom: Math.abs((p?.bottom ?? 0) - (before[i]?.bottom ?? 0)),
+      })),
+    };
+  }, setup.plates);
+  for (const d of mid.drift) {
+    expect(d.top).toBeLessThanOrEqual(1);
+    expect(d.bottom).toBeLessThanOrEqual(1);
+  }
   await settle(page);
+  expectNoErrors(errors);
+});
+
+test('keyboard: Space/Enter play, Escape cancel, multi-enemy Up/Down+Enter', async ({ page }) => {
+  const errors = await bootCombat(page);
+
+  // Space/Enter activates a selected non-target card (defend).
+  await page.evaluate(() => {
+    window.__probe.setEnergy(3);
+    window.__probe.forceHand(['defend']);
+  });
+  await settle(page);
+  await page.keyboard.press('ArrowRight');
+  const selectedDefend = await page.evaluate(() => window.__probe.ui().selectedCardUid);
+  expect(selectedDefend).not.toBeNull();
+  const blockBefore = await page.evaluate(() => window.__probe.state().player.block);
+  await page.keyboard.press('Space');
+  await settle(page);
+  const afterSpace = await page.evaluate((before) => ({
+    block: window.__probe.state().player.block,
+    gained: window.__probe.state().player.block > before,
+  }), blockBefore);
+  expect(afterSpace.gained).toBe(true);
+
+  // Multi-enemy targeting: arm strike, cycle Up/Down, Escape cancels, then Enter commits.
+  await page.evaluate(() => {
+    window.__probe.setEnergy(3);
+    window.__probe.forceHand(['strike']);
+  });
+  await settle(page);
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Enter');
+  const targeting = await page.evaluate(() => ({
+    targeting: !!window.spirebound.S.targeting,
+    enemyIndex: window.__probe.ui().selectedEnemyIndex,
+    living: window.__probe.state().enemies.filter((e) => e.hp > 0).length,
+  }));
+  expect(targeting.targeting).toBe(true);
+  expect(targeting.living).toBeGreaterThanOrEqual(2);
+  expect(targeting.enemyIndex).not.toBeNull();
+
+  await page.keyboard.press('ArrowDown');
+  const cycled = await page.evaluate((prev) => ({
+    index: window.__probe.ui().selectedEnemyIndex,
+    changed: window.__probe.ui().selectedEnemyIndex !== prev,
+  }), targeting.enemyIndex);
+  expect(cycled.changed).toBe(true);
+
+  await page.keyboard.press('Escape');
+  const cancelled = await page.evaluate(() => ({
+    targeting: !!window.spirebound.S.targeting,
+    records: window.__probe.behaviourTrace().records.some((r) =>
+      r.eventName === 'input.keyboard' && r.outcome === 'accepted'
+      && r.attributes?.reason === 'cancel-targeting'),
+  }));
+  expect(cancelled.targeting).toBe(false);
+  expect(cancelled.records).toBe(true);
+
+  // Re-arm and commit with Enter on the selected foe.
+  await page.evaluate(() => {
+    window.__probe.setEnergy(3);
+    window.__probe.forceHand(['strike']);
+  });
+  await settle(page);
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowUp');
+  const beforeCommit = await page.evaluate(() => {
+    const idx = window.__probe.ui().selectedEnemyIndex;
+    return {
+      idx,
+      hp: window.__probe.state().enemies[idx]?.hp ?? null,
+    };
+  });
+  await page.keyboard.press('Enter');
+  await settle(page);
+  const afterCommit = await page.evaluate((idx) => ({
+    targeting: !!window.spirebound.S.targeting,
+    hp: window.__probe.state().enemies[idx]?.hp ?? null,
+  }), beforeCommit.idx);
+  expect(afterCommit.targeting).toBe(false);
+  expect(afterCommit.hp).toBeLessThan(beforeCommit.hp);
+  expectNoErrors(errors);
+});
+
+test('keyboard A fires Lantern Art when ready', async ({ page }) => {
+  const errors = await bootCombat(page);
+  const armed = await page.evaluate(() => {
+    window.spirebound.S.run.art = 'flare';
+    window.__probe.setEmbers(9);
+    return {
+      art: window.spirebound.S.run.art,
+      embers: window.__probe.state().embers,
+      can: window.spirebound.E.canUseArt(window.spirebound.S.run, window.spirebound.S.cb),
+    };
+  });
+  expect(armed.can).toBe(true);
+  await page.keyboard.press('a');
+  await settle(page);
+  const after = await page.evaluate(() => ({
+    embers: window.__probe.state().embers,
+    artTrace: window.__probe.behaviourTrace().records.some((r) =>
+      r.eventName === 'input.keyboard' && r.attributes?.reason === 'lantern-art'),
+  }));
+  expect(after.embers).toBe(armed.embers - 3);
+  expect(after.artTrace).toBe(true);
+  expectNoErrors(errors);
+});
+
+test('LITE flat sheen vs full foil policy', async ({ page }) => {
+  // Full tier — foil sheen tag on seats.
+  {
+    const errors = await bootCombat(page, { query: 'tier=full' });
+    const full = await page.evaluate(() => {
+      window.__probe.setEnergy(3);
+      window.__probe.forceHand(['oblivionStrike', 'strike']);
+      const ui = window.__probe.ui();
+      return {
+        tier: ui.renderer?.policy?.tier,
+        sheens: ui.hand.map((c) => c.sheen),
+        foils: ui.hand.map((c) => ({ id: c.id, foil: c.foil })),
+      };
+    });
+    expect(full.tier).toBe('full');
+    expect(full.sheens.every((s) => s === 'foil')).toBe(true);
+    expect(full.foils.find((f) => f.id === 'oblivionStrike')?.foil).toBe(true);
+    expect(full.foils.find((f) => f.id === 'strike')?.foil).toBe(false);
+    expectNoErrors(errors);
+  }
+
+  // LITE tier — flat sheen on every seat.
+  {
+    const errors = await bootCombat(page, { query: 'tier=lite' });
+    const lite = await page.evaluate(() => {
+      window.__probe.setEnergy(3);
+      window.__probe.forceHand(['oblivionStrike', 'strike']);
+      const ui = window.__probe.ui();
+      return {
+        tier: ui.renderer?.policy?.tier,
+        sheens: ui.hand.map((c) => c.sheen),
+        foils: ui.hand.map((c) => c.foil),
+      };
+    });
+    expect(lite.tier).toBe('lite');
+    expect(lite.sheens.every((s) => s === 'flat')).toBe(true);
+    expect(lite.foils.every((f) => f === false)).toBe(true);
+    expectNoErrors(errors);
+  }
+});
+
+test('pure ghost/lethal preview values match previewPlay', async ({ page }) => {
+  const errors = await bootCombat(page);
+  const result = await page.evaluate(() => {
+    const sp = window.spirebound;
+    const E = sp.E;
+    const S = sp.S;
+    window.__probe.setEnergy(3);
+    window.__probe.setEnemyHp(0, 5);
+    const [uid] = window.__probe.forceHand(['strike']);
+    const cb = S.cb;
+    const inst = cb.hand.find((c) => c.uid === uid);
+    const pure = E.previewPlay(S.run, cb, inst, 0);
+    // Arm targeting so updatePreviews paints the ghost / lethal mark.
+    S.selectedCardUid = uid;
+    if (E.cardData(inst, S.run).target === 'enemy') {
+      S.targeting = { kind: 'card', uid };
+      S.selectedEnemyIndex = 0;
+      S.ce?.enemies?.forEach((box, i) => {
+        box.root.classList.toggle('target-hover', i === 0);
+        box.root.classList.toggle('targetable', cb.enemies[i].hp > 0);
+      });
+    }
+    const previewAgain = E.previewPlay(S.run, cb, inst, 0);
+    const en = S.ce?.enemies?.[0];
+    return {
+      pure,
+      previewAgain,
+      marked: !!en?.root?.classList?.contains('marked'),
+      ghostShown: !!en?.pv?.classList?.contains('show'),
+      enemyHp: cb.enemies[0].hp,
+    };
+  });
+  expect(result.pure).toBeTruthy();
+  expect(result.pure.loss).toBeGreaterThan(0);
+  expect(result.pure.lethal).toBe(result.pure.loss >= result.enemyHp);
+  expect(result.previewAgain.loss).toBe(result.pure.loss);
+  expect(result.previewAgain.lethal).toBe(result.pure.lethal);
+  // With HP forced to 5 and a strike, lethal should be true.
+  expect(result.pure.lethal).toBe(true);
   expectNoErrors(errors);
 });
 

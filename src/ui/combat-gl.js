@@ -296,7 +296,7 @@ export async function createCombatRenderer({
   let platesReady = false;
   let platesPainted = 0;
   let platesCache = null;
-  /** @type {Map<string, { root:Container, release:Function|null, seatBounds:object|null, faceKey:string|null }>} */
+  /** @type {Map<string, { root:Container, face:object|null, sprite:object|null, sheen:object|null, foilFilter:object|null, release:Function|null, seatBounds:object|null, faceKey:string|null }>} */
   const handNodes = new Map();
   let handCache = null;
   let handReady = false;
@@ -487,6 +487,106 @@ export async function createCombatRenderer({
     return foil;
   }
 
+  function faceDescriptor(card) {
+    return {
+      id: card.id,
+      name: card.name,
+      text: card.text,
+      cost: card.cost,
+      rarity: card.rarity,
+      type: card.type,
+      up: card.up,
+    };
+  }
+
+  function faceDisplayState(card) {
+    return {
+      up: !!card.upgraded,
+      effectiveCost: card.effectiveCost,
+      effectiveText: card.effectiveText,
+    };
+  }
+
+  function ensureHandFace(entry, card, faceW, faceH) {
+    const nextKey = typeof cardFace.faceCacheKeyFor === 'function'
+      ? cardFace.faceCacheKeyFor(faceDescriptor(card), faceDisplayState(card))
+      : `${card.id}:${card.effectiveCost}:${card.upgraded ? 1 : 0}`;
+    if (entry.faceKey === nextKey && entry.face) return;
+
+    try { entry.release?.(); } catch { /* ignore */ }
+    entry.release = null;
+    entry.faceKey = null;
+    if (entry.face) {
+      try { entry.root.removeChild(entry.face); } catch { /* ignore */ }
+      try { entry.face.destroy?.({ children: true }); } catch { /* ignore */ }
+      entry.face = null;
+    }
+    entry.sprite = null;
+
+    let texture = null;
+    try {
+      const acquired = cardFace.acquire(faceDescriptor(card), faceDisplayState(card));
+      entry.release = acquired.release;
+      entry.faceKey = acquired.key;
+      texture = acquired.texture;
+    } catch {
+      texture = null;
+    }
+
+    if (texture && !texture.__stub) {
+      const sprite = new Sprite(texture);
+      sprite.width = faceW;
+      sprite.height = faceH;
+      sprite.anchor?.set?.(0.5, 0.5);
+      sprite.eventMode = 'none';
+      entry.root.addChildAt(sprite, 0);
+      entry.face = sprite;
+      entry.sprite = sprite;
+    } else {
+      const fallback = new Graphics();
+      fallback.roundRect(-faceW / 2, -faceH / 2, faceW, faceH, 10)
+        .fill({ color: 0x1a2034, alpha: 0.92 })
+        .stroke({ color: 0xf2c14e, width: 2, alpha: 0.7 });
+      fallback.eventMode = 'none';
+      entry.root.addChildAt(fallback, 0);
+      entry.face = fallback;
+      entry.sprite = null;
+      entry.faceKey = nextKey;
+    }
+  }
+
+  function syncHandOverlays(entry, card, faceW, faceH, { hovered, selected, dragging }) {
+    const lite = isLite();
+    const foilActive = !lite
+      && (card.rarity === 'rare' || card.rarity === 'boss')
+      && (hovered || selected || dragging);
+
+    if (entry.sprite) {
+      if (foilActive) {
+        // Fresh filter each arm — ColorMatrixFilter must not outlive a GL context.
+        try {
+          entry.sprite.filters = [makeFoilFilter()];
+        } catch {
+          entry.sprite.filters = null;
+        }
+      } else {
+        entry.sprite.filters = null;
+      }
+    }
+
+    if (lite) {
+      if (!entry.sheen) {
+        const sheen = makeFlatSheen(faceW, faceH);
+        sheen.position.set(-faceW / 2, -faceH / 2);
+        entry.root.addChild(sheen);
+        entry.sheen = sheen;
+      }
+      entry.sheen.visible = true;
+    } else if (entry.sheen) {
+      entry.sheen.visible = false;
+    }
+  }
+
   function paintHand() {
     const model = presentationModel?.hand;
     if (!model || !Array.isArray(model.cards)) {
@@ -504,6 +604,7 @@ export async function createCombatRenderer({
     const fanN = fanCards.length;
     const want = new Set(model.cards.map((c) => String(c.uid)));
 
+    // Membership change only — release departed seats; keep survivors.
     for (const [uid, entry] of [...handNodes.entries()]) {
       if (!want.has(uid)) {
         try { entry.release?.(); } catch { /* ignore */ }
@@ -558,60 +659,24 @@ export async function createCombatRenderer({
         root.label = `hand-card:${uid}`;
         root.eventMode = 'none';
         handLayer.addChild(root);
-        entry = { root, release: null, seatBounds: null, faceKey: null };
+        entry = {
+          root,
+          face: null,
+          sprite: null,
+          sheen: null,
+          foilFilter: null,
+          release: null,
+          seatBounds: null,
+          faceKey: null,
+        };
         handNodes.set(uid, entry);
       }
+
+      ensureHandFace(entry, card, faceW, faceH);
+      syncHandOverlays(entry, card, faceW, faceH, { hovered, selected, dragging });
+
       const root = entry.root;
-      root.removeChildren();
-
-      let texture = null;
-      try {
-        const acquired = cardFace.acquire(
-          { id: card.id, name: card.name, text: card.text, cost: card.cost, rarity: card.rarity, type: card.type, up: card.up },
-          {
-            up: !!card.upgraded,
-            effectiveCost: card.effectiveCost,
-            effectiveText: card.effectiveText,
-          },
-        );
-        try { entry.release?.(); } catch { /* ignore */ }
-        entry.release = acquired.release;
-        entry.faceKey = acquired.key;
-        texture = acquired.texture;
-      } catch {
-        texture = null;
-      }
-
-      if (texture && !texture.__stub) {
-        const sprite = new Sprite(texture);
-        sprite.width = faceW;
-        sprite.height = faceH;
-        sprite.anchor?.set?.(0.5, 0.5);
-        sprite.eventMode = 'none';
-        root.addChild(sprite);
-        if (!isLite() && (card.rarity === 'rare' || card.rarity === 'boss') && (hovered || selected || dragging)) {
-          try { sprite.filters = [makeFoilFilter()]; } catch { /* filter unavailable */ }
-        } else if (isLite()) {
-          const sheen = makeFlatSheen(faceW, faceH);
-          sheen.position.set(-faceW / 2, -faceH / 2);
-          root.addChild(sheen);
-        }
-      } else {
-        const fallback = new Graphics();
-        fallback.roundRect(-faceW / 2, -faceH / 2, faceW, faceH, 10)
-          .fill({ color: 0x1a2034, alpha: card.playable ? 0.92 : 0.42 })
-          .stroke({ color: 0xf2c14e, width: 2, alpha: 0.7 });
-        root.addChild(fallback);
-        if (isLite()) {
-          const sheen = makeFlatSheen(faceW, faceH);
-          sheen.position.set(-faceW / 2, -faceH / 2);
-          root.addChild(sheen);
-        }
-      }
-
-      if (!card.playable) root.alpha = 0.42;
-      else root.alpha = 1;
-
+      root.alpha = card.playable ? 1 : 0.42;
       const sx = snapStage(x, resolution);
       const sy = snapStage(y, resolution);
       root.position.set(sx, sy);
@@ -661,14 +726,48 @@ export async function createCombatRenderer({
       if (!card.pending) continue;
       const uid = String(card.uid);
       let entry = handNodes.get(uid);
-      if (entry) {
+      if (!entry) {
+        const root = new Container();
+        root.label = `hand-card:${uid}`;
+        root.eventMode = 'none';
+        root.visible = false;
+        handLayer.addChild(root);
+        entry = {
+          root,
+          face: null,
+          sprite: null,
+          sheen: null,
+          foilFilter: null,
+          release: null,
+          seatBounds: null,
+          faceKey: null,
+        };
+        handNodes.set(uid, entry);
+      } else {
         entry.root.visible = false;
       }
+      seats.push(Object.freeze({
+        uid: card.uid,
+        id: card.id,
+        seatBounds: entry.seatBounds,
+        bounds: entry.seatBounds,
+        playable: !!card.playable,
+        pending: true,
+        hovered: false,
+        armed: false,
+        selected: false,
+        dragging: false,
+        foil: !isLite() && (card.rarity === 'rare' || card.rarity === 'boss'),
+        sheen: isLite() ? 'flat' : 'foil',
+        faceKey: entry.faceKey,
+      }));
+      painted += 1;
     }
 
     handLayer.sortableChildren = true;
     handPainted = painted;
-    handReady = painted >= 0;
+    // Ready only when every engine hand uid has a seat row (strict membership).
+    handReady = painted === model.cards.length;
     handCache = Object.freeze({
       seats: Object.freeze(seats),
       face: Object.freeze({ w: faceW, h: faceH }),
@@ -1977,6 +2076,10 @@ export async function createCombatRenderer({
     if (typeof pixiLayer.loseContextForTest !== 'function') {
       throw new Error('pixiLayer does not expose loseContextForTest');
     }
+    // Drop hand display objects before the Application reaps GPU resources —
+    // reused seats must not keep ColorMatrixFilter/Sprite textures across loss.
+    clearHandPaint();
+    clearAimPaint();
     // Detach before teardown so Application.destroy does not reap combat chrome.
     const layerRoot = pixiLayer.root?.();
     if (layerRoot && container.parent === layerRoot) {
@@ -2000,6 +2103,9 @@ export async function createCombatRenderer({
     if (nextRenderer) {
       try { cardFace.rebuild(nextRenderer); } catch { /* best-effort */ }
     }
+    // Force a full hand reacquire against the new renderer.
+    clearHandPaint();
+    clearAimPaint();
     if (presentationModel) {
       try { sync(presentationModel); } catch { /* remount best-effort */ }
     }

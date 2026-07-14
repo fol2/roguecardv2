@@ -119,10 +119,14 @@ export function installProbe({
         );
         {
           const painted = resolveCombatRenderer?.()?.readUI?.()?.hand?.seats?.length ?? 0;
+          const handReady = resolveCombatRenderer?.()?.stats?.()?.hand?.ready === true;
+          // Combat-ready: strict seat membership. Skip the equality check while
+          // busy (draw/cast ceremonies may briefly desync pending seats).
+          const combatReady = !S.busy && handReady;
           add(
             'hand: Pixi seats cover engine hand',
-            painted === cb.hand.length || (painted >= 0 && cb.hand.length >= painted),
-            `pixi=${painted} engine=${cb.hand.length}`,
+            combatReady ? painted === cb.hand.length : painted >= 0,
+            `pixi=${painted} engine=${cb.hand.length} ready=${combatReady}`,
           );
         }
         const gl = resolveCombatRenderer?.();
