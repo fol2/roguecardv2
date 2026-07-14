@@ -17,6 +17,26 @@ export function createDrain({
   }
   const runCatalogues = () => contentViewFor(S.run);
 
+  /** Task 26 — revoke composer object URLs / drop cache refs before discarding a face host. */
+  function releaseCardFace(node) {
+    if (!node || typeof node._cardFaceRelease !== 'function') return;
+    try { node._cardFaceRelease(); } catch { /* ignore */ }
+    node._cardFaceRelease = null;
+  }
+  /** Move export ownership onto a clone/flycard so the seat can detach without revoking early. */
+  function adoptCardFaceRelease(from, to) {
+    if (!from || !to) return;
+    if (typeof from._cardFaceRelease === 'function') {
+      to._cardFaceRelease = from._cardFaceRelease;
+      from._cardFaceRelease = null;
+    }
+  }
+  function removeHandCard(node) {
+    if (!node) return;
+    releaseCardFace(node);
+    node.remove();
+  }
+
 let heroActing = false; // true between a card play and end of turn — gates the hero lunge
 // which card/move caused the hits now playing back — set by 'play'/'enemyAct'/'art'
 let vfxSource = { archetype: 'slash', cardId: null, enemyIdx: null };
@@ -472,11 +492,15 @@ async function handleEvent(ev, targetIdx) {
         const ghost = c.cloneNode(true);
         Object.assign(ghost.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, margin: 0, transform: 'none', zIndex: 56, pointerEvents: 'none' });
         document.getElementById('floaties').appendChild(ghost);
+        adoptCardFaceRelease(c, ghost);
         c.remove();
         ghost.animate(
           [{ transform: 'none', opacity: 1 }, { transform: `translate(${tx - r.left - r.width / 2}px,${ty - r.top - r.height / 2}px) scale(0.22) rotate(14deg)`, opacity: 0 }],
           { duration: 270, easing: 'cubic-bezier(.45,0,.9,.5)' }
-        ).onfinish = () => ghost.remove();
+        ).onfinish = () => {
+          releaseCardFace(ghost);
+          ghost.remove();
+        };
       } else if (c) {
         // Tap/click: play lifts the card — recapture AFTER played-up so discard starts there.
         // Drag: keep the release-seat anchor (fromDrag); clearTargeting already reflowed the DOM.
@@ -666,7 +690,7 @@ async function handleEvent(ev, targetIdx) {
       const anchor = presentation.takeCardAnchor(ev.uid);
       const inst = presentation.pileCardByUid(cb.exhaust, ev.uid);
       if (REDUCED) {
-        if (c) c.remove();
+        if (c) removeHandCard(c);
         presentation.releasePileVisual('ashes', 1);
         presentation.syncCombat();
         break;
@@ -700,7 +724,7 @@ async function handleEvent(ev, targetIdx) {
             arc: 'smooth', easing: 'cubic-bezier(.22,.7,.28,1)',
           });
         }
-        if (c) c.remove();
+        if (c) removeHandCard(c);
         presentation.releasePileVisual('ashes', 1);
         presentation.bumpPile(ce.exhaust);
         presentation.syncCombat();
@@ -719,6 +743,7 @@ async function handleEvent(ev, targetIdx) {
           zIndex: 56, pointerEvents: 'none', opacity: '1',
         });
         document.getElementById('floaties').appendChild(ghost);
+        adoptCardFaceRelease(c, ghost);
         c.remove();
         ghost.animate(
           [
@@ -727,14 +752,17 @@ async function handleEvent(ev, targetIdx) {
             { clipPath: 'circle(0% at 50% 55%)', filter: 'brightness(2.6) saturate(2) sepia(0.85)' },
           ],
           { duration: 540, easing: 'ease-in' }
-        ).onfinish = () => ghost.remove();
+        ).onfinish = () => {
+          releaseCardFace(ghost);
+          ghost.remove();
+        };
         V.burst(start.x, start.y, { color: '#ffb066', n: 22, speed: 190, grav: -150, size: 2.4, life: 0.85 });
         const a1 = V.centerOf(ce.exhaust);
         presentation.flyTo(start.x, start.y, a1.x, a1.y, { n: 8, color: '#ffb066', size: 5, dur: 480 });
         presentation.bumpPile(ce.exhaust);
         await sleep(260);
       } else if (c) {
-        c.remove();
+        removeHandCard(c);
       }
       presentation.releasePileVisual('ashes', 1);
       presentation.syncCombat();
@@ -749,7 +777,7 @@ async function handleEvent(ev, targetIdx) {
       if (REDUCED) {
         uids.forEach((uid) => {
           presentation.takeCardAnchor(uid);
-          $(`.card[data-uid="${uid}"]`, ce.hand)?.remove();
+          removeHandCard($(`.card[data-uid="${uid}"]`, ce.hand));
         });
         presentation.syncCombat();
         break;
@@ -799,6 +827,8 @@ async function handleEvent(ev, targetIdx) {
               transform: 'translate(-50%,-50%) scale(1)', zIndex: 58 + i, pointerEvents: 'none',
               opacity: '1',
             });
+            // Task 26 — clone shares the blob URL; transfer release so seat detach is safe.
+            adoptCardFaceRelease(src.el, m);
           } else if (src.inst?.id) {
             m = cardEl(src.inst, { inCombat: true, size: layoutW });
             m.classList.add('flycard-face');
@@ -828,7 +858,10 @@ async function handleEvent(ev, targetIdx) {
               easing: 'cubic-bezier(.22,.7,.28,1)',
               fill: 'forwards',
             }
-          ).onfinish = () => m.remove();
+          ).onfinish = () => {
+            releaseCardFace(m);
+            m.remove();
+          };
           setTimeout(() => {
             presentation.releasePileVisual('discard', 1);
             presentation.syncPileWidgets(cb);
@@ -842,7 +875,7 @@ async function handleEvent(ev, targetIdx) {
       } else {
         presentation.releasePileVisual('discard', n);
       }
-      uids.forEach((uid) => $(`.card[data-uid="${uid}"]`, ce.hand)?.remove());
+      uids.forEach((uid) => removeHandCard($(`.card[data-uid="${uid}"]`, ce.hand)));
       presentation.syncCombat();
       break;
     }
@@ -880,9 +913,9 @@ async function handleEvent(ev, targetIdx) {
           schedule: { stagger: 0, flightDur: 200, awaitMs: 200 },
           arc: 'smooth', easing: 'cubic-bezier(.22,.7,.28,1)',
         });
-        if (c) c.remove();
+        if (c) removeHandCard(c);
       } else if (c) {
-        c.remove();
+        removeHandCard(c);
       } else if (!REDUCED && inst) {
         await presentation.flyCardBacks([{ ...V.centerOf(ce.hand), ...presentation.handFaceSize(), inst }], ce.discard, 200, {
           fromSize: 'hand', toSize: 'pile', sizePile: ce.discard, face: 'card', cardInst: inst,
@@ -950,7 +983,7 @@ async function handleEvent(ev, targetIdx) {
       // a power doesn't get discarded — it settles into the glass
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);
       const from = c ? V.centerOf(c) : { x: stageW() / 2, y: stageH() - 180 };
-      if (c) c.remove();
+      if (c) removeHandCard(c);
       const { x: hx, y: hy } = presentation.heroCenter();
       if (!REDUCED) {
         presentation.flyTo(from.x, from.y, hx, hy, { n: 7, color: '#c9a8ff', size: 7, dur: 560 });

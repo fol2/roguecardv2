@@ -491,6 +491,16 @@ function forceHand(run, cb, ids) {
     'cardEl consumes the single composer exportImage path');
   assert.doesNotMatch(uiSources, /card-art\$\{|cardArtSvg\(inst\.id/,
     'P1 DOM card-art bake is not competing at the cardEl merge boundary');
+  const combatSource = readFileSync(new URL('../src/ui/combat.js', import.meta.url), 'utf8');
+  const drainSource = readFileSync(new URL('../src/ui/drain.js', import.meta.url), 'utf8');
+  assert.match(combatSource, /function syncHand\([\s\S]*?_cardFaceRelease/,
+    'syncHand releases prior card-face exports on remove/refresh');
+  assert.match(combatSource, /function flyCardBacks\([\s\S]*?releaseCardFace\(m\)/,
+    'flyCardBacks teardown revokes card-face object URLs');
+  assert.match(drainSource, /adoptCardFaceRelease\(src\.el,\s*m\)/,
+    'drain flycard clone adopts seat card-face release ownership');
+  assert.match(drainSource, /releaseCardFace\(m\)/,
+    'drain flycard teardown revokes card-face object URLs');
 }
 
 // ---- Round 5 normal Phase 2 transaction seam ------------------------------

@@ -1141,6 +1141,12 @@ function scheduleHandReveal(c, landAt) {
     setTimeout(() => c.classList.remove('draw-in'), 240);
   }, landAt);
 }
+/** Task 26 — revoke composer object URLs / drop cache refs before discarding a face host. */
+function releaseCardFace(node) {
+  if (!node || typeof node._cardFaceRelease !== 'function') return;
+  try { node._cardFaceRelease(); } catch { /* ignore */ }
+  node._cardFaceRelease = null;
+}
 function syncHand() {
   const cb = S.cb, ce = S.ce;
   if (!ce) return;
@@ -1149,7 +1155,12 @@ function syncHand() {
   const want = new Set(cb.hand.map((c) => String(c.uid)));
   // draw mid-play can syncHand before toDiscard/exhaust flies — keep those DOM nodes
   const pending = pendingPileCeremonyUids(cb);
-  for (const [uid, elc] of have) if (!want.has(uid) && !pending.has(uid)) elc.remove();
+  for (const [uid, elc] of have) {
+    if (!want.has(uid) && !pending.has(uid)) {
+      releaseCardFace(elc);
+      elc.remove();
+    }
+  }
   for (const inst of cb.hand) {
     if (!have.has(String(inst.uid))) {
       const c = cardEl(inst, { inCombat: true });
@@ -1179,6 +1190,12 @@ function syncHand() {
       const old = have.get(String(inst.uid));
       const keep = ['armed', 'draw-pending', 'draw-in', 'lifted', 'dragging', 'will-cast', 'will-burn', 'played-up']
         .filter((k) => old.classList.contains(k));
+      // Task 26 — release the previous export, then adopt the fresh face's release onto the seat.
+      releaseCardFace(old);
+      old._cardFaceRelease = fresh._cardFaceRelease;
+      fresh._cardFaceRelease = null;
+      if (fresh.dataset.cardFaceKey) old.dataset.cardFaceKey = fresh.dataset.cardFaceKey;
+      else delete old.dataset.cardFaceKey;
       old.replaceChildren(...fresh.childNodes);
       old.className = [fresh.className, ...keep].filter(Boolean).join(' ');
       if (FINE) {
@@ -2046,10 +2063,17 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
     });
       completions.push(animation.finished
         .catch(() => { cancelled = true; })
-        .finally(() => m.remove()));
+        .finally(() => {
+          // Task 26 — flycard face owns its export; revoke on teardown.
+          releaseCardFace(m);
+          m.remove();
+        }));
     });
   } catch (error) {
-    for (const card of created) card.remove();
+    for (const card of created) {
+      releaseCardFace(card);
+      card.remove();
+    }
     span.finish('failed', { reason: 'animation-error' });
     token.cancel();
     throw error;
@@ -2374,6 +2398,8 @@ function afterAction() {
 }
 function victoryFlow() {
   transition('victory-out');
+  // Task 26 — any seats still holding exports (perfect banner race, etc.) release before teardown.
+  if (S.ce?.hand) $$('.card', S.ce.hand).forEach(releaseCardFace);
   const run = S.run, kind = S.cb.kind, affix = S.cb.affix;
   if (E.isEphemeralRun(run)) {
     late.journalRunEnd(run, 'win');
@@ -2409,6 +2435,8 @@ function victoryFlow() {
 }
 function defeatFlow() {
   transition('defeat');
+  // Task 26 — defeat leaves the hand in place; revoke before the screen is replaced.
+  if (S.ce?.hand) $$('.card', S.ce.hand).forEach(releaseCardFace);
   const run = S.run;
   const node = run.map.nodes.find((candidate) => candidate.id === run.nodeId);
   const fallRow = node ? node.row : Math.max(1, run.floorsClimbed - 1);
