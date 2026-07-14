@@ -621,8 +621,6 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   margin-left: -340px; z-index: 22;
   pointer-events: none; --hand-scale: 1; --hand-card-bottom: 8px; --cw: 152px;
 }
-.card.played-up { transition: transform 0.3s ease-in, opacity 0.3s ease-in !important; transform: translate(-50%, -240px) scale(0.72) !important; opacity: 0; }
-.card.exhausting { transition: transform 0.5s, opacity 0.5s, filter 0.5s !important; transform: translate(-50%, -140px) scale(0.6) rotate(8deg) !important; opacity: 0; filter: brightness(2.4) saturate(0.2) blur(2px); }
 
 /* ============ Combat layout */
 .combat-screen { position: absolute; inset: 0; overflow: hidden; touch-action: none; --ground-y: 232px; --ledge-lip: 14px; } /* JS overwrites from the layout file */
@@ -1478,34 +1476,9 @@ html.mesh-on .enemy-art.warded::before { display: none; }
 #transit .tr-plate { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(5, 7, 14, 0.88); font-family: 'Cinzel', serif; }
 #transit .tr-plate .tp-act { max-width: 90cqw; text-align: center; line-height: 1.15; font-size: clamp(28px, 5cqw, 44px); letter-spacing: 0.18em; color: var(--gold); }
 #transit .tr-plate .tp-omen { max-width: 88cqw; text-align: center; font-size: 15px; letter-spacing: 0.14em; color: var(--text-dim); }
-/* arc-flights: coins to the purse, a relic to its seat, card-backs to the deck */
+/* Non-combat arc motes (map gold / reward purse flights). Combat rejects DOM
+   mote/card flights when Pixi presentation is mounted (Task 28/29). */
 .flymote { position: absolute; border-radius: 50%; pointer-events: none; z-index: 58; font-size: 22px; line-height: 1; text-shadow: 0 0 10px currentColor; }
-.flycard {
-  position: absolute; width: 26px; height: 36px; border-radius: 8px; pointer-events: none; z-index: 58;
-  background: linear-gradient(160deg, #1d2440, #0c101f 70%);
-  border: 1px solid rgba(242, 193, 78, 0.5); box-shadow: 0 3px 9px rgba(0, 0, 0, 0.6), inset 0 0 8px rgba(90, 110, 180, 0.3);
-}
-.flycard-back {
-  background:
-    radial-gradient(ellipse at 50% 38%, rgba(242, 193, 78, 0.28), transparent 52%),
-    repeating-linear-gradient(135deg, rgba(255,255,255,0.03) 0 2px, transparent 2px 7px),
-    linear-gradient(160deg, #2a3558, #0c101f 72%);
-  border: 1.5px solid rgba(242, 193, 78, 0.7);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7), inset 0 0 14px rgba(120, 140, 210, 0.35);
-}
-/* pile-ceremony flights: sized to match pile / hand faces; art via inline background */
-.flycard-pile {
-  border: 0; border-radius: 6px; background-color: transparent;
-  background-position: center; background-size: contain; background-repeat: no-repeat;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
-}
-/* draw flight: real card face (not hand-zone fan layout) */
-.flycard-face {
-  position: absolute; left: 0; bottom: auto; pointer-events: none; z-index: 58;
-  transform-origin: 50% 50%;
-}
-.flycard-face .card-lift { transform: none !important; }
-.flycard-face .card-inner { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.75); }
 /* the boss is announced through a rose window: rings and spokes of leaded light */
 .rose-window {
   position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%);

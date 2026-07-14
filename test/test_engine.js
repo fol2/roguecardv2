@@ -9462,7 +9462,7 @@ export default defineContentRegistration({
   }
 }
 
-// ---- Task 29: P5 legacy combat residue gate (must stay red until cleanup) ---
+// ---- Task 29: P5 legacy combat residue gate (must stay absent after cleanup) ---
 {
   const uiJs = [
     readFileSync(new URL('../src/ui/index.js', import.meta.url), 'utf8'),
@@ -9482,6 +9482,18 @@ export default defineContentRegistration({
     'Task 29: combat .hand-zone .card face/hand CSS must be removed');
   assert.doesNotMatch(stylesSource, /\.hand-zone\s+\.card\.(?:dragging|lifted|armed|draw-pending|draw-in|will-cast|will-burn)\b/,
     'Task 29: combat hand interaction CSS must be removed');
+  assert.doesNotMatch(stylesSource, /\.card\.played-up\b|\.card\.exhausting\b/,
+    'Task 29: combat-only .card.played-up / .exhausting CSS must be removed');
+  assert.doesNotMatch(stylesSource, /\.flycard(?:-face|-back|-pile)?\b/,
+    'Task 29: combat-only .flycard* CSS must be removed');
+
+  // .flymote remains for map/reward flights; combat must not create it.
+  assert.match(stylesSource, /\.flymote\b/,
+    'Task 29: non-combat .flymote CSS remains for map/reward');
+  assert.match(combatSource, /rejectCombatDomCeremony\('presentation\.mote-flight'\)/,
+    'Task 29: combat rejects DOM mote flights');
+  assert.match(combatSource, /rejectCombatDomCeremony\('presentation\.card-flight'\)/,
+    'Task 29: combat rejects DOM card flights');
 
   // Combat-only banner / dialogue residues (keep .turn-banner + omen for non-combat).
   assert.doesNotMatch(stylesSource, /\.turn-banner\.boss-banner\b|\.boss-banner\b/,
