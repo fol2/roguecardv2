@@ -164,12 +164,14 @@ assert.match(workflow, /e2e-webkit/);
 assert.match(workflow, /needs: \[changes, smoke_e2e, e2e_aux, e2e_random, e2e_audio, e2e_heavy, e2e_battle, e2e_emberglass, e2e_main, e2e_webkit, e2e_visual\]/);
 assert.match(workflow, /"e2e-webkit":"\$\{\{ needs\.e2e_webkit\.result \}\}"/);
 assert.match(workflow, /unit_tests:[\s\S]*?npm run test:content-registrations/);
+assert.match(workflow, /build_dist:[\s\S]*?node tools\/check-bundle-budget\.mjs/);
 assert.match(workflow, /name: unit\b/);
 assert.match(workflow, /name: e2e\b/);
 assert.doesNotMatch(workflow, /self-hosted/);
 assert.doesNotMatch(workflow, /exit.?75|exit-75/i);
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+assert.equal(pkg.scripts['test:budget'], 'node tools/check-bundle-budget.mjs');
 assert.equal(pkg.scripts['test:e2e'], 'npm run test:e2e:nonvisual && npm run test:e2e:visual');
 assert.equal(pkg.scripts['test:e2e:nonvisual'],
   'npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:main && npm run test:e2e:serial');

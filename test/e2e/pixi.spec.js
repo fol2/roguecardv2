@@ -1155,33 +1155,77 @@ test.describe('Round 5 production Pixi layer', () => {
     const pngAfter2 = await encodeUigl(page);
     expect(pngAfter).toBe(pngAfter2);
 
-    // Token-pair + representative Pixi extract contrast ≥ 4.5.
+    // Token-pair contrast ≥ 4.5 (data-level; independent of the Pixi sample).
+    expect(contrastRatio(COLOUR.text, COLOUR.ink)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(COLOUR.parchment, COLOUR.ink)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(COLOUR.gold, COLOUR.ink)).toBeGreaterThanOrEqual(4.5);
+
+    // Representative Pixi glyph/background sample stands alone ≥ 4.5:1.
+    // Measurement failure fails the assert — no token-pair OR fallback.
     const pixelContrast = await page.evaluate(async () => {
-      const { contrastRatio, COLOUR } = await import('/src/ui/tokens.js');
-      const tokenOk = contrastRatio(COLOUR.text, COLOUR.ink) >= 4.5
-        && contrastRatio(COLOUR.parchment, COLOUR.ink) >= 4.5
-        && contrastRatio(COLOUR.gold, COLOUR.ink) >= 4.5;
+      const { contrastRatio } = await import('/src/ui/tokens.js');
+      const { createCounter } = await import('/src/ui/widgets.js');
       const app = window.spirebound.pixi.application?.();
-      let sampleOk = true;
-      if (app?.renderer?.extract?.pixels) {
-        try {
-          const pixels = app.renderer.extract.pixels({
-            target: window.spirebound.combatGl?.root?.() || app.stage,
-            frame: { x: 40, y: 40, width: 1, height: 1 },
-          });
-          if (pixels && pixels.length >= 4 && pixels[3] > 128) {
-            const fg = `#${[pixels[0], pixels[1], pixels[2]]
-              .map((n) => n.toString(16).padStart(2, '0')).join('')}`;
-            sampleOk = contrastRatio(fg, COLOUR.ink) >= 4.5
-              || contrastRatio(COLOUR.parchment, fg) >= 4.5
-              || contrastRatio(fg, COLOUR.parchment) >= 4.5
-              || contrastRatio(COLOUR.gold, COLOUR.ink) >= 4.5;
-          }
-        } catch {
-          sampleOk = tokenOk;
-        }
+      if (!app?.renderer?.extract?.pixels) {
+        return { ok: false, reason: 'extract.pixels unavailable', ratio: null };
       }
-      return { ok: tokenOk && sampleOk, tokenOk, sampleOk };
+      const widget = createCounter({
+        bounds: { x: 8, y: 8, width: 48, height: 28 },
+        value: 9,
+      });
+      const root = window.spirebound.pixi.root?.();
+      if (!root) {
+        widget.destroy();
+        return { ok: false, reason: 'pixi root unavailable', ratio: null };
+      }
+      root.addChild(widget.container);
+      try {
+        app.renderer.render(app.stage);
+        // Pass the Container directly so GenerateTextureSystem uses local
+        // bounds (a plain {x,y,w,h} frame lacks Rectangle.copyTo and throws).
+        const pixelInfo = app.renderer.extract.pixels(widget.container);
+        const pixels = pixelInfo?.pixels;
+        if (!pixels || pixels.length < 4) {
+          return { ok: false, reason: 'extract returned no pixels', ratio: null };
+        }
+        const toHex = (r, g, b) => `#${[r, g, b]
+          .map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+        // Approximate luminance to locate opaque glyph (light) vs panel (dark).
+        let light = null;
+        let dark = null;
+        let lightLum = -1;
+        let darkLum = Infinity;
+        for (let i = 0; i < pixels.length; i += 4) {
+          if (pixels[i + 3] <= 128) continue;
+          const r = pixels[i];
+          const g = pixels[i + 1];
+          const b = pixels[i + 2];
+          const lum = (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+          if (lum > lightLum) {
+            lightLum = lum;
+            light = toHex(r, g, b);
+          }
+          if (lum < darkLum) {
+            darkLum = lum;
+            dark = toHex(r, g, b);
+          }
+        }
+        if (!light || !dark) {
+          return {
+            ok: false,
+            reason: 'opaque glyph/background sample missing',
+            light,
+            dark,
+            ratio: null,
+          };
+        }
+        const ratio = contrastRatio(light, dark);
+        return { ok: ratio >= 4.5, ratio, light, dark };
+      } catch (err) {
+        return { ok: false, reason: String(err?.message || err), ratio: null };
+      } finally {
+        widget.destroy();
+      }
     });
     expect(pixelContrast.ok, JSON.stringify(pixelContrast)).toBe(true);
     expect(pageErrors).toEqual([]);

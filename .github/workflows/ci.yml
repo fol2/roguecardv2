@@ -144,6 +144,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - run: node tools/check-bundle-budget.mjs
       - name: Verify committed dist is current
         run: |
           git status --short -- dist/
