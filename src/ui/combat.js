@@ -75,6 +75,18 @@ export function createCombat({
   // Kindle drop target: proxies sit above .lantern-btn (z:30 vs 24).
   const LANTERN_DROP = '[data-proxy="lantern"], .lantern-btn';
 
+  // Shared HUD actions — bound to both inert DOM hosts and hit proxies.
+  const openHudDeck = () => {
+    sfx.click();
+    showCardGrid(tr('ui.hud.deckTitle'), S.run.player.deck, {
+      sub: tr('ui.hud.deckCount', { n: S.run.player.deck.length }),
+    });
+  };
+  const openHudMenu = (e) => {
+    sfx.click();
+    openMenu(e.clientX, e.clientY);
+  };
+
   function buildBottomChromeModel(cb) {
     const energy = cb.player.energy ?? 0;
     const energyMax = cb.player.energyMax ?? 0;
@@ -570,18 +582,8 @@ function renderCombat() {
   if (ce.proxyDiscard) ce.proxyDiscard.onclick = openDiscardPile;
   if (ce.proxyAshes) ce.proxyAshes.onclick = openAshesPile;
   // Task 22b-2 — HUD deck/menu proxies (visuals are Pixi-owned in combat).
-  const openDeck = () => {
-    sfx.click();
-    showCardGrid(tr('ui.hud.deckTitle'), S.run.player.deck, {
-      sub: tr('ui.hud.deckCount', { n: S.run.player.deck.length }),
-    });
-  };
-  const openCombatMenu = (e) => {
-    sfx.click();
-    openMenu(e.clientX, e.clientY);
-  };
-  if (ce.proxyDeck) ce.proxyDeck.onclick = openDeck;
-  if (ce.proxyMenu) ce.proxyMenu.onclick = openCombatMenu;
+  if (ce.proxyDeck) ce.proxyDeck.onclick = openHudDeck;
+  if (ce.proxyMenu) ce.proxyMenu.onclick = openHudMenu;
   ensureHudHitProxies();
   ce.root.addEventListener('pointerdown', (e) => {
     if (e.target.closest('.enemy') || e.target.closest('.card')) return;
@@ -736,6 +738,14 @@ function placeProxyOverDom(proxy, node) {
   proxy.style.height = `${Math.round(r.height)}px`;
 }
 
+/** Bridge a DOM tip target onto its hit proxy so hover/focus still work
+ *  while `#hud.pixi-hud-chrome` is pointer-inert and paint is hidden. */
+function bridgeProxyTip(proxy, tipSource) {
+  if (!proxy) return;
+  if (tipSource?._tip) proxy._tip = tipSource._tip;
+  else delete proxy._tip;
+}
+
 /** Ensure potion/relic proxy buttons exist for the current HUD contents. */
 function ensureHudHitProxies() {
   const ce = S.ce;
@@ -756,11 +766,17 @@ function ensureHudHitProxies() {
     return node;
   };
 
+  // Deck / menu — rebind every HUD refresh so proxies stay usable after
+  // renderHud() rebuilds the inert layout hosts.
+  if (ce.proxyDeck) ce.proxyDeck.onclick = openHudDeck;
+  if (ce.proxyMenu) ce.proxyMenu.onclick = openHudMenu;
+
   // Potions
   $$('.potion-slot', hud).forEach((slot) => {
     const i = +slot.dataset.slot;
     const key = `potion-${i}`;
-    const proxy = ensureProxy(key, tr('ui.hud.potionTip'));
+    const proxy = ensureProxy(key, slot._tip?.title || tr('ui.hud.potionTip'));
+    bridgeProxyTip(proxy, slot);
     proxy.onclick = (e) => {
       if (!slot.classList.contains('full')) return;
       potionMenu(i, e);
@@ -772,12 +788,13 @@ function ensureHudHitProxies() {
     if (!hud.querySelector(`.potion-slot[data-slot="${i}"]`)) proxy.remove();
   });
 
-  // Relics
+  // Relics — tip-only (no click action); bridge _tip onto the proxy.
   $$('.hud-relic', hud).forEach((chip, index) => {
     const rid = chip.dataset.relic || `relic-${index}`;
     const key = `relic-${rid}`;
     const proxy = ensureProxy(key, chip._tip?.title || rid);
-    proxy.onclick = () => { /* tip-only; Task 23 owns tooltip bridge */ };
+    bridgeProxyTip(proxy, chip);
+    proxy.onclick = null;
   });
   const liveRelicKeys = new Set(
     [...$$('.hud-relic', hud)].map((chip, index) => `relic-${chip.dataset.relic || `relic-${index}`}`),
@@ -785,6 +802,16 @@ function ensureHudHitProxies() {
   [...host.querySelectorAll('[data-proxy^="relic-"]')].forEach((proxy) => {
     if (!liveRelicKeys.has(proxy.dataset.proxy)) proxy.remove();
   });
+
+  // Omen — tip-only.
+  const omenChip = $('#omen-slot', hud)?.firstElementChild;
+  if (ce.proxyOmen) {
+    if (omenChip?._tip?.title) {
+      ce.proxyOmen.setAttribute('aria-label', omenChip._tip.title);
+    }
+    bridgeProxyTip(ce.proxyOmen, omenChip);
+    ce.proxyOmen.onclick = null;
+  }
 
   placeHudHitProxies();
 }
@@ -802,12 +829,16 @@ function placeHudHitProxies() {
   $$('.potion-slot', hud).forEach((slot) => {
     const proxy = ce.proxyHost.querySelector(`[data-proxy="potion-${slot.dataset.slot}"]`);
     placeProxyOverDom(proxy, slot);
+    bridgeProxyTip(proxy, slot);
   });
   $$('.hud-relic', hud).forEach((chip, index) => {
     const rid = chip.dataset.relic || `relic-${index}`;
     const proxy = ce.proxyHost.querySelector(`[data-proxy="relic-${rid}"]`);
     placeProxyOverDom(proxy, chip);
+    bridgeProxyTip(proxy, chip);
   });
+  const omenChip = $('#omen-slot', hud)?.firstElementChild;
+  bridgeProxyTip(ce.proxyOmen, omenChip);
 }
 
 /** Hand left/right = offset from stage-centred fan box (0 = centred). Width hugs cards. */

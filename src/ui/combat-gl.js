@@ -679,6 +679,16 @@ export async function createCombatRenderer({
     return g;
   }
 
+  /** Centre of a measured stageRect, or null when the host is missing. */
+  function seatCenter(r) {
+    if (!r || !(r.width > 0) || !(r.height > 0)) return null;
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
+  }
+
+  /**
+   * Paint HUD chrome from live DOM seats / uicResolve fallbacks — same dual-read
+   * pattern as plates — so paint and hit proxies share stage-px coordinates.
+   */
   function paintHudChrome() {
     clearHudPaint();
     const hudState = presentationModel?.hud;
@@ -689,51 +699,94 @@ export async function createCombatRenderer({
     }
     const info = stageInfo();
     const chrome = uicResolve(info.shape);
-    const hudBar = chrome.hud || { height: 56, scale: 1 };
-    const barH = (hudBar.height || 56) * (hudBar.scale || 1);
     const stageWidth = stageW();
     let painted = 0;
 
-    // Bar backdrop
+    // Prefer the live `.hud-bar` layout box (safe-area + shape scale baked in).
+    const barDom = domRect('#hud .hud-bar');
+    const hudCfg = chrome.hud || { height: 56, scale: 1 };
+    const barH = barDom?.height
+      || ((hudCfg.height || 56) * (hudCfg.scale || 1));
+    const barTop = barDom?.top ?? 0;
+    const barLeft = barDom?.left ?? 0;
+    const barWidth = barDom?.width || stageWidth;
+
     const barBg = new Graphics();
-    barBg.rect(0, 0, stageWidth, barH)
+    barBg.rect(barLeft, barTop, barWidth, barH)
       .fill({ color: 0x080a16, alpha: 0.82 });
     hudLayer.addChild(barBg);
     painted += 1;
 
-    // HP
-    addIconOrFallback(hudLayer, 'combat-gl:ui/heart', 28, barH * 0.38, 14, 0xff7060);
-    const hpText = new Text({
-      text: `${hudState.hp} / ${hudState.maxHp}`,
-      style: {
-        fontFamily: 'Cinzel', fontSize: 15, fontWeight: '700',
-        fill: 0xff9aa0,
-      },
-    });
-    hpText.x = 40;
-    hpText.y = 8;
-    hudLayer.addChild(hpText);
-    const hpTrack = new Graphics();
-    hpTrack.roundRect(40, barH * 0.62, 140, 6, 3).fill({ color: 0xffffff, alpha: 0.12 });
-    const hpFillW = Math.max(0, Math.min(140, 140 * (hudState.hp / Math.max(1, hudState.maxHp))));
-    hpTrack.roundRect(40, barH * 0.62, hpFillW, 6, 3).fill({ color: 0xff7060, alpha: 0.95 });
-    hudLayer.addChild(hpTrack);
-    painted += 1;
+    // HP seat
+    const hpWrap = seatCenter(domRect('#hud .hud-hp-wrap'));
+    if (hpWrap) {
+      const heart = seatCenter(domRect('#hud .hud-hp-wrap .ui-icon, #hud .hud-hp-wrap .gicon'))
+        || { x: hpWrap.x - hpWrap.w * 0.35, y: hpWrap.y - 4, w: 14, h: 14 };
+      addIconOrFallback(hudLayer, 'combat-gl:ui/heart', heart.x, heart.y, Math.max(12, heart.w || 14), 0xff7060);
+      const hpNum = seatCenter(domRect('#hud .hud-hp-wrap .hp-num'));
+      const hpText = new Text({
+        text: `${hudState.hp} / ${hudState.maxHp}`,
+        style: {
+          fontFamily: 'Cinzel', fontSize: 15, fontWeight: '700',
+          fill: 0xff9aa0,
+        },
+      });
+      if (hpNum) {
+        hpText.anchor?.set?.(0, 0.5);
+        hpText.x = hpNum.x - hpNum.w / 2;
+        hpText.y = hpNum.y;
+      } else {
+        hpText.x = hpWrap.x - hpWrap.w * 0.2;
+        hpText.y = hpWrap.y - 10;
+      }
+      hudLayer.addChild(hpText);
+      const barSeat = domRect('#hud .hud-hpbar');
+      if (barSeat) {
+        const hpTrack = new Graphics();
+        hpTrack.roundRect(barSeat.left, barSeat.top, barSeat.width, Math.max(4, barSeat.height), 3)
+          .fill({ color: 0xffffff, alpha: 0.12 });
+        const fillW = Math.max(0, Math.min(barSeat.width,
+          barSeat.width * (hudState.hp / Math.max(1, hudState.maxHp))));
+        hpTrack.roundRect(barSeat.left, barSeat.top, fillW, Math.max(4, barSeat.height), 3)
+          .fill({ color: 0xff7060, alpha: 0.95 });
+        hudLayer.addChild(hpTrack);
+      }
+      painted += 1;
+    }
 
-    // Gold
-    addIconOrFallback(hudLayer, 'combat-gl:ui/coin', 210, barH * 0.45, 14, 0xf2c14e);
-    const goldText = new Text({
-      text: String(hudState.gold ?? 0),
-      style: {
-        fontFamily: 'Cinzel', fontSize: 15, fontWeight: '700',
-        fill: 0xf2c14e,
-      },
-    });
-    goldText.x = 222;
-    goldText.y = barH * 0.28;
-    hudLayer.addChild(goldText);
+    // Gold seat — second `.hud-stat` in the bar (after HP wrap).
+    const goldStat = (() => {
+      if (typeof document === 'undefined') return null;
+      const stats = document.querySelectorAll('#hud .hud-bar > .hud-stat');
+      return stats.length ? seatCenter(stageRect(stats[0])) : null;
+    })();
+    const goldNum = seatCenter(domRect('#hud .gold-num'));
+    if (goldNum || goldStat) {
+      const coin = seatCenter(domRect('#hud .hud-bar > .hud-stat .ui-icon, #hud .hud-bar > .hud-stat .gicon'))
+        || (goldStat ? { x: goldStat.x - 20, y: goldStat.y, w: 14, h: 14 } : null);
+      if (coin) {
+        addIconOrFallback(hudLayer, 'combat-gl:ui/coin', coin.x, coin.y, Math.max(12, coin.w || 14), 0xf2c14e);
+      }
+      const goldText = new Text({
+        text: String(hudState.gold ?? 0),
+        style: {
+          fontFamily: 'Cinzel', fontSize: 15, fontWeight: '700',
+          fill: 0xf2c14e,
+        },
+      });
+      if (goldNum) {
+        goldText.anchor?.set?.(0, 0.5);
+        goldText.x = goldNum.x - goldNum.w / 2;
+        goldText.y = goldNum.y;
+      } else if (goldStat) {
+        goldText.x = goldStat.x;
+        goldText.y = goldStat.y - 8;
+      }
+      hudLayer.addChild(goldText);
+    }
 
     // Mid act label
+    const midSeat = seatCenter(domRect('#hud .hud-mid'));
     const mid = new Text({
       text: `${String(hudState.actName || '').toUpperCase()}  ·  Floor ${hudState.floor ?? 0}  ·  ${hudState.bossName || ''}`,
       style: {
@@ -742,60 +795,73 @@ export async function createCombatRenderer({
       },
     });
     mid.anchor?.set?.(0.5, 0.5);
-    mid.x = stageWidth / 2;
-    mid.y = barH * 0.48;
+    mid.x = midSeat?.x ?? (barLeft + barWidth / 2);
+    mid.y = midSeat?.y ?? (barTop + barH * 0.48);
     hudLayer.addChild(mid);
 
-    // Deck + menu (right side)
-    const deckX = stageWidth - 78;
-    const menuX = stageWidth - 32;
-    addIconOrFallback(hudLayer, 'combat-gl:ui/deck', deckX, barH * 0.48, 36, 0x9c7c34);
-    const deckCount = new Text({
-      text: String(hudState.deckCount ?? 0),
-      style: {
-        fontFamily: 'Cinzel', fontSize: 18, fontWeight: '800',
-        fill: 0xffffff,
-        stroke: { color: 0x000000, width: 2, join: 'round' },
-      },
-    });
-    deckCount.anchor?.set?.(0.5, 0.5);
-    deckCount.x = deckX;
-    deckCount.y = barH * 0.48;
-    hudLayer.addChild(deckCount);
-    addIconOrFallback(hudLayer, 'combat-gl:ui/menu', menuX, barH * 0.48, 20, 0xe8dfc8);
-    painted += 1;
+    // Deck + menu — paint into the same seats the hit proxies cover.
+    const deckSeat = seatCenter(domRect('#hud [data-act="deck"]'));
+    const menuSeat = seatCenter(domRect('#hud [data-act="menu"]'));
+    if (deckSeat) {
+      addIconOrFallback(hudLayer, 'combat-gl:ui/deck', deckSeat.x, deckSeat.y,
+        Math.max(28, Math.min(deckSeat.w, deckSeat.h) * 0.85), 0x9c7c34);
+      const deckCount = new Text({
+        text: String(hudState.deckCount ?? 0),
+        style: {
+          fontFamily: 'Cinzel', fontSize: 18, fontWeight: '800',
+          fill: 0xffffff,
+          stroke: { color: 0x000000, width: 2, join: 'round' },
+        },
+      });
+      deckCount.anchor?.set?.(0.5, 0.5);
+      deckCount.x = deckSeat.x;
+      deckCount.y = deckSeat.y;
+      hudLayer.addChild(deckCount);
+      painted += 1;
+    }
+    if (menuSeat) {
+      addIconOrFallback(hudLayer, 'combat-gl:ui/menu', menuSeat.x, menuSeat.y,
+        Math.max(16, Math.min(menuSeat.w, menuSeat.h) * 0.7), 0xe8dfc8);
+    }
 
-    // Potions (just left of deck)
-    const potions = Array.isArray(hudState.potions) ? hudState.potions : [];
-    potions.forEach((potion, i) => {
-      const px = stageWidth - 130 - (potions.length - 1 - i) * 42;
-      const py = barH * 0.48;
-      const g = new Graphics();
-      g.roundRect(-16, -18, 32, 36, 6)
-        .fill({ color: 0x12162a, alpha: 0.85 })
-        .stroke({ color: potion.id ? 0xf2c14e : 0x445, width: 1.5, alpha: potion.id ? 0.8 : 0.4 });
-      g.x = px;
-      g.y = py;
-      hudLayer.addChild(g);
-      if (potion.id) {
-        const mark = new Text({
-          text: '◇',
-          style: { fontFamily: 'Cinzel', fontSize: 16, fill: 0xf2c14e },
-        });
-        mark.anchor?.set?.(0.5, 0.5);
-        mark.x = px;
-        mark.y = py;
-        hudLayer.addChild(mark);
-      }
-    });
+    // Potion slots from live DOM seats (shared with potion proxies).
+    if (typeof document !== 'undefined') {
+      document.querySelectorAll('#hud .potion-slot').forEach((slot) => {
+        const r = stageRect(slot);
+        if (!(r.width > 0 && r.height > 0)) return;
+        const cx = r.left + r.width / 2;
+        const cy = r.top + r.height / 2;
+        const full = slot.classList.contains('full');
+        const g = new Graphics();
+        g.roundRect(-r.width / 2, -r.height / 2, r.width, r.height, 6)
+          .fill({ color: 0x12162a, alpha: 0.85 })
+          .stroke({ color: full ? 0xf2c14e : 0x445, width: 1.5, alpha: full ? 0.8 : 0.4 });
+        g.x = cx;
+        g.y = cy;
+        hudLayer.addChild(g);
+        if (full) {
+          const mark = new Text({
+            text: '◇',
+            style: { fontFamily: 'Cinzel', fontSize: 16, fill: 0xf2c14e },
+          });
+          mark.anchor?.set?.(0.5, 0.5);
+          mark.x = cx;
+          mark.y = cy;
+          hudLayer.addChild(mark);
+        }
+      });
+    }
 
-    // Omen + relics from uicResolve seats
-    const omenW = chrome.omen;
-    if (hudState.omen && omenW) {
-      const ox = omenW.left ?? 16;
-      const oy = omenW.top ?? 62;
-      const scale = omenW.scale ?? 1;
-      const size = 36 * scale;
+    // Omen — live chip seat, else uicResolve omen widget.
+    const omenChip = seatCenter(domRect('#hud #omen-slot > *'))
+      || seatCenter(domRect('#hud #omen-slot'));
+    if (hudState.omen) {
+      const omenW = chrome.omen;
+      const size = omenChip
+        ? Math.max(24, Math.min(omenChip.w, omenChip.h))
+        : 36 * (omenW?.scale ?? 1);
+      const ox = omenChip ? omenChip.x - size / 2 : (omenW?.left ?? 16);
+      const oy = omenChip ? omenChip.y - size / 2 : (omenW?.top ?? 62);
       const g = new Graphics();
       g.roundRect(0, 0, size, size, 8)
         .fill({ color: 0x1a1430, alpha: 0.9 })
@@ -812,36 +878,76 @@ export async function createCombatRenderer({
       mark.y = oy + size / 2;
       hudLayer.addChild(mark);
     }
-    const relicLayout = relicBarLayout(chrome, !!hudState.omen);
-    const relics = Array.isArray(hudState.relics) ? hudState.relics : [];
-    if (relicLayout && relics.length) {
-      const scale = relicLayout.scale ?? 1;
-      const size = 36 * scale;
-      relics.forEach((relic, i) => {
-        const rx = (relicLayout.left ?? 66) + i * (size + 2);
-        const ry = relicLayout.top ?? 62;
+
+    // Relics — live `.hud-relic` seats, else uicResolve relic bar fallback.
+    const relicNodes = typeof document !== 'undefined'
+      ? [...document.querySelectorAll('#hud .hud-relic')]
+      : [];
+    if (relicNodes.length) {
+      relicNodes.forEach((chip) => {
+        const r = stageRect(chip);
+        if (!(r.width > 0 && r.height > 0)) return;
         const g = new Graphics();
-        g.roundRect(0, 0, size, size, 8)
+        g.roundRect(0, 0, r.width, r.height, 8)
           .fill({ color: 0x141828, alpha: 0.9 })
           .stroke({ color: 0xf2c14e, width: 1, alpha: 0.55 });
-        g.x = rx;
-        g.y = ry;
+        g.x = r.left;
+        g.y = r.top;
         hudLayer.addChild(g);
         const mark = new Text({
           text: '◈',
           style: { fontFamily: 'Cinzel', fontSize: 14, fill: 0xf2c14e },
         });
         mark.anchor?.set?.(0.5, 0.5);
-        mark.x = rx + size / 2;
-        mark.y = ry + size / 2;
+        mark.x = r.left + r.width / 2;
+        mark.y = r.top + r.height / 2;
         hudLayer.addChild(mark);
       });
+    } else {
+      const relicLayout = relicBarLayout(chrome, !!hudState.omen);
+      const relics = Array.isArray(hudState.relics) ? hudState.relics : [];
+      if (relicLayout && relics.length) {
+        const scale = relicLayout.scale ?? 1;
+        const size = 36 * scale;
+        relics.forEach((relic, i) => {
+          const rx = (relicLayout.left ?? 66) + i * (size + 2);
+          const ry = relicLayout.top ?? 62;
+          const g = new Graphics();
+          g.roundRect(0, 0, size, size, 8)
+            .fill({ color: 0x141828, alpha: 0.9 })
+            .stroke({ color: 0xf2c14e, width: 1, alpha: 0.55 });
+          g.x = rx;
+          g.y = ry;
+          hudLayer.addChild(g);
+          const mark = new Text({
+            text: '◈',
+            style: { fontFamily: 'Cinzel', fontSize: 14, fill: 0xf2c14e },
+          });
+          mark.anchor?.set?.(0.5, 0.5);
+          mark.x = rx + size / 2;
+          mark.y = ry + size / 2;
+          hudLayer.addChild(mark);
+          void relic;
+        });
+      }
     }
 
     hudCache = Object.freeze({
       bounds: Object.freeze({
-        left: 0, top: 0, right: stageWidth, bottom: barH,
-        width: stageWidth, height: barH,
+        left: barLeft, top: barTop, right: barLeft + barWidth, bottom: barTop + barH,
+        width: barWidth, height: barH,
+      }),
+      seats: Object.freeze({
+        deck: deckSeat ? rectOf({
+          left: deckSeat.x - deckSeat.w / 2, top: deckSeat.y - deckSeat.h / 2,
+          right: deckSeat.x + deckSeat.w / 2, bottom: deckSeat.y + deckSeat.h / 2,
+          width: deckSeat.w, height: deckSeat.h,
+        }) : null,
+        menu: menuSeat ? rectOf({
+          left: menuSeat.x - menuSeat.w / 2, top: menuSeat.y - menuSeat.h / 2,
+          right: menuSeat.x + menuSeat.w / 2, bottom: menuSeat.y + menuSeat.h / 2,
+          width: menuSeat.w, height: menuSeat.h,
+        }) : null,
       }),
       hp: hudState.hp,
       maxHp: hudState.maxHp,
@@ -987,6 +1093,48 @@ export async function createCombatRenderer({
     return painted;
   }
 
+  /** Measure per-widget plate chrome seats that still exist as layout hosts. */
+  function measurePlateWidgets(plateEl, topEl) {
+    if (!plateEl) {
+      return {
+        wrapBounds: null, blockBounds: null, iconBounds: null,
+        vialBounds: null, labelBounds: null, intentBounds: null,
+        wrapClientWidth: 0, wrapScrollWidth: 0,
+      };
+    }
+    const wrap = plateEl.querySelector('.hpbar-wrap');
+    const block = plateEl.querySelector('.block-chip');
+    const icon = block?.querySelector('.ui-icon,.gicon');
+    const vial = plateEl.querySelector('.hp-vial');
+    const label = plateEl.querySelector('.hp-label');
+    const intent = topEl?.querySelector('.intent');
+    const nodeRect = (node) => {
+      if (!node) return null;
+      const r = stageRect(node);
+      return r.width > 0 && r.height > 0 ? rectOf(r) : null;
+    };
+    return {
+      wrapBounds: nodeRect(wrap),
+      blockBounds: nodeRect(block),
+      iconBounds: nodeRect(icon),
+      vialBounds: nodeRect(vial),
+      labelBounds: nodeRect(label),
+      intentBounds: nodeRect(intent),
+      wrapClientWidth: wrap ? wrap.clientWidth : 0,
+      wrapScrollWidth: wrap ? wrap.scrollWidth : 0,
+    };
+  }
+
+  function unionBounds(...parts) {
+    const rs = parts.filter((b) => b && b.right > b.left && b.bottom > b.top);
+    if (!rs.length) return null;
+    const left = Math.min(...rs.map((r) => r.left));
+    const right = Math.max(...rs.map((r) => r.right));
+    const top = Math.min(...rs.map((r) => r.top));
+    const bottom = Math.max(...rs.map((r) => r.bottom));
+    return rectOf({ left, right, top, bottom, width: right - left, height: bottom - top });
+  }
+
   function paintPlatesChrome() {
     clearPlatesPaint();
     const platesState = presentationModel?.plates;
@@ -997,10 +1145,17 @@ export async function createCombatRenderer({
     }
     // Geometry comes from the PR17 packer via live DOM anchors (combat.js
     // still owns clampCombatChrome). Pixi mirrors those stage-px boxes.
-    const heroPlate = domRect('.player-zone .cplate');
-    const heroTop = domRect('.player-zone .top-chrome');
+    const heroPlateEl = typeof document !== 'undefined'
+      ? document.querySelector('.player-zone .cplate') : null;
+    const heroTopEl = typeof document !== 'undefined'
+      ? document.querySelector('.player-zone .top-chrome') : null;
+    const heroPlate = heroPlateEl ? stageRect(heroPlateEl) : null;
+    const heroTop = heroTopEl ? stageRect(heroTopEl) : null;
+    const heroPlateBounds = heroPlate && heroPlate.width > 0 ? rectOf(heroPlate) : null;
+    const heroTopBounds = heroTop && heroTop.width > 0 ? rectOf(heroTop) : null;
+    const heroWidgets = measurePlateWidgets(heroPlateEl, heroTopEl);
     let painted = 0;
-    painted += paintOnePlate(platesLayer, heroPlate, heroTop, platesState.hero, { isHero: true });
+    painted += paintOnePlate(platesLayer, heroPlateBounds, heroTopBounds, platesState.hero, { isHero: true });
 
     const enemyBoxes = typeof document !== 'undefined'
       ? document.querySelectorAll('.enemy')
@@ -1014,6 +1169,14 @@ export async function createCombatRenderer({
           plateBounds: null,
           topChromeBounds: null,
           visibleBounds: null,
+          wrapBounds: null,
+          blockBounds: null,
+          iconBounds: null,
+          vialBounds: null,
+          labelBounds: null,
+          intentBounds: null,
+          wrapClientWidth: 0,
+          wrapScrollWidth: 0,
         }));
         return;
       }
@@ -1023,12 +1186,29 @@ export async function createCombatRenderer({
       const topR = top ? stageRect(top) : null;
       const plateBounds = plateR && plateR.width > 0 ? rectOf(plateR) : null;
       const topBounds = topR && topR.width > 0 ? rectOf(topR) : null;
+      const widgets = measurePlateWidgets(plate, top);
       painted += paintOnePlate(platesLayer, plateBounds, topBounds, state, { isHero: false });
       enemiesOut.push(Object.freeze({
         index,
         plateBounds,
         topChromeBounds: topBounds,
-        visibleBounds: plateBounds,
+        visibleBounds: unionBounds(
+          plateBounds,
+          widgets.wrapBounds,
+          widgets.blockBounds,
+          widgets.vialBounds,
+          widgets.labelBounds,
+          widgets.intentBounds,
+          topBounds,
+        ) || plateBounds,
+        wrapBounds: widgets.wrapBounds,
+        blockBounds: widgets.blockBounds,
+        iconBounds: widgets.iconBounds,
+        vialBounds: widgets.vialBounds,
+        labelBounds: widgets.labelBounds,
+        intentBounds: widgets.intentBounds,
+        wrapClientWidth: widgets.wrapClientWidth,
+        wrapScrollWidth: widgets.wrapScrollWidth,
         hp: state.hp,
         maxHp: state.maxHp,
         name: state.name,
@@ -1037,8 +1217,16 @@ export async function createCombatRenderer({
 
     platesCache = Object.freeze({
       hero: Object.freeze({
-        plateBounds: rectOf(heroPlate),
-        topChromeBounds: rectOf(heroTop),
+        plateBounds: heroPlateBounds,
+        topChromeBounds: heroTopBounds,
+        wrapBounds: heroWidgets.wrapBounds,
+        blockBounds: heroWidgets.blockBounds,
+        iconBounds: heroWidgets.iconBounds,
+        vialBounds: heroWidgets.vialBounds,
+        labelBounds: heroWidgets.labelBounds,
+        intentBounds: heroWidgets.intentBounds,
+        wrapClientWidth: heroWidgets.wrapClientWidth,
+        wrapScrollWidth: heroWidgets.wrapScrollWidth,
         hp: platesState.hero?.hp ?? null,
         maxHp: platesState.hero?.maxHp ?? null,
         ward: platesState.hero?.ward ?? null,

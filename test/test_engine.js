@@ -8882,6 +8882,12 @@ export default defineContentRegistration({
     'combat-gl paints HUD chrome (Task 22b-2)');
   assert.match(combatGlSource, /paintPlatesChrome\s*\(/,
     'combat-gl paints plate chrome (Task 22b-2)');
+  assert.match(combatGlSource, /domRect\('#hud \[data-act="deck"\]'\)/,
+    'combat-gl paints the deck widget from the live DOM seat');
+  assert.match(combatGlSource, /measurePlateWidgets\s*\(/,
+    'combat-gl caches distinct plate widget seats for readUI');
+  assert.match(combatGlSource, /wrapBounds/,
+    'combat-gl exposes wrapBounds on the plate cache');
   assert.match(combatGlSource, /hudReady/,
     'combat-gl tracks HUD readiness for stats() consumers');
   assert.match(combatGlSource, /platesReady/,
@@ -8906,6 +8912,12 @@ export default defineContentRegistration({
     'combat.js extends hit proxies for the deck button');
   assert.match(combatSource, /data-proxy="menu"/,
     'combat.js extends hit proxies for the menu button');
+  assert.match(combatSource, /bridgeProxyTip\s*\(/,
+    'combat.js bridges HUD tip content onto hit proxies');
+  assert.match(combatSource, /proxyDeck\.onclick\s*=\s*openHudDeck/,
+    'combat.js binds the deck proxy click handler');
+  assert.match(combatSource, /proxyMenu\.onclick\s*=\s*openHudMenu/,
+    'combat.js binds the menu proxy click handler');
 
   const indexSource = readFileSync(new URL('../src/ui/index.js', import.meta.url), 'utf8');
   assert.match(indexSource, /import\s*\{\s*createCombatRenderer\s*\}\s*from\s*'\.\/combat-gl\.js'/,

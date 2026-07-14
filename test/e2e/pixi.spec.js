@@ -658,6 +658,37 @@ test.describe('Round 5 production Pixi layer', () => {
     expect(hpInv?.pass, hpInv?.detail || 'player HP invariant').toBe(true);
   });
 
+  test('Task 22b-2 HUD hit proxies: deck/menu/potion open the same overlays as DOM', async ({ page }) => {
+    await bootProduction(page);
+    await page.evaluate(async () => {
+      await window.__probe.stageCoreTheme({ themeId: 'act1' });
+      const { S, E } = window.spirebound;
+      E.gainPotion(S.run, 'healing');
+      const ids = S.cb.enemies.map((en) => en.key);
+      window.spirebound.startCombatUI(ids, 'monster');
+      await window.__probe.settle();
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    });
+
+    await expect(page.locator('[data-proxy="deck"]')).toBeVisible();
+    await page.locator('[data-proxy="deck"]').click();
+    await expect(page.locator('#overlay.open .card-grid')).toBeVisible();
+    await expect(page.locator('#overlay.open .ov-title')).toHaveText('Your Deck');
+    await page.locator('#overlay.open .ov-actions .btn').click();
+    await expect(page.locator('#overlay.open')).toHaveCount(0);
+
+    await page.locator('[data-proxy="menu"]').click();
+    await expect(page.locator('.pop-menu')).toBeVisible();
+    await page.evaluate(() => {
+      document.querySelectorAll('.pop-menu, .audio-panel, .settings-panel').forEach((n) => n.remove());
+    });
+
+    const potionProxy = page.locator('[data-proxy^="potion-"]').first();
+    await expect(potionProxy).toBeVisible();
+    await potionProxy.click();
+    await expect(page.locator('.pop-menu')).toBeVisible();
+  });
+
   test('Task 22b-1 hit proxies: kindle resolves lantern; draw pile click opens card grid', async ({ page }) => {
     await bootProduction(page);
     await page.evaluate(async () => {

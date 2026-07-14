@@ -2751,6 +2751,7 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #uigl, html.freeze #mesh, html.
 #hud.pixi-hud-chrome .hud-bar,
 #hud.pixi-hud-chrome #omen-slot,
 #hud.pixi-hud-chrome #relicbar {
+  pointer-events: none;
   color: transparent;
   background: transparent !important;
   background-image: none !important;
@@ -2763,6 +2764,7 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #uigl, html.freeze #mesh, html.
 #hud.pixi-hud-chrome #omen-slot *,
 #hud.pixi-hud-chrome #relicbar * {
   visibility: hidden;
+  pointer-events: none;
 }
 
 .pixi-plate-chrome .cplate > *,

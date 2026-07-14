@@ -128,9 +128,21 @@ async function combatChromeRects(page) {
       };
     };
     const centreX = (r) => (r.left + r.right) / 2;
+    const pickWidget = (cachedBounds, domNode, fallback) => {
+      if (cachedBounds && cachedBounds.right > cachedBounds.left) {
+        return fromBounds(cachedBounds);
+      }
+      if (domNode) {
+        const r = rect(domNode);
+        if (r.right > r.left && r.bottom > r.top) return r;
+      }
+      return fallback || { left: 0, right: 0, top: 0, bottom: 0 };
+    };
 
     // Task 22b-2: plate/HP/intent paint is Pixi-owned; prefer readUI() when
-    // the combat renderer has plate caches. DOM anchors remain for art.
+    // the combat renderer has plate caches. Distinct wrap/block/vial/label/
+    // intent seats come from the presentation cache (measured from DOM
+    // layout hosts during paint); dual-read DOM for overflow metrics.
     const gl = window.spirebound?.combatGl;
     const readUi = gl?.readUI?.();
     const pixiPlates = readUi?.plates;
@@ -142,32 +154,77 @@ async function combatChromeRects(page) {
         const artR = rect(art);
         const cached = pixiPlates.enemies?.[i];
         const plateR = fromBounds(cached?.plateBounds || readUi.enemies?.[i]?.plateBounds);
+        const wrap = enemy.querySelector('.hpbar-wrap');
+        const block = enemy.querySelector('.block-chip');
+        const icon = block?.querySelector('.ui-icon,.gicon');
+        const vial = enemy.querySelector('.hp-vial');
+        const label = enemy.querySelector('.hp-label');
+        const intent = enemy.querySelector('.intent');
+        const wrapR = pickWidget(cached?.wrapBounds, wrap, plateR);
+        const blockR = pickWidget(cached?.blockBounds, block);
+        const iconR = pickWidget(cached?.iconBounds, icon, blockR);
+        const vialR = pickWidget(cached?.vialBounds, vial, plateR);
+        const labelR = pickWidget(cached?.labelBounds, label, plateR);
+        const intentR = pickWidget(cached?.intentBounds, intent);
+        const visible = fromBounds(cached?.visibleBounds)
+          || union([enemy.querySelector('.cplate'), enemy.querySelector('.name'), wrap, block, vial, label, enemy.querySelector('.facet-row')]);
         return {
-          visible: fromBounds(cached?.visibleBounds || cached?.plateBounds || plateR),
-          wrap: plateR,
-          block: plateR,
-          icon: plateR,
-          vial: plateR,
-          label: plateR,
+          visible: visible.right > visible.left ? visible : plateR,
+          wrap: wrapR,
+          block: blockR,
+          icon: iconR,
+          vial: vialR,
+          label: labelR,
+          intent: intentR,
           art: artR,
           plate: plateR,
           artCentreX: centreX(artR),
           plateCentreX: centreX(plateR),
-          clientWidth: Math.max(1, plateR.right - plateR.left),
-          scrollWidth: Math.max(1, plateR.right - plateR.left),
+          clientWidth: wrap ? wrap.clientWidth : (cached?.wrapClientWidth || Math.max(1, wrapR.right - wrapR.left)),
+          scrollWidth: wrap ? wrap.scrollWidth : (cached?.wrapScrollWidth || Math.max(1, wrapR.right - wrapR.left)),
         };
       });
+      const topVisible = (cachedTop, enemy, i) => {
+        const topBounds = fromBounds(
+          cachedTop || pixiPlates.enemies?.[i]?.topChromeBounds || readUi.enemies?.[i]?.topChromeBounds,
+        );
+        const intent = enemy.querySelector('.intent');
+        const status = enemy.querySelector('.status-row');
+        // Prefer union of distinct intent/status seats when DOM layout boxes remain.
+        const fromDom = union([
+          enemy.querySelector('.top-chrome'),
+          intent,
+          ...enemy.querySelectorAll('.intent .ic,.intent .ui-icon,.intent .gicon,.intent .num'),
+          status,
+          ...enemy.querySelectorAll('.schip,.schip-art,.schip .n'),
+        ]);
+        if (fromDom.right > fromDom.left) return fromDom;
+        return topBounds;
+      };
       return {
         stage: info,
         hero: fromBounds(pixiPlates.hero.plateBounds),
-        heroTopVisible: fromBounds(pixiPlates.hero.topChromeBounds || pixiPlates.hero.plateBounds),
+        heroTopVisible: (() => {
+          const root = document.querySelector('.player-zone .top-chrome');
+          if (!root) return fromBounds(pixiPlates.hero.topChromeBounds || pixiPlates.hero.plateBounds);
+          const fromDom = union([
+            root,
+            ...root.querySelectorAll(
+              '.intent,.intent .ic,.intent .ui-icon,.intent .gicon,.intent .num,' +
+              '.status-row,.schip,.schip-art,.schip .n',
+            ),
+          ]);
+          return fromDom.right > fromDom.left
+            ? fromDom
+            : fromBounds(pixiPlates.hero.topChromeBounds || pixiPlates.hero.plateBounds);
+        })(),
         enemy: hp.map((x) => x.plate),
         enemyVisible: hp.map((x) => x.visible),
         top: enemies.map((_, i) => fromBounds(
           pixiPlates.enemies?.[i]?.topChromeBounds || readUi.enemies?.[i]?.topChromeBounds,
         )),
-        topVisible: enemies.map((_, i) => fromBounds(
-          pixiPlates.enemies?.[i]?.topChromeBounds || readUi.enemies?.[i]?.topChromeBounds,
+        topVisible: enemies.map((enemy, i) => topVisible(
+          pixiPlates.enemies?.[i]?.topChromeBounds, enemy, i,
         )),
         hp,
         source: 'readUI',
@@ -268,9 +325,20 @@ function assertEnemyHpChrome(rects, label) {
       .toBeLessThanOrEqual(hp.clientWidth + 1);
     for (const key of ['wrap', 'block', 'icon', 'vial', 'label']) {
       const r = hp[key];
+      // Optional seats (e.g. empty Ward chip) may be zero-sized; skip those.
+      if (!(r.right > r.left && r.bottom > r.top)) continue;
       expect(r.left, `${label}: enemy ${i} ${key} left edge`).toBeGreaterThanOrEqual(4);
       expect(r.right, `${label}: enemy ${i} ${key} right edge`).toBeLessThanOrEqual(rects.stage.w - 4);
     }
+    // Anti-vacuous: wrap/vial/label must not all alias to the full plate box.
+    const distinct = ['wrap', 'vial', 'label'].filter((key) => {
+      const r = hp[key];
+      if (!(r.right > r.left)) return false;
+      return r.left !== hp.plate.left || r.right !== hp.plate.right
+        || r.top !== hp.plate.top || r.bottom !== hp.plate.bottom;
+    });
+    expect(distinct.length, `${label}: enemy ${i} exposes distinct HP widget seats`)
+      .toBeGreaterThan(0);
   });
   for (let i = 0; i < rects.enemyVisible.length; i++) {
     expect(rectSeparation(rects.hero, rects.enemyVisible[i]),
