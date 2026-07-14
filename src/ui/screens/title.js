@@ -145,6 +145,9 @@ export function createTitleScreen(deps) {
         shaState: ver.gitSha === 'unknown' ? 'unknown' : 'known',
       },
     });
+    const versionDefaultState = attrs.motion === 'reduced'
+      ? ` data-r5-state="${R5_SCREEN_END_STATES.titleVersionDefault}"`
+      : '';
     const sc = screenEl();
     sc.innerHTML = `<div class="title-screen r5-title screen-enter" data-r5-profile="${profile}" data-r5-state="${initialState}" data-tier="${attrs.tier}" data-motion="${attrs.motion}">
     ${titleParallaxHtml()}
@@ -160,18 +163,30 @@ export function createTitleScreen(deps) {
       <button class="btn ghost" data-a="settings" data-r5-state="rest">${tr('ui.menu.settings')}</button>
     </div>
     <div class="title-stats">${d.runs} climbs · ${d.wins} dawns · ${d.slain} slain${vigil.unlocks.length ? ` · ${vigil.unlocks.length} secrets unearthed` : ''}</div>
-    <div class="title-version" data-version-display aria-label="App version">${escHtml(ver.display)}</div>
+    <div class="title-version" data-version-display aria-label="App version"${versionDefaultState}>${escHtml(ver.display)}</div>
     <div class="title-version-debug" data-version-debug aria-live="polite" hidden></div>
   </div>`;
     decodeTitleRoseAssets(sc);
     const root = $('.r5-title', sc);
     const wordmark = $('.r5-title-wordmark', sc);
     const logo = sc.querySelector('[data-version-logo]');
+    const versionEl = sc.querySelector('[data-version-display]');
     const debugEl = sc.querySelector('[data-version-debug]');
     let taps = [];
     let debugTimer = 0;
     let destroyed = false;
     const ownsDebugSurface = () => S.screen === 'title' && debugEl?.isConnected && screenEl().contains(debugEl);
+    const syncVersionReducedStates = (debugVisible) => {
+      if (attrs.motion !== 'reduced') {
+        versionEl?.removeAttribute('data-r5-state');
+        debugEl?.removeAttribute('data-r5-state');
+        return;
+      }
+      if (versionEl) versionEl.dataset.r5State = R5_SCREEN_END_STATES.titleVersionDefault;
+      if (!debugEl) return;
+      if (debugVisible) debugEl.dataset.r5State = R5_SCREEN_END_STATES.titleVersionDebug;
+      else debugEl.removeAttribute('data-r5-state');
+    };
     const hideDebug = () => {
       if (destroyed) return;
       clearTimeout(debugTimer);
@@ -179,6 +194,7 @@ export function createTitleScreen(deps) {
       if (!debugEl || debugEl.hidden) return;
       debugEl.hidden = true;
       debugEl.textContent = '';
+      syncVersionReducedStates(false);
       if (!ownsDebugSurface()) return;
       trace.emit('app.version-debug', { outcome: 'completed', attributes: { action: 'hidden', controlId: 'title-version' } });
     };
@@ -186,6 +202,7 @@ export function createTitleScreen(deps) {
       if (!ownsDebugSurface()) return;
       debugEl.hidden = false;
       debugEl.textContent = `${ver.gitSha} · ${ver.release ? 'release' : 'dev'}`;
+      syncVersionReducedStates(true);
       trace.emit('app.version-debug', { outcome: 'completed', attributes: { action: 'shown', controlId: 'title-version' } });
       clearTimeout(debugTimer);
       debugTimer = setTimeout(hideDebug, VERSION_GESTURE.hideMs);
@@ -217,15 +234,31 @@ export function createTitleScreen(deps) {
     meshBindTitle();
 
     const settleIgnition = () => {
-      if (!root?.isConnected) return;
+      if (destroyed || !root?.isConnected) return;
       root.dataset.r5State = R5_SCREEN_END_STATES.titleReady;
       if (wordmark) wordmark.dataset.r5State = R5_SCREEN_END_STATES.titleReady;
+    };
+    const afterPaint = (cb) => {
+      if (typeof requestAnimationFrame !== 'function') {
+        const timer = setTimeout(cb, 0);
+        return () => clearTimeout(timer);
+      }
+      // Double-rAF: first callback runs after the current frame is committed, so
+      // `igniting` is visible for at least one paint before we settle.
+      let inner = 0;
+      const outer = requestAnimationFrame(() => {
+        inner = requestAnimationFrame(cb);
+      });
+      return () => {
+        cancelAnimationFrame(outer);
+        if (inner) cancelAnimationFrame(inner);
+      };
     };
 
     if (ignite) {
       sfx.kindle?.();
       // PE owns the once-per-session state flip + span; FE CSS (Task 35) animates
-      // `data-r5-state` igniting → title-ready. Keep the barrier durationless so
+      // `data-r5-state` igniting → title-ready. Ceremony stays durationless so
       // boot-time title never leaks presentationIdle into unrelated tests.
       const ceremony = runNamedCeremony({
         name: 'title-ignition',
@@ -239,15 +272,22 @@ export function createTitleScreen(deps) {
         policy: presentationPolicy(),
         onUpdate() { /* FE stylesheet owns visual interpolation once imported */ },
       });
-      void ceremony.done.then(settleIgnition).catch(settleIgnition);
-      if (REDUCED) settleIgnition();
-      else {
-        // One paint as igniting so FE can key transitions when the stylesheet lands.
-        settleIgnition();
-      }
+      let cancelPaint = () => {};
+      void ceremony.done.then(() => {
+        if (destroyed) return;
+        if (REDUCED) {
+          settleIgnition();
+          return;
+        }
+        // Full motion: keep `igniting` through at least one paint frame.
+        cancelPaint = afterPaint(settleIgnition);
+      }).catch(() => {
+        if (!destroyed) settleIgnition();
+      });
       destroyTitle = () => {
         if (destroyed) return;
         destroyed = true;
+        cancelPaint();
         ceremony.cancel();
         clearTimeout(debugTimer);
         debugTimer = 0;
