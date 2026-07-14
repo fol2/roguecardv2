@@ -236,6 +236,7 @@ test('dawn ceremony drains in canonical order and signals completion', async ({ 
   }, { questIds: QIDS });
 
   await waitForDawnComplete(page);
+  await expect(page.locator('.r5-end.r5-end--victory, .end-screen')).toHaveCount(1);
   await expect(page.locator('.dawn-event')).toHaveCount(5);
   await expect(page.locator('.dawn-event').evaluateAll((nodes) => nodes.map((node) => node.dataset.event)))
     .resolves.toEqual(['whisper', 'questReveal', 'questProgress', 'shardGrant', 'act4Reveal']);

@@ -95,7 +95,9 @@ export async function waitForDawnComplete(page, timeout = 30_000) {
     const ceremony = document.querySelector('.dawn-ceremony');
     const raw = localStorage.getItem('spirebound_save_v2');
     const pending = raw ? JSON.parse(raw).pendingDawn : null;
-    return ceremony?.classList.contains('complete') && pending == null;
+    const root = document.querySelector('.r5-end, .end-screen');
+    const closed = !root || root.dataset.r5State === 'dawn-closed' || ceremony?.classList.contains('complete');
+    return ceremony?.classList.contains('complete') && pending == null && closed;
   }, null, { timeout });
 }
 

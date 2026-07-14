@@ -1,4 +1,11 @@
 // Engine queue playback and event-to-presentation dispatch.
+// Combat `cb.queue` owners live here (Pixi). Dawn `run.endQueue` owners remain
+// DOM-owned by `screens/end.js` (Task 33) — see `presentation-owners.js`.
+
+import { ownerFor } from './presentation-owners.js';
+
+/** Combat-terminal banners only — climb Fall/Dawn are not drained here. */
+export const COMBAT_TERMINAL_EVENT_TYPES = Object.freeze(['victory', 'defeat']);
 
 export function createDrain({
   E, contentViewFor, QUESTS, cardEl, iconSvg, assetUrl, drawBatchSchedule,
@@ -14,6 +21,13 @@ export function createDrain({
   }
   if (typeof contentViewFor !== 'function') {
     throw new TypeError('createDrain requires contentViewFor');
+  }
+  // Guard: overlapping quest names are combat-domain here, never Dawn/end.
+  if (ownerFor('combat', 'questReveal') !== 'pixi-combat') {
+    throw new Error('drain combat questReveal owner drifted');
+  }
+  if (ownerFor('end', 'questReveal') !== 'dom-end') {
+    throw new Error('Dawn questReveal must stay DOM-owned by screens/end.js');
   }
   const runCatalogues = () => contentViewFor(S.run);
 

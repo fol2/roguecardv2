@@ -368,3 +368,26 @@ test('Shade cross-store failure keeps the saved duel behind an exclusive retry d
     'persistence.attempt', 'persistence.recovered',
   ]);
 });
+
+test('Fall unpaid Shade bequest keeps the standing-stone line with no phantom choice', async ({ page }) => {
+  // Presentation ownership: Task 33 end-ceremony; persistence ledger stays here.
+  await seed(page, freshLedger());
+  await page.evaluate(() => {
+    const sp = window.spirebound;
+    const run = sp.E.newRun(9510);
+    run.questScratch = { ownShade: { fall: { bequest: { kind: 'gold', amount: 40 } } } };
+    sp.S.run = run;
+    sp.show('end', {
+      won: false,
+      offers: [{ kind: 'gold', amount: 99 }], // must not render when unpaidBequest
+      fallAct: 1,
+      fallRow: 3,
+      unpaidBequest: true,
+    });
+  });
+  await expect(page.locator('.r5-end.r5-end--fallen, .end-screen.grave')).toHaveCount(1);
+  await expect(page.locator('.bequest-opt, [data-a="bequest"]')).toHaveCount(0);
+  await expect(page.locator('.r5-bequest-unpaid, .bequest-done')).toContainText(
+    'The unpaid gift remains in the standing stone',
+  );
+});

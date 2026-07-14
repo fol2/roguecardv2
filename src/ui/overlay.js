@@ -553,14 +553,19 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
     const description = finishing
       ? tr('ui.dawn.saveFailedClear')
       : tr('ui.dawn.saveFailedCursor');
+    const r5State = finishing ? 'dawn-final-clear-retry' : 'dawn-cursor-retry';
     const html = persistenceFailureHtml({
       id: 'dawn-save-failure',
       title: tr('ui.dawn.saveFailedTitle'),
       description,
       retry: { action: 'retry-dawn', label: tr('ui.persistence.retrySave') },
       reload: { action: 'reload-dawn', label: tr('ui.dawn.reloadSaved') },
-    });
+    }).replace(
+      'class="panel ov-panel"',
+      `class="panel ov-panel" id="dawn-save-failure" data-r5-state="${r5State}"`,
+    );
     openPersistenceDialog(html, '[data-a="retry-dawn"]', (root, transaction) => {
+      root.dataset.r5State = r5State;
       root.onclick = (event) => {
         if (!transaction.active()) return;
         const action = event.target.closest('[data-a]')?.dataset.a;

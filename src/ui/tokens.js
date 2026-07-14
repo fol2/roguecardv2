@@ -237,14 +237,29 @@ export const TITLE_PARALLAX_LAYER_IDS = Object.freeze([
 ]);
 export const TITLE_PARALLAX_FALLBACK_ID = 'title';
 
-/** Named REDUCED / settled end-states for Title and Embark ceremonies. */
+/** Named REDUCED / settled end-states for Title, Embark, Fall and Dawn. */
 export const R5_SCREEN_END_STATES = Object.freeze({
   titleReady: 'title-ready',
   titleIgniting: 'igniting',
   embarkLit: 'embark-lit',
   titleVersionDefault: 'title-version-default',
   titleVersionDebug: 'title-version-debug',
+  monumentEngraved: 'monument-engraved',
+  dawnClosed: 'dawn-closed',
+  fallUnpaidShadeBequest: 'fall-unpaid-shade-bequest',
+  dawnCursorRetry: 'dawn-cursor-retry',
+  dawnFinalClearRetry: 'dawn-final-clear-retry',
 });
+
+/** Ordered Fall monument-carving phases (Task 33). */
+export const FALL_CEREMONY_PHASES = Object.freeze([
+  'plate-rise', 'chisel', 'ember-spray', 'bequest', 'whisper', 'stats',
+]);
+
+/** Ordered Dawn ascension phases (Task 33). */
+export const DAWN_CEREMONY_PHASES = Object.freeze([
+  'bloom', 'ascended-parallax', 'queue', 'ledger', 'close',
+]);
 
 /** PR #18 version gesture: five taps inside two seconds; debug hides after three. */
 export const VERSION_GESTURE = Object.freeze({

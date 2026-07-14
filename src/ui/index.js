@@ -271,9 +271,10 @@ screenOwners = Object.freeze({
   end: createEndScreen({
     S, E, Vigil, TERMINAL_OUTCOMES, PROGRESSION, QUESTS,
     themeForRun, tr, runEffects, requireRunSave, persistObserved, showRunEndPersistenceFailure,
-    show: screenLate.show, presentationBarrier, trace, music, el, REDUCED, sleep,
+    show: screenLate.show, presentationBarrier, trace, music, el, REDUCED, COARSE, sleep,
     persistDawnOrRetry, assetUrl, iconSvg, relicArt, escHtml, $, $$, stageEl,
     sfx, screenEl, metaBg, sunrise, V, stageW, stageH, showCardGrid, contentViewFor,
+    tweenNum: (...args) => combatApi.tweenNum(...args),
     showLabResult: (...args) => uiCommands.showLabResult(...args),
   }),
   gallery: createGalleryScreen({

@@ -212,3 +212,157 @@ export function runNamedCeremony({
     done,
   });
 }
+
+/**
+ * Run ordered ceremony phases under one parent presentation span.
+ * REDUCED collapses to a single terminal parent span with `endState` and
+ * applies each phase's terminal `to` value once (no intermediate motion).
+ *
+ * @returns {{ cancel:()=>void, done: Promise<{outcome:'settled'|'cancelled'|'failed', motion:'normal'|'reduced', phases:string[]}> }}
+ */
+export function runPhasedCeremony({
+  name,
+  phases = [],
+  endState,
+  barrier,
+  trace,
+  policy,
+  schedule,
+  now,
+  onPhase,
+} = {}) {
+  if (typeof name !== 'string' || !name.trim()) {
+    throw new TypeError('runPhasedCeremony requires a non-empty name');
+  }
+  if (typeof endState !== 'string' || !endState.trim()) {
+    throw new TypeError('runPhasedCeremony requires a named endState');
+  }
+  const list = Array.isArray(phases) ? phases : [];
+  const phaseIds = list.map((phase) => {
+    if (typeof phase === 'string') return phase;
+    return phase?.id;
+  }).filter((id) => typeof id === 'string' && id.trim());
+
+  const reduced = isReducedTier(policy);
+  const token = barrier?.begin?.(name) || { finish() {}, cancel() {} };
+  let cancelled = false;
+  let resolve;
+  const done = new Promise((r) => { resolve = r; });
+
+  const finishParent = (outcome, motion) => {
+    const span = trace?.begin?.(`presentation.${name}`, {
+      attributes: { endState, phase: phaseIds[phaseIds.length - 1] || null },
+    }) || { finish() {} };
+    // Parent start was deferred for REDUCED — emit start+end as one terminal beat.
+    span.finish?.(outcome, { attributes: { motion, endState } });
+    if (outcome === 'settled') token.finish?.();
+    else token.cancel?.();
+  };
+
+  const run = async () => {
+    const invokePhaseHook = async (id, value, motion) => {
+      if (typeof onPhase === 'function') {
+        await onPhase(id, value, { motion });
+      }
+    };
+
+    if (reduced) {
+      for (const phase of list) {
+        if (cancelled) break;
+        const id = typeof phase === 'string' ? phase : phase?.id;
+        const to = typeof phase === 'object' && phase ? phase.to : 1;
+        const stepSpan = trace?.begin?.(`presentation.${name}`, {
+          attributes: { phase: id, endState },
+        }) || { finish() {} };
+        try {
+          await invokePhaseHook(id, to, 'reduced');
+          if (typeof phase === 'object' && typeof phase.run === 'function') {
+            await phase.run({ motion: 'reduced' });
+          } else if (typeof phase === 'object' && phase?.onUpdate) {
+            phase.onUpdate(to);
+          }
+          stepSpan.finish?.('settled', { attributes: { motion: 'reduced', endState, phase: id } });
+        } catch (error) {
+          stepSpan.finish?.('failed', { reason: 'presentation-error', attributes: { phase: id } });
+          finishParent('failed', 'reduced');
+          resolve({ outcome: 'failed', motion: 'reduced', phases: phaseIds });
+          throw error;
+        }
+      }
+      if (cancelled) {
+        finishParent('cancelled', 'reduced');
+        resolve({ outcome: 'cancelled', motion: 'reduced', phases: phaseIds });
+        return;
+      }
+      finishParent('settled', 'reduced');
+      resolve({ outcome: 'settled', motion: 'reduced', phases: phaseIds });
+      return;
+    }
+
+    const parentSpan = trace?.begin?.(`presentation.${name}`, {
+      attributes: { endState },
+    }) || { finish() {} };
+    try {
+      for (const phase of list) {
+        if (cancelled) break;
+        const id = typeof phase === 'string' ? phase : phase?.id;
+        const stepSpan = trace?.begin?.(`presentation.${name}`, {
+          attributes: {
+            phase: id,
+            endState: (typeof phase === 'object' && phase?.endState) || endState,
+          },
+        }) || { finish() {} };
+        await invokePhaseHook(id, typeof phase === 'object' ? phase.to : 1, 'normal');
+        if (typeof phase === 'object' && typeof phase.run === 'function') {
+          await phase.run({ motion: 'normal' });
+          stepSpan.finish?.('settled', {
+            attributes: { motion: 'normal', phase: id, endState },
+          });
+          continue;
+        }
+        const duration = typeof phase === 'object' ? (phase.duration ?? 0) : 0;
+        const runner = tween({
+          from: (typeof phase === 'object' ? phase.from : 0) ?? 0,
+          to: (typeof phase === 'object' ? phase.to : 1) ?? 1,
+          duration,
+          easing: (typeof phase === 'object' ? phase.easing : undefined) || 'outSoft',
+          onUpdate: typeof phase === 'object' ? phase.onUpdate : undefined,
+          policy,
+          schedule,
+          now,
+        });
+        const result = await runner.done;
+        if (cancelled || result.outcome === 'cancelled') {
+          stepSpan.finish?.('cancelled', { attributes: { motion: result.motion, phase: id, endState } });
+          parentSpan.finish?.('cancelled', { attributes: { motion: result.motion, endState } });
+          token.cancel?.();
+          resolve({ outcome: 'cancelled', motion: result.motion, phases: phaseIds });
+          return;
+        }
+        stepSpan.finish?.('settled', {
+          attributes: { motion: result.motion, phase: id, endState },
+        });
+      }
+      if (cancelled) {
+        parentSpan.finish?.('cancelled', { attributes: { motion: 'normal', endState } });
+        token.cancel?.();
+        resolve({ outcome: 'cancelled', motion: 'normal', phases: phaseIds });
+        return;
+      }
+      parentSpan.finish?.('settled', { attributes: { motion: 'normal', endState } });
+      token.finish?.();
+      resolve({ outcome: 'settled', motion: 'normal', phases: phaseIds });
+    } catch (error) {
+      parentSpan.finish?.('failed', { reason: 'presentation-error' });
+      token.cancel?.();
+      resolve({ outcome: 'failed', motion: 'normal', phases: phaseIds });
+      throw error;
+    }
+  };
+
+  void run();
+  return Object.freeze({
+    cancel() { cancelled = true; },
+    done,
+  });
+}

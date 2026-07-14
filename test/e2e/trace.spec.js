@@ -42,11 +42,25 @@ const persistenceContractRows = (page, kind) => page.evaluate((selectedKind) =>
     })), kind);
 
 function dawnResumeProjection(rows) {
-  const start = rows.find((row) => row.eventName === 'presentation.dawn' && row.phase === 'start');
+  // Prefer the parent Dawn span (no per-phase attribute) so Task 33 phase
+  // markers do not displace the frozen resume contract.
+  const start = rows.find((row) => row.eventName === 'presentation.dawn' && row.phase === 'start'
+    && row.attributes?.phase == null)
+    || rows.find((row) => row.eventName === 'presentation.dawn' && row.phase === 'start');
   const attemptIndex = rows.findIndex((row) => row.eventName === 'persistence.attempt');
   const recovered = rows.slice(attemptIndex + 1).find((row) => row.eventName === 'persistence.recovered');
-  const end = rows.findLast((row) => row.eventName === 'presentation.dawn' && row.phase === 'end');
-  return [start, rows[attemptIndex], recovered, end];
+  const end = rows.findLast((row) => row.eventName === 'presentation.dawn' && row.phase === 'end'
+    && row.outcome === 'settled' && row.attributes?.phase == null)
+    || rows.findLast((row) => row.eventName === 'presentation.dawn' && row.phase === 'end');
+  const project = (row) => (row ? {
+    eventName: row.eventName,
+    phase: row.phase,
+    outcome: row.outcome ?? null,
+    ...(row.attributes && row.eventName.startsWith('persistence.')
+      ? { attributes: row.attributes }
+      : {}),
+  } : row);
+  return [project(start), project(rows[attemptIndex]), project(recovered), project(end)];
 }
 
 async function seedUsurperTraceShop(page) {
@@ -1118,6 +1132,7 @@ test('persistence fixture: Dawn resumes from its acknowledged cursor', async ({ 
   await waitForDawnComplete(page);
   const rows = await page.evaluate(() => window.__probe.behaviourTrace().records
     .filter((record) => record.eventName === 'presentation.dawn' ||
+      record.eventName === 'presentation.dawn-panel' ||
       (record.eventName.startsWith('persistence.') && record.attributes?.kind === 'dawn-cursor'))
     .map((record) => ({
       eventName: record.eventName, phase: record.phase, outcome: record.outcome ?? null,
