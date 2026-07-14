@@ -23,7 +23,9 @@ This hand-off makes **no** actual-Safari, iOS/iPadOS Simulator, WKWebView-as-app
 | Role | SHA | Notes |
 |---|---|---|
 | Exact PE tip / rollback (Task 29 source) | `11fb29c0617e228098e334ef5a33fbc701b66840` | P5 complete; FE Task 31 verifies this is an ancestor of the hand-off HEAD |
-| P5 → P6 FE hand-off HEAD | recorded in `.superpowers/sdd/progress.md` as `P5 to P6 FE hand-off: <SHA>` after this docs commit | Docs-only commit on this branch; FE fast-forwards to that HEAD |
+| P5 → P6 FE hand-off HEAD (initial publish) | `70b84af5209504ca0bdec3c555c792dd0b536fcc` | First `docs: publish the P5 to P6 hand-off` |
+| P5 → P6 harden content commit | `HARDEN_CONTENT_SHA` | Important-review body (`docs: harden P5 to P6 hand-off manifest`) |
+| P5 → P6 FE hand-off HEAD (hardened pin) | `HARDENED_TIP_SHA` | Pin commit tip; FE fast-forwards here; ledger mirrors |
 | Experience contract blob (frozen) | `6684e8b67779a26d29b391705a48852b43d7b2f7` | Task 21 owner-approved; **read-only for P6** |
 | Contract clean FE_HEAD | `51cbf9876797813a0e60144412984bbf8badb569` | Task 21 write-set proof |
 | FE_CONTRACT_MERGE | `6e06911853ba8e26d05ac4db0a1ad119a6c2275a` | Contract merge into PE lane |
@@ -62,9 +64,39 @@ Logs: `/tmp/round5-p5-gate/*.log`.
 |---|---|---|
 | `presentation` + `cardface` desktop | **0** | **8 / 8** (composer, contrast, locale invalidate, pile ceremonies, banners, artCast) |
 | `battle` `-g "P5 combat DOM\|PR17 geometry"` desktop | **0** | **2 / 2** DOM whitelist + Pixi PR17 readUI |
-| `npm run test:e2e:webkit` | **skipped** | Still running after ~8m budget; mid-run log showed one failing iphone-webkit diagnostic-keys row then continued — **not** treated as a serial veto when focused WebKit production-profile + leak are green (P4 contention precedent) |
-| `npm run test:e2e` full matrix | **skipped** | Cadence: skip unless finishes reasonably; focused P5 hard gates above are the GO evidence |
-| `test:e2e:perf` / PERF full | **not re-run** | Prior P4 policy: `PERF_WARNING` alone cannot block GO; heap/cache/bundle invariants covered by leak + budget |
+| `npm run test:e2e:webkit` | **aborted / cadence-skipped** | ~8m budget abort; incomplete run. **8 iphone-webkit failures observed before abort** (not one). Accurate list below. Cadence skip is OK; focused WebKit production-profile + leak remain the GO WebKit evidence (P4 contention precedent). |
+| `npm run test:e2e` full matrix | **skipped** | Owner cadence; focused P5 hard gates above are the GO evidence |
+| `test:e2e:perf` / PERF full | **skipped** | Owner cadence; prior P4 policy: `PERF_WARNING` alone cannot block GO; heap/cache/bundle invariants covered by leak + budget |
+
+#### Aborted `test:e2e:webkit` — iphone-webkit failures observed (8)
+
+Log: `/tmp/round5-p5-gate/12-webkit.log`. Suite incomplete (abort); do not treat as a full-matrix result.
+
+| # | Spec | Title |
+|---|---|---|
+| 1 | `lab.spec.js` | Content Lab › URL combat round-trip, play, replay hydrate without auto-run |
+| 2 | `lab.spec.js` | Content Lab › registry editor Start sandbox writes canonical URL and round-trips |
+| 3 | `lab.spec.js` | Content Lab › pasted paleDuskfang URL stages through probe and rejects base mismatch |
+| 4 | `lab.spec.js` | Content Lab › sample climb journey through probe with frozen content summary |
+| 5 | `lab.spec.js` | Content Lab › Lab win and Lab loss leave sentinel storage byte-identical |
+| 6 | `lab.spec.js` | Content Lab › trace transcript copy copies live panel text after a real beat |
+| 7 | `stage.spec.js` | P1 shared UI modules preserve exact browser boundaries and live commands |
+| 8 | `trace.spec.js` | runtime UI module contracts expose only sorted diagnostic keys |
+
+(6 Lab + stage P1 boundaries + diagnostic-keys.) Focused production-profile Lab journeys on the same projects still **6/6 PASS** in the Step 1 table above.
+
+### Owner-cadence waiver vs plan Step 1 (not PREFIX EXIT)
+
+Plan Task 30 Step 1 names a full clean-source matrix including `test:e2e`, `test:e2e:webkit`, `test:e2e:perf`, PERF full desktop, `test:round5:standing -- --profile p5`, and `git diff --check`. **Ask-Matt / owner cadence for Tasks 16–40 explicitly waives mid-iteration standing and full CI**, mirroring the P4 gate (`docs/superpowers/reports/2026-07-10-round5-p4-gate.md`): focused hard non-visual gates green ⇒ **GO**, not PREFIX EXIT.
+
+| Plan Step 1 item | This gate | Waiver basis |
+|---|---|---|
+| `npm run test:e2e` (full) | **skipped** | Cadence time; focused leak / production-profile / presentation / DOM gates green |
+| `npm run test:e2e:webkit` (full) | **aborted / skipped** | Cadence ~8m abort; 8 failures listed accurately above; focused WebKit green |
+| `npm run test:e2e:perf` + PERF full | **skipped** | Cadence; `PERF_WARNING` alone cannot force PREFIX EXIT |
+| `npm run test:round5:standing -- --profile p5` | **skipped** | Owner cadence — never mid-iteration standing |
+| `git diff --check` | **skipped** | Docs-only / cadence; not a hard product blocker for GO |
+| Prefix ship / `dist/**` / PR | **not executed** | Decision is GO TO P6, not P5 PREFIX EXIT |
 
 ### Cadence exclusions (intentional)
 
@@ -72,6 +104,7 @@ Logs: `/tmp/round5-p5-gate/*.log`.
 - No full GitHub CI / required-check wait
 - No prefix ship (`build` + `dist/**` + PR)
 - No Darwin `test:e2e:update` in this gate (Darwin already green at Task 29)
+- No plan Step 1 full matrix items listed in the waiver table above
 
 ---
 
@@ -89,6 +122,8 @@ Logs: `/tmp/round5-p5-gate/*.log`.
 ### CSS variables / tokens
 
 Source of truth: `src/ui/tokens.js` (`ROUND5_TOKENS`, `R5_CSS_VARIABLE_MAP`, `applyExperienceTokens` → `--r5-*` on `document.documentElement`).
+
+**Experience-applied** (present on `ROUND5_TOKENS` and set by `applyExperienceTokens` / `cssVariables`):
 
 | CSS variable | Token value |
 |---|---|
@@ -110,6 +145,8 @@ Source of truth: `src/ui/tokens.js` (`ROUND5_TOKENS`, `R5_CSS_VARIABLE_MAP`, `ap
 | `--r5-dur-ceremony` | `640ms` |
 | `--r5-font-body` | `'Alegreya', Georgia, serif` |
 | `--r5-font-display` | `'Cinzel', 'Alegreya', serif` |
+
+**Map-only — NOT experience-applied (do not use in `round5-screens.css`):** `R5_CSS_VARIABLE_MAP` also names `--r5-good`, `--r5-bad`, `--r5-atk`, `--r5-blk`, and `--r5-hp`, but those keys are **absent** from `ROUND5_TOKENS`, so `cssVariables` / `applyExperienceTokens` never set them. FE must not rely on those five custom properties.
 
 Structured aliases (`EASING`, `DURATION_MS`, `COLOUR`, `TYPE`) match the owner-approved `ROUND5_EXPERIENCE_VALUES` block in the contract.
 
@@ -138,13 +175,37 @@ Combat remains PE Pixi-owned chrome; P5 DOM whitelist still applies (FE does **n
 
 ### Allowed descendants / data attributes (combat P5 whitelist — frozen)
 
-Inventory: `test/e2e/helpers.js` `inventoryCombatDom` + `COMBAT_DOM_FORBIDDEN_SELECTORS`.
+**Sole authority:** exact freeze = `inventoryCombatDom` in `test/e2e/helpers.js` @ Task 29 tip `11fb29c0617e228098e334ef5a33fbc701b66840` (plus `COMBAT_DOM_FORBIDDEN_SELECTORS` in the same file). FE cites that freeze; do not invent a parallel list.
+
+Frozen sets pasted for FE citation (verbatim from that tip):
+
+```js
+// ALLOWED_IDS
+'stage', 'bg3d', 'vignette', 'grain', 'shake', 'screen', 'mesh', 'lantern',
+'hud', 'aim', 'vfx', 'uigl', 'floaties', 'overlay', 'wipe', 'transit', 'tooltip',
+'omen-slot', 'relicbar', 'aim-outline-atk', 'aim-outline-self', 'status-outline', 'alpha-erode'
+
+// ALLOWED_CLASS
+'combat-screen', 'screen-enter', 'intro', 'pixi-bottom-chrome', 'pixi-plate-chrome', 'pixi-hud-chrome',
+'sl', 'sl-backdrop', 'sl-mid', 'sl-ledge',
+'stage-dim', 'stage-ledge', 'stage-breath', 'b1', 'b2',
+'cast-shadow-layer', 'cast-shadow',
+'battlefield', 'player-zone', 'enemy-zone', 'hero-wrap', 'hero-sprite', 'enemy', 'enemy-art',
+'enemy-sprite', 'raster-art', 'aim-ring', 'cracks-overlay', 'vessel-fire', 'dmg-preview',
+'idle-motes', 'mesh-live',
+'top-chrome', 'cplate', 'status-row', 'p-status', 'intent', 'name', 'hpbar-wrap', 'hp-vial',
+'hpbar', 'fill', 'ghost', 'pv', 'hp-label', 'block-chip', 'facet-row', 'zero', 'ic',
+'energy-orb', 'lantern-btn', 'end-turn', 'pile-btn', 'pile-draw', 'pile-discard', 'pile-exhaust',
+'hand-zone', 'pop', 'unlit', 'pile-bump', 'is-empty', 'show',
+'hud-bar', 'hud-stat', 'hud-hp-wrap', 'hud-hpbar', 'hud-right', 'gold-num', 'hp-num',
+'elite-e', 'boss-e', 'affixed', 'lowhp', 'gone'
+```
+
+Additional allow predicates in the same freeze (not class-set members): anonymous structural children under an allowed host; `svg[aria-hidden="true"]` filter library; class prefixes / extras `sl-*`, `pile-*`, `hud-*`, `idle-*`, `schip*`, `ui-icon*`, `gicon`, `et-ic`, `et-lbl`, `lb-ic`, `lb-count`, `lb-pips`, `num`, `cnt`, `lbl`, `pile-stack`, `candles`.
 
 **Forbidden (must be count 0):** `.floaty`, `.flymote`, `.flycard`, `.flycard-face`, `.flycard-back`, `.flycard-pile`, `.turn-banner`, `.boss-banner`, `.perfect-banner`, `.variant-dialogue`, `.hand-zone .card`.
 
-**Allowed ids:** `stage`, `bg3d`, `vignette`, `grain`, `shake`, `screen`, `mesh`, `lantern`, `hud`, `aim`, `vfx`, `uigl`, `floaties`, `overlay`, `wipe`, `transit`, `tooltip`, `omen-slot`, `relicbar`, `aim-outline-atk`, `aim-outline-self`, `status-outline`, `alpha-erode`.
-
-**Allowed class prefixes / tokens:** combat plates (`sl-*`, `b1`/`b2`, battlefield/combatant art hosts), Pixi chrome markers (`pixi-*-chrome`), pile/hud/energy/lantern classes, `schip*`, `ui-icon*`, empty structural hosts (`#floaties`, `#aim`, `.hand-zone` with 0 children).
+Empty structural hosts during combat: `#floaties` children = 0, `#aim` children = 0, `.hand-zone` childElementCount = 0.
 
 **Load-bearing data attributes (PE-owned; FE may select, not invent):**
 
@@ -161,18 +222,35 @@ Inventory: `test/e2e/helpers.js` `inventoryCombatDom` + `COMBAT_DOM_FORBIDDEN_SE
 
 ### Asset ids + fallbacks
 
-Runtime resolution: `assetUrl(category, id)` in `src/art.js`. UI helper `rasterOr(cat, id, svg)` (`src/ui/assets.js`) returns `<img class="raster-art">` when a URL exists, else the supplied procedural SVG / glyph.
+**Freeze pointer (FE cite):** live raster map is `src/assets/<category>/<id>.{png,jpg,jpeg,webp}` resolved by `assetUrl(category, id)` in `src/art.js` (`ASSET_URLS` glob + `ASSET_SETS.live.root = 'assets'`). Missing file → `null` → caller SVG/glyph fallback via `rasterOr` / screen owners in `src/ui/assets.js`. Inventory at Decision tip `11fb29c0`: **21 categories, 243 raster ids** under `src/assets/` (audio under `musics`/`sfx` folders here are empty — playback uses `public/` packs, not this map).
 
-| Category examples | Fallback |
+| Category | n | Representative ids (FE may cite) |
+|---|---:|---|
+| `arts` | 6 | `ashfall`, `beacon`, `emberveil`, `flare`, `mendglass`, `stoke` |
+| `bequests` | 3 | `card`, `gold`, `relic` |
+| `boons` | 8 | `emberFlask`, `fullPurse`, `keenEye`, `pilgrimsCache`, `temperedGlass`, `twinPhials`, `venomPouch`, `warmHearth` |
+| `cards` | 60 | `aegis`, `agility`, `annihilate`, `ascension`, `ashBite`, … |
+| `deeds` | 8 | `ashSermon`, `darkWalker`, `firstDawn`, `hundredShards`, `lanternFed`, `paneBreaker`, `spendthrift`, `untouched` |
+| `enemies` | 27 | `duskfang`, `sporeling`, `abyssalKnight`, … |
+| `events` | 11 | `cursedIdol`, `emberFountain`, `forge`, `library`, … |
+| `heroes` | 2 | `ashwarden`, `duskblade` |
+| `meta` | 11 | `ascended`, `emberglass-frame`, `emberglass-mask-*`, … |
+| `omens` | 7 | `ashfall`, `emberWind`, `heavyAir`, `hungryDark`, `longNight`, `thinGlass`, `waningMoon` |
+| `piles` | 3 | `ashes`, `discard`, `draw` |
+| `potions` | 7 | `block`, `energy`, `fire`, `healing`, `strength`, `swift`, `venom` |
+| `props` | 4 | `campfire`, `chest`, `chest-open`, `merchant` |
+| `relics` | 31 | `ashenCore`, `emberHeart`, `duskmirror`, … |
+| `stage` | 9 | `act1-backdrop`, `act1-ledge`, `act1-mid`, … (acts 1–3) |
+| `statuses` | 17 | `barricade`, `dex`, `frail`, `metallicize`, … |
+| `title` | 1 | `title` |
+| `title-background` | 1 | `background` |
+| `ui` | 27 | `candle-lit`, `candle-spent`, `coin`, `deck`, `end-turn`, `heart`, … |
+
+| Fallback rule | Behaviour |
 |---|---|
-| `heroes`, `enemies` / art categories | `heroSvg` / `enemySvg` via `rasterOr` |
-| `relics` | decorative glyph (`◈` or content glyph) / `.hud-relic-fallback` |
-| `omens` | `iconSvg(omenIconName(oid))` |
-| `potions` | `potionSvg(tone)` |
-| `props` (`merchant`, `campfire`, `chest`, …) | matching procedural SVG |
-| `events` | `eventArtSvg` |
-| `stage` plates / `meta` / `title-background` | omit plate / empty bg when missing |
-| `boons`, `arts`, `deeds`, `bequests` | omit or SVG per screen owner |
+| `rasterOr(cat, id, svg)` | `<img class="raster-art">` if `assetUrl` hits; else procedural SVG |
+| relics / omens / potions | glyph / `iconSvg` / `potionSvg` when raster missing |
+| stage / meta / title-background | omit plate / empty bg when missing |
 
 FE P6 write set may add **named** visual assets only (P7 promotion is a later hand-off); P6 stylesheet task does not invent new asset categories.
 
@@ -251,9 +329,10 @@ PE owns screen JS, selectors, token translation, audio, probes, tests, and later
 
    **Blocked:** `gh workflow dispatch update-baselines.yml --ref …` → `unknown flag: --ref` (local `gh` CLI does not accept `workflow dispatch --ref`; tool expects modern dispatch API). Same class of deferral as P4 Task 24 Step 6. Dual-platform baseline review remains a commercial-ship follow-up before treating screenshots as closed.
 
-2. Full `test:e2e` matrix — skipped under cadence time budget.
-3. Full `test:e2e:webkit` script — time-skipped (~8m); focused WebKit gates green.
-4. Perf re-measure — not re-run; prior `PERF_WARNING` policy unchanged.
+2. Full `test:e2e` matrix — skipped under owner-cadence waiver (not PREFIX EXIT).
+3. Full `test:e2e:webkit` — aborted after ~8m; **8 iphone-webkit failures listed above**; cadence skip; focused WebKit green.
+4. Perf re-measure — skipped under cadence; prior `PERF_WARNING` policy unchanged.
+5. `test:round5:standing -- --profile p5` and `git diff --check` — skipped under owner cadence (waiver table).
 
 ---
 
