@@ -5953,8 +5953,10 @@ function randomAgentRun(seed) {
   assert.ok(s1.awaitMs <= 400 && s1.awaitMs >= 200);
   const s10 = flightSchedule(10, 400);
   assert.ok(s10.stagger <= s1.stagger || s10.stagger <= 48);
-  assert.ok(s10.awaitMs <= 480, 'large n stays near budget');
+  assert.equal(s10.awaitMs, s10.stagger * 9 + s10.flightDur,
+    'large-n awaitMs is honest stagger*(n-1)+flightDur');
   assert.ok(s10.stagger >= 8);
+  assert.ok(s10.flightDur <= 400, 'flightDur compressed into budget');
 
   const d5 = drawBatchSchedule(5, 500);
   assert.equal(d5.stagger, 100);
@@ -5966,14 +5968,19 @@ function randomAgentRun(seed) {
 
   assert.deepEqual(PILE_IDS, ['draw', 'discard', 'ashes']);
 
-  // Task 28 — P5 ceremony budgets + parent await equals wall-clock target.
+  // Task 28 — P5 ceremony budgets compress stagger; awaitMs is honest wall-clock.
   assert.equal(CEREMONY_BUDGET_MS.discardHand, 440);
   assert.equal(CEREMONY_BUDGET_MS.reshuffle, 600);
   const dh = flightSchedule(5, CEREMONY_BUDGET_MS.discardHand, { ceremony: 'discardHand' });
-  assert.equal(dh.awaitMs, 440);
+  assert.equal(dh.awaitMs, dh.stagger * 4 + dh.flightDur,
+    'discardHand awaitMs = stagger*(n-1)+flightDur');
+  assert.ok(dh.awaitMs <= CEREMONY_BUDGET_MS.discardHand + 1,
+    'discardHand wall-clock stays within budget');
   assert.ok(dh.stagger <= 24);
   const rs = flightSchedule(8, CEREMONY_BUDGET_MS.reshuffle, { ceremony: 'reshuffle' });
-  assert.equal(rs.awaitMs, 600);
+  assert.equal(rs.awaitMs, rs.stagger * 7 + rs.flightDur,
+    'reshuffle awaitMs = stagger*(n-1)+flightDur');
+  assert.ok(rs.awaitMs <= CEREMONY_BUDGET_MS.reshuffle + 1);
   assert.ok(rs.stagger <= 22);
 }
 

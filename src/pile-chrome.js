@@ -64,7 +64,7 @@ export function ceremonyStaggerCap(ceremony, budgetMs) {
   return Math.min(48, budget);
 }
 
-/** Parallel flight timing: every card flies; wall-clock capped by budgetMs. */
+/** Parallel flight timing: every card flies; wall-clock = last-start delay + flight. */
 export function flightSchedule(n, budgetMs, {
   maxStagger = 48,
   minStagger = 8,
@@ -73,20 +73,18 @@ export function flightSchedule(n, budgetMs, {
 } = {}) {
   const count = Math.max(0, Math.floor(n) || 0);
   const budget = Math.max(120, budgetMs | 0);
-  if (count <= 0) return { stagger: 0, flightDur: 0, awaitMs: 0 };
+  if (count <= 0) return { stagger: 0, flightDur: 0, awaitMs: 0, budget };
   const cap = ceremony != null ? ceremonyStaggerCap(ceremony, budget) : maxStagger;
   const stagger = count === 1
     ? 0
     : Math.max(minStagger, Math.min(cap, Math.floor(budget / count)));
   const dur = flightDur != null
     ? flightDur
-    : Math.max(160, Math.min(budget, budget - stagger * Math.min(count - 1, 6)));
-  // Parent await equals the ceremony budget so CPU-throttled wall clocks stay
-  // inside the Task 28 assertion windows (discardHand 320–480, reshuffle 450–650).
-  const awaitMs = ceremony && CEREMONY_BUDGET_MS[ceremony]
-    ? CEREMONY_BUDGET_MS[ceremony]
-    : Math.min(budget + 80, stagger * (count - 1) + dur);
-  return { stagger, flightDur: dur, awaitMs };
+    : Math.max(160, Math.min(budget, budget - stagger * Math.max(0, count - 1)));
+  // Honest parent await: stagger*(n-1) + flightDur. Budget compresses stagger/dur;
+  // it is an upper-bound assert target, not a fake sleep.
+  const awaitMs = stagger * Math.max(0, count - 1) + dur;
+  return { stagger, flightDur: dur, awaitMs, budget };
 }
 
 /** Draw-batch timing: arrivals evenly spaced (e.g. 5 cards / 500ms → 100ms stagger). */

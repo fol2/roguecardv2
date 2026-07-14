@@ -9,21 +9,6 @@ async function attachCpuThrottle(page, rate) {
   return cdp;
 }
 
-/** Drive a drained ceremony without a full end-turn by calling the drain owner. */
-async function drainQueue(page) {
-  return page.evaluate(async () => {
-    const drain = window.__probe?.owners?.drain;
-    if (typeof drain === 'function') {
-      await drain();
-      return 'owners';
-    }
-    // Fallback: end-turn path (energy 0) when owners seam is unavailable.
-    window.__probe.setEnergy(0);
-    await window.__probe.endTurn();
-    return 'endTurn';
-  });
-}
-
 test.describe('combat presentation ceremonies', () => {
   test('CPU 4× discardHand / reshuffle publish parent+child card-flight spans', async ({ page }) => {
     test.setTimeout(120_000);
@@ -72,15 +57,26 @@ test.describe('combat presentation ceremonies', () => {
       const parentStart = flights.find((r) => r.phase === 'start'
         && r.attributes?.ceremony === 'discardHand'
         && r.attributes?.role === 'parent');
+      // End records get a fresh seq; correlate by role/ceremony with seq > start.
       const parentEnd = flights.find((r) => r.phase === 'end'
         && r.attributes?.ceremony === 'discardHand'
-        && r.attributes?.role === 'parent');
+        && r.attributes?.role === 'parent'
+        && r.seq > (parentStart?.seq ?? 0));
       const children = flights.filter((r) => r.phase === 'start'
         && r.attributes?.ceremony === 'discardHand'
         && r.attributes?.role === 'child');
+      const childEnds = flights.filter((r) => r.phase === 'end'
+        && r.attributes?.role === 'child'
+        && r.seq > (parentStart?.seq ?? 0)
+        && children.some((c) => String(c.attributes?.uid) === String(r.attributes?.uid)));
+      const lastChildEndMs = childEnds.reduce((m, r) => Math.max(m, r.atMs || 0), 0);
+      const measuredMs = parentStart
+        ? (parentEnd?.atMs ?? lastChildEndMs) - parentStart.atMs
+        : null;
       return {
         ok: true,
-        durationMs: parentStart && parentEnd ? parentEnd.atMs - parentStart.atMs : null,
+        durationMs: measuredMs,
+        parentSpanMs: parentStart && parentEnd ? parentEnd.atMs - parentStart.atMs : null,
         childUids: children.map((r) => String(r.attributes?.uid)),
         expectedUids: uids.map(String),
         causeOk: children.every((c) => c.causeSeq === parentStart?.seq),
@@ -119,12 +115,20 @@ test.describe('combat presentation ceremonies', () => {
         && r.attributes?.role === 'parent');
       const parentEnd = flights.find((r) => r.phase === 'end'
         && r.attributes?.ceremony === 'reshuffle'
-        && r.attributes?.role === 'parent');
+        && r.attributes?.role === 'parent'
+        && r.seq > (parentStart?.seq ?? 0));
       const children = flights.filter((r) => r.phase === 'start'
         && r.attributes?.ceremony === 'reshuffle'
         && r.attributes?.role === 'child');
+      const childEnds = flights.filter((r) => r.phase === 'end'
+        && r.attributes?.role === 'child'
+        && children.some((c) => String(c.attributes?.uid) === String(r.attributes?.uid)
+          && r.seq > c.seq));
+      const lastChildEndMs = childEnds.reduce((m, r) => Math.max(m, r.atMs || 0), 0);
       return {
-        durationMs: parentStart && parentEnd ? parentEnd.atMs - parentStart.atMs : null,
+        durationMs: parentStart
+          ? (parentEnd?.atMs ?? lastChildEndMs) - parentStart.atMs
+          : null,
         childCount: children.length,
         expectedN: n,
         floaties: document.querySelectorAll('#floaties > *').length,
@@ -171,12 +175,40 @@ test.describe('combat presentation ceremonies', () => {
       const starts = flights.filter((r) => r.phase === 'start');
       const ends = flights.filter((r) => r.phase === 'end');
       const reduced = ends.filter((r) => r.attributes?.motion === 'reduced');
-      const orphans = starts.filter((s) => !ends.some((e) => e.seq > s.seq)).length;
+      // Correlate by uid (children) / causeSeq+role (parent) — end seq ≠ start seq.
+      // Each start claims at most one end (no "any later end covers every start").
+      const claimed = new Set();
+      const orphans = starts.filter((s) => {
+        let match = null;
+        if (s.attributes?.role === 'child' && s.attributes?.uid != null) {
+          match = ends.find((e) => !claimed.has(e.seq)
+            && e.seq > s.seq
+            && e.attributes?.role === 'child'
+            && String(e.attributes?.uid) === String(s.attributes.uid)
+            && (e.attributes?.ceremony == null
+              || e.attributes?.ceremony === s.attributes?.ceremony));
+        } else if (s.attributes?.role === 'parent') {
+          match = ends.find((e) => !claimed.has(e.seq)
+            && e.seq > s.seq
+            && e.attributes?.role === 'parent'
+            && (e.attributes?.ceremony == null
+              || e.attributes?.ceremony === s.attributes?.ceremony));
+        }
+        if (match) claimed.add(match.seq);
+        return !match;
+      }).length;
       return {
         discardDelta: S.cb.discard.length - discardBefore,
         expected: uids.length,
         reducedEnds: reduced.length,
         orphans,
+        startRoles: starts.map((s) => ({
+          role: s.attributes?.role, uid: s.attributes?.uid, seq: s.seq,
+        })),
+        endRoles: ends.map((e) => ({
+          role: e.attributes?.role, uid: e.attributes?.uid, seq: e.seq,
+          ceremony: e.attributes?.ceremony, outcome: e.outcome,
+        })),
         floaties: document.querySelectorAll('#floaties > *').length,
         presentationIdle: window.__probe.presentationIdle(),
         endStates: ends.map((e) => e.attributes?.endState || e.outcome),
@@ -187,7 +219,9 @@ test.describe('combat presentation ceremonies', () => {
     expect(result.floaties).toBe(0);
     expect(result.presentationIdle).toBe(true);
     expect(result.reducedEnds).toBeGreaterThan(0);
-    expect(result.orphans).toBe(0);
+    expect(result.orphans, JSON.stringify({
+      starts: result.startRoles, ends: result.endRoles,
+    })).toBe(0);
     expectNoErrors(errors, 'REDUCED discardHand');
   });
 
@@ -218,6 +252,7 @@ test.describe('combat presentation ceremonies', () => {
           ratio: sample?.ratio ?? 0,
           measured: !!sample?.measured,
           source: sample?.source || null,
+          sampleContract: sample?.sampleContract || null,
         });
         await pres.clearHeld?.();
       }
@@ -231,12 +266,18 @@ test.describe('combat presentation ceremonies', () => {
           ratio: sample?.ratio ?? 0,
           measured: !!sample?.measured,
           source: sample?.source || null,
+          sampleContract: sample?.sampleContract || null,
         });
         await pres.clearHeld?.();
       }
+      // Icon floater still composes a Pixi glyph (no HTML strip loss).
+      await pres.floatText(400, 280, '4', 'blockf', { icon: 'shield', iconSize: 22, holdForSample: true });
+      const iconSample = await pres.sampleContrast({ kind: 'floater', tier: 'normal' });
+      await pres.clearHeld?.();
       return {
         ok: true,
         samples: out,
+        iconOk: iconSample?.measured === true,
         floaties: document.querySelectorAll('#floaties > *').length,
         turnBanners: document.querySelectorAll('.turn-banner').length,
       };
@@ -245,9 +286,11 @@ test.describe('combat presentation ceremonies', () => {
     expect(samples.ok).toBe(true);
     expect(samples.floaties).toBe(0);
     expect(samples.turnBanners).toBe(0);
+    expect(samples.iconOk).toBe(true);
     for (const s of samples.samples) {
       expect(s.measured, `${s.kind}/${s.tier} measured`).toBe(true);
       expect(s.source, `${s.kind}/${s.tier} source`).toBe('pixels');
+      expect(s.sampleContract, `${s.kind}/${s.tier} contract`).toBeTruthy();
       expect(s.ratio, `${s.kind}/${s.tier}`).toBeGreaterThanOrEqual(4.5);
     }
     expectNoErrors(errors, 'damage/banner contrast');
@@ -288,7 +331,7 @@ test.describe('combat presentation ceremonies', () => {
 
   test('lantern artCast is a Pixi ceremony with no DOM .art-cast', async ({ page }) => {
     const errors = collectErrors(page);
-    await boot(page, { query: 'trace=1&mesh=0&motion=reduced' });
+    await boot(page, { query: 'trace=1&mesh=0' });
     await startFight(page, ['sporeling']);
 
     const result = await page.evaluate(async () => {
@@ -296,23 +339,7 @@ test.describe('combat presentation ceremonies', () => {
       if (typeof pres?.artCast !== 'function') {
         return { ok: false, reason: 'missing-artCast' };
       }
-      window.__probe.resetBehaviourTrace();
-      const hero = window.spirebound.S.ce?.hero
-        ? (() => {
-          const r = window.__probe.stage();
-          return { x: r.w * 0.28, y: r.h * 0.62 };
-        })()
-        : { x: 280, y: 420 };
-      // Prefer a real arts asset URL when available; REDUCED settles without loading.
-      const artId = window.spirebound.S.run?.art || 'flare';
-      const url = null; // REDUCED path must settle even without a URL; full path tested below.
-      const reduced = await pres.artCast({
-        x: hero.x, y: hero.y, url, artId, size: 110,
-      });
-      await window.__probe.settle();
-
-      // Full path with asset (policy may still be reduced from query — force via direct call
-      // after temporarily running with a data URL so Assets.load always resolves).
+      const hero = { x: 280, y: 420 };
       const canvas = document.createElement('canvas');
       canvas.width = 64;
       canvas.height = 64;
@@ -321,22 +348,38 @@ test.describe('combat presentation ceremonies', () => {
       ctx.fillRect(0, 0, 64, 64);
       const blobUrl = canvas.toDataURL('image/png');
 
-      // Call through combat policy — if reduced, still no DOM; if full, sprite animates.
+      // REDUCED path — settles without Assets.load sprite animation.
       window.__probe.resetBehaviourTrace();
+      const reduced = await pres.artCast({
+        x: hero.x, y: hero.y, url: blobUrl, artId: 'flare', size: 110,
+        policy: { motion: 'reduced' },
+      });
+      await window.__probe.settle();
+
+      // Full path — must load the texture and animate (motion normal).
+      window.__probe.resetBehaviourTrace();
+      const t0 = performance.now();
       const full = await pres.artCast({
         x: hero.x, y: hero.y, url: blobUrl, artId: 'flare', size: 110,
+        policy: { motion: 'full', tier: 'full' },
       });
+      const elapsed = performance.now() - t0;
       await window.__probe.settle();
       const records = window.__probe.behaviourTrace({ format: 'records' }).records;
       const casts = records.filter((r) => r.eventName === 'presentation.art-cast');
+      const layer = [...(pres.root()?.children || [])]
+        .find((c) => c.label === 'pres-art-cast');
       return {
         ok: true,
         hasApi: true,
-        reducedOutcome: reduced?.outcome || reduced?.motion || null,
+        reducedMotion: reduced?.motion || null,
         fullMotion: full?.motion || null,
+        fullOutcome: full?.outcome || null,
+        fullElapsedMs: elapsed,
         castStarts: casts.filter((r) => r.phase === 'start').length,
         castEnds: casts.filter((r) => r.phase === 'end').length,
         endStates: casts.filter((r) => r.phase === 'end').map((r) => r.attributes?.endState),
+        artCastLayerEmpty: (layer?.children?.length || 0) === 0,
         domArtCast: document.querySelectorAll('.art-cast, img.art-cast').length,
         floaties: document.querySelectorAll('#floaties > *').length,
       };
@@ -344,8 +387,12 @@ test.describe('combat presentation ceremonies', () => {
 
     expect(result.ok, result.reason).toBe(true);
     expect(result.hasApi).toBe(true);
+    expect(result.reducedMotion).toBe('reduced');
+    expect(result.fullMotion).toBe('normal');
+    expect(result.fullElapsedMs).toBeGreaterThan(200);
     expect(result.domArtCast).toBe(0);
     expect(result.floaties).toBe(0);
+    expect(result.artCastLayerEmpty).toBe(true);
     expect(result.castStarts).toBeGreaterThanOrEqual(1);
     expect(result.castEnds).toBeGreaterThanOrEqual(1);
     expect(result.endStates.some((s) => s === 'art-cast-cleared')).toBe(true);

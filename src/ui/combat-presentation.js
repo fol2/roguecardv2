@@ -3,6 +3,7 @@
 // shatter fragments. Non-combat screens keep DOM `#floaties` / `.turn-banner`.
 
 import { Container, Graphics, Sprite, Text, Texture, Assets } from 'pixi.js';
+import { iconSvg } from '../art.js';
 import {
   CEREMONY_BUDGET_MS, flightSchedule,
 } from '../pile-chrome.js';
@@ -143,6 +144,45 @@ export function createCombatPresentation({
     return label;
   }
 
+  /** Build a coloured SVG data-URL for an art.js icon. */
+  function iconDataUrl(name, size, fill = COLOUR.parchment) {
+    const raw = iconSvg(name, size);
+    if (!raw) return null;
+    const colored = raw
+      .replace(/currentColor/g, fill)
+      .replace(/stroke="currentColor"/g, `stroke="${fill}"`);
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(colored)}`;
+  }
+
+  /**
+   * Floater content: optional icon + plain text in a centered container.
+   * HTML from legacy iconSvg embeds is stripped; pass `opts.icon` instead.
+   */
+  function composeFloaterContent(text, style, fill, opts = {}) {
+    const plain = String(text ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    const iconSize = opts.iconSize || Math.max(16, Math.round((style.size || 28) * 0.72));
+    const row = new Container();
+    let cursor = 0;
+    if (opts.iconTexture) {
+      const icon = new Sprite(opts.iconTexture);
+      icon.anchor.set(0, 0.5);
+      icon.width = iconSize;
+      icon.height = iconSize;
+      icon.x = cursor;
+      icon.y = 0;
+      row.addChild(icon);
+      cursor += iconSize + 6;
+    }
+    const label = makeLabel(plain, { size: style.size, fill });
+    label.anchor.set(0, 0.5);
+    label.x = cursor;
+    label.y = 0;
+    row.addChild(label);
+    const bounds = row.getLocalBounds();
+    row.pivot.set(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    return { root: row, label };
+  }
+
   async function floatText(x, y, text, cls = 'normal', opts = {}) {
     if (destroyed) return { outcome: 'skipped' };
     const damageTier = resolveDamageTier(cls);
@@ -157,65 +197,77 @@ export function createCombatPresentation({
         easing: 'outSoft',
       };
     const fill = opts.tint || style.fill;
-    const plain = String(text).replace(/<[^>]+>/g, '');
-    const label = makeLabel(plain, {
-      size: style.size,
-      fill,
+    let iconTexture = null;
+    if (opts.icon) {
+      const url = iconDataUrl(opts.icon, opts.iconSize || Math.max(16, Math.round(style.size * 0.72)), fill);
+      if (url) {
+        try { iconTexture = await Assets.load(url); } catch { iconTexture = null; }
+      }
+    }
+    const { root: content, label } = composeFloaterContent(text, style, fill, {
+      ...opts,
+      iconTexture,
     });
-    // holdForSample: ink plate behind the glyph so local contrast is measurable.
+    // holdForSample: ink-plate contract — glyph sampled against plate (documented).
     if (opts.holdForSample) {
       const plate = new Container();
       const bg = new Graphics();
-      const pad = Math.max(48, style.size * 1.6);
+      const pad = Math.max(56, style.size * 1.8);
       bg.roundRect(-pad, -pad * 0.7, pad * 2, pad * 1.4, 4)
         .fill({ color: hexToNum(COLOUR.ink), alpha: 1 });
-      label.x = 0;
-      label.y = 0;
-      plate.addChild(bg, label);
+      content.x = 0;
+      content.y = 0;
+      plate.addChild(bg, content);
       plate.x = (Number(x) || 0) + (Number(opts.dx) || 0);
       plate.y = Number(y) || 0;
       plate.alpha = 1;
       plate.scale.set(0.92);
       floatLayer.addChild(plate);
-      held = { kind: 'floater', tier: tier || 'normal', node: plate, glyph: label };
+      held = {
+        kind: 'floater',
+        tier: tier || 'normal',
+        node: plate,
+        glyph: label,
+        sampleContract: 'ink-plate',
+      };
       return { outcome: 'held', motion: 'normal' };
     }
-    label.x = (Number(x) || 0) + (Number(opts.dx) || 0);
-    label.y = Number(y) || 0;
-    label.alpha = 1;
-    label.scale.set(0.92);
-    floatLayer.addChild(label);
+    content.x = (Number(x) || 0) + (Number(opts.dx) || 0);
+    content.y = Number(y) || 0;
+    content.alpha = 1;
+    content.scale.set(0.92);
+    floatLayer.addChild(content);
 
     const token = beginBarrier('floater');
     const span = beginSpan('presentation.floater', {
       attributes: { tier: tier || cls || 'notice' },
     });
     const pol = policy();
-    const endState = { y: label.y - style.rise, alpha: 0, scale: 1 };
+    const endState = { y: content.y - style.rise, alpha: 0, scale: 1 };
     try {
       const runner = tween({
-        from: { y: label.y, alpha: 1, scale: 0.92 },
+        from: { y: content.y, alpha: 1, scale: 0.92 },
         to: endState,
         duration: style.dur,
         easing: style.easing,
         endState,
         policy: pol,
         onUpdate(v) {
-          if (!label || label.destroyed) return;
-          label.y = v.y;
-          label.alpha = v.alpha;
-          if (label.scale) label.scale.set(v.scale);
+          if (!content || content.destroyed) return;
+          content.y = v.y;
+          content.alpha = v.alpha;
+          if (content.scale) content.scale.set(v.scale);
         },
       });
       const result = await runner.done;
-      label.destroy();
+      content.destroy({ children: true });
       span.finish?.('settled', {
         attributes: { motion: result.motion, endState: `floater-cleared-${tier || 'notice'}` },
       });
       token.finish?.();
       return result;
     } catch (error) {
-      try { label.destroy(); } catch { /* */ }
+      try { content.destroy({ children: true }); } catch { /* */ }
       span.finish?.('failed', { reason: 'presentation-error' });
       token.cancel?.();
       throw error;
@@ -265,7 +317,7 @@ export function createCombatPresentation({
     bannerLayer.addChild(plate);
 
     if (opts.holdForSample) {
-      held = { kind: 'banner', bannerKind: kind, node: plate, glyph: label };
+      held = { kind: 'banner', bannerKind: kind, node: plate, glyph: label, sampleContract: 'banner-plate' };
       // Keep barrier open until clearHeld; finish span on clear.
       held.token = token;
       held.span = span;
@@ -332,32 +384,34 @@ export function createCombatPresentation({
         done?.();
         return;
       }
-      const jobs = motes.map((m, i) => {
-        const mx = (x0 + x1) / 2 + (Math.random() - 0.5) * 140;
-        const my = Math.min(y0, y1) - 50 - Math.random() * 80;
-        return tween({
-          from: { t: 0 },
-          to: { t: 1 },
-          duration: dur,
-          easing: 'outSoft',
-          policy: pol,
-          onUpdate(v) {
-            const t = v.t;
-            // Quadratic bezier
-            const ox = (1 - t) * (1 - t) * x0 + 2 * (1 - t) * t * mx + t * t * x1;
-            const oy = (1 - t) * (1 - t) * y0 + 2 * (1 - t) * t * my + t * t * y1;
-            m.x = ox;
-            m.y = oy;
-            m.alpha = t < 0.85 ? Math.min(1, t * 2) : 1 - (t - 0.85) / 0.15;
-            m.scale.set(0.5 + t * 0.55);
-          },
-        }).done.then(() => { m.destroy(); });
-      });
-      // Stagger starts by delaying later motes via short sleeps in tween start —
-      // approximate by awaiting all (delay baked into duration offset via start).
-      await Promise.all(jobs.map((job, i) => new Promise((resolve) => {
-        setTimeout(() => { job.then(resolve); }, i * 46);
-      })));
+      // Stagger tween *start* (not only the await) so later motes leave later.
+      const jobs = motes.map((m, i) => new Promise((resolve, reject) => {
+        setTimeout(() => {
+          const mx = (x0 + x1) / 2 + (Math.random() - 0.5) * 140;
+          const my = Math.min(y0, y1) - 50 - Math.random() * 80;
+          tween({
+            from: { t: 0 },
+            to: { t: 1 },
+            duration: dur,
+            easing: 'outSoft',
+            policy: pol,
+            onUpdate(v) {
+              if (!m || m.destroyed) return;
+              const t = v.t;
+              const ox = (1 - t) * (1 - t) * x0 + 2 * (1 - t) * t * mx + t * t * x1;
+              const oy = (1 - t) * (1 - t) * y0 + 2 * (1 - t) * t * my + t * t * y1;
+              m.x = ox;
+              m.y = oy;
+              m.alpha = t < 0.85 ? Math.min(1, t * 2) : 1 - (t - 0.85) / 0.15;
+              m.scale.set(0.5 + t * 0.55);
+            },
+          }).done.then(() => {
+            try { m.destroy(); } catch { /* */ }
+            resolve();
+          }).catch(reject);
+        }, i * 46);
+      }));
+      await Promise.all(jobs);
       token.finish?.();
       done?.();
     } catch (error) {
@@ -458,6 +512,7 @@ export function createCombatPresentation({
         return sched.awaitMs || 0;
       }
 
+      const childJobs = [];
       for (let i = 0; i < n; i += 1) {
         const src = list[i];
         const uid = uids[i];
@@ -505,56 +560,53 @@ export function createCombatPresentation({
 
         const land = src.dest || dest;
         const alt = (i % 2 === 0 ? 1 : -1) * (ceremony === 'reshuffle' ? 32 : 18);
-        const mx = src.x + (land.x - src.x) * 0.45 + alt;
-        const my = Math.min(src.y, land.y) - (ceremony === 'reshuffle' ? 28 : 24);
         const delay = i * sched.stagger;
-        // Fire-and-forget per-card tween; parent awaits budget.
-        setTimeout(() => {
-          tween({
-            from: { t: 0 },
-            to: { t: 1 },
-            duration: sched.flightDur,
-            easing: 'outSoft',
-            policy: pol,
-            onUpdate(v) {
-              if (!sprite || sprite.destroyed) return;
-              const t = v.t;
-              const landPt = src.dest
-                ? { x: src.dest.x, y: src.dest.y }
-                : land;
-              const mx2 = src.x + (landPt.x - src.x) * 0.45 + alt;
-              const my2 = Math.min(src.y, landPt.y) - (ceremony === 'reshuffle' ? 28 : 24);
-              sprite.x = (1 - t) * (1 - t) * src.x + 2 * (1 - t) * t * mx2 + t * t * landPt.x;
-              sprite.y = (1 - t) * (1 - t) * src.y + 2 * (1 - t) * t * my2 + t * t * landPt.y;
-              sprite.alpha = 1 - t * 0.08;
-              if (sprite.scale) sprite.scale.set(1 - t * 0.25);
-            },
-          }).done.then(() => {
-            try { if (sprite && !sprite.destroyed) sprite.destroy(); } catch { /* */ }
-            child.finish?.('settled', {
-              attributes: {
-                ceremony, role: 'child', motion: 'full', uid: String(uid),
+        // Delay tween *start*; parent awaits last child settle (honest wall-clock).
+        childJobs.push(new Promise((resolve) => {
+          setTimeout(() => {
+            const landPt = src.dest
+              ? { x: src.dest.x, y: src.dest.y }
+              : land;
+            const mx2 = src.x + (landPt.x - src.x) * 0.45 + alt;
+            const my2 = Math.min(src.y, landPt.y) - (ceremony === 'reshuffle' ? 28 : 24);
+            tween({
+              from: { t: 0 },
+              to: { t: 1 },
+              duration: sched.flightDur,
+              easing: 'outSoft',
+              policy: pol,
+              onUpdate(v) {
+                if (!sprite || sprite.destroyed) return;
+                const t = v.t;
+                sprite.x = (1 - t) * (1 - t) * src.x + 2 * (1 - t) * t * mx2 + t * t * landPt.x;
+                sprite.y = (1 - t) * (1 - t) * src.y + 2 * (1 - t) * t * my2 + t * t * landPt.y;
+                sprite.alpha = 1 - t * 0.08;
+                if (sprite.scale) sprite.scale.set(1 - t * 0.25);
               },
+            }).done.then(() => {
+              try { if (sprite && !sprite.destroyed) sprite.destroy(); } catch { /* */ }
+              child.finish?.('settled', {
+                attributes: {
+                  ceremony, role: 'child', motion: 'full', uid: String(uid),
+                },
+              });
+              resolve();
+            }).catch(() => {
+              try { if (sprite && !sprite.destroyed) sprite.destroy(); } catch { /* */ }
+              child.finish?.('cancelled', {
+                attributes: { ceremony, role: 'child', uid: String(uid) },
+              });
+              resolve();
             });
-          }).catch(() => {
-            try { if (sprite && !sprite.destroyed) sprite.destroy(); } catch { /* */ }
-            child.finish?.('cancelled', {
-              attributes: { ceremony, role: 'child', uid: String(uid) },
-            });
-          });
-        }, delay);
+          }, delay);
+        }));
       }
 
-      await new Promise((r) => setTimeout(r, sched.awaitMs));
-      // Ensure children finished / sprites cleaned.
+      await Promise.all(childJobs);
       for (const s of sprites) {
         if (s && !s.destroyed) {
           try { s.destroy(); } catch { /* */ }
         }
-      }
-      for (const child of childSpans) {
-        // finish is idempotent-safe via try; spans already settled above.
-        try { /* already finished in tween */ } catch { /* */ }
       }
       parentSpan.finish?.('settled', {
         attributes: {
@@ -584,20 +636,20 @@ export function createCombatPresentation({
    * Full/LITE: 900ms scale/opacity keyframes. REDUCED: settle cleared immediately.
    */
   async function artCast({
-    x = 0, y = 0, url = null, size = 110, artId = null,
+    x = 0, y = 0, url = null, size = 110, artId = null, policy: polOverride = null,
   } = {}) {
     if (destroyed) return { outcome: 'skipped' };
     const token = beginBarrier('art-cast');
     const span = beginSpan('presentation.art-cast', {
       attributes: { artId: artId || 'unknown' },
     });
-    const pol = policy();
+    const pol = polOverride || policy();
     if (!url) {
       span.finish?.('skipped', { reason: 'no-asset', attributes: { endState: 'art-cast-cleared' } });
       token.finish?.();
-      return { outcome: 'skipped', motion: reduced() ? 'reduced' : 'full' };
+      return { outcome: 'skipped', motion: isReducedTier(pol) ? 'reduced' : 'full' };
     }
-    if (reduced()) {
+    if (isReducedTier(pol)) {
       span.finish?.('settled', {
         attributes: { motion: 'reduced', endState: 'art-cast-cleared' },
       });
@@ -819,58 +871,65 @@ export function createCombatPresentation({
     }
 
     const { data, width, height } = buffer;
-    const at = (x, y) => {
-      const ix = Math.max(0, Math.min(width - 1, Math.round(x)));
-      const iy = Math.max(0, Math.min(height - 1, Math.round(y)));
+    const at = (px, py) => {
+      const ix = Math.max(0, Math.min(width - 1, Math.round(px)));
+      const iy = Math.max(0, Math.min(height - 1, Math.round(py)));
       const i = (iy * width + ix) * 4;
       return [data[i], data[i + 1], data[i + 2], data[i + 3]];
     };
-    // Cardface-style: scan glyph window (center) vs local background (corners / plate).
-    const gx = width * 0.5;
-    const gy = height * 0.5;
-    const bgSites = [
-      [width * 0.12, height * 0.12],
-      [width * 0.88, height * 0.12],
-      [width * 0.12, height * 0.88],
-      [width * 0.88, height * 0.88],
-      [width * 0.5, height * 0.18],
-      [width * 0.5, height * 0.82],
-    ];
-    let best = 0;
-    let bestFg = parse(pair[0]);
-    let bestBg = parse(pair[1]);
-    const span = Math.min(10, Math.floor(Math.min(width, height) / 6));
-    for (let dy = -span; dy <= span; dy += 2) {
-      for (let dx = -span; dx <= span; dx += 2) {
-        const g = at(gx + dx, gy + dy);
-        if (g[3] < 180) continue;
-        const glyph = [g[0], g[1], g[2]];
-        for (const [bx, by] of bgSites) {
-          for (let ey = -4; ey <= 4; ey += 2) {
-            for (let ex = -4; ex <= 4; ex += 2) {
-              const b = at(bx + ex, by + ey);
-              if (b[3] < 180) continue;
-              const bg = [b[0], b[1], b[2]];
-              const r = contrastOf(glyph, bg);
-              if (r > best) {
-                best = r;
-                bestFg = glyph;
-                bestBg = bg;
-              }
-            }
-          }
+    const lum = (rgb) => relativeLuminance(rgb);
+    // Conservative contract: brightest opaque in the glyph window vs darkest
+    // opaque on the plate rim — not max-of-all-pairs across the whole scan.
+    let glyph = null;
+    let glyphLum = -1;
+    const x0 = Math.floor(width * 0.28);
+    const x1 = Math.ceil(width * 0.72);
+    const y0 = Math.floor(height * 0.28);
+    const y1 = Math.ceil(height * 0.72);
+    for (let y = y0; y <= y1; y += 2) {
+      for (let x = x0; x <= x1; x += 2) {
+        const g = at(x, y);
+        if (g[3] < 200) continue;
+        const rgb = [g[0], g[1], g[2]];
+        const L = lum(rgb);
+        if (L > glyphLum) {
+          glyphLum = L;
+          glyph = rgb;
         }
       }
     }
+    const rim = [];
+    const rimPad = Math.max(2, Math.floor(Math.min(width, height) * 0.08));
+    for (let x = rimPad; x < width - rimPad; x += 3) {
+      rim.push([x, rimPad], [x, height - rimPad - 1]);
+    }
+    for (let y = rimPad; y < height - rimPad; y += 3) {
+      rim.push([rimPad, y], [width - rimPad - 1, y]);
+    }
+    let bg = null;
+    let bgLum = 2;
+    for (const [bx, by] of rim) {
+      const b = at(bx, by);
+      if (b[3] < 200) continue;
+      const rgb = [b[0], b[1], b[2]];
+      const L = lum(rgb);
+      if (L < bgLum) {
+        bgLum = L;
+        bg = rgb;
+      }
+    }
+    const measured = (glyph && bg) ? contrastOf(glyph, bg) : 0;
 
     return {
-      ratio: best,
-      fg: bestFg,
-      bg: bestBg,
+      ratio: measured,
+      fg: glyph || parse(pair[0]),
+      bg: bg || parse(pair[1]),
       kind,
       tier: key,
-      measured: best > 0,
+      measured: measured > 0,
       source: 'pixels',
+      sampleContract: held?.sampleContract
+        || (kind === 'banner' || held?.kind === 'banner' ? 'banner-plate' : 'ink-plate'),
       tokenFloor,
     };
   }

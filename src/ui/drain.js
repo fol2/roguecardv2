@@ -319,7 +319,7 @@ async function handleEvent(ev, targetIdx) {
       V.hitstop(90);
       V.ring(ex, ey, '#dfeaff', 10, 700, 5);
       V.burst(ex, ey, { color: '#dfeaff', n: 26, speed: 430, size: 2.4, grav: 300, kind: 'spark' });
-      presentation.floatText(ex, ey - 58, `${iconSvg('stagger', 20)} ${tr('ui.combat.shatter')}`, 'shatterf');
+      presentation.floatText(ex, ey - 58, tr('ui.combat.shatter'), 'shatterf', { icon: 'stagger', iconSize: 20 });
       V.shake(10);
       kick(0.9);
       presentation.addCrack(x.art, true);
@@ -530,7 +530,7 @@ async function handleEvent(ev, targetIdx) {
         presentation.choreoHit(x.root, 1);
         if (ev.blocked > 0) {
           sfx.blocked();
-          presentation.floatText(ex, ey + 26, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf');
+          presentation.floatText(ex, ey + 26, `${ev.blocked}`, 'blockedf', { icon: 'shield', iconSize: 19 });
           V.burst(ex, ey + 8, { color: '#9fd4ff', n: 9, speed: 210, size: 2, grav: 260, kind: 'spark' }); // ward chips off
           if (cb.enemies[ev.idx].block === 0 && ev.amount === 0) {
             presentation.banner(tr('ui.combat.guardShattered'), { kind: 'guard-shattered' });
@@ -615,7 +615,7 @@ async function handleEvent(ev, targetIdx) {
       }
       if (ev.blocked > 0) {
         sfx.blocked();
-        presentation.floatText(hx, hy + 30, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf');
+        presentation.floatText(hx, hy + 30, `${ev.blocked}`, 'blockedf', { icon: 'shield', iconSize: 19 });
         V.burst(hx, hy + 8, { color: '#9fd4ff', n: 9, speed: 210, size: 2, grav: 260, kind: 'spark' });
           if (cb.player.block === 0 && ev.amount === 0) {
             presentation.banner(tr('ui.combat.guardShattered'), { kind: 'guard-shattered' });
@@ -641,7 +641,7 @@ async function handleEvent(ev, targetIdx) {
         ? ($('.hero-sprite', ce.hero) || ce.hero)
         : ($('.enemy-sprite', ce.enemies[ev.who]?.art) || ce.enemies[ev.who]?.art);
       presentation.syncWardMesh(host, true, true);
-      presentation.floatText(x, y - 10, `${iconSvg('shield', 22)} ${ev.n}`, 'blockf');
+      presentation.floatText(x, y - 10, `${ev.n}`, 'blockf', { icon: 'shield', iconSize: 22 });
       const chip = isP ? ce.pBlock : ce.enemies[ev.who].block;
       chip.classList.remove('pulse');
       void chip.offsetWidth;
