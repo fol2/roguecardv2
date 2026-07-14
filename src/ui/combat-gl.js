@@ -2082,6 +2082,99 @@ export async function createCombatRenderer({
     });
   }
 
+  /**
+   * Task 29 — sample contrast from the live P5 chrome paint via the combat
+   * root extract cropped to Pixi `readUI()` bounds (not holdForSample proxies).
+   * Text-alone extract is transparent under Pixi 8 GPU text; the composed
+   * frame is the honest painted surface.
+   */
+  async function sampleLiveChromeContrast() {
+    const read = readUI();
+    const renderer = pixiLayer.application?.()?.renderer;
+    if (!renderer?.extract || !read) {
+      return [{ label: 'chrome', measured: false, reason: 'missing-extract' }];
+    }
+    try { renderer.render?.(pixiLayer.application?.()?.stage); } catch { /* */ }
+
+    let canvas = null;
+    try {
+      if (typeof renderer.extract.canvas === 'function') {
+        canvas = renderer.extract.canvas(container);
+      }
+    } catch { /* */ }
+    if (!canvas?.width || !canvas?.height) {
+      return [{ label: 'chrome', measured: false, reason: 'extract-failed' }];
+    }
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return [{ label: 'chrome', measured: false, reason: 'no-2d' }];
+
+    const resolution = Number(renderer.resolution) || 1;
+    const jobs = [
+      { label: 'energy', bounds: read.candleFrame?.bounds || read.energy },
+      { label: 'end-turn', bounds: read.endTurn },
+      { label: 'lantern', bounds: read.lantern },
+      { label: 'pile-draw', bounds: read.piles?.draw },
+      { label: 'hud-status', bounds: read.hud?.bounds },
+    ];
+
+    const relativeLuminance = (rgb) => {
+      const channel = (c) => {
+        const v = c / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2]);
+    };
+    const contrastOf = (a, b) => {
+      const l1 = relativeLuminance(a);
+      const l2 = relativeLuminance(b);
+      const light = Math.max(l1, l2);
+      const dark = Math.min(l1, l2);
+      return (light + 0.05) / (dark + 0.05);
+    };
+
+    const out = [];
+    for (const job of jobs) {
+      const b = job.bounds;
+      if (!b || !(b.width > 0 && b.height > 0)) {
+        out.push({ label: job.label, measured: false, reason: 'missing-readUI-bounds' });
+        continue;
+      }
+      const x = Math.max(0, Math.floor(b.left * resolution));
+      const y = Math.max(0, Math.floor(b.top * resolution));
+      const w = Math.max(1, Math.min(canvas.width - x, Math.ceil(b.width * resolution)));
+      const h = Math.max(1, Math.min(canvas.height - y, Math.ceil(b.height * resolution)));
+      let image;
+      try { image = ctx.getImageData(x, y, w, h); } catch {
+        out.push({ label: job.label, measured: false, reason: 'crop-failed' });
+        continue;
+      }
+      let bright = null;
+      let brightLum = -1;
+      let dark = null;
+      let darkLum = 2;
+      for (let i = 0; i < image.data.length; i += 4) {
+        if (image.data[i + 3] < 90) continue;
+        const rgb = [image.data[i], image.data[i + 1], image.data[i + 2]];
+        const L = relativeLuminance(rgb);
+        if (L > brightLum) { brightLum = L; bright = rgb; }
+        if (L < darkLum) { darkLum = L; dark = rgb; }
+      }
+      const ratio = (bright && dark) ? contrastOf(bright, dark) : 0;
+      out.push({
+        label: job.label,
+        measured: ratio > 0,
+        source: 'pixels',
+        sampleContract: 'readUI-crop',
+        ratio,
+        fg: bright,
+        bg: dark,
+        readUI: true,
+        bounds: { left: b.left, top: b.top, width: b.width, height: b.height },
+      });
+    }
+    return out;
+  }
+
   function stats() {
     const pixiStats = pixiLayer.stats?.() || {};
     return Object.freeze({
@@ -2204,6 +2297,7 @@ export async function createCombatRenderer({
   return Object.freeze({
     // presentation seam
     mount, sync, layout, hitTest, setInteraction, readUI, stats,
+    sampleLiveChromeContrast,
     // lifecycle bridge (Task 21 pixiLayer)
     loseContextForTest, rebuildAfterLossForTest, recoverContextForTest,
     freezeForTest, unfreezeForTest, destroy,

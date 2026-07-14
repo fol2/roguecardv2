@@ -14,8 +14,10 @@ import { test, expect } from './trace-fixture.js';
 import {
   boot, startFight, settle, probeState, collectErrors,
   expectInvariants, expectNoErrors, recordTransientText, waitForTransientText,
+  inventoryCombatDom,
 } from './helpers.js';
 import { snapStage } from '../../src/ui/widgets.js';
+import { bfResolve, bfSlots } from '../../src/battlefield.js';
 
 // correctness is viewport-independent; run the heavy scenarios once
 test.beforeEach(() => {
@@ -295,57 +297,37 @@ for (const scenario of RANDOM_AGENT_FIGHTS) {
 
 // ---- Task 29: P5 combat DOM allowed-list + PR17 geometry via Pixi readUI ----
 
-const LEGACY_COMBAT_SELECTORS = [
-  '.hand-zone .card',
-  '.flymote',
-  '.flycard',
-  '.flycard-face',
-  '.floaty',
-  '.turn-banner',
-  '.variant-dialogue',
-  '.perfect-banner',
-  '.boss-banner',
-];
-
 test('P5 combat DOM stays on the allowed-list', async ({ page }) => {
   const errors = collectErrors(page);
   await boot(page, { query: 'mesh=0' });
   await startFight(page, ['duskfang', 'sporeling']);
   await settle(page);
 
-  const inventory = await page.evaluate((legacy) => {
-    const counts = Object.fromEntries(legacy.map((sel) => [sel, document.querySelectorAll(sel).length]));
-    return {
-      screen: window.spirebound.S.screen,
-      floaties: document.querySelectorAll('#floaties > *').length,
-      aim: document.querySelectorAll('#aim > *').length,
-      handCards: document.querySelectorAll('.hand-zone .card').length,
-      handHostEmpty: (document.querySelector('.hand-zone')?.childElementCount ?? -1) === 0,
-      uigl: !!document.getElementById('uigl'),
-      vfx: !!document.getElementById('vfx'),
-      legacy: counts,
-    };
-  }, LEGACY_COMBAT_SELECTORS);
-
+  const inventory = await inventoryCombatDom(page);
   expect(inventory.screen).toBe('combat');
-  expect(inventory.floaties, '#floaties must be empty during combat').toBe(0);
-  expect(inventory.aim, '#aim must be empty during combat').toBe(0);
-  expect(inventory.handCards, 'no DOM hand cards').toBe(0);
-  expect(inventory.handHostEmpty, '.hand-zone stays an empty structural host').toBe(true);
-  expect(inventory.uigl).toBe(true);
-  expect(inventory.vfx).toBe(true);
-  for (const [sel, n] of Object.entries(inventory.legacy)) {
-    expect(n, `legacy combat selector ${sel} must not appear`).toBe(0);
+  expect(inventory.mounts.uigl).toBe(true);
+  expect(inventory.mounts.vfx).toBe(true);
+  expect(inventory.mounts.tooltip).toBe(true);
+  expect(inventory.emptyHosts.floaties, '#floaties must be empty during combat').toBe(0);
+  expect(inventory.emptyHosts.aim, '#aim must be empty during combat').toBe(0);
+  expect(inventory.emptyHosts.handZone, '.hand-zone stays an empty structural host').toBe(0);
+  for (const [sel, n] of Object.entries(inventory.forbidden)) {
+    expect(n, `forbidden combat selector ${sel}`).toBe(0);
   }
+  expect(inventory.unexpected, `unexpected combat DOM: ${JSON.stringify(inventory.unexpected)}`).toEqual([]);
+  expect(inventory.ok).toBe(true);
   expectNoErrors(errors, 'P5 DOM allowed-list');
 });
 
 test('PR17 geometry is readable from probe.ui / Pixi readUI', async ({ page }) => {
   const errors = collectErrors(page);
-  await boot(page, { query: 'mesh=0' });
+  await boot(page, { query: 'mesh=0&shape=desktop-landscape' });
   await page.evaluate(() => { window.spirebound.S.run.act = 0; });
   await startFight(page, ['duskfang', 'duskfang']);
   await settle(page);
+
+  const authored = bfSlots(bfResolve('desktop-landscape', 0), 2).map((s) => s.x);
+  expect(authored).toEqual([1000, 1197]);
 
   const geom = await page.evaluate(() => {
     const ui = window.__probe.ui();
@@ -358,11 +340,22 @@ test('PR17 geometry is readable from probe.ui / Pixi readUI', async ({ page }) =
       if (!art || !plate) return null;
       const artCx = (art.left + art.right) / 2;
       const plateCx = (plate.left + plate.right) / 2;
+      const visible = plates[i]?.visibleBounds || plate;
       return {
+        artCx,
+        plateCx,
         drift: Math.abs(plateCx - artCx),
         overlaps: plate.left < art.right && art.left < plate.right,
+        plate,
+        visible,
       };
     }).filter(Boolean);
+    const gaps = [];
+    for (let i = 0; i < drifts.length - 1; i += 1) {
+      const a = drifts[i].visible;
+      const b = drifts[i + 1].visible;
+      gaps.push(b.left - a.right);
+    }
     const cf = read?.candleFrame;
     const resolution = Number(window.spirebound.pixi?.application?.()?.renderer?.resolution)
       || ((window.devicePixelRatio || 1) * (window.__probe.stage().scale || 1));
@@ -372,24 +365,59 @@ test('PR17 geometry is readable from probe.ui / Pixi readUI', async ({ page }) =
       source: read?.plates ? 'readUI' : null,
       handLen: ui?.hand?.length ?? 0,
       drifts,
+      gaps,
       candleW: cf?.bounds?.width ?? null,
       candleSlots: cf?.slots?.length ?? 0,
       restingFloor: read?.restingHandFloor ?? null,
       resolution,
+      shape: window.__probe.stage().shape,
     };
   });
 
   expect(geom.uiVersion).toBe(2);
   expect(geom.kind).toBe('pixi');
   expect(geom.source).toBe('readUI');
+  expect(geom.shape).toBe('desktop-landscape');
   expect(geom.handLen).toBeGreaterThan(0);
   expect(geom.drifts.length).toBe(2);
+  // Exact desktop pair anchors (PR17 / battlefield-layout.js).
+  expect(Math.round(geom.drifts[0].artCx), 'desktop pair anchor 0').toBe(1000);
+  expect(Math.round(geom.drifts[1].artCx), 'desktop pair anchor 1').toBe(1197);
   for (const d of geom.drifts) {
     expect(d.overlaps, 'plate overlaps own art').toBe(true);
     expect(d.drift, 'desktop pair drift ≤80').toBeLessThanOrEqual(80);
   }
+  // Minimal-displacement 6-gap packing between adjacent visible chrome.
+  for (const gap of geom.gaps) {
+    expect(gap, '6-gap packing between adjacent plates').toBeGreaterThanOrEqual(6);
+  }
   expect(geom.candleW, 'desktop-landscape candle frame').toBe(snapStage(120, geom.resolution));
   expect(geom.candleSlots).toBeGreaterThanOrEqual(3);
+
+  // General 90-drift case (trio) via the same readUI seam.
+  await page.evaluate(async () => {
+    window.spirebound.startCombatUI(['sporeling', 'sporeling', 'sporeling'], 'normal');
+    await window.__probe.settle();
+  });
+  const trio = await page.evaluate(() => {
+    const read = window.spirebound.combatGl.readUI();
+    return (read?.enemies || []).map((e, i) => {
+      const art = e?.artBounds;
+      const plate = read?.plates?.enemies?.[i]?.plateBounds || e?.plateBounds;
+      if (!art || !plate) return null;
+      return Math.abs(((plate.left + plate.right) / 2) - ((art.left + art.right) / 2));
+    }).filter((n) => n != null);
+  });
+  expect(trio.length).toBe(3);
+  for (const drift of trio) {
+    expect(drift, 'general formation drift ≤90').toBeLessThanOrEqual(90);
+  }
+
+  // Restore dual-foe for hover / dead-member checks.
+  await page.evaluate(async () => {
+    window.spirebound.startCombatUI(['duskfang', 'duskfang'], 'normal');
+    await window.__probe.settle();
+  });
 
   // Hover must not yank plate floor (≤1 stage px).
   const before = await page.evaluate(() => {

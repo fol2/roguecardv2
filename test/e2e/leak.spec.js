@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { contrastRatio, COLOUR } from '../../src/ui/tokens.js';
 import { FACE_CACHE_MAX_ENTRIES, FACE_CACHE_BYTE_CAPS } from '../../src/ui/cardface-layout.js';
-import { boot, startFight, settle, collectErrors, expectNoErrors } from './helpers.js';
+import { boot, startFight, settle, collectErrors, expectNoErrors, inventoryCombatDom } from './helpers.js';
 
 const MiB = 1024 * 1024;
 const IDENTICAL_CYCLES = 3;
@@ -178,48 +178,39 @@ test('P5 canvas HUD / pile / chrome text clears ≥4.5:1 local contrast', async 
   expect(contrastRatio(COLOUR.gold, COLOUR.ink)).toBeGreaterThanOrEqual(4.5);
   expect(contrastRatio(COLOUR.ember, COLOUR.ink)).toBeGreaterThanOrEqual(4.5);
 
+  // True combat DOM whitelist (shared with battle).
+  const inventory = await inventoryCombatDom(page);
+  expect(inventory.ok, `unexpected combat DOM: ${JSON.stringify(inventory.unexpected)}`).toBe(true);
+  expect(inventory.emptyHosts.floaties).toBe(0);
+  expect(inventory.emptyHosts.aim).toBe(0);
+
   const samples = await page.evaluate(async () => {
     const gl = window.spirebound.combatGl;
     const read = gl?.readUI?.();
-    const pres = gl?.presentation;
-    if (!pres?.sampleContrast || !pres?.floatText || !pres?.banner) {
-      return { ok: false, reason: 'missing-presentation-api' };
+    if (!gl?.sampleLiveChromeContrast || !read) {
+      return { ok: false, reason: 'missing-live-chrome-sample-api' };
     }
-    const out = [];
-    // Representative HUD / status via held floaters + End Turn / lantern labels.
-    await pres.floatText(420, 280, String(read?.piles?.draw?.count ?? 0), 'notice', { holdForSample: true });
-    out.push({ label: 'pile-draw', ...(await pres.sampleContrast({ kind: 'floater', tier: 'normal' })) });
-    await pres.clearHeld?.();
-
-    await pres.floatText(420, 300, 'END', 'notice', { holdForSample: true });
-    out.push({ label: 'end-turn', ...(await pres.sampleContrast({ kind: 'floater', tier: 'normal' })) });
-    await pres.clearHeld?.();
-
-    await pres.floatText(420, 320, String(read?.chrome?.energy?.energy ?? 3), 'notice', { holdForSample: true });
-    out.push({ label: 'energy', ...(await pres.sampleContrast({ kind: 'floater', tier: 'normal' })) });
-    await pres.clearHeld?.();
-
-    await pres.banner('YOUR TURN', { kind: 'turn', holdForSample: true });
-    out.push({ label: 'lantern-status', ...(await pres.sampleContrast({ kind: 'banner', bannerKind: 'turn' })) });
-    await pres.clearHeld?.();
-
+    const out = await gl.sampleLiveChromeContrast();
     return {
       ok: true,
       samples: out,
       hasPiles: !!read?.piles,
-      hasEnergy: !!read?.chrome?.energy || !!read?.energy,
+      hasEnergy: !!read?.chrome?.energy || !!read?.energy || !!read?.candleFrame,
       hasEndTurn: !!read?.endTurn,
       hasLantern: !!read?.lantern,
+      pileDrawCount: read?.piles?.draw ? true : false,
     };
   });
 
-  expect(samples.ok, samples.reason || 'presentation sample').toBe(true);
+  expect(samples.ok, samples.reason || 'live chrome sample').toBe(true);
   expect(samples.hasPiles).toBe(true);
   expect(samples.hasEnergy).toBe(true);
   expect(samples.hasEndTurn).toBe(true);
   expect(samples.hasLantern).toBe(true);
+  expect(samples.samples.length).toBeGreaterThanOrEqual(4);
   for (const s of samples.samples) {
-    expect(s.measured, `${s.label} measured`).toBe(true);
+    expect(s.measured, `${s.label} measured from live paint (${s.reason || s.source})`).toBe(true);
+    expect(s.source, `${s.label} must be pixel extract not token fallback`).toBe('pixels');
     expect(s.ratio, `${s.label} local contrast`).toBeGreaterThanOrEqual(4.5);
   }
   expectNoErrors(errors, 'P5 contrast samples');

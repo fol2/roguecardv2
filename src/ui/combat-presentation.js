@@ -794,9 +794,11 @@ export function createCombatPresentation({
     }
   }
 
-  async function sampleContrast({ kind, tier, bannerKind } = {}) {
-    const target = held?.node;
-    if (!target) return { ratio: 0, measured: false, source: 'none' };
+  async function sampleContrast({ kind, tier, bannerKind, target, glyphStroke = false } = {}) {
+    const sampleTarget = target || held?.node;
+    if (!sampleTarget || sampleTarget.destroyed) {
+      return { ratio: 0, measured: false, source: 'none' };
+    }
     // Token-pair standing floor (still reported); e2e asserts measured pixels.
     const tokenPairs = {
       normal: [COLOUR.text, COLOUR.ink],
@@ -809,8 +811,10 @@ export function createCombatPresentation({
       perfect: [COLOUR.parchment, COLOUR.ink],
       victory: [COLOUR.parchment, COLOUR.ink],
       'guard-shattered': [COLOUR.ember, COLOUR.ink],
+      chrome: [COLOUR.text, COLOUR.ink],
+      hud: [COLOUR.parchment, COLOUR.ink],
     };
-    const key = kind === 'banner' ? (bannerKind || held?.bannerKind) : (tier || held?.tier);
+    const key = kind === 'banner' ? (bannerKind || held?.bannerKind) : (tier || held?.tier || kind || 'chrome');
     const pair = tokenPairs[key] || [COLOUR.text, COLOUR.ink];
     const parse = (hex) => {
       const s = String(hex).replace('#', '');
@@ -826,7 +830,7 @@ export function createCombatPresentation({
       } catch { /* best-effort */ }
       try {
         if (typeof renderer.extract.canvas === 'function') {
-          const c = renderer.extract.canvas(target);
+          const c = renderer.extract.canvas(sampleTarget);
           if (!c || !c.width || !c.height) return null;
           const ctx = c.getContext('2d', { willReadFrequently: true });
           if (!ctx) return null;
@@ -836,7 +840,7 @@ export function createCombatPresentation({
       } catch { /* fall through to pixels */ }
       try {
         if (typeof renderer.extract.pixels === 'function') {
-          const extracted = renderer.extract.pixels({ target });
+          const extracted = renderer.extract.pixels({ target: sampleTarget });
           if (!extracted) return null;
           if (extracted.pixels && extracted.width && extracted.height) {
             return {
@@ -846,7 +850,7 @@ export function createCombatPresentation({
             };
           }
           if (extracted instanceof Uint8Array || extracted instanceof Uint8ClampedArray) {
-            const bounds = target.getBounds?.() || { width: 0, height: 0 };
+            const bounds = sampleTarget.getBounds?.() || { width: 0, height: 0 };
             const width = Math.max(1, Math.round(bounds.width || 0));
             const height = Math.max(1, Math.round(extracted.length / 4 / width));
             return { data: extracted, width, height };
@@ -878,6 +882,7 @@ export function createCombatPresentation({
       return [data[i], data[i + 1], data[i + 2], data[i + 3]];
     };
     const lum = (rgb) => relativeLuminance(rgb);
+    const alphaFloor = glyphStroke ? 90 : 200;
     // Conservative contract: brightest opaque in the glyph window vs darkest
     // opaque on the plate rim — not max-of-all-pairs across the whole scan.
     let glyph = null;
@@ -889,7 +894,7 @@ export function createCombatPresentation({
     for (let y = y0; y <= y1; y += 2) {
       for (let x = x0; x <= x1; x += 2) {
         const g = at(x, y);
-        if (g[3] < 200) continue;
+        if (g[3] < alphaFloor) continue;
         const rgb = [g[0], g[1], g[2]];
         const L = lum(rgb);
         if (L > glyphLum) {
@@ -898,24 +903,40 @@ export function createCombatPresentation({
         }
       }
     }
-    const rim = [];
-    const rimPad = Math.max(2, Math.floor(Math.min(width, height) * 0.08));
-    for (let x = rimPad; x < width - rimPad; x += 3) {
-      rim.push([x, rimPad], [x, height - rimPad - 1]);
-    }
-    for (let y = rimPad; y < height - rimPad; y += 3) {
-      rim.push([rimPad, y], [width - rimPad - 1, y]);
-    }
     let bg = null;
     let bgLum = 2;
-    for (const [bx, by] of rim) {
-      const b = at(bx, by);
-      if (b[3] < 200) continue;
-      const rgb = [b[0], b[1], b[2]];
-      const L = lum(rgb);
-      if (L < bgLum) {
-        bgLum = L;
-        bg = rgb;
+    if (glyphStroke) {
+      // Stroked chrome labels: darkest near-opaque texel is the ink stroke.
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const b = at(x, y);
+          if (b[3] < alphaFloor) continue;
+          const rgb = [b[0], b[1], b[2]];
+          const L = lum(rgb);
+          if (L < bgLum) {
+            bgLum = L;
+            bg = rgb;
+          }
+        }
+      }
+    } else {
+      const rim = [];
+      const rimPad = Math.max(2, Math.floor(Math.min(width, height) * 0.08));
+      for (let x = rimPad; x < width - rimPad; x += 3) {
+        rim.push([x, rimPad], [x, height - rimPad - 1]);
+      }
+      for (let y = rimPad; y < height - rimPad; y += 3) {
+        rim.push([rimPad, y], [width - rimPad - 1, y]);
+      }
+      for (const [bx, by] of rim) {
+        const b = at(bx, by);
+        if (b[3] < alphaFloor) continue;
+        const rgb = [b[0], b[1], b[2]];
+        const L = lum(rgb);
+        if (L < bgLum) {
+          bgLum = L;
+          bg = rgb;
+        }
       }
     }
     const measured = (glyph && bg) ? contrastOf(glyph, bg) : 0;
@@ -929,7 +950,7 @@ export function createCombatPresentation({
       measured: measured > 0,
       source: 'pixels',
       sampleContract: held?.sampleContract
-        || (kind === 'banner' || held?.kind === 'banner' ? 'banner-plate' : 'ink-plate'),
+        || (glyphStroke ? 'glyph-stroke' : (kind === 'banner' || held?.kind === 'banner' ? 'banner-plate' : 'ink-plate')),
       tokenFloor,
     };
   }

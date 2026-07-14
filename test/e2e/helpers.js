@@ -187,6 +187,127 @@ export function expectNoErrors(errors, context = '') {
 }
 
 /**
+ * Task 29 — true combat DOM allowed-list. Walks every visible, non-empty
+ * element under `#stage` and requires each to match the P5 allow set
+ * (plates / combatant art+aim+mesh / `#uigl` / `#vfx` / tooltip mounts /
+ * empty structural hosts). Forbidden legacy ceremony classes always fail.
+ */
+export const COMBAT_DOM_FORBIDDEN_SELECTORS = Object.freeze([
+  '.floaty',
+  '.flymote',
+  '.flycard',
+  '.flycard-face',
+  '.flycard-back',
+  '.flycard-pile',
+  '.turn-banner',
+  '.boss-banner',
+  '.perfect-banner',
+  '.variant-dialogue',
+  '.hand-zone .card',
+]);
+
+export async function inventoryCombatDom(page) {
+  return page.evaluate((forbiddenSelectors) => {
+    const stage = document.getElementById('stage');
+    if (!stage) return { ok: false, reason: 'no-stage', unexpected: [], forbidden: {}, emptyHosts: {} };
+
+    const ALLOWED_IDS = new Set([
+      'stage', 'bg3d', 'vignette', 'grain', 'shake', 'screen', 'mesh', 'lantern',
+      'hud', 'aim', 'vfx', 'uigl', 'floaties', 'overlay', 'wipe', 'transit', 'tooltip',
+      'omen-slot', 'relicbar', 'aim-outline-atk', 'aim-outline-self', 'status-outline', 'alpha-erode',
+    ]);
+    const ALLOWED_CLASS = new Set([
+      'combat-screen', 'screen-enter', 'intro', 'pixi-bottom-chrome', 'pixi-plate-chrome', 'pixi-hud-chrome',
+      'sl', 'sl-backdrop', 'sl-mid', 'sl-ledge',
+      'stage-dim', 'stage-ledge', 'stage-breath', 'b1', 'b2',
+      'cast-shadow-layer', 'cast-shadow',
+      'battlefield', 'player-zone', 'enemy-zone', 'hero-wrap', 'hero-sprite', 'enemy', 'enemy-art',
+      'enemy-sprite', 'raster-art', 'aim-ring', 'cracks-overlay', 'vessel-fire', 'dmg-preview',
+      'idle-motes', 'mesh-live',
+      'top-chrome', 'cplate', 'status-row', 'p-status', 'intent', 'name', 'hpbar-wrap', 'hp-vial',
+      'hpbar', 'fill', 'ghost', 'pv', 'hp-label', 'block-chip', 'facet-row', 'zero', 'ic',
+      'energy-orb', 'lantern-btn', 'end-turn', 'pile-btn', 'pile-draw', 'pile-discard', 'pile-exhaust',
+      'hand-zone', 'pop', 'unlit', 'pile-bump', 'is-empty', 'show',
+      'hud-bar', 'hud-stat', 'hud-hp-wrap', 'hud-hpbar', 'hud-right', 'gold-num', 'hp-num',
+      'elite-e', 'boss-e', 'affixed', 'lowhp', 'gone',
+    ]);
+
+    const visible = (el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width < 0.5 || r.height < 0.5) return false;
+      const s = getComputedStyle(el);
+      if (s.display === 'none' || s.visibility === 'hidden') return false;
+      if (Number(s.opacity) < 0.01) return false;
+      return true;
+    };
+
+    const nonempty = (el) => {
+      const tag = el.tagName;
+      if (tag === 'IMG' || tag === 'CANVAS' || tag === 'SVG' || tag === 'VIDEO' || tag === 'PATH'
+        || tag === 'CIRCLE' || tag === 'RECT' || tag === 'G' || tag === 'FILTER'
+        || tag === 'FEMORPHOLOGY' || tag === 'FECOMPOSITE' || tag === 'FEFLOOD' || tag === 'FEMERGE'
+        || tag === 'FEMERGENODE' || tag === 'DEFS') return true;
+      if ((el.textContent || '').trim().length > 0) return true;
+      return el.children.length > 0;
+    };
+
+    const allowed = (el) => {
+      if (el === stage) return true;
+      if (el.id && ALLOWED_IDS.has(el.id)) return true;
+      // Hidden SVG filter library for aim-ring / status outlines.
+      if (el.closest('svg[aria-hidden="true"]')) return true;
+      const classes = typeof el.className === 'string'
+        ? el.className.trim().split(/\s+/).filter(Boolean)
+        : [...(el.classList || [])];
+      if (!classes.length) {
+        // Anonymous structural wrappers under an allowed host (e.g. cast-shadow > img).
+        return !!(el.parentElement && allowed(el.parentElement));
+      }
+      return classes.every((c) => ALLOWED_CLASS.has(c) || c.startsWith('sl-') || c.startsWith('pile-')
+        || c.startsWith('hud-') || c.startsWith('idle-') || c.startsWith('schip')
+        || c.startsWith('ui-icon') || c === 'gicon' || c === 'et-ic' || c === 'et-lbl'
+        || c === 'lb-ic' || c === 'lb-count' || c === 'lb-pips' || c === 'num' || c === 'cnt'
+        || c === 'lbl' || c === 'pile-stack' || c === 'candles');
+    };
+
+    const unexpected = [];
+    for (const el of stage.querySelectorAll('*')) {
+      if (!visible(el) || !nonempty(el)) continue;
+      if (!allowed(el)) {
+        const classes = typeof el.className === 'string'
+          ? el.className.trim()
+          : [...(el.classList || [])].join(' ');
+        unexpected.push({
+          tag: el.tagName.toLowerCase(),
+          id: el.id || null,
+          cls: classes.slice(0, 120),
+        });
+      }
+    }
+
+    const forbidden = Object.fromEntries(
+      forbiddenSelectors.map((sel) => [sel, document.querySelectorAll(sel).length]),
+    );
+    return {
+      ok: unexpected.length === 0 && Object.values(forbidden).every((n) => n === 0),
+      screen: window.spirebound?.S?.screen ?? null,
+      unexpected,
+      forbidden,
+      emptyHosts: {
+        floaties: document.querySelectorAll('#floaties > *').length,
+        aim: document.querySelectorAll('#aim > *').length,
+        handZone: document.querySelector('.hand-zone')?.childElementCount ?? -1,
+      },
+      mounts: {
+        uigl: !!document.getElementById('uigl'),
+        vfx: !!document.getElementById('vfx'),
+        tooltip: !!document.getElementById('tooltip'),
+      },
+    };
+  }, COMBAT_DOM_FORBIDDEN_SELECTORS);
+}
+
+/**
  * Screenshot helper routed through an explicit visual-policy suite key.
  * All visual regression cases must declare one of VISUAL_DIFF_RATIOS keys.
  */
