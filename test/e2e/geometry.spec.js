@@ -11,6 +11,7 @@
 import { test, expect } from '@playwright/test';
 import { ASPECTS } from '../../src/data.js';
 import { bfResolve, bfActor, bfSlots, bfEnemyFootX, bfEnemyFootY, bfHeroY } from '../../src/battlefield.js';
+import { snapStage } from '../../src/ui/widgets.js';
 import { boot, startFight, stable, settle, collectErrors, expectNoErrors } from './helpers.js';
 
 const FEET_TOL = 2; // ±stage px around the fully resolved authored art-box bottom
@@ -604,6 +605,8 @@ test('energy candles stay in a fixed frame as slot count grows', async ({ page }
     const gl = window.spirebound?.combatGl;
     const readUi = gl?.readUI?.();
     const cf = readUi?.candleFrame;
+    const resolution = Number(window.spirebound.pixi?.application?.()?.renderer?.resolution)
+      || ((window.devicePixelRatio || 1) * (window.__probe.stage().scale || 1));
     if (cf && cf.slots && cf.slots.length > 0) {
       const centres = cf.slots.map((s) => (s.bounds.left + s.bounds.right) / 2);
       const pitches = centres.slice(1).map((cx, i) => cx - centres[i]);
@@ -611,6 +614,7 @@ test('energy candles stay in a fixed frame as slot count grows', async ({ page }
         frameW: cf.bounds.width,
         frameLeft: cf.bounds.left,
         n: cf.slots.length,
+        resolution,
         avgPitch: pitches.length
           ? pitches.reduce((a, b) => a + b, 0) / pitches.length
           : 0,
@@ -630,6 +634,7 @@ test('energy candles stay in a fixed frame as slot count grows', async ({ page }
       frameW: row.clientWidth,
       frameLeft: (rr.left - stage.left) / info.scale,
       n: kids.length,
+      resolution,
       avgPitch: pitches.length
         ? pitches.reduce((a, b) => a + b, 0) / pitches.length
         : 0,
@@ -653,8 +658,9 @@ test('energy candles stay in a fixed frame as slot count grows', async ({ page }
 
   expect(at3.n, '3 energy slots').toBe(3);
   expect(at5.n, '5 energy slots').toBe(5);
-  expect(at3.frameW, '3-slot frame uses the authored candle box').toBe(120);
-  expect(at5.frameW, '5-slot frame stays the authored candle box').toBe(120);
+  const authoredW = snapStage(120, at3.resolution);
+  expect(at3.frameW, '3-slot frame uses the authored candle box').toBe(authoredW);
+  expect(at5.frameW, '5-slot frame stays the authored candle box').toBe(authoredW);
   expect(Math.abs(at5.frameLeft - at3.frameLeft), 'candle frame left edge stays fixed').toBeLessThanOrEqual(1);
   expect(at5.avgPitch, 'more candles compress pitch inside the frame').toBeLessThan(at3.avgPitch - 1);
   expectNoErrors(errors, 'energy candle frame');

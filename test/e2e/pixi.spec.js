@@ -783,7 +783,10 @@ test.describe('Round 5 production Pixi layer', () => {
       const ui = window.__probe.ui();
       const readUI = window.spirebound.combatGl?.readUI?.();
       const candle = readUI?.candleFrame?.bounds;
-      const isIntegral = (n) => Number.isFinite(n) && Math.abs(n - Math.round(n)) < 1e-9;
+      const resolution = Number(window.spirebound.pixi?.application?.()?.renderer?.resolution)
+        || ((window.devicePixelRatio || 1) * (window.__probe.stage().scale || 1));
+      const isDeviceIntegral = (n) => Number.isFinite(n)
+        && Math.abs(n * resolution - Math.round(n * resolution)) < 1e-6;
 
       return {
         uiVersion: ui?.version ?? null,
@@ -814,9 +817,11 @@ test.describe('Round 5 production Pixi layer', () => {
         requiredProxies: ['lantern', 'end-turn', 'draw', 'discard', 'ashes', 'deck', 'menu']
           .every((k) => proxyKeys.includes(k)),
         candleFrameIntegral: candle
-          ? ['left', 'top', 'width', 'height'].every((k) => isIntegral(candle[k]))
+          ? ['left', 'top', 'width', 'height'].every((k) => isDeviceIntegral(candle[k]))
           : false,
         candleFrameW: candle?.width ?? null,
+        candleFrameAuthoredW: 120,
+        resolution,
       };
     });
 
@@ -834,7 +839,70 @@ test.describe('Round 5 production Pixi layer', () => {
     expect(inventory.requiredProxies).toBe(true);
     expect(inventory.proxiesPaintFree).toBe(true);
     expect(inventory.candleFrameIntegral).toBe(true);
-    expect(inventory.candleFrameW).toBe(120);
+    expect(inventory.candleFrameW).toBe(snapStage(inventory.candleFrameAuthoredW, inventory.resolution));
+  });
+
+  test('Task 22 device-pixel integral transforms at pinned baseline DPR', async ({ page }) => {
+    test.skip(test.info().project.name !== 'desktop', 'pinned baseline DPR is desktop deviceScaleFactor=1');
+    await bootProduction(page);
+    const sample = await page.evaluate(async () => {
+      await window.__probe.stageCoreTheme({ themeId: 'act1' });
+      const ids = window.spirebound.S.cb.enemies.map((en) => en.key);
+      window.spirebound.startCombatUI(ids, 'monster');
+      await window.__probe.settle();
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+      const resolution = Number(window.spirebound.pixi?.application?.()?.renderer?.resolution)
+        || ((window.devicePixelRatio || 1) * (window.__probe.stage().scale || 1));
+      const readUI = window.spirebound.combatGl?.readUI?.();
+      // Same formula as src/ui/widgets.js snapStage.
+      const snapStage = (value, res) => {
+        const numeric = Number(value);
+        const r = Math.max(0.5, Number(res) || 1);
+        if (!Number.isFinite(numeric)) return 0;
+        return Math.round(numeric * r) / r;
+      };
+      const isDeviceIntegral = (n) => Number.isFinite(n)
+        && Math.abs(n * resolution - Math.round(n * resolution)) < 1e-6;
+      const checkBounds = (b, label) => {
+        if (!b) return { label, ok: false, reason: 'missing' };
+        const keys = ['left', 'top', 'width', 'height'].filter((k) => b[k] !== undefined);
+        const bad = keys.filter((k) => !isDeviceIntegral(b[k]));
+        // snapStage identity: painted bounds must already be snapped
+        const snapBad = keys.filter((k) => Math.abs(snapStage(b[k], resolution) - b[k]) > 1e-9);
+        return {
+          label,
+          ok: bad.length === 0 && snapBad.length === 0,
+          bad,
+          snapBad,
+          sample: keys.reduce((acc, k) => { acc[k] = b[k]; return acc; }, {}),
+        };
+      };
+
+      const checks = [
+        checkBounds(readUI?.energy, 'energy'),
+        checkBounds(readUI?.lantern, 'lantern'),
+        checkBounds(readUI?.endTurn, 'endTurn'),
+        checkBounds(readUI?.candleFrame?.bounds, 'candleFrame'),
+        checkBounds(readUI?.hud?.bounds, 'hud'),
+        checkBounds(readUI?.hud?.seats?.deck, 'hud.deck'),
+        checkBounds(readUI?.hud?.seats?.menu, 'hud.menu'),
+        checkBounds(readUI?.plates?.hero?.plateBounds || readUI?.hero?.plateBounds, 'plate'),
+      ];
+      return {
+        resolution,
+        dpr: window.devicePixelRatio || 1,
+        checks,
+        allOk: checks.every((c) => c.ok),
+      };
+    });
+
+    expect(sample.dpr, 'pinned baseline devicePixelRatio').toBe(1);
+    expect(sample.resolution).toBeGreaterThan(0);
+    expect(sample.allOk, JSON.stringify(sample.checks, null, 2)).toBe(true);
+    for (const check of sample.checks) {
+      expect(check.ok, `${check.label} device-pixel integral`).toBe(true);
+    }
   });
 
   test('Task 22c five stage shapes map to authored candle frames', async ({ page }) => {
@@ -858,18 +926,21 @@ test.describe('Round 5 production Pixi layer', () => {
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
         const ui = window.__probe.ui();
         const cf = window.spirebound.combatGl?.readUI?.()?.candleFrame;
+        const resolution = Number(window.spirebound.pixi?.application?.()?.renderer?.resolution)
+          || ((window.devicePixelRatio || 1) * (window.__probe.stage().scale || 1));
         return {
           shape: window.__probe.stage().shape,
           uiVersion: ui?.version ?? null,
           kind: ui?.renderer?.kind ?? null,
           frameW: cf?.bounds?.width ?? null,
+          resolution,
           wantShape,
         };
       }, shape);
       expect(measured.shape, `${shape} stage`).toBe(shape);
       expect(measured.uiVersion).toBe(2);
       expect(measured.kind).toBe('pixi');
-      expect(measured.frameW, `${shape} candle frame`).toBe(frameW);
+      expect(measured.frameW, `${shape} candle frame`).toBe(snapStage(frameW, measured.resolution));
     }
   });
 
