@@ -1,6 +1,6 @@
 // Round 5 Task 28 — combat presentation ceremonies (floaters, banners, piles).
 import { test, expect } from '@playwright/test';
-import { boot, startFight, collectErrors, expectNoErrors, settle } from './helpers.js';
+import { boot, startFight, collectErrors, expectNoErrors } from './helpers.js';
 import { contrastRatio, COLOUR } from '../../src/ui/tokens.js';
 
 async function attachCpuThrottle(page, rate) {
