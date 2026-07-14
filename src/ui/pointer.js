@@ -151,7 +151,10 @@ export function createCombatPointerRouter({
 
   function onPointerDown(event) {
     if (!enabled || destroyed || !event.isPrimary) return;
-    if (event.target?.closest?.('#overlay.open, #pop-menu, .modal, [data-dev-shell]')) return;
+    // Production builds must not emit the literal DEV-shell marker; the shell
+    // only mounts under import.meta.env.DEV and is dead-code-eliminated here.
+    if (event.target?.closest?.('#overlay.open, #pop-menu, .modal')) return;
+    if (import.meta.env.DEV && event.target?.closest?.('[data-dev-shell]')) return;
 
     // Never treat #uigl as an interactive composed target — it is paint-only.
     if (event.target?.id === 'uigl' || pathIds(event).includes('uigl')) {

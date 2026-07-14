@@ -802,22 +802,26 @@ test('complete synthetic UI catalogue preserves semantic trace and missing keys 
 
 test('frozen Task 6 fixture manifest is complete and every entry resolves', async ({ page }) => {
   await page.goto('/?trace=1');
-  await page.waitForFunction(() => window.spirebound?.pixi?.status?.() === 'ready'
-    || window.__probe?.ui?.()?.renderer?.kind === 'pixi'
-    || window.__probe);
+  // Do not proceed on bare __probe — wait for the Pixi layer itself.
+  await page.waitForFunction(() => window.spirebound?.pixi?.status?.() === 'ready', null, {
+    timeout: 20_000,
+  });
   const renderer = await page.evaluate(() => {
     const ui = window.__probe?.ui?.();
     const pixi = window.spirebound?.pixi?.stats?.();
     return {
       kind: ui?.renderer?.kind || pixi?.rendererKind || null,
-      generation: ui?.renderer?.generation ?? pixi?.generation ?? null,
+      // combat-gl `generation` stays 0 until a combat remount/rebuild; Pixi
+      // layer generation is the P4 identity counter (≥1 after boot).
+      combatGeneration: ui?.renderer?.generation ?? null,
+      pixiGeneration: ui?.pixi?.generation ?? pixi?.generation ?? null,
       status: ui?.renderer?.state || pixi?.status || null,
     };
   });
   // Renderer identity is asserted separately so Task 6 semantic fixtures stay
   // byte-for-byte fixed (comparison-only; never rewrite under P4).
   expect(renderer.kind).toBe('pixi');
-  expect(renderer.generation).toBeGreaterThanOrEqual(1);
+  expect(renderer.pixiGeneration).toBeGreaterThanOrEqual(1);
 
   const manifest = await page.evaluate(async () =>
     (await fetch('/test/e2e/fixtures/trace/manifest.json')).json());

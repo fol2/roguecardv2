@@ -365,10 +365,29 @@ export async function createPixiLayer({
     }
   };
 
+  const silenceAlreadyLostLoseContext = () => {
+    // Pixi's GlContextSystem.destroy() unconditionally calls
+    // WEBGL_lose_context.loseContext(). After a real/test loss that is a
+    // no-op on Chromium but WebKit logs
+    // "INVALID_OPERATION: loseContext: context already lost" as console.error
+    // (fails expectNoErrors). Drop Pixi's stored extension handle so destroy
+    // becomes a no-op; native extension methods are not reliably patchable.
+    const gl = renderer?.gl;
+    const alreadyLost = status === 'lost'
+      || (gl && typeof gl.isContextLost === 'function' && gl.isContextLost());
+    if (!alreadyLost) return;
+    const ctx = renderer?.context;
+    if (ctx?.extensions) ctx.extensions.loseContext = null;
+    if (lossExtension) {
+      try { lossExtension.loseContext = () => {}; } catch { /* native / non-writable */ }
+    }
+  };
+
   const teardownRenderer = ({ preserveCanvas = true } = {}) => {
     detachShakeSync();
     if (application) {
       application.stop();
+      silenceAlreadyLostLoseContext();
       application.destroy({ removeView: false }, { children: true });
     }
     application = null;
@@ -379,8 +398,16 @@ export async function createPixiLayer({
   };
 
   const loseContextForTest = async () => {
-    if (!lossExtension) throw new Error('WEBGL_lose_context is unavailable');
+    if (status === 'lost') return stats();
     if (status !== 'ready') throw new Error(`cannot lose Pixi context from ${status}`);
+    const gl = renderer?.gl;
+    // Idempotent: if the browser already dropped the context (WebKit pressure)
+    // synthesize the same loss transition without re-calling loseContext.
+    if (gl && typeof gl.isContextLost === 'function' && gl.isContextLost()) {
+      handleContextLoss({ preventDefault() {} });
+      return stats();
+    }
+    if (!lossExtension) throw new Error('WEBGL_lose_context is unavailable');
     const lost = new Promise((resolve) => { contextLossResolve = resolve; });
     lossExtension.loseContext();
     await Promise.race([
