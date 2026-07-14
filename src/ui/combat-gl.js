@@ -458,39 +458,64 @@ export async function createCombatRenderer({
     return readUI();
   };
 
+  // Pixi Text/Graphics retain canvas textures after detach; removeChildren alone
+  // orphans them across every sync/paint and trips the P5 heap gate.
+  // Pixi 8 footgun: destroy({ children: true }) does NOT destroy owned
+  // GraphicsContext unless `context: true` is also set (see Graphics.destroy).
+  function destroyLayerChildren(layer) {
+    if (!layer) return;
+    const kids = layer.removeChildren();
+    for (const child of kids) {
+      try {
+        // context:true required for Graphics; omit texture:true so shared
+        // Assets chrome sprites keep their atlas textures alive.
+        child.destroy({ children: true, context: true });
+      } catch { /* already reaped */ }
+    }
+  }
+
   function clearBottomChromePaint() {
-    candlesLayer.removeChildren();
-    energyNumLayer.removeChildren();
-    lanternLayer.removeChildren();
-    endTurnLayer.removeChildren();
-    for (const key of Object.keys(pileLayers)) pileLayers[key].removeChildren();
+    destroyLayerChildren(candlesLayer);
+    destroyLayerChildren(energyNumLayer);
+    destroyLayerChildren(lanternLayer);
+    destroyLayerChildren(endTurnLayer);
+    for (const key of Object.keys(pileLayers)) destroyLayerChildren(pileLayers[key]);
     bottomChromePainted = 0;
   }
 
   function clearHudPaint() {
-    hudLayer.removeChildren();
+    destroyLayerChildren(hudLayer);
     hudPainted = 0;
   }
 
   function clearPlatesPaint() {
-    platesLayer.removeChildren();
+    destroyLayerChildren(platesLayer);
     platesPainted = 0;
   }
 
   function clearHandPaint() {
     for (const entry of handNodes.values()) {
+      try {
+        const filters = entry.sprite?.filters;
+        if (filters?.length) {
+          for (const f of filters) {
+            try { f.destroy?.(); } catch { /* ignore */ }
+          }
+          entry.sprite.filters = null;
+        }
+      } catch { /* ignore */ }
       try { entry.release?.(); } catch { /* ignore */ }
-      try { entry.root?.destroy?.({ children: true }); } catch { /* ignore */ }
+      try { entry.root?.destroy?.({ children: true, context: true }); } catch { /* ignore */ }
     }
     handNodes.clear();
-    handLayer.removeChildren();
+    destroyLayerChildren(handLayer);
     handPainted = 0;
     handReady = false;
     handCache = null;
   }
 
   function clearAimPaint() {
-    aimLayer.removeChildren();
+    destroyLayerChildren(aimLayer);
     aimPathCache = null;
   }
 
@@ -583,6 +608,7 @@ export async function createCombatRenderer({
       && (hovered || selected || dragging);
 
     if (entry.sprite) {
+      const prevFilters = entry.sprite.filters;
       if (foilActive) {
         // Fresh filter each arm — ColorMatrixFilter must not outlive a GL context.
         try {
@@ -592,6 +618,11 @@ export async function createCombatRenderer({
         }
       } else {
         entry.sprite.filters = null;
+      }
+      if (prevFilters?.length) {
+        for (const f of prevFilters) {
+          try { f.destroy?.(); } catch { /* ignore */ }
+        }
       }
     }
 
@@ -858,7 +889,7 @@ export async function createCombatRenderer({
   }
 
   function paintCandles(chrome, resolution) {
-    candlesLayer.removeChildren();
+    destroyLayerChildren(candlesLayer);
     const info = stageInfo();
     const chromeEnergy = chrome.energy;
     if (!chromeEnergy) { candleFrameCache = null; return false; }
@@ -932,7 +963,7 @@ export async function createCombatRenderer({
   }
 
   function paintEnergyNumber(chrome, resolution) {
-    energyNumLayer.removeChildren();
+    destroyLayerChildren(energyNumLayer);
     const chromeEnergy = chrome.energy;
     if (!chromeEnergy) return false;
     const bottomState = presentationModel?.bottomChrome;
@@ -965,7 +996,7 @@ export async function createCombatRenderer({
   }
 
   function paintLantern(chrome, resolution) {
-    lanternLayer.removeChildren();
+    destroyLayerChildren(lanternLayer);
     const w = chrome.lantern;
     if (!w) { lanternBoundsCache = null; return false; }
     const width = snapStage(w.w ?? 104, resolution);
@@ -1042,7 +1073,7 @@ export async function createCombatRenderer({
   }
 
   function paintEndTurn(chrome, resolution) {
-    endTurnLayer.removeChildren();
+    destroyLayerChildren(endTurnLayer);
     const w = chrome.endTurn;
     if (!w) { endTurnBoundsCache = null; return false; }
     const width = snapStage(w.w ?? 120, resolution);
@@ -1099,7 +1130,7 @@ export async function createCombatRenderer({
   function paintPile(pileKey, widget, resolution) {
     const layer = pileLayers[pileKey];
     if (!layer) return false;
-    layer.removeChildren();
+    destroyLayerChildren(layer);
     if (!widget) {
       pileBoundsCache = Object.freeze({ ...pileBoundsCache, [pileKey]: null });
       return false;
@@ -2162,7 +2193,7 @@ export async function createCombatRenderer({
     clearAimPaint();
     try { presentation.destroy(); } catch { /* already gone */ }
     try { cardFace.destroy(); } catch { /* already gone */ }
-    try { container.destroy({ children: true }); } catch { /* container already reaped */ }
+    try { container.destroy({ children: true, context: true }); } catch { /* container already reaped */ }
     textureAliases.clear();
     presentationModel = null;
     setState('idle');

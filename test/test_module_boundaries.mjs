@@ -78,6 +78,10 @@ assert.equal(
   'playwright test trace stage lab theme-profile production-profile --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
 );
 assert.equal(
+  packageJson.scripts['test:e2e:leak'],
+  'playwright test leak --project=desktop --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
+);
+assert.equal(
   packageJson.scripts['test:e2e:update'],
   'playwright test visual --update-snapshots --project=desktop --project=portrait --project=landscape --workers=1 --no-deps',
 );
@@ -188,9 +192,9 @@ const combatKeys = [
   'freeze', 'freezeForProbe', 'pointerState', 'handleCombatKey', 'startRig', 'drainHandlers',
 ].sort();
 const drainHandlerKeys = [
-  'addCrack', 'banner', 'bumpPile', 'captureCardAnchor', 'choreoAttack',
+  'addCrack', 'artCast', 'banner', 'bumpPile', 'captureCardAnchor', 'choreoAttack',
   'choreoHit', 'choreoStagger', 'clearPileVisualOverride', 'enemyCenter',
-  'flyCardBacks', 'flyTo', 'handFaceSize', 'handSeatCenter', 'heroCenter',
+  'floatText', 'flyCardBacks', 'flyTo', 'handFaceSize', 'handSeatCenter', 'heroCenter',
   'holdPendingPileArrivals', 'holdPileVisual', 'igniteVessel', 'layoutHand',
   'peekCardAnchor', 'pileCardByUid', 'pileFaceSize', 'releasePileVisual',
   'renderHud', 'scheduleHandReveal', 'semanticUiCheckpoint', 'syncCombat',
@@ -212,7 +216,9 @@ assert.deepEqual(objectLiteralKeys(uiIndexSource, 'const probe = installProbe({'
   'combat', 'context', 'drain', 'navigator', 'trace',
 ].sort(), 'the UI composition root calls the probe installer with exactly five owners');
 assert.deepEqual(shorthandKeys(combatSource, 'const drainHandlers = Object.freeze({'), drainHandlerKeys,
-  'combat owns the exact literal 38-key drain presentation surface');
+  'combat owns the exact literal 40-key drain presentation surface');
+assert.match(combatSource, /shatter:\s*shatterVessel/,
+  'drainHandlers aliases shatterVessel as shatter for presentation.shatter');
 assert.deepEqual(shorthandKeys(combatSource, 'return Object.freeze({'), combatKeys,
   'combat owns the exact literal 21-key caller surface');
 assert.match(drainSource, /return\s+Object\.freeze\(\{\s*drain\s*\}\)/,
@@ -227,8 +233,10 @@ assert.match(uiIndexSource, /createDrain\(\{[\s\S]*?\bcardEl\s*,[\s\S]*?presenta
   'the UI composition root supplies the card renderer to drain');
 assert.doesNotMatch(drainSource, /(^|[^.\w])handFaceSize\(/m,
   'drain must call handFaceSize only through the frozen presentation surface');
-assert.match(drainSource, /cardEl\(src\.inst,\s*\{\s*inCombat:\s*true,\s*size:\s*layoutW\s*\}\)/,
-  'drain recovery reconstructs a missing live card through its injected renderer');
+assert.doesNotMatch(drainSource, /cardEl\s*\(/,
+  'drain no longer reconstructs DOM card faces after Pixi hand/flight migration');
+assert.match(combatSource, /cardEl\(inst,\s*\{\s*inCombat:\s*true,\s*size:\s*layoutW\s*\}\)/,
+  'non-combat flyCardBacks still reconstructs faces through the injected cardEl');
 assert.doesNotMatch(combatSource, /\bmeshHandoff\b/,
   'combat must not retain the drain-owned mesh handoff dependency');
 assert.doesNotMatch(drainSource, /\b(?:pileVisualOverride|drawRevealPlan|cardFlightAnchor)\b/,

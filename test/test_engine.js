@@ -9112,9 +9112,9 @@ export default defineContentRegistration({
     assert.doesNotMatch(combatSource, pattern,
       `old combat listener site removed or delegated: ${label}`);
   }
-  // Lantern / End Turn / piles onclick remain only as non-Pixi fallbacks inside !glActive().
-  assert.match(combatSource, /if\s*\(!glActive\(\)\)\s*\{[\s\S]*?ce\.lantern\.onclick/,
-    'DOM chrome onclick handlers are gated behind !glActive()');
+  // Task 29 — dead !glActive() DOM chrome onclick fallbacks must be gone.
+  assert.doesNotMatch(combatSource, /if\s*\(!glActive\(\)\)\s*\{[\s\S]*?ce\.lantern\.onclick/,
+    'Task 29 removes dead !glActive() DOM chrome onclick fallbacks');
 
   const indexSource = readFileSync(new URL('../src/ui/index.js', import.meta.url), 'utf8');
   assert.match(indexSource, /import\s*\{\s*createCombatRenderer\s*\}\s*from\s*'\.\/combat-gl\.js'/,
@@ -9168,7 +9168,7 @@ export default defineContentRegistration({
   const visualSpec = readFileSync(new URL('../test/e2e/visual.spec.js', import.meta.url), 'utf8');
   assert.match(visualSpec, /expectScreenshot|screenshotDiffOptions/,
     'visual.spec routes screenshots through the suite-key helper');
-  assert.match(visualSpec, /['"]p4Combat['"]/, 'combat visual cases declare p4Combat');
+  assert.match(visualSpec, /['"]p5Cards['"]/, 'combat visual cases declare p5Cards');
   assert.match(visualSpec, /suiteKey|['"]legacy['"]/, 'non-combat cases declare a suite key');
 
   const helpersSource = readFileSync(new URL('../test/e2e/helpers.js', import.meta.url), 'utf8');
@@ -9460,6 +9460,46 @@ export default defineContentRegistration({
       stageW, cardW, cardH, zoneCenterX, baseBottom,
     }).length, n);
   }
+}
+
+// ---- Task 29: P5 legacy combat residue gate (must stay red until cleanup) ---
+{
+  const uiJs = [
+    readFileSync(new URL('../src/ui/index.js', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/ui/combat.js', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/ui/pixi-app.js', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/ui/combat-gl.js', import.meta.url), 'utf8'),
+  ].join('\n');
+  const stylesSource = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  const combatSource = readFileSync(new URL('../src/ui/combat.js', import.meta.url), 'utf8');
+
+  // Escape valve must not return.
+  assert.doesNotMatch(uiJs, /\?uigl=0|searchParams\.get\(\s*['"]uigl['"]\s*\)|params\.get\(\s*['"]uigl['"]\s*\)/,
+    'Task 29: ?uigl=0 escape valve must be absent');
+
+  // Named legacy combat face/hand selectors (DOM hand cards).
+  assert.doesNotMatch(stylesSource, /\.hand-zone\s+\.card\b/,
+    'Task 29: combat .hand-zone .card face/hand CSS must be removed');
+  assert.doesNotMatch(stylesSource, /\.hand-zone\s+\.card\.(?:dragging|lifted|armed|draw-pending|draw-in|will-cast|will-burn)\b/,
+    'Task 29: combat hand interaction CSS must be removed');
+
+  // Combat-only banner / dialogue residues (keep .turn-banner + omen for non-combat).
+  assert.doesNotMatch(stylesSource, /\.turn-banner\.boss-banner\b|\.boss-banner\b/,
+    'Task 29: combat .boss-banner CSS must be removed');
+  assert.doesNotMatch(stylesSource, /\.turn-banner\.perfect-banner\b|\.perfect-banner\b/,
+    'Task 29: combat .perfect-banner CSS must be removed');
+  assert.doesNotMatch(stylesSource, /\.variant-dialogue\b/,
+    'Task 29: combat .variant-dialogue CSS must be removed');
+
+  // Dead listener registration for non-Pixi chrome.
+  assert.doesNotMatch(combatSource, /if\s*\(!glActive\(\)\)\s*\{[\s\S]*?ce\.lantern\.onclick/,
+    'Task 29: dead !glActive() chrome onclick listeners must be removed');
+
+  // Source checks so a legacy combat selector cannot return silently.
+  assert.match(combatSource, /rejectCombatDomCeremony/,
+    'Task 29: combat still rejects silent DOM ceremony fallback');
+  assert.doesNotMatch(combatSource, /S\.screen\s*===\s*['"]combat['"][\s\S]{0,200}el\(\s*['"]div['"]\s*,\s*['"]turn-banner['"]/,
+    'Task 29: combat path must not construct DOM turn-banner');
 }
 
 let wins = 0, deaths = 0;

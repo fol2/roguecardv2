@@ -82,6 +82,10 @@ _Avoid_: `#combat-hit-proxies`, Probe-owned game logic, CSS-only freeze as canva
 Cumulative P4 evidence includes frozen Task 6 trace fixtures (comparison-only), Pixi recovery/shake/contrast, Chromium + Playwright WebKit `production-profile` fresh/veteran journeys, portrait/LITE and desktop/Full perf with `PERF_WARNING` on valid target misses, gzip bundle budget, and Darwin/Linux visual baselines under the frozen `VISUAL_DIFF_RATIOS` (all `0.01`).
 _Avoid_: inflating `maxDiffPixelRatio`, treating `PERF_WARNING` as a hard fail, actual-Safari claims
 
+**P5 combat gates**:
+Combat DOM is the P5 allowed-list (stage plates, combatants + aim/mesh overlays, `#uigl`, `#vfx`, tooltip/pop/toast mounts, empty structural hosts). `test:e2e:leak` owns host-relative card-face cache/texture counts and Chromium CDP heap growth; WebKit retains cache/count only. Combat visuals use suite key `p5Cards` at fixed `0.01`.
+_Avoid_: `?uigl=0`, silent DOM ceremony fallbacks, raising visual tolerance
+
 **Strict E2E Port Wrapper**:
 Every Playwright-backed package script and workflow `run:` invokes `node tools/run-with-strict-e2e-port.mjs -- …` in the same step. The wrapper allocates a non-5174 port, sets `SPIREBOUND_E2E_PORT`, and requires `e2eServerSettings` loopback origin with `reuseExistingServer:false`.
 _Avoid_: bare `npm run test:e2e*` in CI, relying on a reused 5174 server
@@ -94,7 +98,9 @@ _Avoid_: active Round 5 gate, reviving retired Tasks 3–4, treating Playwright 
 
 **P3 (Lab / doctor / Manager / CI WebKit)**: COMPLETE as of Task 20.
 
-**P4 (Pixi chrome + DOM hand)**: in progress — Tasks 21–23 landed the Pixi lifecycle, combat chrome and stage router; Task 24 adds recovery/trace/perf/production-profile gates.
+**P4 (Pixi chrome)**: COMPLETE as of Task 25 (`Decision: GO TO P5`).
+
+**P5 (cards / ceremonies / leak)**: in progress — Tasks 26–28 landed the single card-face composer, Pixi hand, and Pixi floaters/banners/pile flights; Task 29 adds the DOM allowed-list, leak/cache gates, and CI wiring.
 
 ### Audio
 

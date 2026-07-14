@@ -27,7 +27,7 @@ assert.equal(resolveCiMode('pull_request', 'false'), 'full');
 assert.throws(() => resolveCiMode('workflow_dispatch', false), /Unsupported CI event/);
 
 assert.deepEqual(FULL_E2E_LANES, [
-  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main', 'e2e-webkit', 'e2e-visual',
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main', 'e2e-webkit', 'e2e-leak', 'e2e-visual',
 ]);
 
 assert.deepEqual(requiredCiLanes('unit', false, 'smoke'), ['changes']);
@@ -51,10 +51,10 @@ assert.throws(() => requiredCiLanes('p2-base', true, 'smoke'), /Unsupported p2-b
 assert.throws(() => requiredCiLanes('p2-base', false, 'smoke'), /Unsupported p2-base CI mode/);
 assert.deepEqual(requiredCiLanes('e2e', true, 'full'), [
   'changes', 'e2e-aux', 'e2e-random', 'e2e-audio', 'e2e-heavy', 'e2e-battle', 'e2e-emberglass', 'e2e-main',
-  'e2e-webkit', 'e2e-visual',
+  'e2e-webkit', 'e2e-leak', 'e2e-visual',
 ]);
 assert.deepEqual(requiredCiLanes('e2e', true, 'full', { slow: false }), [
-  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main', 'e2e-webkit', 'e2e-visual',
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-main', 'e2e-webkit', 'e2e-leak', 'e2e-visual',
 ]);
 
 assert.deepEqual(verifyCiGate({
@@ -70,9 +70,9 @@ assert.deepEqual(verifyCiGate({
     changes: 'success', 'e2e-aux': 'success', 'e2e-random': 'success',
     'e2e-audio': 'success', 'e2e-heavy': 'success', 'e2e-battle': 'success',
     'e2e-emberglass': 'success', 'e2e-main': 'success', 'e2e-webkit': 'success',
-    'e2e-visual': 'success',
+    'e2e-leak': 'success', 'e2e-visual': 'success',
   },
-}).required.length, 10);
+}).required.length, 11);
 assert.deepEqual(verifyCiGate({
   gate: 'e2e', relevant: true, mode: 'p2-base', slow: false,
   results: {
@@ -161,8 +161,12 @@ assert.match(workflow, /name: e2e webkit/);
 assert.match(workflow, /e2e_webkit:/);
 assert.match(workflow, /npm run test:e2e:webkit/);
 assert.match(workflow, /e2e-webkit/);
-assert.match(workflow, /needs: \[changes, smoke_e2e, e2e_aux, e2e_random, e2e_audio, e2e_heavy, e2e_battle, e2e_emberglass, e2e_main, e2e_webkit, e2e_visual\]/);
+assert.match(workflow, /needs: \[changes, smoke_e2e, e2e_aux, e2e_random, e2e_audio, e2e_heavy, e2e_battle, e2e_emberglass, e2e_main, e2e_webkit, e2e_leak, e2e_visual\]/);
 assert.match(workflow, /"e2e-webkit":"\$\{\{ needs\.e2e_webkit\.result \}\}"/);
+assert.match(workflow, /"e2e-leak":"\$\{\{ needs\.e2e_leak\.result \}\}"/);
+assert.match(workflow, /name: e2e leak/);
+assert.match(workflow, /npm run test:e2e:leak/);
+assert.match(workflow, /e2e_leak:/);
 assert.match(workflow, /unit_tests:[\s\S]*?npm run test:content-registrations/);
 assert.match(workflow, /build_dist:[\s\S]*?node tools\/check-bundle-budget\.mjs/);
 assert.match(workflow, /name: unit\b/);
@@ -196,6 +200,10 @@ assert.equal(pkg.scripts['test:content-registrations'], 'node tools/compile-cont
 assert.equal(
   pkg.scripts['test:e2e:webkit'],
   'playwright test trace stage lab theme-profile production-profile --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
+);
+assert.equal(
+  pkg.scripts['test:e2e:leak'],
+  'playwright test leak --project=desktop --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
 );
 assert.equal(
   pkg.scripts['test:e2e:update'],
@@ -290,6 +298,7 @@ assert.match(perfWorkflow, /node tools\/run-with-strict-e2e-port\.mjs -- npm run
 assert.match(perfWorkflow, /test:e2e:perf:full|PERF_TIER=full/);
 assert.match(perfWorkflow, /PERF_WARNING|valid performance measurement|invalid perf metrics/);
 assert.match(perfWorkflow, /perf-metrics-full\.json/);
+assert.match(perfWorkflow, /npm run test:e2e:leak/);
 
 assert.match(
   pkg.scripts['test:e2e:webkit'],

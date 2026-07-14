@@ -34,6 +34,9 @@ jobs:
       - name: Desktop Full reference
         if: ${{ !cancelled() }}
         run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf:full
+      - name: Chromium leak + cache recording
+        if: ${{ !cancelled() }}
+        run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:leak
       - name: Require valid performance measurements
         if: always()
         run: |

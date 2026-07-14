@@ -118,7 +118,7 @@ export function createNineSlice({ texture, fallback, bounds, resolution = 1 } = 
       };
     },
     destroy() {
-      container.destroy({ children: true });
+      container.destroy({ children: true, context: true });
     },
   });
 }
@@ -169,7 +169,7 @@ export function createMeter({ bounds, value = 0, max = 1, colours = {}, resoluti
       };
     },
     destroy() {
-      container.destroy({ children: true });
+      container.destroy({ children: true, context: true });
     },
   });
 }
@@ -232,7 +232,7 @@ export function createCounter({ bounds, value = 0, icon = null, resolution = 1 }
       };
     },
     destroy() {
-      container.destroy({ children: true });
+      container.destroy({ children: true, context: true });
     },
   });
 }
@@ -321,7 +321,7 @@ export function createButton({ bounds, states = {}, onActivate, resolution = 1 }
       };
     },
     destroy() {
-      container.destroy({ children: true });
+      container.destroy({ children: true, context: true });
     },
     currentState: () => currentState,
     activate,
@@ -382,7 +382,7 @@ export function createStateSprite({ bounds, states = {}, initial = null, resolut
       };
     },
     destroy() {
-      container.destroy({ children: true });
+      container.destroy({ children: true, context: true });
     },
     currentState: () => currentKey,
   });

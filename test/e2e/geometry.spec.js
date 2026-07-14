@@ -623,25 +623,8 @@ test('energy candles stay in a fixed frame as slot count grows', async ({ page }
           : 0,
       };
     }
-    // DOM fallback (renderer not booted): the legacy .candles element.
-    const info = window.__probe.stage();
-    const stage = document.getElementById('stage').getBoundingClientRect();
-    const row = document.querySelector('.energy-orb .candles');
-    const rr = row.getBoundingClientRect();
-    const kids = [...row.querySelectorAll('.candle')].map((c) => {
-      const r = c.getBoundingClientRect();
-      return ((r.left + r.right) / 2 - stage.left) / info.scale;
-    });
-    const pitches = kids.slice(1).map((cx, i) => cx - kids[i]);
-    return {
-      frameW: row.clientWidth,
-      frameLeft: (rr.left - stage.left) / info.scale,
-      n: kids.length,
-      resolution,
-      avgPitch: pitches.length
-        ? pitches.reduce((a, b) => a + b, 0) / pitches.length
-        : 0,
-    };
+    // Task 29 — candle frame is Pixi-only; legacy .candles DOM fallback is forbidden.
+    throw new Error('candleFrame missing from readUI(); legacy .candles DOM fallback is forbidden');
   });
 
   await page.evaluate(() => {

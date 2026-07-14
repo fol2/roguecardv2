@@ -1,10 +1,10 @@
 {
-  "capturedAt": "2026-07-13",
-  "note": "post-P3 pre-Pixi baseline; entry gzip level 9",
-  "outDir": "/tmp/spirebound-round5-pre-pixi",
-  "entryRel": "assets/index-DGmK5gPD.js",
-  "entryBytes": 1436419,
+  "capturedAt": "2026-07-14",
+  "note": "P5 Task 29 rebaseline after card-face/hand/ceremony growth; entry gzip level 9; max = ceil(measured*1.10/1024)*1024",
+  "outDir": "/tmp/spirebound-round5-p5-budget",
+  "entryRel": "assets/index-OH76t4Ad.js",
+  "entryBytes": 1591840,
   "prePixiEntryGzipBytes": 323218,
-  "maxEntryGzipBytes": 451584,
-  "minimalBootstrapGzipBytes": 409945
+  "maxEntryGzipBytes": 507904,
+  "minimalBootstrapGzipBytes": 461434
 }

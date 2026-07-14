@@ -400,7 +400,7 @@ export function createCardFaceComposer({
         texture = renderer.textureGenerator.generateTexture(display);
       }
     } finally {
-      try { display.destroy({ children: true }); } catch { /* ignore */ }
+      try { display.destroy({ children: true, context: true }); } catch { /* ignore */ }
     }
     return texture;
   }
@@ -558,7 +558,7 @@ export function createCardFaceComposer({
         try {
           canvas = renderer.extract.canvas(display);
         } finally {
-          try { display.destroy({ children: true }); } catch { /* ignore */ }
+          try { display.destroy({ children: true, context: true }); } catch { /* ignore */ }
         }
         blob = canvasToPngBlob(canvas);
       }

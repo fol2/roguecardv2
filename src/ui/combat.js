@@ -654,15 +654,7 @@ function renderCombat() {
   const openDrawPile = () => { sfx.click(); showCardGrid(tr('ui.combat.drawPileTitle'), cb.draw, { sub: tr('ui.combat.drawPileSub'), inCombat: true }); };
   const openDiscardPile = () => { sfx.click(); showCardGrid(tr('ui.combat.discardPileTitle'), cb.discard, { inCombat: true }); };
   const openAshesPile = () => { sfx.click(); showCardGrid(tr('ui.combat.ashesTitle'), cb.exhaust, { sub: tr('ui.combat.ashesSub'), inCombat: true }); };
-  // DOM chrome click handlers remain as a non-Pixi fallback; the stage router
-  // owns the interactive path whenever the combat renderer is active.
-  if (!glActive()) {
-    ce.lantern.onclick = lanternActivate;
-    ce.endTurn.onclick = onEndTurn;
-    ce.draw.onclick = openDrawPile;
-    ce.discard.onclick = openDiscardPile;
-    ce.exhaust.onclick = openAshesPile;
-  }
+  // Task 29 — stage router is the sole chrome input owner; no !glActive() DOM onclick escape.
   installCombatPointerRouter({
     lanternActivate,
     openDrawPile,

@@ -260,14 +260,14 @@ export function createCombatPresentation({
         },
       });
       const result = await runner.done;
-      content.destroy({ children: true });
+      content.destroy({ children: true, context: true });
       span.finish?.('settled', {
         attributes: { motion: result.motion, endState: `floater-cleared-${tier || 'notice'}` },
       });
       token.finish?.();
       return result;
     } catch (error) {
-      try { content.destroy({ children: true }); } catch { /* */ }
+      try { content.destroy({ children: true, context: true }); } catch { /* */ }
       span.finish?.('failed', { reason: 'presentation-error' });
       token.cancel?.();
       throw error;
@@ -347,14 +347,14 @@ export function createCombatPresentation({
         ? opts.holdMs
         : (reduced() ? 16 : 420);
       await new Promise((r) => setTimeout(r, Math.max(0, holdMs)));
-      plate.destroy({ children: true });
+      plate.destroy({ children: true, context: true });
       span.finish?.('settled', {
         attributes: { kind, motion: result.motion, endState: `banner-held-${kind}` },
       });
       token.finish?.();
       return result;
     } catch (error) {
-      try { plate.destroy({ children: true }); } catch { /* */ }
+      try { plate.destroy({ children: true, context: true }); } catch { /* */ }
       span.finish?.('failed', { reason: 'presentation-error' });
       token.cancel?.();
       throw error;
@@ -936,7 +936,7 @@ export function createCombatPresentation({
 
   async function clearHeld() {
     if (!held) return;
-    try { held.node.destroy({ children: true }); } catch { /* */ }
+    try { held.node.destroy({ children: true, context: true }); } catch { /* */ }
     held.span?.finish?.('settled', { attributes: { motion: 'normal' } });
     held.token?.finish?.();
     held = null;
@@ -945,7 +945,7 @@ export function createCombatPresentation({
   function destroy() {
     if (destroyed) return;
     destroyed = true;
-    try { root.destroy({ children: true }); } catch { /* */ }
+    try { root.destroy({ children: true, context: true }); } catch { /* */ }
   }
 
   return Object.freeze({
