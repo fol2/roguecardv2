@@ -69,6 +69,8 @@ export async function attachBehaviourTrace(page, testInfo) {
 
 // Record short-lived UI copy in the page so a loaded CI driver cannot miss an
 // otherwise-correct banner between Playwright polling turns.
+// Pixi combat banners push into `__seenTransientText` from createCombatPresentation;
+// the MutationObserver still covers any residual DOM `.turn-banner` (non-combat).
 export async function recordTransientText(page, selector = '.turn-banner') {
   await page.evaluate((transientSelector) => {
     window.__transientTextObserver?.disconnect();

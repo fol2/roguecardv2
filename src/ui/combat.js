@@ -1962,6 +1962,13 @@ function pixiPresentation() {
   return glRenderer()?.presentation || null;
 }
 
+/** Combat must never silently fall back to DOM `#floaties` / `.turn-banner`. */
+function rejectCombatDomCeremony(name, reason = 'pixi-presentation-missing') {
+  const span = trace.begin(name, { attributes: { reason } });
+  span.finish('failed', { reason });
+  return { outcome: 'rejected', reason };
+}
+
 function banner(text, opts = {}) {
   const pixi = pixiPresentation();
   if (pixi?.banner) {
@@ -1976,6 +1983,9 @@ function banner(text, opts = {}) {
       stageH: stageH(),
       ...opts,
     });
+  }
+  if (S.screen === 'combat') {
+    return rejectCombatDomCeremony('presentation.banner');
   }
   const token = presentationBarrier.begin('banner');
   const span = trace.begin('presentation.banner', {
@@ -2002,6 +2012,10 @@ function flyTo(x0, y0, x1, y1, opts = {}) {
   const pixi = pixiPresentation();
   if (pixi?.flyTo) {
     return pixi.flyTo(x0, y0, x1, y1, opts);
+  }
+  if (S.screen === 'combat') {
+    opts.done?.();
+    return rejectCombatDomCeremony('presentation.mote-flight');
   }
   const { n = 6, color = '#ffe9ac', size = 8, dur = 640, glyph = '', cls = 'flymote', done = null } = opts;
   const layer = $('#floaties');
@@ -2069,6 +2083,9 @@ function floatText(x, y, text, cls = '', opts = {}) {
   if (pixi?.floatText) {
     return pixi.floatText(x, y, text, cls, opts);
   }
+  if (S.screen === 'combat') {
+    return rejectCombatDomCeremony('presentation.floater');
+  }
   return V.floatText(x, y, text, cls, opts);
 }
 
@@ -2076,6 +2093,9 @@ function shatterVessel(el, opts = {}) {
   const pixi = pixiPresentation();
   if (pixi?.shatter) {
     return pixi.shatter(el, opts);
+  }
+  if (S.screen === 'combat') {
+    return rejectCombatDomCeremony('presentation.shatter');
   }
   return V.shatter(el, opts);
 }
@@ -2234,6 +2254,9 @@ function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
       ),
       policy: REDUCED ? { motion: 'reduced' } : undefined,
     });
+  }
+  if (S.screen === 'combat') {
+    return Promise.resolve(rejectCombatDomCeremony('presentation.card-flight'));
   }
   const layer = $('#floaties');
   const dest = V.centerOf(toEl);

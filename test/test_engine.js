@@ -527,6 +527,8 @@ function forceHand(run, cb, ids) {
     'drain combat floaters route through presentation.floatText');
   assert.doesNotMatch(drainSource, /#floaties|getElementById\('floaties'\)/,
     'drain leaves no combat DOM #floaties owners after Task 28');
+  assert.doesNotMatch(drainSource, /turn-banner|perfect-banner|variant-dialogue/,
+    'drain leaves no DOM combat banner class owners after Task 28 fixes');
   const navSource = readFileSync(new URL('../src/ui/navigation.js', import.meta.url), 'utf8');
   const contextSource = readFileSync(new URL('../src/ui/context.js', import.meta.url), 'utf8');
   assert.match(contextSource, /function releaseCardFacesIn\(/,
@@ -5993,6 +5995,50 @@ function randomAgentRun(seed) {
   assert.match(endSource, /dawnEventHtml/);
   assert.match(endSource, /drainEndQueue/);
   assert.match(endSource, /presentation\.dawn/);
+
+  // Declared pixi-combat owners for banner events must route through presentation.banner
+  // (no DOM `.turn-banner` / screenEl append) — inventory ↔ runtime parity.
+  function drainCaseBody(source, eventType) {
+    const start = source.indexOf(`case '${eventType}'`);
+    assert.ok(start >= 0, `missing drain case ${eventType}`);
+    const brace = source.indexOf('{', start);
+    let depth = 0;
+    for (let i = brace; i < source.length; i += 1) {
+      if (source[i] === '{') depth += 1;
+      else if (source[i] === '}') {
+        depth -= 1;
+        if (depth === 0) return source.slice(brace, i + 1);
+      }
+    }
+    throw new Error(`unclosed drain case ${eventType}`);
+  }
+  for (const eventType of ['bossIntro', 'variantDialogue']) {
+    assert.equal(ownerFor('combat', eventType), 'pixi-combat');
+    const body = drainCaseBody(drainSource, eventType);
+    assert.match(body, /presentation\.banner\s*\(/,
+      `${eventType} must call presentation.banner`);
+    assert.doesNotMatch(body, /turn-banner|screenEl\(\)\.appendChild/,
+      `${eventType} must not append a DOM turn-banner`);
+  }
+  const victoryBody = drainCaseBody(drainSource, 'victory');
+  assert.match(victoryBody, /presentation\.banner\s*\(/,
+    'perfect victory banner must use presentation.banner');
+  assert.doesNotMatch(victoryBody, /perfect-banner|turn-banner/,
+    'perfect victory must not use DOM .perfect-banner');
+
+  const replayPreviewSource = readFileSync(
+    new URL('../src/ui/dev/replay-preview.js', import.meta.url), 'utf8',
+  );
+  assert.match(replayPreviewSource, /createCombatPresentation/,
+    'Lab replay uses the shared combat presentation factory');
+  assert.doesNotMatch(replayPreviewSource, /lab-replay-card-flight|innerHTML/,
+    'Lab replay drops the separate DOM card-flight FACTORIES path');
+
+  const combatSourceForFloaties = readFileSync(
+    new URL('../src/ui/combat.js', import.meta.url), 'utf8',
+  );
+  assert.match(combatSourceForFloaties, /rejectCombatDomCeremony|pixi-presentation-missing/,
+    'combat rejects DOM floaties/banner fallback while S.screen === combat');
 }
 
 // ---- ui chrome helpers (pure) ----

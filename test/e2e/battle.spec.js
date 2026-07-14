@@ -113,10 +113,9 @@ test('Shade story fragment waits for defeat', async ({ page }) => {
   const errors = collectErrors(page);
   await boot(page, { query: 'mesh=0' });
   await recordTransientText(page);
-  const dialogue = page.locator('.variant-dialogue');
   await page.evaluate(() => window.spirebound.startCombatUI(['ownShade1'], 'monster'));
   await settle(page);
-  await expect(dialogue).toHaveCount(0);
+  expect(await page.locator('.variant-dialogue, .turn-banner').count()).toBe(0);
   expect(await page.evaluate(() => window.__seenTransientText
     .some((text) => text.includes('I remember the stone')))).toBe(false);
 
@@ -128,6 +127,7 @@ test('Shade story fragment waits for defeat', async ({ page }) => {
   await page.evaluate((cardUid) => window.__probe.play(cardUid, 0), uid);
   await waitForTransientText(page, 'I remember the stone');
   await settle(page);
+  expect(await page.locator('.variant-dialogue, .turn-banner').count()).toBe(0);
   expectNoErrors(errors, 'Shade death fragment');
 });
 

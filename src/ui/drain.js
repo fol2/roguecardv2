@@ -281,29 +281,22 @@ async function handleEvent(ev, targetIdx) {
       // Name plate only — rose-window behind it read as a second overlapping intro.
       const bossLabel = String(ev.name || cb.enemies[0]?.name || '').toUpperCase();
       const sp = bossLabel.indexOf(' ');
-      const bossHtml = sp < 0
-        ? escHtml(bossLabel)
-        : `${escHtml(bossLabel.slice(0, sp))}<br>${escHtml(bossLabel.slice(sp + 1))}`;
-      const b = el('div', 'turn-banner boss-banner', `<span class="bb-name">${bossHtml}</span>`);
+      const bossText = sp < 0
+        ? bossLabel
+        : `${bossLabel.slice(0, sp)}\n${bossLabel.slice(sp + 1)}`;
       const duration = REDUCED ? 80 : 2100;
-      if (REDUCED) b.style.animation = 'none';
-      screenEl().appendChild(b);
-      setTimeout(() => b.remove(), duration);
       if (!REDUCED) {
         V.flash('#1a0a20', 0.5, 0.9);
         kick(1.6);
       }
       sfx.bigDeath();
-      await sleep(duration);
+      await presentation.banner(bossText, { kind: 'boss', holdMs: duration });
       break;
     }
     case 'variantDialogue': {
-      const b = el('div', 'turn-banner variant-dialogue', escHtml(ev.text));
+      // Plain text only — never copy dialogue copy into the behaviour trace.
       const duration = REDUCED ? 80 : 1800;
-      if (REDUCED) b.style.animation = 'none';
-      screenEl().appendChild(b);
-      setTimeout(() => b.remove(), duration);
-      await sleep(duration);
+      await presentation.banner(String(ev.text || ''), { kind: 'variant', holdMs: duration });
       break;
     }
     case 'chip': {
@@ -931,22 +924,11 @@ async function handleEvent(ev, targetIdx) {
       sfx.victory();
       V.flash('#ffe9ac', 0.16, 0.6);
       if (ev.perfect) {
-        const token = presentationBarrier.begin('perfect-banner');
-        const span = trace.begin('presentation.banner', { attributes: { kind: 'perfect' } });
-        const b = el('div', 'turn-banner perfect-banner', tr('ui.combat.perfectBanner'));
-        screenEl().appendChild(b);
-        setTimeout(() => {
-          try {
-            b.remove();
-            span.finish('settled');
-          } catch (error) {
-            span.finish('failed', { reason: 'presentation-error' });
-            throw error;
-          } finally {
-            token.finish();
-          }
-        }, 1400);
-        await sleep(500);
+        await presentation.banner(tr('ui.combat.perfectBanner'), {
+          kind: 'perfect',
+          holdMs: REDUCED ? 80 : 1400,
+        });
+        await sleep(REDUCED ? 40 : 500);
       }
       break;
     }

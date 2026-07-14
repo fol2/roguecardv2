@@ -212,14 +212,26 @@ test.describe('combat presentation ceremonies', () => {
       for (const tier of tiers) {
         await pres.floatText(400, 300, tier === 'normal' ? '6' : tier === 'heavy' ? '18' : tier === 'kill' ? '12' : '24', tier, { holdForSample: true });
         const sample = await pres.sampleContrast({ kind: 'floater', tier });
-        out.push({ kind: 'floater', tier, ratio: sample?.ratio ?? 0 });
+        out.push({
+          kind: 'floater',
+          tier,
+          ratio: sample?.ratio ?? 0,
+          measured: !!sample?.measured,
+          source: sample?.source || null,
+        });
         await pres.clearHeld?.();
       }
       for (const kind of ['turn', 'boss', 'guard-shattered']) {
         const text = kind === 'turn' ? 'YOUR TURN' : kind === 'boss' ? 'BOSS' : 'SHATTER';
         await pres.banner(text, { kind, holdForSample: true });
         const sample = await pres.sampleContrast({ kind: 'banner', bannerKind: kind });
-        out.push({ kind: 'banner', tier: kind, ratio: sample?.ratio ?? 0 });
+        out.push({
+          kind: 'banner',
+          tier: kind,
+          ratio: sample?.ratio ?? 0,
+          measured: !!sample?.measured,
+          source: sample?.source || null,
+        });
         await pres.clearHeld?.();
       }
       return {
@@ -234,6 +246,8 @@ test.describe('combat presentation ceremonies', () => {
     expect(samples.floaties).toBe(0);
     expect(samples.turnBanners).toBe(0);
     for (const s of samples.samples) {
+      expect(s.measured, `${s.kind}/${s.tier} measured`).toBe(true);
+      expect(s.source, `${s.kind}/${s.tier} source`).toBe('pixels');
       expect(s.ratio, `${s.kind}/${s.tier}`).toBeGreaterThanOrEqual(4.5);
     }
     expectNoErrors(errors, 'damage/banner contrast');

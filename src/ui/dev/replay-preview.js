@@ -1,32 +1,81 @@
 // Isolated Lab replay preview — descriptor data only; no engine/persistence.
-// Resolves `kind` through a fixed presentation-factory map and disposes cleanly.
+// Combat ceremonies reuse createCombatPresentation (same factory as combat-gl).
+
+import { Application, Container } from 'pixi.js';
+import { createCombatPresentation } from '../combat-presentation.js';
+
+/**
+ * Thin adapter: boot an ephemeral Pixi app + createCombatPresentation, run the
+ * ceremony, dispose without mutating the live combat engine.
+ * @param {HTMLElement} host
+ * @param {object} descriptor
+ * @returns {Promise<() => void>}
+ */
+async function replayCardFlight(host, descriptor) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 320;
+  canvas.height = 220;
+  canvas.className = 'lab-replay-canvas';
+  canvas.setAttribute('data-replay-kind', 'card-flight');
+  host.appendChild(canvas);
+
+  const app = new Application();
+  await app.init({
+    canvas,
+    width: 320,
+    height: 220,
+    backgroundAlpha: 0,
+    antialias: false,
+    autoDensity: false,
+    preference: 'webgl',
+  });
+  const parent = new Container();
+  parent.label = 'lab-replay-root';
+  app.stage.addChild(parent);
+
+  const presentation = createCombatPresentation({
+    parent,
+    canvas,
+    pixiApp: app,
+    policy: () => ({
+      tier: 'full',
+      motion: descriptor.parameters?.motion === 'reduced' ? 'reduced' : 'full',
+    }),
+  });
+
+  const contentId = descriptor.subject?.contentId || 'strike';
+  const upgraded = !!descriptor.subject?.upgraded;
+  const fromList = [{
+    x: 48,
+    y: 170,
+    w: 64,
+    h: 96,
+    inst: { id: contentId, up: upgraded, uid: 'lab-replay-0' },
+  }];
+  const dest = { x: 260, y: 48 };
+  const flight = presentation.flyCardBacks(fromList, dest, {
+    ceremony: 'discard',
+    face: 'back',
+    uids: ['lab-replay-0'],
+    budgetMs: 440,
+  });
+
+  // Keep the settled ceremony visible until Lab dispose — do not auto-clear.
+  await Promise.resolve(flight).catch(() => {});
+
+  let disposed = false;
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    try { presentation.destroy(); } catch { /* */ }
+    try { app.destroy(true); } catch { /* */ }
+    try { canvas.remove(); } catch { /* */ }
+  };
+}
 
 const FACTORIES = Object.freeze({
-  'card-flight': (host, descriptor) => {
-    const subject = descriptor.subject || {};
-    const panel = document.createElement('div');
-    panel.className = 'lab-replay-card-flight';
-    panel.setAttribute('data-replay-kind', 'card-flight');
-    panel.innerHTML = `<div class="lab-replay-card" data-content-id="${escapeAttr(subject.contentId || '')}" data-upgraded="${subject.upgraded ? '1' : '0'}">
-      <span class="lab-replay-card-id">${escapeText(subject.contentId || 'card')}</span>
-      <span class="lab-replay-card-dest">${escapeText(descriptor.endState?.destination || '')}</span>
-    </div>`;
-    host.appendChild(panel);
-    // Brief motion for presence — CSS class drives a short transform.
-    requestAnimationFrame(() => panel.classList.add('lab-replay-run'));
-    return () => { panel.remove(); };
-  },
+  'card-flight': replayCardFlight,
 });
-
-function escapeAttr(value) {
-  return String(value).replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[ch]));
-}
-
-function escapeText(value) {
-  return escapeAttr(value);
-}
 
 /**
  * @param {HTMLElement} host
@@ -46,8 +95,36 @@ export function renderReplayPreview(host, descriptor) {
   if (typeof factory !== 'function') {
     return { ok: false, reason: 'unsupported-presentation' };
   }
-  const dispose = factory(host, descriptor) || (() => {});
-  return { ok: true, dispose };
+
+  let disposeFn = () => {};
+  let cancelled = false;
+  const marker = document.createElement('div');
+  marker.className = 'lab-replay-pending';
+  marker.setAttribute('data-replay-kind', String(kind));
+  host.appendChild(marker);
+
+  Promise.resolve()
+    .then(() => factory(host, descriptor))
+    .then((dispose) => {
+      if (cancelled) {
+        try { dispose?.(); } catch { /* */ }
+        return;
+      }
+      try { marker.remove(); } catch { /* */ }
+      disposeFn = typeof dispose === 'function' ? dispose : () => {};
+    })
+    .catch(() => {
+      try { marker.remove(); } catch { /* */ }
+    });
+
+  return {
+    ok: true,
+    dispose: () => {
+      cancelled = true;
+      try { disposeFn(); } catch { /* */ }
+      host.replaceChildren();
+    },
+  };
 }
 
 export function supportedReplayKinds() {

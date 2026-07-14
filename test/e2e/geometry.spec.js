@@ -680,8 +680,33 @@ for (const variant of [
     if (variant.id === 'usurpedSovereign') {
       await page.evaluate(([id, kind]) => window.spirebound.startCombatUI([id], kind),
         [variant.id, 'boss']);
-      await page.waitForSelector('.variant-dialogue', { state: 'visible' });
-      expect(await outsideStage(page, '.variant-dialogue'),
+      // Pixi banner — wait for live ceremony node, not DOM `.variant-dialogue`.
+      await page.waitForFunction(() => {
+        const root = window.spirebound?.combatGl?.presentation?.root?.();
+        if (!root?.children) return false;
+        const layer = [...root.children].find((c) => c.label === 'pres-banners');
+        return (layer?.children?.length || 0) > 0;
+      }, null, { timeout: 15_000 });
+      const bannerGeom = await page.evaluate(() => {
+        const stage = window.__probe.stage();
+        const root = window.spirebound.combatGl.presentation.root();
+        const layer = [...root.children].find((c) => c.label === 'pres-banners');
+        const plate = layer?.children?.[0];
+        if (!plate?.getBounds) return { ok: false };
+        const b = plate.getBounds();
+        const outside = [];
+        if (b.x < -2 || b.y < -2) outside.push('neg');
+        if (b.x + b.width > stage.w + 2) outside.push('right');
+        if (b.y + b.height > stage.h + 2) outside.push('bottom');
+        return {
+          ok: true,
+          outside,
+          domBanners: document.querySelectorAll('.variant-dialogue, .turn-banner').length,
+        };
+      });
+      expect(bannerGeom.ok).toBe(true);
+      expect(bannerGeom.domBanners).toBe(0);
+      expect(bannerGeom.outside,
         'variant dialogue stays visible and bounded during its real playback window').toEqual([]);
       await settle(page);
     } else {

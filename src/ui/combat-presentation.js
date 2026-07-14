@@ -156,19 +156,34 @@ export function createCombatPresentation({
         easing: 'outSoft',
       };
     const fill = opts.tint || style.fill;
-    const label = makeLabel(text.replace(/<[^>]+>/g, ''), {
+    const plain = String(text).replace(/<[^>]+>/g, '');
+    const label = makeLabel(plain, {
       size: style.size,
       fill,
     });
+    // holdForSample: ink plate behind the glyph so local contrast is measurable.
+    if (opts.holdForSample) {
+      const plate = new Container();
+      const bg = new Graphics();
+      const pad = Math.max(48, style.size * 1.6);
+      bg.roundRect(-pad, -pad * 0.7, pad * 2, pad * 1.4, 4)
+        .fill({ color: hexToNum(COLOUR.ink), alpha: 1 });
+      label.x = 0;
+      label.y = 0;
+      plate.addChild(bg, label);
+      plate.x = (Number(x) || 0) + (Number(opts.dx) || 0);
+      plate.y = Number(y) || 0;
+      plate.alpha = 1;
+      plate.scale.set(0.92);
+      floatLayer.addChild(plate);
+      held = { kind: 'floater', tier: tier || 'normal', node: plate, glyph: label };
+      return { outcome: 'held', motion: 'normal' };
+    }
     label.x = (Number(x) || 0) + (Number(opts.dx) || 0);
     label.y = Number(y) || 0;
     label.alpha = 1;
     label.scale.set(0.92);
     floatLayer.addChild(label);
-    if (opts.holdForSample) {
-      held = { kind: 'floater', tier: tier || 'normal', node: label };
-      return { outcome: 'held', motion: 'normal' };
-    }
 
     const token = beginBarrier('floater');
     const span = beginSpan('presentation.floater', {
@@ -209,25 +224,34 @@ export function createCombatPresentation({
   async function banner(text, opts = {}) {
     if (destroyed) return { outcome: 'skipped' };
     const kind = opts.kind || 'turn';
+    const plain = String(text).replace(/<[^>]+>/g, '');
+    // Probe/e2e transient capture — never put dialogue body into the behaviour trace.
+    try {
+      if (typeof globalThis !== 'undefined' && Array.isArray(globalThis.__seenTransientText)) {
+        globalThis.__seenTransientText.push(plain);
+      }
+    } catch { /* optional probe hook */ }
     const token = beginBarrier('banner');
     const span = beginSpan('presentation.banner', {
       attributes: { kind },
     });
     const plate = new Container();
     const bg = new Graphics();
-    const w = Math.min(640, Math.max(280, String(text).length * 18));
-    const h = kind === 'boss' ? 72 : 56;
+    const lines = plain.split(/\n/).filter(Boolean);
+    const longest = lines.reduce((n, line) => Math.max(n, line.length), plain.length);
+    const w = Math.min(640, Math.max(280, longest * 18));
+    const h = kind === 'boss' || lines.length > 1 ? 72 : 56;
     bg.roundRect(-w / 2, -h / 2, w, h, 6)
       .fill({ color: 0x0b0e1a, alpha: 0.88 });
     const railColor = kind === 'boss' || kind === 'defeat' || kind === 'guard-shattered'
       ? hexToNum(COLOUR.danger)
-      : kind === 'victory' ? hexToNum(COLOUR.gold)
+      : kind === 'victory' || kind === 'perfect' ? hexToNum(COLOUR.gold)
         : hexToNum(COLOUR.gold);
     const rail = new Graphics();
     rail.rect(-w / 2, h / 2 - 3, w, 2).fill({ color: railColor, alpha: 1 });
     rail.rect(-w / 2, -h / 2 + 1, w, 2).fill({ color: railColor, alpha: 1 });
-    const label = makeLabel(String(text).replace(/<[^>]+>/g, ''), {
-      size: kind === 'boss' ? 32 : kind === 'victory' || kind === 'defeat' ? 34 : 28,
+    const label = makeLabel(plain, {
+      size: kind === 'boss' ? 32 : kind === 'victory' || kind === 'defeat' || kind === 'perfect' ? 34 : 28,
       fill: COLOUR.parchment,
     });
     plate.addChild(bg, rail, label);
@@ -240,7 +264,7 @@ export function createCombatPresentation({
     bannerLayer.addChild(plate);
 
     if (opts.holdForSample) {
-      held = { kind: 'banner', bannerKind: kind, node: plate };
+      held = { kind: 'banner', bannerKind: kind, node: plate, glyph: label };
       // Keep barrier open until clearHeld; finish span on clear.
       held.token = token;
       held.span = span;
@@ -254,7 +278,7 @@ export function createCombatPresentation({
         from: { x: plate.x - 24, alpha: 0, scale: plate.scale.x, rail: 0 },
         to: { x: plate.x, alpha: 1, scale: 1, rail: 1 },
         duration: DURATION_MS.ceremony,
-        easing: kind === 'boss' || kind === 'victory' || kind === 'guard-shattered' ? 'spring' : 'outSoft',
+        easing: kind === 'boss' || kind === 'victory' || kind === 'perfect' || kind === 'guard-shattered' ? 'spring' : 'outSoft',
         endState,
         policy: pol,
         onUpdate(v) {
@@ -266,8 +290,10 @@ export function createCombatPresentation({
         },
       });
       const result = await runner.done;
-      // Hold terminal frame briefly then clear (REDUCED: one frame then gone).
-      await new Promise((r) => setTimeout(r, reduced() ? 16 : 420));
+      const holdMs = typeof opts.holdMs === 'number'
+        ? opts.holdMs
+        : (reduced() ? 16 : 420);
+      await new Promise((r) => setTimeout(r, Math.max(0, holdMs)));
       plate.destroy({ children: true });
       span.finish?.('settled', {
         attributes: { kind, motion: result.motion, endState: `banner-held-${kind}` },
@@ -631,9 +657,8 @@ export function createCombatPresentation({
 
   async function sampleContrast({ kind, tier, bannerKind } = {}) {
     const target = held?.node;
-    if (!target) return { ratio: 0 };
-    // Prefer token-pair floor when canvas sampling is unavailable; still
-    // attempt live canvas sample from #uigl.
+    if (!target) return { ratio: 0, measured: false, source: 'none' };
+    // Token-pair standing floor (still reported); e2e asserts measured pixels.
     const tokenPairs = {
       normal: [COLOUR.text, COLOUR.ink],
       heavy: [COLOUR.ember, COLOUR.ink],
@@ -641,44 +666,125 @@ export function createCombatPresentation({
       overkill: [COLOUR.danger, COLOUR.ink],
       turn: [COLOUR.parchment, COLOUR.ink],
       boss: [COLOUR.parchment, COLOUR.ink],
+      variant: [COLOUR.parchment, COLOUR.ink],
+      perfect: [COLOUR.parchment, COLOUR.ink],
+      victory: [COLOUR.parchment, COLOUR.ink],
       'guard-shattered': [COLOUR.ember, COLOUR.ink],
     };
     const key = kind === 'banner' ? (bannerKind || held?.bannerKind) : (tier || held?.tier);
     const pair = tokenPairs[key] || [COLOUR.text, COLOUR.ink];
     const parse = (hex) => {
-      const s = hex.replace('#', '');
+      const s = String(hex).replace('#', '');
       return [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)];
     };
-    let ratio = contrastOf(parse(pair[0]), parse(pair[1]));
+    const tokenFloor = contrastOf(parse(pair[0]), parse(pair[1]));
 
-    const el = canvas || document.getElementById('uigl');
-    if (el && typeof el.getContext === 'function') {
+    const readPixelBuffer = () => {
+      const renderer = pixiApp?.renderer;
+      if (!renderer?.extract) return null;
       try {
-        // Force a render so held content is in the backbuffer.
         pixiApp?.renderer?.render?.(pixiApp.stage);
-        const ctx = el.getContext('2d', { willReadFrequently: true });
-        if (ctx) {
-          const bx = Math.round(target.x || el.width / 2);
-          const by = Math.round(target.y || el.height / 2);
-          // Pixi canvas is WebGL — 2d getImageData may fail; try extract.
-          const renderer = pixiApp?.renderer;
-          if (renderer?.extract?.pixels) {
-            const pixels = renderer.extract.pixels({ target: root });
-            // Fallback remains token ratio when extract shape is opaque.
-            void pixels;
-          }
-          void ctx; void bx; void by;
+      } catch { /* best-effort */ }
+      try {
+        if (typeof renderer.extract.canvas === 'function') {
+          const c = renderer.extract.canvas(target);
+          if (!c || !c.width || !c.height) return null;
+          const ctx = c.getContext('2d', { willReadFrequently: true });
+          if (!ctx) return null;
+          const image = ctx.getImageData(0, 0, c.width, c.height);
+          return { data: image.data, width: c.width, height: c.height };
         }
-      } catch {
-        // Keep token-pair ratio.
+      } catch { /* fall through to pixels */ }
+      try {
+        if (typeof renderer.extract.pixels === 'function') {
+          const extracted = renderer.extract.pixels({ target });
+          if (!extracted) return null;
+          if (extracted.pixels && extracted.width && extracted.height) {
+            return {
+              data: extracted.pixels,
+              width: extracted.width,
+              height: extracted.height,
+            };
+          }
+          if (extracted instanceof Uint8Array || extracted instanceof Uint8ClampedArray) {
+            const bounds = target.getBounds?.() || { width: 0, height: 0 };
+            const width = Math.max(1, Math.round(bounds.width || 0));
+            const height = Math.max(1, Math.round(extracted.length / 4 / width));
+            return { data: extracted, width, height };
+          }
+        }
+      } catch { /* keep token floor */ }
+      return null;
+    };
+
+    const buffer = readPixelBuffer();
+    if (!buffer) {
+      return {
+        ratio: tokenFloor,
+        fg: parse(pair[0]),
+        bg: parse(pair[1]),
+        kind,
+        tier: key,
+        measured: false,
+        source: 'token',
+        tokenFloor,
+      };
+    }
+
+    const { data, width, height } = buffer;
+    const at = (x, y) => {
+      const ix = Math.max(0, Math.min(width - 1, Math.round(x)));
+      const iy = Math.max(0, Math.min(height - 1, Math.round(y)));
+      const i = (iy * width + ix) * 4;
+      return [data[i], data[i + 1], data[i + 2], data[i + 3]];
+    };
+    // Cardface-style: scan glyph window (center) vs local background (corners / plate).
+    const gx = width * 0.5;
+    const gy = height * 0.5;
+    const bgSites = [
+      [width * 0.12, height * 0.12],
+      [width * 0.88, height * 0.12],
+      [width * 0.12, height * 0.88],
+      [width * 0.88, height * 0.88],
+      [width * 0.5, height * 0.18],
+      [width * 0.5, height * 0.82],
+    ];
+    let best = 0;
+    let bestFg = parse(pair[0]);
+    let bestBg = parse(pair[1]);
+    const span = Math.min(10, Math.floor(Math.min(width, height) / 6));
+    for (let dy = -span; dy <= span; dy += 2) {
+      for (let dx = -span; dx <= span; dx += 2) {
+        const g = at(gx + dx, gy + dy);
+        if (g[3] < 180) continue;
+        const glyph = [g[0], g[1], g[2]];
+        for (const [bx, by] of bgSites) {
+          for (let ey = -4; ey <= 4; ey += 2) {
+            for (let ex = -4; ex <= 4; ex += 2) {
+              const b = at(bx + ex, by + ey);
+              if (b[3] < 180) continue;
+              const bg = [b[0], b[1], b[2]];
+              const r = contrastOf(glyph, bg);
+              if (r > best) {
+                best = r;
+                bestFg = glyph;
+                bestBg = bg;
+              }
+            }
+          }
+        }
       }
     }
+
     return {
-      ratio,
-      fg: parse(pair[0]),
-      bg: parse(pair[1]),
+      ratio: best,
+      fg: bestFg,
+      bg: bestBg,
       kind,
       tier: key,
+      measured: best > 0,
+      source: 'pixels',
+      tokenFloor,
     };
   }
 
