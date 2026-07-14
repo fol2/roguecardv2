@@ -402,7 +402,12 @@ test('Vigil deed rows release listIn without a sticky filter/transform', async (
     }));
   });
   await page.reload();
-  await page.waitForFunction(() => window.spirebound && window.__probe);
+  // initUI sets __probe before awaiting Pixi, then ends with show('title').
+  // Wait for that terminal title paint so show('vigil') is not overwritten.
+  await page.waitForFunction(() =>
+    window.spirebound?.pixi?.status() === 'ready'
+    && window.spirebound?.S?.screen === 'title'
+    && document.querySelector('.title-screen, [data-a="vigil"]'), null, { timeout: 15_000 });
   await page.evaluate(() => window.spirebound.show('vigil'));
   await page.waitForSelector('.deed-list .deed-row');
   await page.waitForTimeout(700);

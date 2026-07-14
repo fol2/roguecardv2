@@ -57,6 +57,15 @@ export default defineConfig({
       grep: /Save writes layout to disk/,
       use: { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 },
     },
+    // Mutates src/ui-chrome-layout.js through the real /__bfui-save endpoint.
+    // Not a dependency of desktop/portrait/landscape — nested under test:e2e:disk
+    // with a fresh strict port after bfeditor-disk (never under --no-deps).
+    {
+      name: 'bfuieditor-disk',
+      testMatch: /bfuieditor\.spec\.js/,
+      grep: /Save writes ui-chrome-layout\.js to disk/,
+      use: { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 },
+    },
     {
       name: 'content-manager-disk',
       testMatch: /content-manager\.spec\.js/,

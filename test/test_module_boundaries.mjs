@@ -63,6 +63,14 @@ assert.doesNotMatch(musicResolveSource, /behaviour-trace|\bdocument\b|\bwindow\b
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 assert.equal(packageJson.scripts['test:e2e'], 'npm run test:e2e:nonvisual && npm run test:e2e:visual');
 assert.equal(packageJson.scripts['test:e2e:nonvisual'], 'npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:main && npm run test:e2e:serial');
+assert.equal(
+  packageJson.scripts['test:e2e:bfuieditor-disk'],
+  'playwright test bfuieditor --project=bfuieditor-disk --workers=1',
+);
+assert.equal(
+  packageJson.scripts['test:e2e:disk'],
+  'playwright test bfeditor --project=bfeditor-disk --workers=1 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:bfuieditor-disk',
+);
 assert.equal(packageJson.scripts['content:compile'], 'node tools/compile-content-registrations.mjs');
 assert.equal(packageJson.scripts['test:content-registrations'], 'node tools/compile-content-registrations.mjs --check');
 assert.equal(

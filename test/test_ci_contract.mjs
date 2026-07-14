@@ -173,6 +173,14 @@ const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url),
 assert.equal(pkg.scripts['test:e2e'], 'npm run test:e2e:nonvisual && npm run test:e2e:visual');
 assert.equal(pkg.scripts['test:e2e:nonvisual'],
   'npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:main && npm run test:e2e:serial');
+assert.equal(
+  pkg.scripts['test:e2e:bfuieditor-disk'],
+  'playwright test bfuieditor --project=bfuieditor-disk --workers=1',
+);
+assert.equal(
+  pkg.scripts['test:e2e:disk'],
+  'playwright test bfeditor --project=bfeditor-disk --workers=1 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:bfuieditor-disk',
+);
 assert.match(pkg.scripts['test:e2e:audio'], /^playwright test audio /);
 assert.match(pkg.scripts['test:e2e:battle'], /^playwright test battle /);
 assert.match(pkg.scripts['test:e2e:emberglass'], /emberglass emberglass-persistence/);
@@ -206,6 +214,14 @@ assert.match(
 assert.match(playwright, /name:\s*'desktop'/);
 assert.match(playwright, /name:\s*'portrait'/);
 assert.match(playwright, /name:\s*'landscape'/);
+assert.match(playwright, /name:\s*'bfeditor-disk'/);
+assert.match(playwright, /name:\s*'bfuieditor-disk'/);
+assert.match(playwright, /testMatch:\s*\/bfuieditor\\.spec\\.js\//);
+assert.doesNotMatch(
+  playwright,
+  /name:\s*'desktop',\s*dependencies:\s*\[[^\]]*bfuieditor-disk/,
+  'bfuieditor-disk must not be a dependency of desktop (nested under test:e2e:disk only)',
+);
 
 const strict = e2eServerSettings('59123');
 assert.equal(strict.port, 59123);

@@ -730,6 +730,149 @@ test.describe('Round 5 production Pixi layer', () => {
     await expect(page.locator('#overlay.open .ov-title')).toHaveText('Draw Pile');
   });
 
+  test('Task 22c DOM inventory: Pixi owns chrome paint; hit proxies stay contentless', async ({ page }) => {
+    test.skip(test.info().project.name !== 'desktop', 'DOM inventory is desktop-shaped');
+    await bootProduction(page);
+    const inventory = await page.evaluate(async () => {
+      await window.__probe.stageCoreTheme({ themeId: 'act1' });
+      const { S, E } = window.spirebound;
+      E.gainPotion(S.run, 'healing');
+      S.run.player.relics = ['emberHeart'];
+      const ids = S.cb.enemies.map((en) => en.key);
+      window.spirebound.startCombatUI(ids, 'monster');
+      await window.__probe.settle();
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+      const kidsPaintHidden = (node) => {
+        if (!node) return true;
+        const kids = [...node.children];
+        if (!kids.length) {
+          const st = getComputedStyle(node);
+          return st.visibility === 'hidden'
+            || st.display === 'none'
+            || Number(st.opacity) === 0
+            || ((st.color === 'rgba(0, 0, 0, 0)' || st.color === 'transparent')
+              && (st.backgroundColor === 'rgba(0, 0, 0, 0)' || st.backgroundColor === 'transparent')
+              && (!st.backgroundImage || st.backgroundImage === 'none'));
+        }
+        return kids.every((k) => {
+          const st = getComputedStyle(k);
+          return st.visibility === 'hidden' || Number(st.opacity) === 0 || st.display === 'none';
+        });
+      };
+
+      const proxyPaintFree = (el) => {
+        if (!el) return false;
+        if ((el.textContent || '').trim()) return false;
+        if (el.querySelector('img, svg, canvas, video, picture')) return false;
+        const st = getComputedStyle(el);
+        const bg = st.backgroundColor;
+        if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') return false;
+        if (st.backgroundImage && st.backgroundImage !== 'none') return false;
+        if (Number(st.opacity) < 1 && Number(st.opacity) > 0) {
+          // translucent paint still counts as visible chrome
+          if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') return false;
+        }
+        return true;
+      };
+
+      const ALLOWED_PROXY = /^(lantern|end-turn|draw|discard|ashes|deck|menu|omen|potion-\d+|relic-.+)$/;
+      const host = document.getElementById('combat-hit-proxies');
+      const proxyNodes = host ? [...host.querySelectorAll('[data-proxy]')] : [];
+      const proxyKeys = proxyNodes.map((el) => el.getAttribute('data-proxy'));
+      const ui = window.__probe.ui();
+      const readUI = window.spirebound.combatGl?.readUI?.();
+      const candle = readUI?.candleFrame?.bounds;
+      const isIntegral = (n) => Number.isFinite(n) && Math.abs(n - Math.round(n)) < 1e-9;
+
+      return {
+        uiVersion: ui?.version ?? null,
+        rendererKind: ui?.renderer?.kind ?? null,
+        handCards: document.querySelectorAll('.hand-zone .card').length,
+        combatClasses: document.querySelector('.combat-screen')?.className ?? '',
+        hudClasses: document.getElementById('hud')?.className ?? '',
+        visualChromeHidden: {
+          energy: kidsPaintHidden(document.querySelector('.energy-orb')),
+          lantern: kidsPaintHidden(document.querySelector('.lantern-btn')),
+          endTurn: kidsPaintHidden(document.querySelector('.end-turn')),
+          piles: [...document.querySelectorAll('.pile-btn')].every(kidsPaintHidden),
+          hudBar: kidsPaintHidden(document.querySelector('#hud .hud-bar')),
+          potions: [...document.querySelectorAll('#hud .potion-slot')].every(kidsPaintHidden),
+          relics: kidsPaintHidden(document.querySelector('#relicbar'))
+            || [...document.querySelectorAll('#hud .hud-relic')].every(kidsPaintHidden),
+          statuses: [...document.querySelectorAll('.status-row, .p-status')].every(kidsPaintHidden),
+          names: [...document.querySelectorAll('.cplate .name')].every(kidsPaintHidden),
+          affix: [...document.querySelectorAll('.affix-name')].every(kidsPaintHidden),
+          hpWard: [...document.querySelectorAll('.hp-label, .block-chip, .hp-vial')].every(kidsPaintHidden),
+          facets: [...document.querySelectorAll('.facet-row')].every(kidsPaintHidden),
+          intents: [...document.querySelectorAll('.intent')].every(kidsPaintHidden),
+        },
+        proxyHostPresent: !!host,
+        proxyKeys,
+        proxyKeysAllowed: proxyKeys.every((k) => ALLOWED_PROXY.test(k)),
+        proxiesPaintFree: proxyNodes.every(proxyPaintFree),
+        requiredProxies: ['lantern', 'end-turn', 'draw', 'discard', 'ashes', 'deck', 'menu']
+          .every((k) => proxyKeys.includes(k)),
+        candleFrameIntegral: candle
+          ? ['left', 'top', 'width', 'height'].every((k) => isIntegral(candle[k]))
+          : false,
+        candleFrameW: candle?.width ?? null,
+      };
+    });
+
+    expect(inventory.uiVersion).toBe(2);
+    expect(inventory.rendererKind).toBe('pixi');
+    expect(inventory.handCards).toBeGreaterThan(0);
+    expect(inventory.combatClasses).toMatch(/pixi-bottom-chrome/);
+    expect(inventory.combatClasses).toMatch(/pixi-plate-chrome/);
+    expect(inventory.hudClasses).toMatch(/pixi-hud-chrome/);
+    for (const [key, hidden] of Object.entries(inventory.visualChromeHidden)) {
+      expect(hidden, `DOM visual chrome hidden: ${key}`).toBe(true);
+    }
+    expect(inventory.proxyHostPresent).toBe(true);
+    expect(inventory.proxyKeysAllowed).toBe(true);
+    expect(inventory.requiredProxies).toBe(true);
+    expect(inventory.proxiesPaintFree).toBe(true);
+    expect(inventory.candleFrameIntegral).toBe(true);
+    expect(inventory.candleFrameW).toBe(120);
+  });
+
+  test('Task 22c five stage shapes map to authored candle frames', async ({ page }) => {
+    test.skip(test.info().project.name !== 'desktop', 'shape sweep forces ?shape= on desktop');
+    const expected = {
+      'desktop-landscape': 120,
+      'pad-landscape': 120,
+      'pad-portrait': 102,
+      'phone-portrait': 84,
+      'phone-landscape': 72,
+    };
+    for (const [shape, frameW] of Object.entries(expected)) {
+      await page.goto(`/?shape=${shape}&mesh=0`);
+      await page.waitForFunction(() => window.spirebound?.pixi?.status() === 'ready', null, {
+        timeout: 15_000,
+      });
+      const measured = await page.evaluate(async (wantShape) => {
+        window.spirebound.S.run = window.spirebound.E.newRun(20260706, { aspect: 0 });
+        window.spirebound.startCombatUI(['duskfang'], 'normal');
+        await window.__probe.settle();
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const ui = window.__probe.ui();
+        const cf = window.spirebound.combatGl?.readUI?.()?.candleFrame;
+        return {
+          shape: window.__probe.stage().shape,
+          uiVersion: ui?.version ?? null,
+          kind: ui?.renderer?.kind ?? null,
+          frameW: cf?.bounds?.width ?? null,
+          wantShape,
+        };
+      }, shape);
+      expect(measured.shape, `${shape} stage`).toBe(shape);
+      expect(measured.uiVersion).toBe(2);
+      expect(measured.kind).toBe('pixi');
+      expect(measured.frameW, `${shape} candle frame`).toBe(frameW);
+    }
+  });
+
   test('font requests are same-origin and complete before renderer.ready with measurable Cinzel/Alegreya proof', async ({ page }) => {
     const { fontRequests } = await bootProduction(page);
     expect(fontRequests.length).toBeGreaterThanOrEqual(7);
