@@ -83,8 +83,8 @@ Cumulative P4 evidence includes frozen Task 6 trace fixtures (comparison-only), 
 _Avoid_: inflating `maxDiffPixelRatio`, treating `PERF_WARNING` as a hard fail, actual-Safari claims
 
 **P5 combat gates**:
-Combat DOM is the P5 allowed-list (stage plates, combatants + aim/mesh overlays, `#uigl`, `#vfx`, tooltip/pop/toast mounts, empty structural hosts). `test:e2e:leak` owns host-relative card-face cache/texture counts and Chromium CDP heap growth; WebKit retains cache/count only. Combat visuals use suite key `p5Cards` at fixed `0.01`.
-_Avoid_: `?uigl=0`, silent DOM ceremony fallbacks, raising visual tolerance
+Combat DOM is the P5 allowed-list (stage plates, combatants + aim/mesh overlays, `#uigl`, `#vfx`, tooltip/pop/toast mounts, empty structural hosts). `test:e2e:leak` owns host-relative card-face cache/texture counts and Chromium CDP heap growth; WebKit retains cache/count only. Combat visuals use suite key `p5Cards` at fixed `0.01`. Entry gzip budget rebaselined to `507904` via the frozen Task 21 formula `ceil(measured*1.10/1024)*1024` after card-face/hand/ceremony growth.
+_Avoid_: `?uigl=0`, silent DOM ceremony fallbacks, raising visual tolerance, inventing a lower bundle max that fails measured entry gzip
 
 **Strict E2E Port Wrapper**:
 Every Playwright-backed package script and workflow `run:` invokes `node tools/run-with-strict-e2e-port.mjs -- …` in the same step. The wrapper allocates a non-5174 port, sets `SPIREBOUND_E2E_PORT`, and requires `e2eServerSettings` loopback origin with `reuseExistingServer:false`.
