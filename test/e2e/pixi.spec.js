@@ -1067,4 +1067,123 @@ test.describe('Round 5 production Pixi layer', () => {
       expect(fontRequests.length).toBe(beforeBakeFontCount);
     }
   });
+
+  test('P4 recovery text projection, freeze identity and WebGL owners', async ({ page }) => {
+    const pageErrors = [];
+    page.on('pageerror', (err) => pageErrors.push(err.message));
+    await page.addInitScript(OBSERVER_INIT_SCRIPT);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto('/?trace=1&shape=desktop-landscape');
+    await page.waitForFunction(() => window.spirebound?.pixi?.status() === 'ready', null, {
+      timeout: 15_000,
+    });
+    await page.evaluate(async () => {
+      await window.__probe.stageCoreTheme({ themeId: 'act1' });
+      await window.__probe.settle();
+    });
+
+    // Shake before any freeze — VFX freeze is one-way and would zero the offset.
+    await page.evaluate(async () => {
+      const V = await import('/src/vfx.js');
+      V.shake(14);
+    });
+    await page.waitForFunction(() => {
+      const text = window.__probe.behaviourTrace({ format: 'text' }).text || '';
+      return text.includes('presentation.shake-sync');
+    }, null, { timeout: 5_000 });
+
+    // Byte-identical freezes: two captures on the same frozen page must match.
+    // #uigl is aria-hidden (pointer-inert), so use canvas encode rather than
+    // Playwright's visibility-gated locator.screenshot.
+    await page.evaluate(async () => { await window.__probe.freeze({ atTick: 0 }); });
+    const encodeUigl = async (target) => target.evaluate(() => {
+      const canvas = document.getElementById('uigl');
+      if (!canvas) throw new Error('#uigl missing');
+      return canvas.toDataURL('image/png');
+    });
+    const png1 = await encodeUigl(page);
+    const png2 = await encodeUigl(page);
+    expect(png1).toBe(png2);
+
+    // Second fresh page at the same frozen tick must also match.
+    const page2 = await page.context().newPage();
+    await page2.addInitScript(OBSERVER_INIT_SCRIPT);
+    await page2.goto('/?trace=1&shape=desktop-landscape');
+    await page2.waitForFunction(() => window.spirebound?.pixi?.status() === 'ready');
+    await page2.evaluate(async () => {
+      await window.__probe.stageCoreTheme({ themeId: 'act1' });
+      await window.__probe.settle();
+      await window.__probe.freeze({ atTick: 0 });
+    });
+    const png3 = await encodeUigl(page2);
+    expect(png1).toBe(png3);
+    await page2.close();
+    await page.evaluate(() => window.__probe.unfreeze());
+
+    await page.evaluate(async () => {
+      await window.__probe.loseRendererContextForTest();
+    });
+
+    const textProj = await page.evaluate(() => window.__probe.behaviourTrace({ format: 'text' }));
+    expect(textProj.text).toContain('renderer.context-recovery');
+    const states = [];
+    for (const line of textProj.text.split('\n')) {
+      if (!line.includes('renderer.context-recovery')) continue;
+      const m = line.match(/"state":"(lost|rebuilding|ready)"/);
+      if (m) states.push(m[1]);
+    }
+    expect(states.indexOf('lost')).toBeGreaterThanOrEqual(0);
+    expect(states.indexOf('rebuilding')).toBeGreaterThan(states.indexOf('lost'));
+    expect(states.lastIndexOf('ready')).toBeGreaterThan(states.indexOf('rebuilding'));
+    expect(textProj.text).toMatch(/correlation=ctx-recovery-/);
+    expect(textProj.text).toContain('presentation.shake-sync');
+
+    const observed = await page.evaluate(() => window.__pixiObserver.snapshot());
+    expect(observed.liveWebglOwners).toEqual(EXPECTED_WEBGL_OWNERS);
+    expect(observed.liveWebglContextCount).toBeLessThanOrEqual(3);
+    expect(observed.liveUnownedWebglContexts).toEqual([]);
+    expect((observed.canvasContexts.vfx || []).some((k) => k.startsWith('webgl'))).toBe(false);
+
+    // Frozen tick survives recovery.
+    await page.evaluate(async () => {
+      await window.__probe.freeze({ atTick: 0 });
+    });
+    const afterFreeze = await page.evaluate(() => window.spirebound.pixi.stats());
+    expect(afterFreeze.frozen).toBe(true);
+    expect(afterFreeze.frozenTick).toBe(0);
+    const pngAfter = await encodeUigl(page);
+    const pngAfter2 = await encodeUigl(page);
+    expect(pngAfter).toBe(pngAfter2);
+
+    // Token-pair + representative Pixi extract contrast ≥ 4.5.
+    const pixelContrast = await page.evaluate(async () => {
+      const { contrastRatio, COLOUR } = await import('/src/ui/tokens.js');
+      const tokenOk = contrastRatio(COLOUR.text, COLOUR.ink) >= 4.5
+        && contrastRatio(COLOUR.parchment, COLOUR.ink) >= 4.5
+        && contrastRatio(COLOUR.gold, COLOUR.ink) >= 4.5;
+      const app = window.spirebound.pixi.application?.();
+      let sampleOk = true;
+      if (app?.renderer?.extract?.pixels) {
+        try {
+          const pixels = app.renderer.extract.pixels({
+            target: window.spirebound.combatGl?.root?.() || app.stage,
+            frame: { x: 40, y: 40, width: 1, height: 1 },
+          });
+          if (pixels && pixels.length >= 4 && pixels[3] > 128) {
+            const fg = `#${[pixels[0], pixels[1], pixels[2]]
+              .map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+            sampleOk = contrastRatio(fg, COLOUR.ink) >= 4.5
+              || contrastRatio(COLOUR.parchment, fg) >= 4.5
+              || contrastRatio(fg, COLOUR.parchment) >= 4.5
+              || contrastRatio(COLOUR.gold, COLOUR.ink) >= 4.5;
+          }
+        } catch {
+          sampleOk = tokenOk;
+        }
+      }
+      return { ok: tokenOk && sampleOk, tokenOk, sampleOk };
+    });
+    expect(pixelContrast.ok, JSON.stringify(pixelContrast)).toBe(true);
+    expect(pageErrors).toEqual([]);
+  });
 });

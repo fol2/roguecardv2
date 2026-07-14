@@ -1619,9 +1619,36 @@ export async function createCombatRenderer({
     if (typeof pixiLayer.loseContextForTest !== 'function') {
       throw new Error('pixiLayer does not expose loseContextForTest');
     }
+    // Detach before teardown so Application.destroy does not reap combat chrome.
+    const layerRoot = pixiLayer.root?.();
+    if (layerRoot && container.parent === layerRoot) {
+      try { layerRoot.removeChild(container); } catch { /* already detached */ }
+    }
     const result = await pixiLayer.loseContextForTest();
     bump();
     return result;
+  };
+
+  const rebuildAfterLossForTest = async () => {
+    if (typeof pixiLayer.rebuild !== 'function') {
+      throw new Error('pixiLayer does not expose rebuild');
+    }
+    const result = await pixiLayer.rebuild();
+    const nextRoot = pixiLayer.root?.();
+    if (nextRoot && typeof nextRoot.addChild === 'function' && container.parent !== nextRoot) {
+      nextRoot.addChild(container);
+    }
+    if (presentationModel) {
+      try { sync(presentationModel); } catch { /* remount best-effort */ }
+    }
+    bump();
+    return result;
+  };
+
+  /** Full lose → rebuild → remount recovery seam used by Probe / P4 gates. */
+  const recoverContextForTest = async () => {
+    await loseContextForTest();
+    return rebuildAfterLossForTest();
   };
 
   const freezeForTest = async (options = {}) => {
@@ -1654,7 +1681,8 @@ export async function createCombatRenderer({
     // presentation seam
     mount, sync, layout, hitTest, setInteraction, readUI, stats,
     // lifecycle bridge (Task 21 pixiLayer)
-    loseContextForTest, freezeForTest, unfreezeForTest, destroy,
+    loseContextForTest, rebuildAfterLossForTest, recoverContextForTest,
+    freezeForTest, unfreezeForTest, destroy,
     // scaffold introspection (not part of the frozen public seam; PR16 will
     // stabilise these once the renderer actually paints)
     root: () => container,

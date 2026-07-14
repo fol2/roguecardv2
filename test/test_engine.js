@@ -9027,6 +9027,37 @@ export default defineContentRegistration({
   }
 }
 
+// ---- Task 24: profile fixtures + PERF 55/22 contract -----------------------
+{
+  const {
+    buildAndValidateProfiles,
+  } = await import('../test/fixtures/round5-profile-fixtures.js');
+  const profiles = buildAndValidateProfiles();
+  assert.equal(profiles.fresh.vigil.runsPlayed, 0);
+  assert.ok(profiles.veteran.reveals.includes('act4'));
+  assert.ok(profiles.veteran.vigil.unlocks.includes('aspect2'));
+  assert.ok((profiles.veteran.vigil.vowUnlocked || 0) >= 1);
+
+  const perfSource = readFileSync(new URL('../test/e2e/perf.spec.js', import.meta.url), 'utf8');
+  assert.match(perfSource, /PERF_WARNING/);
+  assert.match(perfSource, /minAvgFps:\s*55/);
+  assert.match(perfSource, /maxP95FrameMs:\s*22/);
+  // 55/22 must not appear inside expect() or process.exit / throw-on-miss branches.
+  assert.doesNotMatch(
+    perfSource,
+    /expect\([^)]*55|expect\([^)]*22/,
+    'perf thresholds must not be assert.expect gates',
+  );
+  assert.doesNotMatch(
+    perfSource,
+    /if\s*\([^)]*(?:avgFps|p95)[^)]*\)\s*(?:\{[^}]*throw|throw|process\.exit)/,
+    'perf threshold misses must not throw or exit',
+  );
+  // Warnings are recorded; the expect/exit path for validity stays separate.
+  const warningBlock = perfSource.slice(perfSource.indexOf('PERF_WARNING'));
+  assert.doesNotMatch(warningBlock, /process\.exit|throw new Error\(`average/);
+}
+
 
 let wins = 0, deaths = 0;
 const RUNS = 300;

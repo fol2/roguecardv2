@@ -29,17 +29,28 @@ jobs:
       - run: npx playwright install --with-deps chromium
       # Non-gating by spec: CI runner fps numbers are noisy (software WebGL).
       # The measured numbers are recorded in this step's log, never enforced.
-      - run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
-      - name: Require a valid performance measurement
+      - name: Portrait LITE reference
+        run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf
+      - name: Desktop Full reference
+        if: ${{ !cancelled() }}
+        run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:perf:full
+      - name: Require valid performance measurements
         if: always()
         run: |
           node --input-type=module -e '
             import fs from "node:fs";
-            const m = JSON.parse(fs.readFileSync("test-results/perf-metrics.json", "utf8"));
-            const values = [m.avgFps, m.p95FrameMs, m.worstFrameMs, m.frames];
-            if (!values.every((v) => Number.isFinite(v) && v > 0)
-                || !Number.isInteger(m.frames) || m.project !== "portrait")
-              throw new Error(`invalid perf metrics: ${JSON.stringify(m)}`);
+            function check(path, project, tier) {
+              const m = JSON.parse(fs.readFileSync(path, "utf8"));
+              const values = [m.avgFps, m.p95FrameMs, m.worstFrameMs, m.frames];
+              if (!values.every((v) => Number.isFinite(v) && v > 0)
+                  || !Number.isInteger(m.frames)
+                  || m.project !== project
+                  || m.tier !== tier
+                  || m.pixiReady !== true)
+                throw new Error(`invalid perf metrics (${path}): ${JSON.stringify(m)}`);
+            }
+            check("test-results/perf-metrics.json", "portrait", "lite");
+            check("test-results/perf-metrics-full.json", "desktop", "full");
           '
           git status --short
           test -z "$(git status --porcelain --untracked-files=all)"

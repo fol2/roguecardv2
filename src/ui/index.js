@@ -460,6 +460,9 @@ export async function initUI() {
         policy: rendererPolicy,
         settle: () => presentationBarrier.whenIdle(),
         trace,
+        onContextLoss: () => {
+          try { S.ce?.pointerRouter?.cancel?.('context-lost'); } catch { /* best-effort */ }
+        },
       });
       // Task 22a — dual-write combat renderer seam. The scaffold renderer
       // preloads chrome textures and exposes freeze/lose bridges through the

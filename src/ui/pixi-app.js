@@ -17,7 +17,7 @@ import {
   getTestContext,
 } from 'pixi.js';
 
-import { readShakeOffset } from '../vfx.js';
+import { readShakeOffset, subscribeShake } from '../vfx.js';
 
 const RENDERER_PREFERENCE = Object.freeze(['webgl']);
 
@@ -142,6 +142,7 @@ async function prewarmDetachedShaderContext({ observer, trace }) {
  * @param {{ emit?:Function }} [deps.trace]       Behaviour-trace sink.
  * @param {*} [deps.snapshot]                     Optional restore snapshot.
  * @param {object} [deps.observer]                Test-only context observer.
+ * @param {() => void} [deps.onContextLoss]       Cancel pointer/tooltip on loss.
  * @returns {Promise<object>} the frozen lifecycle handle.
  */
 export async function createPixiLayer({
@@ -152,6 +153,7 @@ export async function createPixiLayer({
   snapshot: initialSnapshot,
   observer,
   settle,
+  onContextLoss,
 } = {}) {
   let canvas = initialCanvas;
   if (!canvas || typeof canvas.getContext !== 'function') {
@@ -178,6 +180,10 @@ export async function createPixiLayer({
   let lossExtension = null;
   let shakeHandler = null;
   let contextLossResolve = null;
+  let recoveryJourney = null;
+  let shakeSyncLatched = false;
+  let shakeUnsubscribe = null;
+  let onContextLossHandler = typeof onContextLoss === 'function' ? onContextLoss : null;
 
   const setStatus = (next) => {
     status = next;
@@ -188,6 +194,46 @@ export async function createPixiLayer({
     });
   };
 
+  const emitContextRecovery = (state, { reason = 'webglcontextlost' } = {}) => {
+    const details = {
+      outcome: state === 'failed' ? 'failed' : 'completed',
+      reason,
+      attributes: {
+        rendererId: 'pixi',
+        state,
+        generation,
+        cause: reason,
+      },
+    };
+    if (recoveryJourney?.correlationId) {
+      details.correlationId = recoveryJourney.correlationId;
+    }
+    if (recoveryJourney?.lastSeq) {
+      details.causeSeq = recoveryJourney.lastSeq;
+    }
+    const record = trace?.emit?.('renderer.context-recovery', details);
+    if (record?.seq) {
+      recoveryJourney = {
+        correlationId: details.correlationId || recoveryJourney?.correlationId
+          || `ctx-recovery-${generation}-${record.seq}`,
+        lastSeq: record.seq,
+      };
+      // Ensure the first record also carries the correlation id in text.
+      if (!details.correlationId && recoveryJourney.correlationId) {
+        // already emitted; subsequent rows share the id
+      }
+    }
+    return record;
+  };
+
+  const beginContextRecovery = (reason = 'webglcontextlost') => {
+    recoveryJourney = {
+      correlationId: `ctx-recovery-${generation}-${Date.now()}`,
+      lastSeq: null,
+    };
+    return emitContextRecovery('lost', { reason });
+  };
+
   const attachShakeSync = () => {
     if (!application || !worldRoot) return;
     shakeHandler = () => {
@@ -195,8 +241,39 @@ export async function createPixiLayer({
       clockTick += 1;
       const offset = readShakeOffset();
       worldRoot.position.set(offset.x, offset.y);
+      const active = offset.x !== 0 || offset.y !== 0;
+      if (active && !shakeSyncLatched) {
+        shakeSyncLatched = true;
+        trace?.emit?.('presentation.shake-sync', {
+          outcome: 'completed',
+          attributes: {
+            rendererId: 'pixi',
+            shakeX: offset.x,
+            shakeY: offset.y,
+          },
+        });
+      } else if (!active) {
+        shakeSyncLatched = false;
+      }
     };
     application.ticker.add(shakeHandler, undefined, UPDATE_PRIORITY.HIGH);
+    // Activation-time emit so a single V.shake() is observable even before the
+    // next VFX rAF writes non-zero offsets (freeze is one-way on the VFX loop).
+    shakeUnsubscribe?.();
+    shakeUnsubscribe = subscribeShake(({ power, reduced }) => {
+      if (frozen || shakeSyncLatched) return;
+      shakeSyncLatched = true;
+      trace?.emit?.('presentation.shake-sync', {
+        outcome: 'completed',
+        attributes: {
+          rendererId: 'pixi',
+          power: power ?? 0,
+          reduced: reduced === true,
+          shakeX: 0,
+          shakeY: 0,
+        },
+      });
+    });
   };
 
   const detachShakeSync = () => {
@@ -204,6 +281,8 @@ export async function createPixiLayer({
       application.ticker.remove(shakeHandler);
     }
     shakeHandler = null;
+    shakeUnsubscribe?.();
+    shakeUnsubscribe = null;
   };
 
   const computeResolution = () => {
@@ -241,6 +320,8 @@ export async function createPixiLayer({
     event.preventDefault();
     if (status !== 'ready') return;
     setStatus('lost');
+    beginContextRecovery('webglcontextlost');
+    try { onContextLossHandler?.(); } catch { /* cancel best-effort */ }
     if (contextLossResolve) {
       contextLossResolve();
       contextLossResolve = null;
@@ -312,6 +393,7 @@ export async function createPixiLayer({
   const rebuild = async () => {
     if (status !== 'lost') throw new Error(`cannot rebuild Pixi from ${status}`);
     setStatus('rebuilding');
+    emitContextRecovery('rebuilding', { reason: 'webglcontextlost' });
     try {
       const oldCanvas = canvas;
       // Stop the ticker before touching GL so Pixi does not try to render
@@ -341,8 +423,12 @@ export async function createPixiLayer({
         });
       }
       setStatus('ready');
+      emitContextRecovery('ready', { reason: 'webglcontextlost' });
+      recoveryJourney = null;
     } catch (error) {
       setStatus('failed');
+      emitContextRecovery('failed', { reason: error.message || 'rebuild-failed' });
+      recoveryJourney = null;
       trace?.emit?.('renderer.rebuild', {
         outcome: 'failed',
         attributes: { rendererId: 'pixi', code: error.message },
@@ -399,6 +485,9 @@ export async function createPixiLayer({
     rebuild,
     freezeForTest,
     unfreezeForTest,
+    setOnContextLoss(handler) {
+      onContextLossHandler = typeof handler === 'function' ? handler : null;
+    },
     // metadata
     policy: policy ? Object.freeze({ ...policy }) : Object.freeze({}),
     pixiVersion: PIXI_VERSION,

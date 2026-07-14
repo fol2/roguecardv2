@@ -427,10 +427,17 @@ export function installProbe({
     },
     async loseRendererContextForTest() {
       const renderer = resolveCombatRenderer();
+      if (renderer?.recoverContextForTest) {
+        return renderer.recoverContextForTest();
+      }
       if (!renderer?.loseContextForTest) {
         throw new Error('combat renderer does not expose loseContextForTest');
       }
-      return renderer.loseContextForTest();
+      await renderer.loseContextForTest();
+      if (renderer.rebuildAfterLossForTest) {
+        return renderer.rebuildAfterLossForTest();
+      }
+      return renderer.stats?.() ?? null;
     },
     async unfreeze() {
       const renderer = resolveCombatRenderer();

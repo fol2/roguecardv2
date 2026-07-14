@@ -193,12 +193,13 @@ assert.equal(pkg.scripts['content:compile'], 'node tools/compile-content-registr
 assert.equal(pkg.scripts['test:content-registrations'], 'node tools/compile-content-registrations.mjs --check');
 assert.equal(
   pkg.scripts['test:e2e:webkit'],
-  'playwright test trace stage lab theme-profile --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
+  'playwright test trace stage lab theme-profile production-profile --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
 );
 assert.equal(
   pkg.scripts['test:e2e:update'],
   'playwright test visual --update-snapshots --project=desktop --project=portrait --project=landscape --workers=1 --no-deps',
 );
+assert.match(pkg.scripts['test:e2e:perf:full'] || '', /PERF_TIER=full/);
 
 const playwright = readFileSync(new URL('../playwright.config.js', import.meta.url), 'utf8');
 assert.match(playwright, /SPIREBOUND_E2E_SUITE/);
@@ -284,7 +285,15 @@ assert.match(updateBaselines, /GITHUB_SHA/);
 
 const perfWorkflow = readFileSync(new URL('../.github/workflows/perf.yml', import.meta.url), 'utf8');
 assert.match(perfWorkflow, /node tools\/run-with-strict-e2e-port\.mjs -- npm run test:e2e:perf/);
+assert.match(perfWorkflow, /test:e2e:perf:full|PERF_TIER=full/);
 assert.match(perfWorkflow, /PERF_WARNING|valid performance measurement|invalid perf metrics/);
+assert.match(perfWorkflow, /perf-metrics-full\.json/);
+
+assert.match(
+  pkg.scripts['test:e2e:webkit'],
+  /production-profile/,
+  'test:e2e:webkit must include production-profile',
+);
 
 const agents = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
 assert.match(agents, /test:e2e:perf\s+# performance reference; warns on target misses/);

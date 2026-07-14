@@ -144,7 +144,21 @@ function tick(t) {
   }
 }
 
-export function shake(power = 8) { if (REDUCED) return; shakeV = Math.max(shakeV, power); }
+export function shake(power = 8) {
+  if (REDUCED) {
+    try { shakeListeners.forEach((fn) => fn({ power: 0, reduced: true })); } catch { /* diagnostic only */ }
+    return;
+  }
+  shakeV = Math.max(shakeV, power);
+  try { shakeListeners.forEach((fn) => fn({ power: shakeV, reduced: false })); } catch { /* diagnostic only */ }
+}
+const shakeListeners = new Set();
+/** Pixi/test subscribers observe shake activation without reading DOM. */
+export function subscribeShake(listener) {
+  if (typeof listener !== 'function') return () => {};
+  shakeListeners.add(listener);
+  return () => shakeListeners.delete(listener);
+}
 /**
  * Round 5 shake offset reader. The Pixi world root subscribes to this on
  * every ticker so its transform stays glued to `#shake`'s DOM transform.
