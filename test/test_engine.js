@@ -8979,6 +8979,54 @@ export default defineContentRegistration({
   assert.match(probeSource, /unfreeze\s*\(/, 'probe exposes unfreeze');
 }
 
+// ---- Task 24: frozen visual-policy + no global maxDiffPixelRatio ----------
+{
+  const { VISUAL_DIFF_RATIOS, VISUAL_SUITE_KEYS, screenshotDiffOptions } = await import(
+    '../test/e2e/visual-policy.js'
+  );
+  assert.deepEqual(VISUAL_SUITE_KEYS, [
+    'legacy', 'p4Combat', 'p5Cards', 'p6Screens', 'p7Shipfront',
+  ]);
+  for (const key of VISUAL_SUITE_KEYS) {
+    assert.equal(VISUAL_DIFF_RATIOS[key], 0.01, `${key} ratio frozen at 0.01`);
+  }
+  assert.equal(screenshotDiffOptions('p4Combat').maxDiffPixelRatio, 0.01);
+  assert.throws(() => screenshotDiffOptions('unknown'), /unknown visual suite key/);
+
+  const configSource = readFileSync(new URL('../playwright.config.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(
+    configSource,
+    /maxDiffPixelRatio\s*:\s*0(?:\.\d+)?/,
+    'playwright.config must not set a numeric maxDiffPixelRatio',
+  );
+
+  const visualSpec = readFileSync(new URL('../test/e2e/visual.spec.js', import.meta.url), 'utf8');
+  assert.match(visualSpec, /expectScreenshot|screenshotDiffOptions/,
+    'visual.spec routes screenshots through the suite-key helper');
+  assert.match(visualSpec, /['"]p4Combat['"]/, 'combat visual cases declare p4Combat');
+  assert.match(visualSpec, /suiteKey|['"]legacy['"]/, 'non-combat cases declare a suite key');
+
+  const helpersSource = readFileSync(new URL('../test/e2e/helpers.js', import.meta.url), 'utf8');
+  assert.match(helpersSource, /screenshotDiffOptions|VISUAL_DIFF_RATIOS/,
+    'helpers import the visual-policy map');
+
+  // No other e2e/config file may hard-code a numeric maxDiffPixelRatio.
+  const scanRoots = [
+    new URL('../playwright.config.js', import.meta.url),
+    new URL('../test/e2e/helpers.js', import.meta.url),
+    new URL('../test/e2e/visual.spec.js', import.meta.url),
+    new URL('../test/e2e/pixi.spec.js', import.meta.url),
+  ];
+  for (const url of scanRoots) {
+    const text = readFileSync(url, 'utf8');
+    assert.doesNotMatch(
+      text,
+      /maxDiffPixelRatio\s*:\s*\d+(?:\.\d+)?/,
+      `${url.pathname} must not embed a numeric maxDiffPixelRatio`,
+    );
+  }
+}
+
 
 let wins = 0, deaths = 0;
 const RUNS = 300;

@@ -67,8 +67,20 @@ _Avoid_: second game state, direct engine mutation driver, Probe-owned global as
 
 **Playwright WebKit Device Emulation**:
 The active Round 5 mobile-shaped browser lane: Playwright's patched WebKit browser running with an iPhone or iPad descriptor for viewport, user-agent and touch emulation, combined with per-task WebKit-safe API review. It is not branded Safari, an iOS/iPadOS Simulator, WKWebView, physical Mobile Safari, hardware evidence, packaging proof or a mobile-support claim.
-Package script `test:e2e:webkit` runs `trace`, `stage`, `lab` and `theme-profile` on projects `iphone-webkit` and `ipad-webkit`. Full-mode CI job `e2e-webkit` installs `chromium webkit` and aggregates into the stable `e2e` check alongside Chromium lanes. Canonical visual snapshots remain Chromium-only (`desktop` / `portrait` / `landscape`).
+Package script `test:e2e:webkit` runs `trace`, `stage`, `lab`, `theme-profile` and `production-profile` on projects `iphone-webkit` and `ipad-webkit`. Full-mode CI job `e2e-webkit` installs `chromium webkit` and aggregates into the stable `e2e` check alongside Chromium lanes. Canonical visual snapshots remain Chromium-only (`desktop` / `portrait` / `landscape`). Linux baseline capture writes `baseline-manifest.json` (schema version, `GITHUB_SHA`, per-file bytes + SHA-256); install via `tools/install-baseline-artifact.mjs` after `tools/run-baseline-workflow.mjs` dispatch/poll.
 _Avoid_: Mobile Safari test, Simulator proof, WKWebView proof, physical-device gate
+
+**Pixi UI Lifecycle**:
+`src/ui/pixi-app.js` owns the sole production `#uigl` Application. States are idle → ready → (lost → rebuilding → ready) | failed. Context recovery emits `renderer.context-recovery` on the behaviour trace; VFX shake is mirrored onto the world root and observed as `presentation.shake-sync`. Freeze pins an immutable tick/snapshot for deterministic screenshots. Live WebGL owners at steady state remain exactly `#bg3d`, `#mesh`, `#uigl`; `#vfx` stays 2D.
+_Avoid_: second Pixi Application, WebGL VFX, tuning visual diff ratios to hide chrome drift
+
+**Combat Stage Router / Probe v2**:
+`src/ui/pointer.js` is the sole stage combat input router. `window.__probe.ui()` is renderer-neutral (version 2) with separate `queueIdle()` / `settle()`. `loseRendererContextForTest()` drives the lose→rebuild recovery seam; `freeze({atTick})` awaits the presentation barrier then freezes DOM/scene/VFX/Pixi together.
+_Avoid_: `#combat-hit-proxies`, Probe-owned game logic, CSS-only freeze as canvas proof
+
+**P4 browser gates**:
+Cumulative P4 evidence includes frozen Task 6 trace fixtures (comparison-only), Pixi recovery/shake/contrast, Chromium + Playwright WebKit `production-profile` fresh/veteran journeys, portrait/LITE and desktop/Full perf with `PERF_WARNING` on valid target misses, gzip bundle budget, and Darwin/Linux visual baselines under the frozen `VISUAL_DIFF_RATIOS` (all `0.01`).
+_Avoid_: inflating `maxDiffPixelRatio`, treating `PERF_WARNING` as a hard fail, actual-Safari claims
 
 **Strict E2E Port Wrapper**:
 Every Playwright-backed package script and workflow `run:` invokes `node tools/run-with-strict-e2e-port.mjs -- …` in the same step. The wrapper allocates a non-5174 port, sets `SPIREBOUND_E2E_PORT`, and requires `e2eServerSettings` loopback origin with `reuseExistingServer:false`.
@@ -80,7 +92,9 @@ _Avoid_: active Round 5 gate, reviving retired Tasks 3–4, treating Playwright 
 
 ### Round 5 phase status
 
-**P3 (Lab / doctor / Manager / CI WebKit)**: COMPLETE as of Task 20. Cumulative standing profile `p3` remains the pre-commit gate through Task 23; P4 begins at Task 21.
+**P3 (Lab / doctor / Manager / CI WebKit)**: COMPLETE as of Task 20.
+
+**P4 (Pixi chrome + DOM hand)**: in progress — Tasks 21–23 landed the Pixi lifecycle, combat chrome and stage router; Task 24 adds recovery/trace/perf/production-profile gates.
 
 ### Audio
 

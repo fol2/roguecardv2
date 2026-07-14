@@ -3,6 +3,7 @@
 // engine internals beyond the probe's documented shims.
 import { expect } from '@playwright/test';
 import { writeFile } from 'node:fs/promises';
+import { screenshotDiffOptions } from './visual-policy.js';
 
 // One fixed seed for the whole kit: runs, maps, encounters, enemy AI and
 // reward rolls are all derived from it, so every scenario is replayable.
@@ -181,4 +182,14 @@ export async function expectInvariants(page, context = '') {
 
 export function expectNoErrors(errors, context = '') {
   expect(errors, `console/page errors${context ? ` (${context})` : ''}`).toEqual([]);
+}
+
+/**
+ * Screenshot helper routed through an explicit visual-policy suite key.
+ * All visual regression cases must declare one of VISUAL_DIFF_RATIOS keys.
+ */
+export async function expectScreenshot(page, name, suiteKey, locatorOrPage = null) {
+  const target = locatorOrPage || page;
+  const options = screenshotDiffOptions(suiteKey);
+  await expect(target).toHaveScreenshot(`${name}.png`, options);
 }

@@ -802,6 +802,23 @@ test('complete synthetic UI catalogue preserves semantic trace and missing keys 
 
 test('frozen Task 6 fixture manifest is complete and every entry resolves', async ({ page }) => {
   await page.goto('/?trace=1');
+  await page.waitForFunction(() => window.spirebound?.pixi?.status?.() === 'ready'
+    || window.__probe?.ui?.()?.renderer?.kind === 'pixi'
+    || window.__probe);
+  const renderer = await page.evaluate(() => {
+    const ui = window.__probe?.ui?.();
+    const pixi = window.spirebound?.pixi?.stats?.();
+    return {
+      kind: ui?.renderer?.kind || pixi?.rendererKind || null,
+      generation: ui?.renderer?.generation ?? pixi?.generation ?? null,
+      status: ui?.renderer?.state || pixi?.status || null,
+    };
+  });
+  // Renderer identity is asserted separately so Task 6 semantic fixtures stay
+  // byte-for-byte fixed (comparison-only; never rewrite under P4).
+  expect(renderer.kind).toBe('pixi');
+  expect(renderer.generation).toBeGreaterThanOrEqual(1);
+
   const manifest = await page.evaluate(async () =>
     (await fetch('/test/e2e/fixtures/trace/manifest.json')).json());
   expect(manifest.fixtures).toHaveLength(18);
@@ -812,6 +829,8 @@ test('frozen Task 6 fixture manifest is complete and every entry resolves', asyn
     expect(fixture.records.length).toBeGreaterThan(0);
     expect(JSON.stringify(fixture)).not.toMatch(/atMs|gitSha|runId|instanceId|assetUrl|https?:/);
   }
+  // Comparison-only guard: the update latch must stay off in ordinary runs.
+  expect(process.env.UPDATE_TRACE_CONTRACTS).not.toBe('1');
 });
 
 test('persistence fixtures: initial run, Usurper and Shade use real retry owners', async ({ page }) => {

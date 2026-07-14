@@ -278,6 +278,9 @@ assert.match(
   /node tools\/run-with-strict-e2e-port\.mjs -- npm run test:e2e:update/,
 );
 assert.match(updateBaselines, /playwright install(?: --with-deps)? chromium/);
+assert.match(updateBaselines, /write-baseline-manifest\.mjs/);
+assert.match(updateBaselines, /baseline-manifest\.json/);
+assert.match(updateBaselines, /GITHUB_SHA/);
 
 const perfWorkflow = readFileSync(new URL('../.github/workflows/perf.yml', import.meta.url), 'utf8');
 assert.match(perfWorkflow, /node tools\/run-with-strict-e2e-port\.mjs -- npm run test:e2e:perf/);

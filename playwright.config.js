@@ -42,8 +42,10 @@ export default defineConfig({
     },
   },
   expect: {
+    // Per-suite maxDiffPixelRatio lives in test/e2e/visual-policy.js and is
+    // passed explicitly into each toHaveScreenshot call. Do not put a numeric
+    // maxDiffPixelRatio here — test_engine scans for that regression.
     toHaveScreenshot: {
-      maxDiffPixelRatio: 0.01,
       animations: 'disabled',
       caret: 'hide',
     },

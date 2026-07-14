@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { test } from '@playwright/test';
-import { boot, startFight, stable, freeze, settle } from './helpers.js';
+import { boot, startFight, stable, freeze, settle, expectScreenshot } from './helpers.js';
 import { mixedLedger, completeLedger, seed } from './emberglass-fixtures.js';
 
 const SNAP_DIR = fileURLToPath(new URL('./visual.spec.js-snapshots', import.meta.url));
@@ -101,10 +101,10 @@ async function showMapAndWaitSettled(page) {
   }
 }
 
-async function shoot(page, name) {
+async function shoot(page, name, suiteKey = 'legacy') {
   await stable(page);
   await freeze(page);
-  await test.expect(page).toHaveScreenshot(`${name}.png`);
+  await expectScreenshot(page, name, suiteKey);
 }
 
 test('title screen', async ({ page }) => {
@@ -124,7 +124,7 @@ for (const [act, ids] of [[0, ['duskfang', 'sporeling']], [1, ['drownedOne', 'vo
     await boot(page, { query: 'mesh=0' });
     await page.evaluate((a) => { window.spirebound.S.run.act = a; }, act);
     await startFight(page, ids);
-    await shoot(page, `combat-act${act + 1}`);
+    await shoot(page, `combat-act${act + 1}`, 'p4Combat');
   });
 }
 
