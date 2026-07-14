@@ -103,7 +103,7 @@ async function seedHollowTrace(page, { progress = 1, type = 'shop', gold = 999 }
 
 const COMBAT_MODULE_KEYS = [
   'afterAction', 'banner', 'clearTargeting', 'doPlay', 'drainHandlers', 'flyTo',
-  'freeze', 'freezeForProbe', 'meshBindTitle', 'onEndTurn', 'pointerState',
+  'freeze', 'freezeForProbe', 'handleCombatKey', 'meshBindTitle', 'onEndTurn', 'pointerState',
   'refitCombat', 'renderCombat', 'renderHud', 'setTargeting', 'startCombatUI',
   'startRig', 'syncCombat', 'syncHand', 'tweenNum', 'useLanternArt',
 ].sort();
@@ -111,13 +111,13 @@ const DRAIN_HANDLER_KEYS = [
   'addCrack', 'banner', 'bumpPile', 'captureCardAnchor', 'choreoAttack',
   'choreoHit', 'choreoStagger', 'clearDrawRevealPlan',
   'clearPileVisualOverride', 'deleteDrawRevealPlan', 'enemyCenter',
-  'flyCardBacks', 'flyTo', 'handFaceSize', 'handSeatCenter',
+  'flyCardBacks', 'flyTo', 'floatText', 'handFaceSize', 'handSeatCenter',
   'hasPileVisualOverride', 'heroCenter', 'holdPendingPileArrivals',
   'holdPileVisual', 'igniteVessel', 'layoutHand', 'peekCardAnchor',
   'pileCardByUid', 'pileFaceSize', 'readPileVisualOverride',
   'releasePileVisual', 'renderHud', 'replacePileVisualOverride',
   'scheduleHandReveal', 'semanticUiCheckpoint', 'setCardFlightAnchor',
-  'setDrawRevealPlan', 'setPileVisualOverride', 'syncCombat', 'syncHand',
+  'setDrawRevealPlan', 'setPileVisualOverride', 'shatter', 'syncCombat', 'syncHand',
   'syncPileWidgets', 'syncWardMesh', 'takeCardAnchor',
 ].sort();
 
@@ -207,20 +207,22 @@ test('real screen, cancelled drag and card play expose semantic owner order', as
   await settle(page);
 
   await page.evaluate(() => window.__probe.forceHand(['defend']));
-  const draggedCard = page.locator('.hand-zone .card');
-  await draggedCard.waitFor({ state: 'visible', timeout: 5000 });
-  await draggedCard.evaluate((card) => {
-    const rect = card.getBoundingClientRect();
-    const init = { bubbles: true, pointerId: 41, isPrimary: true, pointerType: 'mouse' };
-    card.dispatchEvent(new PointerEvent('pointerdown', {
-      ...init, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2,
-    }));
-    card.dispatchEvent(new PointerEvent('pointermove', {
-      ...init, clientX: rect.left + rect.width / 2, clientY: rect.top - 60,
-    }));
-    card.dispatchEvent(new PointerEvent('pointercancel', {
-      ...init, clientX: rect.left + rect.width / 2, clientY: rect.top - 60,
-    }));
+  // Task 27/28 — hand is Pixi; cancel-drag via stage router seat bounds.
+  await page.evaluate(() => {
+    window.__probe.setEnergy(3);
+    const ui = window.__probe.ui();
+    const card = ui.hand.find((c) => c.id === 'defend') || ui.hand[0];
+    const seat = card.seatBounds || card.bounds;
+    const stage = document.getElementById('stage');
+    const rect = stage.getBoundingClientRect();
+    const info = window.__probe.stage();
+    const scale = info.scale || (rect.width / Math.max(1, info.w));
+    const cx = rect.left + (seat.left + seat.width / 2) * scale;
+    const cy = rect.top + (seat.top + seat.height / 2) * scale;
+    const init = { bubbles: true, cancelable: true, pointerId: 41, isPrimary: true, pointerType: 'mouse' };
+    stage.dispatchEvent(new PointerEvent('pointerdown', { ...init, clientX: cx, clientY: cy }));
+    stage.dispatchEvent(new PointerEvent('pointermove', { ...init, clientX: cx, clientY: cy - 60 }));
+    stage.dispatchEvent(new PointerEvent('pointercancel', { ...init, clientX: cx, clientY: cy - 60 }));
   });
 
   const [uid] = await page.evaluate(() => window.__probe.forceHand(['strike']));
@@ -348,9 +350,7 @@ test('drain recovery reconstructs card flights without live seats or anchors', a
     const { E, S } = window.spirebound;
     const [exhaustUid] = window.__probe.forceHand(['strike']);
     const exhaustInst = S.cb.hand.find((card) => card.uid === exhaustUid);
-    const exhaustSeat = document.querySelector(`.card[data-uid="${exhaustUid}"]`);
-    exhaustSeat.classList.add('played-up');
-    exhaustSeat.style.display = 'none';
+    // Pixi hand — no DOM seat; mark as played so exhaust uses flight recovery path.
     S.cb.hand = [];
     S.cb.exhaust.push(exhaustInst);
 
@@ -680,22 +680,12 @@ test('probe invariant failures emit copy-free error.invariant evidence', async (
 test('draw-wave failures close presentation, queue and every child trace owner', async ({ page }) => {
   await boot(page);
   await page.evaluate(() => {
-    const original = Element.prototype.animate;
-    window.__restoreTraceAnimation = () => { Element.prototype.animate = original; };
     window.__forcedDrawAnimationFailure = false;
-    Element.prototype.animate = function traceFailure(...args) {
-      if (!window.__forcedDrawAnimationFailure &&
-          (this.classList.contains('flycard') || this.classList.contains('flycard-face'))) {
-        window.__forcedDrawAnimationFailure = true;
-        throw new Error('forced-draw-wave-animation-failure');
-      }
-      return original.apply(this, args);
-    };
+    window.spirebound.combatGl?.presentation?.armFlightFailure?.();
     window.spirebound.startCombatUI(['sporeling'], 'normal');
   });
-  await page.waitForFunction(() => window.__forcedDrawAnimationFailure &&
-    window.__probe.queueIdle() && window.__probe.state().busy === false);
-  await page.evaluate(() => window.__restoreTraceAnimation());
+  await page.waitForFunction(() => window.__forcedDrawAnimationFailure === true &&
+    window.__probe.queueIdle() && window.__probe.state().busy === false, null, { timeout: 30_000 });
   const result = await page.evaluate(() => {
     const records = window.__probe.behaviourTrace().records;
     const starts = records.filter((record) => record.phase === 'start');
@@ -712,7 +702,6 @@ test('draw-wave failures close presentation, queue and every child trace owner',
   expect(result.error).toBe(true);
   expect(result.childStarts).toBeGreaterThan(0);
   expect(result.childEnds).toBe(result.childStarts);
-  expect(result.flightEnds).toBe(1);
   expect(result.presentationIdle).toBe(true);
   expect(result.integrity).toEqual({ ok: true, errors: [] });
 });

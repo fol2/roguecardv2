@@ -1497,7 +1497,8 @@ html.mesh-on .enemy-art.warded::before { display: none; }
 }
 .combat-msg { position: absolute; top: 100px; left: 50%; transform: translateX(-50%); color: var(--text-dim); font-size: 14px; letter-spacing: .14em; font-family: 'Cinzel', serif; z-index: 26; pointer-events: none; }
 
-/* floaty text — letterpress numerals: every number wears an ink outline (leaded, like the glass) */
+/* floaty text — letterpress numerals (non-combat screens). Combat floaters are
+ * Pixi-owned (Task 28); #floaties stays empty during combat. */
 .floaty {
   --ink: -1.5px 0 #05070e, 1.5px 0 #05070e, 0 -1.5px #05070e, 0 1.5px #05070e, -1px -1px #05070e, 1px 1px #05070e, 1px -1px #05070e, -1px 1px #05070e;
   position: absolute; transform: translate(-50%, -50%); font-family: 'Cinzel', serif; font-weight: 800; font-size: 32px;

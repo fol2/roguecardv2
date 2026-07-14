@@ -31,7 +31,10 @@ import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFrame, bfEnemyFootX, b
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
 import { uicResolve, _setUIC, uicRaw, relicBarLayout } from '../src/uic.js';
 import { serializeUIC, validateUIC } from '../src/dev/bfui-serialize.js';
-import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, drawBatchSchedule, PILE_IDS, PILE_FAN_DEG, PILE_FAN_MAX_DEG, PILE_FAN_MAX_LAYERS } from '../src/pile-chrome.js';
+import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, drawBatchSchedule, PILE_IDS, PILE_FAN_DEG, PILE_FAN_MAX_DEG, PILE_FAN_MAX_LAYERS, CEREMONY_BUDGET_MS } from '../src/pile-chrome.js';
+import {
+  PRESENTATION_OWNERS, buildOwnerIndex, ownerFor, overlappingQuestEventTypes,
+} from '../src/ui/presentation-owners.js';
 import {
   UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyphId,
 } from '../src/ui-chrome.js';
@@ -516,12 +519,14 @@ function forceHand(run, cb, ids) {
   const probeHandSource = readFileSync(new URL('../src/ui/probe.js', import.meta.url), 'utf8');
   assert.match(probeHandSource, /combatReady \? painted === cb\.hand\.length/,
     'Task 27 probe requires painted === hand.length when combat ready');
-  assert.match(combatSource, /function flyCardBacks\([\s\S]*?releaseCardFace\(m\)/,
-    'flyCardBacks teardown revokes card-face object URLs');
-  assert.match(drainSource, /adoptCardFaceRelease\(src\.el,\s*m\)/,
-    'drain flycard clone adopts seat card-face release ownership');
-  assert.match(drainSource, /releaseCardFace\(m\)/,
-    'drain flycard teardown revokes card-face object URLs');
+  assert.match(combatSource, /function flyCardBacks\([\s\S]*?pixiPresentation/,
+    'flyCardBacks routes combat ceremonies to Pixi presentation');
+  assert.match(drainSource, /ceremony:\s*'discardHand'/,
+    'drain discardHand owns Pixi ceremony spans');
+  assert.match(drainSource, /presentation\.floatText/,
+    'drain combat floaters route through presentation.floatText');
+  assert.doesNotMatch(drainSource, /#floaties|getElementById\('floaties'\)/,
+    'drain leaves no combat DOM #floaties owners after Task 28');
   const navSource = readFileSync(new URL('../src/ui/navigation.js', import.meta.url), 'utf8');
   const contextSource = readFileSync(new URL('../src/ui/context.js', import.meta.url), 'utf8');
   assert.match(contextSource, /function releaseCardFacesIn\(/,
@@ -5944,6 +5949,50 @@ function randomAgentRun(seed) {
   assert.ok(d1.flightDur <= 280);
 
   assert.deepEqual(PILE_IDS, ['draw', 'discard', 'ashes']);
+
+  // Task 28 — P5 ceremony budgets + parent await equals wall-clock target.
+  assert.equal(CEREMONY_BUDGET_MS.discardHand, 440);
+  assert.equal(CEREMONY_BUDGET_MS.reshuffle, 600);
+  const dh = flightSchedule(5, CEREMONY_BUDGET_MS.discardHand, { ceremony: 'discardHand' });
+  assert.equal(dh.awaitMs, 440);
+  assert.ok(dh.stagger <= 24);
+  const rs = flightSchedule(8, CEREMONY_BUDGET_MS.reshuffle, { ceremony: 'reshuffle' });
+  assert.equal(rs.awaitMs, 600);
+  assert.ok(rs.stagger <= 22);
+}
+
+// ---- Task 28 presentation ownership inventory ----------------------------
+{
+  const index = buildOwnerIndex();
+  assert.equal(index.size, PRESENTATION_OWNERS.length,
+    'every row must appear exactly once in the owner index');
+  // No silent Phase-2 fall-through: every combat event drain handles must be listed.
+  const drainSource = readFileSync(new URL('../src/ui/drain.js', import.meta.url), 'utf8');
+  const drainCases = [...drainSource.matchAll(/case\s+'([a-zA-Z]+)'/g)].map((m) => m[1]);
+  const combatOwned = new Set(
+    PRESENTATION_OWNERS.filter((r) => r.domain === 'combat').map((r) => r.eventType),
+  );
+  for (const eventType of drainCases) {
+    assert.ok(combatOwned.has(eventType),
+      `drain case '${eventType}' must have a combat presentation owner`);
+  }
+  // Overlapping quest names have two domain-qualified owners.
+  for (const eventType of overlappingQuestEventTypes()) {
+    assert.equal(ownerFor('combat', eventType), 'pixi-combat');
+    assert.equal(ownerFor('end', eventType), 'dom-end');
+  }
+  // Dawn-only events stay on the end domain.
+  for (const eventType of [
+    'whisper', 'pageRead', 'eighthResolved', 'shadeResolved', 'shardGrant', 'act4Reveal',
+  ]) {
+    assert.equal(ownerFor('end', eventType), 'dom-end');
+    assert.throws(() => ownerFor('combat', eventType), /undeclared/);
+  }
+  // Source inventory: end.js remains the only Dawn owner (Task 28 must not migrate it).
+  const endSource = readFileSync(new URL('../src/ui/screens/end.js', import.meta.url), 'utf8');
+  assert.match(endSource, /dawnEventHtml/);
+  assert.match(endSource, /drainEndQueue/);
+  assert.match(endSource, /presentation\.dawn/);
 }
 
 // ---- ui chrome helpers (pure) ----

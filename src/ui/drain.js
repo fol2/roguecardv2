@@ -127,9 +127,16 @@ async function playReshuffleCeremony(ev) {
     presentation.holdPileVisual('draw', n);
     presentation.syncPileWidgets(cb);
   }
-  const origins = Array.from({ length: n }, () => V.centerOf(ce.discard));
-  await presentation.flyCardBacks(origins, ce.draw, 560, {
-    fromSize: 'pile', sizePile: ce.discard, pileArt: 'discard',
+  const origins = Array.from({ length: n }, (_, i) => ({
+    ...V.centerOf(ce.discard),
+    w: 48,
+    h: 66,
+    uid: `reshuffle-${i}`,
+  }));
+  await presentation.flyCardBacks(origins, ce.draw, 600, {
+    fromSize: 'pile', sizePile: ce.discard, pileArt: 'discard', face: 'back',
+    ceremony: 'reshuffle',
+    uids: origins.map((o) => o.uid),
   });
   if (presentation.hasPileVisualOverride()) {
     presentation.setPileVisualOverride('discard', 0);
@@ -138,7 +145,7 @@ async function playReshuffleCeremony(ev) {
     presentation.releasePileVisual('draw', n);
   }
   presentation.bumpPile(ce.draw);
-  V.floatText(V.centerOf(ce.draw).x, V.centerOf(ce.draw).y - 46, tr('ui.combat.reshuffle'), 'notice');
+  presentation.floatText(V.centerOf(ce.draw).x, V.centerOf(ce.draw).y - 46, tr('ui.combat.reshuffle'), 'notice');
   presentation.syncPileWidgets(cb);
 }
 
@@ -231,8 +238,10 @@ async function handleDrawWave(q, queueCauseSeq = null) {
           presentation.syncPileWidgets(cb);
         }, i * sched.stagger);
       });
-      presentation.flyCardBacks(fromList, ce.hand, 500, {
-        fromSize: 'pile', toSize: 'hand', sizePile: ce.draw, face: 'card', schedule: sched,
+      await presentation.flyCardBacks(fromList, ce.hand, 500, {
+        fromSize: 'pile', toSize: 'hand', sizePile: ce.draw, face: 'card',
+        schedule: sched, ceremony: 'draw',
+        uids: draws.map((ev) => ev.uid),
       });
       presentation.bumpPile(ce.draw);
       draws.forEach((_, i) => setTimeout(() => sfx.draw(), i * sched.stagger));
@@ -317,7 +326,7 @@ async function handleEvent(ev, targetIdx) {
       V.hitstop(90);
       V.ring(ex, ey, '#dfeaff', 10, 700, 5);
       V.burst(ex, ey, { color: '#dfeaff', n: 26, speed: 430, size: 2.4, grav: 300, kind: 'spark' });
-      V.floatText(ex, ey - 58, `${iconSvg('stagger', 20)} ${tr('ui.combat.shatter')}`, 'shatterf');
+      presentation.floatText(ex, ey - 58, `${iconSvg('stagger', 20)} ${tr('ui.combat.shatter')}`, 'shatterf');
       V.shake(10);
       kick(0.9);
       presentation.addCrack(x.art, true);
@@ -330,7 +339,7 @@ async function handleEvent(ev, targetIdx) {
     case 'adamantHold': {
       const { x: ex, y: ey } = presentation.enemyCenter(ev.idx);
       sfx.blocked();
-      V.floatText(ex, ey - 52, tr('ui.combat.glassHolds'), 'blockedf');
+      presentation.floatText(ex, ey - 52, tr('ui.combat.glassHolds'), 'blockedf');
       V.ring(ex, ey, '#d8c27a', 8, 480, 4);
       presentation.syncCombat();
       await sleep(260);
@@ -376,7 +385,7 @@ async function handleEvent(ev, targetIdx) {
         n: Math.min(ev.n * 2, 6), color: '#91a0af', size: 5, dur: 520,
       });
       sfx.ember();
-      V.floatText(to.x, to.y - 48, `−${ev.n} TO THE HOLLOW`, 'debufff');
+      presentation.floatText(to.x, to.y - 48, `−${ev.n} TO THE HOLLOW`, 'debufff');
       presentation.banner(escHtml(ev.remaining > 0 ? `${ev.remaining} EMBERS STILL OWED` : ev.paid));
       presentation.syncCombat();
       emberFrom = null;
@@ -418,19 +427,8 @@ async function handleEvent(ev, targetIdx) {
       V.flash(art.tone, 0.12, 0.5);
       V.ring(lc.x, lc.y, art.tone, 10, 620, 5);
       V.motes(hx, hy, art.tone, 12);
-      V.floatText(hx, hy - 84, art.name.toUpperCase(), 'artf');
-      const au = assetUrl('arts', ev.id);
-      if (au) {
-        const img = el('img', 'art-cast');
-        img.src = au;
-        $('#floaties').appendChild(img);
-        img.style.left = `${hx}px`; img.style.top = `${hy - 30}px`;
-        img.animate([
-          { transform: 'translate(-50%,-50%) scale(0.4)', opacity: 0 },
-          { transform: 'translate(-50%,-58%) scale(1)', opacity: 1, offset: 0.3 },
-          { transform: 'translate(-50%,-70%) scale(1.05)', opacity: 0 },
-        ], { duration: 900, easing: 'cubic-bezier(.2,.7,.3,1)' }).onfinish = () => img.remove();
-      }
+      presentation.floatText(hx, hy - 84, art.name.toUpperCase(), 'artf');
+      // Art cast ghost is Pixi-owned (Task 28) — float the name; no DOM image host.
       kick(0.7);
       presentation.syncCombat();
       await sleep(420);
@@ -440,7 +438,7 @@ async function handleEvent(ev, targetIdx) {
       const x = ce.enemies[ev.idx];
       const { x: ex, y: ey } = presentation.enemyCenter(ev.idx);
       sfx.stagger();
-      V.floatText(ex, ey - 76, tr('ui.combat.staggered'), 'staggerf');
+      presentation.floatText(ex, ey - 76, tr('ui.combat.staggered'), 'staggerf');
       x.root.classList.add('reseaming');
       setTimeout(() => x.root.classList.remove('reseaming'), 720);
       presentation.syncCombat();
@@ -485,23 +483,22 @@ async function handleEvent(ev, targetIdx) {
         bespokeFired = true;
       }
       if (c && targetIdx != null && cb.enemies[targetIdx]) {
-        // targeted attacks: the card itself streaks into the enemy
-        const r = stageRect(c); // ghost is fixed inside the stage
+        // targeted attacks: the card itself streaks into the enemy (Pixi flight)
+        const r = stageRect(c);
         const { x: tx, y: ty } = presentation.enemyCenter(targetIdx);
-        // Discard/exhaust should resume from where the streak ends, not the hand seat
         presentation.setCardFlightAnchor(ev.uid, { x: tx, y: ty, w: r.width * 0.22, h: r.height * 0.22 });
-        const ghost = c.cloneNode(true);
-        Object.assign(ghost.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, margin: 0, transform: 'none', zIndex: 56, pointerEvents: 'none' });
-        document.getElementById('floaties').appendChild(ghost);
-        adoptCardFaceRelease(c, ghost);
-        c.remove();
-        ghost.animate(
-          [{ transform: 'none', opacity: 1 }, { transform: `translate(${tx - r.left - r.width / 2}px,${ty - r.top - r.height / 2}px) scale(0.22) rotate(14deg)`, opacity: 0 }],
-          { duration: 270, easing: 'cubic-bezier(.45,0,.9,.5)' }
-        ).onfinish = () => {
-          releaseCardFace(ghost);
-          ghost.remove();
-        };
+        const inst = presentation.pileCardByUid(cb.hand, ev.uid)
+          || { uid: ev.uid, id: ev.id, up: false };
+        c.classList.add('draw-pending');
+        presentation.layoutHand();
+        await presentation.flyCardBacks([{
+          x: r.left + r.width / 2, y: r.top + r.height / 2,
+          w: r.width, h: r.height, inst, uid: ev.uid, dest: { x: tx, y: ty },
+        }], { x: tx, y: ty }, 270, {
+          ceremony: 'discard', face: 'card', uids: [ev.uid],
+          schedule: { stagger: 0, flightDur: 270, awaitMs: 270 },
+        });
+        removeHandCard(c);
       } else if (c) {
         // Tap/click: play lifts the card — recapture AFTER played-up so discard starts there.
         // Drag: keep the release-seat anchor (fromDrag); clearTargeting already reflowed the DOM.
@@ -522,7 +519,7 @@ async function handleEvent(ev, targetIdx) {
       if (ev.poison) {
         sfx.poison();
         V.motes(ex, ey, '#d3a15a', 14);
-        V.floatText(ex, ey - 20, `${ev.amount}`, 'poisonf');
+        presentation.floatText(ex, ey - 20, `${ev.amount}`, 'poisonf');
       } else {
         const big = ev.amount >= 16;
         if (heroActing && vfxSource.cardId && !String(vfxSource.cardId).startsWith('art:')) {
@@ -537,18 +534,18 @@ async function handleEvent(ev, targetIdx) {
         presentation.choreoHit(x.root, 1);
         if (ev.blocked > 0) {
           sfx.blocked();
-          V.floatText(ex, ey + 26, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf');
+          presentation.floatText(ex, ey + 26, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf');
           V.burst(ex, ey + 8, { color: '#9fd4ff', n: 9, speed: 210, size: 2, grav: 260, kind: 'spark' }); // ward chips off
           if (cb.enemies[ev.idx].block === 0 && ev.amount === 0) {
-            V.floatText(ex, ey - 2, tr('ui.combat.guardShattered'), 'shatterf');
+            presentation.banner(tr('ui.combat.guardShattered'), { kind: 'guard-shattered' });
             V.shardSpray(ex, ey, '#9fd4ff', 14);
           }
         }
         if (ev.amount > 0) {
           const tier = ev.killingBlow && ev.overkill >= 8 ? 'dmg-overkill' : ev.killingBlow ? 'dmg-kill' : big ? 'dmg-big' : 'dmg';
-          V.floatText(ex, ey - 24, `${ev.amount}`, tier, { tint: V.ARCHETYPE_TONES[vfxSource.archetype] || '', dx: (hitSeq++ % 3 - 1) * 34 });
+          presentation.floatText(ex, ey - 24, `${ev.amount}`, tier, { tint: V.ARCHETYPE_TONES[vfxSource.archetype] || '', dx: (hitSeq++ % 3 - 1) * 34 });
         }
-        else if (!ev.blocked) V.floatText(ex, ey - 24, '0', 'blockedf');
+        else if (!ev.blocked) presentation.floatText(ex, ey - 24, '0', 'blockedf');
         V.shake(Math.min(4 + ev.amount * 0.5, 15));
         kick(Math.min(0.2 + ev.amount / 26, 1));
         if (big) { V.hitstop(70); V.ring(ex, ey, '#ffd8a0', 10, 620, 5); }
@@ -597,7 +594,7 @@ async function handleEvent(ev, targetIdx) {
       if (!REDUCED) meshDeath(x.root, 1); // frame-jitter guard: the handoff must capture the full blaze
       const handoff = meshEnabled() ? meshHandoff(x.root) : null;
       if (!handoff) meshRelease(x.root);
-      V.shatter(x.art, handoff || {}); // cracked warp frame + site-guided wedges when available
+      presentation.shatter(x.art, handoff || {}); // cracked warp frame + site-guided wedges when available
       V.burst(ex, ey, { color: '#dfeaff', n: 30, speed: 480, size: 2.6, grav: 340, kind: 'spark' });
       V.burst(ex, ey, { color: '#c9b0ff', n: 26, speed: 380, size: 3.2, grav: 60 });
       V.ring(ex, ey, '#e8dcff', 12, 720, 6);
@@ -622,20 +619,20 @@ async function handleEvent(ev, targetIdx) {
       }
       if (ev.blocked > 0) {
         sfx.blocked();
-        V.floatText(hx, hy + 30, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf');
+        presentation.floatText(hx, hy + 30, `${iconSvg('shield', 19)}${ev.blocked}`, 'blockedf');
         V.burst(hx, hy + 8, { color: '#9fd4ff', n: 9, speed: 210, size: 2, grav: 260, kind: 'spark' });
-        if (cb.player.block === 0 && ev.amount === 0) {
-          V.floatText(hx, hy - 2, tr('ui.combat.guardShattered'), 'shatterf');
-          V.shardSpray(hx, hy, '#9fd4ff', 14);
-        }
+          if (cb.player.block === 0 && ev.amount === 0) {
+            presentation.banner(tr('ui.combat.guardShattered'), { kind: 'guard-shattered' });
+            V.shardSpray(hx, hy, '#9fd4ff', 14);
+          }
       }
       if (ev.amount > 0) {
         const big = ev.amount >= 16;
-        V.floatText(hx, hy - 30, `${ev.amount}`, big ? 'dmg-big' : 'dmg', { tint: V.ARCHETYPE_TONES[vfxSource.archetype] || '', dx: (hitSeq++ % 3 - 1) * 34 });
+        presentation.floatText(hx, hy - 30, `${ev.amount}`, big ? 'dmg-big' : 'dmg', { tint: V.ARCHETYPE_TONES[vfxSource.archetype] || '', dx: (hitSeq++ % 3 - 1) * 34 });
         V.shake(Math.min(5 + ev.amount * 0.6, 18));
         kick(Math.min(0.3 + ev.amount / 22, 1.2));
         // no hero cracks (user call, 2026-07-07): the glass language is for foes
-      } else if (!ev.blocked) V.floatText(hx, hy - 30, '0', 'blockedf');
+      } else if (!ev.blocked) presentation.floatText(hx, hy - 30, '0', 'blockedf');
       presentation.syncCombat(); presentation.renderHud();
       await sleep(240);
       break;
@@ -648,7 +645,7 @@ async function handleEvent(ev, targetIdx) {
         ? ($('.hero-sprite', ce.hero) || ce.hero)
         : ($('.enemy-sprite', ce.enemies[ev.who]?.art) || ce.enemies[ev.who]?.art);
       presentation.syncWardMesh(host, true, true);
-      V.floatText(x, y - 10, `${iconSvg('shield', 22)} ${ev.n}`, 'blockf');
+      presentation.floatText(x, y - 10, `${iconSvg('shield', 22)} ${ev.n}`, 'blockf');
       const chip = isP ? ce.pBlock : ce.enemies[ev.who].block;
       chip.classList.remove('pulse');
       void chip.offsetWidth;
@@ -663,7 +660,7 @@ async function handleEvent(ev, targetIdx) {
       const info = runCatalogues().statuses[ev.id] || { name: ev.id, kind: 'buff' };
       const isDebuff = info.kind === 'debuff' || (ev.id === 'str' && ev.n < 0);
       (ev.id === 'poison' ? sfx.poison : isDebuff ? sfx.debuff : sfx.buff)();
-      V.floatText(x, y - 46, `${ev.n > 0 ? '+' : ''}${ev.n} ${info.name}`, isDebuff ? 'debufff' : 'bufff');
+      presentation.floatText(x, y - 46, `${ev.n > 0 ? '+' : ''}${ev.n} ${info.name}`, isDebuff ? 'debufff' : 'bufff');
       if (!isDebuff) V.motes(x, y, '#9fc8ff', 6);
       presentation.syncCombat();
       await sleep(170);
@@ -674,7 +671,7 @@ async function handleEvent(ev, targetIdx) {
       const { x, y } = isP ? presentation.heroCenter() : presentation.enemyCenter(ev.who);
       sfx.heal();
       V.motes(x, y, '#8fe8a0', 14);
-      V.floatText(x, y - 30, `+${ev.n}`, 'healf');
+      presentation.floatText(x, y - 30, `+${ev.n}`, 'healf');
       presentation.syncCombat(); presentation.renderHud();
       await sleep(200);
       break;
@@ -737,31 +734,22 @@ async function handleEvent(ev, targetIdx) {
         ? { x: live.left + live.width / 2, y: live.top + live.height / 2, w: live.width, h: live.height }
         : anchor;
       if (c && start) {
-        const ghost = c.cloneNode(true);
-        Object.assign(ghost.style, {
-          position: 'fixed', left: `${start.x - start.w / 2}px`, top: `${start.y - start.h / 2}px`,
-          width: `${start.w}px`, height: `${start.h}px`, margin: 0, transform: 'none',
-          zIndex: 56, pointerEvents: 'none', opacity: '1',
-        });
-        document.getElementById('floaties').appendChild(ghost);
-        adoptCardFaceRelease(c, ghost);
-        c.remove();
-        ghost.animate(
-          [
-            { clipPath: 'circle(80% at 50% 55%)', filter: 'brightness(1)' },
-            { clipPath: 'circle(44% at 50% 55%)', filter: 'brightness(1.8) saturate(1.6) sepia(0.45)', offset: 0.45 },
-            { clipPath: 'circle(0% at 50% 55%)', filter: 'brightness(2.6) saturate(2) sepia(0.85)' },
-          ],
-          { duration: 540, easing: 'ease-in' }
-        ).onfinish = () => {
-          releaseCardFace(ghost);
-          ghost.remove();
-        };
+        const inst = presentation.pileCardByUid(cb.exhaust, ev.uid)
+          || { uid: ev.uid, id: c.dataset?.id, up: false };
+        c.classList.add('draw-pending');
+        presentation.layoutHand();
         V.burst(start.x, start.y, { color: '#ffb066', n: 22, speed: 190, grav: -150, size: 2.4, life: 0.85 });
         const a1 = V.centerOf(ce.exhaust);
+        await presentation.flyCardBacks([{
+          ...start, inst, uid: ev.uid,
+        }], ce.exhaust, 500, {
+          ceremony: 'exhaust', face: 'card', uids: [ev.uid],
+          fromSize: 'src', toSize: 'pile', sizePile: ce.exhaust,
+        });
         presentation.flyTo(start.x, start.y, a1.x, a1.y, { n: 8, color: '#ffb066', size: 5, dur: 480 });
+        removeHandCard(c);
         presentation.bumpPile(ce.exhaust);
-        await sleep(260);
+        await sleep(120);
       } else if (c) {
         removeHandCard(c);
       }
@@ -770,7 +758,7 @@ async function handleEvent(ev, targetIdx) {
       break;
     }
     case 'discardHand': {
-      // Same even-stagger clock as draw: each unplayed hand card flies in order
+      // P5 discard-hand ceremony — Pixi parent/child card-flight spans.
       const uids = ev.uids || [];
       const n = uids.length;
       sfx.card();
@@ -780,12 +768,16 @@ async function handleEvent(ev, targetIdx) {
           presentation.takeCardAnchor(uid);
           removeHandCard($(`.card[data-uid="${uid}"]`, ce.hand));
         });
+        await presentation.flyCardBacks(
+          uids.map((uid) => ({ x: 0, y: 0, w: 1, h: 1, uid })),
+          V.centerOf(ce.discard),
+          440,
+          { ceremony: 'discardHand', uids, policy: { motion: 'reduced' } },
+        );
         presentation.syncCombat();
         break;
       }
       presentation.holdPileVisual('discard', n);
-      const sched = drawBatchSchedule(n, 500);
-      // Snapshot seats FIRST (before hiding) — clone the live card so the flyer matches the hand
       const flights = [];
       for (const uid of uids) {
         const elc = $(`.card[data-uid="${uid}"]`, ce.hand);
@@ -801,81 +793,20 @@ async function handleEvent(ev, targetIdx) {
         } else {
           origin = { ...V.centerOf(ce.hand), ...presentation.handFaceSize() };
         }
-        flights.push({ ...origin, inst, el: elc });
-      }
-      // Hide seats only after snapshots — fan reflows without ghosts
-      for (const f of flights) {
-        if (f.el) f.el.classList.add('draw-pending');
+        flights.push({ ...origin, inst, uid });
+        if (elc) elc.classList.add('draw-pending');
       }
       presentation.layoutHand();
-      if (flights.length) {
-        const layer = $('#floaties');
-        const dest = V.centerOf(ce.discard);
-        const pileSz = presentation.pileFaceSize(ce.discard);
-        flights.forEach((src, i) => {
-          const layoutW = src.w > 2 ? src.w : presentation.handFaceSize().w;
-          const layoutH = src.h > 2 ? src.h : presentation.handFaceSize().h;
-          const landScale = layoutW > 0 ? pileSz.w / layoutW : 0.65;
-          let m;
-          if (src.el) {
-            m = src.el.cloneNode(true);
-            m.classList.remove('draw-pending', 'lifted', 'armed', 'dragging', 'will-cast', 'will-burn', 'played-up', 'unplayable-now');
-            m.classList.add('flycard-face');
-            m.removeAttribute('style');
-            Object.assign(m.style, {
-              position: 'absolute', left: `${src.x}px`, top: `${src.y}px`,
-              width: `${layoutW}px`, height: `${layoutH}px`, margin: 0,
-              transform: 'translate(-50%,-50%) scale(1)', zIndex: 58 + i, pointerEvents: 'none',
-              opacity: '1',
-            });
-            // Task 26 — clone shares the blob URL; transfer release so seat detach is safe.
-            adoptCardFaceRelease(src.el, m);
-          } else if (src.inst?.id) {
-            m = cardEl(src.inst, { inCombat: true, size: layoutW });
-            m.classList.add('flycard-face');
-            Object.assign(m.style, {
-              position: 'absolute', left: `${src.x}px`, top: `${src.y}px`,
-              width: `${layoutW}px`, height: `${layoutH}px`, margin: 0,
-              transform: 'translate(-50%,-50%) scale(1)', zIndex: 58 + i, pointerEvents: 'none',
-            });
-          } else {
-            return;
-          }
-          layer.appendChild(m);
-          const mx = src.x + (dest.x - src.x) * 0.45 + (Math.random() - 0.5) * 24;
-          const my = Math.min(src.y, dest.y) - 28 - Math.random() * 20;
-          const dx1 = mx - src.x, dy1 = my - src.y;
-          const dx2 = dest.x - src.x, dy2 = dest.y - src.y;
-          const mid = 1 + (landScale - 1) * 0.5;
-          m.animate(
-            [
-              { transform: 'translate(-50%,-50%) scale(1)', opacity: 1, offset: 0 },
-              { transform: `translate(calc(-50% + ${dx1}px), calc(-50% + ${dy1}px)) scale(${mid})`, opacity: 1, offset: 0.5 },
-              { transform: `translate(calc(-50% + ${dx2}px), calc(-50% + ${dy2}px)) scale(${landScale})`, opacity: 0.92, offset: 1 },
-            ],
-            {
-              duration: sched.flightDur,
-              delay: i * sched.stagger,
-              easing: 'cubic-bezier(.22,.7,.28,1)',
-              fill: 'forwards',
-            }
-          ).onfinish = () => {
-            releaseCardFace(m);
-            m.remove();
-          };
-          setTimeout(() => {
-            presentation.releasePileVisual('discard', 1);
-            presentation.syncPileWidgets(cb);
-            presentation.bumpPile(ce.discard);
-            sfx.card();
-          }, sched.flightDur + i * sched.stagger);
-        });
-        await sleep(sched.awaitMs);
-        const left = n - flights.length;
-        if (left > 0) presentation.releasePileVisual('discard', left);
-      } else {
-        presentation.releasePileVisual('discard', n);
-      }
+      await presentation.flyCardBacks(flights, ce.discard, 440, {
+        ceremony: 'discardHand',
+        face: 'card',
+        uids,
+        fromSize: 'src',
+        toSize: 'pile',
+        sizePile: ce.discard,
+      });
+      presentation.releasePileVisual('discard', n);
+      presentation.bumpPile(ce.discard);
       uids.forEach((uid) => removeHandCard($(`.card[data-uid="${uid}"]`, ce.hand)));
       presentation.syncCombat();
       break;
@@ -949,7 +880,7 @@ async function handleEvent(ev, targetIdx) {
       x.intent.classList.remove('telegraph');
       void x.intent.offsetWidth;
       x.intent.classList.add('telegraph');
-      V.floatText(ex, ey - 90, ev.name, 'movef');
+      presentation.floatText(ex, ey - 90, ev.name, 'movef');
       await sleep(300);
       if (mvDef?.intent?.startsWith('attack')) {
         await presentation.choreoAttack(x.root, -1, view.kind);
@@ -960,7 +891,7 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'intent': presentation.syncCombat(); break;
     case 'addCard': {
-      V.floatText(stageW() / 2, stageH() * 0.62, `${runCatalogues().cards[ev.id].name} added to ${ev.where === 'hand' ? 'hand' : 'discard'}`, 'notice');
+      presentation.floatText(stageW() / 2, stageH() * 0.62, `${runCatalogues().cards[ev.id].name} added to ${ev.where === 'hand' ? 'hand' : 'discard'}`, 'notice');
       sfx.debuff();
       presentation.syncCombat(); presentation.syncHand();
       await sleep(240);
@@ -974,7 +905,7 @@ async function handleEvent(ev, targetIdx) {
     }
     case 'maxHp': {
       const { x, y } = presentation.heroCenter();
-      V.floatText(x, y - 60, `+${ev.n} MAX HP`, 'healf');
+      presentation.floatText(x, y - 60, `+${ev.n} MAX HP`, 'healf');
       sfx.buff();
       await sleep(160);
       break;

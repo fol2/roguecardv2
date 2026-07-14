@@ -124,6 +124,11 @@ for (const [act, ids] of [[0, ['duskfang', 'sporeling']], [1, ['drownedOne', 'vo
     await boot(page, { query: 'mesh=0' });
     await page.evaluate((a) => { window.spirebound.S.run.act = a; }, act);
     await startFight(page, ids);
+    // Task 28 — combat ceremonies own Pixi; #floaties must stay empty in combat.
+    const floaties = await page.evaluate(() => document.querySelectorAll('#floaties > *').length);
+    if (floaties !== 0) {
+      throw new Error(`combat floaties must be empty after Task 28 (found ${floaties})`);
+    }
     await shoot(page, `combat-act${act + 1}`, 'p4Combat');
   });
 }

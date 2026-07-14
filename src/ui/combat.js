@@ -6,7 +6,7 @@ import {
 } from '../art.js';
 import {
   drawBatchSchedule, flightSchedule, pileFanAngleDeg, pileFanLayers,
-  pileMasterId, pileTier,
+  pileMasterId, pileTier, CEREMONY_BUDGET_MS,
 } from '../pile-chrome.js';
 import {
   energySlotStates, intentUiIds,
@@ -1957,9 +1957,30 @@ async function onEndTurn() {
     throw error;
   }
 }
-function banner(text) {
+function pixiPresentation() {
+  if (S.screen !== 'combat') return null;
+  return glRenderer()?.presentation || null;
+}
+
+function banner(text, opts = {}) {
+  const pixi = pixiPresentation();
+  if (pixi?.banner) {
+    const kind = opts.kind
+      || (/enemy turn/i.test(String(text)) ? 'turn'
+        : /your turn/i.test(String(text)) ? 'turn'
+          : /shatter/i.test(String(text)) ? 'guard-shattered'
+            : opts.boss ? 'boss' : 'turn');
+    return pixi.banner(text, {
+      kind,
+      stageW: stageW(),
+      stageH: stageH(),
+      ...opts,
+    });
+  }
   const token = presentationBarrier.begin('banner');
-  const span = trace.begin('presentation.banner');
+  const span = trace.begin('presentation.banner', {
+    attributes: opts.kind ? { kind: opts.kind } : undefined,
+  });
   const b = el('div', 'turn-banner', text);
   screenEl().appendChild(b);
   setTimeout(() => {
@@ -1977,7 +1998,12 @@ function banner(text) {
 
 // ceremony: things travel — coins to the purse, relics to the bar, card-backs
 // from the discard to the draw pile. One arc-flight helper for all of it.
-function flyTo(x0, y0, x1, y1, { n = 6, color = '#ffe9ac', size = 8, dur = 640, glyph = '', cls = 'flymote', done = null } = {}) {
+function flyTo(x0, y0, x1, y1, opts = {}) {
+  const pixi = pixiPresentation();
+  if (pixi?.flyTo) {
+    return pixi.flyTo(x0, y0, x1, y1, opts);
+  }
+  const { n = 6, color = '#ffe9ac', size = 8, dur = 640, glyph = '', cls = 'flymote', done = null } = opts;
   const layer = $('#floaties');
   if (n <= 0) { done?.(); return; }
   const barrierToken = presentationBarrier.begin('mote-flight');
@@ -2036,6 +2062,22 @@ function flyTo(x0, y0, x1, y1, { n = 6, color = '#ffe9ac', size = 8, dur = 640, 
     barrierToken.cancel();
     throw error;
   }
+}
+
+function floatText(x, y, text, cls = '', opts = {}) {
+  const pixi = pixiPresentation();
+  if (pixi?.floatText) {
+    return pixi.floatText(x, y, text, cls, opts);
+  }
+  return V.floatText(x, y, text, cls, opts);
+}
+
+function shatterVessel(el, opts = {}) {
+  const pixi = pixiPresentation();
+  if (pixi?.shatter) {
+    return pixi.shatter(el, opts);
+  }
+  return V.shatter(el, opts);
 }
 
 function bumpPile(btn) {
@@ -2169,6 +2211,30 @@ function resolveFlightSize(spec, { pileBtn, src, fallback } = {}) {
  * opts.sizePile: pile button used when resolving 'pile' sizes (defaults to toEl)
  */
 function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
+  const pixi = pixiPresentation();
+  if (pixi?.flyCardBacks) {
+    const dest = toEl && typeof toEl === 'object' && 'x' in toEl
+      ? toEl
+      : V.centerOf(toEl);
+    const ceremony = opts.ceremony
+      || (toEl?.classList?.contains('pile-draw') && opts.face === 'back' && 'reshuffle')
+      || (toEl?.classList?.contains('pile-discard') && 'discard')
+      || (toEl?.classList?.contains('pile-exhaust') && 'exhaust')
+      || 'discard';
+    const uids = opts.uids || fromList.map((s) => s.uid ?? s.inst?.uid).filter((u) => u != null);
+    return pixi.flyCardBacks(fromList, dest, {
+      ...opts,
+      ceremony,
+      budgetMs: budgetMs ?? opts.budgetMs,
+      uids,
+      schedule: opts.schedule || flightSchedule(
+        fromList.length,
+        budgetMs ?? CEREMONY_BUDGET_MS[ceremony] ?? 440,
+        { ceremony },
+      ),
+      policy: REDUCED ? { motion: 'reduced' } : undefined,
+    });
+  }
   const layer = $('#floaties');
   const dest = V.centerOf(toEl);
   const n = fromList.length;
@@ -2749,6 +2815,8 @@ const drainHandlers = Object.freeze({
   enemyCenter,
   flyCardBacks,
   flyTo,
+  floatText,
+  shatter: shatterVessel,
   handFaceSize,
   handSeatCenter,
   heroCenter,

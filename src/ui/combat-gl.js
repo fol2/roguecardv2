@@ -49,7 +49,9 @@ import {
 } from './hand-layout.js';
 import { CARDS } from '../data.js';
 import { getLocale } from '../i18n/index.js';
-import { ROUND5_TOKENS } from './tokens.js';
+import { ROUND5_TOKENS, isReducedTier } from './tokens.js';
+import { createCombatPresentation } from './combat-presentation.js';
+import { presentationBarrier } from './context.js';
 
 /** Task 21 formula: min(max(dpr * stage.scale, 0.5), tierCap). Prefer the
  *  live Pixi renderer resolution when the layer is already booted. */
@@ -265,11 +267,30 @@ export async function createCombatRenderer({
   // Task 27 — hand above chrome so seats paint over piles; aim above hand.
   const handLayer = new Container(); handLayer.label = 'combat-gl-hand';
   const aimLayer = new Container(); aimLayer.label = 'combat-gl-aim';
+  const ceremonyLayer = new Container(); ceremonyLayer.label = 'combat-gl-ceremony';
   container.addChild(
     candlesLayer, energyNumLayer, lanternLayer, endTurnLayer,
     pileLayers.draw, pileLayers.discard, pileLayers.ashes,
-    platesLayer, hudLayer, handLayer, aimLayer,
+    platesLayer, hudLayer, handLayer, aimLayer, ceremonyLayer,
   );
+
+  // Task 28 — floaters / banners / pile flights / shatter live above chrome.
+  const presentation = createCombatPresentation({
+    parent: ceremonyLayer,
+    trace,
+    presentationBarrier,
+    policy: () => {
+      const p = pixiLayer.policy || {};
+      const reduced = !!(p.reducedMotion || isReducedTier(p));
+      return {
+        tier: p.tier || 'full',
+        motion: reduced ? 'reduced' : (p.motion || 'full'),
+      };
+    },
+    cardFace,
+    canvas: typeof document !== 'undefined' ? document.getElementById('uigl') : null,
+    pixiApp: pixiLayer.application?.() || null,
+  });
 
   const transitions = [];
   let state = 'idle';
@@ -2139,6 +2160,7 @@ export async function createCombatRenderer({
     destroyed = true;
     clearHandPaint();
     clearAimPaint();
+    try { presentation.destroy(); } catch { /* already gone */ }
     try { cardFace.destroy(); } catch { /* already gone */ }
     try { container.destroy({ children: true }); } catch { /* container already reaped */ }
     textureAliases.clear();
@@ -2156,6 +2178,8 @@ export async function createCombatRenderer({
     freezeForTest, unfreezeForTest, destroy,
     // Task 26 — single card-face composer
     cardFace,
+    // Task 28 — combat floaters / banners / pile flights / shatter
+    presentation,
     // scaffold introspection (not part of the frozen public seam; PR16 will
     // stabilise these once the renderer actually paints)
     root: () => container,
