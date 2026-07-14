@@ -25,7 +25,7 @@ This hand-off makes **no** actual-Safari, iOS/iPadOS Simulator, WKWebView-as-app
 | Exact PE tip / rollback (Task 29 source) | `11fb29c0617e228098e334ef5a33fbc701b66840` | P5 complete; FE Task 31 verifies this is an ancestor of the hand-off HEAD |
 | P5 → P6 FE hand-off HEAD (initial publish) | `70b84af5209504ca0bdec3c555c792dd0b536fcc` | First `docs: publish the P5 to P6 hand-off` |
 | P5 → P6 harden content commit | `e5f691f6b52cb473ebc6634f94a24caa91f9b2f4` | Important-review body (`docs: harden P5 to P6 hand-off manifest`) |
-| P5 → P6 FE hand-off HEAD (hardened pin) | `7d70f7666ad1e8b355b21d8e3e6f30110b0c394f` | Pin commit tip; FE fast-forwards here; ledger mirrors |
+| P5 → P6 FE hand-off HEAD (hardened pin) | `935b34fe817ec0ba8243ebe6676444396d498308` | Branch tip; FE fast-forwards here; ledger mirrors |
 | Experience contract blob (frozen) | `6684e8b67779a26d29b391705a48852b43d7b2f7` | Task 21 owner-approved; **read-only for P6** |
 | Contract clean FE_HEAD | `51cbf9876797813a0e60144412984bbf8badb569` | Task 21 write-set proof |
 | FE_CONTRACT_MERGE | `6e06911853ba8e26d05ac4db0a1ad119a6c2275a` | Contract merge into PE lane |
