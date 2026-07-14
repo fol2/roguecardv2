@@ -187,7 +187,11 @@ async function handleDrawWave(q, queueCauseSeq = null) {
   presentation.syncHand();
   presentation.syncPileWidgets(cb);
 
-  let baseFan = $$('.card', ce.hand).filter((c) => !c.classList.contains('draw-pending')).length;
+  // Task 27 — no DOM hand seats; fan count is already-revealed engine hand.
+  let baseFan = cb.hand.filter((c) => {
+    // Cards whose draw event is still queued are not yet in the resting fan.
+    return !cb.queue.some((e) => e.t === 'draw' && String(e.uid) === String(c.uid));
+  }).length;
   let arrival = 0;
 
   for (const seg of segments) {
@@ -207,11 +211,8 @@ async function handleDrawWave(q, queueCauseSeq = null) {
       const uid = String(ev.uid);
       const landAt = REDUCED ? 0 : sched.flightDur + i * sched.stagger;
       presentation.deleteDrawRevealPlan(uid);
-      const c = $(`.card[data-uid="${uid}"]`, ce.hand);
-      if (c && !REDUCED) presentation.scheduleHandReveal(c, landAt);
-      else if (c) {
-        c.classList.remove('draw-pending');
-      }
+      if (!REDUCED) presentation.scheduleHandReveal(uid, landAt);
+      else presentation.layoutHand();
     });
 
     if (!REDUCED) {

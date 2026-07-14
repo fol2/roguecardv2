@@ -344,15 +344,10 @@ function installGlobalOwners() {
     combatApi.clearTargeting();
   });
   document.addEventListener('keydown', (event) => {
+    if (combatApi.handleCombatKey?.(event)) return;
     if (event.key === 'Escape') {
       if (S.targeting) combatApi.clearTargeting();
       else if ($('#overlay').classList.contains('open') && $('#overlay')._closable) closeOverlay();
-    }
-    if ((event.key === 'e' || event.key === 'E') && S.screen === 'combat' && !S.busy) {
-      combatApi.onEndTurn();
-    }
-    if ((event.key === 'a' || event.key === 'A') && S.screen === 'combat' && !S.busy) {
-      combatApi.useLanternArt();
     }
   });
   $('#overlay').addEventListener('pointerdown', (event) => {

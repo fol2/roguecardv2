@@ -493,8 +493,14 @@ function forceHand(run, cb, ids) {
     'P1 DOM card-art bake is not competing at the cardEl merge boundary');
   const combatSource = readFileSync(new URL('../src/ui/combat.js', import.meta.url), 'utf8');
   const drainSource = readFileSync(new URL('../src/ui/drain.js', import.meta.url), 'utf8');
-  assert.match(combatSource, /function syncHand\([\s\S]*?_cardFaceRelease/,
-    'syncHand releases prior card-face exports on remove/refresh');
+  assert.match(combatSource, /function syncHand\([\s\S]*?releaseCardFace/,
+    'syncHand clears leftover DOM seats and releases card-face exports');
+  assert.match(combatSource, /hand-layout|pureHandSeatCenter|layoutHandSeats|handSeatCenter as pureHandSeatCenter/,
+    'Task 27 combat hand seats use pure hand-layout');
+  assert.match(combatSource, /function handleCombatKey\(/,
+    'Task 27 keyboard grammar lives on the combat owner');
+  assert.doesNotMatch(combatSource, /const domHandAdapter/,
+    'Task 27 removes the P4 domHandAdapter');
   assert.match(combatSource, /function flyCardBacks\([\s\S]*?releaseCardFace\(m\)/,
     'flyCardBacks teardown revokes card-face object URLs');
   assert.match(drainSource, /adoptCardFaceRelease\(src\.el,\s*m\)/,
@@ -8996,7 +9002,9 @@ export default defineContentRegistration({
   const probeSource = readFileSync(new URL('../src/ui/probe.js', import.meta.url), 'utf8');
   assert.match(probeSource, /ui\(\)\s*\{[\s\S]*?version:\s*2/,
     'probe.ui() reports the Task 23 Probe v2 version');
-  assert.match(probeSource, /const hand = \(cb && ce\?\.hand\)/, 'probe.ui() exposes hand seats');
+  assert.match(probeSource, /const hand = \(cb\)/, 'probe.ui() exposes hand seats from Pixi/engine');
+  assert.match(probeSource, /selectedCardUid:/, 'probe.ui() exposes keyboard selected card');
+  assert.match(probeSource, /selectedEnemyIndex:/, 'probe.ui() exposes keyboard selected enemy');
   assert.match(probeSource, /const piles = \{/, 'probe.ui() exposes piles');
   assert.match(probeSource, /queueIdle:\s*\(\)\s*=>/, 'probe exposes queueIdle separately');
   assert.match(probeSource, /settle:\s*\(\)\s*=>\s*presentationSettled/, 'probe exposes settle separately');
@@ -9273,6 +9281,55 @@ export default defineContentRegistration({
   composer.destroy();
 }
 
+// ---- Task 27: pure hand-layout freeze (P4 DOM seat centres) -----------------
+{
+  const {
+    HAND_MAX_GAP, HAND_SPAN, HAND_EDGE_RESERVE, HAND_MAX_STEP_DEG, HAND_TOTAL_DEG,
+    HAND_SAG_PER_DEG, HAND_MAX_CARDS, HAND_BASE_Y,
+    handGap, handRotationDeg, handSeatOffset, handSeatCenter, layoutHandSeats,
+  } = await import('../src/ui/hand-layout.js');
+
+  assert.equal(HAND_MAX_GAP, 112);
+  assert.equal(HAND_SPAN, 640);
+  assert.equal(HAND_EDGE_RESERVE, 246);
+  assert.equal(HAND_MAX_STEP_DEG, 5);
+  assert.equal(HAND_TOTAL_DEG, 42);
+  assert.equal(HAND_SAG_PER_DEG, 3.2);
+  assert.equal(HAND_MAX_CARDS, 10);
+  assert.equal(HAND_BASE_Y, 26);
+
+  // P4 DOM seat centres for 1 / 5 / 10 cards must equal pure layout output.
+  const stageW = 1458;
+  const cardW = 152;
+  const cardH = Math.round(cardW * 1.42);
+  const zoneCenterX = stageW / 2;
+  const baseBottom = 820 - 8;
+  for (const n of [1, 5, 10]) {
+    const gap = Math.min(112, 640 / Math.max(n, 1), (stageW - 246) / Math.max(n - 1, 1));
+    assert.equal(handGap(n, stageW), gap, `gap n=${n}`);
+    for (let i = 0; i < n; i += 1) {
+      const rot = n > 1 ? (i - (n - 1) / 2) * Math.min(5, 42 / n) : 0;
+      const x = (i - (n - 1) / 2) * gap;
+      const sagY = Math.abs(rot) * 3.2 + 26;
+      const expected = {
+        x: zoneCenterX + x,
+        y: baseBottom - cardH / 2 + sagY,
+      };
+      const got = handSeatCenter(i, n, {
+        stageW, cardW, cardH, zoneCenterX, baseBottom,
+      });
+      assert.equal(got.x, expected.x, `seat x n=${n} i=${i}`);
+      assert.equal(got.y, expected.y, `seat y n=${n} i=${i}`);
+      assert.equal(handRotationDeg(i, n), rot);
+      const off = handSeatOffset(i, n, stageW);
+      assert.equal(off.x, x);
+      assert.equal(off.y, sagY);
+    }
+    assert.equal(layoutHandSeats(n, {
+      stageW, cardW, cardH, zoneCenterX, baseBottom,
+    }).length, n);
+  }
+}
 
 let wins = 0, deaths = 0;
 const RUNS = 300;

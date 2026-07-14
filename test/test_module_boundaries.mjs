@@ -185,7 +185,7 @@ const combatKeys = [
   'startCombatUI', 'renderCombat', 'refitCombat', 'renderHud', 'meshBindTitle',
   'syncCombat', 'syncHand', 'setTargeting', 'clearTargeting', 'doPlay',
   'onEndTurn', 'useLanternArt', 'afterAction', 'banner', 'flyTo', 'tweenNum',
-  'freeze', 'freezeForProbe', 'pointerState', 'startRig', 'drainHandlers',
+  'freeze', 'freezeForProbe', 'pointerState', 'handleCombatKey', 'startRig', 'drainHandlers',
 ].sort();
 const drainHandlerKeys = [
   'addCrack', 'banner', 'bumpPile', 'captureCardAnchor', 'choreoAttack',

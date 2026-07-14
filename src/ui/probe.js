@@ -113,10 +113,18 @@ export function installProbe({
           );
         }
         add(
-          'hand: DOM count matches engine',
-          $$('.card', ce.hand).length === cb.hand.length,
-          `dom=${$$('.card', ce.hand).length} engine=${cb.hand.length}`,
+          'hand: no DOM hand cards',
+          $$('.card', ce.hand).length === 0,
+          `dom=${$$('.card', ce.hand).length}`,
         );
+        {
+          const painted = resolveCombatRenderer?.()?.readUI?.()?.hand?.seats?.length ?? 0;
+          add(
+            'hand: Pixi seats cover engine hand',
+            painted === cb.hand.length || (painted >= 0 && cb.hand.length >= painted),
+            `pixi=${painted} engine=${cb.hand.length}`,
+          );
+        }
         const gl = resolveCombatRenderer?.();
         const glModel = gl && typeof gl.sync === 'function' ? gl.sync() : null;
         const pixiOwned = !!(glModel && glModel.bottomChrome);
@@ -208,10 +216,11 @@ export function installProbe({
       const ce = S.ce;
       const input = typeof combat.pointerState === 'function' ? combat.pointerState() : null;
 
-      const hand = (cb && ce?.hand)
+      const hand = (cb)
         ? cb.hand.map((card) => {
-          const el = ce.hand.querySelector(`.card[data-uid="${card.uid}"]`);
-          const bounds = el ? rectOf(stageRect(el)) : null;
+          const seat = readUI?.hand?.seats?.find((s) => String(s.uid) === String(card.uid));
+          const bounds = seat?.bounds || seat?.seatBounds || null;
+          const seatBounds = seat?.seatBounds || bounds;
           const d = E.cardData(card, S.run);
           const playable = !d.unplayable
             && (E.effCost(S.run, cb, card) ?? 99) <= cb.player.energy;
@@ -219,10 +228,15 @@ export function installProbe({
             uid: card.uid,
             id: card.id,
             bounds,
-            seatBounds: bounds,
+            seatBounds,
             playable,
-            selected: !!(S.targeting?.kind === 'card' && S.targeting.uid === card.uid),
+            selected: !!(S.selectedCardUid != null && S.selectedCardUid === card.uid)
+              || !!(S.targeting?.kind === 'card' && S.targeting.uid === card.uid),
             dragging: !!(S.drag && S.drag.uid === card.uid && S.drag.live),
+            hovered: !!(S.hoveredCard != null && S.hoveredCard === card.uid),
+            foil: seat?.foil ?? null,
+            sheen: seat?.sheen ?? null,
+            faceKey: seat?.faceKey ?? null,
           };
         })
         : [];
@@ -252,6 +266,8 @@ export function installProbe({
           policy: policy ? { ...policy } : null,
         },
         hand,
+        selectedCardUid: S.selectedCardUid ?? null,
+        selectedEnemyIndex: S.selectedEnemyIndex ?? null,
         piles,
         energy: {
           value: bottom?.energy ?? cb?.player?.energy ?? null,

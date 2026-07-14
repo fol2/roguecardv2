@@ -1,6 +1,6 @@
-// Sole stage-level combat pointer router (Round 5 Task 23).
+// Sole stage-level combat pointer router (Round 5 Task 23 / Task 27).
 // `#uigl` stays pointer-inert; `#stage` owns capture after acceptance.
-// Hit order: Pixi chrome → P4 DOM hand → residual DOM (enemies / overlays).
+// Hit order: Pixi chrome → Pixi hand cards → residual DOM (enemies / overlays).
 
 export const DRAG_START_PX = 26;
 export const LONG_PRESS_CANCEL_PX = 12;
@@ -125,7 +125,12 @@ export function createCombatPointerRouter({
 
   function resolveHit(stagePt, event) {
     const pixiHit = renderer?.hitTest?.(stagePt.x, stagePt.y) || null;
-    if (pixiHit) return { source: 'pixi', hit: pixiHit };
+    if (pixiHit) {
+      if (pixiHit.kind === 'card' || pixiHit.type === 'card') {
+        return { source: 'hand', hit: pixiHit };
+      }
+      return { source: 'pixi', hit: pixiHit };
+    }
     const handHit = domHandAdapter?.hitTest?.(stagePt, event) || null;
     if (handHit) return { source: 'hand', hit: handHit };
     const enemyHit = hitEnemy(stagePt);
@@ -187,12 +192,13 @@ export function createCombatPointerRouter({
         y0: event.clientY,
         live: false,
         free: false,
-        seatBounds: hit.seatBounds || null,
+        seatBounds: hit.seatBounds || hit.bounds || null,
         el: hit.el || null,
+        tip: hit.tip || null,
         traceSpan: null,
       };
       renderer?.setInteraction?.('card-press');
-      if (hit.tip) armLongPress(event, hit.tip);
+      if (hit.tip) armLongPress(event, { content: hit.tip, bounds: hit.seatBounds || hit.bounds });
       return;
     }
 
@@ -239,14 +245,25 @@ export function createCombatPointerRouter({
 
     const st = gesture;
     if (!st || event.pointerId !== st.id) {
-      // Mouse hover tips over Pixi chrome (no active gesture).
+      // Mouse hover tips / hand hover when no active gesture.
       if (event.pointerType === 'mouse' && !gesture) {
         const stagePt = toStage(event.clientX, event.clientY);
-        const pixiHit = renderer?.hitTest?.(stagePt.x, stagePt.y);
-        if (pixiHit?.tip) {
-          tooltip?.showFromBounds?.(pixiHit.tip, pixiHit.bounds, {
-            clientX: event.clientX, clientY: event.clientY, touch: false,
-          });
+        const resolved = resolveHit(stagePt, event);
+        if (resolved?.source === 'hand' && resolved.hit?.kind === 'card') {
+          actions.cardHover?.(resolved.hit.uid);
+          if (resolved.hit.tip) {
+            tooltip?.showFromBounds?.(resolved.hit.tip, resolved.hit.seatBounds || resolved.hit.bounds, {
+              clientX: event.clientX, clientY: event.clientY, touch: false,
+            });
+          }
+        } else {
+          actions.cardHover?.(null);
+          const pixiHit = resolved?.source === 'pixi' ? resolved.hit : null;
+          if (pixiHit?.tip) {
+            tooltip?.showFromBounds?.(pixiHit.tip, pixiHit.bounds, {
+              clientX: event.clientX, clientY: event.clientY, touch: false,
+            });
+          }
         }
       }
       return;

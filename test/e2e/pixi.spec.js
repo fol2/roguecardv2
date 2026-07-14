@@ -602,7 +602,8 @@ test.describe('Round 5 production Pixi layer', () => {
         if (!kids.length) return 'no-children';
         return kids.every((k) => getComputedStyle(k).visibility === 'hidden');
       };
-      const handCards = document.querySelectorAll('.hand-zone .card').length;
+      const handCards = window.__probe.ui()?.hand?.length ?? 0;
+      const domHandCards = document.querySelectorAll('.hand-zone .card').length;
       return {
         staged,
         combatScreenClass: combatScreen?.className ?? '',
@@ -626,6 +627,7 @@ test.describe('Round 5 production Pixi layer', () => {
           enemyTopKidsHidden: plateVisualHidden('.enemy .top-chrome'),
         },
         handCards,
+        domHandCards,
         invariants: window.__probe.invariants(),
       };
     });
@@ -650,6 +652,7 @@ test.describe('Round 5 production Pixi layer', () => {
     expect(result.hiddenVisuals.heroPlateKidsHidden).toBe(true);
     expect(result.hiddenVisuals.enemyPlateKidsHidden).toBe(true);
     expect(result.handCards).toBeGreaterThan(0);
+    expect(result.domHandCards).toBe(0);
     const hpInv = result.invariants.find((i) => i.name === 'player: HP label matches engine');
     expect(hpInv?.pass, hpInv?.detail || 'player HP invariant').toBe(true);
   });
@@ -819,7 +822,8 @@ test.describe('Round 5 production Pixi layer', () => {
       return {
         uiVersion: ui?.version ?? null,
         rendererKind: ui?.renderer?.kind ?? null,
-        handCards: document.querySelectorAll('.hand-zone .card').length,
+        handCards: ui?.hand?.length ?? 0,
+        domHandCards: document.querySelectorAll('.hand-zone .card').length,
         combatClasses: document.querySelector('.combat-screen')?.className ?? '',
         hudClasses: document.getElementById('hud')?.className ?? '',
         visualChromeHidden: {
@@ -856,6 +860,7 @@ test.describe('Round 5 production Pixi layer', () => {
     expect(inventory.uiVersion).toBe(2);
     expect(inventory.rendererKind).toBe('pixi');
     expect(inventory.handCards).toBeGreaterThan(0);
+    expect(inventory.domHandCards).toBe(0);
     expect(inventory.combatClasses).toMatch(/pixi-bottom-chrome/);
     expect(inventory.combatClasses).toMatch(/pixi-plate-chrome/);
     expect(inventory.hudClasses).toMatch(/pixi-hud-chrome/);

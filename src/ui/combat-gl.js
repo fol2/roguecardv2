@@ -23,10 +23,11 @@
 //     existing PR17 packer in combat.js (DOM anchors); Pixi mirrors the
 //     resulting stage-px boxes via `readUI()`.
 //
-// DOM hand cards, combatants/mesh/aim remain DOM until later tasks.
+// Task 27 — hand faces + targeting aim arc are Pixi; combatants/mesh stay DOM.
+// `#aim` and `.hand-zone` remain empty structural hosts for geometry/tests.
 
 import {
-  Assets, Container, Graphics, Sprite, Text,
+  Assets, ColorMatrixFilter, Container, Graphics, Sprite, Text,
 } from 'pixi.js';
 
 import { assetUrl } from '../art.js';
@@ -39,6 +40,13 @@ import { energySlotStates } from '../ui-chrome.js';
 import { relicBarLayout, uicResolve } from '../uic.js';
 import { snapStage } from './widgets.js';
 import { createCardFaceComposer } from './cardface.js';
+import {
+  CARD_FACE_HEIGHT, CARD_FACE_WIDTH,
+} from './cardface-layout.js';
+import {
+  handSeatCenter as pureHandSeatCenter,
+  handSeatOffset,
+} from './hand-layout.js';
 import { CARDS } from '../data.js';
 import { getLocale } from '../i18n/index.js';
 import { ROUND5_TOKENS } from './tokens.js';
@@ -254,10 +262,13 @@ export async function createCombatRenderer({
   pileLayers.ashes.label = 'combat-gl-pile-ashes';
   const hudLayer = new Container(); hudLayer.label = 'combat-gl-hud';
   const platesLayer = new Container(); platesLayer.label = 'combat-gl-plates';
+  // Task 27 — hand above chrome so seats paint over piles; aim above hand.
+  const handLayer = new Container(); handLayer.label = 'combat-gl-hand';
+  const aimLayer = new Container(); aimLayer.label = 'combat-gl-aim';
   container.addChild(
     candlesLayer, energyNumLayer, lanternLayer, endTurnLayer,
     pileLayers.draw, pileLayers.discard, pileLayers.ashes,
-    platesLayer, hudLayer,
+    platesLayer, hudLayer, handLayer, aimLayer,
   );
 
   const transitions = [];
@@ -285,6 +296,14 @@ export async function createCombatRenderer({
   let platesReady = false;
   let platesPainted = 0;
   let platesCache = null;
+  /** @type {Map<string, { root:Container, release:Function|null, seatBounds:object|null, faceKey:string|null }>} */
+  const handNodes = new Map();
+  let handCache = null;
+  let handReady = false;
+  let handPainted = 0;
+  let aimPathCache = null;
+
+  const isLite = () => (pixiLayer.policy?.tier === 'lite');
 
   const setState = (next) => {
     state = next;
@@ -367,12 +386,17 @@ export async function createCombatRenderer({
     pileBoundsCache = Object.freeze({ draw: null, discard: null, ashes: null });
     hudCache = null;
       platesCache = null;
+      handCache = null;
+      aimPathCache = null;
       bottomChromeReady = false;
       hudReady = false;
       platesReady = false;
+      handReady = false;
       clearBottomChromePaint();
       clearHudPaint();
       clearPlatesPaint();
+      clearHandPaint();
+      clearAimPaint();
       bump();
       return null;
     }
@@ -380,6 +404,8 @@ export async function createCombatRenderer({
     paintBottomChrome();
     paintHudChrome();
     paintPlatesChrome();
+    paintHand();
+    paintAim();
     bump();
     return presentationModel;
   };
@@ -390,6 +416,8 @@ export async function createCombatRenderer({
       paintBottomChrome();
       paintHudChrome();
       paintPlatesChrome();
+      paintHand();
+      paintAim();
       bump();
     }
     trace?.emit?.('renderer.mount', {
@@ -403,6 +431,8 @@ export async function createCombatRenderer({
     paintBottomChrome();
     paintHudChrome();
     paintPlatesChrome();
+    paintHand();
+    paintAim();
     bump();
     return readUI();
   };
@@ -424,6 +454,271 @@ export async function createCombatRenderer({
   function clearPlatesPaint() {
     platesLayer.removeChildren();
     platesPainted = 0;
+  }
+
+  function clearHandPaint() {
+    for (const entry of handNodes.values()) {
+      try { entry.release?.(); } catch { /* ignore */ }
+      try { entry.root?.destroy?.({ children: true }); } catch { /* ignore */ }
+    }
+    handNodes.clear();
+    handLayer.removeChildren();
+    handPainted = 0;
+    handReady = false;
+    handCache = null;
+  }
+
+  function clearAimPaint() {
+    aimLayer.removeChildren();
+    aimPathCache = null;
+  }
+
+  function makeFlatSheen(w, h) {
+    const g = new Graphics();
+    g.rect(0, 0, w, h).fill({ color: 0xffffff, alpha: 0.12 });
+    g.eventMode = 'none';
+    return g;
+  }
+
+  function makeFoilFilter() {
+    const foil = new ColorMatrixFilter();
+    foil.hue(18, false);
+    foil.brightness(1.08, true);
+    return foil;
+  }
+
+  function paintHand() {
+    const model = presentationModel?.hand;
+    if (!model || !Array.isArray(model.cards)) {
+      clearHandPaint();
+      return;
+    }
+    const resolution = paintResolution(pixiLayer);
+    const faceW = model.face?.w || CARD_FACE_WIDTH;
+    const faceH = model.face?.h || CARD_FACE_HEIGHT;
+    const zone = model.zone || {};
+    const zoneCenterX = zone.centerX ?? (stageW() / 2);
+    const baseBottom = zone.baseBottom ?? (stageH() - (zone.cardInset ?? 8));
+    const stageWidth = stageW();
+    const fanCards = model.cards.filter((c) => !c.pending);
+    const fanN = fanCards.length;
+    const want = new Set(model.cards.map((c) => String(c.uid)));
+
+    for (const [uid, entry] of [...handNodes.entries()]) {
+      if (!want.has(uid)) {
+        try { entry.release?.(); } catch { /* ignore */ }
+        try { entry.root?.destroy?.({ children: true }); } catch { /* ignore */ }
+        handNodes.delete(uid);
+      }
+    }
+
+    const seats = [];
+    let painted = 0;
+    fanCards.forEach((card, fanIndex) => {
+      const uid = String(card.uid);
+      const seat = pureHandSeatCenter(fanIndex, fanN, {
+        stageW: stageWidth,
+        cardW: faceW,
+        cardH: faceH,
+        zoneCenterX,
+        baseBottom,
+      });
+      const armed = model.targetingUid != null && String(model.targetingUid) === uid;
+      const hovered = model.hoveredUid != null && String(model.hoveredUid) === uid
+        && !model.busy && !armed;
+      const selected = model.selectedUid != null && String(model.selectedUid) === uid;
+      const dragging = model.draggingUid != null && String(model.draggingUid) === uid;
+      const off = handSeatOffset(fanIndex, fanN, stageWidth);
+      let x = seat.x;
+      let y = seat.y;
+      let rot = seat.rot;
+      let scale = 1;
+      // Armed (targeting) compresses fan toward centre — matches P4 layoutHand.
+      if (armed && !dragging) {
+        x = zoneCenterX + off.x * 0.4;
+        rot = off.rot * 0.5;
+        scale = 1.08;
+        y = seat.y - 24;
+      } else if (hovered || selected) {
+        // FE Hand hover: y -20, scale 1.08, rotation 0°.
+        y = seat.y - 20;
+        rot = 0;
+        scale = 1.08;
+      }
+      if (dragging && model.drag) {
+        x = model.drag.x ?? x;
+        y = model.drag.y ?? y;
+        rot = model.drag.rot ?? 0;
+        scale = model.drag.scale ?? 1.12;
+      }
+
+      let entry = handNodes.get(uid);
+      if (!entry) {
+        const root = new Container();
+        root.label = `hand-card:${uid}`;
+        root.eventMode = 'none';
+        handLayer.addChild(root);
+        entry = { root, release: null, seatBounds: null, faceKey: null };
+        handNodes.set(uid, entry);
+      }
+      const root = entry.root;
+      root.removeChildren();
+
+      let texture = null;
+      try {
+        const acquired = cardFace.acquire(
+          { id: card.id, name: card.name, text: card.text, cost: card.cost, rarity: card.rarity, type: card.type, up: card.up },
+          {
+            up: !!card.upgraded,
+            effectiveCost: card.effectiveCost,
+            effectiveText: card.effectiveText,
+          },
+        );
+        try { entry.release?.(); } catch { /* ignore */ }
+        entry.release = acquired.release;
+        entry.faceKey = acquired.key;
+        texture = acquired.texture;
+      } catch {
+        texture = null;
+      }
+
+      if (texture && !texture.__stub) {
+        const sprite = new Sprite(texture);
+        sprite.width = faceW;
+        sprite.height = faceH;
+        sprite.anchor?.set?.(0.5, 0.5);
+        sprite.eventMode = 'none';
+        root.addChild(sprite);
+        if (!isLite() && (card.rarity === 'rare' || card.rarity === 'boss') && (hovered || selected || dragging)) {
+          try { sprite.filters = [makeFoilFilter()]; } catch { /* filter unavailable */ }
+        } else if (isLite()) {
+          const sheen = makeFlatSheen(faceW, faceH);
+          sheen.position.set(-faceW / 2, -faceH / 2);
+          root.addChild(sheen);
+        }
+      } else {
+        const fallback = new Graphics();
+        fallback.roundRect(-faceW / 2, -faceH / 2, faceW, faceH, 10)
+          .fill({ color: 0x1a2034, alpha: card.playable ? 0.92 : 0.42 })
+          .stroke({ color: 0xf2c14e, width: 2, alpha: 0.7 });
+        root.addChild(fallback);
+        if (isLite()) {
+          const sheen = makeFlatSheen(faceW, faceH);
+          sheen.position.set(-faceW / 2, -faceH / 2);
+          root.addChild(sheen);
+        }
+      }
+
+      if (!card.playable) root.alpha = 0.42;
+      else root.alpha = 1;
+
+      const sx = snapStage(x, resolution);
+      const sy = snapStage(y, resolution);
+      root.position.set(sx, sy);
+      root.rotation = (rot * Math.PI) / 180;
+      root.scale.set(scale);
+      root.zIndex = (hovered || armed || selected || dragging) ? 40 : 20 + fanIndex;
+      root.visible = true;
+
+      const seatBounds = Object.freeze({
+        left: seat.left,
+        top: seat.top,
+        right: seat.right,
+        bottom: seat.bottom,
+        width: seat.width,
+        height: seat.height,
+      });
+      entry.seatBounds = seatBounds;
+      seats.push(Object.freeze({
+        uid: card.uid,
+        id: card.id,
+        seatBounds,
+        bounds: dragging && model.drag?.bounds
+          ? Object.freeze({ ...model.drag.bounds })
+          : Object.freeze({
+            left: sx - (faceW * scale) / 2,
+            top: sy - (faceH * scale) / 2,
+            right: sx + (faceW * scale) / 2,
+            bottom: sy + (faceH * scale) / 2,
+            width: faceW * scale,
+            height: faceH * scale,
+          }),
+        playable: !!card.playable,
+        pending: false,
+        hovered: !!hovered,
+        armed: !!armed,
+        selected: !!selected,
+        dragging: !!dragging,
+        foil: !isLite() && (card.rarity === 'rare' || card.rarity === 'boss'),
+        sheen: isLite() ? 'flat' : 'foil',
+        faceKey: entry.faceKey,
+      }));
+      painted += 1;
+    });
+
+    // Pending (draw-in-flight) seats stay invisible but reserved in engine hand.
+    for (const card of model.cards) {
+      if (!card.pending) continue;
+      const uid = String(card.uid);
+      let entry = handNodes.get(uid);
+      if (entry) {
+        entry.root.visible = false;
+      }
+    }
+
+    handLayer.sortableChildren = true;
+    handPainted = painted;
+    handReady = painted >= 0;
+    handCache = Object.freeze({
+      seats: Object.freeze(seats),
+      face: Object.freeze({ w: faceW, h: faceH }),
+      zone: Object.freeze({
+        centerX: zoneCenterX,
+        baseBottom,
+        left: zone.left ?? null,
+        top: zone.top ?? null,
+        width: zone.width ?? null,
+        height: zone.height ?? null,
+        bottom: zone.bottom ?? null,
+      }),
+      restingHandFloor: zone.top ?? (baseBottom - faceH + 26),
+      hoveredUid: model.hoveredUid ?? null,
+      targetingUid: model.targetingUid ?? null,
+      selectedUid: model.selectedUid ?? null,
+      selectedEnemyIndex: model.selectedEnemyIndex ?? null,
+      draggingUid: model.draggingUid ?? null,
+    });
+  }
+
+  function paintAim() {
+    clearAimPaint();
+    const aim = presentationModel?.aim;
+    if (!aim || aim.from == null || aim.to == null) {
+      aimPathCache = null;
+      return;
+    }
+    const from = aim.from;
+    const to = aim.to;
+    const cx = (from.x + to.x) / 2;
+    const cy = Math.min(from.y, to.y) - 120;
+    const g = new Graphics();
+    g.moveTo(from.x, from.y - 80);
+    g.quadraticCurveTo(cx, cy, to.x, to.y);
+    g.stroke({
+      width: 4,
+      color: 0xff5964,
+      alpha: 0.85,
+      pixelLine: false,
+    });
+    // Dashed look approximated with short segments along the quadratic.
+    g.circle(to.x, to.y, 9).stroke({ width: 3, color: 0xff5964, alpha: 0.95 });
+    g.eventMode = 'none';
+    aimLayer.addChild(g);
+    aimPathCache = Object.freeze({
+      from: Object.freeze({ ...from }),
+      to: Object.freeze({ ...to }),
+      control: Object.freeze({ x: cx, y: cy }),
+    });
   }
 
   function paintBottomChrome() {
@@ -1417,6 +1712,13 @@ export async function createCombatRenderer({
     if (kind === 'omen') return tips.omen || null;
     if (kind === 'potion') return tips.potions?.[detail.slot] || null;
     if (kind === 'relic') return tips.relics?.[detail.id] || null;
+    if (kind === 'card') {
+      const uid = detail.uid != null ? String(detail.uid) : null;
+      if (uid && tips.cards?.[uid]) return tips.cards[uid];
+      const handCard = presentationModel?.hand?.cards?.find((c) => String(c.uid) === uid);
+      if (handCard?.tip) return handCard.tip;
+      return null;
+    }
     return null;
   };
 
@@ -1471,6 +1773,24 @@ export async function createCombatRenderer({
         return Object.freeze({
           kind: 'relic', type: 'relic', id: seat.id, bounds: seat.bounds,
           tip: tipFromModel('relic', { id: seat.id }),
+        });
+      }
+    }
+    // Hand seats after chrome (matches Task 23 Pixi→hand order). Topmost first.
+    const handSeats = handCache?.seats || [];
+    for (let i = handSeats.length - 1; i >= 0; i -= 1) {
+      const seat = handSeats[i];
+      if (!seat || seat.pending) continue;
+      const bounds = seat.seatBounds || seat.bounds;
+      if (pointIn(px, py, bounds)) {
+        return Object.freeze({
+          kind: 'card',
+          type: 'card',
+          uid: seat.uid,
+          id: seat.id,
+          bounds,
+          seatBounds: seat.seatBounds || bounds,
+          tip: tipFromModel('card', { uid: seat.uid, id: seat.id }) || null,
         });
       }
     }
@@ -1555,7 +1875,16 @@ export async function createCombatRenderer({
         visibleBounds: cached?.visibleBounds || null,
       });
     });
-    const handRect = domRect('.hand-zone');
+    const handRect = handCache?.zone
+      ? {
+        left: handCache.zone.left ?? 0,
+        top: handCache.zone.top ?? handCache.restingHandFloor,
+        right: (handCache.zone.left ?? 0) + (handCache.zone.width ?? 0),
+        bottom: (handCache.zone.top ?? 0) + (handCache.zone.height ?? 0),
+        width: handCache.zone.width ?? 0,
+        height: handCache.zone.height ?? 0,
+      }
+      : domRect('.hand-zone');
     return deepFreeze({
       version: COMBAT_RENDERER_VERSION,
       rendererId: RENDERER_ID,
@@ -1588,8 +1917,11 @@ export async function createCombatRenderer({
         topChromeBounds: heroTop,
       },
       enemies: enemies.map((entry) => Object.freeze(entry)),
-      restingHandFloor: handRect ? handRect.top : (chrome.hand?.bottom ?? null),
+      restingHandFloor: handCache?.restingHandFloor
+        ?? (handRect ? handRect.top : (chrome.hand?.bottom ?? null)),
       handBounds: rectOf(handRect),
+      hand: handCache,
+      aim: aimPathCache,
       pending: false,
       bf: {
         shape: info.shape,
@@ -1628,6 +1960,12 @@ export async function createCombatRenderer({
         ready: platesReady,
         painted: platesPainted,
       }),
+      hand: Object.freeze({
+        ready: handReady,
+        painted: handPainted,
+        seats: handCache?.seats?.length ?? 0,
+      }),
+      cardFace: cardFace.stats?.() || null,
       frozen: pixiStats.frozen === true,
       frozenTick: pixiStats.frozen === true ? (pixiStats.frozenTick ?? null) : null,
       pixiGeneration: pixiStats.generation ?? null,
@@ -1693,6 +2031,8 @@ export async function createCombatRenderer({
   const destroy = () => {
     if (destroyed) return;
     destroyed = true;
+    clearHandPaint();
+    clearAimPaint();
     try { cardFace.destroy(); } catch { /* already gone */ }
     try { container.destroy({ children: true }); } catch { /* container already reaped */ }
     textureAliases.clear();

@@ -4,7 +4,12 @@ import { createBehaviourTrace } from './behaviour-trace.js';
 import { createPresentationBarrier } from './presentation-barrier.js';
 import { REDUCED } from './policy.js';
 
-export const S = { run: null, cb: null, screen: 'title', targeting: null, busy: false, hoveredCard: null, ce: null, drag: null };
+export const S = {
+  run: null, cb: null, screen: 'title', targeting: null, busy: false,
+  hoveredCard: null, ce: null, drag: null,
+  // Task 27 — keyboard selection (hand + multi-enemy targeting).
+  selectedCardUid: null, selectedEnemyIndex: null,
+};
 export const FORCE_INPUT = new URLSearchParams(location.search).get('input');
 export const COARSE = FORCE_INPUT ? FORCE_INPUT === 'touch' : matchMedia('(pointer: coarse)').matches;
 export const FINE = FORCE_INPUT ? FORCE_INPUT === 'mouse' : matchMedia('(hover: hover) and (pointer: fine)').matches;

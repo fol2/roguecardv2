@@ -12,7 +12,7 @@ import { test, expect } from '@playwright/test';
 import { ASPECTS } from '../../src/data.js';
 import { bfResolve, bfActor, bfSlots, bfEnemyFootX, bfEnemyFootY, bfHeroY } from '../../src/battlefield.js';
 import { snapStage } from '../../src/ui/widgets.js';
-import { boot, startFight, stable, settle, collectErrors, expectNoErrors } from './helpers.js';
+import { boot, startFight, stable, settle, collectErrors, expectNoErrors, stageBoundsToClient } from './helpers.js';
 
 const FEET_TOL = 2; // ±stage px around the fully resolved authored art-box bottom
 const LEDGE_LIP_MIN = 4, LEDGE_LIP_MAX = 64; // authored logical lip, not the alpha PNG box edge
@@ -573,14 +573,17 @@ test('foe HP floor stays put when a hand card lifts', async ({ page }) => {
   await boot(page, { query: 'mesh=0' });
   await startFight(page, ['duskfang', 'sporeling']);
   await page.evaluate(() => window.__probe.forceHand(['strike', 'defend', 'strike', 'defend']));
-  await page.waitForSelector('.hand-zone .card');
+  await page.waitForFunction(() => (window.__probe.ui()?.hand?.length || 0) > 0);
   await stable(page);
   const before = await combatChromeRects(page);
-  // mouse.move — locator.hover() scrollIntoView can shift stage measurements
-  const box = await page.locator('.hand-zone .card').first().boundingBox();
-  expect(box, 'hand card is on-screen').toBeTruthy();
-  await page.mouse.move(box.x + box.width / 2, box.y + 8);
-  await page.waitForFunction(() => document.querySelectorAll('.hand-zone .card.lifted').length === 1);
+  const seat = await page.evaluate(() => {
+    const card = window.__probe.ui().hand[0];
+    return card?.seatBounds || card?.bounds || null;
+  });
+  expect(seat, 'hand seat is on-screen').toBeTruthy();
+  const from = await stageBoundsToClient(page, seat);
+  await page.mouse.move(from.x, from.y);
+  await page.waitForFunction(() => window.__probe.ui().hand.some((c) => c.hovered));
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const hovered = await combatChromeRects(page);
   expect(hovered.enemy.length, 'hover keeps the same enemy plate count').toBe(before.enemy.length);

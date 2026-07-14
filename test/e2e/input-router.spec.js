@@ -18,6 +18,60 @@ async function bootCombat(page) {
   return errors;
 }
 
+test('Pixi hand owns seats — no DOM hand cards; keyboard cycles and plays', async ({ page }) => {
+  const errors = await bootCombat(page);
+  const baseline = await page.evaluate(() => {
+    window.__probe.setEnergy(3);
+    window.__probe.forceHand(['strike', 'defend', 'strike']);
+    const ui = window.__probe.ui();
+    const plates = (window.__probe.combatRendererReadUI()?.enemies || []).map((e) => e.plateBounds);
+    return {
+      domCards: document.querySelectorAll('.hand-zone .card').length,
+      aimChildren: document.querySelector('#aim')?.childElementCount ?? -1,
+      hand: ui.hand.length,
+      seats: ui.hand.map((c) => c.seatBounds),
+      plates,
+      sheen: ui.hand.map((c) => c.sheen),
+    };
+  });
+  expect(baseline.domCards).toBe(0);
+  expect(baseline.aimChildren).toBe(0);
+  expect(baseline.hand).toBeGreaterThan(0);
+  expect(baseline.seats.every((s) => s && s.width > 0)).toBe(true);
+
+  // Hover first seat — foe plates must stay within 1 stage px.
+  const seat = baseline.seats[0];
+  const from = await stageBoundsToClient(page, seat);
+  await page.mouse.move(from.x, from.y);
+  await settle(page);
+  const afterHover = await page.evaluate((before) => {
+    const plates = (window.__probe.combatRendererReadUI()?.enemies || []).map((e) => e.plateBounds);
+    const ui = window.__probe.ui();
+    return {
+      plates,
+      hovered: ui.hand.some((c) => c.hovered),
+      drift: plates.map((p, i) => ({
+        top: Math.abs((p?.top ?? 0) - (before[i]?.top ?? 0)),
+        bottom: Math.abs((p?.bottom ?? 0) - (before[i]?.bottom ?? 0)),
+      })),
+    };
+  }, baseline.plates);
+  expect(afterHover.hovered).toBe(true);
+  for (const d of afterHover.drift) {
+    expect(d.top).toBeLessThanOrEqual(1);
+    expect(d.bottom).toBeLessThanOrEqual(1);
+  }
+
+  // Keyboard: Right cycles, Enter activates defend path / End Turn via E.
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  const selected = await page.evaluate(() => window.__probe.ui().selectedCardUid);
+  expect(selected).not.toBeNull();
+  await page.keyboard.press('e');
+  await settle(page);
+  expectNoErrors(errors);
+});
+
 test('Probe v2 exposes the full renderer-neutral ui() shape', async ({ page }) => {
   const errors = await bootCombat(page);
   const ui = await page.evaluate(() => window.__probe.ui());

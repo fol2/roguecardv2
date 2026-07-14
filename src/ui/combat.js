@@ -40,6 +40,12 @@ import {
 } from '../battlefield.js';
 import { relicBarLayout, uicResolve } from '../uic.js';
 import { createCombatPointerRouter } from './pointer.js';
+import {
+  CARD_FACE_HEIGHT, CARD_FACE_WIDTH,
+} from './cardface-layout.js';
+import {
+  handSeatCenter as pureHandSeatCenter, handZoneWidth as pureHandZoneWidth,
+} from './hand-layout.js';
 
 const runCatalogues = () => contentViewFor(S.run);
 
@@ -207,6 +213,106 @@ export function createCombat({
       }),
     };
   }
+  function buildHandModel() {
+    const cb = S.cb;
+    if (!cb) {
+      return {
+        cards: [],
+        hoveredUid: null,
+        targetingUid: null,
+        selectedUid: null,
+        selectedEnemyIndex: null,
+        draggingUid: null,
+        drag: null,
+        busy: !!S.busy,
+        face: { w: CARD_FACE_WIDTH, h: CARD_FACE_HEIGHT },
+        zone: null,
+      };
+    }
+    const sz = handFaceSize();
+    const inset = handCardBottomInset();
+    const zone = S.ce?.hand ? stageRect(S.ce.hand) : null;
+    const zoneCenterX = zone && zone.width > 2 ? zone.left + zone.width / 2 : stageW() / 2;
+    const baseBottom = zone && zone.height > 2
+      ? zone.bottom - inset
+      : stageH() - inset;
+    const cards = cb.hand.map((inst) => {
+      const d = E.cardData(inst, S.run);
+      const playable = !d.unplayable && (E.effCost(S.run, cb, inst) ?? 99) <= cb.player.energy;
+      const uid = String(inst.uid);
+      const plan = drawRevealPlan.get(uid);
+      const queuedDraw = !REDUCED && cb.queue.some((e) => e.t === 'draw' && String(e.uid) === uid);
+      const pending = plan != null
+        ? !plan.revealed
+        : queuedDraw;
+      return {
+        uid: inst.uid,
+        id: inst.id,
+        upgraded: !!inst.up,
+        name: d.name,
+        text: d.text,
+        cost: d.cost,
+        rarity: d.rarity,
+        type: d.type,
+        up: d.up,
+        effectiveCost: E.effCost(S.run, cb, inst),
+        effectiveText: d.text,
+        playable,
+        pending,
+        tip: { title: d.name, body: d.text },
+      };
+    });
+    let drag = null;
+    if (S.drag?.live && S.drag.free) {
+      drag = {
+        x: S.drag.pixiX ?? null,
+        y: S.drag.pixiY ?? null,
+        rot: 0,
+        scale: 1.12,
+        bounds: S.drag.seatBounds || null,
+      };
+    }
+    return {
+      cards,
+      hoveredUid: S.hoveredCard,
+      targetingUid: S.targeting?.kind === 'card' ? S.targeting.uid : null,
+      selectedUid: S.selectedCardUid,
+      selectedEnemyIndex: S.selectedEnemyIndex,
+      draggingUid: S.drag?.live ? S.drag.uid : null,
+      drag,
+      busy: !!S.busy,
+      face: { w: sz.w, h: sz.h },
+      zone: {
+        left: zone?.left ?? null,
+        top: zone?.top ?? null,
+        width: zone?.width ?? null,
+        height: zone?.height ?? null,
+        bottom: zone?.bottom ?? null,
+        centerX: zoneCenterX,
+        baseBottom,
+        cardInset: inset,
+      },
+    };
+  }
+
+  function buildAimModel() {
+    if (!S.targeting || !aimMove._last) return null;
+    let from;
+    if (S.targeting.kind === 'card') {
+      const seat = handCardSeatBounds(S.targeting.uid);
+      from = seat
+        ? { x: seat.left + seat.width / 2, y: seat.top + seat.height / 2 }
+        : { x: stageW() / 2, y: stageH() - 200 };
+    } else {
+      from = { x: stageW() / 2, y: 60 };
+    }
+    const last = aimMove._last;
+    const to = last.synthetic
+      ? { x: last.clientX, y: last.clientY }
+      : toStage(last.clientX, last.clientY);
+    return { from, to };
+  }
+
   function buildPresentationModel(phase) {
     const cb = S.cb;
     if (!cb) {
@@ -241,7 +347,8 @@ export function createCombat({
         chips: enemy.chips,
         facetMax: enemy.facetMax,
       })),
-      hand: cb.hand.map((card) => ({ uid: String(card.uid), id: card.id })),
+      hand: buildHandModel(),
+      aim: buildAimModel(),
       piles: {
         draw: cb.draw.length,
         discard: cb.discard.length,
@@ -663,10 +770,7 @@ function applyUiChromeLayout() {
 
 /** Hand left/right = offset from stage-centred fan box (0 = centred). Width hugs cards. */
 function handZoneWidth(n, stageW, cardW) {
-  const count = Math.max(1, n | 0);
-  const gap = Math.min(112, 640 / count, (stageW - 246) / Math.max(count - 1, 1));
-  const span = count <= 1 ? cardW : (count - 1) * gap + cardW;
-  return Math.min(stageW - 24, Math.max(cardW + 16, Math.ceil(span + 20)));
+  return pureHandZoneWidth(n, stageW, cardW);
 }
 
 function handZoneLeftEdge(h, width, stageW) {
@@ -682,8 +786,8 @@ function applyHandZoneLayout(h) {
   zone.style.setProperty('--hand-scale', String(h.scale ?? 1));
   const visible = S.cb?.hand
     ? S.cb.hand.filter((c) => {
-      const el = zone.querySelector(`.card[data-uid="${c.uid}"]`);
-      return el && !el.classList.contains('draw-pending');
+      const plan = drawRevealPlan.get(String(c.uid));
+      return !(plan && !plan.revealed);
     }).length
     : 0;
   const n = visible || 5;
@@ -1132,13 +1236,20 @@ function pendingPileCeremonyUids(cb) {
   }
   return keep;
 }
-function scheduleHandReveal(c, landAt) {
+function scheduleHandReveal(uidOrNode, landAt) {
+  const uid = typeof uidOrNode === 'object' && uidOrNode?.dataset?.uid != null
+    ? String(uidOrNode.dataset.uid)
+    : String(uidOrNode);
   setTimeout(() => {
-    if (!c.isConnected) return;
-    c.classList.remove('draw-pending');
-    c.classList.add('draw-in');
+    if (!S.cb?.hand.some((c) => String(c.uid) === uid)) return;
+    const plan = drawRevealPlan.get(uid) || {};
+    plan.revealed = true;
+    drawRevealPlan.set(uid, plan);
     layoutHand();
-    setTimeout(() => c.classList.remove('draw-in'), 240);
+    setTimeout(() => {
+      drawRevealPlan.delete(uid);
+      layoutHand();
+    }, 240);
   }, landAt);
 }
 /** Task 26 — revoke composer object URLs / drop cache refs before discarding a face host. */
@@ -1147,108 +1258,69 @@ function releaseCardFace(node) {
   try { node._cardFaceRelease(); } catch { /* ignore */ }
   node._cardFaceRelease = null;
 }
+
+function handCardSeatBounds(uid) {
+  const readUI = glRenderer()?.readUI?.();
+  const painted = readUI?.hand?.seats?.find((s) => String(s.uid) === String(uid));
+  if (painted?.seatBounds) return painted.seatBounds;
+  // Pure fallback before first paint.
+  const cb = S.cb;
+  if (!cb) return null;
+  const fan = cb.hand.filter((c) => {
+    const plan = drawRevealPlan.get(String(c.uid));
+    return !(plan && !plan.revealed);
+  });
+  const idx = fan.findIndex((c) => String(c.uid) === String(uid));
+  if (idx < 0) return null;
+  const sz = handFaceSize();
+  const inset = handCardBottomInset();
+  const zone = S.ce?.hand ? stageRect(S.ce.hand) : null;
+  const zoneCenterX = zone && zone.width > 2 ? zone.left + zone.width / 2 : stageW() / 2;
+  const baseBottom = zone && zone.height > 2 ? zone.bottom - inset : stageH() - inset;
+  const computed = pureHandSeatCenter(idx, fan.length, {
+    stageW: stageW(), cardW: sz.w, cardH: sz.h, zoneCenterX, baseBottom,
+  });
+  return {
+    left: computed.left, top: computed.top, right: computed.right, bottom: computed.bottom,
+    width: computed.width, height: computed.height,
+  };
+}
+
 function syncHand() {
   const cb = S.cb, ce = S.ce;
   if (!ce) return;
-  const wrap = ce.hand;
-  const have = new Map($$('.card', wrap).map((c) => [c.dataset.uid, c]));
-  const want = new Set(cb.hand.map((c) => String(c.uid)));
-  // draw mid-play can syncHand before toDiscard/exhaust flies — keep those DOM nodes
-  const pending = pendingPileCeremonyUids(cb);
-  for (const [uid, elc] of have) {
-    if (!want.has(uid) && !pending.has(uid)) {
-      releaseCardFace(elc);
-      elc.remove();
+  // Task 27 — DOM hand cards are gone; Pixi owns seats via presentation sync.
+  // Keep the structural `.hand-zone` host empty.
+  if (ce.hand) {
+    for (const node of [...ce.hand.querySelectorAll('.card')]) {
+      releaseCardFace(node);
+      node.remove();
     }
   }
+  // Arm pending draw seats from the reveal plan / queue.
   for (const inst of cb.hand) {
-    if (!have.has(String(inst.uid))) {
-      const c = cardEl(inst, { inCombat: true });
-      // Invisible until matching draw flyer lands — plan OR still-queued draw event
-      const uid = String(inst.uid);
-      const plan = drawRevealPlan.get(uid);
-      const queuedDraw = cb.queue.some((e) => e.t === 'draw' && String(e.uid) === uid);
-      if (!REDUCED && (plan != null || queuedDraw)) {
-        if (typeof plan === 'object' && plan?.seq != null) c.dataset.drawSeq = String(plan.seq);
-        c.classList.add('draw-pending');
-        const landAt = plan == null ? null : (typeof plan === 'number' ? plan : plan.landAt);
-        if (landAt != null) {
-          drawRevealPlan.delete(uid);
-          scheduleHandReveal(c, landAt);
-        }
-        // landAt null / queued only: stay pending until draw-wave segment arms the timer
-      }
-      // Task 23 — click/drag owned by the stage pointer router (not per-card listeners).
-      if (FINE) {
-        c.onmouseenter = () => { S.hoveredCard = inst.uid; sfx.hover(); layoutHand(); };
-        c.onmouseleave = () => { if (S.hoveredCard === inst.uid) S.hoveredCard = null; layoutHand(); };
-      }
-      wrap.appendChild(c);
-    } else {
-      // refresh cost/text (str/dex/duskmirror can change display)
-      const fresh = cardEl(inst, { inCombat: true });
-      const old = have.get(String(inst.uid));
-      const keep = ['armed', 'draw-pending', 'draw-in', 'lifted', 'dragging', 'will-cast', 'will-burn', 'played-up']
-        .filter((k) => old.classList.contains(k));
-      // Task 26 — release the previous export, then adopt the fresh face's release onto the seat.
-      releaseCardFace(old);
-      old._cardFaceRelease = fresh._cardFaceRelease;
-      fresh._cardFaceRelease = null;
-      if (fresh.dataset.cardFaceKey) old.dataset.cardFaceKey = fresh.dataset.cardFaceKey;
-      else delete old.dataset.cardFaceKey;
-      old.replaceChildren(...fresh.childNodes);
-      old.className = [fresh.className, ...keep].filter(Boolean).join(' ');
-      if (FINE) {
-        old.onmouseenter = () => { S.hoveredCard = inst.uid; layoutHand(); };
-        old.onmouseleave = () => { if (S.hoveredCard === inst.uid) S.hoveredCard = null; layoutHand(); };
-      } else {
-        old.onclick = null;
+    const uid = String(inst.uid);
+    const plan = drawRevealPlan.get(uid);
+    const queuedDraw = cb.queue.some((e) => e.t === 'draw' && String(e.uid) === uid);
+    if (!REDUCED && (plan != null || queuedDraw)) {
+      if (plan == null) drawRevealPlan.set(uid, { landAt: null, seq: 0, revealed: false });
+      else if (plan.landAt != null && !plan.armed) {
+        plan.armed = true;
+        drawRevealPlan.set(uid, plan);
+        scheduleHandReveal(uid, typeof plan.landAt === 'number' ? plan.landAt : 0);
       }
     }
   }
   layoutHand();
-  glSync(buildPresentationModel('sync-hand'));
 }
 function layoutHand() {
   const cb = S.cb, ce = S.ce;
   if (!ce) return;
-  const cards = cb.hand.map((c) => String(c.uid));
-  const els = new Map($$('.card', ce.hand).map((c) => [c.dataset.uid, c]));
-  // Fan only seats already revealed — pending draws stay centred until their flyer lands
-  const fan = cards.filter((uid) => {
-    const c = els.get(uid);
-    return c && !c.classList.contains('draw-pending');
-  });
-  const n = fan.length;
-  const gap = Math.min(112, 640 / Math.max(n, 1), (stageW() - 246) / Math.max(n - 1, 1));
-  cards.forEach((uid) => {
-    const c = els.get(uid);
-    if (!c) return;
-    const inst = cb.hand.find((h) => String(h.uid) === uid);
-    if (!inst) return;
-    const d = E.cardData(inst, S.run);
-    const playableNow = !d.unplayable && (E.effCost(S.run, cb, inst) ?? 99) <= cb.player.energy;
-    c.classList.toggle('unplayable-now', !playableNow);
-    const armed = S.targeting?.kind === 'card' && String(S.targeting.uid) === uid;
-    const hovered = S.hoveredCard != null && String(S.hoveredCard) === uid;
-    c.classList.toggle('armed', armed);
-    c.classList.toggle('lifted', hovered && !S.busy && !armed);
-    if (c.classList.contains('draw-pending')) {
-      c.style.transform = 'translateX(-50%) translateY(26px) rotate(0deg)';
-      c.style.zIndex = 15;
-      return;
-    }
-    const i = fan.indexOf(uid);
-    const rot = n > 1 ? (i - (n - 1) / 2) * Math.min(5, 42 / n) : 0;
-    const x = (i - (n - 1) / 2) * gap;
-    const y = Math.abs(rot) * 3.2;
-    c.style.transform = `translateX(calc(-50% + ${armed ? x * 0.4 : x}px)) translateY(${y + 26}px) rotate(${armed ? rot * 0.5 : rot}deg)`;
-    c.style.zIndex = hovered || armed ? 40 : 20 + i;
-  });
   const Lh = uicResolve(stageInfo().shape).hand;
   if (Lh) applyHandZoneLayout(Lh);
   updatePreviews();
   scheduleChromeClamp();
+  glSync(buildPresentationModel('layout-hand'));
 }
 // ---- Task 23: stage pointer router owns drag-to-play / chrome / enemies ----
 let dragConsumedAt = 0;
@@ -1276,27 +1348,6 @@ function installCombatPointerRouter({
     try { pointerRouter.destroy(); } catch { /* prior router already gone */ }
     pointerRouter = null;
   }
-  const domHandAdapter = {
-    hitTest(stagePt) {
-      const hand = S.ce?.hand;
-      if (!hand) return null;
-      const cards = [...$$('.card', hand)].reverse();
-      for (const el of cards) {
-        if (el.classList.contains('draw-pending')) continue;
-        const bounds = cardSeatBounds(el);
-        if (!bounds) continue;
-        if (stagePt.x < bounds.left || stagePt.x > bounds.right) continue;
-        if (stagePt.y < bounds.top || stagePt.y > bounds.bottom) continue;
-        return {
-          kind: 'card',
-          uid: Number(el.dataset.uid),
-          el,
-          seatBounds: bounds,
-        };
-      }
-      return null;
-    },
-  };
   const targetRegions = () => {
     if (!S.ce || !S.cb) return { enemies: [], hero: null };
     const enemies = S.cb.enemies.map((en, index) => {
@@ -1315,43 +1366,49 @@ function installCombatPointerRouter({
       if (S.targeting) clearTargeting();
       else if (S.hoveredCard != null) { S.hoveredCard = null; layoutHand(); }
     },
+    cardHover(uid) {
+      if (!FINE) return;
+      if (uid == null) {
+        if (S.hoveredCard != null) { S.hoveredCard = null; layoutHand(); }
+        return;
+      }
+      if (S.hoveredCard !== uid) {
+        S.hoveredCard = uid;
+        sfx.hover();
+        layoutHand();
+      }
+    },
     clickCard(uid) { onCardClick(uid); },
     beginCardDrag(st) {
-      const c = st.el || $(`.card[data-uid="${st.uid}"]`, S.ce?.hand);
-      if (!c) return false;
-      st.el = c;
-      st.seatBounds = cardSeatBounds(c);
+      const bounds = handCardSeatBounds(st.uid) || st.seatBounds;
+      if (!bounds) return false;
+      st.seatBounds = bounds;
       S.drag = st;
-      const ok = beginCardDrag(st, c);
+      const ok = beginCardDrag(st);
       st.cardId = S.cb?.hand?.find((x) => x.uid === st.uid)?.id;
       return ok !== false && !!st.live;
     },
     moveCardDrag(st, e) {
-      const c = st.el;
-      if (!c || !st.live) return;
+      if (!st.live) return;
       if (st.free) {
         const p = toStage(e.clientX, e.clientY);
-        const zr = S.ce?.hand ? stageRect(S.ce.hand) : null;
-        const cx = zr && zr.width > 2 ? zr.left + zr.width / 2 : stageW() / 2;
-        c.style.transform = `translate(calc(-50% + ${p.x - cx}px), ${p.y - stageH() + 130}px) scale(1.12)`;
+        st.pixiX = p.x;
+        st.pixiY = p.y;
         const overL = overLanternAt(e.clientX, e.clientY);
-        c.classList.toggle('will-burn', overL);
-        c.classList.toggle('will-cast', !st.kindleOnly && !overL && p.y < castLine());
+        st.willBurn = overL;
+        st.willCast = !st.kindleOnly && !overL && p.y < castLine();
+        layoutHand();
       } else {
         aimMove(e);
         hoverEnemyAt(e.clientX, e.clientY);
       }
     },
     cancelCardDrag(st) {
-      const c = st.el || $(`.card[data-uid="${st.uid}"]`, S.ce?.hand);
       S.drag = null;
       dragConsumedAt = performance.now();
-      c?.classList.remove('dragging', 'will-cast', 'will-burn');
       S.ce?.lantern?.classList.remove('kindle-target');
       clearTargeting();
       S.hoveredCard = null;
-      // Drop any pending clamp so layoutHand restores against a stable hand zone,
-      // then clamp once synchronously — matches the pre-drag resting seat.
       if (chromeClampRaf) { cancelAnimationFrame(chromeClampRaf); chromeClampRaf = 0; }
       layoutHand();
       clampCombatChrome();
@@ -1359,11 +1416,9 @@ function installCombatPointerRouter({
     cancelCardPress() { /* press without drag — nothing to restore */ },
     finishCardDrag(st, e) {
       const uid = st.uid;
-      const c = st.el || $(`.card[data-uid="${uid}"]`, S.ce?.hand);
-      captureCardAnchor(uid, c, { fromDrag: true });
+      captureCardAnchor(uid, null, { fromDrag: true, bounds: st.seatBounds });
       S.drag = null;
       dragConsumedAt = performance.now();
-      c?.classList.remove('dragging', 'will-cast', 'will-burn');
       S.ce?.lantern?.classList.remove('kindle-target');
       if (overLanternAt(e.clientX, e.clientY)) {
         const inst = S.cb.hand.find((x) => x.uid === uid);
@@ -1439,14 +1494,13 @@ function installCombatPointerRouter({
         updatePreviews();
       }
     },
-    // setTargeting no longer binds document pointermove — router owns aim tracking.
     aimMove: (e) => aimMove(e),
   };
   pointerRouter = createCombatPointerRouter({
     stage: () => stageEl(),
     toStage,
     renderer: glRenderer(),
-    domHandAdapter,
+    domHandAdapter: null,
     targetRegions,
     actions,
     tooltip: tipBridge(),
@@ -1459,7 +1513,7 @@ function installCombatPointerRouter({
 const castLine = () => (S.ce?.hand ? stageRect(S.ce.hand).top - 24 : stageH() - 260); // stage px
 // what's under the finger, looking through the card being dragged
 const underPointer = (x, y) => document.elementsFromPoint(x, y).find((el) => !el.closest('.card'));
-function beginCardDrag(st, c) {
+function beginCardDrag(st) {
   const cb = S.cb;
   const inst = cb.hand.find((x) => x.uid === st.uid);
   if (!inst) { S.drag = null; return false; }
@@ -1472,13 +1526,11 @@ function beginCardDrag(st, c) {
       st.kindleOnly = true;
       S.hoveredCard = null;
       sfx.hover();
-      c.classList.add('dragging');
       S.ce?.lantern?.classList.add('kindle-target');
+      layoutHand();
       return true;
     }
     S.drag = null;
-    c.classList.add('nope');
-    setTimeout(() => c.classList.remove('nope'), 350);
     sfx.debuff();
     return false;
   }
@@ -1490,8 +1542,8 @@ function beginCardDrag(st, c) {
   else {
     st.free = true;
     clearTargeting();
-    c.classList.add('dragging');
   }
+  layoutHand();
   return true;
 }
 async function doKindle(uid) {
@@ -1621,11 +1673,9 @@ function onCardClick(uid) {
   }
   const d = E.cardData(inst, S.run);
   const cost = E.effCost(S.run, cb, inst);
-  const elc = $(`.card[data-uid="${uid}"]`, S.ce.hand);
   if (d.unplayable || cost > cb.player.energy) {
-    elc?.classList.add('nope');
-    setTimeout(() => elc?.classList.remove('nope'), 350);
     sfx.debuff();
+    trace.emit('input.card', { outcome: 'rejected', attributes: { reason: 'unplayable', uid } });
     return;
   }
   if (S.targeting?.kind === 'card' && S.targeting.uid === uid) return clearTargeting();
@@ -1646,6 +1696,11 @@ function onEnemyClick(idx) {
 function setTargeting(t) {
   trace.emit('input.targeting', { outcome: 'accepted', attributes: { kind: t.kind } });
   S.targeting = t;
+  if (t?.kind === 'card') {
+    S.selectedCardUid = t.uid;
+    const living = S.cb.enemies.map((e, i) => (e.hp > 0 ? i : -1)).filter((i) => i >= 0);
+    S.selectedEnemyIndex = living.length ? living[0] : null;
+  }
   S.ce.root.classList.add('targeting');
   S.cb.enemies.forEach((e, i) => S.ce.enemies[i].root.classList.toggle('targetable', e.hp > 0));
   layoutHand();
@@ -1657,13 +1712,159 @@ function setTargeting(t) {
     if (living >= 0) { const c = enemyCenter(living); aimMove({ clientX: c.x, clientY: c.y, synthetic: true }); }
   }
 }
+
+function visibleHandUids() {
+  if (!S.cb) return [];
+  return S.cb.hand
+    .filter((c) => {
+      const plan = drawRevealPlan.get(String(c.uid));
+      return !(plan && !plan.revealed);
+    })
+    .map((c) => c.uid);
+}
+
+function livingEnemyIndexes() {
+  if (!S.cb) return [];
+  return S.cb.enemies.map((e, i) => (e.hp > 0 ? i : -1)).filter((i) => i >= 0);
+}
+
+/**
+ * Task 27 keyboard grammar. Returns true when the key was handled.
+ * Emits accepted/rejected reason codes on the behaviour trace.
+ */
+function handleCombatKey(event) {
+  if (S.screen !== 'combat' || !S.cb || S.cb.over) return false;
+  const tag = (event.target?.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || event.target?.isContentEditable) return false;
+  if ($('#overlay')?.classList.contains('open')) return false;
+  if (event.target?.closest?.('.modal, #pop-menu')) return false;
+
+  const key = event.key;
+  const emit = (outcome, reason, extra = {}) => {
+    trace.emit('input.keyboard', {
+      outcome,
+      attributes: { key, reason, ...extra },
+    });
+  };
+
+  if (key === 'Escape') {
+    if (S.targeting) {
+      event.preventDefault();
+      clearTargeting();
+      emit('accepted', 'cancel-targeting');
+      return true;
+    }
+    return false;
+  }
+
+  if ((key === 'e' || key === 'E') && !S.busy) {
+    event.preventDefault();
+    onEndTurn();
+    emit('accepted', 'end-turn');
+    return true;
+  }
+  if ((key === 'a' || key === 'A') && !S.busy) {
+    event.preventDefault();
+    useLanternArt();
+    emit('accepted', 'lantern-art');
+    return true;
+  }
+
+  if (S.busy) {
+    emit('rejected', 'busy');
+    return false;
+  }
+
+  const hand = visibleHandUids();
+  const targetingMulti = S.targeting?.kind === 'card'
+    && livingEnemyIndexes().length > 1;
+
+  if (targetingMulti && (key === 'ArrowUp' || key === 'ArrowDown')) {
+    event.preventDefault();
+    const living = livingEnemyIndexes();
+    let idx = living.indexOf(S.selectedEnemyIndex);
+    if (idx < 0) idx = 0;
+    idx = key === 'ArrowUp'
+      ? (idx - 1 + living.length) % living.length
+      : (idx + 1) % living.length;
+    S.selectedEnemyIndex = living[idx];
+    const c = enemyCenter(S.selectedEnemyIndex);
+    aimMove({ clientX: c.x, clientY: c.y, synthetic: true });
+    S.ce.enemies.forEach((box, i) => {
+      box.root.classList.toggle('target-hover', i === S.selectedEnemyIndex);
+    });
+    updatePreviews();
+    layoutHand();
+    emit('accepted', 'cycle-enemy', { index: S.selectedEnemyIndex });
+    return true;
+  }
+
+  if (targetingMulti && (key === 'Enter' || key === ' ')) {
+    event.preventDefault();
+    const idx = S.selectedEnemyIndex;
+    if (idx == null || !S.cb.enemies[idx] || S.cb.enemies[idx].hp <= 0) {
+      emit('rejected', 'no-enemy');
+      return true;
+    }
+    doPlay(S.targeting.uid, idx);
+    emit('accepted', 'commit-target', { index: idx });
+    return true;
+  }
+
+  if (key === 'ArrowLeft' || key === 'ArrowRight') {
+    if (!hand.length) {
+      emit('rejected', 'empty-hand');
+      return true;
+    }
+    event.preventDefault();
+    let idx = hand.findIndex((uid) => uid === S.selectedCardUid);
+    if (idx < 0) idx = 0;
+    else {
+      idx = key === 'ArrowLeft'
+        ? (idx - 1 + hand.length) % hand.length
+        : (idx + 1) % hand.length;
+    }
+    S.selectedCardUid = hand[idx];
+    S.hoveredCard = S.selectedCardUid;
+    layoutHand();
+    emit('accepted', 'cycle-hand', { uid: S.selectedCardUid });
+    return true;
+  }
+
+  if (key === 'Enter' || key === ' ') {
+    if (S.targeting?.kind === 'card' && livingEnemyIndexes().length <= 1) {
+      event.preventDefault();
+      const living = livingEnemyIndexes();
+      if (!living.length) {
+        emit('rejected', 'no-enemy');
+        return true;
+      }
+      doPlay(S.targeting.uid, living[0]);
+      emit('accepted', 'commit-single-target');
+      return true;
+    }
+    if (S.selectedCardUid == null && hand.length) S.selectedCardUid = hand[0];
+    if (S.selectedCardUid == null) {
+      emit('rejected', 'no-selection');
+      return true;
+    }
+    event.preventDefault();
+    onCardClick(S.selectedCardUid);
+    emit('accepted', 'activate-card', { uid: S.selectedCardUid });
+    return true;
+  }
+
+  return false;
+}
 function clearTargeting() {
   const previousTargeting = S.targeting;
   S.targeting = null;
+  S.selectedEnemyIndex = null;
   if (previousTargeting) trace.emit('input.targeting', {
     outcome: 'cancelled', attributes: { kind: previousTargeting.kind },
   });
-  $('#aim').innerHTML = '';
+  const aimHost = $('#aim');
+  if (aimHost) aimHost.innerHTML = '';
   meshAimClear();
   if (S.ce) {
     S.ce.root.classList.remove('targeting');
@@ -1676,17 +1877,15 @@ function clearTargeting() {
 function aimMove(e) {
   if (!e.synthetic) aimMove._last = e;
   if (!S.targeting) return;
-  let from;
-  if (S.targeting.kind === 'card') {
-    const c = $(`.card[data-uid="${S.targeting.uid}"]`);
-    from = c ? V.centerOf(c) : { x: stageW() / 2, y: stageH() - 200 };
-  } else from = { x: stageW() / 2, y: 60 };
-  // synthetic events already carry stage coords (built from centerOf)
-  const { x: mx, y: my } = e.synthetic ? { x: e.clientX, y: e.clientY } : toStage(e.clientX, e.clientY);
-  const cx = (from.x + mx) / 2, cy = Math.min(from.y, my) - 120;
-  $('#aim').innerHTML = `<path d="M${from.x} ${from.y - 80} Q${cx} ${cy} ${mx} ${my}" fill="none" stroke="rgba(255,89,100,.85)" stroke-width="4" stroke-dasharray="4 10" stroke-linecap="round"/>
-    <circle cx="${mx}" cy="${my}" r="9" fill="none" stroke="rgba(255,89,100,.95)" stroke-width="3"/>`;
+  // Task 27 — arc paints in Pixi; `#aim` stays an empty structural host.
+  const aimHost = $('#aim');
+  if (aimHost && aimHost.childNodes.length) aimHost.innerHTML = '';
+  glSync(buildPresentationModel('aim-move'));
   // the lantern leans toward where you mean to strike: intent illuminates
+  const last = aimMove._last;
+  const { x: mx, y: my } = last.synthetic
+    ? { x: last.clientX, y: last.clientY }
+    : toStage(last.clientX, last.clientY);
   if (S.ce?.hero) {
     const h = V.centerOf(S.ce.hero);
     const lx = `${Math.round(h.x + (mx - h.x) * 0.3)}px`;
@@ -1710,8 +1909,7 @@ async function doPlay(uid, targetIdx) {
   try {
     // Prefer drag-captured seat; else freeze current hand seat before clearTargeting reflows
     if (!cardFlightAnchor.has(String(uid))) {
-      const c = $(`.card[data-uid="${uid}"]`, S.ce?.hand);
-      if (c) captureCardAnchor(uid, c);
+      captureCardAnchor(uid, null, { bounds: handCardSeatBounds(uid) });
     }
     clearTargeting();
     S.hoveredCard = null;
@@ -1836,12 +2034,19 @@ function bumpPile(btn) {
 /** Last on-stage card rects for toDiscard (captured at play before lift/remove). */
 const cardFlightAnchor = new Map();
 function captureCardAnchor(uid, cardEl, meta = {}) {
-  if (uid == null || !cardEl) return;
-  const r = stageRect(cardEl);
-  if (r.width < 2) return;
+  if (uid == null) return;
+  let r = null;
+  if (meta.bounds && meta.bounds.width >= 2) {
+    r = meta.bounds;
+  } else if (cardEl) {
+    r = stageRect(cardEl);
+  } else {
+    r = handCardSeatBounds(uid);
+  }
+  if (!r || r.width < 2) return;
   cardFlightAnchor.set(String(uid), {
-    x: r.left + r.width / 2,
-    y: r.top + r.height / 2,
+    x: (r.left ?? 0) + (r.width ?? 0) / 2,
+    y: (r.top ?? 0) + (r.height ?? 0) / 2,
     w: r.width,
     h: r.height,
     fromDrag: !!meta.fromDrag,
@@ -1879,61 +2084,54 @@ function handScale() {
 }
 
 function handFaceSize() {
-  // Resting hand size only — never sample lifted/armed/dragging (hover scales the box)
-  const sample = S.ce?.hand?.querySelector(
-    '.card:not(.played-up):not(.draw-pending):not(.lifted):not(.armed):not(.dragging)'
-  ) || S.ce?.hand?.querySelector('.card:not(.played-up):not(.draw-pending)');
+  // Resting hand size — never sample lifted/armed/dragging geometry.
   const scale = handScale();
-  if (sample) {
-    const cw = parseFloat(getComputedStyle(sample).getPropertyValue('--cw'));
+  const zone = S.ce?.hand;
+  if (zone) {
+    const cwRaw = getComputedStyle(zone).getPropertyValue('--cw')
+      || getComputedStyle(document.documentElement).getPropertyValue('--cw');
+    const cw = parseFloat(cwRaw);
     if (cw > 2) {
       const w = cw * scale;
       return { w, h: Math.round(w * 1.42) };
     }
-    // offsetWidth is the layout box (ignores .card-lift hover translate/scale)
-    if (sample.offsetWidth > 2) {
-      return { w: sample.offsetWidth, h: sample.offsetHeight || Math.round(sample.offsetWidth * 1.42) };
-    }
   }
-  const w = 152 * scale;
-  return { w, h: Math.round(w * 1.42) };
+  const w = CARD_FACE_WIDTH * scale;
+  return { w, h: Math.round(w * (CARD_FACE_HEIGHT / CARD_FACE_WIDTH)) };
 }
 
 /** CSS `bottom` inset of a hand card (shape breakpoints change it). */
 function handCardBottomInset() {
-  const sample = S.ce?.hand?.querySelector('.card');
-  if (sample) {
-    const b = parseFloat(getComputedStyle(sample).bottom);
+  const zone = S.ce?.hand;
+  if (zone) {
+    const raw = getComputedStyle(zone).getPropertyValue('--hand-card-bottom');
+    const b = parseFloat(raw);
     if (Number.isFinite(b)) return b;
   }
+  const shape = stageInfo().shape;
+  if (shape === 'phone-portrait' || shape === 'pad-portrait') return 46;
+  if (shape === 'phone-landscape') return 0;
   return 8;
 }
 
-/** Stage centre of a resting (non-hovered) hand-fan seat — matches layoutHand, not .lifted. */
+/** Stage centre of a resting (non-hovered) hand-fan seat — matches pure hand-layout. */
 function handSeatCenter(fanIndex, fanCount) {
   const n = Math.max(1, fanCount | 0);
   const i = Math.max(0, Math.min(n - 1, fanIndex | 0));
-  const gap = Math.min(112, 640 / n, (stageW() - 246) / Math.max(n - 1, 1));
-  const rot = n > 1 ? (i - (n - 1) / 2) * Math.min(5, 42 / n) : 0;
-  const x = (i - (n - 1) / 2) * gap;
-  // layoutHand resting: translateY(abs(rot)*3.2 + 26) — positive Y is down
-  const sagY = Math.abs(rot) * 3.2 + 26;
   const sz = handFaceSize();
-  let baseBottom = stageH() - handCardBottomInset();
+  const inset = handCardBottomInset();
+  let baseBottom = stageH() - inset;
+  let cx = stageW() / 2;
   const zone = S.ce?.hand;
   if (zone) {
     const zr = stageRect(zone);
-    if (zr.height > 2) baseBottom = zr.bottom - handCardBottomInset();
-  }
-  let cx = stageW() / 2;
-  if (zone) {
-    const zr = stageRect(zone);
+    if (zr.height > 2) baseBottom = zr.bottom - inset;
     if (zr.width > 2) cx = zr.left + zr.width / 2;
   }
-  return {
-    x: cx + x,
-    y: baseBottom - sz.h / 2 + sagY,
-  };
+  const seat = pureHandSeatCenter(i, n, {
+    stageW: stageW(), cardW: sz.w, cardH: sz.h, zoneCenterX: cx, baseBottom,
+  });
+  return { x: seat.x, y: seat.y };
 }
 
 function resolveFlightSize(spec, { pileBtn, src, fallback } = {}) {
@@ -2586,6 +2784,7 @@ return Object.freeze({
   freeze,
   freezeForProbe,
   pointerState,
+  handleCombatKey,
   startRig,
   drainHandlers,
 });
