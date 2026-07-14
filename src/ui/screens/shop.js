@@ -1,5 +1,5 @@
 export function createShopScreen(deps) {
-  const { contentViewFor, S, E, QUESTS, tr, sceneBg, rasterOr, merchantSvg, $, el, cardEl, uiIcon, sfx, runEffects, renderHud, iconSvg, escHtml, requireRunSave, V, stageW, stageH, potionSvg, relicArt, showCardGrid, leaveHollowDestination, show, screenEl } = deps;
+  const { contentViewFor, S, E, QUESTS, tr, sceneBg, rasterOr, merchantSvg, $, el, cardEl, uiIcon, sfx, runEffects, renderHud, iconSvg, escHtml, requireRunSave, V, stageW, stageH, potionSvg, relicArt, showCardGrid, leaveHollowDestination, show, screenEl, releaseCardFacesIn } = deps;
   const runCatalogues = () => contentViewFor(S.run);
 
 function renderShop() {
@@ -36,12 +36,7 @@ function renderShop() {
   function refresh() {
     if (shopGrid) shopGrid.classList.toggle('list-seq-done', shopSeeded);
     // Task 26 — release prior exported faces before rebuilding the stock row.
-    cardsRow.querySelectorAll('.card').forEach((node) => {
-      if (typeof node._cardFaceRelease === 'function') {
-        try { node._cardFaceRelease(); } catch { /* ignore */ }
-        node._cardFaceRelease = null;
-      }
-    });
+    releaseCardFacesIn(cardsRow);
     cardsRow.innerHTML = '';
     miscRow.innerHTML = '';
     for (const it of st.cards) {

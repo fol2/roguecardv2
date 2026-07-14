@@ -3,7 +3,7 @@ import { createChoiceLatch } from '../choice-latch.js';
 import { getSfxVolume, isSfxMuted, setSfxMuted, setSfxVolume, sfx } from '../audio.js';
 import * as music from '../music.js';
 import { stageEl, stageW, toStage } from '../stage.js';
-import { $, $$, S, el, presentationBarrier, terminalNavigationLocked, trace } from './context.js';
+import { $, $$, S, el, presentationBarrier, releaseCardFacesIn, terminalNavigationLocked, trace } from './context.js';
 import { contentViewFor } from './content.js';
 import { uiCommands } from './commands.js';
 
@@ -245,13 +245,7 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
     if (persistenceDialogTransaction) return false;
     const overlay = $('#overlay');
     // Task 26 — release exported card-face object URLs / cache refs.
-    $$('[data-card-face-key]', overlay).forEach((node) => {
-      const host = node.closest?.('.card') || node;
-      if (typeof host._cardFaceRelease === 'function') {
-        try { host._cardFaceRelease(); } catch { /* ignore */ }
-        host._cardFaceRelease = null;
-      }
-    });
+    releaseCardFacesIn(overlay);
     overlay.classList.remove('open', 'run-save-lock');
     overlay.innerHTML = '';
     return true;

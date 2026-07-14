@@ -12,6 +12,26 @@ export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export const screenEl = () => $('#screen');
+
+/** Task 26 — revoke composer object URLs / cache refs before a DOM root is wiped. */
+export function releaseCardFacesIn(root) {
+  if (!root) return;
+  const seen = new Set();
+  const releaseHost = (node) => {
+    if (!node) return;
+    const host = (typeof node.closest === 'function' && node.closest('.card')) || node;
+    if (seen.has(host)) return;
+    seen.add(host);
+    if (typeof host._cardFaceRelease !== 'function') return;
+    try { host._cardFaceRelease(); } catch { /* ignore */ }
+    host._cardFaceRelease = null;
+  };
+  $$('[data-card-face-key]', root).forEach(releaseHost);
+  // Belt: hosts that hold release ownership without the attribute (transferred faces).
+  if (typeof root.querySelectorAll === 'function') {
+    root.querySelectorAll('.card, .flycard-face').forEach(releaseHost);
+  }
+}
 export const terminalNavigationLocked = () => S.screen === 'end' ||
   S.run?.pendingRunEnd != null || S.run?.pendingDawn != null;
 export function el(tag, cls = '', html = '') {

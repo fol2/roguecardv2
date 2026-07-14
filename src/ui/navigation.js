@@ -4,7 +4,7 @@ import * as music from '../music.js';
 import { clearOverlay, exitMapMode } from '../scene3d.js';
 import { meshClear } from '../mesh.js';
 import { stageH, stageW } from '../stage.js';
-import { $, S, screenEl } from './context.js';
+import { $, S, screenEl, releaseCardFacesIn } from './context.js';
 import { contentViewFor, themeForRun } from './content.js';
 import { REDUCED } from './policy.js';
 import { omenIconName, warmAssets } from './assets.js';
@@ -88,6 +88,8 @@ export function createNavigator({ routes, beforeShow, publishMapWarmReader, trac
     if (name !== 'map') { exitMapMode(); clearOverlay(); }
     V.setWeather(null);
     const screen = screenEl();
+    // Task 26 — revoke card-face object URLs before #screen replace (shop leave, etc.).
+    releaseCardFacesIn(screen);
     screen.className = '';
     screen.onclick = null;
     const cleanup = renderer(data);

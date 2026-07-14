@@ -70,11 +70,31 @@ test.describe('card-face composer', () => {
     expect(shopFaces.urls.every((u) => u.startsWith('blob:'))).toBe(true);
     expect(shopFaces.legacyDomFaces).toBe(0);
 
-    // Deck overlay grid also carries data-card-face-key.
+    // Leaving shop must revoke blob URLs before #screen is replaced.
+    // If release ran, re-export creates a fresh object URL (entry.url was cleared).
+    const shopBlobUrls = shopFaces.urls.filter((u) => u.startsWith('blob:'));
     await page.evaluate(() => {
       window.spirebound.show('map');
     });
     await settle(page);
+    const revoked = await page.evaluate((oldUrls) => {
+      const face = window.spirebound.combatGl.cardFace;
+      const sampleId = window.spirebound.S.run.shopData?.cards?.[0]?.id || 'strike';
+      const exported = face.exportImage({ id: sampleId }, { up: false });
+      const reusedOldUrl = oldUrls.includes(exported.url);
+      exported.release();
+      return {
+        lingering: [...document.querySelectorAll('#screen [data-card-face-key]')].length,
+        reusedOldUrl,
+        sampleId,
+        newUrlKind: String(exported.url).startsWith('blob:') ? 'blob' : 'other',
+      };
+    }, shopBlobUrls);
+    expect(revoked.lingering).toBe(0);
+    expect(revoked.reusedOldUrl).toBe(false);
+    expect(revoked.newUrlKind).toBe('blob');
+
+    // Deck overlay grid also carries data-card-face-key.
     await page.evaluate(() => {
       const sp = window.spirebound;
       const showCardGrid = sp.showCardGrid;

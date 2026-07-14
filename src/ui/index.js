@@ -42,7 +42,7 @@ import { getVersionInfo } from '../version.js';
 
 import { createRunEffects } from './run-effects.js';
 import {
-  $, $$, COARSE, S, el, escHtml, presentationBarrier, screenEl, sleep, trace,
+  $, $$, COARSE, S, el, escHtml, presentationBarrier, releaseCardFacesIn, screenEl, sleep, trace,
 } from './context.js';
 import { CORE_CONTENT, contentViewFor, themeForRun } from './content.js';
 import { ROUND5_TOKENS, applyExperienceTokens, tokenValue } from './tokens.js';
@@ -260,6 +260,7 @@ screenOwners = Object.freeze({
     cardEl, uiIcon, sfx, runEffects, renderHud: screenLate.renderHud, iconSvg, escHtml,
     requireRunSave, V, stageW, stageH, potionSvg, relicArt, showCardGrid,
     leaveHollowDestination, show: screenLate.show, screenEl, contentViewFor,
+    releaseCardFacesIn,
   }),
   event: createEventScreen({
     S, E, tr, sceneBg, rasterOr, eventArtSvg, $, el, sfx,

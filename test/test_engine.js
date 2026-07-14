@@ -348,7 +348,7 @@ function forceHand(run, cb, ids) {
   const sourceOf = (name) => readFileSync(new URL(`../src/ui/${name}.js`, import.meta.url), 'utf8');
   assert.deepEqual(exportNames(sourceOf('context')), [
     '$', '$$', 'COARSE', 'FINE', 'FORCE_INPUT', 'S', 'el', 'escHtml',
-    'presentationBarrier', 'screenEl', 'sleep', 'terminalNavigationLocked', 'trace',
+    'presentationBarrier', 'releaseCardFacesIn', 'screenEl', 'sleep', 'terminalNavigationLocked', 'trace',
   ].sort(), 'context exact browser-owned export surface');
   assert.deepEqual(exportNames(sourceOf('policy')), ['REDUCED'],
     'policy exact browser-owned export surface');
@@ -501,6 +501,15 @@ function forceHand(run, cb, ids) {
     'drain flycard clone adopts seat card-face release ownership');
   assert.match(drainSource, /releaseCardFace\(m\)/,
     'drain flycard teardown revokes card-face object URLs');
+  const navSource = readFileSync(new URL('../src/ui/navigation.js', import.meta.url), 'utf8');
+  const contextSource = readFileSync(new URL('../src/ui/context.js', import.meta.url), 'utf8');
+  assert.match(contextSource, /function releaseCardFacesIn\(/,
+    'shared helper walks data-card-face-key / _cardFaceRelease hosts');
+  assert.match(navSource, /releaseCardFacesIn\(screen\)/,
+    'show() revokes card-face object URLs before #screen replace');
+  const overlaySource = readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8');
+  assert.match(overlaySource, /releaseCardFacesIn\(overlay\)/,
+    'overlay close reuses the shared card-face release helper');
 }
 
 // ---- Round 5 normal Phase 2 transaction seam ------------------------------
