@@ -175,6 +175,14 @@
 .r5-begin-rite[data-r5-state="rest"],
 .r5-title-actions .btn[data-r5-state="rest"],
 .r5-embark .btn[data-r5-state="rest"],
+.r5-end .btn[data-r5-state="rest"],
+.r5-scene-panel .btn[data-r5-state="rest"],
+.r5-rewards .btn[data-r5-state="rest"],
+.r5-shop .btn[data-r5-state="rest"],
+.r5-event .btn[data-r5-state="rest"],
+.r5-rest .btn[data-r5-state="rest"],
+.r5-lamplighter .btn[data-r5-state="rest"],
+.r5-vigil .btn[data-r5-state="rest"],
 .r5-monument[data-r5-state="rest"],
 .r5-scene-panel[data-r5-state="rest"] {
   opacity: 1;
@@ -190,11 +198,27 @@
 .r5-begin-rite[data-r5-state="hover"],
 .r5-title-actions .btn[data-r5-state="hover"],
 .r5-embark .btn[data-r5-state="hover"],
+.r5-end .btn[data-r5-state="hover"],
+.r5-scene-panel .btn[data-r5-state="hover"],
+.r5-rewards .btn[data-r5-state="hover"],
+.r5-shop .btn[data-r5-state="hover"],
+.r5-event .btn[data-r5-state="hover"],
+.r5-rest .btn[data-r5-state="hover"],
+.r5-lamplighter .btn[data-r5-state="hover"],
+.r5-vigil .btn[data-r5-state="hover"],
 .r5-aspect-card:hover:not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
 .r5-vow-dial:hover:not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
 .r5-begin-rite:hover:not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
 .r5-title-actions .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
-.r5-embark .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]) {
+.r5-embark .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-end .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-scene-panel .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-rewards .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-shop .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-event .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-rest .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-lamplighter .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-vigil .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]) {
   opacity: 1;
   transform: scale(1.04) translateY(-2px);
   border-color: var(--r5-gold);
@@ -209,11 +233,27 @@
 .r5-begin-rite[data-r5-state="pressed"],
 .r5-title-actions .btn[data-r5-state="pressed"],
 .r5-embark .btn[data-r5-state="pressed"],
+.r5-end .btn[data-r5-state="pressed"],
+.r5-scene-panel .btn[data-r5-state="pressed"],
+.r5-rewards .btn[data-r5-state="pressed"],
+.r5-shop .btn[data-r5-state="pressed"],
+.r5-event .btn[data-r5-state="pressed"],
+.r5-rest .btn[data-r5-state="pressed"],
+.r5-lamplighter .btn[data-r5-state="pressed"],
+.r5-vigil .btn[data-r5-state="pressed"],
 .r5-aspect-card:active:not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
 .r5-vow-dial:active:not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
 .r5-begin-rite:active:not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
 .r5-title-actions .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
-.r5-embark .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]) {
+.r5-embark .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-end .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-scene-panel .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-rewards .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-shop .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-event .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-rest .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-lamplighter .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-vigil .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]) {
   opacity: 1;
   transform: scale(0.97) translateY(0);
   border-color: color-mix(in srgb, var(--r5-gold) 88%, transparent);
@@ -228,8 +268,24 @@
 .r5-begin-rite[data-r5-state="disabled"],
 .r5-title-actions .btn[data-r5-state="disabled"],
 .r5-embark .btn[data-r5-state="disabled"],
+.r5-end .btn[data-r5-state="disabled"],
+.r5-scene-panel .btn[data-r5-state="disabled"],
+.r5-rewards .btn[data-r5-state="disabled"],
+.r5-shop .btn[data-r5-state="disabled"],
+.r5-event .btn[data-r5-state="disabled"],
+.r5-rest .btn[data-r5-state="disabled"],
+.r5-lamplighter .btn[data-r5-state="disabled"],
+.r5-vigil .btn[data-r5-state="disabled"],
 .r5-title-actions .btn:disabled,
 .r5-embark .btn:disabled,
+.r5-end .btn:disabled,
+.r5-scene-panel .btn:disabled,
+.r5-rewards .btn:disabled,
+.r5-shop .btn:disabled,
+.r5-event .btn:disabled,
+.r5-rest .btn:disabled,
+.r5-lamplighter .btn:disabled,
+.r5-vigil .btn:disabled,
 .r5-begin-rite:disabled {
   opacity: 0.42;
   transform: scale(1) translateY(0);
@@ -246,6 +302,14 @@
 .r5-begin-rite[data-r5-state="ready"],
 .r5-title-actions .btn[data-r5-state="ready"],
 .r5-embark .btn[data-r5-state="ready"],
+.r5-end .btn[data-r5-state="ready"],
+.r5-scene-panel .btn[data-r5-state="ready"],
+.r5-rewards .btn[data-r5-state="ready"],
+.r5-shop .btn[data-r5-state="ready"],
+.r5-event .btn[data-r5-state="ready"],
+.r5-rest .btn[data-r5-state="ready"],
+.r5-lamplighter .btn[data-r5-state="ready"],
+.r5-vigil .btn[data-r5-state="ready"],
 .r5-monument[data-r5-state="ready"],
 .r5-scene-panel[data-r5-state="ready"] {
   opacity: 1;
@@ -300,9 +364,11 @@
 .r5-end[data-r5-state="monument-engraved"] .r5-monument,
 .r5-end[data-r5-state="dawn-closed"] .r5-dawn-ledger,
 .r5-rewards[data-r5-state="rewards-ready"],
+.r5-rewards[data-r5-state="boss-relic-ready"],
 .r5-shop[data-r5-state="shop-ready"],
 .r5-event[data-r5-state="event-choice-ready"],
 .r5-rest[data-r5-state="rest-action-ready"],
+.r5-rest[data-r5-state="treasure-open"],
 .r5-lamplighter[data-r5-state="lamplighter-ready"],
 .r5-lamplighter[data-r5-state="hollow-ready"],
 .r5-vigil[data-r5-state="vigil-ready"],
@@ -687,9 +753,11 @@
 }
 
 .r5-rewards[data-r5-state="rewards-ready"] .r5-scene-panel,
+.r5-rewards[data-r5-state="boss-relic-ready"] .r5-scene-panel,
 .r5-shop[data-r5-state="shop-ready"] .r5-scene-panel,
 .r5-event[data-r5-state="event-choice-ready"] .r5-scene-panel,
 .r5-rest[data-r5-state="rest-action-ready"] .r5-scene-panel,
+.r5-rest[data-r5-state="treasure-open"] .r5-scene-panel,
 .r5-lamplighter[data-r5-state="lamplighter-ready"] .r5-scene-panel,
 .r5-lamplighter[data-r5-state="hollow-ready"] .r5-scene-panel,
 .r5-vigil[data-r5-state="vigil-ready"] .r5-scene-panel,
@@ -792,7 +860,15 @@
 .r5-begin-rite[data-tier="lite"][data-r5-state="ready"],
 .r5-vow-dial[data-tier="lite"][data-r5-state="ready"],
 .r5-title-actions .btn[data-tier="lite"][data-r5-state="ready"],
-.r5-embark[data-tier="lite"] .btn[data-r5-state="ready"] {
+.r5-embark[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-end[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-scene-panel[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-rewards[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-shop[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-event[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-rest[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-lamplighter[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-vigil[data-tier="lite"] .btn[data-r5-state="ready"] {
   animation: none;
   transform: scale(1);
   box-shadow:
@@ -801,7 +877,9 @@
 }
 
 .r5-embark[data-tier="lite"] .r5-vow-dial,
+.r5-embark[data-tier="lite"][data-r5-profile="fresh"] .r5-vow-dial,
 .r5-vow-dial[data-tier="lite"] {
+  filter: none;
   transition: none;
 }
 
@@ -814,6 +892,15 @@
   box-shadow: inset 0 0 80px color-mix(in srgb, var(--r5-gold) 12%, transparent);
 }
 
+/* LITE clears Fresh saturate filters on scene roots + embark dial */
+.r5-rewards[data-tier="lite"],
+.r5-rewards[data-tier="lite"][data-r5-profile="fresh"],
+.r5-shop[data-tier="lite"],
+.r5-shop[data-tier="lite"][data-r5-profile="fresh"],
+.r5-event[data-tier="lite"],
+.r5-event[data-tier="lite"][data-r5-profile="fresh"],
+.r5-vigil[data-tier="lite"],
+.r5-vigil[data-tier="lite"][data-r5-profile="fresh"],
 .r5-rest[data-tier="lite"],
 .r5-lamplighter[data-tier="lite"] {
   filter: none;
