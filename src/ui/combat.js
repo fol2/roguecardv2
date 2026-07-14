@@ -1422,6 +1422,8 @@ function installCombatPointerRouter({
         updatePreviews();
       }
     },
+    // setTargeting no longer binds document pointermove — router owns aim tracking.
+    aimMove: (e) => aimMove(e),
   };
   pointerRouter = createCombatPointerRouter({
     stage: () => stageEl(),
@@ -1435,10 +1437,6 @@ function installCombatPointerRouter({
   });
   pointerRouter.enable();
   if (S.ce) S.ce.pointerRouter = pointerRouter;
-}
-
-function bindCardDrag() {
-  // Task 23 — retained name for inventory scans; listeners live on the stage router.
 }
 
 const castLine = () => (S.ce?.hand ? stageRect(S.ce.hand).top - 24 : stageH() - 260); // stage px

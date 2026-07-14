@@ -251,7 +251,7 @@ test('real pointer play through the stage router commits a defend', async ({ pag
     window.__probe.setEnergy(3);
     const [uid] = window.__probe.forceHand(['defend']);
     const ui = window.__probe.ui();
-    const card = ui.hand.find((c) => c.uid === uid);
+    const card = ui.hand.find((c) => c.uid === uid) || ui.hand[0];
     const hand = document.querySelector('.hand-zone') || document.querySelector('.hand');
     const info = window.__probe.stage();
     const stage = document.getElementById('stage');
@@ -263,29 +263,18 @@ test('real pointer play through the stage router commits a defend', async ({ pag
     // Release clearly above the cast line in stage px.
     const releaseStage = { left: cx, top: castLine - 40, width: 0, height: 0 };
     return {
-      uid,
+      uid: card.uid,
       bounds: card.bounds,
       releaseStage,
       castLine,
       blockBefore: window.__probe.state().player.block,
     };
   });
+  // Real Playwright mouse drag — stageBoundsToClient(probe.ui().hand[…]) → cast line.
+  // Synthetic PointerEvents stay reserved for pointercancel / lostpointercapture paths.
   const from = await stageBoundsToClient(page, setup.bounds);
   const to = await stageBoundsToClient(page, setup.releaseStage);
-  await page.evaluate(({ origin, release }) => {
-    const stage = document.getElementById('stage');
-    const pid = 55;
-    const fire = (type, x, y) => {
-      stage.dispatchEvent(new PointerEvent(type, {
-        bubbles: true, cancelable: true, pointerId: pid, isPrimary: true,
-        pointerType: 'mouse', clientX: x, clientY: y,
-      }));
-    };
-    fire('pointerdown', origin.x, origin.y);
-    fire('pointermove', origin.x, origin.y - 40);
-    fire('pointermove', release.x, release.y);
-    fire('pointerup', release.x, release.y);
-  }, { origin: from, release: to });
+  await pointerDrag(page, from, to, { steps: 10 });
   await settle(page);
   const after = await page.evaluate((uid) => ({
     inHand: window.__probe.state().hand?.some((c) => c.uid === uid) === true,
