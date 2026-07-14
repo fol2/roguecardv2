@@ -226,3 +226,69 @@ export function resolveTier(policy) {
 export function isReducedTier(policy) {
   return resolveTier(policy) === 'reduced';
 }
+
+// --- Title / Embark presentation seams (Task 32) ---------------------------
+
+/** P7 parallax layer asset ids under `title/`; missing files fall back to `title`. */
+export const TITLE_PARALLAX_LAYER_IDS = Object.freeze([
+  'round5-back',
+  'round5-mid',
+  'round5-foreground',
+]);
+export const TITLE_PARALLAX_FALLBACK_ID = 'title';
+
+/** Named REDUCED / settled end-states for Title and Embark ceremonies. */
+export const R5_SCREEN_END_STATES = Object.freeze({
+  titleReady: 'title-ready',
+  titleIgniting: 'igniting',
+  embarkLit: 'embark-lit',
+  titleVersionDefault: 'title-version-default',
+  titleVersionDebug: 'title-version-debug',
+});
+
+/** PR #18 version gesture: five taps inside two seconds; debug hides after three. */
+export const VERSION_GESTURE = Object.freeze({
+  taps: 5,
+  windowMs: 2000,
+  hideMs: 3000,
+});
+
+/** Fresh vs grown composition profile for P6 screen roots. */
+export function compositionProfile(grown) {
+  return grown ? 'grown' : 'fresh';
+}
+
+/**
+ * Build `data-tier` / `data-motion` attributes from a policy object.
+ * REDUCED wins over LITE; otherwise COARSE/`lite` → lite, else full.
+ */
+export function screenPresentationAttrs(policy) {
+  const tier = resolveTier(policy);
+  return Object.freeze({
+    tier,
+    motion: tier === 'reduced' ? 'reduced' : 'full',
+  });
+}
+
+/** Title Rose presentation phases (Phase-2 facts only; no quest invention). */
+export const TITLE_ROSE_PHASES = Object.freeze([
+  'absent', 'loading', 'inert', 'ready', 'fallback',
+]);
+
+/**
+ * Resolve Title Rose presentation phase from Phase-2 facts only
+ * (shards / assets / decode / ready). Never invents quest state.
+ */
+export function titleRosePhase({
+  shardCount = 0,
+  assets = null,
+  ready = false,
+  decodeFailed = false,
+  forcedFallback = false,
+} = {}) {
+  if (!(shardCount > 0)) return 'absent';
+  if (forcedFallback || !assets) return 'fallback';
+  if (decodeFailed) return 'inert';
+  if (ready) return 'ready';
+  return 'loading';
+}

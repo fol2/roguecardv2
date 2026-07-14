@@ -1,6 +1,8 @@
 import { QUEST_IDS } from '../data.js';
 import { assetUrl } from '../art.js';
 
+export { TITLE_ROSE_PHASES, titleRosePhase } from './tokens.js';
+
 const ROSE_ASSET_IDS = {
   mural: 'emberglass-mural',
   frame: 'emberglass-frame',
@@ -8,6 +10,7 @@ const ROSE_ASSET_IDS = {
 };
 let forceRoseFallback = false;
 let roseAssetsReady = false;
+let roseDecodeFailed = false;
 let disclosedRoseStateIds = [];
 
 export function roseAssets() {
@@ -21,12 +24,20 @@ export function roseAssets() {
 export function setForceRoseFallback(on) {
   forceRoseFallback = !!on;
   roseAssetsReady = false;
+  roseDecodeFailed = false;
   return forceRoseFallback;
 }
 
 export function setRoseAssetsReady(on) {
   roseAssetsReady = !!on;
+  if (on) roseDecodeFailed = false;
   return roseAssetsReady;
+}
+
+export function setRoseDecodeFailed(on) {
+  roseDecodeFailed = !!on;
+  if (on) roseAssetsReady = false;
+  return roseDecodeFailed;
 }
 
 export function setDisclosedRoseStateIds(ids) {
@@ -38,6 +49,7 @@ export function getRoseState() {
   return Object.freeze({
     fallback: forceRoseFallback,
     ready: roseAssetsReady,
+    decodeFailed: roseDecodeFailed,
     stateIds: Object.freeze([...disclosedRoseStateIds]),
   });
 }

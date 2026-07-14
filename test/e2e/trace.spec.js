@@ -56,6 +56,10 @@ async function seedUsurperTraceShop(page) {
   vigil.runsPlayed = 2;
   vigil.quests.usurper = { state: 'armed', progress: 0, memory: {} };
   await seed(page, vigil);
+  // Probe is installed before the boot `show('title')`; wait for app.ready so a
+  // mid-boot show('shop') is not overwritten by the terminal title paint.
+  await page.waitForFunction(() => window.__probe?.behaviourTrace().records
+    .some((record) => record.eventName === 'app.ready'));
   await page.evaluate(() => {
     const sp = window.spirebound;
     const stored = JSON.parse(localStorage.getItem('spirebound_vigil_v2'));
@@ -72,6 +76,7 @@ async function seedUsurperTraceShop(page) {
     sp.S.run = run;
     sp.show('shop');
   });
+  await page.waitForFunction(() => window.spirebound?.S?.screen === 'shop');
 }
 
 async function seedHollowTrace(page, { progress = 1, type = 'shop', gold = 999 } = {}) {
@@ -108,7 +113,7 @@ const COMBAT_MODULE_KEYS = [
   'startRig', 'syncCombat', 'syncHand', 'tweenNum', 'useLanternArt',
 ].sort();
 const DRAIN_HANDLER_KEYS = [
-  'addCrack', 'banner', 'bumpPile', 'captureCardAnchor', 'choreoAttack',
+  'addCrack', 'artCast', 'banner', 'bumpPile', 'captureCardAnchor', 'choreoAttack',
   'choreoHit', 'choreoStagger', 'clearDrawRevealPlan',
   'clearPileVisualOverride', 'deleteDrawRevealPlan', 'enemyCenter',
   'flyCardBacks', 'flyTo', 'floatText', 'handFaceSize', 'handSeatCenter',
@@ -407,6 +412,37 @@ test('app-version trace is copy-free and five-tap debug has no action control', 
   const logo = page.locator('[data-version-logo]');
   await expect(logo).toBeVisible();
   await expect(logo).not.toHaveAttribute('data-a', /.+/);
+  await expect(page.locator('[data-version-display]')).not.toHaveAttribute('data-a', /.+/);
+  const expectedDisplay = await page.evaluate(async () => {
+    const { getVersionInfo } = await import('/src/version.js');
+    return getVersionInfo().display;
+  });
+  await expect(page.locator('[data-version-display]')).toHaveText(expectedDisplay);
+  await expect(page.locator('[data-version-display]')).toBeVisible();
+  // Five taps outside a two-second window do nothing.
+  await page.evaluate(() => {
+    const target = document.querySelector('[data-version-logo]');
+    const nativeNow = performance.now.bind(performance);
+    let offset = 0;
+    const originalNow = performance.now;
+    performance.now = () => nativeNow() + offset;
+    try {
+      for (let index = 0; index < 5; index += 1) {
+        target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        offset += 2100;
+      }
+    } finally {
+      performance.now = originalNow;
+    }
+  });
+  await expect(page.locator('[data-version-debug]')).toBeHidden();
+  // Four taps do nothing.
+  await page.evaluate(() => {
+    const target = document.querySelector('[data-version-logo]');
+    for (let index = 0; index < 4; index += 1) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  await expect(page.locator('[data-version-debug]')).toBeHidden();
+  await page.waitForTimeout(2100);
   const beforeGesture = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
   // Dispatch taps in-page: Playwright actionability waits on logoSheen forever on CI.
   await page.evaluate(() => {
@@ -415,6 +451,7 @@ test('app-version trace is copy-free and five-tap debug has no action control', 
     for (let index = 0; index < 5; index += 1) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
   await expect(page.locator('[data-version-debug]')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('[data-version-debug]')).toHaveAttribute('aria-live', 'polite');
   await page.evaluate(() => {
     const target = document.querySelector('[data-version-logo]');
     if (!target) throw new Error('title version logo missing');
@@ -426,12 +463,73 @@ test('app-version trace is copy-free and five-tap debug has no action control', 
   expect(version).toHaveLength(1);
   expect(Object.keys(version[0].attributes).sort()).toEqual(['controlId', 'locale', 'release', 'shaState']);
   expect(version[0].attributes.shaState).toMatch(/^(known|unknown)$/);
-  expect(records.filter((record) => record.eventName === 'app.version-debug')
+  expect(JSON.stringify(version[0].attributes)).not.toMatch(/\d+\.\d+\.\d+/);
+  expect(records.filter((record) => record.seq > beforeGesture &&
+    record.eventName === 'app.version-debug')
     .map((record) => record.attributes.action)).toEqual(['shown', 'hidden']);
+  for (const record of records.filter((record) => record.seq > beforeGesture &&
+    record.eventName === 'app.version-debug')) {
+    expect(Object.keys(record.attributes).sort()).toEqual(['action', 'controlId']);
+    expect(JSON.stringify(record.attributes)).not.toMatch(/<[a-z]|0\.\d+\.\d+/i);
+  }
   expect(records.filter((record) => record.seq > beforeGesture &&
     record.eventName === 'audio.sfx-request')).toEqual([]);
-  bindTraceContract('app-version', triples(records.filter((record) =>
-    record.eventName === 'app.version' || record.eventName === 'app.version-debug')));
+  expect(records.filter((record) => record.seq > beforeGesture &&
+    record.eventName === 'audio.music-request')).toEqual([]);
+  expect(await page.evaluate(() => window.spirebound.S.screen)).toBe('title');
+  bindTraceContract('app-version', triples([
+    ...records.filter((record) => record.eventName === 'app.version'),
+    ...records.filter((record) => record.seq > beforeGesture &&
+      record.eventName === 'app.version-debug'),
+  ]));
+});
+
+test('Title ignition runs once per page session and REDUCED lands on title-ready', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'ignition ceremony runs once on desktop');
+  await page.goto('/?trace=1');
+  await page.waitForFunction(() => window.__probe);
+  await page.waitForFunction(() => document.querySelector('.r5-title')?.dataset.r5State === 'title-ready');
+  const first = await page.evaluate(() => window.__probe.behaviourTrace().records
+    .filter((record) => record.eventName === 'presentation.title-ignition'));
+  expect(first.length).toBeGreaterThanOrEqual(2); // start + end
+  expect(first.some((record) => record.phase === 'end' && record.attributes?.endState === 'title-ready')).toBe(true);
+  await page.click('[data-a="embark"]');
+  await page.click('[data-a="back"]');
+  await page.waitForFunction(() => window.spirebound.S.screen === 'title');
+  const second = await page.evaluate(() => window.__probe.behaviourTrace().records
+    .filter((record) => record.eventName === 'presentation.title-ignition'));
+  expect(second.length).toBe(first.length);
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.reload();
+  await page.waitForFunction(() => window.__probe);
+  await expect(page.locator('.r5-title')).toHaveAttribute('data-r5-state', 'title-ready');
+  await expect(page.locator('.r5-title')).toHaveAttribute('data-motion', 'reduced');
+  const reduced = await page.evaluate(() => window.__probe.behaviourTrace().records
+    .filter((record) => record.eventName === 'presentation.title-ignition' && record.phase === 'end'));
+  expect(reduced.at(-1)?.attributes?.endState).toBe('title-ready');
+  expect(reduced.at(-1)?.attributes?.motion).toBe('reduced');
+});
+
+test('Embark Begin emits lantern-lighting then enters map', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'lantern-lighting ceremony runs once on desktop');
+  await page.goto('/?trace=1');
+  await page.waitForFunction(() => window.__probe);
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForFunction(() => window.__probe);
+  await page.click('[data-a="embark"]');
+  const before = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.click('.r5-begin-rite');
+  await page.waitForFunction(() => window.spirebound.S.screen === 'map' ||
+    window.spirebound.S.screen === 'lamplighter');
+  const records = await page.evaluate((after) => window.__probe.behaviourTrace().records
+    .filter((record) => record.seq > after), before);
+  const lighting = records.filter((record) => record.eventName === 'presentation.lantern-lighting');
+  expect(lighting.some((record) => record.phase === 'start')).toBe(true);
+  expect(lighting.some((record) => record.phase === 'end' && record.attributes?.endState === 'embark-lit')).toBe(true);
+  expect(records.some((record) => record.eventName === 'screen.entered' &&
+    (record.attributes?.screenId === 'map' || record.attributes?.screenId === 'lamplighter'))).toBe(true);
 });
 
 test('detached Title version timeout cannot emit a stale hidden action', async ({ page }) => {
@@ -870,6 +968,8 @@ test('persistence fixtures: initial run, Usurper and Shade use real retry owners
   vigil.quests.ownShade = { state: 'revealed', progress: 0, memory: {} };
   vigil.lastFall = { act: 1, row: 4, bequest: null, standing: true, shadeAspect: 0 };
   await seed(page, vigil);
+  await page.waitForFunction(() => window.__probe?.behaviourTrace().records
+    .some((record) => record.eventName === 'app.ready'));
   await page.evaluate(() => {
     const sp = window.spirebound;
     const stored = JSON.parse(localStorage.getItem('spirebound_vigil_v2'));
@@ -955,6 +1055,8 @@ test('persistence fixtures: terminal outbox uses the real retry owner', async ({
 
 test('persistence fixtures: Dawn cursor and final clear use real retry owners', async ({ page }) => {
   await seed(page, freshLedger());
+  await page.waitForFunction(() => window.__probe?.behaviourTrace().records
+    .some((record) => record.eventName === 'app.ready'));
   await page.evaluate(() => {
     const sp = window.spirebound;
     const run = sp.E.newRun(9941);
@@ -978,6 +1080,8 @@ test('persistence fixtures: Dawn cursor and final clear use real retry owners', 
   bindTraceContract('dawn-cursor-retry', await persistenceContractRows(page, 'dawn-cursor'));
 
   await seed(page, freshLedger());
+  await page.waitForFunction(() => window.__probe?.behaviourTrace().records
+    .some((record) => record.eventName === 'app.ready'));
   await page.evaluate(() => {
     const sp = window.spirebound;
     const run = sp.E.newRun(9942);

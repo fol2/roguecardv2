@@ -215,12 +215,13 @@ test('P1 shared UI modules preserve exact browser boundaries and live commands',
   expect(result.boundary).toEqual({ show: 'function', state: 'object', trace: 'function' });
   expect(result.exports.context).toEqual([
     '$', '$$', 'COARSE', 'FINE', 'FORCE_INPUT', 'S', 'el', 'escHtml',
-    'presentationBarrier', 'screenEl', 'sleep', 'terminalNavigationLocked', 'trace',
+    'presentationBarrier', 'releaseCardFacesIn', 'screenEl', 'sleep', 'terminalNavigationLocked', 'trace',
   ].sort());
   expect(result.exports.policy).toEqual(['REDUCED']);
   expect(result.exports.format).toEqual(['ROMAN']);
   expect(result.exports.rose).toEqual([
-    'getRoseState', 'roseAssets', 'setDisclosedRoseStateIds', 'setForceRoseFallback', 'setRoseAssetsReady',
+    'TITLE_ROSE_PHASES', 'getRoseState', 'roseAssets', 'setDisclosedRoseStateIds',
+    'setForceRoseFallback', 'setRoseAssetsReady', 'setRoseDecodeFailed', 'titleRosePhase',
   ]);
   expect(result.exports.commands).toEqual(['bindUICommands', 'uiCommands']);
   expect(result.unknown).toEqual({
@@ -760,3 +761,146 @@ test('window size changes scale, never layout: geometry is identical at two wind
   if (g1.slLedgeTop != null) near(g2.slLedgeTop, g1.slLedgeTop, 'slLedgeTop');
   if (g1.seamY != null) near(g2.seamY, g1.seamY, 'seamY');
 });
+
+const CANONICAL_SHAPES = [
+  'phone-portrait', 'phone-landscape', 'pad-portrait', 'pad-landscape', 'desktop-landscape',
+];
+
+function rectsIntersect(a, b, gap = 0) {
+  return !(a.right + gap <= b.left || b.right + gap <= a.left || a.bottom + gap <= b.top || b.bottom + gap <= a.top);
+}
+
+async function versionChromeGeometry(page) {
+  return page.evaluate(() => {
+    const stageEl = document.getElementById('stage');
+    const stage = stageEl.getBoundingClientRect();
+    const rootStyle = getComputedStyle(document.documentElement);
+    const stageScale = stage.width / stageEl.offsetWidth;
+    const safePx = (name) => (Number.parseFloat(rootStyle.getPropertyValue(name)) || 0) * stageScale;
+    const safe = {
+      left: stage.left + safePx('--sal'),
+      right: stage.right - safePx('--sar'),
+      top: stage.top + safePx('--sat'),
+      bottom: stage.bottom - safePx('--sab'),
+    };
+    const boxOf = (sel) => {
+      const el = document.querySelector(sel);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      return {
+        left: r.left, right: r.right, top: r.top, bottom: r.bottom,
+        width: r.width, height: r.height,
+        visible: cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0 && !el.hidden,
+      };
+    };
+    return {
+      safe,
+      label: boxOf('[data-version-display]'),
+      debug: boxOf('[data-version-debug]'),
+      btns: boxOf('.title-btns'),
+      stats: boxOf('.title-stats'),
+      rose: boxOf('.title-rose-medallion'),
+      displayText: document.querySelector('[data-version-display]')?.textContent || '',
+      hasDataA: !!document.querySelector('[data-version-display]')?.hasAttribute('data-a'),
+    };
+  });
+}
+
+test('fresh and grown Title/Embark expose fixed r5 selectors and data states', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'presentation seams run once on desktop');
+  await page.goto('/?trace=1');
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  const fresh = page.locator('.title-screen.r5-title');
+  await expect(fresh).toHaveAttribute('data-r5-profile', 'fresh');
+  await expect(fresh).toHaveAttribute('data-r5-state', /^(igniting|title-ready)$/);
+  await expect(page.locator('.r5-title-parallax[data-asset]')).toHaveCount(3);
+  await expect(page.locator('.r5-title-wordmark')).toHaveCount(1);
+  await expect(page.locator('.r5-title-actions')).toHaveCount(1);
+  await expect(page.locator('.title-rose-medallion')).toHaveCount(0);
+  await page.waitForFunction(() => document.querySelector('.r5-title')?.dataset.r5State === 'title-ready');
+  await page.click('[data-a="embark"]');
+  const embarkFresh = page.locator('.embark-screen.r5-embark');
+  await expect(embarkFresh).toHaveAttribute('data-r5-profile', 'fresh');
+  await expect(page.locator('.r5-begin-rite')).toHaveCount(1);
+  await expect(page.locator('.r5-aspect-card')).toHaveCount(0);
+  await expect(page.locator('.r5-vow-dial')).toHaveCount(0);
+
+  await page.evaluate(() => {
+    localStorage.setItem('spirebound_vigil_v2', JSON.stringify({
+      v: 2,
+      deeds: { runs: 12, wins: 3, slain: 40, shatters: 4, kindles: 2, perfects: 1, smolderKills: 2, unlitVisited: 1, embersSpent: 20, bestVow: 2, bestFloor: 18 },
+      unlocks: ['aspect2'], vowUnlocked: 2, lastFall: null,
+      runsPlayed: 12, quests: {}, shards: ['usurper'], whispers: 2, news: true,
+    }));
+  });
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  const grown = page.locator('.title-screen.r5-title');
+  await expect(grown).toHaveAttribute('data-r5-profile', 'grown');
+  await expect(page.locator('.title-rose-medallion')).toHaveCount(1);
+  await page.click('[data-a="embark"]');
+  await expect(page.locator('.embark-screen.r5-embark')).toHaveAttribute('data-r5-profile', 'grown');
+  await expect(page.locator('.r5-aspect-card')).toHaveCount(2);
+  await expect(page.locator('.r5-vow-dial')).toHaveCount(1);
+  await expect(page.locator('.r5-begin-rite')).toHaveCount(1);
+});
+
+for (const shape of CANONICAL_SHAPES) {
+  for (const profile of ['fresh', 'grown']) {
+    test(`Title version chrome stays bottom-right inside safe area — ${shape} ${profile}`, async ({ page }) => {
+      test.skip(test.info().project.name !== 'desktop', 'shape sweep forces ?shape= on desktop');
+      const vigil = profile === 'fresh'
+        ? {
+          v: 2, deeds: { runs: 0, wins: 0, slain: 0, shatters: 0, kindles: 0, perfects: 0, smolderKills: 0, unlitVisited: 0, embersSpent: 0, bestVow: 0, bestFloor: 0 },
+          unlocks: [], vowUnlocked: 0, lastFall: null, runsPlayed: 0, quests: {}, shards: [], whispers: 0, news: false,
+        }
+        : {
+          v: 2, deeds: { runs: 8, wins: 2, slain: 30, shatters: 3, kindles: 2, perfects: 1, smolderKills: 1, unlitVisited: 1, embersSpent: 10, bestVow: 1, bestFloor: 12 },
+          unlocks: ['aspect2'], vowUnlocked: 1, lastFall: null, runsPlayed: 8, quests: {}, shards: ['usurper'], whispers: 1, news: true,
+        };
+      await page.addInitScript((value) => {
+        localStorage.removeItem('spirebound_save_v2');
+        localStorage.setItem('spirebound_vigil_v2', JSON.stringify(value));
+      }, vigil);
+      await page.goto(`/?shape=${shape}&trace=1`);
+      await page.waitForFunction(() => window.spirebound && window.__probe);
+      expect(await page.evaluate(() => window.__probe.stage().shape)).toBe(shape);
+      await expect(page.locator('.r5-title')).toHaveAttribute('data-r5-profile', profile);
+      const expectedDisplay = await page.evaluate(async () => {
+        const { getVersionInfo } = await import('/src/version.js');
+        return getVersionInfo().display;
+      });
+      const hidden = await versionChromeGeometry(page);
+      expect(hidden.displayText).toBe(expectedDisplay);
+      expect(hidden.hasDataA).toBe(false);
+      expect(hidden.label.visible).toBe(true);
+      expect(hidden.debug.visible).toBe(false);
+      const inside = (box, safe) => box.left >= safe.left - 1 && box.right <= safe.right + 1
+        && box.top >= safe.top - 1 && box.bottom <= safe.bottom + 1;
+      expect(inside(hidden.label, hidden.safe), 'label inside safe').toBe(true);
+      expect(hidden.label.right).toBeGreaterThan((hidden.safe.left + hidden.safe.right) / 2);
+      expect(hidden.label.bottom).toBeGreaterThan((hidden.safe.top + hidden.safe.bottom) / 2);
+      expect(rectsIntersect(hidden.label, hidden.btns, 8)).toBe(false);
+      expect(rectsIntersect(hidden.label, hidden.stats, 8)).toBe(false);
+      if (hidden.rose?.visible) expect(rectsIntersect(hidden.label, hidden.rose, 24)).toBe(false);
+
+      await page.evaluate(() => {
+        const target = document.querySelector('[data-version-logo]');
+        for (let i = 0; i < 5; i += 1) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+      await expect(page.locator('[data-version-debug]')).toBeVisible();
+      const shown = await versionChromeGeometry(page);
+      expect(shown.debug.visible).toBe(true);
+      expect(inside(shown.debug, shown.safe), 'debug inside safe').toBe(true);
+      expect(shown.debug.right).toBeGreaterThan((shown.safe.left + shown.safe.right) / 2);
+      expect(shown.debug.bottom).toBeGreaterThan((shown.safe.top + shown.safe.bottom) / 2);
+      expect(rectsIntersect(shown.debug, shown.btns, 8)).toBe(false);
+      expect(rectsIntersect(shown.debug, shown.stats, 8)).toBe(false);
+      if (shown.rose?.visible) expect(rectsIntersect(shown.debug, shown.rose, 24)).toBe(false);
+    });
+  }
+}

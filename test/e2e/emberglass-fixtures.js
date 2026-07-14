@@ -77,6 +77,17 @@ export async function seed(page, vigil, url = '/') {
   }, vigil);
   await page.reload();
   await page.waitForFunction(() => window.spirebound && window.__probe);
+  // Probe is installed before the terminal boot `show('title')`. Prefer the
+  // traced app.ready marker when the behaviour trace is enabled; otherwise
+  // wait for the title paint itself so mid-boot show(...) callers stay safe.
+  await page.waitForFunction(() => {
+    const records = window.__probe?.behaviourTrace?.()?.records;
+    if (Array.isArray(records) && records.some((record) => record.eventName === 'app.ready')) {
+      return true;
+    }
+    return window.spirebound?.S?.screen === 'title'
+      && !!document.querySelector('.title-screen, .r5-title, [data-a="embark"]');
+  });
 }
 
 export async function waitForDawnComplete(page, timeout = 30_000) {

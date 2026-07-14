@@ -198,16 +198,17 @@ const screenLate = Object.freeze({
 });
 screenOwners = Object.freeze({
   title: createTitleScreen({
-    S, E, Vigil, QUEST_IDS, REDUCED, tr, getLocale, getVersionInfo, trace,
+    S, E, Vigil, QUEST_IDS, REDUCED, COARSE, tr, getLocale, getVersionInfo, trace,
     setRoseAssetsReady, setDisclosedRoseStateIds, runEffects, setTheme, themeForRun, assetUrl,
-    roseAssets, escHtml, $, $$, screenEl, unlock, sfx,
+    roseAssets, escHtml, $, $$, screenEl, unlock, sfx, presentationBarrier,
     meshBindTitle: combatApi.meshBindTitle,
     semanticUiCheckpoint: combatApi.drainHandlers.semanticUiCheckpoint,
     startRun: screenLate.startRun, show: screenLate.show, showHelp, openSettingsPanel,
   }),
   embark: createEmbarkScreen({
-    S, E, Vigil, ASPECTS, VOWS, ROMAN, tr, runEffects, setTheme, themeForRun, heroArt,
-    screenEl, unlock, sfx, startRun: screenLate.startRun, openOverlay, closeOverlay,
+    S, E, Vigil, ASPECTS, VOWS, ROMAN, REDUCED, COARSE, tr, runEffects, setTheme, themeForRun, heroArt,
+    screenEl, unlock, sfx, presentationBarrier, trace,
+    startRun: screenLate.startRun, openOverlay, closeOverlay,
     journalRunEnd: screenLate.journalRunEnd, show: screenLate.show,
   }),
   vigil: createVigilScreen({

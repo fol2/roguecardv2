@@ -31,13 +31,49 @@ test('one shard adds a title medallion that opens the Rose', { tag: '@smoke' }, 
   await seed(page, v);
   const medallion = page.locator('.title-rose-medallion[data-a="rose"]');
   await expect(medallion).toHaveClass(/ready/);
+  await expect(medallion).toHaveAttribute('data-r5-state', 'ready');
+  await expect(medallion).toBeEnabled();
   await page.evaluate(() => { window.__probe.forceRoseFallback(true); });
-  await expect(medallion).toHaveCount(0);
+  const fallback = page.locator('.title-rose-medallion.title-rose-fallback[data-a="rose"]');
+  await expect(fallback).toHaveCount(1);
+  await expect(fallback).toHaveAttribute('aria-label', /.+/);
+  await expect(fallback).toHaveAttribute('data-r5-state', 'ready');
   await page.evaluate(() => { window.__probe.forceRoseFallback(false); });
   await expect(medallion).toHaveClass(/ready/);
   await page.click('[data-a="rose"]');
   await expect(page.locator('[data-a="tab-rose"]')).toHaveClass(/on/);
   await expect(page.locator('.rose-window.ready')).toHaveCount(1);
+});
+
+test('Title Rose exposes loading then ready, and keyboard focus when ready', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'Title Rose phase coverage runs once on desktop');
+  const v = mixedLedger();
+  await page.addInitScript(() => {
+    const decode = HTMLImageElement.prototype.decode;
+    HTMLImageElement.prototype.decode = function decodeRoseAssetSlow() {
+      if (this.src.includes('emberglass-mural')) {
+        return new Promise((resolve, reject) => {
+          this.__roseResolve = resolve;
+          this.__roseReject = reject;
+          // leave pending until probe advances — starts as loading
+        });
+      }
+      return decode.call(this);
+    };
+  });
+  await seed(page, v);
+  const medallion = page.locator('.title-rose-medallion[data-a="rose"]');
+  await expect(medallion).toHaveAttribute('data-r5-state', 'loading');
+  await expect(medallion).toBeDisabled();
+  await page.evaluate(() => {
+    for (const image of document.querySelectorAll('.title-rose-preload img')) {
+      if (typeof image.__roseResolve === 'function') image.__roseResolve();
+    }
+  });
+  await expect(medallion).toHaveClass(/ready/);
+  await expect(medallion).toHaveAttribute('data-r5-state', 'ready');
+  await medallion.focus();
+  await expect(medallion).toBeFocused();
 });
 
 test('Rose panes disclose only their current state', async ({ page }) => {
@@ -112,10 +148,22 @@ test('title Rose stays inert when any asset fails to decode', async ({ page }) =
   const medallion = page.locator('.title-rose-medallion');
   await expect(medallion).toHaveCount(1);
   await expect(medallion).not.toHaveClass(/ready/);
+  await expect(medallion).toHaveAttribute('data-r5-state', 'inert');
   await expect(medallion).toBeDisabled();
   await expect(medallion).toBeHidden();
   await medallion.evaluate((node) => node.click());
   expect(await page.evaluate(() => window.__probe.state().screen)).toBe('title');
+});
+
+test('Title Rose REDUCED terminal is ready without a loading hold', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'REDUCED Rose terminal runs once on desktop');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await seed(page, mixedLedger());
+  const medallion = page.locator('.title-rose-medallion[data-a="rose"]');
+  await expect(medallion).toHaveClass(/ready/);
+  await expect(medallion).toHaveAttribute('data-r5-state', 'ready');
+  await expect(page.locator('.r5-title')).toHaveAttribute('data-motion', 'reduced');
+  await expect(page.locator('.r5-title')).toHaveAttribute('data-r5-state', 'title-ready');
 });
 
 test('opening Vigil clears only the news pulse', async ({ page }) => {

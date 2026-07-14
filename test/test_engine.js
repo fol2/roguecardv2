@@ -356,8 +356,9 @@ function forceHand(run, cb, ids) {
   assert.deepEqual(exportNames(sourceOf('policy')), ['REDUCED'],
     'policy exact browser-owned export surface');
   assert.deepEqual(exportNames(sourceOf('rose')), [
-    'getRoseState', 'roseAssets', 'setDisclosedRoseStateIds', 'setForceRoseFallback', 'setRoseAssetsReady',
-  ], 'rose exact browser-owned export surface');
+    'TITLE_ROSE_PHASES', 'getRoseState', 'roseAssets', 'setDisclosedRoseStateIds',
+    'setForceRoseFallback', 'setRoseAssetsReady', 'setRoseDecodeFailed', 'titleRosePhase',
+  ].sort(), 'rose exact browser-owned export surface');
   assert.deepEqual(exportNames(sourceOf('assets')), [
     'aimRing', 'combatantView', 'heroArt', 'hudRelic', 'metaBg', 'omenIconName',
     'omenMark', 'rasterOr', 'relicArt', 'sceneBg', 'warmAssets',
@@ -7070,8 +7071,34 @@ function randomAgentRun(seed) {
     );
   }
 
+  // Task 32 Title/Embark presentation token seams.
+  {
+    const {
+      TITLE_PARALLAX_LAYER_IDS, TITLE_PARALLAX_FALLBACK_ID, R5_SCREEN_END_STATES,
+      VERSION_GESTURE, compositionProfile, screenPresentationAttrs,
+      TITLE_ROSE_PHASES, titleRosePhase,
+    } = await import('../src/ui/tokens.js');
+    assert.deepEqual(TITLE_PARALLAX_LAYER_IDS, [
+      'round5-back', 'round5-mid', 'round5-foreground',
+    ]);
+    assert.equal(TITLE_PARALLAX_FALLBACK_ID, 'title');
+    assert.equal(R5_SCREEN_END_STATES.titleReady, 'title-ready');
+    assert.equal(R5_SCREEN_END_STATES.embarkLit, 'embark-lit');
+    assert.deepEqual(VERSION_GESTURE, { taps: 5, windowMs: 2000, hideMs: 3000 });
+    assert.equal(compositionProfile(false), 'fresh');
+    assert.equal(compositionProfile(true), 'grown');
+    assert.deepEqual(screenPresentationAttrs({ reduced: true }), { tier: 'reduced', motion: 'reduced' });
+    assert.deepEqual(screenPresentationAttrs({ lite: true }), { tier: 'lite', motion: 'full' });
+    assert.deepEqual(TITLE_ROSE_PHASES, ['absent', 'loading', 'inert', 'ready', 'fallback']);
+    assert.equal(titleRosePhase({ shardCount: 0 }), 'absent');
+    assert.equal(titleRosePhase({ shardCount: 1, assets: null }), 'fallback');
+    assert.equal(titleRosePhase({ shardCount: 1, assets: {}, decodeFailed: true }), 'inert');
+    assert.equal(titleRosePhase({ shardCount: 1, assets: {}, ready: true }), 'ready');
+    assert.equal(titleRosePhase({ shardCount: 1, assets: {} }), 'loading');
+  }
+
   // tween.js honours REDUCED policy by applying endState once.
-  const { tween } = await import('../src/ui/tween.js');
+  const { tween, runNamedCeremony } = await import('../src/ui/tween.js');
   {
     let seen = null;
     const runner = tween({
@@ -7094,6 +7121,27 @@ function randomAgentRun(seed) {
     assert.equal(seen, 5);
     assert.equal(outcome.outcome, 'settled');
     assert.equal(outcome.motion, 'normal');
+  }
+  {
+    const finishes = [];
+    const ceremony = runNamedCeremony({
+      name: 'lantern-lighting',
+      endState: 'embark-lit',
+      barrier: { begin: () => ({ finish: () => finishes.push('barrier'), cancel() { finishes.push('cancel'); } }) },
+      trace: {
+        begin: () => ({
+          finish: (outcome, details) => finishes.push(['span', outcome, details?.attributes?.endState, details?.attributes?.motion]),
+        }),
+      },
+      from: 0, to: 1, duration: 100,
+      policy: { motion: 'reduced' },
+    });
+    const result = await ceremony.done;
+    assert.equal(result.motion, 'reduced');
+    assert.deepEqual(finishes, [
+      ['span', 'settled', 'embark-lit', 'reduced'],
+      'barrier',
+    ]);
   }
 }
 

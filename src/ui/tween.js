@@ -149,3 +149,66 @@ export function tween({
 export function tweenTo(opts) {
   return tween(opts).done;
 }
+
+/**
+ * Run a named screen ceremony: barrier + presentation span + tween, settling
+ * on a stable `endState` attribute (REDUCED collapses via `tween` policy).
+ *
+ * @returns {{ cancel:()=>void, done: Promise<{outcome:'settled'|'cancelled'|'failed', motion:'normal'|'reduced'}> }}
+ */
+export function runNamedCeremony({
+  name,
+  endState,
+  barrier,
+  trace,
+  from,
+  to,
+  duration,
+  easing,
+  onUpdate,
+  policy,
+  schedule,
+  now,
+} = {}) {
+  if (typeof name !== 'string' || !name.trim()) {
+    throw new TypeError('runNamedCeremony requires a non-empty name');
+  }
+  if (typeof endState !== 'string' || !endState.trim()) {
+    throw new TypeError('runNamedCeremony requires a named endState');
+  }
+  const token = barrier?.begin?.(name) || { finish() {}, cancel() {} };
+  const span = trace?.begin?.(`presentation.${name}`, {
+    attributes: { endState },
+  }) || { finish() {} };
+  const runner = tween({
+    from: from ?? 0,
+    to: to ?? 1,
+    duration: duration ?? 0,
+    easing,
+    onUpdate,
+    endState: to ?? 1,
+    policy,
+    schedule,
+    now,
+  });
+  const done = runner.done.then((result) => {
+    if (result.outcome === 'cancelled') {
+      span.finish?.('cancelled', { attributes: { motion: result.motion, endState } });
+      token.cancel?.();
+      return result;
+    }
+    span.finish?.('settled', {
+      attributes: { motion: result.motion, endState },
+    });
+    token.finish?.();
+    return result;
+  }, (error) => {
+    span.finish?.('failed', { reason: 'presentation-error' });
+    token.cancel?.();
+    throw error;
+  });
+  return Object.freeze({
+    cancel() { runner.cancel?.(); },
+    done,
+  });
+}
