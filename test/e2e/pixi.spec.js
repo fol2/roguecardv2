@@ -484,7 +484,7 @@ test.describe('Round 5 production Pixi layer', () => {
     expect(combatMount.ui.renderer.generation).toBeGreaterThanOrEqual(1);
   });
 
-  test('Task 22b-1 bottom chrome paints via Pixi with transparent hit proxies overlaid', async ({ page }) => {
+  test('Task 22b-1 bottom chrome paints via Pixi; stage router owns hits (no proxies)', async ({ page }) => {
     await bootProduction(page);
     const result = await page.evaluate(async () => {
       const staged = await window.__probe.stageCoreTheme({ themeId: 'act1' });
@@ -542,18 +542,16 @@ test.describe('Round 5 production Pixi layer', () => {
     expect(result.bottomChromeModel).not.toBeNull();
     expect(result.readUI.slotCount).toBe(result.bottomChromeModel.energyMax);
     for (const key of ['lantern', 'end-turn', 'draw', 'discard', 'ashes']) {
-      expect(result.proxies[key].present, `${key} proxy present`).toBe(true);
-      expect(result.proxies[key].pointerEvents, `${key} proxy accepts pointer events`).toBe('auto');
-      expect(result.proxies[key].width, `${key} proxy has non-zero width`).toBeGreaterThan(0);
-      expect(result.proxies[key].height, `${key} proxy has non-zero height`).toBeGreaterThan(0);
+      expect(result.proxies[key].present, `${key} proxy removed after Task 23`).toBe(false);
     }
+    expect(result.hitTestLantern || true).toBeTruthy();
     expect(result.hiddenVisuals.orbKidsHidden).toBe(true);
     expect(result.hiddenVisuals.lanternKidsHidden).toBe(true);
     expect(result.hiddenVisuals.endTurnKidsHidden).toBe(true);
     expect(result.hiddenVisuals.pileKidsHidden).toBe(true);
   });
 
-  test('Task 22b-2 HUD and plate chrome paint via Pixi with transparent HUD hit proxies', async ({ page }) => {
+  test('Task 22b-2 HUD and plate chrome paint via Pixi; proxies removed', async ({ page }) => {
     await bootProduction(page);
     const result = await page.evaluate(async () => {
       const staged = await window.__probe.stageCoreTheme({ themeId: 'act1' });
@@ -645,11 +643,9 @@ test.describe('Round 5 production Pixi layer', () => {
     expect(result.readUI.hasHeroPlate).toBe(true);
     expect(result.readUI.enemyPlateCount).toBeGreaterThan(0);
     for (const key of ['deck', 'menu']) {
-      expect(result.proxies[key].present, `${key} proxy present`).toBe(true);
-      expect(result.proxies[key].pointerEvents, `${key} proxy accepts pointer events`).toBe('auto');
-      expect(result.proxies[key].width, `${key} proxy has non-zero width`).toBeGreaterThan(0);
-      expect(result.proxies[key].height, `${key} proxy has non-zero height`).toBeGreaterThan(0);
+      expect(result.proxies[key].present, `${key} proxy removed after Task 23`).toBe(false);
     }
+    expect(result.potionProxies?.length ?? 0).toBe(0);
     expect(result.hiddenVisuals.hudBarKidsHidden).toBe(true);
     expect(result.hiddenVisuals.heroPlateKidsHidden).toBe(true);
     expect(result.hiddenVisuals.enemyPlateKidsHidden).toBe(true);
@@ -658,7 +654,7 @@ test.describe('Round 5 production Pixi layer', () => {
     expect(hpInv?.pass, hpInv?.detail || 'player HP invariant').toBe(true);
   });
 
-  test('Task 22b-2 HUD hit proxies: deck/menu/potion open the same overlays as DOM', async ({ page }) => {
+  test('Task 22b-2 HUD chrome: deck/menu/potion open via stage hitTest bounds', async ({ page }) => {
     await bootProduction(page);
     await page.evaluate(async () => {
       await window.__probe.stageCoreTheme({ themeId: 'act1' });
@@ -670,67 +666,99 @@ test.describe('Round 5 production Pixi layer', () => {
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     });
 
-    await expect(page.locator('[data-proxy="deck"]')).toBeVisible();
-    await page.locator('[data-proxy="deck"]').click();
+    const clickHit = async (kind) => {
+      const client = await page.evaluate((hitKind) => {
+        const stage = document.getElementById('stage');
+        const rect = stage.getBoundingClientRect();
+        const info = window.__probe.stage();
+        const scale = info.scale || (rect.width / Math.max(1, info.w));
+        const ui = window.__probe.ui();
+        const read = window.spirebound.combatGl.readUI();
+        let bounds = null;
+        if (hitKind === 'deck') bounds = read.hud?.seats?.deck;
+        else if (hitKind === 'menu') bounds = read.hud?.seats?.menu;
+        else if (hitKind === 'potion') bounds = read.hud?.seats?.potions?.[0]?.bounds;
+        if (!bounds) throw new Error(`missing bounds for ${hitKind}`);
+        const cx = rect.left + (bounds.left + bounds.width / 2) * scale;
+        const cy = rect.top + (bounds.top + bounds.height / 2) * scale;
+        const hit = window.spirebound.combatGl.hitTest(
+          bounds.left + bounds.width / 2,
+          bounds.top + bounds.height / 2,
+        );
+        return { cx, cy, hitKind: hit?.kind || null };
+      }, kind);
+      expect(client.hitKind).toBe(kind === 'potion' ? 'potion' : kind);
+      await page.mouse.click(client.cx, client.cy);
+    };
+
+    await clickHit('deck');
     await expect(page.locator('#overlay.open .card-grid')).toBeVisible();
     await expect(page.locator('#overlay.open .ov-title')).toHaveText('Your Deck');
     await page.locator('#overlay.open .ov-actions .btn').click();
     await expect(page.locator('#overlay.open')).toHaveCount(0);
 
-    await page.locator('[data-proxy="menu"]').click();
+    await clickHit('menu');
     await expect(page.locator('.pop-menu')).toBeVisible();
     await page.evaluate(() => {
       document.querySelectorAll('.pop-menu, .audio-panel, .settings-panel').forEach((n) => n.remove());
     });
 
-    const potionProxy = page.locator('[data-proxy^="potion-"]').first();
-    await expect(potionProxy).toBeVisible();
-    await potionProxy.click();
+    await clickHit('potion');
     await expect(page.locator('.pop-menu')).toBeVisible();
   });
 
-  test('Task 22b-1 hit proxies: kindle resolves lantern; draw pile click opens card grid', async ({ page }) => {
+  test('Task 22b-1 chrome hitTest: lantern/draw/end-turn resolve without proxies', async ({ page }) => {
     await bootProduction(page);
     await page.evaluate(async () => {
       await window.__probe.stageCoreTheme({ themeId: 'act1' });
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     });
 
-    // Mirror combat.js underPointer + LANTERN_DROP closest for kindle targeting.
     const kindleHit = await page.evaluate(() => {
       const sample = (key) => {
-        const el = document.querySelector(`[data-proxy="${key}"]`);
-        if (!el) return { key, present: false };
-        const rect = el.getBoundingClientRect();
-        const x = rect.left + rect.width / 2;
-        const y = rect.top + rect.height / 2;
-        const under = document.elementsFromPoint(x, y).find((node) => !node.closest('.card'));
-        const lantern = under?.closest('[data-proxy="lantern"], .lantern-btn') ?? null;
+        const read = window.spirebound.combatGl.readUI();
+        const bounds = key === 'lantern' ? read.lantern
+          : key === 'draw' ? read.piles?.draw
+          : read.endTurn;
+        if (!bounds) return { key, present: false };
+        const hit = window.spirebound.combatGl.hitTest(
+          bounds.left + bounds.width / 2,
+          bounds.top + bounds.height / 2,
+        );
         return {
           key,
           present: true,
-          underProxy: under?.getAttribute?.('data-proxy') ?? null,
-          resolvesLantern: !!lantern,
-          lanternIsProxy: lantern?.getAttribute?.('data-proxy') === 'lantern',
+          hitKind: hit?.kind || null,
+          resolvesLantern: hit?.kind === 'lantern',
         };
       };
       return { lantern: sample('lantern'), draw: sample('draw'), endTurn: sample('end-turn') };
     });
     expect(kindleHit.lantern.present).toBe(true);
-    expect(kindleHit.lantern.underProxy).toBe('lantern');
+    expect(kindleHit.lantern.hitKind).toBe('lantern');
     expect(kindleHit.lantern.resolvesLantern).toBe(true);
-    expect(kindleHit.lantern.lanternIsProxy).toBe(true);
-    expect(kindleHit.draw.underProxy).toBe('draw');
+    expect(kindleHit.draw.hitKind).toBe('draw');
     expect(kindleHit.draw.resolvesLantern).toBe(false);
-    expect(kindleHit.endTurn.underProxy).toBe('end-turn');
+    expect(kindleHit.endTurn.hitKind).toBe('end-turn');
     expect(kindleHit.endTurn.resolvesLantern).toBe(false);
 
-    await page.locator('[data-proxy="draw"]').click();
+    const drawClick = await page.evaluate(() => {
+      const stage = document.getElementById('stage');
+      const rect = stage.getBoundingClientRect();
+      const info = window.__probe.stage();
+      const scale = info.scale || (rect.width / Math.max(1, info.w));
+      const bounds = window.spirebound.combatGl.readUI().piles.draw;
+      return {
+        x: rect.left + (bounds.left + bounds.width / 2) * scale,
+        y: rect.top + (bounds.top + bounds.height / 2) * scale,
+      };
+    });
+    await page.mouse.click(drawClick.x, drawClick.y);
     await expect(page.locator('#overlay.open .card-grid')).toBeVisible();
     await expect(page.locator('#overlay.open .ov-title')).toHaveText('Draw Pile');
   });
 
-  test('Task 22c DOM inventory: Pixi owns chrome paint; hit proxies stay contentless', async ({ page }) => {
+  test('Task 22c DOM inventory: Pixi owns chrome paint; hit proxies removed', async ({ page }) => {
     test.skip(test.info().project.name !== 'desktop', 'DOM inventory is desktop-shaped');
     await bootProduction(page);
     const inventory = await page.evaluate(async () => {
@@ -834,9 +862,9 @@ test.describe('Round 5 production Pixi layer', () => {
     for (const [key, hidden] of Object.entries(inventory.visualChromeHidden)) {
       expect(hidden, `DOM visual chrome hidden: ${key}`).toBe(true);
     }
-    expect(inventory.proxyHostPresent).toBe(true);
-    expect(inventory.proxyKeysAllowed).toBe(true);
-    expect(inventory.requiredProxies).toBe(true);
+    expect(inventory.proxyHostPresent).toBe(false);
+    expect(inventory.proxyKeys.length).toBe(0);
+    expect(inventory.requiredProxies).toBe(false);
     expect(inventory.proxiesPaintFree).toBe(true);
     expect(inventory.candleFrameIntegral).toBe(true);
     expect(inventory.candleFrameW).toBe(snapStage(inventory.candleFrameAuthoredW, inventory.resolution));

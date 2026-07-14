@@ -185,7 +185,7 @@ const combatKeys = [
   'startCombatUI', 'renderCombat', 'refitCombat', 'renderHud', 'meshBindTitle',
   'syncCombat', 'syncHand', 'setTargeting', 'clearTargeting', 'doPlay',
   'onEndTurn', 'useLanternArt', 'afterAction', 'banner', 'flyTo', 'tweenNum',
-  'freeze', 'startRig', 'drainHandlers',
+  'freeze', 'freezeForProbe', 'pointerState', 'startRig', 'drainHandlers',
 ].sort();
 const drainHandlerKeys = [
   'addCrack', 'banner', 'bumpPile', 'captureCardAnchor', 'choreoAttack',
@@ -214,7 +214,7 @@ assert.deepEqual(objectLiteralKeys(uiIndexSource, 'const probe = installProbe({'
 assert.deepEqual(shorthandKeys(combatSource, 'const drainHandlers = Object.freeze({'), drainHandlerKeys,
   'combat owns the exact literal 38-key drain presentation surface');
 assert.deepEqual(shorthandKeys(combatSource, 'return Object.freeze({'), combatKeys,
-  'combat owns the exact literal 19-key caller surface');
+  'combat owns the exact literal 21-key caller surface');
 assert.match(drainSource, /return\s+Object\.freeze\(\{\s*drain\s*\}\)/,
   'drain returns only its frozen drain operation');
 assert.match(drainSource, /createDrain\(\{[\s\S]*?\bQUESTS\b[\s\S]*?presentation[\s\S]*?\}\)/,
@@ -254,11 +254,15 @@ const rawPointerSource = aggregateUiSource;
 const rawPointerHandlers = [...rawPointerSource.matchAll(
   /addEventListener\(['"]pointermove['"],[\s\S]*?=>\s*\{([\s\S]*?)\n\s*\}\);/g,
 )];
-assert.ok(rawPointerHandlers.length >= 3, 'source gate must inspect every inline raw pointermove owner');
+assert.ok(rawPointerHandlers.length >= 2, 'source gate must inspect every inline raw pointermove owner');
 for (const [index, match] of rawPointerHandlers.entries()) {
   assert.doesNotMatch(match[1], /trace\.(?:emit|begin)/,
     `raw pointermove handler ${index + 1} must not emit trace records`);
 }
+const pointerSource = readFileSync(new URL('../src/ui/pointer.js', import.meta.url), 'utf8');
+const routerMoveSource = sourceBlock(pointerSource, 'function onPointerMove(event) {');
+assert.doesNotMatch(routerMoveSource, /trace\.(?:emit|begin)/,
+  'stage pointer router move handler must not emit trace records on raw moves');
 const aimMoveSource = sourceBlock(combatSource, 'function aimMove(e) {');
 assert.doesNotMatch(aimMoveSource, /trace\.(?:emit|begin)/,
   'named raw pointer owner aimMove must not emit trace records');

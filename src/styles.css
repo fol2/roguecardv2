@@ -2706,7 +2706,7 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #uigl, html.freeze #mesh, html.
 .pixi-bottom-chrome .lantern-btn,
 .pixi-bottom-chrome .end-turn,
 .pixi-bottom-chrome .pile-btn {
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .combat-hit-proxies {

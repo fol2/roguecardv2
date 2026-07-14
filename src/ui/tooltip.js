@@ -25,10 +25,21 @@ export function createTooltip({ tr }) {
     Cinder: tr('ui.keywords.cinder'),
   });
 
+  const tipBridge = {
+    showFromBounds: () => {},
+    hide: () => {},
+    longPressMove: () => {},
+  };
+
   function initTooltip() {
     const tip = $('#tooltip');
     const tipFor = (node) => {
       const content = node._tip;
+      tip.innerHTML = `${content.title ? `<div class="tt-title">${content.title}</div>` : ''}<div class="tt-body">${content.body || ''}</div>${content.sub ? `<div class="tt-sub">${content.sub}</div>` : ''}`;
+      tip.style.display = 'block';
+    };
+    const tipForContent = (content) => {
+      if (!content) return;
       tip.innerHTML = `${content.title ? `<div class="tt-title">${content.title}</div>` : ''}<div class="tt-body">${content.body || ''}</div>${content.sub ? `<div class="tt-sub">${content.sub}</div>` : ''}`;
       tip.style.display = 'block';
     };
@@ -48,6 +59,28 @@ export function createTooltip({ tr }) {
         tip.style.left = `${Math.min(stageW() - w - 12, x + 16)}px`;
         tip.style.top = `${Math.max(8, Math.min(stageH() - h - 12, y - h / 2))}px`;
       }
+    };
+    // Task 23 — sprite/stage-bounds bridge for the combat pointer router.
+    // Converts stage-px sprite boxes to a client anchor and reuses DOM tip chrome.
+    tipBridge.showFromBounds = (content, stageBounds, { clientX, clientY, touch = false } = {}) => {
+      tipForContent(content);
+      if (Number.isFinite(clientX) && Number.isFinite(clientY)) {
+        place(clientX, clientY, touch);
+        return;
+      }
+      if (!stageBounds) return;
+      const stage = document.getElementById('stage');
+      const rect = stage?.getBoundingClientRect?.();
+      if (!rect) return;
+      const scaleX = rect.width / Math.max(1, stageW());
+      const scaleY = rect.height / Math.max(1, stageH());
+      const cx = rect.left + ((stageBounds.left ?? 0) + (stageBounds.width ?? 0) / 2) * scaleX;
+      const cy = rect.top + ((stageBounds.top ?? 0) + (stageBounds.height ?? 0) / 2) * scaleY;
+      place(cx, cy, touch);
+    };
+    tipBridge.hide = () => { tip.style.display = 'none'; };
+    tipBridge.longPressMove = (event) => {
+      if (FINE && event.pointerType === 'mouse') place(event.clientX, event.clientY, false);
     };
     document.addEventListener('pointerover', (event) => {
       if (!FINE || event.pointerType !== 'mouse') return;
@@ -137,5 +170,5 @@ export function createTooltip({ tr }) {
     return card;
   }
 
-  return Object.freeze({ initTooltip, fmtText, cardEl });
+  return Object.freeze({ initTooltip, fmtText, cardEl, tipBridge });
 }

@@ -417,56 +417,56 @@ function forceHand(run, cb, ids) {
 {
   const expectedTrKeys = [
     'ui.brand.tagline', 'ui.brand.title', 'ui.brand.title', 'ui.combat.affixTitle', 'ui.combat.ashes', 'ui.combat.ashesPileAria',
-    'ui.combat.ashesPileAria', 'ui.combat.ashesSub', 'ui.combat.ashesTitle', 'ui.combat.buff', 'ui.combat.debuff', 'ui.combat.discard',
-    'ui.combat.discardPileAria', 'ui.combat.discardPileAria', 'ui.combat.discardPileTitle', 'ui.combat.draw', 'ui.combat.drawPileAria', 'ui.combat.drawPileAria',
-    'ui.combat.drawPileSub', 'ui.combat.drawPileTitle', 'ui.combat.end', 'ui.combat.end', 'ui.combat.end',
-    'ui.combat.enemyTurn', 'ui.combat.energyAria', 'ui.combat.facetsBody', 'ui.combat.facetsTitle', 'ui.combat.glassHolds', 'ui.combat.guardShattered',
-    'ui.combat.guardShattered', 'ui.combat.lanternBody', 'ui.combat.lanternBodyLead', 'ui.combat.lanternSub', 'ui.combat.lanternTitle', 'ui.combat.lanternTitle', 'ui.combat.lanternTitleArt',
-    'ui.combat.monumentGift', 'ui.combat.perfectBanner', 'ui.combat.reshuffle', 'ui.combat.shatter', 'ui.combat.staggered', 'ui.combat.staggered', 'ui.combat.staggered',
-    'ui.combat.staggeredTipBody', 'ui.combat.staggeredTipTitle', 'ui.combat.stoneRemembers', 'ui.combat.yourTurn', 'ui.common.cancel', 'ui.common.cancel',
-    'ui.common.continue', 'ui.common.continue', 'ui.common.continue', 'ui.common.continue', 'ui.common.retry', 'ui.common.retry',
-    'ui.common.skip', 'ui.dawn.act4RevealCopy', 'ui.dawn.eighthResolvedKicker', 'ui.dawn.pageKicker', 'ui.dawn.questCompleteKicker', 'ui.dawn.questProgressKicker',
-    'ui.dawn.questRevealKicker', 'ui.dawn.questUnlockKicker', 'ui.dawn.reloadSaved', 'ui.dawn.saveFailedClear', 'ui.dawn.saveFailedCursor', 'ui.dawn.saveFailedTitle',
-    'ui.dawn.shadeResolvedKicker', 'ui.dawn.shardGrantCopy', 'ui.dawn.whisperKicker', 'ui.dawn.witchlightCopy', 'ui.dawn.witchlightLens', 'ui.embark.aspectLabel',
-    'ui.embark.noVows', 'ui.embark.subChoose', 'ui.embark.subWait', 'ui.embark.title', 'ui.embark.warnSaved', 'ui.end.ascended',
-    'ui.end.ascendedSub', 'ui.end.bequestDone', 'ui.end.bequestNote.card', 'ui.end.bequestNote.gold', 'ui.end.bequestNote.goldCache', 'ui.end.bequestNote.relic',
-    'ui.end.bequestTitle', 'ui.end.bequestUnpaid', 'ui.end.cardsPlayed', 'ui.end.deckSize', 'ui.end.dmgDealt', 'ui.end.dmgTaken',
-    'ui.end.elitesBosses', 'ui.end.fallen', 'ui.end.fallenSub', 'ui.end.finalDeckTitle', 'ui.end.floors', 'ui.end.returnVigil',
-    'ui.end.runTime', 'ui.end.slain', 'ui.end.unlock.ashwarden', 'ui.end.unlock.aspect', 'ui.end.unlock.card', 'ui.end.unlock.header',
-    'ui.end.unlock.relic', 'ui.end.viewDeck', 'ui.event.chooseCardSub', 'ui.event.chooseCardTitle', 'ui.event.duplicateSub', 'ui.event.duplicateTitle',
-    'ui.event.removeSub', 'ui.event.removeTitle', 'ui.event.upgradeSub', 'ui.event.upgradeTitle', 'ui.help.climbBody', 'ui.help.climbTitle',
-    'ui.help.combatBody', 'ui.help.combatTitle', 'ui.help.firesBody', 'ui.help.firesTitle', 'ui.help.glassBody', 'ui.help.glassTitle',
-    'ui.help.lanternBody', 'ui.help.lanternTitle', 'ui.help.title', 'ui.help.vigilBody', 'ui.help.vigilTitle', 'ui.help.wardBody',
-    'ui.help.wardTitle', 'ui.hollow.kicker', 'ui.hollow.payPrice', 'ui.hollow.pricePaid', 'ui.hollow.pricePaid', 'ui.hollow.returnLater',
-    'ui.hollow.routeFailed', 'ui.hollow.routeSaveFailed', 'ui.hollow.saveFailed', 'ui.hollow.title', 'ui.hud.deckAria', 'ui.hud.deckAria', 'ui.hud.deckCount', 'ui.hud.deckCount',
-    'ui.hud.deckTitle', 'ui.hud.deckTitle', 'ui.hud.menuAria', 'ui.hud.menuAria', 'ui.hud.omenSub', 'ui.hud.omenTitle', 'ui.hud.omenTitle', 'ui.hud.potionTip', 'ui.hud.potionTip', 'ui.hud.tossPotion',
-    'ui.hud.usePotion', 'ui.keywords.chip', 'ui.keywords.cinder', 'ui.keywords.ember', 'ui.keywords.ember', 'ui.keywords.energy',
-    'ui.keywords.facetDesc', 'ui.keywords.hex', 'ui.keywords.kindle', 'ui.keywords.shard', 'ui.keywords.staggered', 'ui.keywords.unplayable',
-    'ui.keywords.ward', 'ui.lamp.artHint', 'ui.lamp.artLabel', 'ui.lamp.boonLabel', 'ui.lamp.sub', 'ui.lamp.title',
-    'ui.map.click', 'ui.map.drag', 'ui.map.hint.boss', 'ui.map.hint.elite', 'ui.map.hint.event', 'ui.map.hint.monster',
-    'ui.map.hint.rest', 'ui.map.hint.shop', 'ui.map.hint.treasure', 'ui.map.node.elite', 'ui.map.node.event', 'ui.map.node.monster',
-    'ui.map.node.rest', 'ui.map.node.shop', 'ui.map.node.treasure', 'ui.map.scroll', 'ui.map.sealedDoor.aria', 'ui.map.sealedDoor.inscription',
-    'ui.map.sealedDoor.label', 'ui.map.sealedDoor.return', 'ui.map.sealedDoor.sub', 'ui.map.sealedDoor.title', 'ui.map.survey', 'ui.map.tap',
-    'ui.map.travelHere', 'ui.map.unlitBody', 'ui.map.unlitTitle', 'ui.map.witchlightBody', 'ui.map.witchlightTitle', 'ui.menu.abandon',
-    'ui.menu.abandonConfirmBody', 'ui.menu.abandonConfirmTitle', 'ui.menu.abandonRun', 'ui.menu.back', 'ui.menu.beginAnew', 'ui.menu.beginAnew',
-    'ui.menu.beginAnewBody', 'ui.menu.beginAnewTitle', 'ui.menu.beginClimb', 'ui.menu.beginClimb', 'ui.menu.chooseBoon', 'ui.menu.close',
-    'ui.menu.close', 'ui.menu.continueClimb', 'ui.menu.fightOn', 'ui.menu.howToPlay', 'ui.menu.howToPlay', 'ui.menu.keepClimbing',
-    'ui.menu.keepClimbing', 'ui.menu.lightTheWay', 'ui.menu.mute', 'ui.menu.mute', 'ui.menu.return', 'ui.menu.settings',
-    'ui.menu.settings', 'ui.menu.theVigil', 'ui.menu.theVigil', 'ui.menu.unmute', 'ui.menu.unmute', 'ui.persistence.hollowRouteBody',
-    'ui.persistence.reloadClimb', 'ui.persistence.reloadClimb', 'ui.persistence.reloadDestination', 'ui.persistence.reloadDuel', 'ui.persistence.reloadFinalisation', 'ui.persistence.retryFinalisation',
-    'ui.persistence.retrySave', 'ui.persistence.retrySave', 'ui.persistence.retrySave', 'ui.persistence.retrySave', 'ui.persistence.runSaveBody', 'ui.persistence.runSaveRetryFail',
-    'ui.persistence.saveFailedTitle', 'ui.persistence.saveFailedTitle', 'ui.persistence.stoneBody', 'ui.persistence.stoneTitle', 'ui.persistence.vigilBody', 'ui.persistence.vigilTitle',
-    'ui.rest.healedFloat', 'ui.rest.restBtn', 'ui.rest.restHeal', 'ui.rest.smithBtn', 'ui.rest.smithSub', 'ui.rest.sub',
-    'ui.rest.title', 'ui.rest.upgradeSub', 'ui.rest.upgradeTitle', 'ui.rest.upgradedSub', 'ui.rest.upgradedTitle', 'ui.reward.addCardRow',
-    'ui.reward.bossRelicSub', 'ui.reward.bossRelicTitle', 'ui.reward.bossVanquished', 'ui.reward.cardAdded', 'ui.reward.chooseCardSub', 'ui.reward.chooseCardTitle',
-    'ui.reward.eliteSlain', 'ui.reward.goldRow', 'ui.reward.leaveConfirmBody', 'ui.reward.leaveConfirmNo', 'ui.reward.leaveConfirmTitle', 'ui.reward.leaveConfirmYes',
-    'ui.reward.perfectSeal', 'ui.reward.potionSlotsFull', 'ui.reward.takeNone', 'ui.reward.victory', 'ui.rose.dormantPane', 'ui.rose.finalWhisper',
-    'ui.rose.openLabel', 'ui.rose.paneDark', 'ui.rose.selectedPane', 'ui.rose.shardRecovered', 'ui.rose.shardRecoveredShort', 'ui.rose.shardRecoveredShort',
-    'ui.rose.unknownPane', 'ui.rose.whisperLogTitle', 'ui.settings.debugLabel', 'ui.settings.eraseEverything', 'ui.settings.music', 'ui.settings.resetConfirmBody',
-    'ui.settings.resetConfirmTitle', 'ui.settings.resetSave', 'ui.settings.resetWarn', 'ui.settings.sfx', 'ui.settings.title', 'ui.shop.cardRemoval.desc',
-    'ui.shop.cardRemoval.pickSub', 'ui.shop.cardRemoval.pickTitle', 'ui.shop.cardRemoval.title', 'ui.shop.greeting', 'ui.shop.leave', 'ui.shop.potionSlotsFull',
-    'ui.shop.title', 'ui.treasure.coinsOnly', 'ui.treasure.empty', 'ui.treasure.empty', 'ui.treasure.openBtn', 'ui.treasure.relicClaim',
-    'ui.treasure.sub', 'ui.treasure.title', 'ui.vigil.deeds', 'ui.vigil.roseWindow',
+    'ui.combat.ashesSub', 'ui.combat.ashesTitle', 'ui.combat.buff', 'ui.combat.debuff', 'ui.combat.discard', 'ui.combat.discardPileAria',
+    'ui.combat.discardPileTitle', 'ui.combat.draw', 'ui.combat.drawPileAria', 'ui.combat.drawPileSub', 'ui.combat.drawPileTitle', 'ui.combat.end',
+    'ui.combat.end', 'ui.combat.enemyTurn', 'ui.combat.energyAria', 'ui.combat.facetsBody', 'ui.combat.facetsTitle', 'ui.combat.glassHolds',
+    'ui.combat.guardShattered', 'ui.combat.guardShattered', 'ui.combat.lanternBody', 'ui.combat.lanternBodyLead', 'ui.combat.lanternSub', 'ui.combat.lanternTitle',
+    'ui.combat.lanternTitleArt', 'ui.combat.monumentGift', 'ui.combat.perfectBanner', 'ui.combat.reshuffle', 'ui.combat.shatter', 'ui.combat.staggered',
+    'ui.combat.staggered', 'ui.combat.staggered', 'ui.combat.staggeredTipBody', 'ui.combat.staggeredTipTitle', 'ui.combat.stoneRemembers', 'ui.combat.yourTurn',
+    'ui.common.cancel', 'ui.common.cancel', 'ui.common.continue', 'ui.common.continue', 'ui.common.continue', 'ui.common.continue',
+    'ui.common.retry', 'ui.common.retry', 'ui.common.skip', 'ui.dawn.act4RevealCopy', 'ui.dawn.eighthResolvedKicker', 'ui.dawn.pageKicker',
+    'ui.dawn.questCompleteKicker', 'ui.dawn.questProgressKicker', 'ui.dawn.questRevealKicker', 'ui.dawn.questUnlockKicker', 'ui.dawn.reloadSaved', 'ui.dawn.saveFailedClear',
+    'ui.dawn.saveFailedCursor', 'ui.dawn.saveFailedTitle', 'ui.dawn.shadeResolvedKicker', 'ui.dawn.shardGrantCopy', 'ui.dawn.whisperKicker', 'ui.dawn.witchlightCopy',
+    'ui.dawn.witchlightLens', 'ui.embark.aspectLabel', 'ui.embark.noVows', 'ui.embark.subChoose', 'ui.embark.subWait', 'ui.embark.title',
+    'ui.embark.warnSaved', 'ui.end.ascended', 'ui.end.ascendedSub', 'ui.end.bequestDone', 'ui.end.bequestNote.card', 'ui.end.bequestNote.gold',
+    'ui.end.bequestNote.goldCache', 'ui.end.bequestNote.relic', 'ui.end.bequestTitle', 'ui.end.bequestUnpaid', 'ui.end.cardsPlayed', 'ui.end.deckSize',
+    'ui.end.dmgDealt', 'ui.end.dmgTaken', 'ui.end.elitesBosses', 'ui.end.fallen', 'ui.end.fallenSub', 'ui.end.finalDeckTitle',
+    'ui.end.floors', 'ui.end.returnVigil', 'ui.end.runTime', 'ui.end.slain', 'ui.end.unlock.ashwarden', 'ui.end.unlock.aspect',
+    'ui.end.unlock.card', 'ui.end.unlock.header', 'ui.end.unlock.relic', 'ui.end.viewDeck', 'ui.event.chooseCardSub', 'ui.event.chooseCardTitle',
+    'ui.event.duplicateSub', 'ui.event.duplicateTitle', 'ui.event.removeSub', 'ui.event.removeTitle', 'ui.event.upgradeSub', 'ui.event.upgradeTitle',
+    'ui.help.climbBody', 'ui.help.climbTitle', 'ui.help.combatBody', 'ui.help.combatTitle', 'ui.help.firesBody', 'ui.help.firesTitle',
+    'ui.help.glassBody', 'ui.help.glassTitle', 'ui.help.lanternBody', 'ui.help.lanternTitle', 'ui.help.title', 'ui.help.vigilBody',
+    'ui.help.vigilTitle', 'ui.help.wardBody', 'ui.help.wardTitle', 'ui.hollow.kicker', 'ui.hollow.payPrice', 'ui.hollow.pricePaid',
+    'ui.hollow.pricePaid', 'ui.hollow.returnLater', 'ui.hollow.routeFailed', 'ui.hollow.routeSaveFailed', 'ui.hollow.saveFailed', 'ui.hollow.title',
+    'ui.hud.deckAria', 'ui.hud.deckCount', 'ui.hud.deckCount', 'ui.hud.deckTitle', 'ui.hud.deckTitle', 'ui.hud.menuAria',
+    'ui.hud.omenSub', 'ui.hud.omenTitle', 'ui.hud.potionTip', 'ui.hud.tossPotion', 'ui.hud.usePotion', 'ui.keywords.chip',
+    'ui.keywords.cinder', 'ui.keywords.ember', 'ui.keywords.ember', 'ui.keywords.energy', 'ui.keywords.facetDesc', 'ui.keywords.hex',
+    'ui.keywords.kindle', 'ui.keywords.shard', 'ui.keywords.staggered', 'ui.keywords.unplayable', 'ui.keywords.ward', 'ui.lamp.artHint',
+    'ui.lamp.artLabel', 'ui.lamp.boonLabel', 'ui.lamp.sub', 'ui.lamp.title', 'ui.map.click', 'ui.map.drag',
+    'ui.map.hint.boss', 'ui.map.hint.elite', 'ui.map.hint.event', 'ui.map.hint.monster', 'ui.map.hint.rest', 'ui.map.hint.shop',
+    'ui.map.hint.treasure', 'ui.map.node.elite', 'ui.map.node.event', 'ui.map.node.monster', 'ui.map.node.rest', 'ui.map.node.shop',
+    'ui.map.node.treasure', 'ui.map.scroll', 'ui.map.sealedDoor.aria', 'ui.map.sealedDoor.inscription', 'ui.map.sealedDoor.label', 'ui.map.sealedDoor.return',
+    'ui.map.sealedDoor.sub', 'ui.map.sealedDoor.title', 'ui.map.survey', 'ui.map.tap', 'ui.map.travelHere', 'ui.map.unlitBody',
+    'ui.map.unlitTitle', 'ui.map.witchlightBody', 'ui.map.witchlightTitle', 'ui.menu.abandon', 'ui.menu.abandonConfirmBody', 'ui.menu.abandonConfirmTitle',
+    'ui.menu.abandonRun', 'ui.menu.back', 'ui.menu.beginAnew', 'ui.menu.beginAnew', 'ui.menu.beginAnewBody', 'ui.menu.beginAnewTitle',
+    'ui.menu.beginClimb', 'ui.menu.beginClimb', 'ui.menu.chooseBoon', 'ui.menu.close', 'ui.menu.close', 'ui.menu.continueClimb',
+    'ui.menu.fightOn', 'ui.menu.howToPlay', 'ui.menu.howToPlay', 'ui.menu.keepClimbing', 'ui.menu.keepClimbing', 'ui.menu.lightTheWay',
+    'ui.menu.mute', 'ui.menu.mute', 'ui.menu.return', 'ui.menu.settings', 'ui.menu.settings', 'ui.menu.theVigil',
+    'ui.menu.theVigil', 'ui.menu.unmute', 'ui.menu.unmute', 'ui.persistence.hollowRouteBody', 'ui.persistence.reloadClimb', 'ui.persistence.reloadClimb',
+    'ui.persistence.reloadDestination', 'ui.persistence.reloadDuel', 'ui.persistence.reloadFinalisation', 'ui.persistence.retryFinalisation', 'ui.persistence.retrySave', 'ui.persistence.retrySave',
+    'ui.persistence.retrySave', 'ui.persistence.retrySave', 'ui.persistence.runSaveBody', 'ui.persistence.runSaveRetryFail', 'ui.persistence.saveFailedTitle', 'ui.persistence.saveFailedTitle',
+    'ui.persistence.stoneBody', 'ui.persistence.stoneTitle', 'ui.persistence.vigilBody', 'ui.persistence.vigilTitle', 'ui.rest.healedFloat', 'ui.rest.restBtn',
+    'ui.rest.restHeal', 'ui.rest.smithBtn', 'ui.rest.smithSub', 'ui.rest.sub', 'ui.rest.title', 'ui.rest.upgradeSub',
+    'ui.rest.upgradeTitle', 'ui.rest.upgradedSub', 'ui.rest.upgradedTitle', 'ui.reward.addCardRow', 'ui.reward.bossRelicSub', 'ui.reward.bossRelicTitle',
+    'ui.reward.bossVanquished', 'ui.reward.cardAdded', 'ui.reward.chooseCardSub', 'ui.reward.chooseCardTitle', 'ui.reward.eliteSlain', 'ui.reward.goldRow',
+    'ui.reward.leaveConfirmBody', 'ui.reward.leaveConfirmNo', 'ui.reward.leaveConfirmTitle', 'ui.reward.leaveConfirmYes', 'ui.reward.perfectSeal', 'ui.reward.potionSlotsFull',
+    'ui.reward.takeNone', 'ui.reward.victory', 'ui.rose.dormantPane', 'ui.rose.finalWhisper', 'ui.rose.openLabel', 'ui.rose.paneDark',
+    'ui.rose.selectedPane', 'ui.rose.shardRecovered', 'ui.rose.shardRecoveredShort', 'ui.rose.shardRecoveredShort', 'ui.rose.unknownPane', 'ui.rose.whisperLogTitle',
+    'ui.settings.debugLabel', 'ui.settings.eraseEverything', 'ui.settings.music', 'ui.settings.resetConfirmBody', 'ui.settings.resetConfirmTitle', 'ui.settings.resetSave',
+    'ui.settings.resetWarn', 'ui.settings.sfx', 'ui.settings.title', 'ui.shop.cardRemoval.desc', 'ui.shop.cardRemoval.pickSub', 'ui.shop.cardRemoval.pickTitle',
+    'ui.shop.cardRemoval.title', 'ui.shop.greeting', 'ui.shop.leave', 'ui.shop.potionSlotsFull', 'ui.shop.title', 'ui.treasure.coinsOnly',
+    'ui.treasure.empty', 'ui.treasure.empty', 'ui.treasure.openBtn', 'ui.treasure.relicClaim', 'ui.treasure.sub', 'ui.treasure.title',
+    'ui.vigil.deeds', 'ui.vigil.roseWindow',
   ];
   const readJsRecursively = (directory) => readdirSync(directory, { withFileTypes: true })
     .flatMap((entry) => entry.isDirectory()
@@ -8908,16 +8908,50 @@ export default defineContentRegistration({
     'combat.js marks the combat screen when plate chrome is Pixi-owned');
   assert.match(combatSource, /pixi-hud-chrome/,
     'combat.js marks the HUD when HUD chrome is Pixi-owned');
-  assert.match(combatSource, /data-proxy="deck"/,
-    'combat.js extends hit proxies for the deck button');
-  assert.match(combatSource, /data-proxy="menu"/,
-    'combat.js extends hit proxies for the menu button');
-  assert.match(combatSource, /bridgeProxyTip\s*\(/,
-    'combat.js bridges HUD tip content onto hit proxies');
-  assert.match(combatSource, /proxyDeck\.onclick\s*=\s*openHudDeck/,
-    'combat.js binds the deck proxy click handler');
-  assert.match(combatSource, /proxyMenu\.onclick\s*=\s*openHudMenu/,
-    'combat.js binds the menu proxy click handler');
+  // Task 23 — hit proxies are gone; combat input is owned by pointer.js.
+  assert.doesNotMatch(combatSource, /combat-hit-proxies/,
+    'combat.js no longer mounts #combat-hit-proxies');
+  assert.doesNotMatch(combatSource, /data-proxy=/,
+    'combat.js no longer declares hit-proxy data-proxy buttons');
+  assert.doesNotMatch(combatSource, /ensureHudHitProxies\s*\(/,
+    'combat.js no longer maintains HUD hit proxies');
+  assert.doesNotMatch(combatSource, /placeHitProxies\s*\(/,
+    'combat.js no longer places chrome hit proxies');
+  assert.match(combatSource, /createCombatPointerRouter\s*\(/,
+    'combat.js installs the sole stage pointer router');
+  assert.match(combatSource, /installCombatPointerRouter\s*\(/,
+    'combat.js owns the router install seam');
+
+  const pointerSource = readFileSync(new URL('../src/ui/pointer.js', import.meta.url), 'utf8');
+  assert.match(pointerSource, /export function createCombatPointerRouter/,
+    'pointer.js exports createCombatPointerRouter');
+  assert.match(pointerSource, /enable\s*\(/, 'pointer router exposes enable()');
+  assert.match(pointerSource, /disable\s*\(/, 'pointer router exposes disable()');
+  assert.match(pointerSource, /cancel\s*\(/, 'pointer router exposes cancel()');
+  assert.match(pointerSource, /state\s*\(/, 'pointer router exposes state()');
+  assert.match(pointerSource, /destroy\s*\(/, 'pointer router exposes destroy()');
+  assert.match(pointerSource, /DRAG_START_PX\s*=\s*26/, 'drag starts at 26 client px');
+  assert.match(pointerSource, /LONG_PRESS_CANCEL_PX\s*=\s*12/, 'long-press cancels at 12 client px');
+
+  // Old combat-specific listener sites must be gone or delegated to pointer.js.
+  const forbiddenSites = [
+    [/box\.onclick\s*=\s*\(\)\s*=>\s*onEnemyClick/, 'enemy box.onclick'],
+    [/box\.addEventListener\(\s*['"]pointerenter['"]/, 'enemy pointerenter'],
+    [/box\.addEventListener\(\s*['"]pointerleave['"]/, 'enemy pointerleave'],
+    [/c\.addEventListener\(\s*['"]pointerdown['"]/, 'card pointerdown'],
+    [/c\.addEventListener\(\s*['"]pointermove['"]/, 'card pointermove'],
+    [/c\.addEventListener\(\s*['"]pointerup['"]/, 'card pointerup'],
+    [/c\.addEventListener\(\s*['"]pointercancel['"]/, 'card pointercancel'],
+    [/ce\.root\.addEventListener\(\s*['"]pointerdown['"]/, 'combat-root pointerdown'],
+    [/document\.addEventListener\(\s*['"]pointermove['"],\s*aimMove\)/, 'targeting document pointermove'],
+  ];
+  for (const [pattern, label] of forbiddenSites) {
+    assert.doesNotMatch(combatSource, pattern,
+      `old combat listener site removed or delegated: ${label}`);
+  }
+  // Lantern / End Turn / piles onclick remain only as non-Pixi fallbacks inside !glActive().
+  assert.match(combatSource, /if\s*\(!glActive\(\)\)\s*\{[\s\S]*?ce\.lantern\.onclick/,
+    'DOM chrome onclick handlers are gated behind !glActive()');
 
   const indexSource = readFileSync(new URL('../src/ui/index.js', import.meta.url), 'utf8');
   assert.match(indexSource, /import\s*\{\s*createCombatRenderer\s*\}\s*from\s*'\.\/combat-gl\.js'/,
@@ -8935,14 +8969,16 @@ export default defineContentRegistration({
 
   const probeSource = readFileSync(new URL('../src/ui/probe.js', import.meta.url), 'utf8');
   assert.match(probeSource, /ui\(\)\s*\{[\s\S]*?version:\s*2/,
-    'probe.ui() reports the Task 22a seam version 2');
-  assert.match(probeSource, /kind:\s*stats\.kind/,
-    'probe.ui() reports the renderer kind from combat stats');
-  assert.match(probeSource, /state:\s*stats\.state/,
-    'probe.ui() reports the renderer state from combat stats');
-  assert.match(probeSource, /generation:\s*stats\.generation/,
-    'probe.ui() reports the renderer generation from combat stats');
+    'probe.ui() reports the Task 23 Probe v2 version');
+  assert.match(probeSource, /const hand = \(cb && ce\?\.hand\)/, 'probe.ui() exposes hand seats');
+  assert.match(probeSource, /const piles = \{/, 'probe.ui() exposes piles');
+  assert.match(probeSource, /queueIdle:\s*\(\)\s*=>/, 'probe exposes queueIdle separately');
+  assert.match(probeSource, /settle:\s*\(\)\s*=>\s*presentationSettled/, 'probe exposes settle separately');
+  assert.match(probeSource, /loseRendererContextForTest/, 'probe exposes loseRendererContextForTest');
+  assert.match(probeSource, /async freeze\(/, 'probe.freeze is async and settles first');
+  assert.match(probeSource, /unfreeze\s*\(/, 'probe exposes unfreeze');
 }
+
 
 let wins = 0, deaths = 0;
 const RUNS = 300;

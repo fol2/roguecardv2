@@ -109,9 +109,66 @@ export async function stable(page) {
   await page.waitForTimeout(1600);
 }
 
-export async function freeze(page) {
+export async function freeze(page, options = {}) {
   await page.waitForFunction(() => window.__probe?.freeze);
-  return page.evaluate(() => window.__probe.freeze());
+  return page.evaluate((opts) => window.__probe.freeze(opts), options);
+}
+
+/** Convert probe stage-px bounds to a client-space point (centre by default). */
+export async function stageBoundsToClient(page, bounds, { anchor = 'center' } = {}) {
+  return page.evaluate(({ box, anchorMode }) => {
+    const stage = document.getElementById('stage');
+    const rect = stage.getBoundingClientRect();
+    const info = window.__probe.stage();
+    const scale = info.scale || (rect.width / Math.max(1, info.w));
+    const left = box.left ?? box.x ?? 0;
+    const top = box.top ?? box.y ?? 0;
+    const width = box.width ?? ((box.right ?? 0) - left);
+    const height = box.height ?? ((box.bottom ?? 0) - top);
+    const sx = anchorMode === 'center' ? left + width / 2 : left;
+    const sy = anchorMode === 'center' ? top + height / 2 : top;
+    return {
+      x: rect.left + sx * scale,
+      y: rect.top + sy * scale,
+      width: width * scale,
+      height: height * scale,
+      scale,
+    };
+  }, { box: bounds, anchorMode: anchor });
+}
+
+/** Real Playwright pointer press/move/release against stage-owned routing. */
+export async function pointerDrag(page, fromClient, toClient, {
+  steps = 8,
+  cancel = false,
+  loseCapture = false,
+} = {}) {
+  await page.mouse.move(fromClient.x, fromClient.y);
+  await page.mouse.down();
+  await page.mouse.move(toClient.x, toClient.y, { steps });
+  if (cancel) {
+    await page.evaluate(() => {
+      const stage = document.getElementById('stage');
+      const id = 1;
+      stage.dispatchEvent(new PointerEvent('pointercancel', {
+        bubbles: true, cancelable: true, pointerId: id, isPrimary: true,
+        clientX: 0, clientY: 0, pointerType: 'mouse',
+      }));
+    });
+    return;
+  }
+  if (loseCapture) {
+    await page.evaluate(() => {
+      const stage = document.getElementById('stage');
+      try { stage.releasePointerCapture(1); } catch { /* may already be free */ }
+      stage.dispatchEvent(new PointerEvent('lostpointercapture', {
+        bubbles: true, cancelable: true, pointerId: 1, isPrimary: true,
+        pointerType: 'mouse',
+      }));
+    });
+    return;
+  }
+  await page.mouse.up();
 }
 
 // Assert the probe's DOM↔engine invariants all hold. Failures print the

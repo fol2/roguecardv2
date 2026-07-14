@@ -91,7 +91,7 @@ function tr(key, params) {
   }
   return value;
 }
-const { initTooltip, fmtText, cardEl } = createTooltip({ tr });
+const { initTooltip, fmtText, cardEl, tipBridge } = createTooltip({ tr });
 
 let navigatorApi;
 let combatApi;
@@ -114,6 +114,8 @@ const combatLateCallbacks = Object.freeze({
   combatGlMount: (model) => combatRenderer?.mount(model),
   combatGlSync: (model) => combatRenderer?.sync(model),
   combatGlActive: () => combatRenderer !== null,
+  getCombatRenderer: () => combatRenderer,
+  tipBridge,
 });
 const overlayActions = Object.freeze({
   afterAction: (...args) => combatApi.afterAction(...args),
@@ -349,7 +351,7 @@ function installGlobalOwners() {
       combatApi.onEndTurn();
     }
     if ((event.key === 'a' || event.key === 'A') && S.screen === 'combat' && !S.busy) {
-      S.ce?.lantern?.click();
+      combatApi.useLanternArt();
     }
   });
   $('#overlay').addEventListener('pointerdown', (event) => {

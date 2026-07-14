@@ -103,9 +103,9 @@ async function seedHollowTrace(page, { progress = 1, type = 'shop', gold = 999 }
 
 const COMBAT_MODULE_KEYS = [
   'afterAction', 'banner', 'clearTargeting', 'doPlay', 'drainHandlers', 'flyTo',
-  'freeze', 'meshBindTitle', 'onEndTurn', 'refitCombat', 'renderCombat',
-  'renderHud', 'setTargeting', 'startCombatUI', 'startRig', 'syncCombat',
-  'syncHand', 'tweenNum', 'useLanternArt',
+  'freeze', 'freezeForProbe', 'meshBindTitle', 'onEndTurn', 'pointerState',
+  'refitCombat', 'renderCombat', 'renderHud', 'setTargeting', 'startCombatUI',
+  'startRig', 'syncCombat', 'syncHand', 'tweenNum', 'useLanternArt',
 ].sort();
 const DRAIN_HANDLER_KEYS = [
   'addCrack', 'banner', 'bumpPile', 'captureCardAnchor', 'choreoAttack',
@@ -231,9 +231,24 @@ test('real screen, cancelled drag and card play expose semantic owner order', as
   await settle(page);
   await page.evaluate(() => { window.__probe.setEmbers(9); });
   const artBefore = await page.evaluate(() => window.spirebound.S.cb.embers);
-  // Task 22b-1: the Pixi bottom chrome parks a transparent hit proxy over the
-  // DOM lantern; either firing point invokes the same lanternActivate handler.
-  await page.locator('[data-proxy="lantern"], .lantern-btn').first().click({ force: true });
+  // Task 23: activate lantern through the stage router / hitTest bounds.
+  await page.evaluate(() => {
+    const stage = document.getElementById('stage');
+    const rect = stage.getBoundingClientRect();
+    const info = window.__probe.stage();
+    const scale = info.scale || (rect.width / Math.max(1, info.w));
+    const bounds = window.spirebound.combatGl.readUI().lantern;
+    const x = rect.left + (bounds.left + bounds.width / 2) * scale;
+    const y = rect.top + (bounds.top + bounds.height / 2) * scale;
+    stage.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true, cancelable: true, pointerId: 7, isPrimary: true,
+      pointerType: 'mouse', clientX: x, clientY: y,
+    }));
+    stage.dispatchEvent(new PointerEvent('pointerup', {
+      bubbles: true, cancelable: true, pointerId: 7, isPrimary: true,
+      pointerType: 'mouse', clientX: x, clientY: y,
+    }));
+  });
   await settle(page);
   const artAfter = await page.evaluate(() => ({
     artUsedTurn: window.spirebound.S.cb.artUsedTurn,
@@ -350,7 +365,23 @@ test('drain recovery reconstructs card flights without live seats or anchors', a
     return { exhaust: exhaustInst.uid, discardHand: discarded.uid, toDiscard: played.uid };
   });
 
-  await page.locator('[data-proxy="end-turn"], .end-turn').first().click({ force: true });
+  await page.evaluate(() => {
+    const stage = document.getElementById('stage');
+    const rect = stage.getBoundingClientRect();
+    const info = window.__probe.stage();
+    const scale = info.scale || (rect.width / Math.max(1, info.w));
+    const bounds = window.spirebound.combatGl.readUI().endTurn;
+    const x = rect.left + (bounds.left + bounds.width / 2) * scale;
+    const y = rect.top + (bounds.top + bounds.height / 2) * scale;
+    stage.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true, cancelable: true, pointerId: 8, isPrimary: true,
+      pointerType: 'mouse', clientX: x, clientY: y,
+    }));
+    stage.dispatchEvent(new PointerEvent('pointerup', {
+      bubbles: true, cancelable: true, pointerId: 8, isPrimary: true,
+      pointerType: 'mouse', clientX: x, clientY: y,
+    }));
+  });
   await settle(page);
   const result = await page.evaluate(() => ({
     busy: window.spirebound.S.busy,
@@ -630,7 +661,12 @@ test('live Map warm set follows current act and adds Eighth only when active', a
 test('probe invariant failures emit copy-free error.invariant evidence', async ({ page }) => {
   await boot(page);
   await startFight(page, ['sporeling']);
-  await page.evaluate(() => { document.querySelector('.p-hp').textContent = '0/0'; });
+  await page.evaluate(() => {
+    // Plate HP is Pixi-owned (Task 22b-2+); mutating the DOM label no longer
+    // desyncs the probe. Nudge the engine value against the frozen plate model.
+    const player = window.spirebound.S.cb.player;
+    player.hp = Math.max(0, player.hp - 1);
+  });
   expect((await page.evaluate(() => window.__probe.invariants())).some((item) => !item.pass)).toBe(true);
   const error = await page.evaluate(() => window.__probe.behaviourTrace().records
     .find((record) => record.eventName === 'error.invariant'));

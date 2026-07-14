@@ -15,8 +15,8 @@
 //     same handles used elsewhere.
 //   - Task 22b-1: paints the bottom interactive chrome (energy candles +
 //     count, lantern face + ember pips + count, end-turn button, and the
-//     three pile stacks). Interaction lives on transparent DOM proxies
-//     inside `#combat-hit-proxies`; this module owns the visuals only.
+//     Interaction lives on the stage pointer router (Task 23); this module
+//     owns the visuals only.
 //   - Task 22b-2: paints HUD (HP/gold/deck/menu/potions/relics/omen) and
 //     under-own-foe / hero plate chrome (names, affix, statuses, HP/Ward/
 //     facets, intents). Geometry still comes from `uicResolve()` + the
@@ -256,6 +256,7 @@ export async function createCombatRenderer({
   let candleFrameCache = null;
   let lanternBoundsCache = null;
   let endTurnBoundsCache = null;
+  let pileBoundsCache = Object.freeze({ draw: null, discard: null, ashes: null });
   let bottomChromeReady = false;
   let bottomChromePainted = 0;
   let hudReady = false;
@@ -341,9 +342,10 @@ export async function createCombatRenderer({
     if (model === null) {
       presentationModel = null;
       candleFrameCache = null;
-      lanternBoundsCache = null;
-      endTurnBoundsCache = null;
-      hudCache = null;
+    lanternBoundsCache = null;
+    endTurnBoundsCache = null;
+    pileBoundsCache = Object.freeze({ draw: null, discard: null, ashes: null });
+    hudCache = null;
       platesCache = null;
       bottomChromeReady = false;
       hudReady = false;
@@ -663,7 +665,10 @@ export async function createCombatRenderer({
     const layer = pileLayers[pileKey];
     if (!layer) return false;
     layer.removeChildren();
-    if (!widget) return false;
+    if (!widget) {
+      pileBoundsCache = Object.freeze({ ...pileBoundsCache, [pileKey]: null });
+      return false;
+    }
     const width = snapStage(widget.w ?? 96, resolution);
     const height = snapStage(widget.h ?? 148, resolution);
     const bx = snapStage(
@@ -673,6 +678,12 @@ export async function createCombatRenderer({
       resolution,
     );
     const by = snapStage(stageH() - (widget.bottom ?? 0) - (widget.h ?? 148), resolution);
+    pileBoundsCache = Object.freeze({
+      ...pileBoundsCache,
+      [pileKey]: Object.freeze({
+        left: bx, top: by, right: bx + width, bottom: by + height, width, height,
+      }),
+    });
     const bottomState = presentationModel?.bottomChrome;
     const pileState = bottomState?.piles?.[pileKey]
       || (presentationModel?.piles ? { count: presentationModel.piles[pileKey] } : { count: 0 });
@@ -1015,6 +1026,51 @@ export async function createCombatRenderer({
       }
     }
 
+    // Potion / relic / omen seats for Task 23 hit-testing (stage px).
+    const potionSeats = [];
+    if (typeof document !== 'undefined') {
+      document.querySelectorAll('#hud .potion-slot').forEach((slot) => {
+        const r = stageRect(slot);
+        if (!(r.width > 0 && r.height > 0)) return;
+        potionSeats.push(Object.freeze({
+          slot: Number(slot.dataset.slot),
+          bounds: snapRect({
+            left: r.left, top: r.top, right: r.right, bottom: r.bottom,
+            width: r.width, height: r.height,
+          }, resolution),
+        }));
+      });
+    }
+    const relicSeats = [];
+    if (typeof document !== 'undefined') {
+      document.querySelectorAll('#hud .hud-relic').forEach((chip, index) => {
+        const r = stageRect(chip);
+        if (!(r.width > 0 && r.height > 0)) return;
+        const rid = chip.dataset.relic || `relic-${index}`;
+        relicSeats.push(Object.freeze({
+          id: rid,
+          bounds: snapRect({
+            left: r.left, top: r.top, right: r.right, bottom: r.bottom,
+            width: r.width, height: r.height,
+          }, resolution),
+        }));
+      });
+    }
+    let omenSeat = null;
+    if (typeof document !== 'undefined') {
+      const omenNode = document.querySelector('#omen-slot')?.firstElementChild
+        || document.querySelector('#omen-slot');
+      if (omenNode) {
+        const r = stageRect(omenNode);
+        if (r.width > 0 && r.height > 0) {
+          omenSeat = snapRect({
+            left: r.left, top: r.top, right: r.right, bottom: r.bottom,
+            width: r.width, height: r.height,
+          }, resolution);
+        }
+      }
+    }
+
     hudCache = Object.freeze({
       bounds: Object.freeze({
         left: barLeft, top: barTop, right: barLeft + barWidth, bottom: barTop + barH,
@@ -1031,6 +1087,9 @@ export async function createCombatRenderer({
           right: menuSeat.x + menuSeat.w / 2, bottom: menuSeat.y + menuSeat.h / 2,
           width: menuSeat.w, height: menuSeat.h,
         }, resolution) : null,
+        omen: omenSeat,
+        potions: Object.freeze(potionSeats),
+        relics: Object.freeze(relicSeats),
       }),
       hp: hudState.hp,
       maxHp: hudState.maxHp,
@@ -1323,11 +1382,78 @@ export async function createCombatRenderer({
     platesReady = painted >= 1;
   }
 
+  const pointIn = (px, py, rect) => {
+    if (!rect) return false;
+    const left = rect.left ?? rect.x ?? 0;
+    const top = rect.top ?? rect.y ?? 0;
+    const right = rect.right ?? (left + (rect.width ?? 0));
+    const bottom = rect.bottom ?? (top + (rect.height ?? 0));
+    return px >= left && px <= right && py >= top && py <= bottom;
+  };
+
+  const tipFromModel = (kind, detail = {}) => {
+    const tips = presentationModel?.tips || {};
+    if (kind === 'lantern') return tips.lantern || null;
+    if (kind === 'omen') return tips.omen || null;
+    if (kind === 'potion') return tips.potions?.[detail.slot] || null;
+    if (kind === 'relic') return tips.relics?.[detail.id] || null;
+    return null;
+  };
+
   const hitTest = (x, y) => {
-    // Placeholder: PR17 owns real Pixi hit-testing; the scaffold defers to the
-    // DOM by returning null so combat.js input handlers keep working.
     hitTestBias = { x: Number(x) || 0, y: Number(y) || 0 };
     void hitTestBias;
+    const px = Number(x) || 0;
+    const py = Number(y) || 0;
+    // Front-to-back priority matches interactive chrome importance.
+    if (pointIn(px, py, endTurnBoundsCache)) {
+      return Object.freeze({
+        kind: 'end-turn', type: 'end-turn', bounds: endTurnBoundsCache,
+        tip: tipFromModel('end-turn'),
+      });
+    }
+    if (pointIn(px, py, lanternBoundsCache)) {
+      return Object.freeze({
+        kind: 'lantern', type: 'lantern', bounds: lanternBoundsCache,
+        tip: tipFromModel('lantern'),
+      });
+    }
+    for (const key of ['draw', 'discard', 'ashes']) {
+      const bounds = pileBoundsCache?.[key];
+      if (pointIn(px, py, bounds)) {
+        return Object.freeze({ kind: key, type: key, bounds, tip: null });
+      }
+    }
+    const seats = hudCache?.seats;
+    if (pointIn(px, py, seats?.deck)) {
+      return Object.freeze({ kind: 'deck', type: 'deck', bounds: seats.deck, tip: null });
+    }
+    if (pointIn(px, py, seats?.menu)) {
+      return Object.freeze({ kind: 'menu', type: 'menu', bounds: seats.menu, tip: null });
+    }
+    if (pointIn(px, py, seats?.omen)) {
+      return Object.freeze({
+        kind: 'omen', type: 'omen', bounds: seats.omen, tip: tipFromModel('omen'),
+      });
+    }
+    const potions = seats?.potions || [];
+    for (const seat of potions) {
+      if (pointIn(px, py, seat.bounds)) {
+        return Object.freeze({
+          kind: 'potion', type: 'potion', slot: seat.slot, bounds: seat.bounds,
+          tip: tipFromModel('potion', { slot: seat.slot }),
+        });
+      }
+    }
+    const relics = seats?.relics || [];
+    for (const seat of relics) {
+      if (pointIn(px, py, seat.bounds)) {
+        return Object.freeze({
+          kind: 'relic', type: 'relic', id: seat.id, bounds: seat.bounds,
+          tip: tipFromModel('relic', { id: seat.id }),
+        });
+      }
+    }
     return null;
   };
 
@@ -1373,6 +1499,7 @@ export async function createCombatRenderer({
         energy: candleFrameCache?.bounds ?? null,
         lantern: lanternBoundsCache,
         endTurn: endTurnBoundsCache,
+        piles: pileBoundsCache,
         hud: hudCache,
         plates: platesCache,
         hero: {
@@ -1429,6 +1556,7 @@ export async function createCombatRenderer({
       energy: candleFrameCache?.bounds ?? null,
       lantern: lanternBoundsCache,
       endTurn: endTurnBoundsCache,
+      piles: pileBoundsCache,
       hud: hudCache,
       plates: platesCache,
       hero: {

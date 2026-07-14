@@ -24,6 +24,19 @@ export function installProbe({
     return node ? stageRect(node) : null;
   };
 
+  const rectOf = (r) => (r ? {
+    left: r.left, top: r.top, right: r.right, bottom: r.bottom,
+    width: r.width, height: r.height,
+  } : null);
+
+  const presentationSettled = () => new Promise((resolve) => {
+    const done = () => !S.busy
+      && (!S.cb || S.cb.queue.length === 0)
+      && presentationBarrier.activeCount() === 0;
+    const check = () => (done() ? resolve(true) : setTimeout(check, 16));
+    check();
+  });
+
   const probe = {
     // -- readers --------------------------------------------------------
     stage: () => stageInfo(),
@@ -73,8 +86,6 @@ export function installProbe({
               'a WebGL warp plane still renders this corpse',
             );
           } else {
-            // Task 22b-2: plate HP numerals are Pixi-owned; DOM labels may be
-            // blank once .pixi-plate-chrome hides them. Prefer the model.
             const gl = resolveCombatRenderer?.();
             const glModel = gl && typeof gl.sync === 'function' ? gl.sync() : null;
             const plateEnemy = glModel?.plates?.enemies?.[index];
@@ -106,9 +117,6 @@ export function installProbe({
           $$('.card', ce.hand).length === cb.hand.length,
           `dom=${$$('.card', ce.hand).length} engine=${cb.hand.length}`,
         );
-        // Task 22b-1: bottom chrome is Pixi-owned when the combat renderer is
-        // active — DOM numbers may be blank because their nodes were painted
-        // over. Read from the presentation model in that case.
         const gl = resolveCombatRenderer?.();
         const glModel = gl && typeof gl.sync === 'function' ? gl.sync() : null;
         const pixiOwned = !!(glModel && glModel.bottomChrome);
@@ -175,13 +183,7 @@ export function installProbe({
     mapWarmSet: () => [...readMapWarmIds()],
     resetBehaviourTrace: () => trace.reset(),
     translateForProbe: (key) => tr(key),
-    settle: () => new Promise((resolve) => {
-      const done = () => !S.busy
-        && (!S.cb || S.cb.queue.length === 0)
-        && presentationBarrier.activeCount() === 0;
-      const check = () => (done() ? resolve(true) : setTimeout(check, 16));
-      check();
-    }),
+    settle: () => presentationSettled(),
     moduleContracts() {
       return {
         combat: Object.keys(combat).sort(),
@@ -194,43 +196,112 @@ export function installProbe({
         },
       };
     },
-    // Task 22a — combat renderer probe surface. Version 2 marks the seam that
-    // Tasks 22b/22c and PR16/PR17 build against; the renderer state and
-    // generation come straight from the combat renderer stats.
+    // Task 23 — renderer-neutral Probe v2 shape.
     ui() {
       const renderer = resolveCombatRenderer();
-      if (!renderer) {
-        return {
-          version: 2,
-          renderer: { kind: null, state: 'absent', generation: 0 },
-          model: null,
-          texturedReady: false,
-        };
-      }
-      const stats = renderer.stats();
+      const stats = renderer ? renderer.stats() : null;
+      const readUI = renderer && typeof renderer.readUI === 'function' ? renderer.readUI() : null;
+      const model = renderer && typeof renderer.sync === 'function' ? renderer.sync() : null;
+      const policy = window.spirebound?.pixi?.policy
+        || (stats ? { tier: null, reducedMotion: null } : null);
+      const cb = S.cb;
+      const ce = S.ce;
+      const input = typeof combat.pointerState === 'function' ? combat.pointerState() : null;
+
+      const hand = (cb && ce?.hand)
+        ? cb.hand.map((card) => {
+          const el = ce.hand.querySelector(`.card[data-uid="${card.uid}"]`);
+          const bounds = el ? rectOf(stageRect(el)) : null;
+          const d = E.cardData(card, S.run);
+          const playable = !d.unplayable
+            && (E.effCost(S.run, cb, card) ?? 99) <= cb.player.energy;
+          return {
+            uid: card.uid,
+            id: card.id,
+            bounds,
+            seatBounds: bounds,
+            playable,
+            selected: !!(S.targeting?.kind === 'card' && S.targeting.uid === card.uid),
+            dragging: !!(S.drag && S.drag.uid === card.uid && S.drag.live),
+          };
+        })
+        : [];
+
+      const bottom = model?.bottomChrome;
+      const piles = {
+        draw: {
+          count: bottom?.piles?.draw?.count ?? cb?.draw?.length ?? 0,
+          bounds: readUI?.piles?.draw || readUI?.chrome?.draw || null,
+        },
+        discard: {
+          count: bottom?.piles?.discard?.count ?? cb?.discard?.length ?? 0,
+          bounds: readUI?.piles?.discard || readUI?.chrome?.discard || null,
+        },
+        ashes: {
+          count: bottom?.piles?.ashes?.count ?? cb?.exhaust?.length ?? 0,
+          bounds: readUI?.piles?.ashes || readUI?.chrome?.ashes || null,
+        },
+      };
+
       return {
         version: 2,
         renderer: {
-          kind: stats.kind,
-          state: stats.state,
-          generation: stats.generation,
-          transitions: stats.transitions,
+          kind: stats?.kind ?? null,
+          state: stats?.state ?? (renderer ? 'unknown' : 'absent'),
+          generation: stats?.generation ?? 0,
+          policy: policy ? { ...policy } : null,
         },
-        model: {
+        hand,
+        piles,
+        energy: {
+          value: bottom?.energy ?? cb?.player?.energy ?? null,
+          max: bottom?.energyMax ?? cb?.player?.energyMax ?? null,
+          bounds: readUI?.energy || readUI?.candleFrame?.bounds || null,
+        },
+        lantern: {
+          embers: bottom?.embers ?? cb?.embers ?? null,
+          ready: !!bottom?.lanternReady,
+          bounds: readUI?.lantern || null,
+        },
+        endTurn: {
+          enabled: bottom?.endTurnEnabled ?? (!S.busy && !!cb && !cb.over),
+          bounds: readUI?.endTurn || null,
+        },
+        player: cb ? {
+          hp: cb.player.hp,
+          maxHp: cb.player.maxHp,
+          block: cb.player.block,
+          bounds: readUI?.hero?.bounds || rect('.hero-wrap'),
+        } : null,
+        enemies: cb
+          ? cb.enemies.map((enemy, index) => ({
+            index,
+            key: enemy.key,
+            hp: enemy.hp,
+            maxHp: enemy.maxHp,
+            alive: enemy.hp > 0,
+            bounds: readUI?.enemies?.[index]?.artBounds
+              || (ce?.enemies?.[index]?.art ? rectOf(stageRect(ce.enemies[index].art)) : null),
+          }))
+          : [],
+        hud: readUI?.hud || null,
+        input: input || { enabled: false, dragging: false, pressed: false, gesture: null },
+        textures: {
+          ready: stats?.texturedReady ?? false,
+          loaded: stats?.blockingLoaded ?? 0,
+          expected: stats?.blockingExpected ?? 0,
+        },
+        // Back-compat fields used by Task 22a pixi.spec assertions.
+        model: stats ? {
           hasModel: stats.hasModel,
           version: stats.modelVersion,
-        },
-        textures: {
-          ready: stats.texturedReady,
-          loaded: stats.blockingLoaded,
-          expected: stats.blockingExpected,
-        },
-        interaction: stats.interactionMode,
-        pixi: {
+        } : null,
+        interaction: stats?.interactionMode ?? null,
+        pixi: stats ? {
           state: stats.pixiState,
           generation: stats.pixiGeneration,
           frozen: stats.frozen,
-        },
+        } : null,
       };
     },
     combatRendererStats() {
@@ -285,12 +356,6 @@ export function installProbe({
     },
 
     // -- scenario setup: engine-legal state only -----------------------
-    /**
-     * Bounded core-theme driver for the P2 semantic theme journey.
-     * Validates themeId against injected CORE_CONTENT.themeOrder, creates a
-     * normal core run, sets the act index, regenerates the map, and enters the
-     * first registered normal encounter through the real combat handler.
-     */
     async stageCoreTheme({ themeId, seed } = {}) {
       const order = CORE_CONTENT?.themeOrder;
       if (!Array.isArray(order) || !order.includes(themeId)) {
@@ -349,8 +414,28 @@ export function installProbe({
     },
 
     // -- deterministic presentation switch -----------------------------
-    freeze() {
+    // Task 23 Probe v2: await settle, freeze DOM/scene/VFX, then Pixi.
+    async freeze(options = {}) {
+      if (typeof combat.freezeForProbe === 'function') {
+        return combat.freezeForProbe(options);
+      }
+      await presentationSettled();
       combat.freeze();
+      const renderer = resolveCombatRenderer();
+      if (renderer?.freezeForTest) return renderer.freezeForTest(options);
+      return { frozen: true, cssOnly: true };
+    },
+    async loseRendererContextForTest() {
+      const renderer = resolveCombatRenderer();
+      if (!renderer?.loseContextForTest) {
+        throw new Error('combat renderer does not expose loseContextForTest');
+      }
+      return renderer.loseContextForTest();
+    },
+    async unfreeze() {
+      const renderer = resolveCombatRenderer();
+      if (renderer?.unfreezeForTest) return renderer.unfreezeForTest();
+      return { frozen: false };
     },
   };
 

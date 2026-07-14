@@ -32,13 +32,14 @@ import {
   aimRing, combatantView, heroArt, hudRelic, omenMark, rasterOr,
 } from './assets.js';
 import {
-  stageH, stageInfo, stageRect, stageW, toStage,
+  stageEl, stageH, stageInfo, stageRect, stageW, toStage,
 } from '../stage.js';
 import {
   bfActor, bfEnemyFootY, bfEnemyFrame, bfEnemyZOrder, bfHeroY, bfResolve,
   bfSlots,
 } from '../battlefield.js';
 import { relicBarLayout, uicResolve } from '../uic.js';
+import { createCombatPointerRouter } from './pointer.js';
 
 const runCatalogues = () => contentViewFor(S.run);
 
@@ -72,10 +73,10 @@ export function createCombat({
   const glMount = (...args) => late.combatGlMount?.(...args);
   const glSync = (...args) => late.combatGlSync?.(...args);
   const glActive = () => late.combatGlActive?.() ?? false;
-  // Kindle drop target: proxies sit above .lantern-btn (z:30 vs 24).
-  const LANTERN_DROP = '[data-proxy="lantern"], .lantern-btn';
-
-  // Shared HUD actions — bound to both inert DOM hosts and hit proxies.
+  const glRenderer = () => late.getCombatRenderer?.() ?? null;
+  const tipBridge = () => late.tipBridge || null;
+  // Task 23 — sole stage router owns combat input; #uigl stays inert.
+  let pointerRouter = null;
   const openHudDeck = () => {
     sfx.click();
     showCardGrid(tr('ui.hud.deckTitle'), S.run.player.deck, {
@@ -84,7 +85,7 @@ export function createCombat({
   };
   const openHudMenu = (e) => {
     sfx.click();
-    openMenu(e.clientX, e.clientY);
+    openMenu(e?.clientX ?? 0, e?.clientY ?? 0);
   };
 
   function buildBottomChromeModel(cb) {
@@ -379,7 +380,6 @@ function renderHud() {
   $('[data-act="menu"]', hud).onclick = (e) => { sfx.click(); openMenu(e.clientX, e.clientY); };
   $$('.potion-slot.full', hud).forEach((slot) => (slot.onclick = (e) => potionMenu(+slot.dataset.slot, e)));
   applyUiChromeLayout();
-  if (pixiHud) ensureHudHitProxies();
 }
 function startCombatUI(enemyIds, kind) {
   exitMapMode(); // combat can start without going through show()
@@ -451,16 +451,6 @@ function renderCombat() {
       <span class="lbl">${tr('ui.combat.ashes')}</span>
     </button>
     <div class="hand-zone"></div>
-    <div id="combat-hit-proxies" class="combat-hit-proxies" aria-hidden="true">
-      <button type="button" class="hit-proxy hit-lantern" data-proxy="lantern" aria-label="${tr('ui.combat.lanternTitle')}"></button>
-      <button type="button" class="hit-proxy hit-end-turn" data-proxy="end-turn" aria-label="${tr('ui.combat.end')}"></button>
-      <button type="button" class="hit-proxy hit-draw" data-proxy="draw" aria-label="${tr('ui.combat.drawPileAria')}"></button>
-      <button type="button" class="hit-proxy hit-discard" data-proxy="discard" aria-label="${tr('ui.combat.discardPileAria')}"></button>
-      <button type="button" class="hit-proxy hit-ashes" data-proxy="ashes" aria-label="${tr('ui.combat.ashesPileAria')}"></button>
-      <button type="button" class="hit-proxy hit-deck" data-proxy="deck" aria-label="${tr('ui.hud.deckAria')}"></button>
-      <button type="button" class="hit-proxy hit-menu" data-proxy="menu" aria-label="${tr('ui.hud.menuAria')}"></button>
-      <button type="button" class="hit-proxy hit-omen" data-proxy="omen" aria-label="${tr('ui.hud.omenTitle', { name: 'Omen' })}" hidden></button>
-    </div>
   </div>`;
   const zone = $('.enemy-zone', sc);
   const ce = { enemies: [], root: $('.combat-screen', sc) };
@@ -508,9 +498,7 @@ function renderCombat() {
       body: tr('ui.combat.facetsBody'),
     };
     if (afx) $('.name', box)._tip = { title: tr('ui.combat.affixTitle', { name: afx.name }), body: afx.text };
-    box.onclick = () => onEnemyClick(i);
-    box.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && S.targeting) { box.classList.add('target-hover'); updatePreviews(); } });
-    box.addEventListener('pointerleave', () => { box.classList.remove('target-hover'); updatePreviews(); });
+    // Task 23 — enemy activation goes through the stage pointer router.
   });
   ce.pHp = $('.p-hp', sc); ce.pFill = $('.player-zone .fill', sc); ce.pGhost = $('.player-zone .ghost', sc);
   ce.pBlock = $('.p-block', sc); ce.pStatus = $('.p-status', sc); ce.hero = $('.hero-wrap', sc);
@@ -520,18 +508,6 @@ function renderCombat() {
   ce.energy = $('.energy-orb', sc); ce.endTurn = $('.end-turn', sc); ce.hand = $('.hand-zone', sc);
   ce.draw = $('.pile-draw', sc); ce.discard = $('.pile-discard', sc); ce.exhaust = $('.pile-exhaust', sc);
   ce.lantern = $('.lantern-btn', sc);
-  // Task 22b-1 — interactive proxies for bottom chrome (visuals are Pixi-owned
-  // when combatRenderer is present). Handlers are duplicated so drag/kindle
-  // targeting works whether the DOM chrome or the proxy is under the pointer.
-  ce.proxyHost = $('#combat-hit-proxies', sc);
-  ce.proxyLantern = $('[data-proxy="lantern"]', sc);
-  ce.proxyEndTurn = $('[data-proxy="end-turn"]', sc);
-  ce.proxyDraw = $('[data-proxy="draw"]', sc);
-  ce.proxyDiscard = $('[data-proxy="discard"]', sc);
-  ce.proxyAshes = $('[data-proxy="ashes"]', sc);
-  ce.proxyDeck = $('[data-proxy="deck"]', sc);
-  ce.proxyMenu = $('[data-proxy="menu"]', sc);
-  ce.proxyOmen = $('[data-proxy="omen"]', sc);
   const artId = S.run.art;
   const art = runCatalogues().arts[artId];
   /* primary face = Lantern Art raster (or SVG fallback); cost lives in the tip */
@@ -557,8 +533,6 @@ function renderCombat() {
       sfx.debuff();
     }
   };
-  ce.lantern.onclick = lanternActivate;
-  if (ce.proxyLantern) ce.proxyLantern.onclick = lanternActivate;
   S.ce = ce;
   applyBattlefieldLayout(L);
   rigCombatants();
@@ -570,25 +544,23 @@ function renderCombat() {
     introRoot.classList.remove('intro');
     scheduleChromeClamp();
   }, 1300);
-  ce.endTurn.onclick = onEndTurn;
-  if (ce.proxyEndTurn) ce.proxyEndTurn.onclick = onEndTurn;
   const openDrawPile = () => { sfx.click(); showCardGrid(tr('ui.combat.drawPileTitle'), cb.draw, { sub: tr('ui.combat.drawPileSub'), inCombat: true }); };
   const openDiscardPile = () => { sfx.click(); showCardGrid(tr('ui.combat.discardPileTitle'), cb.discard, { inCombat: true }); };
   const openAshesPile = () => { sfx.click(); showCardGrid(tr('ui.combat.ashesTitle'), cb.exhaust, { sub: tr('ui.combat.ashesSub'), inCombat: true }); };
-  ce.draw.onclick = openDrawPile;
-  ce.discard.onclick = openDiscardPile;
-  ce.exhaust.onclick = openAshesPile;
-  if (ce.proxyDraw) ce.proxyDraw.onclick = openDrawPile;
-  if (ce.proxyDiscard) ce.proxyDiscard.onclick = openDiscardPile;
-  if (ce.proxyAshes) ce.proxyAshes.onclick = openAshesPile;
-  // Task 22b-2 — HUD deck/menu proxies (visuals are Pixi-owned in combat).
-  if (ce.proxyDeck) ce.proxyDeck.onclick = openHudDeck;
-  if (ce.proxyMenu) ce.proxyMenu.onclick = openHudMenu;
-  ensureHudHitProxies();
-  ce.root.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.enemy') || e.target.closest('.card')) return;
-    if (S.targeting) clearTargeting();
-    else if (S.hoveredCard != null) { S.hoveredCard = null; layoutHand(); } // tap the stage to set the pane back down
+  // DOM chrome click handlers remain as a non-Pixi fallback; the stage router
+  // owns the interactive path whenever the combat renderer is active.
+  if (!glActive()) {
+    ce.lantern.onclick = lanternActivate;
+    ce.endTurn.onclick = onEndTurn;
+    ce.draw.onclick = openDrawPile;
+    ce.discard.onclick = openDiscardPile;
+    ce.exhaust.onclick = openAshesPile;
+  }
+  installCombatPointerRouter({
+    lanternActivate,
+    openDrawPile,
+    openDiscardPile,
+    openAshesPile,
   });
   // startCombat already queued opening draws — hide seats + restore pile chrome first
   armQueuedDrawPending(cb);
@@ -686,159 +658,7 @@ function applyUiChromeLayout() {
   place(S.ce.discard, L.discard);
   place(S.ce.exhaust, L.ashes);
   if (S.ce.hand && L.hand) applyHandZoneLayout(L.hand);
-  placeHitProxies(L);
   glSync(buildPresentationModel('apply-ui-chrome'));
-}
-
-/** Position transparent hit proxies over the Pixi-painted bottom chrome. */
-function placeHitProxies(L) {
-  const ce = S.ce;
-  if (!ce?.proxyHost) return;
-  const put = (el, w) => {
-    if (!el) return;
-    if (!w) { el.style.display = 'none'; return; }
-    el.style.display = '';
-    el.style.top = '';
-    if (w.left !== undefined) { el.style.left = `${w.left}px`; el.style.right = ''; }
-    else if (w.right !== undefined) { el.style.right = `${w.right}px`; el.style.left = ''; }
-    if (w.bottom !== undefined) el.style.bottom = `${w.bottom}px`;
-    if (w.top !== undefined) { el.style.top = `${w.top}px`; el.style.bottom = ''; }
-    if (w.w !== undefined) el.style.width = `${w.w}px`;
-    if (w.h !== undefined) el.style.height = `${w.h}px`;
-  };
-  put(ce.proxyLantern, L.lantern);
-  put(ce.proxyEndTurn, L.endTurn);
-  put(ce.proxyDraw, L.draw);
-  put(ce.proxyDiscard, L.discard);
-  put(ce.proxyAshes, L.ashes);
-  placeHudHitProxies();
-}
-
-/** Map a DOM node's stage-px box onto a hit-proxy button (top/left sizing). */
-function placeProxyOverDom(proxy, node) {
-  if (!proxy) return;
-  if (!node || !node.isConnected) {
-    proxy.style.display = 'none';
-    proxy.hidden = true;
-    return;
-  }
-  const r = stageRect(node);
-  if (!(r.width > 0 && r.height > 0)) {
-    proxy.style.display = 'none';
-    proxy.hidden = true;
-    return;
-  }
-  proxy.hidden = false;
-  proxy.style.display = '';
-  proxy.style.left = `${Math.round(r.left)}px`;
-  proxy.style.top = `${Math.round(r.top)}px`;
-  proxy.style.right = '';
-  proxy.style.bottom = '';
-  proxy.style.width = `${Math.round(r.width)}px`;
-  proxy.style.height = `${Math.round(r.height)}px`;
-}
-
-/** Bridge a DOM tip target onto its hit proxy so hover/focus still work
- *  while `#hud.pixi-hud-chrome` is pointer-inert and paint is hidden. */
-function bridgeProxyTip(proxy, tipSource) {
-  if (!proxy) return;
-  if (tipSource?._tip) proxy._tip = tipSource._tip;
-  else delete proxy._tip;
-}
-
-/** Ensure potion/relic proxy buttons exist for the current HUD contents. */
-function ensureHudHitProxies() {
-  const ce = S.ce;
-  const host = ce?.proxyHost;
-  if (!host || !glActive() || S.screen !== 'combat') return;
-  const hud = $('#hud');
-  if (!hud) return;
-
-  const ensureProxy = (key, aria) => {
-    let node = host.querySelector(`[data-proxy="${key}"]`);
-    if (!node) {
-      node = el('button', `hit-proxy hit-${key}`);
-      node.type = 'button';
-      node.dataset.proxy = key;
-      if (aria) node.setAttribute('aria-label', aria);
-      host.appendChild(node);
-    }
-    return node;
-  };
-
-  // Deck / menu — rebind every HUD refresh so proxies stay usable after
-  // renderHud() rebuilds the inert layout hosts.
-  if (ce.proxyDeck) ce.proxyDeck.onclick = openHudDeck;
-  if (ce.proxyMenu) ce.proxyMenu.onclick = openHudMenu;
-
-  // Potions
-  $$('.potion-slot', hud).forEach((slot) => {
-    const i = +slot.dataset.slot;
-    const key = `potion-${i}`;
-    const proxy = ensureProxy(key, slot._tip?.title || tr('ui.hud.potionTip'));
-    bridgeProxyTip(proxy, slot);
-    proxy.onclick = (e) => {
-      if (!slot.classList.contains('full')) return;
-      potionMenu(i, e);
-    };
-  });
-  // Drop stale potion proxies
-  [...host.querySelectorAll('[data-proxy^="potion-"]')].forEach((proxy) => {
-    const i = Number(String(proxy.dataset.proxy).slice('potion-'.length));
-    if (!hud.querySelector(`.potion-slot[data-slot="${i}"]`)) proxy.remove();
-  });
-
-  // Relics — tip-only (no click action); bridge _tip onto the proxy.
-  $$('.hud-relic', hud).forEach((chip, index) => {
-    const rid = chip.dataset.relic || `relic-${index}`;
-    const key = `relic-${rid}`;
-    const proxy = ensureProxy(key, chip._tip?.title || rid);
-    bridgeProxyTip(proxy, chip);
-    proxy.onclick = null;
-  });
-  const liveRelicKeys = new Set(
-    [...$$('.hud-relic', hud)].map((chip, index) => `relic-${chip.dataset.relic || `relic-${index}`}`),
-  );
-  [...host.querySelectorAll('[data-proxy^="relic-"]')].forEach((proxy) => {
-    if (!liveRelicKeys.has(proxy.dataset.proxy)) proxy.remove();
-  });
-
-  // Omen — tip-only.
-  const omenChip = $('#omen-slot', hud)?.firstElementChild;
-  if (ce.proxyOmen) {
-    if (omenChip?._tip?.title) {
-      ce.proxyOmen.setAttribute('aria-label', omenChip._tip.title);
-    }
-    bridgeProxyTip(ce.proxyOmen, omenChip);
-    ce.proxyOmen.onclick = null;
-  }
-
-  placeHudHitProxies();
-}
-
-function placeHudHitProxies() {
-  const ce = S.ce;
-  if (!ce?.proxyHost || !glActive() || S.screen !== 'combat') return;
-  const hud = $('#hud');
-  if (!hud?.classList.contains('pixi-hud-chrome')) return;
-
-  placeProxyOverDom(ce.proxyDeck, $('[data-act="deck"]', hud));
-  placeProxyOverDom(ce.proxyMenu, $('[data-act="menu"]', hud));
-  placeProxyOverDom(ce.proxyOmen, $('#omen-slot', hud)?.firstElementChild || $('#omen-slot', hud));
-
-  $$('.potion-slot', hud).forEach((slot) => {
-    const proxy = ce.proxyHost.querySelector(`[data-proxy="potion-${slot.dataset.slot}"]`);
-    placeProxyOverDom(proxy, slot);
-    bridgeProxyTip(proxy, slot);
-  });
-  $$('.hud-relic', hud).forEach((chip, index) => {
-    const rid = chip.dataset.relic || `relic-${index}`;
-    const proxy = ce.proxyHost.querySelector(`[data-proxy="relic-${rid}"]`);
-    placeProxyOverDom(proxy, chip);
-    bridgeProxyTip(proxy, chip);
-  });
-  const omenChip = $('#omen-slot', hud)?.firstElementChild;
-  bridgeProxyTip(ce.proxyOmen, omenChip);
 }
 
 /** Hand left/right = offset from stage-centred fan box (0 = centred). Width hugs cards. */
@@ -1034,10 +854,9 @@ function scheduleChromeClamp() {
     chromeClampRaf = 0;
     clampCombatChrome();
     // Task 22b-2: plate Pixi paint mirrors packer-adjusted DOM anchors.
-    if (glActive() && S.screen === 'combat' && S.cb) {
-      glSync(buildPresentationModel('chrome-clamp'));
-      placeHudHitProxies();
-    }
+      if (glActive() && S.screen === 'combat' && S.cb) {
+        glSync(buildPresentationModel('chrome-clamp'));
+      }
   });
 }
 
@@ -1348,12 +1167,11 @@ function syncHand() {
         }
         // landAt null / queued only: stay pending until draw-wave segment arms the timer
       }
-      c.onclick = (e) => { e.stopPropagation(); onCardClick(inst.uid); };
+      // Task 23 — click/drag owned by the stage pointer router (not per-card listeners).
       if (FINE) {
         c.onmouseenter = () => { S.hoveredCard = inst.uid; sfx.hover(); layoutHand(); };
         c.onmouseleave = () => { if (S.hoveredCard === inst.uid) S.hoveredCard = null; layoutHand(); };
       }
-      bindCardDrag(c, inst.uid);
       wrap.appendChild(c);
     } else {
       // refresh cost/text (str/dex/duskmirror can change display)
@@ -1363,10 +1181,11 @@ function syncHand() {
         .filter((k) => old.classList.contains(k));
       old.replaceChildren(...fresh.childNodes);
       old.className = [fresh.className, ...keep].filter(Boolean).join(' ');
-      old.onclick = (e) => { e.stopPropagation(); onCardClick(inst.uid); };
       if (FINE) {
         old.onmouseenter = () => { S.hoveredCard = inst.uid; layoutHand(); };
         old.onmouseleave = () => { if (S.hoveredCard === inst.uid) S.hoveredCard = null; layoutHand(); };
+      } else {
+        old.onclick = null;
       }
     }
   }
@@ -1414,98 +1233,221 @@ function layoutHand() {
   updatePreviews();
   scheduleChromeClamp();
 }
-// ---- drag-to-play: press a pane, drag it up, the arc springs from your hand;
-// release on a foe to strike, release low to think better of it. One motion.
+// ---- Task 23: stage pointer router owns drag-to-play / chrome / enemies ----
 let dragConsumedAt = 0;
-function bindCardDrag(c, uid) {
-  c.addEventListener('pointerdown', (e) => {
-    if (S.busy || !S.cb || S.cb.over || !e.isPrimary || S.drag) return;
-    S.drag = { uid, id: e.pointerId, x0: e.clientX, y0: e.clientY, live: false, free: false };
-    try { c.setPointerCapture(e.pointerId); } catch { /* card may vanish mid-gesture */ }
-  });
-  c.addEventListener('pointermove', (e) => {
-    const st = S.drag;
-    if (!st || st.uid !== uid || e.pointerId !== st.id) return;
-    if (!st.live) {
-      if (st.y0 - e.clientY > 26) beginCardDrag(st, c);
-      return;
-    }
-    if (st.free) {
-      const p = toStage(e.clientX, e.clientY);
-      const zr = S.ce?.hand ? stageRect(S.ce.hand) : null;
-      const cx = zr && zr.width > 2 ? zr.left + zr.width / 2 : stageW() / 2;
-      c.style.transform = `translate(calc(-50% + ${p.x - cx}px), ${p.y - stageH() + 130}px) scale(1.12)`;
-      const overL = !!underPointer(e.clientX, e.clientY)?.closest(LANTERN_DROP);
-      c.classList.toggle('will-burn', overL);
-      c.classList.toggle('will-cast', !st.kindleOnly && !overL && p.y < castLine());
-    } else {
-      aimMove(e);
-      hoverEnemyAt(e.clientX, e.clientY);
-    }
-  });
-  const finish = (e, cancelled) => {
-    const st = S.drag;
-    if (!st || st.uid !== uid || e.pointerId !== st.id) return;
-    // Capture last on-screen seat (incl. free-drag transform) before chrome resets
-    if (!cancelled && st.live) captureCardAnchor(uid, c, { fromDrag: true });
-    S.drag = null;
-    if (!st.live) return;
-    dragConsumedAt = performance.now();
-    c.classList.remove('dragging', 'will-cast', 'will-burn');
-    S.ce?.lantern?.classList.remove('kindle-target');
-    if (cancelled) {
-      st.traceSpan?.finish('cancelled', { reason: 'pointer-cancelled' });
-      clearTargeting(); layoutHand(); return;
-    }
-    // Release over the lantern proxy (or DOM .lantern-btn) to kindle
-    const overLantern = underPointer(e.clientX, e.clientY)?.closest(LANTERN_DROP);
-    if (overLantern) {
-      const inst = S.cb.hand.find((x) => x.uid === uid);
-      if (inst && E.canKindle(S.run, S.cb, inst)) {
-        st.traceSpan?.finish('completed', { reason: 'kindled' });
-        clearTargeting(); doKindle(uid); return;
-      }
-      st.traceSpan?.finish('cancelled', { reason: 'invalid-lantern-drop' });
-      clearTargeting(); layoutHand(); return;
-    }
-    if (st.kindleOnly) {
-      st.traceSpan?.finish('cancelled', { reason: 'kindle-only-drop' });
-      S.hoveredCard = null; layoutHand(); return;
-    } // nowhere else to go
-    if (st.free) {
-      if (toStage(e.clientX, e.clientY).y < castLine()) {
-        st.traceSpan?.finish('completed', { reason: 'card-play' });
-        doPlay(uid, null);
-      } else {
-        st.traceSpan?.finish('cancelled', { reason: 'below-cast-line' });
-        S.hoveredCard = null; layoutHand();
-      }
-      return;
-    }
-    const en = document.elementFromPoint(e.clientX, e.clientY)?.closest('.enemy');
-    const idx = en ? +en.dataset.idx : -1;
-    const living = S.cb.enemies.filter((x) => x.hp > 0);
-    if (idx >= 0 && S.cb.enemies[idx].hp > 0) {
-      st.traceSpan?.finish('completed', { reason: 'card-play' });
-      doPlay(uid, idx);
-    } else if (living.length === 1 && toStage(e.clientX, e.clientY).y < castLine()) {
-      st.traceSpan?.finish('completed', { reason: 'card-play' });
-      doPlay(uid, living[0].idx); // one foe: releasing high is aim enough
-    } else {
-      st.traceSpan?.finish('cancelled', { reason: 'invalid-target' });
-      clearTargeting(); layoutHand();
-    }
+
+function cardSeatBounds(el) {
+  if (!el) return null;
+  const r = stageRect(el);
+  return {
+    left: r.left, top: r.top, right: r.right, bottom: r.bottom,
+    width: r.width, height: r.height,
   };
-  c.addEventListener('pointerup', (e) => finish(e, false));
-  c.addEventListener('pointercancel', (e) => finish(e, true));
 }
+
+function overLanternAt(clientX, clientY) {
+  const pt = toStage(clientX, clientY);
+  const hit = glRenderer()?.hitTest?.(pt.x, pt.y);
+  if (hit && (hit.kind === 'lantern' || hit.type === 'lantern')) return true;
+  return !!underPointer(clientX, clientY)?.closest('.lantern-btn');
+}
+
+function installCombatPointerRouter({
+  lanternActivate, openDrawPile, openDiscardPile, openAshesPile,
+} = {}) {
+  if (pointerRouter) {
+    try { pointerRouter.destroy(); } catch { /* prior router already gone */ }
+    pointerRouter = null;
+  }
+  const domHandAdapter = {
+    hitTest(stagePt) {
+      const hand = S.ce?.hand;
+      if (!hand) return null;
+      const cards = [...$$('.card', hand)].reverse();
+      for (const el of cards) {
+        if (el.classList.contains('draw-pending')) continue;
+        const bounds = cardSeatBounds(el);
+        if (!bounds) continue;
+        if (stagePt.x < bounds.left || stagePt.x > bounds.right) continue;
+        if (stagePt.y < bounds.top || stagePt.y > bounds.bottom) continue;
+        return {
+          kind: 'card',
+          uid: Number(el.dataset.uid),
+          el,
+          seatBounds: bounds,
+        };
+      }
+      return null;
+    },
+  };
+  const targetRegions = () => {
+    if (!S.ce || !S.cb) return { enemies: [], hero: null };
+    const enemies = S.cb.enemies.map((en, index) => {
+      if (en.hp <= 0) return null;
+      const art = S.ce.enemies[index]?.art;
+      if (!art) return null;
+      return { index, bounds: cardSeatBounds(art) };
+    }).filter(Boolean);
+    return {
+      enemies,
+      hero: S.ce.hero ? { bounds: cardSeatBounds(S.ce.hero) } : null,
+    };
+  };
+  const actions = {
+    tapBackground() {
+      if (S.targeting) clearTargeting();
+      else if (S.hoveredCard != null) { S.hoveredCard = null; layoutHand(); }
+    },
+    clickCard(uid) { onCardClick(uid); },
+    beginCardDrag(st) {
+      const c = st.el || $(`.card[data-uid="${st.uid}"]`, S.ce?.hand);
+      if (!c) return false;
+      st.el = c;
+      st.seatBounds = cardSeatBounds(c);
+      S.drag = st;
+      const ok = beginCardDrag(st, c);
+      st.cardId = S.cb?.hand?.find((x) => x.uid === st.uid)?.id;
+      return ok !== false && !!st.live;
+    },
+    moveCardDrag(st, e) {
+      const c = st.el;
+      if (!c || !st.live) return;
+      if (st.free) {
+        const p = toStage(e.clientX, e.clientY);
+        const zr = S.ce?.hand ? stageRect(S.ce.hand) : null;
+        const cx = zr && zr.width > 2 ? zr.left + zr.width / 2 : stageW() / 2;
+        c.style.transform = `translate(calc(-50% + ${p.x - cx}px), ${p.y - stageH() + 130}px) scale(1.12)`;
+        const overL = overLanternAt(e.clientX, e.clientY);
+        c.classList.toggle('will-burn', overL);
+        c.classList.toggle('will-cast', !st.kindleOnly && !overL && p.y < castLine());
+      } else {
+        aimMove(e);
+        hoverEnemyAt(e.clientX, e.clientY);
+      }
+    },
+    cancelCardDrag(st) {
+      const c = st.el || $(`.card[data-uid="${st.uid}"]`, S.ce?.hand);
+      S.drag = null;
+      dragConsumedAt = performance.now();
+      c?.classList.remove('dragging', 'will-cast', 'will-burn');
+      S.ce?.lantern?.classList.remove('kindle-target');
+      clearTargeting();
+      S.hoveredCard = null;
+      // Drop any pending clamp so layoutHand restores against a stable hand zone,
+      // then clamp once synchronously — matches the pre-drag resting seat.
+      if (chromeClampRaf) { cancelAnimationFrame(chromeClampRaf); chromeClampRaf = 0; }
+      layoutHand();
+      clampCombatChrome();
+    },
+    cancelCardPress() { /* press without drag — nothing to restore */ },
+    finishCardDrag(st, e) {
+      const uid = st.uid;
+      const c = st.el || $(`.card[data-uid="${uid}"]`, S.ce?.hand);
+      captureCardAnchor(uid, c, { fromDrag: true });
+      S.drag = null;
+      dragConsumedAt = performance.now();
+      c?.classList.remove('dragging', 'will-cast', 'will-burn');
+      S.ce?.lantern?.classList.remove('kindle-target');
+      if (overLanternAt(e.clientX, e.clientY)) {
+        const inst = S.cb.hand.find((x) => x.uid === uid);
+        if (inst && E.canKindle(S.run, S.cb, inst)) {
+          clearTargeting(); doKindle(uid);
+          return { reason: 'kindled' };
+        }
+        clearTargeting(); layoutHand();
+        return { cancelled: true, reason: 'invalid-lantern-drop' };
+      }
+      if (st.kindleOnly) {
+        S.hoveredCard = null; layoutHand();
+        return { cancelled: true, reason: 'kindle-only-drop' };
+      }
+      if (st.free) {
+        if (toStage(e.clientX, e.clientY).y < castLine()) {
+          doPlay(uid, null);
+          return { reason: 'card-play' };
+        }
+        S.hoveredCard = null; layoutHand();
+        return { cancelled: true, reason: 'below-cast-line' };
+      }
+      const stagePt = toStage(e.clientX, e.clientY);
+      const regions = targetRegions().enemies || [];
+      let idx = -1;
+      for (const entry of regions) {
+        const b = entry.bounds;
+        if (!b) continue;
+        if (stagePt.x >= b.left && stagePt.x <= b.right && stagePt.y >= b.top && stagePt.y <= b.bottom) {
+          idx = entry.index;
+          break;
+        }
+      }
+      if (idx < 0) {
+        const en = document.elementFromPoint(e.clientX, e.clientY)?.closest('.enemy');
+        idx = en ? +en.dataset.idx : -1;
+      }
+      const living = S.cb.enemies.filter((x) => x.hp > 0);
+      if (idx >= 0 && S.cb.enemies[idx].hp > 0) {
+        doPlay(uid, idx);
+        return { reason: 'card-play' };
+      }
+      if (living.length === 1 && stagePt.y < castLine()) {
+        doPlay(uid, living[0].idx);
+        return { reason: 'card-play' };
+      }
+      clearTargeting(); layoutHand();
+      return { cancelled: true, reason: 'invalid-target' };
+    },
+    lantern: () => lanternActivate?.(),
+    endTurn: () => onEndTurn(),
+    openPile: (name) => {
+      if (name === 'draw') openDrawPile?.();
+      else if (name === 'discard') openDiscardPile?.();
+      else if (name === 'ashes') openAshesPile?.();
+    },
+    openDeck: () => openHudDeck(),
+    openMenu: (e) => openHudMenu(e),
+    potion: (slot, e) => {
+      const node = $(`.potion-slot[data-slot="${slot}"]`);
+      if (!node?.classList.contains('full')) return;
+      potionMenu(slot, e);
+    },
+    enemyClick: (index) => onEnemyClick(index),
+    enemyHover: (index, on) => {
+      const box = S.ce?.enemies?.[index]?.root;
+      if (!box) return;
+      if (on && S.targeting) {
+        box.classList.add('target-hover');
+        updatePreviews();
+      } else {
+        box.classList.remove('target-hover');
+        updatePreviews();
+      }
+    },
+  };
+  pointerRouter = createCombatPointerRouter({
+    stage: () => stageEl(),
+    toStage,
+    renderer: glRenderer(),
+    domHandAdapter,
+    targetRegions,
+    actions,
+    tooltip: tipBridge(),
+    trace,
+  });
+  pointerRouter.enable();
+  if (S.ce) S.ce.pointerRouter = pointerRouter;
+}
+
+function bindCardDrag() {
+  // Task 23 — retained name for inventory scans; listeners live on the stage router.
+}
+
 const castLine = () => (S.ce?.hand ? stageRect(S.ce.hand).top - 24 : stageH() - 260); // stage px
 // what's under the finger, looking through the card being dragged
 const underPointer = (x, y) => document.elementsFromPoint(x, y).find((el) => !el.closest('.card'));
 function beginCardDrag(st, c) {
   const cb = S.cb;
   const inst = cb.hand.find((x) => x.uid === st.uid);
-  if (!inst) { S.drag = null; return; }
+  if (!inst) { S.drag = null; return false; }
   const d = E.cardData(inst, S.run);
   if (d.unplayable || E.effCost(S.run, cb, inst) > cb.player.energy) {
     // unplayable panes can still be fuel: the drag lives, but only the lantern will take it
@@ -1513,21 +1455,19 @@ function beginCardDrag(st, c) {
       st.live = true;
       st.free = true;
       st.kindleOnly = true;
-      st.traceSpan = trace.begin('input.card-drag', { attributes: { cardId: inst.id } });
       S.hoveredCard = null;
       sfx.hover();
       c.classList.add('dragging');
       S.ce?.lantern?.classList.add('kindle-target');
-      return;
+      return true;
     }
     S.drag = null;
     c.classList.add('nope');
     setTimeout(() => c.classList.remove('nope'), 350);
     sfx.debuff();
-    return;
+    return false;
   }
   st.live = true;
-  st.traceSpan = trace.begin('input.card-drag', { attributes: { cardId: inst.id } });
   S.hoveredCard = null;
   sfx.hover();
   if (E.canKindle(S.run, cb, inst)) S.ce?.lantern?.classList.add('kindle-target');
@@ -1537,6 +1477,7 @@ function beginCardDrag(st, c) {
     clearTargeting();
     c.classList.add('dragging');
   }
+  return true;
 }
 async function doKindle(uid) {
   const kindleSpan = trace.begin('input.kindle', { attributes: { action: 'card-kindle' } });
@@ -1693,7 +1634,7 @@ function setTargeting(t) {
   S.ce.root.classList.add('targeting');
   S.cb.enemies.forEach((e, i) => S.ce.enemies[i].root.classList.toggle('targetable', e.hp > 0));
   layoutHand();
-  document.addEventListener('pointermove', aimMove);
+  // Task 23 — aiming follows the stage router pointermove exclusively.
   if (aimMove._last) aimMove(aimMove._last);
   else {
     // touch has no cursor between taps: open the arc onto the nearest foe
@@ -1708,7 +1649,6 @@ function clearTargeting() {
     outcome: 'cancelled', attributes: { kind: previousTargeting.kind },
   });
   $('#aim').innerHTML = '';
-  document.removeEventListener('pointermove', aimMove);
   meshAimClear();
   if (S.ce) {
     S.ce.root.classList.remove('targeting');
@@ -2533,6 +2473,28 @@ function freeze() {
   freezeScene();
 }
 
+function pointerState() {
+  return pointerRouter?.state?.() || null;
+}
+
+async function freezeForProbe(options = {}) {
+  // Wait for engine queue + presentation barrier, then freeze DOM/scene/VFX
+  // and delegate the Pixi tick freeze to the combat renderer.
+  const done = () => !S.busy
+    && (!S.cb || S.cb.queue.length === 0)
+    && presentationBarrier.activeCount() === 0;
+  await new Promise((resolve) => {
+    const check = () => (done() ? resolve(true) : setTimeout(check, 16));
+    check();
+  });
+  freeze();
+  const renderer = glRenderer();
+  if (renderer && typeof renderer.freezeForTest === 'function') {
+    return renderer.freezeForTest(options);
+  }
+  return { frozen: true, cssOnly: true };
+}
+
 function startRig() {
   requestAnimationFrame(rigTick);
 }
@@ -2596,6 +2558,8 @@ return Object.freeze({
   flyTo,
   tweenNum,
   freeze,
+  freezeForProbe,
+  pointerState,
   startRig,
   drainHandlers,
 });
