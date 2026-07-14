@@ -90,15 +90,27 @@ export function installProbe({
           $$('.card', ce.hand).length === cb.hand.length,
           `dom=${$$('.card', ce.hand).length} engine=${cb.hand.length}`,
         );
+        // Task 22b-1: bottom chrome is Pixi-owned when the combat renderer is
+        // active — DOM numbers may be blank because their nodes were painted
+        // over. Read from the presentation model in that case.
+        const gl = resolveCombatRenderer?.();
+        const glModel = gl && typeof gl.sync === 'function' ? gl.sync() : null;
+        const pixiOwned = !!(glModel && glModel.bottomChrome);
+        const energyReading = pixiOwned
+          ? Number(glModel.bottomChrome.energy)
+          : Number($('.num', ce.energy).textContent);
         add(
-          'energy: orb matches engine',
-          $('.num', ce.energy).textContent === String(cb.player.energy),
-          `dom="${$('.num', ce.energy).textContent}" engine=${cb.player.energy}`,
+          'energy: reading matches engine',
+          Number.isFinite(energyReading) && energyReading === cb.player.energy,
+          `${pixiOwned ? 'pixi' : 'dom'}=${energyReading} engine=${cb.player.energy}`,
         );
+        const emberReading = pixiOwned
+          ? Number(glModel.bottomChrome.embers)
+          : Number($('.lb-count', ce.lantern).textContent);
         add(
-          'embers: lantern count matches engine',
-          $('.lb-count', ce.lantern).textContent === String(cb.embers),
-          `dom="${$('.lb-count', ce.lantern).textContent}" engine=${cb.embers}`,
+          'embers: reading matches engine',
+          Number.isFinite(emberReading) && emberReading === cb.embers,
+          `${pixiOwned ? 'pixi' : 'dom'}=${emberReading} engine=${cb.embers}`,
         );
       }
       const failures = results.filter((item) => !item.pass);

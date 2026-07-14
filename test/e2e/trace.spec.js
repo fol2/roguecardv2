@@ -231,7 +231,9 @@ test('real screen, cancelled drag and card play expose semantic owner order', as
   await settle(page);
   await page.evaluate(() => { window.__probe.setEmbers(9); });
   const artBefore = await page.evaluate(() => window.spirebound.S.cb.embers);
-  await page.locator('.lantern-btn').click();
+  // Task 22b-1: the Pixi bottom chrome parks a transparent hit proxy over the
+  // DOM lantern; either firing point invokes the same lanternActivate handler.
+  await page.locator('[data-proxy="lantern"], .lantern-btn').first().click({ force: true });
   await settle(page);
   const artAfter = await page.evaluate(() => ({
     artUsedTurn: window.spirebound.S.cb.artUsedTurn,
@@ -348,7 +350,7 @@ test('drain recovery reconstructs card flights without live seats or anchors', a
     return { exhaust: exhaustInst.uid, discardHand: discarded.uid, toDiscard: played.uid };
   });
 
-  await page.locator('.end-turn').click();
+  await page.locator('[data-proxy="end-turn"], .end-turn').first().click({ force: true });
   await settle(page);
   const result = await page.evaluate(() => ({
     busy: window.spirebound.S.busy,

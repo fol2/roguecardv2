@@ -68,11 +68,45 @@ export function createCombat({
   } = overlay;
   const show = (...args) => late.show(...args);
   const transition = (...args) => late.transition(...args);
-  // Task 22a — dual-write seam. The composition root installs the Pixi combat
-  // renderer after `initUI` boots the Pixi layer; combat calls into it via the
-  // `late` bag so the eager createCombat construction stays synchronous.
+  // Task 22a seam / Task 22b-1 dual-write. The composition root installs the
+  // Pixi combat renderer after `initUI` boots the Pixi layer; combat calls
+  // into it via the `late` bag so the eager createCombat construction stays
+  // synchronous.
   const glMount = (...args) => late.combatGlMount?.(...args);
   const glSync = (...args) => late.combatGlSync?.(...args);
+  const glActive = () => late.combatGlActive?.() ?? false;
+
+  function pileTierValue(count) {
+    const n = Math.max(0, Math.floor(Number(count) || 0));
+    if (n <= 0) return 0;
+    if (n >= 5) return 5;
+    return n;
+  }
+  function buildBottomChromeModel(cb) {
+    const energy = cb.player.energy ?? 0;
+    const energyMax = cb.player.energyMax ?? 0;
+    const drawN = Math.max(0, cb.draw.length - (pileVisualHold.draw || 0));
+    const discardN = Math.max(0, cb.discard.length - (pileVisualHold.discard || 0));
+    const ashesN = Math.max(0, cb.exhaust.length - (pileVisualHold.ashes || 0));
+    const ov = pileVisualOverride || null;
+    const finalDraw = ov?.draw != null ? ov.draw : drawN;
+    const finalDiscard = ov?.discard != null ? ov.discard : discardN;
+    return {
+      energy,
+      energyMax,
+      candles: energySlotStates(energy, energyMax),
+      embers: cb.embers ?? 0,
+      emberCap: cb.emberCap ?? 9,
+      lanternReady: S.run ? !!E.canUseArt(S.run, cb) : false,
+      lanternArtSpent: cb.artUsedTurn === cb.turn && !cb.over,
+      endTurnEnabled: energy === 0 && !cb.over && !S.busy,
+      piles: {
+        draw: { count: finalDraw, tier: pileTierValue(finalDraw) },
+        discard: { count: finalDiscard, tier: pileTierValue(finalDiscard) },
+        ashes: { count: ashesN, tier: pileTierValue(ashesN) },
+      },
+    };
+  }
   function buildPresentationModel(phase) {
     const cb = S.cb;
     if (!cb) {
@@ -115,6 +149,9 @@ export function createCombat({
       },
       embers: cb.embers ?? 0,
       turn: cb.turn ?? 0,
+      // Task 22b-1 — bottom interactive chrome state (energy/candles/lantern/
+      // end-turn/piles). Higher-layer widgets (HUD/plates/hand) still DOM-owned.
+      bottomChrome: buildBottomChromeModel(cb),
     };
   }
 
@@ -262,7 +299,9 @@ function renderCombat() {
   const glow = theme?.legacyAct?.theme?.glow ?? 0x66ff9e;
   const ledge = `#${glow.toString(16).padStart(6, '0')}`;
   const plates = theme?.plates || {};
-  sc.innerHTML = `<div class="combat-screen screen-enter intro" style="--ledge:${ledge}">
+  const pixiActive = glActive();
+  const combatScreenClass = `combat-screen screen-enter intro${pixiActive ? ' pixi-bottom-chrome' : ''}`;
+  sc.innerHTML = `<div class="${combatScreenClass}" style="--ledge:${ledge}">
     ${['backdrop', 'mid', 'ledge'].map((l) => {
       const u = assetUrl('stage', plates[l]);
       return u ? `<img class="sl sl-${l}" src="${u}" alt="" aria-hidden="true">` : '';
@@ -304,6 +343,13 @@ function renderCombat() {
       <span class="lbl">${tr('ui.combat.ashes')}</span>
     </button>
     <div class="hand-zone"></div>
+    <div id="combat-hit-proxies" class="combat-hit-proxies" aria-hidden="true">
+      <button type="button" class="hit-proxy hit-lantern" data-proxy="lantern" aria-label="${tr('ui.combat.lanternTitle')}"></button>
+      <button type="button" class="hit-proxy hit-end-turn" data-proxy="end-turn" aria-label="${tr('ui.combat.end')}"></button>
+      <button type="button" class="hit-proxy hit-draw" data-proxy="draw" aria-label="${tr('ui.combat.drawPileAria')}"></button>
+      <button type="button" class="hit-proxy hit-discard" data-proxy="discard" aria-label="${tr('ui.combat.discardPileAria')}"></button>
+      <button type="button" class="hit-proxy hit-ashes" data-proxy="ashes" aria-label="${tr('ui.combat.ashesPileAria')}"></button>
+    </div>
   </div>`;
   const zone = $('.enemy-zone', sc);
   const ce = { enemies: [], root: $('.combat-screen', sc) };
@@ -363,6 +409,15 @@ function renderCombat() {
   ce.energy = $('.energy-orb', sc); ce.endTurn = $('.end-turn', sc); ce.hand = $('.hand-zone', sc);
   ce.draw = $('.pile-draw', sc); ce.discard = $('.pile-discard', sc); ce.exhaust = $('.pile-exhaust', sc);
   ce.lantern = $('.lantern-btn', sc);
+  // Task 22b-1 — interactive proxies for bottom chrome (visuals are Pixi-owned
+  // when combatRenderer is present). Handlers are duplicated so drag/kindle
+  // targeting works whether the DOM chrome or the proxy is under the pointer.
+  ce.proxyHost = $('#combat-hit-proxies', sc);
+  ce.proxyLantern = $('[data-proxy="lantern"]', sc);
+  ce.proxyEndTurn = $('[data-proxy="end-turn"]', sc);
+  ce.proxyDraw = $('[data-proxy="draw"]', sc);
+  ce.proxyDiscard = $('[data-proxy="discard"]', sc);
+  ce.proxyAshes = $('[data-proxy="ashes"]', sc);
   const artId = S.run.art;
   const art = runCatalogues().arts[artId];
   /* primary face = Lantern Art raster (or SVG fallback); cost lives in the tip */
@@ -379,7 +434,7 @@ function renderCombat() {
     body: `${art ? tr('ui.combat.lanternBodyLead', { cost: art.cost, text: art.text }) : ''}${tr('ui.combat.lanternBody')}`,
     sub: tr('ui.combat.lanternSub'),
   };
-  ce.lantern.onclick = async () => {
+  const lanternActivate = async () => {
     if (S.busy || !S.cb || S.cb.over) return;
     unlock();
     if (!await useLanternArt()) {
@@ -388,6 +443,8 @@ function renderCombat() {
       sfx.debuff();
     }
   };
+  ce.lantern.onclick = lanternActivate;
+  if (ce.proxyLantern) ce.proxyLantern.onclick = lanternActivate;
   S.ce = ce;
   applyBattlefieldLayout(L);
   rigCombatants();
@@ -400,9 +457,16 @@ function renderCombat() {
     scheduleChromeClamp();
   }, 1300);
   ce.endTurn.onclick = onEndTurn;
-  ce.draw.onclick = () => { sfx.click(); showCardGrid(tr('ui.combat.drawPileTitle'), cb.draw, { sub: tr('ui.combat.drawPileSub'), inCombat: true }); };
-  ce.discard.onclick = () => { sfx.click(); showCardGrid(tr('ui.combat.discardPileTitle'), cb.discard, { inCombat: true }); };
-  ce.exhaust.onclick = () => { sfx.click(); showCardGrid(tr('ui.combat.ashesTitle'), cb.exhaust, { sub: tr('ui.combat.ashesSub'), inCombat: true }); };
+  if (ce.proxyEndTurn) ce.proxyEndTurn.onclick = onEndTurn;
+  const openDrawPile = () => { sfx.click(); showCardGrid(tr('ui.combat.drawPileTitle'), cb.draw, { sub: tr('ui.combat.drawPileSub'), inCombat: true }); };
+  const openDiscardPile = () => { sfx.click(); showCardGrid(tr('ui.combat.discardPileTitle'), cb.discard, { inCombat: true }); };
+  const openAshesPile = () => { sfx.click(); showCardGrid(tr('ui.combat.ashesTitle'), cb.exhaust, { sub: tr('ui.combat.ashesSub'), inCombat: true }); };
+  ce.draw.onclick = openDrawPile;
+  ce.discard.onclick = openDiscardPile;
+  ce.exhaust.onclick = openAshesPile;
+  if (ce.proxyDraw) ce.proxyDraw.onclick = openDrawPile;
+  if (ce.proxyDiscard) ce.proxyDiscard.onclick = openDiscardPile;
+  if (ce.proxyAshes) ce.proxyAshes.onclick = openAshesPile;
   ce.root.addEventListener('pointerdown', (e) => {
     if (e.target.closest('.enemy') || e.target.closest('.card')) return;
     if (S.targeting) clearTargeting();
@@ -504,6 +568,29 @@ function applyUiChromeLayout() {
   place(S.ce.discard, L.discard);
   place(S.ce.exhaust, L.ashes);
   if (S.ce.hand && L.hand) applyHandZoneLayout(L.hand);
+  placeHitProxies(L);
+  glSync(buildPresentationModel('apply-ui-chrome'));
+}
+
+/** Position transparent hit proxies over the Pixi-painted bottom chrome. */
+function placeHitProxies(L) {
+  const ce = S.ce;
+  if (!ce?.proxyHost) return;
+  const put = (el, w) => {
+    if (!el) return;
+    if (!w) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    if (w.left !== undefined) { el.style.left = `${w.left}px`; el.style.right = ''; }
+    else if (w.right !== undefined) { el.style.right = `${w.right}px`; el.style.left = ''; }
+    if (w.bottom !== undefined) el.style.bottom = `${w.bottom}px`;
+    if (w.w !== undefined) el.style.width = `${w.w}px`;
+    if (w.h !== undefined) el.style.height = `${w.h}px`;
+  };
+  put(ce.proxyLantern, L.lantern);
+  put(ce.proxyEndTurn, L.endTurn);
+  put(ce.proxyDraw, L.draw);
+  put(ce.proxyDiscard, L.discard);
+  put(ce.proxyAshes, L.ashes);
 }
 
 /** Hand left/right = offset from stage-centred fan box (0 = centred). Width hugs cards. */
@@ -706,6 +793,7 @@ function refitCombat() {
   layoutHand();
   scheduleChromeClamp();
   scheduleMeshBind();
+  glSync(buildPresentationModel('refit'));
 }
 function statusChips(container, statuses, isPlayer) {
   container.innerHTML = '';

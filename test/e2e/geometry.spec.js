@@ -481,11 +481,27 @@ test('energy candles stay in a fixed frame as slot count grows', async ({ page }
   await stable(page);
 
   const measure = () => page.evaluate(() => {
+    // Task 22b-1: candle frame is Pixi-owned; readUI() reports stage-px bounds.
+    const gl = window.spirebound?.combatGl;
+    const readUi = gl?.readUI?.();
+    const cf = readUi?.candleFrame;
+    if (cf && cf.slots && cf.slots.length > 0) {
+      const centres = cf.slots.map((s) => (s.bounds.left + s.bounds.right) / 2);
+      const pitches = centres.slice(1).map((cx, i) => cx - centres[i]);
+      return {
+        frameW: cf.bounds.width,
+        frameLeft: cf.bounds.left,
+        n: cf.slots.length,
+        avgPitch: pitches.length
+          ? pitches.reduce((a, b) => a + b, 0) / pitches.length
+          : 0,
+      };
+    }
+    // DOM fallback (renderer not booted): the legacy .candles element.
     const info = window.__probe.stage();
     const stage = document.getElementById('stage').getBoundingClientRect();
     const row = document.querySelector('.energy-orb .candles');
     const rr = row.getBoundingClientRect();
-    // clientWidth is pre-transform stage px — stable vs shadow/overflow on getBoundingClientRect
     const kids = [...row.querySelectorAll('.candle')].map((c) => {
       const r = c.getBoundingClientRect();
       return ((r.left + r.right) / 2 - stage.left) / info.scale;

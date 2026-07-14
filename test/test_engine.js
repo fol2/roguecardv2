@@ -417,10 +417,11 @@ function forceHand(run, cb, ids) {
 {
   const expectedTrKeys = [
     'ui.brand.tagline', 'ui.brand.title', 'ui.brand.title', 'ui.combat.affixTitle', 'ui.combat.ashes', 'ui.combat.ashesPileAria',
-    'ui.combat.ashesSub', 'ui.combat.ashesTitle', 'ui.combat.buff', 'ui.combat.debuff', 'ui.combat.discard', 'ui.combat.discardPileAria',
-    'ui.combat.discardPileTitle', 'ui.combat.draw', 'ui.combat.drawPileAria', 'ui.combat.drawPileSub', 'ui.combat.drawPileTitle', 'ui.combat.end',
+    'ui.combat.ashesPileAria', 'ui.combat.ashesSub', 'ui.combat.ashesTitle', 'ui.combat.buff', 'ui.combat.debuff', 'ui.combat.discard',
+    'ui.combat.discardPileAria', 'ui.combat.discardPileAria', 'ui.combat.discardPileTitle', 'ui.combat.draw', 'ui.combat.drawPileAria', 'ui.combat.drawPileAria',
+    'ui.combat.drawPileSub', 'ui.combat.drawPileTitle', 'ui.combat.end', 'ui.combat.end',
     'ui.combat.enemyTurn', 'ui.combat.energyAria', 'ui.combat.facetsBody', 'ui.combat.facetsTitle', 'ui.combat.glassHolds', 'ui.combat.guardShattered',
-    'ui.combat.guardShattered', 'ui.combat.lanternBody', 'ui.combat.lanternBodyLead', 'ui.combat.lanternSub', 'ui.combat.lanternTitle', 'ui.combat.lanternTitleArt',
+    'ui.combat.guardShattered', 'ui.combat.lanternBody', 'ui.combat.lanternBodyLead', 'ui.combat.lanternSub', 'ui.combat.lanternTitle', 'ui.combat.lanternTitle', 'ui.combat.lanternTitleArt',
     'ui.combat.monumentGift', 'ui.combat.perfectBanner', 'ui.combat.reshuffle', 'ui.combat.shatter', 'ui.combat.staggered', 'ui.combat.staggered',
     'ui.combat.staggeredTipBody', 'ui.combat.staggeredTipTitle', 'ui.combat.stoneRemembers', 'ui.combat.yourTurn', 'ui.common.cancel', 'ui.common.cancel',
     'ui.common.continue', 'ui.common.continue', 'ui.common.continue', 'ui.common.continue', 'ui.common.retry', 'ui.common.retry',
@@ -8871,8 +8872,12 @@ export default defineContentRegistration({
     'combat-gl bridges freezeForTest to the Task 21 pixi layer');
   assert.match(combatGlSource, /pixiLayer\.unfreezeForTest\(\)/,
     'combat-gl bridges unfreezeForTest to the Task 21 pixi layer');
-  assert.match(combatGlSource, /container\.visible\s*=\s*false/,
-    'combat-gl scaffold keeps its root hidden (DOM still owns visuals in 22a)');
+  assert.match(combatGlSource, /container\.visible\s*=\s*true/,
+    'combat-gl paints bottom chrome (Task 22b-1) so the root becomes visible');
+  assert.match(combatGlSource, /paintBottomChrome\s*\(/,
+    'combat-gl exposes a paintBottomChrome routine that composes the widgets');
+  assert.match(combatGlSource, /bottomChromeReady/,
+    'combat-gl tracks bottom-chrome readiness for stats() consumers');
 
   const combatSource = readFileSync(new URL('../src/ui/combat.js', import.meta.url), 'utf8');
   assert.match(combatSource, /combatGlMount/,

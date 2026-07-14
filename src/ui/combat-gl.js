@@ -1,7 +1,7 @@
-// Task 22a — combat Pixi renderer seam (scaffold).
+// Task 22a scaffold + Task 22b-1 bottom-chrome paint.
 //
-// This module owns the eventual Pixi-side combat presenter. Round 5 Task 22
-// is delivered in three slices; this file lands 22a:
+// This module owns the Pixi-side combat presenter. Round 5 Task 22 is
+// delivered in three slices; this file lands 22a AND 22b-1:
 //
 //   - Freezes the interface (`createCombatRenderer`) so PR16/PR17 can build on
 //     a stable seam without further churn.
@@ -9,24 +9,29 @@
 //     Pixi asset system and gates a `textured-ready` promise on the 17
 //     combat-blocking chrome ids plus the 3 piles. If a texture fails to
 //     load, the renderer emits a trace warning and keeps going — the vector
-//     fallback in `widgets.js` covers the missing face.
+//     fallback (widgets.js / Graphics) covers the missing face.
 //   - Bridges freeze / loseContextForTest / unfreezeForTest through the
 //     Task 21 `pixiLayer`, so tests can drive the combat renderer via the
 //     same handles used elsewhere.
+//   - Task 22b-1: paints the bottom interactive chrome (energy candles +
+//     count, lantern face + ember pips + count, end-turn button, and the
+//     three pile stacks). Interaction lives on transparent DOM proxies
+//     inside `#combat-hit-proxies`; this module owns the visuals only.
 //
-// The scaffold does NOT yet paint combat chrome — DOM still owns visuals
-// (dual-write). `readUI()` mirrors DOM geometry (via `uicResolve` and the
-// battlefield resolver) so callers can already query the seam in stage px.
-// `sync(presentationModel)` deep-freezes and stashes the model — PR16 fills
-// the model shape, PR17 turns it into Pixi display objects.
+// HUD, potions/relics/omen, plates, hand, statuses, intents, aim/mesh — all
+// still live in DOM. 22b-2 migrates them.
 
-import { Assets, Container } from 'pixi.js';
+import {
+  Assets, Container, Graphics, Sprite, Text,
+} from 'pixi.js';
 
 import { assetUrl } from '../art.js';
 import {
   bfActor, bfEnemyFrame, bfHeroY, bfResolve, bfSlots,
 } from '../battlefield.js';
+import { pileFanAngleDeg, pileFanLayers } from '../pile-chrome.js';
 import { stageH, stageInfo, stageRect, stageW } from '../stage.js';
+import { energySlotStates } from '../ui-chrome.js';
 import { relicBarLayout, uicResolve } from '../uic.js';
 
 /** 17 combat-blocking chrome ids (`node-*` are map-only, non-blocking). */
@@ -53,6 +58,29 @@ export const COMBAT_PILE_TEXTURE_IDS = Object.freeze(['draw', 'discard', 'ashes'
 export const COMBAT_RENDERER_VERSION = 2;
 
 const RENDERER_ID = 'combat-gl';
+
+/** Fixed candle-frame extent per stage shape (matches CSS `.energy-orb .candles`
+ *  width per shape; height matches the largest candle raster). geometry.spec
+ *  reads the resulting bounds directly through `readUI().candleFrame`. */
+const CANDLE_FRAME = Object.freeze({
+  'desktop-landscape': { w: 120, h: 56 },
+  'pad-landscape': { w: 120, h: 56 },
+  'pad-portrait': { w: 102, h: 56 },
+  'phone-portrait': { w: 84, h: 44 },
+  'phone-landscape': { w: 72, h: 40 },
+});
+const CANDLE_FRAME_FALLBACK = { w: 120, h: 56 };
+
+/** Slot width cap so the frame stays fixed while individual candles shrink. */
+const CANDLE_SLOT_MAX_W = 40;
+
+function candleFrameFor(shape) {
+  return CANDLE_FRAME[shape] || CANDLE_FRAME_FALLBACK;
+}
+
+function pixiTextureForAlias(aliases, alias) {
+  return aliases.get(alias) || null;
+}
 
 function deepFreeze(value, seen = new WeakSet()) {
   if (value === null || typeof value !== 'object') return value;
@@ -139,11 +167,32 @@ export async function createCombatRenderer({
 
   const container = new Container();
   container.label = 'combat-gl-root';
-  // Scaffold: DOM chrome still owns paint; keep the root hidden until 22b.
-  container.visible = false;
+  // Task 22b-1: bottom interactive chrome is Pixi-painted (DOM chrome hidden).
+  // Higher-layer widgets (HUD, plates, hand, mesh/aim) still live in DOM.
+  container.visible = true;
   container.eventMode = 'none';
   const layerRoot = pixiLayer.root();
   if (layerRoot && layerRoot.addChild) layerRoot.addChild(container);
+
+  // Sub-containers own one bottom-chrome widget each. Rebuilding a widget on
+  // sync only touches its own sub-container so the rest of the frame stays
+  // stable across draws.
+  const candlesLayer = new Container(); candlesLayer.label = 'combat-gl-candles';
+  const energyNumLayer = new Container(); energyNumLayer.label = 'combat-gl-energy-num';
+  const lanternLayer = new Container(); lanternLayer.label = 'combat-gl-lantern';
+  const endTurnLayer = new Container(); endTurnLayer.label = 'combat-gl-end-turn';
+  const pileLayers = {
+    draw: new Container(),
+    discard: new Container(),
+    ashes: new Container(),
+  };
+  pileLayers.draw.label = 'combat-gl-pile-draw';
+  pileLayers.discard.label = 'combat-gl-pile-discard';
+  pileLayers.ashes.label = 'combat-gl-pile-ashes';
+  container.addChild(
+    candlesLayer, energyNumLayer, lanternLayer, endTurnLayer,
+    pileLayers.draw, pileLayers.discard, pileLayers.ashes,
+  );
 
   const transitions = [];
   let state = 'idle';
@@ -157,6 +206,10 @@ export async function createCombatRenderer({
   const blockingExpected = COMBAT_BLOCKING_UI_IDS.length + COMBAT_PILE_TEXTURE_IDS.length;
   let texturedReady = false;
   let destroyed = false;
+  // Latest Pixi-derived bottom-chrome geometry (read through readUI()).
+  let candleFrameCache = null;
+  let bottomChromeReady = false;
+  let bottomChromePainted = 0;
 
   const setState = (next) => {
     state = next;
@@ -231,15 +284,23 @@ export async function createCombatRenderer({
 
   const sync = (model) => {
     if (model === undefined) return presentationModel;
-    if (model === null) { presentationModel = null; bump(); return null; }
+    if (model === null) {
+      presentationModel = null;
+      candleFrameCache = null;
+      bottomChromeReady = false;
+      clearBottomChromePaint();
+      bump();
+      return null;
+    }
     presentationModel = cloneImmutable(model);
+    paintBottomChrome();
     bump();
     return presentationModel;
   };
 
   const mount = (model) => {
     if (model !== undefined) sync(model);
-    else bump();
+    else { paintBottomChrome(); bump(); }
     trace?.emit?.('renderer.mount', {
       outcome: 'completed',
       attributes: { rendererId: RENDERER_ID, generation, texturedReady },
@@ -248,9 +309,316 @@ export async function createCombatRenderer({
   };
 
   const layout = () => {
+    paintBottomChrome();
     bump();
     return readUI();
   };
+
+  function clearBottomChromePaint() {
+    candlesLayer.removeChildren();
+    energyNumLayer.removeChildren();
+    lanternLayer.removeChildren();
+    endTurnLayer.removeChildren();
+    for (const key of Object.keys(pileLayers)) pileLayers[key].removeChildren();
+    bottomChromePainted = 0;
+  }
+
+  function paintBottomChrome() {
+    const info = stageInfo();
+    const chrome = uicResolve(info.shape);
+    let painted = 0;
+    painted += paintCandles(chrome, info) ? 1 : 0;
+    painted += paintEnergyNumber(chrome, info) ? 1 : 0;
+    painted += paintLantern(chrome, info) ? 1 : 0;
+    painted += paintEndTurn(chrome, info) ? 1 : 0;
+    painted += paintPile('draw', chrome.draw, chrome, info) ? 1 : 0;
+    painted += paintPile('discard', chrome.discard, chrome, info) ? 1 : 0;
+    painted += paintPile('ashes', chrome.ashes, chrome, info) ? 1 : 0;
+    bottomChromePainted = painted;
+    bottomChromeReady = painted >= 4; // candles + lantern + end-turn + 3 piles = 6; count anything ≥4 as steady
+  }
+
+  function paintCandles(chrome) {
+    candlesLayer.removeChildren();
+    const info = stageInfo();
+    const chromeEnergy = chrome.energy;
+    if (!chromeEnergy) { candleFrameCache = null; return false; }
+    const bottomState = presentationModel?.bottomChrome;
+    const energy = Math.max(0, Number(bottomState?.energy ?? presentationModel?.hero?.energy ?? 0) | 0);
+    const energyMax = Math.max(energy, Number(bottomState?.energyMax ?? presentationModel?.hero?.energyMax ?? 0) | 0);
+    const states = bottomState?.candles && Array.isArray(bottomState.candles)
+      ? bottomState.candles
+      : energySlotStates(energy, energyMax);
+    const frame = candleFrameFor(info.shape);
+    const frameLeft = Number.isFinite(chromeEnergy.left) ? chromeEnergy.left : 0;
+    const frameBottom = Number.isFinite(chromeEnergy.bottom) ? chromeEnergy.bottom : 0;
+    const stageHeight = stageH();
+    const frameTop = stageHeight - frameBottom - frame.h;
+    const n = states.length || Math.max(1, energyMax || 3);
+    const pitch = frame.w / n;
+    const slotW = Math.min(CANDLE_SLOT_MAX_W, pitch);
+    const slots = [];
+    for (let i = 0; i < n; i += 1) {
+      const st = states[i] || 'spent';
+      const cx = frameLeft + (i + 0.5) * pitch;
+      const alias = st === 'lit' ? 'combat-gl:ui/candle-lit' : 'combat-gl:ui/candle-spent';
+      const tex = pixiTextureForAlias(textureAliases, alias);
+      if (tex) {
+        const sprite = new Sprite(tex);
+        sprite.anchor.set(0.5, 1);
+        sprite.width = slotW;
+        sprite.height = frame.h;
+        sprite.x = cx;
+        sprite.y = frameTop + frame.h;
+        candlesLayer.addChild(sprite);
+      } else {
+        const g = new Graphics();
+        g.roundRect(-slotW / 2, -frame.h, slotW * 0.85, frame.h, 4)
+          .fill({ color: st === 'lit' ? 0xffc95e : 0x232a40, alpha: st === 'lit' ? 0.95 : 0.75 });
+        g.x = cx;
+        g.y = frameTop + frame.h;
+        candlesLayer.addChild(g);
+      }
+      slots.push(Object.freeze({
+        index: i,
+        state: st,
+        bounds: Object.freeze({
+          left: cx - slotW / 2,
+          top: frameTop,
+          right: cx + slotW / 2,
+          bottom: frameTop + frame.h,
+          width: slotW,
+          height: frame.h,
+        }),
+      }));
+    }
+    candleFrameCache = Object.freeze({
+      bounds: Object.freeze({
+        left: frameLeft,
+        top: frameTop,
+        right: frameLeft + frame.w,
+        bottom: frameTop + frame.h,
+        width: frame.w,
+        height: frame.h,
+      }),
+      slots: Object.freeze(slots),
+    });
+    return true;
+  }
+
+  function paintEnergyNumber(chrome) {
+    energyNumLayer.removeChildren();
+    const chromeEnergy = chrome.energy;
+    if (!chromeEnergy) return false;
+    const bottomState = presentationModel?.bottomChrome;
+    const energy = Number(bottomState?.energy ?? presentationModel?.hero?.energy ?? 0) | 0;
+    const info = stageInfo();
+    const frame = candleFrameFor(info.shape);
+    const frameLeft = Number.isFinite(chromeEnergy.left) ? chromeEnergy.left : 0;
+    const frameBottom = Number.isFinite(chromeEnergy.bottom) ? chromeEnergy.bottom : 0;
+    const frameTop = stageH() - frameBottom - frame.h;
+    const label = new Text({
+      text: String(Math.max(0, energy)),
+      style: {
+        fontFamily: 'Cinzel',
+        fontSize: info.shape === 'phone-portrait' || info.shape === 'phone-landscape' ? 32 : 44,
+        fontWeight: '800',
+        fill: 0xfff8e8,
+        stroke: { color: 0x000000, width: 2, join: 'round' },
+        align: 'center',
+      },
+    });
+    label.anchor?.set?.(0.5, 1);
+    label.x = frameLeft + frame.w / 2;
+    label.y = frameTop - 4;
+    energyNumLayer.addChild(label);
+    return true;
+  }
+
+  function paintLantern(chrome) {
+    lanternLayer.removeChildren();
+    const w = chrome.lantern;
+    if (!w) return false;
+    const bx = Number.isFinite(w.left) ? w.left : (stageW() - (w.right ?? 0) - (w.w ?? 0));
+    const by = stageH() - (w.bottom ?? 0) - (w.h ?? 0);
+    const width = w.w ?? 104;
+    const height = w.h ?? 104;
+    const bottomState = presentationModel?.bottomChrome;
+    const embers = Math.max(0, Number(bottomState?.embers ?? presentationModel?.embers ?? 0) | 0);
+    const cap = Math.max(embers, Number(bottomState?.emberCap ?? 9) | 0);
+    const ready = !!bottomState?.lanternReady;
+    const artSpent = !!bottomState?.lanternArtSpent;
+    const tex = pixiTextureForAlias(textureAliases, 'combat-gl:ui/lantern');
+    if (tex) {
+      const s = new Sprite(tex);
+      s.anchor.set(0.5, 0.5);
+      s.width = width;
+      s.height = height;
+      s.x = bx + width / 2;
+      s.y = by + height / 2;
+      s.alpha = artSpent ? 0.65 : (embers === 0 ? 0.7 : 1);
+      lanternLayer.addChild(s);
+    } else {
+      const g = new Graphics();
+      g.circle(bx + width / 2, by + height / 2, Math.min(width, height) * 0.44)
+        .fill({ color: 0x9c7c34, alpha: 0.9 })
+        .stroke({ color: 0xf2c14e, width: 2 });
+      lanternLayer.addChild(g);
+    }
+    // ember pips: ring around the lantern face
+    if (cap > 0) {
+      const pipsRadius = Math.min(width, height) * 0.5 + 6;
+      for (let i = 0; i < cap; i += 1) {
+        const angle = (Math.PI / 180) * (Math.round((i / Math.max(cap - 1, 1)) * 280 - 140));
+        const px = bx + width / 2 + pipsRadius * Math.cos(angle);
+        const py = by + height / 2 + pipsRadius * Math.sin(angle);
+        const pip = new Graphics();
+        pip.circle(0, 0, 3.4)
+          .fill({ color: i < embers ? 0xffb35a : 0x2c2c3a, alpha: i < embers ? 1 : 0.55 });
+        pip.x = px; pip.y = py;
+        lanternLayer.addChild(pip);
+      }
+    }
+    // ember count label
+    const count = new Text({
+      text: String(embers),
+      style: {
+        fontFamily: 'Cinzel',
+        fontSize: 22,
+        fontWeight: '800',
+        fill: 0xfff6ec,
+        stroke: { color: 0x000000, width: 2, join: 'round' },
+      },
+    });
+    count.anchor?.set?.(0.5, 0.5);
+    count.x = bx + width / 2;
+    count.y = by + height / 2 + height * 0.28;
+    lanternLayer.addChild(count);
+    // ready halo
+    if (ready) {
+      const halo = new Graphics();
+      halo.circle(bx + width / 2, by + height / 2, Math.min(width, height) * 0.56)
+        .stroke({ color: 0xf2c14e, width: 2, alpha: 0.6 });
+      lanternLayer.addChild(halo);
+    }
+    return true;
+  }
+
+  function paintEndTurn(chrome) {
+    endTurnLayer.removeChildren();
+    const w = chrome.endTurn;
+    if (!w) return false;
+    const width = w.w ?? 120;
+    const height = w.h ?? 120;
+    const bx = Number.isFinite(w.left)
+      ? w.left
+      : (stageW() - (Number(w.right) || 0) - width);
+    const by = stageH() - (w.bottom ?? 0) - height;
+    const enabled = presentationModel?.bottomChrome?.endTurnEnabled ?? false;
+    const tex = pixiTextureForAlias(textureAliases, 'combat-gl:ui/end-turn');
+    if (tex) {
+      const s = new Sprite(tex);
+      s.anchor.set(0.5, 0.5);
+      s.width = width;
+      s.height = height;
+      s.x = bx + width / 2;
+      s.y = by + height / 2;
+      s.alpha = enabled ? 1 : 0.9;
+      endTurnLayer.addChild(s);
+    } else {
+      const g = new Graphics();
+      g.roundRect(bx, by, width, height, 12)
+        .fill({ color: 0x9c7c34, alpha: 0.85 })
+        .stroke({ color: 0xf2c14e, width: 2 });
+      endTurnLayer.addChild(g);
+    }
+    const label = new Text({
+      text: 'END',
+      style: {
+        fontFamily: 'Cinzel',
+        fontSize: 18,
+        fontWeight: '800',
+        fill: 0xfff8e8,
+        stroke: { color: 0x000000, width: 2, join: 'round' },
+        letterSpacing: 3,
+      },
+    });
+    label.anchor?.set?.(0.5, 0.5);
+    label.x = bx + width / 2;
+    label.y = by + height / 2 + height * 0.32;
+    endTurnLayer.addChild(label);
+    return true;
+  }
+
+  function paintPile(pileKey, widget) {
+    const layer = pileLayers[pileKey];
+    if (!layer) return false;
+    layer.removeChildren();
+    if (!widget) return false;
+    const width = widget.w ?? 96;
+    const height = widget.h ?? 148;
+    const bx = Number.isFinite(widget.left)
+      ? widget.left
+      : (stageW() - (Number(widget.right) || 0) - width);
+    const by = stageH() - (widget.bottom ?? 0) - height;
+    const bottomState = presentationModel?.bottomChrome;
+    const pileState = bottomState?.piles?.[pileKey]
+      || (presentationModel?.piles ? { count: presentationModel.piles[pileKey] } : { count: 0 });
+    const count = Math.max(0, Number(pileState?.count ?? 0) | 0);
+    const layers = pileFanLayers(count);
+    const alias = `combat-gl:pile/${pileKey}`;
+    const tex = pixiTextureForAlias(textureAliases, alias);
+    const stackBottomInset = 18;
+    if (count > 0 && tex && layers > 0) {
+      for (let i = 0; i < layers; i += 1) {
+        const s = new Sprite(tex);
+        s.anchor.set(0.5, 1);
+        s.width = width;
+        s.height = height - stackBottomInset;
+        s.x = bx + width / 2;
+        s.y = by + height - stackBottomInset;
+        s.rotation = (Math.PI / 180) * pileFanAngleDeg(i, layers);
+        layer.addChild(s);
+      }
+    } else if (count === 0) {
+      // Empty pile — skip plate; leave count/label only.
+    } else {
+      const g = new Graphics();
+      g.roundRect(bx, by, width, height - stackBottomInset, 8)
+        .fill({ color: 0x111832, alpha: 0.65 })
+        .stroke({ color: 0xf2c14e, width: 1, alpha: 0.4 });
+      layer.addChild(g);
+    }
+    const cnt = new Text({
+      text: String(count),
+      style: {
+        fontFamily: 'Cinzel',
+        fontSize: 16,
+        fontWeight: '800',
+        fill: 0xe8dfc8,
+        stroke: { color: 0x05070e, width: 2, join: 'round' },
+      },
+    });
+    cnt.anchor?.set?.(1, 1);
+    cnt.x = bx + width - 2;
+    cnt.y = by + height - 16;
+    layer.addChild(cnt);
+    const label = new Text({
+      text: pileKey === 'ashes' ? 'ASHES' : (pileKey === 'draw' ? 'DRAW' : 'DISCARD'),
+      style: {
+        fontFamily: 'Cinzel',
+        fontSize: 9.5,
+        fontWeight: '700',
+        fill: 0x8b93ad,
+        letterSpacing: 1.5,
+      },
+    });
+    label.anchor?.set?.(0.5, 1);
+    label.x = bx + width / 2;
+    label.y = by + height;
+    layer.addChild(label);
+    return true;
+  }
 
   const hitTest = (x, y) => {
     // Placeholder: PR17 owns real Pixi hit-testing; the scaffold defers to the
@@ -298,18 +666,7 @@ export async function createCombatRenderer({
           omen: chrome.omen ?? null,
           relics: relicBarLayout(chrome, false),
         },
-        candleFrame: chrome.energy
-          ? {
-            bounds: {
-              left: chrome.energy.left ?? null,
-              right: chrome.energy.right ?? null,
-              bottom: chrome.energy.bottom ?? null,
-              w: chrome.energy.w ?? null,
-              h: chrome.energy.h ?? null,
-            },
-            slots: [],
-          }
-          : null,
+        candleFrame: candleFrameCache,
         hero: {
           layoutX: hero.x ?? null,
           layoutY: heroBottom,
@@ -342,17 +699,6 @@ export async function createCombatRenderer({
       });
     });
     const handRect = domRect('.hand-zone');
-    const candleContainer = domRect('.energy-orb .candles');
-    const candleSlots = [];
-    const candleNodes = document.querySelectorAll('.energy-orb .candles .candle');
-    candleNodes.forEach((node, i) => {
-      const cr = stageRect(node);
-      candleSlots.push({
-        index: i,
-        state: node.dataset.state || (node.classList.contains('lit') ? 'lit' : 'spent'),
-        bounds: rectOf(cr),
-      });
-    });
     return deepFreeze({
       version: COMBAT_RENDERER_VERSION,
       rendererId: RENDERER_ID,
@@ -369,9 +715,7 @@ export async function createCombatRenderer({
         omen: chrome.omen ?? null,
         relics: relicBarLayout(chrome, false),
       },
-      candleFrame: candleContainer
-        ? { bounds: rectOf(candleContainer), slots: candleSlots }
-        : null,
+      candleFrame: candleFrameCache,
       hero: {
         layoutX: bfLayout.hero?.x ?? null,
         layoutY: bfHeroY(bfLayout),
@@ -408,6 +752,11 @@ export async function createCombatRenderer({
       interactionMode,
       hasModel: presentationModel !== null,
       modelVersion: presentationModel?.version ?? null,
+      bottomChrome: Object.freeze({
+        ready: bottomChromeReady,
+        painted: bottomChromePainted,
+        hasCandleFrame: candleFrameCache !== null,
+      }),
       frozen: pixiStats.frozen === true,
       frozenTick: pixiStats.frozen === true ? (pixiStats.frozenTick ?? null) : null,
       pixiGeneration: pixiStats.generation ?? null,

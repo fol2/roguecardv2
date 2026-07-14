@@ -484,6 +484,75 @@ test.describe('Round 5 production Pixi layer', () => {
     expect(combatMount.ui.renderer.generation).toBeGreaterThanOrEqual(1);
   });
 
+  test('Task 22b-1 bottom chrome paints via Pixi with transparent hit proxies overlaid', async ({ page }) => {
+    await bootProduction(page);
+    const result = await page.evaluate(async () => {
+      const staged = await window.__probe.stageCoreTheme({ themeId: 'act1' });
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const renderer = window.spirebound.combatGl;
+      const stats = renderer.stats();
+      const readUI = renderer.readUI();
+      const model = renderer.sync();
+      const proxies = {};
+      for (const key of ['lantern', 'end-turn', 'draw', 'discard', 'ashes']) {
+        const el = document.querySelector(`[data-proxy="${key}"]`);
+        const style = el ? getComputedStyle(el) : null;
+        const rect = el ? el.getBoundingClientRect() : null;
+        proxies[key] = {
+          present: !!el,
+          pointerEvents: style?.pointerEvents ?? null,
+          width: rect?.width ?? 0,
+          height: rect?.height ?? 0,
+        };
+      }
+      const combatScreen = document.querySelector('.combat-screen');
+      const orb = document.querySelector('.energy-orb');
+      const lanternBtn = document.querySelector('.lantern-btn');
+      const endTurn = document.querySelector('.end-turn');
+      const pileBtn = document.querySelector('.pile-btn');
+      const hiddenChildren = (node) => {
+        if (!node) return null;
+        const kids = [...node.children];
+        if (!kids.length) return 'no-children';
+        return kids.every((k) => getComputedStyle(k).visibility === 'hidden');
+      };
+      return {
+        staged,
+        combatScreenClass: combatScreen?.className ?? '',
+        stats,
+        readUI: {
+          hasCandleFrame: !!readUI?.candleFrame,
+          slotCount: readUI?.candleFrame?.slots?.length ?? 0,
+        },
+        bottomChromeModel: model?.bottomChrome ?? null,
+        proxies,
+        hiddenVisuals: {
+          orbKidsHidden: hiddenChildren(orb),
+          lanternKidsHidden: hiddenChildren(lanternBtn),
+          endTurnKidsHidden: hiddenChildren(endTurn),
+          pileKidsHidden: hiddenChildren(pileBtn),
+        },
+      };
+    });
+    expect(result.staged.themeId).toBe('act1');
+    expect(result.combatScreenClass).toMatch(/pixi-bottom-chrome/);
+    expect(result.stats.bottomChrome.ready).toBe(true);
+    expect(result.stats.bottomChrome.hasCandleFrame).toBe(true);
+    expect(result.readUI.hasCandleFrame).toBe(true);
+    expect(result.bottomChromeModel).not.toBeNull();
+    expect(result.readUI.slotCount).toBe(result.bottomChromeModel.energyMax);
+    for (const key of ['lantern', 'end-turn', 'draw', 'discard', 'ashes']) {
+      expect(result.proxies[key].present, `${key} proxy present`).toBe(true);
+      expect(result.proxies[key].pointerEvents, `${key} proxy accepts pointer events`).toBe('auto');
+      expect(result.proxies[key].width, `${key} proxy has non-zero width`).toBeGreaterThan(0);
+      expect(result.proxies[key].height, `${key} proxy has non-zero height`).toBeGreaterThan(0);
+    }
+    expect(result.hiddenVisuals.orbKidsHidden).toBe(true);
+    expect(result.hiddenVisuals.lanternKidsHidden).toBe(true);
+    expect(result.hiddenVisuals.endTurnKidsHidden).toBe(true);
+    expect(result.hiddenVisuals.pileKidsHidden).toBe(true);
+  });
+
   test('font requests are same-origin and complete before renderer.ready with measurable Cinzel/Alegreya proof', async ({ page }) => {
     const { fontRequests } = await bootProduction(page);
     expect(fontRequests.length).toBeGreaterThanOrEqual(7);

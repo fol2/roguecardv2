@@ -113,6 +113,7 @@ const combatLateCallbacks = Object.freeze({
   journalRunEnd: (...args) => screenOwners.end.journalRunEnd(...args),
   combatGlMount: (model) => combatRenderer?.mount(model),
   combatGlSync: (model) => combatRenderer?.sync(model),
+  combatGlActive: () => combatRenderer !== null,
 });
 const overlayActions = Object.freeze({
   afterAction: (...args) => combatApi.afterAction(...args),

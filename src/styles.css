@@ -2672,3 +2672,66 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #uigl, html.freeze #mesh, html.
   .end-screen:has(.dawn-ceremony) > .end-btns { grid-column: 1 / -1; grid-row: 4; margin: 0; }
   .end-screen:has(.dawn-ceremony) > .end-btns .btn { padding: 6px 16px; font-size: 12px; }
 }
+
+/* ============================================================
+ * Task 22b-1 — Pixi-owned bottom combat chrome.
+ *
+ * When the Pixi combat renderer is active, `.combat-screen` gains the
+ * `.pixi-bottom-chrome` class. The DOM chrome (energy candles, lantern,
+ * end-turn, pile buttons) stays in the tree for kindle-drag targeting and
+ * as a keyboard-friendly fallback but hides its paint; interaction moves
+ * to `#combat-hit-proxies` — transparent buttons sized to `uicResolve()`
+ * bounds — sitting on top of the Pixi paint.
+ * ============================================================ */
+.pixi-bottom-chrome .energy-orb,
+.pixi-bottom-chrome .lantern-btn,
+.pixi-bottom-chrome .end-turn,
+.pixi-bottom-chrome .pile-btn {
+  color: transparent;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+.pixi-bottom-chrome .energy-orb *,
+.pixi-bottom-chrome .lantern-btn *,
+.pixi-bottom-chrome .end-turn *,
+.pixi-bottom-chrome .pile-btn * {
+  visibility: hidden;
+}
+/* Preserve pointer-event hit area for kindle-drag (release-on-lantern) — the
+ * DOM node still resolves under `underPointer` even though its paint is gone. */
+.pixi-bottom-chrome .energy-orb,
+.pixi-bottom-chrome .lantern-btn,
+.pixi-bottom-chrome .end-turn,
+.pixi-bottom-chrome .pile-btn {
+  pointer-events: auto;
+}
+
+.combat-hit-proxies {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+}
+.combat-hit-proxies .hit-proxy {
+  position: absolute;
+  pointer-events: auto;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  color: transparent;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  font: inherit;
+}
+.combat-hit-proxies .hit-proxy:focus-visible {
+  outline: 2px solid rgba(242, 193, 78, 0.72);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
