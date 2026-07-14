@@ -2734,3 +2734,49 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #uigl, html.freeze #mesh, html.
   outline-offset: 2px;
   border-radius: 6px;
 }
+
+/* ============================================================
+ * Task 22b-2 — Pixi-owned HUD + plate chrome.
+ *
+ * When the combat renderer is active, combat-screen gains
+ * `.pixi-plate-chrome` and `#hud` gains `.pixi-hud-chrome`. DOM
+ * plate/HUD paint is hidden; geometry still drives the PR17 packer
+ * and transparent `#combat-hit-proxies` cover interactive HUD bits
+ * (deck/menu/potions/relics/omen). `#hud` itself becomes pointer-
+ * inert so clicks fall through to the combat proxy host.
+ * ============================================================ */
+#hud.pixi-hud-chrome {
+  pointer-events: none;
+}
+#hud.pixi-hud-chrome .hud-bar,
+#hud.pixi-hud-chrome #omen-slot,
+#hud.pixi-hud-chrome #relicbar {
+  color: transparent;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+#hud.pixi-hud-chrome .hud-bar *,
+#hud.pixi-hud-chrome #omen-slot *,
+#hud.pixi-hud-chrome #relicbar * {
+  visibility: hidden;
+}
+
+.pixi-plate-chrome .cplate > *,
+.pixi-plate-chrome .top-chrome > * {
+  visibility: hidden;
+}
+.pixi-plate-chrome .cplate,
+.pixi-plate-chrome .top-chrome {
+  color: transparent;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+  text-shadow: none !important;
+  filter: none !important;
+  /* Keep layout boxes for the PR17 packer / readUI anchors. */
+  pointer-events: none;
+}

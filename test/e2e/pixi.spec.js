@@ -553,6 +553,111 @@ test.describe('Round 5 production Pixi layer', () => {
     expect(result.hiddenVisuals.pileKidsHidden).toBe(true);
   });
 
+  test('Task 22b-2 HUD and plate chrome paint via Pixi with transparent HUD hit proxies', async ({ page }) => {
+    await bootProduction(page);
+    const result = await page.evaluate(async () => {
+      const staged = await window.__probe.stageCoreTheme({ themeId: 'act1' });
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const renderer = window.spirebound.combatGl;
+      const stats = renderer.stats();
+      const readUI = renderer.readUI();
+      const model = renderer.sync();
+      const proxies = {};
+      for (const key of ['deck', 'menu']) {
+        const el = document.querySelector(`[data-proxy="${key}"]`);
+        const style = el ? getComputedStyle(el) : null;
+        const rect = el ? el.getBoundingClientRect() : null;
+        proxies[key] = {
+          present: !!el,
+          pointerEvents: style?.pointerEvents ?? null,
+          width: rect?.width ?? 0,
+          height: rect?.height ?? 0,
+          hasVisiblePaint: el ? (() => {
+            const bg = style.backgroundColor;
+            const color = style.color;
+            return (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent')
+              || (color && color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent');
+          })() : null,
+        };
+      }
+      const potionProxies = [...document.querySelectorAll('[data-proxy^="potion-"]')].map((el) => ({
+        key: el.getAttribute('data-proxy'),
+        pointerEvents: getComputedStyle(el).pointerEvents,
+        width: el.getBoundingClientRect().width,
+        height: el.getBoundingClientRect().height,
+      }));
+      const combatScreen = document.querySelector('.combat-screen');
+      const hud = document.getElementById('hud');
+      const hiddenChildren = (node) => {
+        if (!node) return null;
+        const kids = [...node.children];
+        if (!kids.length) return 'no-children';
+        return kids.every((k) => {
+          const st = getComputedStyle(k);
+          return st.visibility === 'hidden' || st.opacity === '0';
+        });
+      };
+      const plateVisualHidden = (sel) => {
+        const node = document.querySelector(sel);
+        if (!node) return null;
+        const kids = [...node.children];
+        if (!kids.length) return 'no-children';
+        return kids.every((k) => getComputedStyle(k).visibility === 'hidden');
+      };
+      const handCards = document.querySelectorAll('.hand-zone .card').length;
+      return {
+        staged,
+        combatScreenClass: combatScreen?.className ?? '',
+        hudClass: hud?.className ?? '',
+        stats,
+        readUI: {
+          hasHud: !!readUI?.hud,
+          hasHeroPlate: !!readUI?.hero?.plateBounds,
+          enemyPlateCount: readUI?.enemies?.filter((e) => e.plateBounds)?.length ?? 0,
+          hasPlatePack: !!readUI?.plates,
+        },
+        hudModel: model?.hud ?? null,
+        platesModel: model?.plates ?? null,
+        proxies,
+        potionProxies,
+        hiddenVisuals: {
+          hudBarKidsHidden: hiddenChildren(document.querySelector('#hud .hud-bar')),
+          heroPlateKidsHidden: plateVisualHidden('.player-zone .cplate'),
+          heroTopKidsHidden: plateVisualHidden('.player-zone .top-chrome'),
+          enemyPlateKidsHidden: plateVisualHidden('.enemy .cplate'),
+          enemyTopKidsHidden: plateVisualHidden('.enemy .top-chrome'),
+        },
+        handCards,
+        invariants: window.__probe.invariants(),
+      };
+    });
+    expect(result.staged.themeId).toBe('act1');
+    expect(result.combatScreenClass).toMatch(/pixi-bottom-chrome/);
+    expect(result.combatScreenClass).toMatch(/pixi-plate-chrome/);
+    expect(result.hudClass).toMatch(/pixi-hud-chrome/);
+    expect(result.stats.hud?.ready ?? result.stats.plates?.ready).toBeTruthy();
+    expect(result.hudModel).not.toBeNull();
+    expect(result.hudModel.hp).toBeGreaterThan(0);
+    expect(result.platesModel).not.toBeNull();
+    expect(result.platesModel.hero).toBeTruthy();
+    expect(result.platesModel.enemies?.length).toBeGreaterThan(0);
+    expect(result.readUI.hasHud).toBe(true);
+    expect(result.readUI.hasHeroPlate).toBe(true);
+    expect(result.readUI.enemyPlateCount).toBeGreaterThan(0);
+    for (const key of ['deck', 'menu']) {
+      expect(result.proxies[key].present, `${key} proxy present`).toBe(true);
+      expect(result.proxies[key].pointerEvents, `${key} proxy accepts pointer events`).toBe('auto');
+      expect(result.proxies[key].width, `${key} proxy has non-zero width`).toBeGreaterThan(0);
+      expect(result.proxies[key].height, `${key} proxy has non-zero height`).toBeGreaterThan(0);
+    }
+    expect(result.hiddenVisuals.hudBarKidsHidden).toBe(true);
+    expect(result.hiddenVisuals.heroPlateKidsHidden).toBe(true);
+    expect(result.hiddenVisuals.enemyPlateKidsHidden).toBe(true);
+    expect(result.handCards).toBeGreaterThan(0);
+    const hpInv = result.invariants.find((i) => i.name === 'player: HP label matches engine');
+    expect(hpInv?.pass, hpInv?.detail || 'player HP invariant').toBe(true);
+  });
+
   test('Task 22b-1 hit proxies: kindle resolves lantern; draw pile click opens card grid', async ({ page }) => {
     await bootProduction(page);
     await page.evaluate(async () => {

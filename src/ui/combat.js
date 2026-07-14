@@ -101,6 +101,99 @@ export function createCombat({
       },
     };
   }
+  function statusEntries(statuses) {
+    return Object.entries(statuses || {})
+      .filter(([, n]) => n)
+      .map(([id, n]) => ({ id, n: Number(n) || 0 }));
+  }
+  function buildHudModel() {
+    if (!S.run) return null;
+    const p = S.run.player;
+    const hp = S.cb && !S.cb.over ? S.cb.player.hp : p.hp;
+    const theme = themeForRun(S.run);
+    const cats = runCatalogues();
+    const omenId = S.run.omens?.[S.run.act] ?? null;
+    const omen = omenId ? cats.omens[omenId] : null;
+    const potionsEnabled = !!E.runRevealed(S.run, 'phials');
+    return {
+      hp,
+      maxHp: p.maxHp,
+      gold: p.gold,
+      deckCount: p.deck.length,
+      floor: S.run.floorsClimbed,
+      actName: theme?.name ?? '',
+      bossName: theme?.bossName ?? '',
+      potionsEnabled,
+      potions: potionsEnabled
+        ? (p.potions || []).map((id, slot) => ({
+          slot,
+          id: id || null,
+          name: id ? cats.potions[id]?.name ?? id : null,
+          tone: id ? cats.potions[id]?.tone ?? null : null,
+        }))
+        : [],
+      relics: (p.relics || []).map((id) => ({
+        id,
+        name: cats.relics[id]?.name ?? id,
+        tone: cats.relics[id]?.tone ?? null,
+        rarity: cats.relics[id]?.rarity ?? null,
+      })),
+      omen: omen ? {
+        id: omenId,
+        name: omen.name,
+        tone: omen.tone ?? null,
+        text: omen.text ?? '',
+      } : null,
+    };
+  }
+  function buildPlatesModel(cb) {
+    const cats = runCatalogues();
+    const afx = cb.affix ? cats.affixes[cb.affix] : null;
+    return {
+      hero: {
+        hp: cb.player.hp,
+        maxHp: cb.player.maxHp,
+        ward: cb.player.block,
+        statuses: statusEntries(cb.player.statuses),
+      },
+      enemies: cb.enemies.map((en, index) => {
+        const alive = en.hp > 0;
+        const staggered = alive && !!en.flags?.staggered;
+        let intent = null;
+        if (alive && !staggered && en.moveKey) {
+          const mv = E.enemyMove(en);
+          const preview = E.previewEnemyDmg(S.run, cb, en);
+          intent = {
+            kind: mv.intent,
+            name: mv.name,
+            icons: intentUiIds(mv.intent),
+            dmg: preview?.dmg ?? null,
+            times: preview?.times ?? 1,
+            text: mv.intent.startsWith('attack')
+              ? (preview?.times > 1 ? `${preview.dmg}×${preview.times}` : `${preview.dmg}`)
+              : '',
+          };
+        } else if (staggered) {
+          const staggeredLabel = tr('ui.combat.staggered');
+          intent = { kind: 'staggered', name: staggeredLabel, icons: [], dmg: null, times: 1, text: staggeredLabel };
+        }
+        return {
+          index,
+          name: en.name,
+          affix: afx ? { id: cb.affix, name: afx.name, tone: afx.tone ?? null } : null,
+          hp: en.hp,
+          maxHp: en.maxHp,
+          ward: en.block,
+          chips: en.chips ?? 0,
+          facetMax: en.facetMax ?? 0,
+          alive,
+          staggered,
+          statuses: statusEntries(en.statuses),
+          intent,
+        };
+      }),
+    };
+  }
   function buildPresentationModel(phase) {
     const cb = S.cb;
     if (!cb) {
@@ -143,9 +236,11 @@ export function createCombat({
       },
       embers: cb.embers ?? 0,
       turn: cb.turn ?? 0,
-      // Task 22b-1 — bottom interactive chrome state (energy/candles/lantern/
-      // end-turn/piles). Higher-layer widgets (HUD/plates/hand) still DOM-owned.
+      // Task 22b-1 — bottom interactive chrome (energy/candles/lantern/end-turn/piles).
       bottomChrome: buildBottomChromeModel(cb),
+      // Task 22b-2 — HUD + under-own-foe / hero plate chrome.
+      hud: buildHudModel(),
+      plates: buildPlatesModel(cb),
     };
   }
 
@@ -215,8 +310,14 @@ function updateLantern() {
 function renderHud() {
   updateLantern();
   const hud = $('#hud');
-  if (!S.run || S.screen === 'title' || S.screen === 'embark' || S.screen === 'vigil' || S.screen === 'end' || S.screen === 'lamplighter') { hud.classList.remove('show'); document.body.classList.remove('low-hp'); return; }
+  if (!S.run || S.screen === 'title' || S.screen === 'embark' || S.screen === 'vigil' || S.screen === 'end' || S.screen === 'lamplighter') {
+    hud.classList.remove('show', 'pixi-hud-chrome');
+    document.body.classList.remove('low-hp');
+    return;
+  }
   hud.classList.add('show');
+  const pixiHud = glActive() && S.screen === 'combat';
+  hud.classList.toggle('pixi-hud-chrome', pixiHud);
   const p = S.run.player;
   const hp = S.cb && !S.cb.over ? S.cb.player.hp : p.hp;
   document.body.classList.toggle('low-hp', hp / p.maxHp <= 0.3);
@@ -266,6 +367,7 @@ function renderHud() {
   $('[data-act="menu"]', hud).onclick = (e) => { sfx.click(); openMenu(e.clientX, e.clientY); };
   $$('.potion-slot.full', hud).forEach((slot) => (slot.onclick = (e) => potionMenu(+slot.dataset.slot, e)));
   applyUiChromeLayout();
+  if (pixiHud) ensureHudHitProxies();
 }
 function startCombatUI(enemyIds, kind) {
   exitMapMode(); // combat can start without going through show()
@@ -294,7 +396,7 @@ function renderCombat() {
   const ledge = `#${glow.toString(16).padStart(6, '0')}`;
   const plates = theme?.plates || {};
   const pixiActive = glActive();
-  const combatScreenClass = `combat-screen screen-enter intro${pixiActive ? ' pixi-bottom-chrome' : ''}`;
+  const combatScreenClass = `combat-screen screen-enter intro${pixiActive ? ' pixi-bottom-chrome pixi-plate-chrome' : ''}`;
   sc.innerHTML = `<div class="${combatScreenClass}" style="--ledge:${ledge}">
     ${['backdrop', 'mid', 'ledge'].map((l) => {
       const u = assetUrl('stage', plates[l]);
@@ -343,6 +445,9 @@ function renderCombat() {
       <button type="button" class="hit-proxy hit-draw" data-proxy="draw" aria-label="${tr('ui.combat.drawPileAria')}"></button>
       <button type="button" class="hit-proxy hit-discard" data-proxy="discard" aria-label="${tr('ui.combat.discardPileAria')}"></button>
       <button type="button" class="hit-proxy hit-ashes" data-proxy="ashes" aria-label="${tr('ui.combat.ashesPileAria')}"></button>
+      <button type="button" class="hit-proxy hit-deck" data-proxy="deck" aria-label="${tr('ui.hud.deckAria')}"></button>
+      <button type="button" class="hit-proxy hit-menu" data-proxy="menu" aria-label="${tr('ui.hud.menuAria')}"></button>
+      <button type="button" class="hit-proxy hit-omen" data-proxy="omen" aria-label="${tr('ui.hud.omenTitle', { name: 'Omen' })}" hidden></button>
     </div>
   </div>`;
   const zone = $('.enemy-zone', sc);
@@ -412,6 +517,9 @@ function renderCombat() {
   ce.proxyDraw = $('[data-proxy="draw"]', sc);
   ce.proxyDiscard = $('[data-proxy="discard"]', sc);
   ce.proxyAshes = $('[data-proxy="ashes"]', sc);
+  ce.proxyDeck = $('[data-proxy="deck"]', sc);
+  ce.proxyMenu = $('[data-proxy="menu"]', sc);
+  ce.proxyOmen = $('[data-proxy="omen"]', sc);
   const artId = S.run.art;
   const art = runCatalogues().arts[artId];
   /* primary face = Lantern Art raster (or SVG fallback); cost lives in the tip */
@@ -461,6 +569,20 @@ function renderCombat() {
   if (ce.proxyDraw) ce.proxyDraw.onclick = openDrawPile;
   if (ce.proxyDiscard) ce.proxyDiscard.onclick = openDiscardPile;
   if (ce.proxyAshes) ce.proxyAshes.onclick = openAshesPile;
+  // Task 22b-2 — HUD deck/menu proxies (visuals are Pixi-owned in combat).
+  const openDeck = () => {
+    sfx.click();
+    showCardGrid(tr('ui.hud.deckTitle'), S.run.player.deck, {
+      sub: tr('ui.hud.deckCount', { n: S.run.player.deck.length }),
+    });
+  };
+  const openCombatMenu = (e) => {
+    sfx.click();
+    openMenu(e.clientX, e.clientY);
+  };
+  if (ce.proxyDeck) ce.proxyDeck.onclick = openDeck;
+  if (ce.proxyMenu) ce.proxyMenu.onclick = openCombatMenu;
+  ensureHudHitProxies();
   ce.root.addEventListener('pointerdown', (e) => {
     if (e.target.closest('.enemy') || e.target.closest('.card')) return;
     if (S.targeting) clearTargeting();
@@ -574,9 +696,11 @@ function placeHitProxies(L) {
     if (!el) return;
     if (!w) { el.style.display = 'none'; return; }
     el.style.display = '';
+    el.style.top = '';
     if (w.left !== undefined) { el.style.left = `${w.left}px`; el.style.right = ''; }
     else if (w.right !== undefined) { el.style.right = `${w.right}px`; el.style.left = ''; }
     if (w.bottom !== undefined) el.style.bottom = `${w.bottom}px`;
+    if (w.top !== undefined) { el.style.top = `${w.top}px`; el.style.bottom = ''; }
     if (w.w !== undefined) el.style.width = `${w.w}px`;
     if (w.h !== undefined) el.style.height = `${w.h}px`;
   };
@@ -585,6 +709,105 @@ function placeHitProxies(L) {
   put(ce.proxyDraw, L.draw);
   put(ce.proxyDiscard, L.discard);
   put(ce.proxyAshes, L.ashes);
+  placeHudHitProxies();
+}
+
+/** Map a DOM node's stage-px box onto a hit-proxy button (top/left sizing). */
+function placeProxyOverDom(proxy, node) {
+  if (!proxy) return;
+  if (!node || !node.isConnected) {
+    proxy.style.display = 'none';
+    proxy.hidden = true;
+    return;
+  }
+  const r = stageRect(node);
+  if (!(r.width > 0 && r.height > 0)) {
+    proxy.style.display = 'none';
+    proxy.hidden = true;
+    return;
+  }
+  proxy.hidden = false;
+  proxy.style.display = '';
+  proxy.style.left = `${Math.round(r.left)}px`;
+  proxy.style.top = `${Math.round(r.top)}px`;
+  proxy.style.right = '';
+  proxy.style.bottom = '';
+  proxy.style.width = `${Math.round(r.width)}px`;
+  proxy.style.height = `${Math.round(r.height)}px`;
+}
+
+/** Ensure potion/relic proxy buttons exist for the current HUD contents. */
+function ensureHudHitProxies() {
+  const ce = S.ce;
+  const host = ce?.proxyHost;
+  if (!host || !glActive() || S.screen !== 'combat') return;
+  const hud = $('#hud');
+  if (!hud) return;
+
+  const ensureProxy = (key, aria) => {
+    let node = host.querySelector(`[data-proxy="${key}"]`);
+    if (!node) {
+      node = el('button', `hit-proxy hit-${key}`);
+      node.type = 'button';
+      node.dataset.proxy = key;
+      if (aria) node.setAttribute('aria-label', aria);
+      host.appendChild(node);
+    }
+    return node;
+  };
+
+  // Potions
+  $$('.potion-slot', hud).forEach((slot) => {
+    const i = +slot.dataset.slot;
+    const key = `potion-${i}`;
+    const proxy = ensureProxy(key, tr('ui.hud.potionTip'));
+    proxy.onclick = (e) => {
+      if (!slot.classList.contains('full')) return;
+      potionMenu(i, e);
+    };
+  });
+  // Drop stale potion proxies
+  [...host.querySelectorAll('[data-proxy^="potion-"]')].forEach((proxy) => {
+    const i = Number(String(proxy.dataset.proxy).slice('potion-'.length));
+    if (!hud.querySelector(`.potion-slot[data-slot="${i}"]`)) proxy.remove();
+  });
+
+  // Relics
+  $$('.hud-relic', hud).forEach((chip, index) => {
+    const rid = chip.dataset.relic || `relic-${index}`;
+    const key = `relic-${rid}`;
+    const proxy = ensureProxy(key, chip._tip?.title || rid);
+    proxy.onclick = () => { /* tip-only; Task 23 owns tooltip bridge */ };
+  });
+  const liveRelicKeys = new Set(
+    [...$$('.hud-relic', hud)].map((chip, index) => `relic-${chip.dataset.relic || `relic-${index}`}`),
+  );
+  [...host.querySelectorAll('[data-proxy^="relic-"]')].forEach((proxy) => {
+    if (!liveRelicKeys.has(proxy.dataset.proxy)) proxy.remove();
+  });
+
+  placeHudHitProxies();
+}
+
+function placeHudHitProxies() {
+  const ce = S.ce;
+  if (!ce?.proxyHost || !glActive() || S.screen !== 'combat') return;
+  const hud = $('#hud');
+  if (!hud?.classList.contains('pixi-hud-chrome')) return;
+
+  placeProxyOverDom(ce.proxyDeck, $('[data-act="deck"]', hud));
+  placeProxyOverDom(ce.proxyMenu, $('[data-act="menu"]', hud));
+  placeProxyOverDom(ce.proxyOmen, $('#omen-slot', hud)?.firstElementChild || $('#omen-slot', hud));
+
+  $$('.potion-slot', hud).forEach((slot) => {
+    const proxy = ce.proxyHost.querySelector(`[data-proxy="potion-${slot.dataset.slot}"]`);
+    placeProxyOverDom(proxy, slot);
+  });
+  $$('.hud-relic', hud).forEach((chip, index) => {
+    const rid = chip.dataset.relic || `relic-${index}`;
+    const proxy = ce.proxyHost.querySelector(`[data-proxy="relic-${rid}"]`);
+    placeProxyOverDom(proxy, chip);
+  });
 }
 
 /** Hand left/right = offset from stage-centred fan box (0 = centred). Width hugs cards. */
@@ -779,6 +1002,11 @@ function scheduleChromeClamp() {
   chromeClampRaf = requestAnimationFrame(() => {
     chromeClampRaf = 0;
     clampCombatChrome();
+    // Task 22b-2: plate Pixi paint mirrors packer-adjusted DOM anchors.
+    if (glActive() && S.screen === 'combat' && S.cb) {
+      glSync(buildPresentationModel('chrome-clamp'));
+      placeHudHitProxies();
+    }
   });
 }
 

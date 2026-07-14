@@ -422,7 +422,7 @@ function forceHand(run, cb, ids) {
     'ui.combat.drawPileSub', 'ui.combat.drawPileTitle', 'ui.combat.end', 'ui.combat.end', 'ui.combat.end',
     'ui.combat.enemyTurn', 'ui.combat.energyAria', 'ui.combat.facetsBody', 'ui.combat.facetsTitle', 'ui.combat.glassHolds', 'ui.combat.guardShattered',
     'ui.combat.guardShattered', 'ui.combat.lanternBody', 'ui.combat.lanternBodyLead', 'ui.combat.lanternSub', 'ui.combat.lanternTitle', 'ui.combat.lanternTitle', 'ui.combat.lanternTitleArt',
-    'ui.combat.monumentGift', 'ui.combat.perfectBanner', 'ui.combat.reshuffle', 'ui.combat.shatter', 'ui.combat.staggered', 'ui.combat.staggered',
+    'ui.combat.monumentGift', 'ui.combat.perfectBanner', 'ui.combat.reshuffle', 'ui.combat.shatter', 'ui.combat.staggered', 'ui.combat.staggered', 'ui.combat.staggered',
     'ui.combat.staggeredTipBody', 'ui.combat.staggeredTipTitle', 'ui.combat.stoneRemembers', 'ui.combat.yourTurn', 'ui.common.cancel', 'ui.common.cancel',
     'ui.common.continue', 'ui.common.continue', 'ui.common.continue', 'ui.common.continue', 'ui.common.retry', 'ui.common.retry',
     'ui.common.skip', 'ui.dawn.act4RevealCopy', 'ui.dawn.eighthResolvedKicker', 'ui.dawn.pageKicker', 'ui.dawn.questCompleteKicker', 'ui.dawn.questProgressKicker',
@@ -438,8 +438,8 @@ function forceHand(run, cb, ids) {
     'ui.help.combatBody', 'ui.help.combatTitle', 'ui.help.firesBody', 'ui.help.firesTitle', 'ui.help.glassBody', 'ui.help.glassTitle',
     'ui.help.lanternBody', 'ui.help.lanternTitle', 'ui.help.title', 'ui.help.vigilBody', 'ui.help.vigilTitle', 'ui.help.wardBody',
     'ui.help.wardTitle', 'ui.hollow.kicker', 'ui.hollow.payPrice', 'ui.hollow.pricePaid', 'ui.hollow.pricePaid', 'ui.hollow.returnLater',
-    'ui.hollow.routeFailed', 'ui.hollow.routeSaveFailed', 'ui.hollow.saveFailed', 'ui.hollow.title', 'ui.hud.deckAria', 'ui.hud.deckCount',
-    'ui.hud.deckTitle', 'ui.hud.menuAria', 'ui.hud.omenSub', 'ui.hud.omenTitle', 'ui.hud.potionTip', 'ui.hud.tossPotion',
+    'ui.hollow.routeFailed', 'ui.hollow.routeSaveFailed', 'ui.hollow.saveFailed', 'ui.hollow.title', 'ui.hud.deckAria', 'ui.hud.deckAria', 'ui.hud.deckCount', 'ui.hud.deckCount',
+    'ui.hud.deckTitle', 'ui.hud.deckTitle', 'ui.hud.menuAria', 'ui.hud.menuAria', 'ui.hud.omenSub', 'ui.hud.omenTitle', 'ui.hud.omenTitle', 'ui.hud.potionTip', 'ui.hud.potionTip', 'ui.hud.tossPotion',
     'ui.hud.usePotion', 'ui.keywords.chip', 'ui.keywords.cinder', 'ui.keywords.ember', 'ui.keywords.ember', 'ui.keywords.energy',
     'ui.keywords.facetDesc', 'ui.keywords.hex', 'ui.keywords.kindle', 'ui.keywords.shard', 'ui.keywords.staggered', 'ui.keywords.unplayable',
     'ui.keywords.ward', 'ui.lamp.artHint', 'ui.lamp.artLabel', 'ui.lamp.boonLabel', 'ui.lamp.sub', 'ui.lamp.title',
@@ -8878,6 +8878,14 @@ export default defineContentRegistration({
     'combat-gl exposes a paintBottomChrome routine that composes the widgets');
   assert.match(combatGlSource, /bottomChromeReady/,
     'combat-gl tracks bottom-chrome readiness for stats() consumers');
+  assert.match(combatGlSource, /paintHudChrome\s*\(/,
+    'combat-gl paints HUD chrome (Task 22b-2)');
+  assert.match(combatGlSource, /paintPlatesChrome\s*\(/,
+    'combat-gl paints plate chrome (Task 22b-2)');
+  assert.match(combatGlSource, /hudReady/,
+    'combat-gl tracks HUD readiness for stats() consumers');
+  assert.match(combatGlSource, /platesReady/,
+    'combat-gl tracks plate readiness for stats() consumers');
 
   const combatSource = readFileSync(new URL('../src/ui/combat.js', import.meta.url), 'utf8');
   assert.match(combatSource, /combatGlMount/,
@@ -8886,6 +8894,18 @@ export default defineContentRegistration({
     'combat.js dual-writes into the combat renderer on sync');
   assert.match(combatSource, /buildPresentationModel\(/,
     'combat.js constructs a stable presentation model for the renderer');
+  assert.match(combatSource, /buildHudModel\s*\(/,
+    'combat.js builds a HUD presentation slice for Task 22b-2');
+  assert.match(combatSource, /buildPlatesModel\s*\(/,
+    'combat.js builds a plates presentation slice for Task 22b-2');
+  assert.match(combatSource, /pixi-plate-chrome/,
+    'combat.js marks the combat screen when plate chrome is Pixi-owned');
+  assert.match(combatSource, /pixi-hud-chrome/,
+    'combat.js marks the HUD when HUD chrome is Pixi-owned');
+  assert.match(combatSource, /data-proxy="deck"/,
+    'combat.js extends hit proxies for the deck button');
+  assert.match(combatSource, /data-proxy="menu"/,
+    'combat.js extends hit proxies for the menu button');
 
   const indexSource = readFileSync(new URL('../src/ui/index.js', import.meta.url), 'utf8');
   assert.match(indexSource, /import\s*\{\s*createCombatRenderer\s*\}\s*from\s*'\.\/combat-gl\.js'/,

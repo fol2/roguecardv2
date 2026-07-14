@@ -104,6 +104,7 @@ async function combatChromeRects(page) {
     const info = window.__probe.stage();
     const stage = document.getElementById('stage').getBoundingClientRect();
     const rect = (el) => {
+      if (!el) return { left: 0, right: 0, top: 0, bottom: 0 };
       const r = el.getBoundingClientRect();
       return {
         left: (r.left - stage.left) / info.scale,
@@ -112,6 +113,9 @@ async function combatChromeRects(page) {
         bottom: (r.bottom - stage.top) / info.scale,
       };
     };
+    const fromBounds = (b) => (b ? {
+      left: b.left, right: b.right, top: b.top, bottom: b.bottom,
+    } : { left: 0, right: 0, top: 0, bottom: 0 });
     const union = (nodes) => {
       const rs = nodes.filter(Boolean).map(rect)
         .filter((r) => r.right > r.left && r.bottom > r.top);
@@ -124,6 +128,52 @@ async function combatChromeRects(page) {
       };
     };
     const centreX = (r) => (r.left + r.right) / 2;
+
+    // Task 22b-2: plate/HP/intent paint is Pixi-owned; prefer readUI() when
+    // the combat renderer has plate caches. DOM anchors remain for art.
+    const gl = window.spirebound?.combatGl;
+    const readUi = gl?.readUI?.();
+    const pixiPlates = readUi?.plates;
+
+    if (pixiPlates?.hero?.plateBounds) {
+      const enemies = [...document.querySelectorAll('.enemy')];
+      const hp = enemies.map((enemy, i) => {
+        const art = enemy.querySelector('.enemy-art');
+        const artR = rect(art);
+        const cached = pixiPlates.enemies?.[i];
+        const plateR = fromBounds(cached?.plateBounds || readUi.enemies?.[i]?.plateBounds);
+        return {
+          visible: fromBounds(cached?.visibleBounds || cached?.plateBounds || plateR),
+          wrap: plateR,
+          block: plateR,
+          icon: plateR,
+          vial: plateR,
+          label: plateR,
+          art: artR,
+          plate: plateR,
+          artCentreX: centreX(artR),
+          plateCentreX: centreX(plateR),
+          clientWidth: Math.max(1, plateR.right - plateR.left),
+          scrollWidth: Math.max(1, plateR.right - plateR.left),
+        };
+      });
+      return {
+        stage: info,
+        hero: fromBounds(pixiPlates.hero.plateBounds),
+        heroTopVisible: fromBounds(pixiPlates.hero.topChromeBounds || pixiPlates.hero.plateBounds),
+        enemy: hp.map((x) => x.plate),
+        enemyVisible: hp.map((x) => x.visible),
+        top: enemies.map((_, i) => fromBounds(
+          pixiPlates.enemies?.[i]?.topChromeBounds || readUi.enemies?.[i]?.topChromeBounds,
+        )),
+        topVisible: enemies.map((_, i) => fromBounds(
+          pixiPlates.enemies?.[i]?.topChromeBounds || readUi.enemies?.[i]?.topChromeBounds,
+        )),
+        hp,
+        source: 'readUI',
+      };
+    }
+
     const hp = [...document.querySelectorAll('.enemy')].map((enemy) => {
       const plate = enemy.querySelector('.cplate');
       const art = enemy.querySelector('.enemy-art');
@@ -175,6 +225,7 @@ async function combatChromeRects(page) {
       top: [...document.querySelectorAll('.enemy .top-chrome')].map(rect),
       topVisible: [...document.querySelectorAll('.enemy .top-chrome')].map(topVisible),
       hp,
+      source: 'dom',
     };
   });
 }

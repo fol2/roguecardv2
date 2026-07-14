@@ -1,7 +1,7 @@
-// Task 22a scaffold + Task 22b-1 bottom-chrome paint.
+// Task 22a scaffold + Task 22b-1 bottom-chrome paint + Task 22b-2 HUD/plates.
 //
 // This module owns the Pixi-side combat presenter. Round 5 Task 22 is
-// delivered in three slices; this file lands 22a AND 22b-1:
+// delivered in three slices; this file lands 22a, 22b-1, AND 22b-2:
 //
 //   - Freezes the interface (`createCombatRenderer`) so PR16/PR17 can build on
 //     a stable seam without further churn.
@@ -17,9 +17,13 @@
 //     count, lantern face + ember pips + count, end-turn button, and the
 //     three pile stacks). Interaction lives on transparent DOM proxies
 //     inside `#combat-hit-proxies`; this module owns the visuals only.
+//   - Task 22b-2: paints HUD (HP/gold/deck/menu/potions/relics/omen) and
+//     under-own-foe / hero plate chrome (names, affix, statuses, HP/Ward/
+//     facets, intents). Geometry still comes from `uicResolve()` + the
+//     existing PR17 packer in combat.js (DOM anchors); Pixi mirrors the
+//     resulting stage-px boxes via `readUI()`.
 //
-// HUD, potions/relics/omen, plates, hand, statuses, intents, aim/mesh — all
-// still live in DOM. 22b-2 migrates them.
+// DOM hand cards, combatants/mesh/aim remain DOM until later tasks.
 
 import {
   Assets, Container, Graphics, Sprite, Text,
@@ -168,15 +172,14 @@ export async function createCombatRenderer({
   const container = new Container();
   container.label = 'combat-gl-root';
   // Task 22b-1: bottom interactive chrome is Pixi-painted (DOM chrome hidden).
-  // Higher-layer widgets (HUD, plates, hand, mesh/aim) still live in DOM.
+  // Task 22b-2: HUD + plates join that paint surface.
   container.visible = true;
   container.eventMode = 'none';
   const layerRoot = pixiLayer.root();
   if (layerRoot && layerRoot.addChild) layerRoot.addChild(container);
 
-  // Sub-containers own one bottom-chrome widget each. Rebuilding a widget on
-  // sync only touches its own sub-container so the rest of the frame stays
-  // stable across draws.
+  // Sub-containers own one chrome region each. Rebuilding a widget on sync
+  // only touches its own sub-container so the rest of the frame stays stable.
   const candlesLayer = new Container(); candlesLayer.label = 'combat-gl-candles';
   const energyNumLayer = new Container(); energyNumLayer.label = 'combat-gl-energy-num';
   const lanternLayer = new Container(); lanternLayer.label = 'combat-gl-lantern';
@@ -189,9 +192,12 @@ export async function createCombatRenderer({
   pileLayers.draw.label = 'combat-gl-pile-draw';
   pileLayers.discard.label = 'combat-gl-pile-discard';
   pileLayers.ashes.label = 'combat-gl-pile-ashes';
+  const hudLayer = new Container(); hudLayer.label = 'combat-gl-hud';
+  const platesLayer = new Container(); platesLayer.label = 'combat-gl-plates';
   container.addChild(
     candlesLayer, energyNumLayer, lanternLayer, endTurnLayer,
     pileLayers.draw, pileLayers.discard, pileLayers.ashes,
+    platesLayer, hudLayer,
   );
 
   const transitions = [];
@@ -206,10 +212,16 @@ export async function createCombatRenderer({
   const blockingExpected = COMBAT_BLOCKING_UI_IDS.length + COMBAT_PILE_TEXTURE_IDS.length;
   let texturedReady = false;
   let destroyed = false;
-  // Latest Pixi-derived bottom-chrome geometry (read through readUI()).
+  // Latest Pixi-derived chrome geometry (read through readUI()).
   let candleFrameCache = null;
   let bottomChromeReady = false;
   let bottomChromePainted = 0;
+  let hudReady = false;
+  let hudPainted = 0;
+  let hudCache = null;
+  let platesReady = false;
+  let platesPainted = 0;
+  let platesCache = null;
 
   const setState = (next) => {
     state = next;
@@ -287,20 +299,33 @@ export async function createCombatRenderer({
     if (model === null) {
       presentationModel = null;
       candleFrameCache = null;
+      hudCache = null;
+      platesCache = null;
       bottomChromeReady = false;
+      hudReady = false;
+      platesReady = false;
       clearBottomChromePaint();
+      clearHudPaint();
+      clearPlatesPaint();
       bump();
       return null;
     }
     presentationModel = cloneImmutable(model);
     paintBottomChrome();
+    paintHudChrome();
+    paintPlatesChrome();
     bump();
     return presentationModel;
   };
 
   const mount = (model) => {
     if (model !== undefined) sync(model);
-    else { paintBottomChrome(); bump(); }
+    else {
+      paintBottomChrome();
+      paintHudChrome();
+      paintPlatesChrome();
+      bump();
+    }
     trace?.emit?.('renderer.mount', {
       outcome: 'completed',
       attributes: { rendererId: RENDERER_ID, generation, texturedReady },
@@ -310,6 +335,8 @@ export async function createCombatRenderer({
 
   const layout = () => {
     paintBottomChrome();
+    paintHudChrome();
+    paintPlatesChrome();
     bump();
     return readUI();
   };
@@ -321,6 +348,16 @@ export async function createCombatRenderer({
     endTurnLayer.removeChildren();
     for (const key of Object.keys(pileLayers)) pileLayers[key].removeChildren();
     bottomChromePainted = 0;
+  }
+
+  function clearHudPaint() {
+    hudLayer.removeChildren();
+    hudPainted = 0;
+  }
+
+  function clearPlatesPaint() {
+    platesLayer.removeChildren();
+    platesPainted = 0;
   }
 
   function paintBottomChrome() {
@@ -621,6 +658,397 @@ export async function createCombatRenderer({
     return true;
   }
 
+  function addIconOrFallback(parent, alias, x, y, size, color = 0xf2c14e) {
+    const tex = pixiTextureForAlias(textureAliases, alias);
+    if (tex) {
+      const s = new Sprite(tex);
+      s.anchor.set(0.5, 0.5);
+      s.width = size;
+      s.height = size;
+      s.x = x;
+      s.y = y;
+      parent.addChild(s);
+      return s;
+    }
+    const g = new Graphics();
+    g.roundRect(-size / 2, -size / 2, size, size, 4)
+      .fill({ color, alpha: 0.9 });
+    g.x = x;
+    g.y = y;
+    parent.addChild(g);
+    return g;
+  }
+
+  function paintHudChrome() {
+    clearHudPaint();
+    const hudState = presentationModel?.hud;
+    if (!hudState) {
+      hudCache = null;
+      hudReady = false;
+      return;
+    }
+    const info = stageInfo();
+    const chrome = uicResolve(info.shape);
+    const hudBar = chrome.hud || { height: 56, scale: 1 };
+    const barH = (hudBar.height || 56) * (hudBar.scale || 1);
+    const stageWidth = stageW();
+    let painted = 0;
+
+    // Bar backdrop
+    const barBg = new Graphics();
+    barBg.rect(0, 0, stageWidth, barH)
+      .fill({ color: 0x080a16, alpha: 0.82 });
+    hudLayer.addChild(barBg);
+    painted += 1;
+
+    // HP
+    addIconOrFallback(hudLayer, 'combat-gl:ui/heart', 28, barH * 0.38, 14, 0xff7060);
+    const hpText = new Text({
+      text: `${hudState.hp} / ${hudState.maxHp}`,
+      style: {
+        fontFamily: 'Cinzel', fontSize: 15, fontWeight: '700',
+        fill: 0xff9aa0,
+      },
+    });
+    hpText.x = 40;
+    hpText.y = 8;
+    hudLayer.addChild(hpText);
+    const hpTrack = new Graphics();
+    hpTrack.roundRect(40, barH * 0.62, 140, 6, 3).fill({ color: 0xffffff, alpha: 0.12 });
+    const hpFillW = Math.max(0, Math.min(140, 140 * (hudState.hp / Math.max(1, hudState.maxHp))));
+    hpTrack.roundRect(40, barH * 0.62, hpFillW, 6, 3).fill({ color: 0xff7060, alpha: 0.95 });
+    hudLayer.addChild(hpTrack);
+    painted += 1;
+
+    // Gold
+    addIconOrFallback(hudLayer, 'combat-gl:ui/coin', 210, barH * 0.45, 14, 0xf2c14e);
+    const goldText = new Text({
+      text: String(hudState.gold ?? 0),
+      style: {
+        fontFamily: 'Cinzel', fontSize: 15, fontWeight: '700',
+        fill: 0xf2c14e,
+      },
+    });
+    goldText.x = 222;
+    goldText.y = barH * 0.28;
+    hudLayer.addChild(goldText);
+
+    // Mid act label
+    const mid = new Text({
+      text: `${String(hudState.actName || '').toUpperCase()}  ·  Floor ${hudState.floor ?? 0}  ·  ${hudState.bossName || ''}`,
+      style: {
+        fontFamily: 'Cinzel', fontSize: 12, fontWeight: '600',
+        fill: 0xb8b4a8, letterSpacing: 1.5,
+      },
+    });
+    mid.anchor?.set?.(0.5, 0.5);
+    mid.x = stageWidth / 2;
+    mid.y = barH * 0.48;
+    hudLayer.addChild(mid);
+
+    // Deck + menu (right side)
+    const deckX = stageWidth - 78;
+    const menuX = stageWidth - 32;
+    addIconOrFallback(hudLayer, 'combat-gl:ui/deck', deckX, barH * 0.48, 36, 0x9c7c34);
+    const deckCount = new Text({
+      text: String(hudState.deckCount ?? 0),
+      style: {
+        fontFamily: 'Cinzel', fontSize: 18, fontWeight: '800',
+        fill: 0xffffff,
+        stroke: { color: 0x000000, width: 2, join: 'round' },
+      },
+    });
+    deckCount.anchor?.set?.(0.5, 0.5);
+    deckCount.x = deckX;
+    deckCount.y = barH * 0.48;
+    hudLayer.addChild(deckCount);
+    addIconOrFallback(hudLayer, 'combat-gl:ui/menu', menuX, barH * 0.48, 20, 0xe8dfc8);
+    painted += 1;
+
+    // Potions (just left of deck)
+    const potions = Array.isArray(hudState.potions) ? hudState.potions : [];
+    potions.forEach((potion, i) => {
+      const px = stageWidth - 130 - (potions.length - 1 - i) * 42;
+      const py = barH * 0.48;
+      const g = new Graphics();
+      g.roundRect(-16, -18, 32, 36, 6)
+        .fill({ color: 0x12162a, alpha: 0.85 })
+        .stroke({ color: potion.id ? 0xf2c14e : 0x445, width: 1.5, alpha: potion.id ? 0.8 : 0.4 });
+      g.x = px;
+      g.y = py;
+      hudLayer.addChild(g);
+      if (potion.id) {
+        const mark = new Text({
+          text: '◇',
+          style: { fontFamily: 'Cinzel', fontSize: 16, fill: 0xf2c14e },
+        });
+        mark.anchor?.set?.(0.5, 0.5);
+        mark.x = px;
+        mark.y = py;
+        hudLayer.addChild(mark);
+      }
+    });
+
+    // Omen + relics from uicResolve seats
+    const omenW = chrome.omen;
+    if (hudState.omen && omenW) {
+      const ox = omenW.left ?? 16;
+      const oy = omenW.top ?? 62;
+      const scale = omenW.scale ?? 1;
+      const size = 36 * scale;
+      const g = new Graphics();
+      g.roundRect(0, 0, size, size, 8)
+        .fill({ color: 0x1a1430, alpha: 0.9 })
+        .stroke({ color: 0xc99aff, width: 1.5 });
+      g.x = ox;
+      g.y = oy;
+      hudLayer.addChild(g);
+      const mark = new Text({
+        text: '✦',
+        style: { fontFamily: 'Cinzel', fontSize: 16, fill: 0xc99aff },
+      });
+      mark.anchor?.set?.(0.5, 0.5);
+      mark.x = ox + size / 2;
+      mark.y = oy + size / 2;
+      hudLayer.addChild(mark);
+    }
+    const relicLayout = relicBarLayout(chrome, !!hudState.omen);
+    const relics = Array.isArray(hudState.relics) ? hudState.relics : [];
+    if (relicLayout && relics.length) {
+      const scale = relicLayout.scale ?? 1;
+      const size = 36 * scale;
+      relics.forEach((relic, i) => {
+        const rx = (relicLayout.left ?? 66) + i * (size + 2);
+        const ry = relicLayout.top ?? 62;
+        const g = new Graphics();
+        g.roundRect(0, 0, size, size, 8)
+          .fill({ color: 0x141828, alpha: 0.9 })
+          .stroke({ color: 0xf2c14e, width: 1, alpha: 0.55 });
+        g.x = rx;
+        g.y = ry;
+        hudLayer.addChild(g);
+        const mark = new Text({
+          text: '◈',
+          style: { fontFamily: 'Cinzel', fontSize: 14, fill: 0xf2c14e },
+        });
+        mark.anchor?.set?.(0.5, 0.5);
+        mark.x = rx + size / 2;
+        mark.y = ry + size / 2;
+        hudLayer.addChild(mark);
+      });
+    }
+
+    hudCache = Object.freeze({
+      bounds: Object.freeze({
+        left: 0, top: 0, right: stageWidth, bottom: barH,
+        width: stageWidth, height: barH,
+      }),
+      hp: hudState.hp,
+      maxHp: hudState.maxHp,
+      gold: hudState.gold,
+      deckCount: hudState.deckCount,
+    });
+    hudPainted = painted;
+    hudReady = painted >= 2;
+  }
+
+  function paintOnePlate(parent, plateRect, topRect, plateState, { isHero = false } = {}) {
+    if (!plateRect || !plateState) return 0;
+    let painted = 0;
+    const plate = new Container();
+    plate.x = plateRect.left;
+    plate.y = plateRect.top;
+    parent.addChild(plate);
+
+    if (!isHero && plateState.name) {
+      const affix = plateState.affix?.name ? `${String(plateState.affix.name).toUpperCase()} ` : '';
+      const name = new Text({
+        text: `${affix}${String(plateState.name).toUpperCase()}`,
+        style: {
+          fontFamily: 'Cinzel', fontSize: 11, fontWeight: '700',
+          fill: plateState.affix?.tone ? 0xf2c14e : 0xe8dfc8,
+          letterSpacing: 1,
+        },
+      });
+      name.anchor?.set?.(0.5, 0);
+      name.x = plateRect.width / 2;
+      name.y = 0;
+      plate.addChild(name);
+      painted += 1;
+    }
+
+    const rowY = isHero ? 4 : 16;
+    const wrapW = Math.max(80, Math.min(150, plateRect.width || 150));
+    const wrapX = (plateRect.width - wrapW) / 2;
+
+    if ((plateState.ward || 0) > 0) {
+      addIconOrFallback(plate, 'combat-gl:ui/ward', wrapX + 12, rowY + 8, 22, 0x7ec8ff);
+      const wardTxt = new Text({
+        text: String(plateState.ward),
+        style: {
+          fontFamily: 'Cinzel', fontSize: 12, fontWeight: '800',
+          fill: 0xbfe0ff,
+        },
+      });
+      wardTxt.x = wrapX + 24;
+      wardTxt.y = rowY + 2;
+      plate.addChild(wardTxt);
+    }
+
+    const vialX = wrapX + ((plateState.ward || 0) > 0 ? 48 : 0);
+    const vialW = wrapW - ((plateState.ward || 0) > 0 ? 70 : 36);
+    const vial = new Graphics();
+    vial.roundRect(vialX, rowY + 4, Math.max(24, vialW), 10, 3)
+      .fill({ color: 0x0a0e18, alpha: 0.85 })
+      .stroke({ color: 0xffffff, width: 1, alpha: 0.18 });
+    const fillW = Math.max(0, Math.min(vialW, vialW * (Math.max(0, plateState.hp) / Math.max(1, plateState.maxHp))));
+    vial.roundRect(vialX, rowY + 4, fillW, 10, 3)
+      .fill({ color: isHero ? 0xc22f43 : 0xd94a4a, alpha: 0.95 });
+    plate.addChild(vial);
+
+    const hpLabel = new Text({
+      text: `${Math.max(0, plateState.hp)}/${plateState.maxHp}`,
+      style: {
+        fontFamily: 'Cinzel', fontSize: 11, fontWeight: '700',
+        fill: 0xffe8e8,
+        stroke: { color: 0x000000, width: 2, join: 'round' },
+      },
+    });
+    hpLabel.x = vialX + Math.max(24, vialW) + 4;
+    hpLabel.y = rowY + 1;
+    plate.addChild(hpLabel);
+    painted += 1;
+
+    if (!isHero && (plateState.facetMax || 0) > 0 && plateState.alive !== false) {
+      const maxShow = Math.min(plateState.facetMax, 8);
+      const startX = plateRect.width / 2 - (maxShow * 10) / 2;
+      for (let i = 0; i < maxShow; i += 1) {
+        const filled = i < (plateState.chips || 0);
+        addIconOrFallback(
+          plate,
+          filled ? 'combat-gl:ui/facet-empty' : 'combat-gl:ui/facet-chipped',
+          startX + i * 10 + 5,
+          rowY + 28,
+          10,
+          filled ? 0xff7060 : 0x6a738a,
+        );
+      }
+    }
+
+    if (topRect && plateState.intent && plateState.alive !== false) {
+      const top = new Container();
+      top.x = topRect.left;
+      top.y = topRect.top;
+      parent.addChild(top);
+      const icons = plateState.intent.icons || [];
+      icons.forEach((id, i) => {
+        addIconOrFallback(top, `combat-gl:ui/${id}`, 16 + i * 22, 16, i === 0 ? 28 : 20, 0xffe8c0);
+      });
+      if (plateState.intent.text) {
+        const num = new Text({
+          text: String(plateState.intent.text),
+          style: {
+            fontFamily: 'Cinzel', fontSize: 14, fontWeight: '800',
+            fill: 0xfff6ec,
+            stroke: { color: 0x000000, width: 2, join: 'round' },
+          },
+        });
+        num.x = 16 + icons.length * 22;
+        num.y = 6;
+        top.addChild(num);
+      }
+      painted += 1;
+    }
+
+    // Status chips under top chrome / above plate
+    const statuses = Array.isArray(plateState.statuses) ? plateState.statuses : [];
+    if (statuses.length && topRect) {
+      statuses.slice(0, 6).forEach((st, i) => {
+        const chip = new Graphics();
+        chip.roundRect(0, 0, 22, 22, 4)
+          .fill({ color: 0x161a2a, alpha: 0.9 })
+          .stroke({ color: 0x8b93ad, width: 1, alpha: 0.5 });
+        chip.x = topRect.left + i * 24;
+        chip.y = topRect.bottom - 2;
+        parent.addChild(chip);
+        if (Math.abs(st.n) >= 2) {
+          const n = new Text({
+            text: String(st.n),
+            style: { fontFamily: 'Cinzel', fontSize: 10, fontWeight: '700', fill: 0xffffff },
+          });
+          n.x = chip.x + 12;
+          n.y = chip.y + 5;
+          n.anchor?.set?.(0.5, 0);
+          parent.addChild(n);
+        }
+      });
+    }
+
+    return painted;
+  }
+
+  function paintPlatesChrome() {
+    clearPlatesPaint();
+    const platesState = presentationModel?.plates;
+    if (!platesState) {
+      platesCache = null;
+      platesReady = false;
+      return;
+    }
+    // Geometry comes from the PR17 packer via live DOM anchors (combat.js
+    // still owns clampCombatChrome). Pixi mirrors those stage-px boxes.
+    const heroPlate = domRect('.player-zone .cplate');
+    const heroTop = domRect('.player-zone .top-chrome');
+    let painted = 0;
+    painted += paintOnePlate(platesLayer, heroPlate, heroTop, platesState.hero, { isHero: true });
+
+    const enemyBoxes = typeof document !== 'undefined'
+      ? document.querySelectorAll('.enemy')
+      : [];
+    const enemiesOut = [];
+    enemyBoxes.forEach((box, index) => {
+      const state = platesState.enemies?.[index];
+      if (!state || state.alive === false) {
+        enemiesOut.push(Object.freeze({
+          index,
+          plateBounds: null,
+          topChromeBounds: null,
+          visibleBounds: null,
+        }));
+        return;
+      }
+      const plate = box.querySelector('.cplate');
+      const top = box.querySelector('.top-chrome');
+      const plateR = plate ? stageRect(plate) : null;
+      const topR = top ? stageRect(top) : null;
+      const plateBounds = plateR && plateR.width > 0 ? rectOf(plateR) : null;
+      const topBounds = topR && topR.width > 0 ? rectOf(topR) : null;
+      painted += paintOnePlate(platesLayer, plateBounds, topBounds, state, { isHero: false });
+      enemiesOut.push(Object.freeze({
+        index,
+        plateBounds,
+        topChromeBounds: topBounds,
+        visibleBounds: plateBounds,
+        hp: state.hp,
+        maxHp: state.maxHp,
+        name: state.name,
+      }));
+    });
+
+    platesCache = Object.freeze({
+      hero: Object.freeze({
+        plateBounds: rectOf(heroPlate),
+        topChromeBounds: rectOf(heroTop),
+        hp: platesState.hero?.hp ?? null,
+        maxHp: platesState.hero?.maxHp ?? null,
+        ward: platesState.hero?.ward ?? null,
+      }),
+      enemies: Object.freeze(enemiesOut),
+    });
+    platesPainted = painted;
+    platesReady = painted >= 1;
+  }
+
   const hitTest = (x, y) => {
     // Placeholder: PR17 owns real Pixi hit-testing; the scaffold defers to the
     // DOM by returning null so combat.js input handlers keep working.
@@ -668,6 +1096,8 @@ export async function createCombatRenderer({
           relics: relicBarLayout(chrome, false),
         },
         candleFrame: candleFrameCache,
+        hud: hudCache,
+        plates: platesCache,
         hero: {
           layoutX: hero.x ?? null,
           layoutY: heroBottom,
@@ -681,22 +1111,24 @@ export async function createCombatRenderer({
       });
     }
     const heroRect = domRect('.hero-wrap');
-    const heroPlate = domRect('.player-zone .cplate');
-    const heroTop = domRect('.player-zone .top-chrome');
+    const heroPlate = platesCache?.hero?.plateBounds || rectOf(domRect('.player-zone .cplate'));
+    const heroTop = platesCache?.hero?.topChromeBounds || rectOf(domRect('.player-zone .top-chrome'));
     const enemyBoxes = document.querySelectorAll('.enemy');
     const enemies = [];
     enemyBoxes.forEach((box, index) => {
+      const cached = platesCache?.enemies?.[index];
       const art = box.querySelector('.enemy-art');
-      const plate = box.querySelector('.cplate');
-      const top = box.querySelector('.top-chrome');
       if (!art) return;
       const artR = stageRect(art);
+      const plate = box.querySelector('.cplate');
+      const top = box.querySelector('.top-chrome');
       enemies.push({
         index,
         artBounds: rectOf(artR),
         artCenter: centerOf(artR),
-        plateBounds: plate ? rectOf(stageRect(plate)) : null,
-        topChromeBounds: top ? rectOf(stageRect(top)) : null,
+        plateBounds: cached?.plateBounds || (plate ? rectOf(stageRect(plate)) : null),
+        topChromeBounds: cached?.topChromeBounds || (top ? rectOf(stageRect(top)) : null),
+        visibleBounds: cached?.visibleBounds || null,
       });
     });
     const handRect = domRect('.hand-zone');
@@ -714,16 +1146,18 @@ export async function createCombatRenderer({
         hand: chrome.hand ?? null,
         hud: chrome.hud ?? null,
         omen: chrome.omen ?? null,
-        relics: relicBarLayout(chrome, false),
+        relics: relicBarLayout(chrome, !!presentationModel?.hud?.omen),
       },
       candleFrame: candleFrameCache,
+      hud: hudCache,
+      plates: platesCache,
       hero: {
         layoutX: bfLayout.hero?.x ?? null,
         layoutY: bfHeroY(bfLayout),
         bounds: rectOf(heroRect),
         center: centerOf(heroRect),
-        plateBounds: rectOf(heroPlate),
-        topChromeBounds: rectOf(heroTop),
+        plateBounds: heroPlate,
+        topChromeBounds: heroTop,
       },
       enemies: enemies.map((entry) => Object.freeze(entry)),
       restingHandFloor: handRect ? handRect.top : (chrome.hand?.bottom ?? null),
@@ -757,6 +1191,14 @@ export async function createCombatRenderer({
         ready: bottomChromeReady,
         painted: bottomChromePainted,
         hasCandleFrame: candleFrameCache !== null,
+      }),
+      hud: Object.freeze({
+        ready: hudReady,
+        painted: hudPainted,
+      }),
+      plates: Object.freeze({
+        ready: platesReady,
+        painted: platesPainted,
       }),
       frozen: pixiStats.frozen === true,
       frozenTick: pixiStats.frozen === true ? (pixiStats.frozenTick ?? null) : null,

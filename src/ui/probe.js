@@ -73,18 +73,34 @@ export function installProbe({
               'a WebGL warp plane still renders this corpse',
             );
           } else {
+            // Task 22b-2: plate HP numerals are Pixi-owned; DOM labels may be
+            // blank once .pixi-plate-chrome hides them. Prefer the model.
+            const gl = resolveCombatRenderer?.();
+            const glModel = gl && typeof gl.sync === 'function' ? gl.sync() : null;
+            const plateEnemy = glModel?.plates?.enemies?.[index];
+            const hpReading = plateEnemy
+              ? `${Math.max(0, plateEnemy.hp)}/${plateEnemy.maxHp}`
+              : elements.hp.textContent;
             add(
               `enemy${index}: HP label matches engine`,
-              elements.hp.textContent === `${Math.max(0, enemy.hp)}/${enemy.maxHp}`,
-              `dom="${elements.hp.textContent}" engine=${enemy.hp}/${enemy.maxHp}`,
+              hpReading === `${Math.max(0, enemy.hp)}/${enemy.maxHp}`,
+              `${plateEnemy ? 'pixi' : 'dom'}="${hpReading}" engine=${enemy.hp}/${enemy.maxHp}`,
             );
           }
         });
-        add(
-          'player: HP label matches engine',
-          ce.pHp.textContent === `${Math.max(0, cb.player.hp)}/${cb.player.maxHp}`,
-          `dom="${ce.pHp.textContent}" engine=${cb.player.hp}/${cb.player.maxHp}`,
-        );
+        {
+          const gl = resolveCombatRenderer?.();
+          const glModel = gl && typeof gl.sync === 'function' ? gl.sync() : null;
+          const plateHero = glModel?.plates?.hero;
+          const playerHp = plateHero
+            ? `${Math.max(0, plateHero.hp)}/${plateHero.maxHp}`
+            : ce.pHp.textContent;
+          add(
+            'player: HP label matches engine',
+            playerHp === `${Math.max(0, cb.player.hp)}/${cb.player.maxHp}`,
+            `${plateHero ? 'pixi' : 'dom'}="${playerHp}" engine=${cb.player.hp}/${cb.player.maxHp}`,
+          );
+        }
         add(
           'hand: DOM count matches engine',
           $$('.card', ce.hand).length === cb.hand.length,
