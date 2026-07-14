@@ -220,6 +220,118 @@ test('keyboard A fires Lantern Art when ready', async ({ page }) => {
   expectNoErrors(errors);
 });
 
+test('keyboard E End Turn — accepted and rejected busy reason codes', async ({ page }) => {
+  const errors = await bootCombat(page);
+
+  // Accepted path: E ends the turn and emits reason end-turn.
+  const before = await page.evaluate(() => {
+    window.__probe.resetBehaviourTrace();
+    return { turn: window.__probe.state().turn, seq: window.__probe.behaviourTrace().lastSeq };
+  });
+  await page.keyboard.press('e');
+  await settle(page);
+  const accepted = await page.evaluate((prevTurn) => {
+    const records = window.__probe.behaviourTrace().records;
+    const hit = records.find((r) =>
+      r.eventName === 'input.keyboard'
+      && r.attributes?.key === 'e'
+      && r.attributes?.reason === 'end-turn');
+    return {
+      turn: window.__probe.state().turn,
+      outcome: hit?.outcome || null,
+      reason: hit?.attributes?.reason || null,
+      key: hit?.attributes?.key || null,
+      advanced: window.__probe.state().turn > prevTurn,
+    };
+  }, before.turn);
+  expect(accepted.outcome).toBe('accepted');
+  expect(accepted.reason).toBe('end-turn');
+  expect(accepted.key).toBe('e');
+  expect(accepted.advanced).toBe(true);
+
+  // Rejected path: busy rejects with reason code busy (key still e).
+  await page.evaluate(() => {
+    window.__probe.resetBehaviourTrace();
+    window.spirebound.S.busy = true;
+  });
+  await page.keyboard.press('e');
+  const rejected = await page.evaluate(() => {
+    const hit = window.__probe.behaviourTrace().records.find((r) =>
+      r.eventName === 'input.keyboard' && r.attributes?.key === 'e');
+    return {
+      outcome: hit?.outcome || null,
+      reason: hit?.attributes?.reason || null,
+      busy: window.spirebound.S.busy === true,
+      turn: window.__probe.state().turn,
+    };
+  });
+  await page.evaluate(() => { window.spirebound.S.busy = false; });
+  expect(rejected.outcome).toBe('rejected');
+  expect(rejected.reason).toBe('busy');
+  expect(rejected.busy).toBe(true);
+  expectNoErrors(errors);
+});
+
+test('long-press inspect shows tooltip on Pixi hand seat', async ({ page }) => {
+  const errors = await bootCombat(page);
+  const setup = await page.evaluate(() => {
+    window.__probe.setEnergy(3);
+    const [uid] = window.__probe.forceHand(['defend']);
+    const ui = window.__probe.ui();
+    const card = ui.hand.find((c) => c.uid === uid) || ui.hand[0];
+    const tip = document.getElementById('tooltip');
+    if (tip) tip.style.display = 'none';
+    return {
+      uid: card.uid,
+      seatBounds: card.seatBounds,
+      name: card.id,
+    };
+  });
+  const from = await stageBoundsToClient(page, setup.seatBounds);
+
+  // Touch long-press arms at 380ms; mouse is intentionally skipped by the router.
+  await page.evaluate(({ origin }) => {
+    const stage = document.getElementById('stage');
+    stage.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true, cancelable: true, pointerId: 77, isPrimary: true,
+      pointerType: 'touch', clientX: origin.x, clientY: origin.y,
+    }));
+  }, { origin: from });
+
+  // Hold still past the 380ms long-press timer; assert inspect chrome while pressed.
+  await page.waitForFunction(() => {
+    const tip = document.getElementById('tooltip');
+    if (!tip || getComputedStyle(tip).display !== 'block') return false;
+    const title = tip.querySelector('.tt-title')?.textContent || '';
+    return title.length > 0;
+  }, null, { timeout: 2000 });
+  const during = await page.evaluate(() => {
+    const tip = document.getElementById('tooltip');
+    const title = tip?.querySelector?.('.tt-title')?.textContent || '';
+    const body = tip?.querySelector?.('.tt-body')?.textContent || '';
+    return {
+      display: tip ? getComputedStyle(tip).display : 'missing',
+      title,
+      body,
+      hasContent: !!(title || body),
+    };
+  });
+  expect(during.display).toBe('block');
+  expect(during.hasContent).toBe(true);
+  expect(during.title).toBe('Ward');
+  expect(during.body.toLowerCase()).toMatch(/ward/);
+
+  await page.evaluate(({ origin }) => {
+    const stage = document.getElementById('stage');
+    stage.dispatchEvent(new PointerEvent('pointerup', {
+      bubbles: true, cancelable: true, pointerId: 77, isPrimary: true,
+      pointerType: 'touch', clientX: origin.x, clientY: origin.y,
+    }));
+  }, { origin: from });
+  await settle(page);
+  expectNoErrors(errors);
+});
+
 test('LITE flat sheen vs full foil policy', async ({ page }) => {
   // Full tier — foil sheen tag on seats.
   {
