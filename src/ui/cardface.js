@@ -74,6 +74,78 @@ function linePlainText(line) {
   }).join('');
 }
 
+/** Convert a canvas (or data-URL) into a non-empty PNG Blob for object URLs. */
+function canvasToPngBlob(canvas) {
+  if (!canvas || typeof Blob === 'undefined') return null;
+  if (typeof canvas.toDataURL !== 'function') return null;
+  let dataUrl;
+  try {
+    dataUrl = canvas.toDataURL('image/png');
+  } catch {
+    return null;
+  }
+  return dataUrlToPngBlob(dataUrl);
+}
+
+function dataUrlToPngBlob(dataUrl) {
+  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:') || typeof Blob === 'undefined') {
+    return null;
+  }
+  const comma = dataUrl.indexOf(',');
+  if (comma < 0) return null;
+  const header = dataUrl.slice(0, comma);
+  const payload = dataUrl.slice(comma + 1);
+  const mimeMatch = /^data:([^;,]+)/.exec(header);
+  const mime = mimeMatch?.[1] || 'image/png';
+  try {
+    if (/;base64/i.test(header)) {
+      const bin = atob(payload);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+      if (!bytes.length) return null;
+      return new Blob([bytes], { type: mime });
+    }
+    const decoded = decodeURIComponent(payload);
+    if (!decoded.length) return null;
+    return new Blob([decoded], { type: mime });
+  } catch {
+    return null;
+  }
+}
+
+/** Tiny valid PNG used only when extract is unavailable (Node/stub) but Blob URLs exist. */
+function stubPngBlob() {
+  if (typeof Blob === 'undefined') return null;
+  // 1×1 transparent PNG
+  const b64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  try {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: 'image/png' });
+  } catch {
+    return null;
+  }
+}
+
+function objectUrlFromBlob(blob) {
+  if (!blob || !(blob.size > 0)) return null;
+  if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return null;
+  try {
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+}
+
+function revokeEntryUrl(entry) {
+  if (!entry?.url || typeof entry.url !== 'string') return;
+  if (entry.url.startsWith('blob:') && typeof URL !== 'undefined' && URL.revokeObjectURL) {
+    try { URL.revokeObjectURL(entry.url); } catch { /* best-effort */ }
+  }
+  entry.url = null;
+}
+
 /**
  * @param {object} deps
  * @param {object} deps.renderer Pixi renderer (extract.canvas / generateTexture)
@@ -137,10 +209,7 @@ export function createCardFaceComposer({
   function disposeEntry(entry) {
     if (!entry) return;
     try { entry.texture?.destroy?.(true); } catch { /* best-effort */ }
-    if (entry.url && typeof entry.url === 'string' && entry.url.startsWith('blob:')
-      && typeof URL !== 'undefined' && URL.revokeObjectURL) {
-      try { URL.revokeObjectURL(entry.url); } catch { /* best-effort */ }
-    }
+    revokeEntryUrl(entry);
     bytesUsed = Math.max(0, bytesUsed - (entry.bytes || 0));
   }
 
@@ -363,22 +432,126 @@ export function createCardFaceComposer({
     return entry;
   }
 
+  function releaseRef(entry) {
+    entry.refs = Math.max(0, entry.refs - 1);
+    // Object URLs are scoped to live consumers; revoke on close (refs→0) or eviction.
+    if (entry.refs === 0) revokeEntryUrl(entry);
+  }
+
   function acquire(cardDescriptor, displayState = {}) {
     const entry = ensureEntry(cardDescriptor, displayState);
     entry.refs += 1;
     return Object.freeze({
       key: entry.key,
       texture: entry.texture,
-      release() {
-        entry.refs = Math.max(0, entry.refs - 1);
-      },
+      release() { releaseRef(entry); },
     });
+  }
+
+  function paintFaceCanvas2d(layout) {
+    if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
+      return null;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = CARD_FACE_WIDTH;
+    canvas.height = CARD_FACE_HEIGHT;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const { width, height, regions } = layout;
+    const inkCss = tokens?.ink || COLOUR.ink;
+    const goldCss = tokens?.gold || COLOUR.gold;
+    const goldDimCss = tokens?.['gold-dim'] || COLOUR.goldDim;
+    const parchmentCss = tokens?.parchment || COLOUR.parchment;
+    const textCss = tokens?.text || COLOUR.text;
+    const emberCss = tokens?.ember || COLOUR.ember;
+    const typeFill = layout.type === 'attack' ? '#7e3040'
+      : layout.type === 'skill' ? '#2f5a80'
+        : layout.type === 'power' ? '#5c3f8f'
+          : layout.type === 'curse' ? '#5c3a5c' : '#47584f';
+
+    ctx.fillStyle = inkCss;
+    roundRect(ctx, 0, 0, width, height, 14);
+    ctx.fill();
+    ctx.strokeStyle = goldDimCss;
+    ctx.lineWidth = 1;
+    roundRect(ctx, 3, 3, width - 6, height - 6, 12);
+    ctx.stroke();
+    ctx.fillStyle = typeFill;
+    ctx.globalAlpha = 0.35;
+    roundRect(ctx, regions.art.x, regions.art.y, regions.art.w, regions.art.h, 10);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    if (layout.cost != null) {
+      const cx = regions.cost.x + regions.cost.size / 2;
+      const cy = regions.cost.y + regions.cost.size / 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, regions.cost.size / 2, 0, Math.PI * 2);
+      ctx.fillStyle = goldCss;
+      ctx.fill();
+      ctx.strokeStyle = inkCss;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = inkCss;
+      ctx.font = '700 20px Cinzel, serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(layout.cost), cx, cy);
+    }
+
+    ctx.fillStyle = layout.up ? emberCss : parchmentCss;
+    ctx.font = '700 17px Cinzel, serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(
+      layout.name,
+      regions.name.x + regions.name.w / 2,
+      regions.name.y + regions.name.h / 2,
+      regions.name.w,
+    );
+
+    const body = layout.body;
+    const lineHeight = body.fontSize * 1.25;
+    const bodyTop = regions.body.y
+      + Math.max(0, (regions.body.h - body.lines.length * lineHeight) / 2);
+    ctx.fillStyle = textCss;
+    ctx.font = `${body.fontSize}px Alegreya, serif`;
+    ctx.textBaseline = 'top';
+    body.lines.forEach((line, index) => {
+      const plain = linePlainText(line);
+      if (!plain) return;
+      ctx.fillText(
+        plain,
+        regions.body.x + regions.body.w / 2,
+        bodyTop + index * lineHeight,
+        regions.body.w,
+      );
+    });
+
+    ctx.fillStyle = rarityRailColour(layout.rarity);
+    ctx.fillRect(
+      regions.rarityRail.x, regions.rarityRail.y,
+      regions.rarityRail.w, regions.rarityRail.h,
+    );
+    return canvas;
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    const radius = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + w, y, x + w, y + h, radius);
+    ctx.arcTo(x + w, y + h, x, y + h, radius);
+    ctx.arcTo(x, y + h, x, y, radius);
+    ctx.arcTo(x, y, x + w, y, radius);
+    ctx.closePath();
   }
 
   function exportImage(cardDescriptor, displayState = {}) {
     const entry = ensureEntry(cardDescriptor, displayState);
     entry.refs += 1;
     if (!entry.url) {
+      let blob = null;
       if (typeof renderer.extract?.canvas === 'function') {
         const display = paintFace(entry.layout);
         let canvas = null;
@@ -387,29 +560,28 @@ export function createCardFaceComposer({
         } finally {
           try { display.destroy({ children: true }); } catch { /* ignore */ }
         }
-        if (canvas && typeof canvas.toDataURL === 'function') {
-          entry.url = canvas.toDataURL('image/png');
-        } else if (canvas && typeof URL !== 'undefined' && URL.createObjectURL
-          && typeof Blob !== 'undefined') {
-          entry.url = URL.createObjectURL(new Blob([], { type: 'image/png' }));
-        }
+        blob = canvasToPngBlob(canvas);
       }
-      if (!entry.url) {
-        entry.url = `cardface:${entry.key}`;
+      if (!blob) {
+        // Same layout model → 2d raster when Pixi extract is unavailable.
+        blob = canvasToPngBlob(paintFaceCanvas2d(entry.layout));
       }
+      // Prefer a real object URL of a non-empty Blob (plan contract). Never empty Blob.
+      entry.url = objectUrlFromBlob(blob)
+        || objectUrlFromBlob(stubPngBlob())
+        || `cardface:${entry.key}`;
     }
     return Object.freeze({
       key: entry.key,
       url: entry.url,
-      release() {
-        entry.refs = Math.max(0, entry.refs - 1);
-      },
+      release() { releaseRef(entry); },
     });
   }
 
   /**
    * Drop baked entries. Empty criteria / `{ all: true }` / `{ localeChanged: true }`
    * / `{ text: true }` clears every cached face (locale switch path).
+   * `{ locale: 'xx' }` drops keys whose cache-key prefix matches that locale.
    */
   function invalidate(criteria = {}) {
     const clearAll = !criteria
@@ -427,7 +599,8 @@ export function createCardFaceComposer({
       if (!drop && criteria.key != null) drop = key === criteria.key;
       if (!drop && criteria.id != null) drop = entry.layout?.id === criteria.id;
       if (!drop && criteria.locale != null) {
-        drop = !key.startsWith(`${criteria.locale}\u001f`);
+        // Prefix match drops matching keys (not the inverse).
+        drop = key.startsWith(`${criteria.locale}\u001f`);
       }
       // Stale locale prefix vs live getLocale() always drops.
       if (!key.startsWith(`${localeNow}\u001f`)) drop = true;

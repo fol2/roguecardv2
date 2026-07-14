@@ -1,9 +1,7 @@
 import * as E from '../engine.js';
-import { cardArtSvg } from '../art.js';
 import { stageH, stageW, toStage } from '../stage.js';
-import { $, $$, FINE, S, el } from './context.js';
+import { $, FINE, S, el } from './context.js';
 import { contentViewFor } from './content.js';
-import { rasterOr } from './assets.js';
 
 export function createTooltip({
   tr,
@@ -134,6 +132,33 @@ export function createTooltip({
     return formatted;
   }
 
+  function wireCardFoil(card) {
+    if (FINE) {
+      card.addEventListener('mousemove', (event) => {
+        const rect = card.getBoundingClientRect();
+        const px = (event.clientX - rect.left) / rect.width;
+        const py = (event.clientY - rect.top) / rect.height;
+        const inner = $('.card-inner', card);
+        if (!inner) return;
+        inner.style.setProperty('--ry', `${(px - 0.5) * 16}deg`);
+        inner.style.setProperty('--rx', `${(0.5 - py) * 12}deg`);
+        inner.style.setProperty('--mx', `${px * 100}%`);
+        inner.style.setProperty('--my', `${py * 100}%`);
+        inner.style.setProperty('--gx', (px - 0.5) * 60);
+      });
+    }
+    card.addEventListener('mouseleave', () => {
+      const inner = $('.card-inner', card);
+      if (!inner) return;
+      inner.style.setProperty('--ry', '0deg');
+      inner.style.setProperty('--rx', '0deg');
+    });
+  }
+
+  /**
+   * DOM card host for shop / reward / overlay / (until Task 27) combat hand.
+   * Sole face bake is the Pixi composer export — no competing P1 DOM face layout.
+   */
   function cardEl(inst, { inCombat = false, size = null } = {}) {
     const data = E.cardData(inst, S.run);
     const card = el('div', `card t-${data.type} r-${data.rarity}${inst.up ? ' upgraded' : ''}`);
@@ -146,80 +171,37 @@ export function createTooltip({
     if (inst.bonus) {
       text = text.replace(/<span class="val[^"]*">(\d+)<\/span>/, (match, value) => match.replace(value, +value + inst.bonus));
     }
+    card._tip = { title: data.name, body: text };
 
-    // Task 26 — prefer the single Pixi card-face composer export when booted.
     const composer = typeof getCardFaceComposer === 'function' ? getCardFaceComposer() : null;
-    if (composer && typeof composer.exportImage === 'function') {
-      let effectiveText = data.text;
-      if (inst.bonus && typeof effectiveText === 'string') {
-        effectiveText = effectiveText.replace(/@(\d+)@/g, (_, n) => `@${+n + inst.bonus}@`);
-      }
-      const exported = composer.exportImage(
-        { id: inst.id, up: !!inst.up },
-        {
-          up: !!inst.up,
-          effectiveCost,
-          effectiveText,
-        },
-      );
-      card.dataset.cardFaceKey = exported.key;
-      card._cardFaceRelease = exported.release;
-      card.innerHTML = `<div class="card-lift"><div class="card-inner card-inner-export">
-        <img class="card-face-export" alt="" draggable="false"
-          data-card-face-key="${exported.key}"
-          src="${exported.url}"
-          style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none;border-radius:12px"/>
-      </div></div>`;
-      card._tip = { title: data.name, body: text };
-      if (FINE) card.addEventListener('mousemove', (event) => {
-        const rect = card.getBoundingClientRect();
-        const px = (event.clientX - rect.left) / rect.width;
-        const py = (event.clientY - rect.top) / rect.height;
-        const inner = $('.card-inner', card);
-        if (!inner) return;
-        inner.style.setProperty('--ry', `${(px - 0.5) * 16}deg`);
-        inner.style.setProperty('--rx', `${(0.5 - py) * 12}deg`);
-        inner.style.setProperty('--mx', `${px * 100}%`);
-        inner.style.setProperty('--my', `${py * 100}%`);
-        inner.style.setProperty('--gx', (px - 0.5) * 60);
-      });
-      card.addEventListener('mouseleave', () => {
-        const inner = $('.card-inner', card);
-        if (!inner) return;
-        inner.style.setProperty('--ry', '0deg');
-        inner.style.setProperty('--rx', '0deg');
-      });
+    if (!composer || typeof composer.exportImage !== 'function') {
+      // Composer not booted — empty shell only (never a second DOM face bake).
+      card.innerHTML = '<div class="card-lift"><div class="card-inner card-inner-export"></div></div>';
+      wireCardFoil(card);
       return card;
     }
 
-    let costHtml = '';
-    if (effectiveCost != null) {
-      costHtml = `<div class="card-cost ${effectiveCost === 0 ? 'free' : ''}">${effectiveCost}</div>`;
+    let effectiveText = data.text;
+    if (inst.bonus && typeof effectiveText === 'string') {
+      effectiveText = effectiveText.replace(/@(\d+)@/g, (_, n) => `@${+n + inst.bonus}@`);
     }
-    card.innerHTML = `<div class="card-lift">${costHtml}<div class="card-inner">
-      <div class="card-art">${rasterOr('cards', inst.id, cardArtSvg(inst.id, data.type))}</div>
-      <div class="card-name">${data.name}</div>
-      <div class="card-type">${data.type}</div>
-      <div class="card-text"><span class="ct-inner">${text}</span></div>
-      <div class="card-rarity"></div>
+    const exported = composer.exportImage(
+      { id: inst.id, up: !!inst.up },
+      {
+        up: !!inst.up,
+        effectiveCost,
+        effectiveText,
+      },
+    );
+    card.dataset.cardFaceKey = exported.key;
+    card._cardFaceRelease = exported.release;
+    card.innerHTML = `<div class="card-lift"><div class="card-inner card-inner-export">
+      <img class="card-face-export" alt="" draggable="false"
+        data-card-face-key="${exported.key}"
+        src="${exported.url}"
+        style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none;border-radius:12px"/>
     </div></div>`;
-    const keywords = KEYWORDS();
-    $$('.kw', card).forEach((keyword) => (keyword._tip = { title: keyword.textContent, body: keywords[keyword.textContent] || '' }));
-    if (FINE) card.addEventListener('mousemove', (event) => {
-      const rect = card.getBoundingClientRect();
-      const px = (event.clientX - rect.left) / rect.width, py = (event.clientY - rect.top) / rect.height;
-      const inner = $('.card-inner', card);
-      inner.style.setProperty('--ry', `${(px - 0.5) * 16}deg`);
-      inner.style.setProperty('--rx', `${(0.5 - py) * 12}deg`);
-      inner.style.setProperty('--mx', `${px * 100}%`);
-      inner.style.setProperty('--my', `${py * 100}%`);
-      inner.style.setProperty('--gx', (px - 0.5) * 60);
-    });
-    card.addEventListener('mouseleave', () => {
-      const inner = $('.card-inner', card);
-      inner.style.setProperty('--ry', '0deg');
-      inner.style.setProperty('--rx', '0deg');
-    });
+    wireCardFoil(card);
     return card;
   }
 

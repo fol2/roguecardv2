@@ -36,7 +36,6 @@ test.describe('card-face composer', () => {
           .every((k) => typeof face[k] === 'function'),
         maxEntries: stats.maxEntries,
         byteCap: stats.byteCap,
-        locale: window.spirebound /* probe via acquire key */,
       };
     });
     expect(seam.ok).toBe(true);
@@ -60,11 +59,16 @@ test.describe('card-face composer', () => {
         imgCount: imgs.length,
         cardCount: cards.length,
         keys: cards.map((c) => c.dataset.cardFaceKey).filter(Boolean),
+        urls: imgs.map((img) => img.getAttribute('src') || ''),
+        // No competing P1 DOM face bake when composer is available.
+        legacyDomFaces: [...document.querySelectorAll('.card .card-art, .card .card-name')].length,
       };
     });
     expect(shopFaces.imgCount).toBeGreaterThan(0);
     expect(shopFaces.cardCount).toBeGreaterThan(0);
     expect(shopFaces.keys.every((k) => k.startsWith('en\u001f') || k.includes('en'))).toBe(true);
+    expect(shopFaces.urls.every((u) => u.startsWith('blob:'))).toBe(true);
+    expect(shopFaces.legacyDomFaces).toBe(0);
 
     // Deck overlay grid also carries data-card-face-key.
     await page.evaluate(() => {
@@ -73,18 +77,14 @@ test.describe('card-face composer', () => {
     await settle(page);
     await page.evaluate(() => {
       const sp = window.spirebound;
-      // Force a card grid via the overlay helper on the live UI owner.
       const showCardGrid = sp.showCardGrid;
       if (typeof showCardGrid === 'function') {
         showCardGrid('Deck', sp.S.run.player.deck, {});
       } else {
-        // Fallback: open deck from a synthetic combat-less path through menu help is insufficient;
-        // use the shop leave then call internal overlay if exposed.
         const overlay = document.getElementById('overlay');
         overlay.classList.add('open');
         overlay.innerHTML = '';
         for (const inst of sp.S.run.player.deck.slice(0, 3)) {
-          // Build via live card path: navigate shop already proved export; here stamp keys from composer.
           const face = sp.combatGl.cardFace.exportImage({ id: inst.id }, { up: !!inst.up });
           const img = document.createElement('img');
           img.className = 'card-face-export';
@@ -116,30 +116,73 @@ test.describe('card-face composer', () => {
     const samples = await page.evaluate(async () => {
       const face = window.spirebound.combatGl.cardFace;
       const { CARDS } = await import('/src/data.js');
-      const { COLOUR: C } = await import('/src/ui/tokens.js');
-      const hexToRgb = (hex) => {
-        const clean = hex.replace('#', '');
-        return [
-          Number.parseInt(clean.slice(0, 2), 16),
-          Number.parseInt(clean.slice(2, 4), 16),
-          Number.parseInt(clean.slice(4, 6), 16),
-        ];
-      };
       const chosen = [];
       for (const rarity of ['common', 'uncommon', 'rare', 'starter']) {
         const id = Object.keys(CARDS).find((k) => CARDS[k].rarity === rarity);
-        if (id) chosen.push({ id, rarity });
+        if (id) chosen.push({ id, rarity, descriptor: { id } });
       }
+      // Boss rarity has no stock card id — bake a synthetic boss-face descriptor.
+      chosen.push({
+        id: 'boss-face-sample',
+        rarity: 'boss',
+        descriptor: {
+          id: 'boss-face-sample',
+          name: 'Boss Vow',
+          text: 'Deal @10@ damage.',
+          cost: 1,
+          rarity: 'boss',
+          type: 'attack',
+        },
+      });
+
+      const relLum = (rgb) => {
+        const channel = (c) => {
+          const s = c / 255;
+          return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        };
+        return 0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2]);
+      };
+      const ratio = (a, b) => {
+        const l1 = relLum(a);
+        const l2 = relLum(b);
+        const light = Math.max(l1, l2);
+        const dark = Math.min(l1, l2);
+        return (light + 0.05) / (dark + 0.05);
+      };
+      // Scan glyph/bg windows for the strongest live pair (AA-safe, no token softener).
+      const bestLive = (ctx, gx, gy, bx, by, span = 6) => {
+        let best = 0;
+        let pair = null;
+        for (let dy = -span; dy <= span; dy += 2) {
+          for (let dx = -span; dx <= span; dx += 2) {
+            const g = ctx.getImageData(Math.round(gx + dx), Math.round(gy + dy), 1, 1).data;
+            const glyph = [g[0], g[1], g[2]];
+            for (let ey = -span; ey <= span; ey += 2) {
+              for (let ex = -span; ex <= span; ex += 2) {
+                const b = ctx.getImageData(Math.round(bx + ex), Math.round(by + ey), 1, 1).data;
+                const bg = [b[0], b[1], b[2]];
+                const r = ratio(glyph, bg);
+                if (r > best) {
+                  best = r;
+                  pair = { glyph, bg, r };
+                }
+              }
+            }
+          }
+        }
+        return pair;
+      };
+
       const out = [];
-      for (const pick of chosen.slice(0, 4)) {
-        const exported = face.exportImage({ id: pick.id }, { up: false });
+      for (const pick of chosen) {
+        const exported = face.exportImage(pick.descriptor, { up: false });
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.src = exported.url;
         await new Promise((resolve) => {
           img.onload = resolve;
           img.onerror = resolve;
-          if (!String(exported.url).startsWith('data:image') && !String(exported.url).startsWith('blob:')) {
+          if (!String(exported.url).startsWith('blob:') && !String(exported.url).startsWith('data:image')) {
             resolve();
           }
         });
@@ -154,55 +197,41 @@ test.describe('card-face composer', () => {
             painted = true;
           }
         } catch { /* stub */ }
-        const sample = (x, y) => {
-          if (!painted) return null;
-          const d = ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data;
-          return [d[0], d[1], d[2]];
-        };
-        // Glyph interiors vs composed local backgrounds (FE hierarchy geometry).
-        // Cost numeral centre (24,24) against gold gem body (24,14).
-        // Name centre against ink plate just above the name band.
-        // Body centre against ink plate in the rules band.
+        const cost = painted ? bestLive(ctx, 24, 24, 24, 14) : null;
+        const name = painted ? bestLive(ctx, 76, 132, 76, 118) : null;
+        const body = painted ? bestLive(ctx, 76, 168, 76, 200) : null;
+        // Boss rarity role shares gold-on-ink with the cost gem (rail is only 2px tall).
+        const rarityRole = painted ? bestLive(ctx, 24, 14, 76, 40, 4) : null;
         out.push({
           id: pick.id,
           rarity: pick.rarity,
           key: exported.key,
+          urlKind: String(exported.url).startsWith('blob:') ? 'blob'
+            : String(exported.url).startsWith('data:') ? 'data' : 'other',
           painted,
-          costGlyph: sample(24, 24),
-          costLocalBg: sample(24, 14),
-          nameGlyph: sample(76, 132),
-          nameLocalBg: sample(76, 118),
-          bodyGlyph: sample(76, 168),
-          bodyLocalBg: sample(76, 200),
-          tokenCost: { fg: hexToRgb(C.ink), bg: hexToRgb(C.gold) },
-          tokenName: { fg: hexToRgb(C.parchment), bg: hexToRgb(C.ink) },
-          tokenBody: { fg: hexToRgb(C.text), bg: hexToRgb(C.ink) },
+          costRatio: cost?.r ?? 0,
+          nameRatio: name?.r ?? 0,
+          bodyRatio: body?.r ?? 0,
+          rarityRoleRatio: rarityRole?.r ?? 0,
         });
         exported.release();
       }
       return out;
     });
 
-    expect(samples.length).toBeGreaterThanOrEqual(3);
+    expect(samples.length).toBeGreaterThanOrEqual(4);
+    expect(samples.some((s) => s.rarity === 'boss')).toBe(true);
     for (const sample of samples) {
       expect(sample.key.startsWith('en')).toBe(true);
-      // Always enforce token pairs for the rarity face roles.
-      expect(sampleContrast(sample.tokenCost.fg, sample.tokenCost.bg)).toBeGreaterThanOrEqual(4.5);
-      expect(sampleContrast(sample.tokenName.fg, sample.tokenName.bg)).toBeGreaterThanOrEqual(4.5);
-      expect(sampleContrast(sample.tokenBody.fg, sample.tokenBody.bg)).toBeGreaterThanOrEqual(4.5);
-      // Pixel-sample glyph interiors against composed role backgrounds. When a
-      // sample lands off-glyph (anti-alias / empty plate), the token pair for
-      // that role is the authoritative ≥4.5:1 proof.
-      const roleOk = (glyph, token) => {
-        const tokenRatio = sampleContrast(token.fg, token.bg);
-        expect(tokenRatio).toBeGreaterThanOrEqual(4.5);
-        if (!sample.painted || !glyph) return;
-        const live = sampleContrast(glyph, token.bg);
-        expect(Math.max(live, tokenRatio)).toBeGreaterThanOrEqual(4.5);
-      };
-      roleOk(sample.costGlyph, sample.tokenCost);
-      roleOk(sample.nameGlyph, sample.tokenName);
-      roleOk(sample.bodyGlyph, sample.tokenBody);
+      expect(sample.urlKind).toBe('blob');
+      expect(sample.painted).toBe(true);
+      // Live glyph/background samples must clear ≥4.5 alone — no token softener.
+      expect(sample.costRatio, `${sample.id} cost`).toBeGreaterThanOrEqual(4.5);
+      expect(sample.nameRatio, `${sample.id} name`).toBeGreaterThanOrEqual(4.5);
+      expect(sample.bodyRatio, `${sample.id} body`).toBeGreaterThanOrEqual(4.5);
+      if (sample.rarity === 'boss') {
+        expect(sample.rarityRoleRatio, `${sample.id} boss rarity gold/ink`).toBeGreaterThanOrEqual(4.5);
+      }
     }
     expectNoErrors(errors, 'cardface contrast samples');
   });
@@ -227,6 +256,10 @@ test.describe('card-face composer', () => {
       const second = face.acquire({ id: 'strike' }, { up: false });
       const keyZz = second.key;
       second.release();
+      // Targeted locale invalidation drops matching prefix keys.
+      const beforeTargeted = face.stats().entries;
+      const droppedZz = face.invalidate({ locale: 'zz-cardface-e2e' });
+      const afterTargeted = face.stats().entries;
       i18n.setLocale('en');
       face.invalidate({ localeChanged: true });
       return {
@@ -234,6 +267,9 @@ test.describe('card-face composer', () => {
         removed,
         keyEn,
         keyZz,
+        beforeTargeted,
+        droppedZz,
+        afterTargeted,
         localeRestored: i18n.getLocale(),
       };
     });
@@ -243,6 +279,8 @@ test.describe('card-face composer', () => {
     expect(result.keyEn.startsWith('en')).toBe(true);
     expect(result.keyZz.startsWith('zz-cardface-e2e')).toBe(true);
     expect(result.keyEn).not.toBe(result.keyZz);
+    expect(result.droppedZz).toBeGreaterThan(0);
+    expect(result.afterTargeted).toBeLessThan(result.beforeTargeted);
     expect(result.localeRestored).toBe('en');
     expectNoErrors(errors, 'cardface locale invalidation');
   });

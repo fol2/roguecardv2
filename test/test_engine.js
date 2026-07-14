@@ -482,8 +482,15 @@ function forceHand(run, cb, ids) {
   assert.match(uiSources, /(?:const|function)\s+FACET_DESC\b[\s\S]*?=>\s*tr\(/,
     'FACET_DESC remains a lazy locale factory');
   assert.match(uiSources, /(?:const|function)\s+KEYWORDS\b[\s\S]*?=>\s*\(\{/, 'KEYWORDS remains a lazy factory');
-  assert.match(uiSources, /\$\$\(\s*['"]\.kw['"]\s*,\s*(?:c|card)\s*\)/,
-    'keyword decoration visits every keyword node on the card');
+  // Task 26 — DOM card faces are composer exports (no second P1 .card-art bake).
+  // Keyword spans still come from fmtText for tip bodies; live .kw nodes on the
+  // card face itself are gone with the raster export.
+  assert.match(uiSources, /function fmtText\b[\s\S]{0,2500}class="kw"/,
+    'fmtText still wraps keyword spans for tip bodies');
+  assert.match(uiSources, /composer\.exportImage|exportImage\(/,
+    'cardEl consumes the single composer exportImage path');
+  assert.doesNotMatch(uiSources, /card-art\$\{|cardArtSvg\(inst\.id/,
+    'P1 DOM card-art bake is not competing at the cardEl merge boundary');
 }
 
 // ---- Round 5 normal Phase 2 transaction seam ------------------------------
@@ -9191,11 +9198,23 @@ export default defineContentRegistration({
   const exported = composer.exportImage({ id: 'strike' }, { up: false });
   assert.equal(exported.key, a1.key);
   assert.ok(exported.url);
-
-  // Fill past max entries to force eviction of released faces.
+  // Prefer object URLs when the host supports them; never empty Blob / data-URL.
+  if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function' && typeof Blob !== 'undefined') {
+    assert.ok(exported.url.startsWith('blob:'), `expected blob URL, got ${exported.url}`);
+  }
   a1.release();
   a2.release();
   exported.release();
+
+  // Targeted locale invalidation drops matching prefix keys (not the inverse).
+  composer.acquire({ id: 'strike' }, { up: false }).release();
+  composer.acquire({ id: 'defend' }, { up: false }).release();
+  assert.ok(composer.stats().entries >= 1);
+  const droppedEn = composer.invalidate({ locale: 'en' });
+  assert.ok(droppedEn >= 1);
+  assert.equal(composer.stats().entries, 0);
+
+  // Fill past max entries to force eviction of released faces.
   for (const id of Object.keys(CARDS).slice(0, 30)) {
     const handle = composer.acquire({ id }, { up: false });
     handle.release();
@@ -9204,7 +9223,9 @@ export default defineContentRegistration({
   assert.ok(composer.stats().bytes <= FACE_CACHE_BYTE_CAPS.full);
 
   // Locale invalidation: register/switch a synthetic UI catalogue, observe
-  // the locale token change, invalidate every baked text texture, restore en.
+  // the locale token change, invalidate every baked text texture, then
+  // restore en. Do not claim live card-table rehydration; card mechanics/display
+  // tables remain the module-init English graph in this slice.
   assert.equal(liveLocale(), 'en');
   const beforeKeys = composer.stats().keys.length;
   assert.ok(beforeKeys > 0);
@@ -9221,6 +9242,11 @@ export default defineContentRegistration({
   const zzFace = composer.acquire({ id: 'strike' }, { up: false });
   assert.ok(zzFace.key.startsWith('zz-cardface\u001f'), zzFace.key);
   zzFace.release();
+  // Prefix-targeted drop while still on zz: only zz keys leave.
+  composer.acquire({ id: 'defend' }, { up: false }).release();
+  const zzDropped = composer.invalidate({ locale: 'zz-cardface' });
+  assert.ok(zzDropped >= 1);
+  assert.equal(composer.stats().entries, 0);
   assert.equal(setLocale('en'), true);
   assert.equal(liveLocale(), 'en');
   composer.invalidate({ localeChanged: true });
