@@ -285,4 +285,70 @@ test.describe('combat presentation ceremonies', () => {
     expect(result.kinds).toEqual(expect.arrayContaining(['turn', 'boss', 'guard-shattered']));
     expectNoErrors(errors, 'batched banners');
   });
+
+  test('lantern artCast is a Pixi ceremony with no DOM .art-cast', async ({ page }) => {
+    const errors = collectErrors(page);
+    await boot(page, { query: 'trace=1&mesh=0&motion=reduced' });
+    await startFight(page, ['sporeling']);
+
+    const result = await page.evaluate(async () => {
+      const pres = window.spirebound.combatGl?.presentation;
+      if (typeof pres?.artCast !== 'function') {
+        return { ok: false, reason: 'missing-artCast' };
+      }
+      window.__probe.resetBehaviourTrace();
+      const hero = window.spirebound.S.ce?.hero
+        ? (() => {
+          const r = window.__probe.stage();
+          return { x: r.w * 0.28, y: r.h * 0.62 };
+        })()
+        : { x: 280, y: 420 };
+      // Prefer a real arts asset URL when available; REDUCED settles without loading.
+      const artId = window.spirebound.S.run?.art || 'flare';
+      const url = null; // REDUCED path must settle even without a URL; full path tested below.
+      const reduced = await pres.artCast({
+        x: hero.x, y: hero.y, url, artId, size: 110,
+      });
+      await window.__probe.settle();
+
+      // Full path with asset (policy may still be reduced from query — force via direct call
+      // after temporarily running with a data URL so Assets.load always resolves).
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ff9a4d';
+      ctx.fillRect(0, 0, 64, 64);
+      const blobUrl = canvas.toDataURL('image/png');
+
+      // Call through combat policy — if reduced, still no DOM; if full, sprite animates.
+      window.__probe.resetBehaviourTrace();
+      const full = await pres.artCast({
+        x: hero.x, y: hero.y, url: blobUrl, artId: 'flare', size: 110,
+      });
+      await window.__probe.settle();
+      const records = window.__probe.behaviourTrace({ format: 'records' }).records;
+      const casts = records.filter((r) => r.eventName === 'presentation.art-cast');
+      return {
+        ok: true,
+        hasApi: true,
+        reducedOutcome: reduced?.outcome || reduced?.motion || null,
+        fullMotion: full?.motion || null,
+        castStarts: casts.filter((r) => r.phase === 'start').length,
+        castEnds: casts.filter((r) => r.phase === 'end').length,
+        endStates: casts.filter((r) => r.phase === 'end').map((r) => r.attributes?.endState),
+        domArtCast: document.querySelectorAll('.art-cast, img.art-cast').length,
+        floaties: document.querySelectorAll('#floaties > *').length,
+      };
+    });
+
+    expect(result.ok, result.reason).toBe(true);
+    expect(result.hasApi).toBe(true);
+    expect(result.domArtCast).toBe(0);
+    expect(result.floaties).toBe(0);
+    expect(result.castStarts).toBeGreaterThanOrEqual(1);
+    expect(result.castEnds).toBeGreaterThanOrEqual(1);
+    expect(result.endStates.some((s) => s === 'art-cast-cleared')).toBe(true);
+    expectNoErrors(errors, 'artCast ceremony');
+  });
 });

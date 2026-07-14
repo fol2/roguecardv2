@@ -421,10 +421,13 @@ async function handleEvent(ev, targetIdx) {
       V.ring(lc.x, lc.y, art.tone, 10, 620, 5);
       V.motes(hx, hy, art.tone, 12);
       presentation.floatText(hx, hy - 84, art.name.toUpperCase(), 'artf');
-      // Art cast ghost is Pixi-owned (Task 28) — float the name; no DOM image host.
+      const au = assetUrl('arts', ev.id);
+      await presentation.artCast({
+        x: hx, y: hy, url: au, artId: ev.id, size: 110,
+      });
       kick(0.7);
       presentation.syncCombat();
-      await sleep(420);
+      await sleep(REDUCED ? 40 : 120);
       break;
     }
     case 'staggered': {

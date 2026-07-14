@@ -529,6 +529,20 @@ function forceHand(run, cb, ids) {
     'drain leaves no combat DOM #floaties owners after Task 28');
   assert.doesNotMatch(drainSource, /turn-banner|perfect-banner|variant-dialogue/,
     'drain leaves no DOM combat banner class owners after Task 28 fixes');
+  assert.match(drainSource, /presentation\.artCast/,
+    'drain lantern art cast routes through presentation.artCast');
+  assert.doesNotMatch(drainSource, /classList\.add\(['"]art-cast|el\(\s*['"]img['"].*art-cast|['"]art-cast['"]/,
+    'drain leaves no DOM img.art-cast for lantern art');
+  const presentationSource = readFileSync(
+    new URL('../src/ui/combat-presentation.js', import.meta.url), 'utf8',
+  );
+  assert.match(presentationSource, /async function artCast/,
+    'combat-presentation owns the Pixi artCast ceremony');
+  assert.match(presentationSource, /presentation\.art-cast/,
+    'artCast publishes presentation.art-cast spans');
+  const stylesSource = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  assert.doesNotMatch(stylesSource, /\.art-cast\s*\{/,
+    'dead .art-cast CSS removed after Pixi migration');
   const navSource = readFileSync(new URL('../src/ui/navigation.js', import.meta.url), 'utf8');
   const contextSource = readFileSync(new URL('../src/ui/context.js', import.meta.url), 'utf8');
   assert.match(contextSource, /function releaseCardFacesIn\(/,

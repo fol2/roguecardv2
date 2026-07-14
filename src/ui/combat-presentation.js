@@ -2,7 +2,7 @@
 // Owns combat floaters, banners, mote flights, card-flight pile ceremonies and
 // shatter fragments. Non-combat screens keep DOM `#floaties` / `.turn-banner`.
 
-import { Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, Texture, Assets } from 'pixi.js';
 import {
   CEREMONY_BUDGET_MS, flightSchedule,
 } from '../pile-chrome.js';
@@ -84,7 +84,8 @@ export function createCombatPresentation({
   const flightLayer = new Container(); flightLayer.label = 'pres-flights';
   const moteLayer = new Container(); moteLayer.label = 'pres-motes';
   const shatterLayer = new Container(); shatterLayer.label = 'pres-shatter';
-  root.addChild(floatLayer, bannerLayer, flightLayer, moteLayer, shatterLayer);
+  const artCastLayer = new Container(); artCastLayer.label = 'pres-art-cast';
+  root.addChild(floatLayer, bannerLayer, flightLayer, moteLayer, shatterLayer, artCastLayer);
 
   let held = null;
   let destroyed = false;
@@ -579,6 +580,92 @@ export function createCombatPresentation({
   }
 
   /**
+   * Lantern art cast ghost — sprite rises from the hero and fades.
+   * Full/LITE: 900ms scale/opacity keyframes. REDUCED: settle cleared immediately.
+   */
+  async function artCast({
+    x = 0, y = 0, url = null, size = 110, artId = null,
+  } = {}) {
+    if (destroyed) return { outcome: 'skipped' };
+    const token = beginBarrier('art-cast');
+    const span = beginSpan('presentation.art-cast', {
+      attributes: { artId: artId || 'unknown' },
+    });
+    const pol = policy();
+    if (!url) {
+      span.finish?.('skipped', { reason: 'no-asset', attributes: { endState: 'art-cast-cleared' } });
+      token.finish?.();
+      return { outcome: 'skipped', motion: reduced() ? 'reduced' : 'full' };
+    }
+    if (reduced()) {
+      span.finish?.('settled', {
+        attributes: { motion: 'reduced', endState: 'art-cast-cleared' },
+      });
+      token.finish?.();
+      return { outcome: 'settled', motion: 'reduced' };
+    }
+
+    let sprite = null;
+    try {
+      const texture = await Assets.load(url);
+      if (destroyed) {
+        span.finish?.('skipped', { reason: 'destroyed' });
+        token.finish?.();
+        return { outcome: 'skipped' };
+      }
+      sprite = new Sprite(texture);
+      sprite.anchor.set(0.5);
+      sprite.x = Number(x) || 0;
+      sprite.y = (Number(y) || 0) - 30;
+      sprite.alpha = 0;
+      const setSize = (s) => {
+        sprite.width = size * s;
+        sprite.height = size * s;
+      };
+      setSize(0.4);
+      artCastLayer.addChild(sprite);
+
+      const y0 = sprite.y;
+      const endState = { visible: false, cleared: true };
+      const runner = tween({
+        from: { t: 0 },
+        to: { t: 1 },
+        duration: 900,
+        easing: 'outSoft',
+        endState,
+        policy: pol,
+        onUpdate(v) {
+          if (!sprite || sprite.destroyed) return;
+          const t = v.t;
+          if (t <= 0.3) {
+            const u = t / 0.3;
+            setSize(0.4 + u * 0.6);
+            sprite.alpha = u;
+            sprite.y = y0 - u * 8;
+          } else {
+            const u = (t - 0.3) / 0.7;
+            setSize(1 + u * 0.05);
+            sprite.alpha = 1 - u;
+            sprite.y = y0 - 8 - u * 32;
+          }
+        },
+      });
+      const result = await runner.done;
+      try { sprite.destroy(); } catch { /* */ }
+      span.finish?.('settled', {
+        attributes: { motion: result.motion, endState: 'art-cast-cleared' },
+      });
+      token.finish?.();
+      return result;
+    } catch (error) {
+      try { sprite?.destroy(); } catch { /* */ }
+      span.finish?.('failed', { reason: 'presentation-error' });
+      token.cancel?.();
+      throw error;
+    }
+  }
+
+  /**
    * Consume a mesh handoff canvas (or image URL) as a temporary texture,
    * animate radial shards, destroy on settle.
    */
@@ -807,6 +894,7 @@ export function createCombatPresentation({
     banner,
     flyTo,
     flyCardBacks,
+    artCast,
     shatter,
     sampleContrast,
     clearHeld,

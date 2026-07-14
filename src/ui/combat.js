@@ -2100,6 +2100,17 @@ function shatterVessel(el, opts = {}) {
   return V.shatter(el, opts);
 }
 
+function artCast(opts = {}) {
+  const pixi = pixiPresentation();
+  if (pixi?.artCast) {
+    return pixi.artCast(opts);
+  }
+  if (S.screen === 'combat') {
+    return Promise.resolve(rejectCombatDomCeremony('presentation.art-cast'));
+  }
+  return Promise.resolve({ outcome: 'skipped', reason: 'not-combat' });
+}
+
 function bumpPile(btn) {
   if (!btn || REDUCED) return;
   btn.classList.remove('pile-bump');
@@ -2828,6 +2839,7 @@ function startRig() {
 
 const drainHandlers = Object.freeze({
   addCrack,
+  artCast,
   banner,
   bumpPile,
   captureCardAnchor,
