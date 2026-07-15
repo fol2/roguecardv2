@@ -81,25 +81,36 @@ export function faceCacheKey({
   ].join('\u001f');
 }
 
-/** Geometry boxes in stage px for the canonical 152×216 face (FE contract %). */
+/** Geometry boxes in stage px for the canonical 152×216 face (PE DOM parity). */
 export function layoutRegions(width = CARD_FACE_WIDTH, height = CARD_FACE_HEIGHT) {
   const w = Number(width) || CARD_FACE_WIDTH;
   const h = Number(height) || CARD_FACE_HEIGHT;
+  // Art band mirrors DOM `.card-art` (~43% tall) with side insets for margins.
+  const artH = h * 0.43;
+  const artY = h * 0.07;
+  const chipW = 24;
+  const chipH = 5;
   return Object.freeze({
     width: w,
     height: h,
     art: Object.freeze({
-      x: w * 0.07, y: h * 0.08, w: w * 0.86, h: h * 0.47,
+      x: w * 0.07, y: artY, w: w * 0.86, h: artH,
     }),
-    cost: Object.freeze({ x: 8, y: 8, size: 32 }),
+    // Hex cost gem — matches `.card-cost` clip-path polygon footprint.
+    cost: Object.freeze({ x: 6, y: 6, size: 34 }),
     name: Object.freeze({
       x: w * 0.09, y: h * 0.58, w: w * 0.82, h: h * 0.11,
     }),
     body: Object.freeze({
       x: w * 0.10, y: h * 0.70, w: w * 0.80, h: h * 0.20,
     }),
+    // Rarity chip matching `.card-rarity` (not a 2px full-width rail).
     rarityRail: Object.freeze({
-      x: w * 0.12, y: h * 0.94, w: w * 0.76, h: 2,
+      x: (w - chipW) / 2,
+      y: h - chipH - 5,
+      w: chipW,
+      h: chipH,
+      radius: 3,
     }),
     upgradeMark: Object.freeze({ size: 22 }),
   });

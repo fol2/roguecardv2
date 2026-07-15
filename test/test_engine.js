@@ -8427,6 +8427,10 @@ export default defineContentRegistration({
       'sceneBg reads theme.plates');
     assert.doesNotMatch(assetsSource, /act\$\{\s*\(?\s*S\.run/,
       'sceneBg must not hard-code act${n}-backdrop from the act index');
+    assert.match(assetsSource, /class="scene-bg"/,
+      'sceneBg uses scene-bg only');
+    assert.doesNotMatch(assetsSource, /class="scene-bg r5-scene-panel"/,
+      'sceneBg must not stamp r5-scene-panel (FE card shell breaks full-bleed)');
   }
 
   // setBequest / clearBequest require a run — omitted run must not fail open to Vigil.
@@ -9308,6 +9312,24 @@ export default defineContentRegistration({
 
   const regions = layoutRegions();
   assert.ok(regions.body.w > 100);
+  assert.equal(regions.rarityRail.h, 5, 'rarity chrome is a .card-rarity chip height, not a 2px rail');
+  assert.equal(regions.rarityRail.w, 24);
+  assert.ok(regions.art.h < CARD_FACE_HEIGHT * 0.5, 'art band leaves PE margins');
+  assert.match(
+    readFileSync(new URL('../src/ui/cardface.js', import.meta.url), 'utf8'),
+    /hexGemPoints|drawHexGem/,
+    'cardface paints hex cost gem matching .card-cost clip-path',
+  );
+  assert.match(
+    readFileSync(new URL('../src/ui/combat-gl.js', import.meta.url), 'utf8'),
+    /createCardFaceAssets\(\)/,
+    'combat-gl wires real card art assets into the face composer',
+  );
+  assert.doesNotMatch(
+    readFileSync(new URL('../src/ui/combat-gl.js', import.meta.url), 'utf8'),
+    /assets:\s*null/,
+    'combat-gl must not pass assets: null to the card-face composer',
+  );
   // Keyword icon runs must stay atomic.
   const tokens = tokenizeBody('Deal @10@ damage. Kindle. Gain #5# Ward.');
   assert.ok(tokens.some((t) => t.kind === 'keyword' && t.text === 'Kindle'));

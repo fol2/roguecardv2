@@ -34,6 +34,63 @@ function typeTint(type) {
   return 0x47584f;
 }
 
+/** Flat hex vertices matching `.card-cost` clip-path polygon (stage-local). */
+function hexGemPoints(cx, cy, size) {
+  const x = cx - size / 2;
+  const y = cy - size / 2;
+  const pairs = [
+    [0.50, 0.00], [0.93, 0.25], [0.93, 0.75],
+    [0.50, 1.00], [0.07, 0.75], [0.07, 0.25],
+  ];
+  return pairs.map(([px, py]) => [x + px * size, y + py * size]);
+}
+
+function drawHexGemPixi(graphics, cx, cy, size, fill, stroke) {
+  const pts = hexGemPoints(cx, cy, size).flat();
+  graphics.poly(pts)
+    .fill({ color: fill })
+    .stroke({ color: stroke, width: 1.5 });
+}
+
+function drawHexGemCanvas(ctx, cx, cy, size, fillCss, strokeCss) {
+  const pts = hexGemPoints(cx, cy, size);
+  ctx.beginPath();
+  pts.forEach(([px, py], i) => {
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  });
+  ctx.closePath();
+  ctx.fillStyle = fillCss;
+  ctx.fill();
+  ctx.strokeStyle = strokeCss;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+function drawRarityChipPixi(graphics, region, colour, alpha = 1) {
+  const r = region.radius ?? 3;
+  graphics.roundRect(region.x, region.y, region.w, region.h, r)
+    .fill({ color: colour, alpha });
+}
+
+function drawRarityChipCanvas(ctx, region, colourCss) {
+  const r = region.radius ?? 3;
+  roundRectPath(ctx, region.x, region.y, region.w, region.h, r);
+  ctx.fillStyle = colourCss;
+  ctx.fill();
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+}
+
 function resolveCard(registries, descriptor) {
   if (!descriptor || typeof descriptor !== 'object') {
     throw new TypeError('card descriptor required');
@@ -281,16 +338,14 @@ export function createCardFaceComposer({
       const gem = new Graphics();
       const cx = regions.cost.x + regions.cost.size / 2;
       const cy = regions.cost.y + regions.cost.size / 2;
-      gem.circle(cx, cy, regions.cost.size / 2)
-        .fill({ color: gold })
-        .stroke({ color: ink, width: 2 });
+      drawHexGemPixi(gem, cx, cy, regions.cost.size, gold, ink);
       root.addChild(gem);
       const costText = new Text({
         text: String(layout.cost),
         style: {
           fontFamily: 'Cinzel',
-          fontSize: 20,
-          fontWeight: '700',
+          fontSize: 18,
+          fontWeight: '800',
           fill: ink,
           align: 'center',
         },
@@ -344,15 +399,14 @@ export function createCardFaceComposer({
       root.addChild(lineText);
     });
 
-    const rail = new Graphics();
-    rail.rect(
-      regions.rarityRail.x, regions.rarityRail.y,
-      regions.rarityRail.w, regions.rarityRail.h,
-    ).fill({
-      color: hexToInt(rarityRailColour(layout.rarity), 0xaaa6b8),
-      alpha: tier === 'lite' ? 0.82 : 1,
-    });
-    root.addChild(rail);
+    const chip = new Graphics();
+    drawRarityChipPixi(
+      chip,
+      regions.rarityRail,
+      hexToInt(rarityRailColour(layout.rarity), 0xaaa6b8),
+      tier === 'lite' ? 0.82 : 1,
+    );
+    root.addChild(chip);
 
     if (layout.up) {
       const mark = new Graphics();
@@ -470,30 +524,34 @@ export function createCardFaceComposer({
           : layout.type === 'curse' ? '#5c3a5c' : '#47584f';
 
     ctx.fillStyle = inkCss;
-    roundRect(ctx, 0, 0, width, height, 14);
+    roundRectPath(ctx, 0, 0, width, height, 14);
     ctx.fill();
     ctx.strokeStyle = goldDimCss;
     ctx.lineWidth = 1;
-    roundRect(ctx, 3, 3, width - 6, height - 6, 12);
+    roundRectPath(ctx, 3, 3, width - 6, height - 6, 12);
     ctx.stroke();
     ctx.fillStyle = typeFill;
     ctx.globalAlpha = 0.35;
-    roundRect(ctx, regions.art.x, regions.art.y, regions.art.w, regions.art.h, 10);
+    roundRectPath(ctx, regions.art.x, regions.art.y, regions.art.w, regions.art.h, 10);
     ctx.fill();
     ctx.globalAlpha = 1;
+
+    const artImg = assets?.cardArtImage?.(layout.id) || null;
+    if (artImg && artImg.complete && artImg.naturalWidth > 0) {
+      try {
+        ctx.drawImage(
+          artImg,
+          regions.art.x, regions.art.y, regions.art.w, regions.art.h,
+        );
+      } catch { /* tainted / stub */ }
+    }
 
     if (layout.cost != null) {
       const cx = regions.cost.x + regions.cost.size / 2;
       const cy = regions.cost.y + regions.cost.size / 2;
-      ctx.beginPath();
-      ctx.arc(cx, cy, regions.cost.size / 2, 0, Math.PI * 2);
-      ctx.fillStyle = goldCss;
-      ctx.fill();
-      ctx.strokeStyle = inkCss;
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      drawHexGemCanvas(ctx, cx, cy, regions.cost.size, goldCss, inkCss);
       ctx.fillStyle = inkCss;
-      ctx.font = '700 20px Cinzel, serif';
+      ctx.font = '800 18px Cinzel, serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(String(layout.cost), cx, cy);
@@ -528,31 +586,31 @@ export function createCardFaceComposer({
       );
     });
 
-    ctx.fillStyle = rarityRailColour(layout.rarity);
-    ctx.fillRect(
-      regions.rarityRail.x, regions.rarityRail.y,
-      regions.rarityRail.w, regions.rarityRail.h,
-    );
+    drawRarityChipCanvas(ctx, regions.rarityRail, rarityRailColour(layout.rarity));
     return canvas;
   }
 
   function roundRect(ctx, x, y, w, h, r) {
-    const radius = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.arcTo(x + w, y, x + w, y + h, radius);
-    ctx.arcTo(x + w, y + h, x, y + h, radius);
-    ctx.arcTo(x, y + h, x, y, radius);
-    ctx.arcTo(x, y, x + w, y, radius);
-    ctx.closePath();
+    roundRectPath(ctx, x, y, w, h, r);
   }
 
   function exportImage(cardDescriptor, displayState = {}) {
     const entry = ensureEntry(cardDescriptor, displayState);
     entry.refs += 1;
+    const artImg = assets?.cardArtImage?.(entry.layout.id) || null;
+    const artUrl = assets?.cardArtUrl?.(entry.layout.id) || null;
+    const artReady = !!(artImg && artImg.complete && artImg.naturalWidth > 0);
+    // Re-bake once art finishes decoding so shop/reward faces pick up real art.
+    if (entry.url && artUrl && artReady && !entry.artBaked) {
+      revokeEntryUrl(entry);
+    }
     if (!entry.url) {
       let blob = null;
-      if (typeof renderer.extract?.canvas === 'function') {
+      // Prefer canvas2d when the art loader is warm so shop/reward exports
+      // include real card art even before Pixi textures finish decoding.
+      const canvas2d = paintFaceCanvas2d(entry.layout);
+      if (canvas2d) blob = canvasToPngBlob(canvas2d);
+      if (!blob && typeof renderer.extract?.canvas === 'function') {
         const display = paintFace(entry.layout);
         let canvas = null;
         try {
@@ -562,14 +620,11 @@ export function createCardFaceComposer({
         }
         blob = canvasToPngBlob(canvas);
       }
-      if (!blob) {
-        // Same layout model → 2d raster when Pixi extract is unavailable.
-        blob = canvasToPngBlob(paintFaceCanvas2d(entry.layout));
-      }
       // Prefer a real object URL of a non-empty Blob (plan contract). Never empty Blob.
       entry.url = objectUrlFromBlob(blob)
         || objectUrlFromBlob(stubPngBlob())
         || `cardface:${entry.key}`;
+      entry.artBaked = artReady || !artUrl;
     }
     return Object.freeze({
       key: entry.key,

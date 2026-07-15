@@ -27,7 +27,7 @@
 // `#aim` and `.hand-zone` remain empty structural hosts for geometry/tests.
 
 import {
-  Assets, ColorMatrixFilter, Container, Graphics, Sprite, Text,
+  Assets, ColorMatrixFilter, Container, Graphics, Sprite, Text, Texture,
 } from 'pixi.js';
 
 import { assetUrl } from '../art.js';
@@ -179,6 +179,59 @@ function domRect(selector, root = null) {
 }
 
 /**
+ * Card-art loader for the face composer — resolves `assetUrl('cards', id)`
+ * the same way DOM rasterOr / art.js does, and warms HTMLImageElements so
+ * canvas2d export can paint real art into shop/reward cardEl faces.
+ */
+export function createCardFaceAssets({ cardIds = Object.keys(CARDS) } = {}) {
+  const images = new Map();
+  const textures = new Map();
+
+  const warmImage = (id) => {
+    if (images.has(id)) return images.get(id);
+    const url = assetUrl('cards', id);
+    if (!url || typeof Image === 'undefined') {
+      images.set(id, null);
+      return null;
+    }
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = url;
+    images.set(id, img);
+    return img;
+  };
+
+  for (const id of cardIds) warmImage(id);
+
+  return Object.freeze({
+    cardArtUrl(id) {
+      return assetUrl('cards', id);
+    },
+    cardArtImage(id) {
+      return warmImage(id);
+    },
+    cardArt(id) {
+      if (textures.has(id)) return textures.get(id);
+      const img = warmImage(id);
+      if (!img) {
+        textures.set(id, null);
+        return null;
+      }
+      try {
+        const tex = (img.complete && img.naturalWidth > 0)
+          ? Texture.from(img)
+          : Texture.from(img.src);
+        textures.set(id, tex);
+        return tex;
+      } catch {
+        textures.set(id, null);
+        return null;
+      }
+    },
+  });
+}
+
+/**
  * Boot the combat Pixi renderer seam.
  *
  * @param {object} deps
@@ -228,7 +281,7 @@ export async function createCombatRenderer({
       extract: null,
     },
     registries: { cards: CARDS },
-    assets: null,
+    assets: createCardFaceAssets(),
     tokens: experienceTokens,
     getLocale,
     policy: pixiLayer.policy || { tier: 'full' },

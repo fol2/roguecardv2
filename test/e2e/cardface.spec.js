@@ -70,6 +70,38 @@ test.describe('card-face composer', () => {
     expect(shopFaces.urls.every((u) => u.startsWith('blob:'))).toBe(true);
     expect(shopFaces.legacyDomFaces).toBe(0);
 
+    // Wait for warm card-art decode, then assert export paints real art + hex gem.
+    await page.waitForFunction(async () => {
+      const face = window.spirebound?.combatGl?.cardFace;
+      if (!face) return false;
+      // Re-export after images have had time to decode.
+      const exported = face.exportImage({ id: 'strike' }, { up: false });
+      const img = new Image();
+      img.src = exported.url;
+      await new Promise((resolve) => {
+        if (img.complete) resolve();
+        else { img.onload = resolve; img.onerror = resolve; }
+      });
+      exported.release();
+      if (!img.naturalWidth) return false;
+      const canvas = document.createElement('canvas');
+      canvas.width = 152;
+      canvas.height = 216;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+      // Art band centre should not be a flat type-tint fill (art introduces variance).
+      const samples = [];
+      for (const [x, y] of [[40, 50], [76, 60], [110, 70], [60, 90]]) {
+        const d = ctx.getImageData(x, y, 1, 1).data;
+        samples.push(`${d[0]},${d[1]},${d[2]}`);
+      }
+      const unique = new Set(samples);
+      // Cost gem gold near top-left hex (not a flat circle hole).
+      const gem = ctx.getImageData(23, 23, 1, 1).data;
+      const gemGoldish = gem[0] > 160 && gem[1] > 120 && gem[2] < 120;
+      return unique.size >= 2 && gemGoldish;
+    }, null, { timeout: 8000 });
+
     // Leaving shop must revoke blob URLs before #screen is replaced.
     // If release ran, re-export creates a fresh object URL (entry.url was cleared).
     const shopBlobUrls = shopFaces.urls.filter((u) => u.startsWith('blob:'));
