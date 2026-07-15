@@ -1,6 +1,52 @@
+import {
+  R5_SCREEN_END_STATES,
+  DURATION_MS,
+  compositionProfile,
+  compositionGrownFrom,
+  screenPresentationAttrs,
+} from '../tokens.js';
+import { runNamedCeremony } from '../tween.js';
+
 export function createRewardScreen(deps) {
-  const { contentViewFor, S, E, tr, sceneBg, $, el, iconSvg, uiIcon, stageW, stageH, V, flyTo, tweenNum, sfx, rasterOr, potionSvg, relicArt, requireRunSave, renderHud, show, showCardGrid, openOverlay, closeOverlay, runEffects, setTheme, setAltitude, transition, assetUrl, omenIconName, screenEl, themeForRun } = deps;
+  const {
+    contentViewFor, S, E, tr, sceneBg, $, el, iconSvg, uiIcon, stageW, stageH, V,
+    flyTo, tweenNum, sfx, rasterOr, potionSvg, relicArt, requireRunSave, renderHud, show,
+    showCardGrid, openOverlay, closeOverlay, runEffects, setTheme, setAltitude, transition,
+    assetUrl, omenIconName, screenEl, themeForRun, REDUCED, COARSE, presentationBarrier, trace,
+  } = deps;
   const runCatalogues = () => contentViewFor(S.run);
+
+  function presentationPolicy() {
+    return {
+      motion: REDUCED ? 'reduced' : 'full',
+      lite: !!COARSE,
+      reduced: !!REDUCED,
+    };
+  }
+
+  function rootAttrs(profile, endState) {
+    const attrs = screenPresentationAttrs(presentationPolicy());
+    return `data-r5-profile="${profile}" data-r5-state="${endState}" data-tier="${attrs.tier}" data-motion="${attrs.motion}"`;
+  }
+
+  function playScreenCeremony(name, endState, root) {
+    return runNamedCeremony({
+      name,
+      endState,
+      barrier: presentationBarrier,
+      trace,
+      from: 0,
+      to: 1,
+      duration: DURATION_MS.screen,
+      easing: 'outSoft',
+      policy: presentationPolicy(),
+      onUpdate() { /* FE stylesheet owns visual interpolation once imported */ },
+    }).done.then(() => {
+      if (root?.isConnected) root.dataset.r5State = endState;
+    }).catch(() => {
+      if (root?.isConnected) root.dataset.r5State = endState;
+    });
+  }
 
 // ------------------------------------------------------------ rewards
 function renderReward() {
@@ -8,16 +54,21 @@ function renderReward() {
   const pending = run.pendingReward;
   if (!pending) { show('map'); return; }
   const { kind, rewards, taken, perfect } = pending;
+  const vigil = runEffects.syncVigil();
+  const profile = compositionProfile(compositionGrownFrom(vigil, run));
+  const endState = R5_SCREEN_END_STATES.rewardsReady;
   const sc = screenEl();
   const title = kind === 'boss' ? tr('ui.reward.bossVanquished') : kind === 'elite' ? tr('ui.reward.eliteSlain') : tr('ui.reward.victory');
   const seal = perfect ? `<div class="perfect-seal">${tr('ui.reward.perfectSeal')}</div>` : '<div class="ornament">✦ ✦ ✦</div>';
   S.lastPerfect = false;
-  sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
-    <div class="ov-title">${title}</div>
+  sc.innerHTML = `<div class="center-panel screen-enter r5-scene-panel r5-rewards" ${rootAttrs(profile, 'rest')}>${sceneBg()}<div class="panel">
+    <div class="ov-title r5-scene-header">${title}</div>
     ${seal}
     <div class="reward-list"></div>
     <div class="ov-actions"><button class="btn btn-primary" data-a="continue">${tr('ui.common.continue')}</button></div>
   </div></div>`;
+  const root = $('.r5-rewards', sc);
+  void playScreenCeremony('rewards', endState, root);
   const list = $('.reward-list', sc);
   const settleRow = (row, onSaved) => {
     row.classList.add('taken');
@@ -97,11 +148,11 @@ function renderReward() {
       <div class="ov-title">${tr('ui.reward.leaveConfirmTitle')}</div>
       <div class="ov-sub">${tr('ui.reward.leaveConfirmBody')}</div>
       <div class="ov-actions"><button class="btn danger" data-a="yes">${tr('ui.reward.leaveConfirmYes')}</button><button class="btn ghost" data-a="no">${tr('ui.reward.leaveConfirmNo')}</button></div>
-    </div>`, (root) => {
-      root.onclick = (event) => {
+    </div>`, (rootOverlay) => {
+      rootOverlay.onclick = (event) => {
         const action = event.target.dataset.a;
         if (action === 'yes') {
-          root.onclick = null;
+          rootOverlay.onclick = null;
           closeOverlay();
           leaveReward();
         }
@@ -135,13 +186,18 @@ function renderBossRelic() {
     advanceAct();
     return;
   }
+  const vigil = runEffects.syncVigil();
+  const profile = compositionProfile(compositionGrownFrom(vigil, run));
+  const endState = R5_SCREEN_END_STATES.bossRelicReady;
   const picks = E.rollBossRelics(run);
   const sc = screenEl();
-  sc.innerHTML = `<div class="center-panel screen-enter"><div class="panel" style="width:min(620px,94vw)">
-    <div class="ov-title">${tr('ui.reward.bossRelicTitle')}</div>
+  sc.innerHTML = `<div class="center-panel screen-enter r5-scene-panel r5-rewards r5-rewards--boss" ${rootAttrs(profile, 'rest')}><div class="panel" style="width:min(620px,94cqw)">
+    <div class="ov-title r5-scene-header">${tr('ui.reward.bossRelicTitle')}</div>
     <div class="ov-sub">${tr('ui.reward.bossRelicSub')}</div>
     <div class="big-choices" style="flex-direction:column"></div>
   </div></div>`;
+  const root = $('.r5-rewards', sc);
+  void playScreenCeremony('boss-relic', endState, root);
   const wrap = $('.big-choices', sc);
   let picked = false;
   const lock = () => {

@@ -1,6 +1,51 @@
+import {
+  R5_SCREEN_END_STATES,
+  DURATION_MS,
+  compositionProfile,
+  compositionGrownFrom,
+  screenPresentationAttrs,
+} from '../tokens.js';
+import { runNamedCeremony } from '../tween.js';
+
 export function createLamplighterScreen(deps) {
-  const { contentViewFor, S, E, QUESTS, REDUCED, tr, runEffects, assetUrl, iconSvg, fmtText, sceneBg, heroArt, escHtml, $, $$, screenEl, unlock, sfx, setTheme, themeForRun, renderHud, show, omenBanner, routeVisitedNode, persistObserved, requireRunSave } = deps;
+  const {
+    contentViewFor, S, E, QUESTS, REDUCED, COARSE, tr, runEffects, assetUrl, iconSvg, fmtText,
+    sceneBg, heroArt, escHtml, $, $$, screenEl, unlock, sfx, setTheme, themeForRun, renderHud,
+    show, omenBanner, routeVisitedNode, persistObserved, requireRunSave, presentationBarrier, trace,
+  } = deps;
   const runCatalogues = () => contentViewFor(S.run);
+
+  function presentationPolicy() {
+    return {
+      motion: REDUCED ? 'reduced' : 'full',
+      lite: !!COARSE,
+      reduced: !!REDUCED,
+    };
+  }
+
+  function rootAttrs(profile, endState) {
+    const attrs = screenPresentationAttrs(presentationPolicy());
+    return `data-r5-profile="${profile}" data-r5-state="${endState}" data-tier="${attrs.tier}" data-motion="${attrs.motion}"`;
+  }
+
+  function playCeremony(name, endState, root) {
+    return runNamedCeremony({
+      name,
+      endState,
+      barrier: presentationBarrier,
+      trace,
+      from: 0,
+      to: 1,
+      duration: DURATION_MS.ceremony,
+      easing: 'outSoft',
+      policy: presentationPolicy(),
+      onUpdate() {},
+    }).done.then(() => {
+      if (root?.isConnected) root.dataset.r5State = endState;
+    }).catch(() => {
+      if (root?.isConnected) root.dataset.r5State = endState;
+    });
+  }
 
 function renderLamplighter() {
   const run = S.run;
@@ -15,6 +60,9 @@ function renderLamplighter() {
   }
   const L = S.lamp;
   const asp = runCatalogues().aspects[run.aspect];
+  const vigil = runEffects.syncVigil();
+  const profile = compositionProfile(compositionGrownFrom(vigil, run));
+  const endState = R5_SCREEN_END_STATES.lamplighterReady;
   const boonCards = L.boons.map((id) => {
     const b = runCatalogues().boons[id];
     const bu = assetUrl('boons', id);
@@ -32,10 +80,10 @@ function renderLamplighter() {
   }).join('');
   const chosen = runCatalogues().arts[L.art];
   const sc = screenEl();
-  sc.innerHTML = `<div class="lamp-screen screen-enter">
+  sc.innerHTML = `<div class="lamp-screen screen-enter r5-scene-panel r5-lamplighter" ${rootAttrs(profile, 'rest')}>
     ${sceneBg()}
     <div class="lamp-hero">${heroArt(run.aspect)}</div>
-    <div class="lamp-title">${tr('ui.lamp.title')}</div>
+    <div class="lamp-title r5-scene-header">${tr('ui.lamp.title')}</div>
     <div class="lamp-sub">${tr('ui.lamp.sub', { aspect: asp.name })}</div>
     <div class="lamp-label">${tr('ui.lamp.boonLabel')}</div>
     <div class="lamp-boons">${boonCards}</div>
@@ -44,6 +92,7 @@ function renderLamplighter() {
     <div class="lamp-art-desc">${chosen ? `<b style="color:${chosen.tone}">${iconSvg(`art-${L.art}`, 15)} ${chosen.name}</b> · ${fmtText(chosen.text)}` : ''}</div>
     <div class="lamp-actions"><button class="btn btn-primary" data-a="begin"${L.boon ? '' : ' disabled'}>${L.boon ? tr('ui.menu.lightTheWay') : tr('ui.menu.chooseBoon')}</button></div>
   </div>`;
+  void playCeremony('lamplighter', endState, $('.r5-lamplighter', sc));
   sc.onclick = (e) => {
     const t = e.target.closest('[data-a]');
     if (!t || t.disabled) return;
@@ -86,6 +135,8 @@ function exitHollow(run) {
       if (button.dataset.a === 'hollow-continue') button.disabled = !run.pendingHollow?.paid;
       else if (button.dataset.a === 'hollow-leave') button.disabled = !!run.pendingHollow?.paid;
     });
+    const root = $('.r5-lamplighter', screenEl());
+    if (root) root.dataset.r5State = 'hollow-route-recovery';
     return;
   }
   if (!runEffects.saveRun(run)) {
@@ -111,8 +162,11 @@ function renderHollow() {
   const meetingIndex = Math.max(0, Math.min(QUESTS.hollowLamplighter.meetings.length - 1,
     (q?.progress || 0) - paidAdvance));
   const meeting = QUESTS.hollowLamplighter.meetings[meetingIndex];
+  const vigil = runEffects.syncVigil();
+  const profile = compositionProfile(compositionGrownFrom(vigil, run));
+  const hollowState = pending.paid ? 'hollow-paid' : 'hollow-unpaid';
   const sc = screenEl();
-  sc.innerHTML = `<div class="hollow-lamplighter${REDUCED ? ' reduced' : ''}">
+  sc.innerHTML = `<div class="hollow-lamplighter r5-scene-panel r5-lamplighter r5-lamplighter--hollow${REDUCED ? ' reduced' : ''}" ${rootAttrs(profile, hollowState)}>
     <div class="hollow-vignette"></div>
     <div class="hollow-figure" aria-hidden="true">
       <svg viewBox="0 0 180 300" role="presentation">
@@ -124,7 +178,7 @@ function renderHollow() {
       </svg>
     </div>
     <div class="hollow-copy screen-enter">
-      <div class="hollow-kicker">${tr('ui.hollow.kicker', { current: meetingIndex + 1, total: QUESTS.hollowLamplighter.target })}</div>
+      <div class="hollow-kicker r5-scene-header">${tr('ui.hollow.kicker', { current: meetingIndex + 1, total: QUESTS.hollowLamplighter.target })}</div>
       <div class="hollow-title">${tr('ui.hollow.title')}</div>
       <div class="hollow-ask">“${escHtml(meeting.ask)}”</div>
       <div class="hollow-answer${pending.paid ? ' paid' : ''}" aria-live="polite">${pending.paid ? escHtml(pending.answer) : ''}</div>
@@ -136,6 +190,8 @@ function renderHollow() {
       </div>
     </div>
   </div>`;
+  const root = $('.r5-lamplighter', sc);
+  void playCeremony('hollow', R5_SCREEN_END_STATES.hollowReady, root);
   sc.onclick = (e) => {
     const target = e.target.closest('[data-a]');
     if (!target || target.disabled) return;
@@ -143,6 +199,7 @@ function renderHollow() {
     if (action === 'hollow-pay') {
       target.disabled = true;
       unlock(); sfx.click();
+      if (root) root.dataset.r5State = 'hollow-pay-pressed';
       const result = runEffects.payHollowPrice(run);
       const answer = $('.hollow-answer', sc);
       const error = $('.hollow-error', sc);
@@ -163,6 +220,7 @@ function renderHollow() {
         target.disabled = false;
         continueButton.disabled = true;
         leaveButton.disabled = true;
+        if (root) root.dataset.r5State = 'hollow-save-retry';
         return;
       }
       answer.textContent = result.message;
@@ -172,6 +230,7 @@ function renderHollow() {
       target.textContent = tr('ui.hollow.pricePaid');
       continueButton.disabled = false;
       leaveButton.disabled = true;
+      if (root) root.dataset.r5State = 'hollow-paid';
       renderHud();
       return;
     }
@@ -180,6 +239,11 @@ function renderHollow() {
     if (!['hollow-continue', 'hollow-leave'].includes(action)) return;
     $$('[data-a^="hollow-"]', sc).forEach((button) => { button.disabled = true; });
     unlock(); sfx.click();
+    if (root) {
+      root.dataset.r5State = action === 'hollow-continue'
+        ? 'hollow-continue-closed'
+        : 'hollow-return-closed';
+    }
     exitHollow(run);
   };
 }

@@ -237,7 +237,7 @@ export const TITLE_PARALLAX_LAYER_IDS = Object.freeze([
 ]);
 export const TITLE_PARALLAX_FALLBACK_ID = 'title';
 
-/** Named REDUCED / settled end-states for Title, Embark, Fall and Dawn. */
+/** Named REDUCED / settled end-states for Title, Embark, Fall, Dawn and P6 screens. */
 export const R5_SCREEN_END_STATES = Object.freeze({
   titleReady: 'title-ready',
   titleIgniting: 'igniting',
@@ -249,7 +249,35 @@ export const R5_SCREEN_END_STATES = Object.freeze({
   fallUnpaidShadeBequest: 'fall-unpaid-shade-bequest',
   dawnCursorRetry: 'dawn-cursor-retry',
   dawnFinalClearRetry: 'dawn-final-clear-retry',
+  rewardsReady: 'rewards-ready',
+  bossRelicReady: 'boss-relic-ready',
+  shopReady: 'shop-ready',
+  eventChoiceReady: 'event-choice-ready',
+  restActionReady: 'rest-action-ready',
+  treasureOpen: 'treasure-open',
+  lamplighterReady: 'lamplighter-ready',
+  hollowReady: 'hollow-ready',
+  vigilReady: 'vigil-ready',
+  mapRouteReady: 'map-route-ready',
 });
+
+/** Ordered Map entrance ceremony phases (Task 34 — entrance/path/camera only). */
+export const MAP_CEREMONY_PHASES = Object.freeze([
+  'entrance', 'path', 'camera',
+]);
+
+/**
+ * Fresh vs grown composition from Vigil / run reveal facts.
+ * Mid-run screens treat phial/omen/emberglass unlocks as grown ornaments.
+ */
+export function compositionGrownFrom(vigil = {}, run = null) {
+  if (vigil.unlocks?.length || vigil.shards?.length || (vigil.whispers | 0) > 0) return true;
+  if (run?.reveals?.length) {
+    return run.reveals.some((id) => id === 'phials' || id === 'omens' || id === 'emberglass'
+      || id === 'poolWave2' || id === 'poolWave3' || id === 'poolFull');
+  }
+  return false;
+}
 
 /** Ordered Fall monument-carving phases (Task 33). */
 export const FALL_CEREMONY_PHASES = Object.freeze([

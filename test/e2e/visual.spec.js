@@ -213,3 +213,127 @@ test('sealed summit promise', async ({ page }) => {
   await page.waitForSelector('.sealed-door-panel');
   await shoot(page, 'sealed-door');
 });
+
+// Task 34 — deterministic visual cases for remaining P6 screens.
+// Cases are registered now; baselines are deferred to Task 37.
+const P6_VISUAL_SHAPES = [
+  'phone-portrait', 'phone-landscape', 'pad-portrait', 'pad-landscape', 'desktop-landscape',
+];
+
+const P6_VISUAL_CASES = [
+  { family: 'title', profiles: ['fresh', 'grown'] },
+  { family: 'embark', profiles: ['fresh', 'grown'] },
+  { family: 'fall', profiles: ['fresh', 'grown'] },
+  { family: 'dawn', profiles: ['fresh', 'grown'] },
+  { family: 'rewards', profiles: ['fresh', 'grown'] },
+  { family: 'boss-relic', profiles: ['fresh', 'grown'] },
+  { family: 'rest', profiles: ['fresh', 'grown'] },
+  { family: 'treasure', profiles: ['fresh', 'grown'] },
+  { family: 'lamplighter', profiles: ['fresh', 'grown'] },
+  { family: 'hollow', profiles: ['fresh', 'grown'] },
+  { family: 'vigil', profiles: ['fresh', 'grown'] },
+  { family: 'map', profiles: ['fresh', 'grown'] },
+];
+
+function shapeForCase(family, profile) {
+  const idx = (P6_VISUAL_CASES.findIndex((row) => row.family === family) * 2
+    + (profile === 'grown' ? 1 : 0)) % P6_VISUAL_SHAPES.length;
+  return P6_VISUAL_SHAPES[idx];
+}
+
+for (const row of P6_VISUAL_CASES) {
+  for (const profile of row.profiles) {
+    const shape = shapeForCase(row.family, profile);
+    test(`p6 ${row.family} ${profile} (${shape})`, async ({ page }) => {
+      test.skip(test.info().project.name !== 'desktop', 'p6 visual matrix forces ?shape= on desktop');
+      // Task 37 owns baseline creation — register the case only.
+      test.info().annotations.push({
+        type: 'p6-visual-pending-baseline',
+        description: `${row.family}:${profile}:${shape}`,
+      });
+      await page.addInitScript((value) => {
+        localStorage.removeItem('spirebound_save_v2');
+        localStorage.setItem('spirebound_vigil_v2', JSON.stringify(value));
+      }, profile === 'fresh'
+        ? {
+          v: 2,
+          deeds: {
+            runs: 0, wins: 0, slain: 0, shatters: 0, kindles: 0, perfects: 0,
+            smolderKills: 0, unlitVisited: 0, embersSpent: 0, bestVow: 0, bestFloor: 0,
+          },
+          unlocks: [], vowUnlocked: 0, lastFall: null,
+          runsPlayed: 0, quests: {}, shards: [], whispers: 0, news: false,
+        }
+        : {
+          v: 2,
+          deeds: {
+            runs: 12, wins: 3, slain: 40, shatters: 4, kindles: 2, perfects: 1,
+            smolderKills: 2, unlitVisited: 1, embersSpent: 20, bestVow: 2, bestFloor: 18,
+          },
+          unlocks: ['aspect2'], vowUnlocked: 2, lastFall: null,
+          runsPlayed: 12, quests: {}, shards: ['usurper'], whispers: 2, news: true,
+        });
+      await page.goto(`/?shape=${shape}&mesh=0&trace=1`);
+      await page.waitForFunction(() => window.spirebound && window.__probe);
+      await page.waitForFunction(() => {
+        const records = window.__probe?.behaviourTrace?.()?.records;
+        if (records?.some((record) => record.eventName === 'app.ready')) return true;
+        return window.spirebound?.S?.screen === 'title'
+          && !!document.querySelector('.r5-title');
+      });
+      await page.evaluate(([family, grown]) => {
+        const sp = window.spirebound;
+        const run = sp.E.newRun(3600 + family.length, {
+          reveals: grown ? ['phials', 'omens', 'emberglass', 'lamplighter', 'act4'] : [],
+          shards: grown ? ['usurper'] : [],
+        });
+        sp.S.run = run;
+        if (family === 'title') { sp.show('title'); return; }
+        if (family === 'embark') { sp.show('embark'); return; }
+        if (family === 'fall') {
+          run.pendingRunEnd = { outcome: 'death' };
+          sp.show('end', {
+            won: false, offers: [], fallAct: 1, fallRow: 3, unpaidBequest: false,
+            ledger: { whisper: 'The stone keeps the climb.' },
+          });
+          return;
+        }
+        if (family === 'dawn') {
+          run.pendingRunEnd = { outcome: 'win' };
+          sp.E.stagePendingDawn?.(run, [{ t: 'whisper', text: 'The climb continues.' }], []);
+          sp.show('end', { won: true });
+          return;
+        }
+        if (family === 'rewards') {
+          run.pendingReward = {
+            kind: 'normal',
+            rewards: { gold: 20, cards: ['strike', 'defend', 'chisel'], potion: null, relic: null },
+            taken: {}, perfect: false,
+          };
+          sp.show('reward');
+          return;
+        }
+        if (family === 'boss-relic') {
+          sp.show('bossRelic');
+          return;
+        }
+        if (family === 'rest') { sp.show('rest'); return; }
+        if (family === 'treasure') { sp.show('treasure'); return; }
+        if (family === 'lamplighter') { sp.S.lamp = null; sp.show('lamplighter'); return; }
+        if (family === 'hollow') {
+          run.map = sp.E.genMap(run);
+          const node = run.map.nodes[1] || run.map.nodes[0];
+          run.pendingHollow = { nodeId: node.id, paid: false, deferred: false, answer: null };
+          sp.show('hollow');
+          return;
+        }
+        if (family === 'vigil') { sp.show('vigil'); return; }
+        if (family === 'map') { sp.show('map'); return; }
+      }, [row.family, profile === 'grown']);
+      await settle(page);
+      // Do not create baselines here — Task 37 owner gate.
+      await stable(page);
+      await freeze(page);
+    });
+  }
+}

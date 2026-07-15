@@ -199,7 +199,7 @@ assert.equal(pkg.scripts['content:compile'], 'node tools/compile-content-registr
 assert.equal(pkg.scripts['test:content-registrations'], 'node tools/compile-content-registrations.mjs --check');
 assert.equal(
   pkg.scripts['test:e2e:webkit'],
-  'playwright test trace stage lab theme-profile production-profile --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
+  'playwright test trace stage lab theme-profile production-profile p6-screens --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
 );
 assert.equal(
   pkg.scripts['test:e2e:leak'],
@@ -305,6 +305,21 @@ assert.match(
   /production-profile/,
   'test:e2e:webkit must include production-profile',
 );
+assert.match(
+  pkg.scripts['test:e2e:webkit'],
+  /p6-screens/,
+  'test:e2e:webkit must include p6-screens',
+);
+for (const token of ['trace', 'stage', 'lab', 'theme-profile', 'production-profile', 'p6-screens']) {
+  assert.match(
+    pkg.scripts['test:e2e:webkit'],
+    new RegExp(`\\b${token}\\b`),
+    `test:e2e:webkit must retain cumulative token ${token}`,
+  );
+}
+assert.match(pkg.scripts['test:e2e:webkit'], /--project=iphone-webkit/);
+assert.match(pkg.scripts['test:e2e:webkit'], /--project=ipad-webkit/);
+assert.match(pkg.scripts['test:e2e:webkit'], /--workers=1/);
 
 const agents = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
 assert.match(agents, /test:e2e:perf\s+# performance reference; warns on target misses/);

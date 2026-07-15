@@ -27,6 +27,14 @@ export function collectErrors(page) {
 export async function boot(page, { query = '', seed = SEED, aspect = 0 } = {}) {
   await page.goto(`/${query ? `?${query}` : ''}`);
   await page.waitForFunction(() => window.spirebound && window.__probe);
+  // Probe/spirebound install before the boot show('title'). Prefer app.ready when
+  // tracing; fall back to title DOM so trace=off boots still wait out late initUI.
+  await page.waitForFunction(() => {
+    const records = window.__probe?.behaviourTrace?.()?.records;
+    if (records?.some((record) => record.eventName === 'app.ready')) return true;
+    return window.spirebound?.S?.screen === 'title'
+      && !!document.querySelector('.r5-title');
+  });
   // fresh contexts start with empty storage; clear anyway so a mid-test
   // reload can never resume a half-finished run
   await page.evaluate(() => localStorage.clear());

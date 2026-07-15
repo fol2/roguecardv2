@@ -1,6 +1,36 @@
+import {
+  R5_SCREEN_END_STATES,
+  MAP_CEREMONY_PHASES,
+  DURATION_MS,
+  compositionProfile,
+  compositionGrownFrom,
+  screenPresentationAttrs,
+} from '../tokens.js';
+import { runPhasedCeremony } from '../tween.js';
+
 export function createMapScreen(deps) {
-  const { contentViewFor, S, E, PROGRESSION, QUESTS, COARSE, REDUCED, tr, runEffects, nodeGlyphId, uiIconUrl, assetUrl, iconInline, iconSvg, omenMark, $, $$, screenEl, unlock, sfx, music, openOverlay, closeOverlay, stageW, stageH, mapNodePos, enterMapMode, setOverlay, V, peekMap, trace, setAltitude, transition, startCombatUI, resumeSavedCombat, requireRunSave, resumePendingHollowRoute, show, showRunSaveFailure, showStonePersistenceFailure, requireBequestClear, flyTo, banner, el, escHtml, themeForRun, tokenValue } = deps;
+  const {
+    contentViewFor, S, E, PROGRESSION, QUESTS, COARSE, REDUCED, tr, runEffects, nodeGlyphId,
+    uiIconUrl, assetUrl, iconInline, iconSvg, omenMark, $, $$, screenEl, unlock, sfx, music,
+    openOverlay, closeOverlay, stageW, stageH, mapNodePos, enterMapMode, setOverlay, V, peekMap,
+    trace, setAltitude, transition, startCombatUI, resumeSavedCombat, requireRunSave,
+    resumePendingHollowRoute, show, showRunSaveFailure, showStonePersistenceFailure,
+    requireBequestClear, flyTo, banner, el, escHtml, themeForRun, tokenValue, presentationBarrier,
+  } = deps;
   const runCatalogues = () => contentViewFor(S.run);
+
+  function presentationPolicy() {
+    return {
+      motion: REDUCED ? 'reduced' : 'full',
+      lite: !!COARSE,
+      reduced: !!REDUCED,
+    };
+  }
+
+  function rootAttrs(profile, endState) {
+    const attrs = screenPresentationAttrs(presentationPolicy());
+    return `data-r5-profile="${profile}" data-r5-state="${endState}" data-tier="${attrs.tier}" data-motion="${attrs.motion}"`;
+  }
 
 const NODE_ICONS = { monster: 'sword', elite: 'skull', event: 'question', rest: 'flame', shop: 'coin', treasure: 'chest', boss: 'crown', monument: 'monument' };
 function renderMap() {
@@ -73,7 +103,7 @@ function renderMap() {
     // selectable: duplicate art under feMorphology ring (same language as aim outlines)
     const sil = avail.has(n.id) ? `<g class="nsil">${artHtml}</g>` : '';
     const paleMark = n.questMarked
-      ? `<g class="pale-lens" transform="translate(${Math.round(r * 0.8)} ${Math.round(-r * 0.8)})">
+      ? `<g class="pale-lens" data-r5-state="map-witchlight-marked" transform="translate(${Math.round(r * 0.8)} ${Math.round(-r * 0.8)})">
           <circle class="pale-lens-halo" r="11"/>
           <circle class="pale-lens-glass" r="7.5"/>
           <g transform="translate(-9 -9)">${iconSvg('paleMote', 18)}</g>
@@ -98,26 +128,56 @@ function renderMap() {
     <feComposite in="fill" in2="ring" operator="in"/>
   </filter></defs>`;
   const haze = tokenValue(theme?.mapHaze) || tokenValue(theme?.palette?.haze) || '#2a3a2e';
+  const vigil = runEffects.syncVigil();
+  const profile = compositionProfile(compositionGrownFrom(vigil, run));
+  const sealedState = sealedDoorVisible ? 'sealed-door-visible' : 'sealed-door-hidden';
+  const eighthEcho = omenId === 'eighthOmen';
   screenEl().innerHTML = `
-    <div class="map-title"><b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits${omen ? ` &nbsp;·&nbsp; <span class="mt-omen" style="color:${omen.tone}">${omenMark(omenId, 'mt-omen-art', 'mt-omen-fallback', 18)}<span class="mt-omen-name">${omen.name}</span></span>` : ''}</div>
+    <div class="map-shell r5-map" ${rootAttrs(profile, 'rest')} data-r5-sealed="${sealedState}"${eighthEcho ? ' data-r5-eighth="map-eighth-echo-held"' : ''}>
+    <div class="map-title r5-scene-header"><b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits${omen ? ` &nbsp;·&nbsp; <span class="mt-omen" style="color:${omen.tone}">${omenMark(omenId, 'mt-omen-art', 'mt-omen-fallback', 18)}<span class="mt-omen-name">${omen.name}</span></span>` : ''}</div>
     <div class="map-screen screen-enter">
       <div class="map-haze" style="--haze:${haze}"></div>
       <svg class="map-svg" width="100%" height="100%">${mapDefs}${edges}${dots}</svg>
-      ${sealedDoorVisible ? `<button class="sealed-door" data-a="sealed-door" aria-label="${tr('ui.map.sealedDoor.aria')}">
+      ${sealedDoorVisible ? `<button class="sealed-door" data-a="sealed-door" data-r5-state="sealed-door-visible" aria-label="${tr('ui.map.sealedDoor.aria')}">
         <span>${iconSvg('sealedDoor', 42)}</span><small>${tr('ui.map.sealedDoor.label')}</small>
       </button>` : ''}
       <div class="map-hint">${tr('ui.map.survey', { action: COARSE ? tr('ui.map.drag') : tr('ui.map.scroll') })}</div>
+    </div>
     </div>`;
+  const mapRoot = $('.r5-map');
+  void runPhasedCeremony({
+    name: 'map',
+    endState: R5_SCREEN_END_STATES.mapRouteReady,
+    barrier: presentationBarrier,
+    trace,
+    policy: presentationPolicy(),
+    phases: MAP_CEREMONY_PHASES.map((id) => ({
+      id,
+      from: 0,
+      to: 1,
+      duration: id === 'entrance' ? DURATION_MS.screen : DURATION_MS.ceremony,
+      easing: 'outSoft',
+      onUpdate() {},
+    })),
+  }).done.then(() => {
+    if (mapRoot?.isConnected) mapRoot.dataset.r5State = R5_SCREEN_END_STATES.mapRouteReady;
+  }).catch(() => {
+    if (mapRoot?.isConnected) mapRoot.dataset.r5State = R5_SCREEN_END_STATES.mapRouteReady;
+  });
   const svg = $('.map-svg');
   const sealedDoor = $('.sealed-door');
   if (sealedDoor) {
     sealedDoor.onclick = (event) => {
-      if (panEaten) return;
+      if (panEaten) {
+        if (mapRoot) mapRoot.dataset.r5State = 'map-drag-suppressed';
+        return;
+      }
       event.stopPropagation();
       unlock();
       sfx.click();
       music.play('sealedDoor');
-      openOverlay(`<div class="panel sealed-door-panel">
+      if (mapRoot) mapRoot.dataset.r5State = 'sealed-door-promise-open';
+      openOverlay(`<div class="panel sealed-door-panel" data-r5-state="sealed-door-promise-open">
         <div class="ov-title">${tr('ui.map.sealedDoor.title')}</div>
         <div class="sealed-door-mark">${iconSvg('sealedDoor', 96)}</div>
         <div class="ov-sub">${tr('ui.map.sealedDoor.sub')}</div>
@@ -129,6 +189,10 @@ function renderMap() {
             closeOverlay();
             const eighth = S.run?.omens?.[S.run.act] === 'eighthOmen';
             music.playForScreen('map', eighth ? 'eighthOmen' : null);
+            if (mapRoot?.isConnected) {
+              mapRoot.dataset.r5State = R5_SCREEN_END_STATES.mapRouteReady;
+              mapRoot.dataset.r5Sealed = 'sealed-door-visible';
+            }
           }
         };
       });
@@ -136,7 +200,10 @@ function renderMap() {
   }
   let panEaten = false;
   svg.onclick = (e) => {
-    if (panEaten) return; // that tap was a drag
+    if (panEaten) {
+      if (mapRoot) mapRoot.dataset.r5State = 'map-drag-suppressed';
+      return; // that tap was a drag
+    }
     const g = e.target.closest('.mnode.avail');
     if (!g || S.busy) return;
     unlock();

@@ -1,18 +1,64 @@
+import {
+  R5_SCREEN_END_STATES,
+  DURATION_MS,
+  compositionProfile,
+  compositionGrownFrom,
+  screenPresentationAttrs,
+} from '../tokens.js';
+import { runNamedCeremony } from '../tween.js';
+
 export function createEventScreen(deps) {
-  const { contentViewFor, S, E, tr, sceneBg, rasterOr, eventArtSvg, $, el, sfx, leaveHollowDestination, show, runEffects, renderHud, showCardGrid, screenEl } = deps;
+  const {
+    contentViewFor, S, E, tr, sceneBg, rasterOr, eventArtSvg, $, el, sfx,
+    leaveHollowDestination, show, runEffects, renderHud, showCardGrid, screenEl,
+    REDUCED, COARSE, presentationBarrier, trace,
+  } = deps;
   const runCatalogues = () => contentViewFor(S.run);
+
+  function presentationPolicy() {
+    return {
+      motion: REDUCED ? 'reduced' : 'full',
+      lite: !!COARSE,
+      reduced: !!REDUCED,
+    };
+  }
+
+  function rootAttrs(profile, endState) {
+    const attrs = screenPresentationAttrs(presentationPolicy());
+    return `data-r5-profile="${profile}" data-r5-state="${endState}" data-tier="${attrs.tier}" data-motion="${attrs.motion}"`;
+  }
 
 function renderEvent(eventId) {
   const run = S.run;
   const ev = runCatalogues().events[eventId];
+  const vigil = runEffects.syncVigil();
+  const profile = compositionProfile(compositionGrownFrom(vigil, run));
+  const endState = R5_SCREEN_END_STATES.eventChoiceReady;
   const sc = screenEl();
-  sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel event-panel">
-    <div class="ov-title">${ev.name.toUpperCase()}</div>
+  sc.innerHTML = `<div class="center-panel screen-enter r5-scene-panel r5-event" ${rootAttrs(profile, 'rest')}>${sceneBg()}<div class="panel event-panel">
+    <div class="ov-title r5-scene-header">${ev.name.toUpperCase()}</div>
     <div class="event-art">${rasterOr('events', eventId, eventArtSvg(ev.glyph, ev.hue))}</div>
     <div class="event-text">${ev.text}</div>
     <div class="event-log"></div>
     <div class="event-choices"></div>
   </div></div>`;
+  const root = $('.r5-event', sc);
+  void runNamedCeremony({
+    name: 'event',
+    endState,
+    barrier: presentationBarrier,
+    trace,
+    from: 0,
+    to: 1,
+    duration: DURATION_MS.screen,
+    easing: 'outSoft',
+    policy: presentationPolicy(),
+    onUpdate() {},
+  }).done.then(() => {
+    if (root?.isConnected) root.dataset.r5State = endState;
+  }).catch(() => {
+    if (root?.isConnected) root.dataset.r5State = endState;
+  });
   const choices = $('.event-choices', sc);
   const leaveEvent = () => leaveHollowDestination(run, () => show('map'));
   const showEventContinue = () => {

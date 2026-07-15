@@ -1,6 +1,33 @@
+import {
+  R5_SCREEN_END_STATES,
+  DURATION_MS,
+  compositionProfile,
+  compositionGrownFrom,
+  screenPresentationAttrs,
+} from '../tokens.js';
+import { runNamedCeremony } from '../tween.js';
+
 export function createShopScreen(deps) {
-  const { contentViewFor, S, E, QUESTS, tr, sceneBg, rasterOr, merchantSvg, $, el, cardEl, uiIcon, sfx, runEffects, renderHud, iconSvg, escHtml, requireRunSave, V, stageW, stageH, potionSvg, relicArt, showCardGrid, leaveHollowDestination, show, screenEl, releaseCardFacesIn } = deps;
+  const {
+    contentViewFor, S, E, QUESTS, tr, sceneBg, rasterOr, merchantSvg, $, el, cardEl, uiIcon,
+    sfx, runEffects, renderHud, iconSvg, escHtml, requireRunSave, V, stageW, stageH, potionSvg,
+    relicArt, showCardGrid, leaveHollowDestination, show, screenEl, releaseCardFacesIn,
+    REDUCED, COARSE, presentationBarrier, trace,
+  } = deps;
   const runCatalogues = () => contentViewFor(S.run);
+
+  function presentationPolicy() {
+    return {
+      motion: REDUCED ? 'reduced' : 'full',
+      lite: !!COARSE,
+      reduced: !!REDUCED,
+    };
+  }
+
+  function rootAttrs(profile, endState) {
+    const attrs = screenPresentationAttrs(presentationPolicy());
+    return `data-r5-profile="${profile}" data-r5-state="${endState}" data-tier="${attrs.tier}" data-motion="${attrs.motion}"`;
+  }
 
 function renderShop() {
   const run = S.run;
@@ -9,9 +36,12 @@ function renderShop() {
   const st = E.shopStockForSession(shop, run);
   const firstUsurperSight = usurperState === 'armed' && E.questRecord(run, 'usurper')?.state === 'revealed';
   if (firstUsurperSight && !requireRunSave(run, renderShop)) return;
+  const vigil = runEffects.syncVigil();
+  const profile = compositionProfile(compositionGrownFrom(vigil, run));
+  const endState = R5_SCREEN_END_STATES.shopReady;
   const sc = screenEl();
-  sc.innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel ov-panel" style="width:min(980px,96vw)">
-    <div style="display:flex;align-items:center;justify-content:center;gap:18px">
+  sc.innerHTML = `<div class="center-panel screen-enter r5-scene-panel r5-shop" ${rootAttrs(profile, 'rest')}>${sceneBg()}<div class="panel ov-panel" style="width:min(980px,96cqw)">
+    <div class="r5-scene-header" style="display:flex;align-items:center;justify-content:center;gap:18px">
       <div style="width:130px">${rasterOr('props', 'merchant', merchantSvg())}</div>
       <div><div class="ov-title" style="text-align:left">${tr('ui.shop.title')}</div>
       <div class="ov-sub shop-dialogue" style="text-align:left;margin:0">${tr('ui.shop.greeting')}</div></div>
@@ -22,6 +52,23 @@ function renderShop() {
       <div class="ov-actions"><button class="btn btn-primary" data-a="leave">${tr('ui.shop.leave')}</button></div>
     </div>
   </div></div>`;
+  const root = $('.r5-shop', sc);
+  void runNamedCeremony({
+    name: 'shop',
+    endState,
+    barrier: presentationBarrier,
+    trace,
+    from: 0,
+    to: 1,
+    duration: DURATION_MS.screen,
+    easing: 'outSoft',
+    policy: presentationPolicy(),
+    onUpdate() {},
+  }).done.then(() => {
+    if (root?.isConnected) root.dataset.r5State = endState;
+  }).catch(() => {
+    if (root?.isConnected) root.dataset.r5State = endState;
+  });
   const cardsRow = $('.cards-row', sc), miscRow = $('.misc-row', sc);
   const shopGrid = $('.shop-grid', sc);
   let shopSeeded = false;
@@ -33,6 +80,11 @@ function renderShop() {
     dialogue.textContent = `"${text}"`;
     dialogue.classList.add('quest-dialogue');
   };
+  function usurperItemState(it) {
+    if (it.sold) return 'usurper-item-sold';
+    if (gold() < it.price) return 'usurper-item-poor';
+    return 'usurper-item-normal';
+  }
   function refresh() {
     if (shopGrid) shopGrid.classList.toggle('list-seq-done', shopSeeded);
     // Task 26 — release prior exported faces before rebuilding the stock row.
@@ -69,7 +121,9 @@ function renderShop() {
       miscRow.appendChild(wrap);
     }
     for (const it of st.questItems) {
+      const itemState = usurperItemState(it);
       const wrap = el('div', `shop-item quest-shop-item ${it.sold ? 'sold' : ''} ${gold() < it.price ? 'cant' : ''}`);
+      wrap.dataset.r5State = itemState;
       const b = el('button', 'shop-relic shop-quest', `<span class="shop-quest-icon">${iconSvg('emptyLantern', 42)}</span><b>${escHtml(it.name)}</b>${escHtml(it.text)}`);
       b.onclick = () => {
         if (it.sold) return;
@@ -81,18 +135,25 @@ function renderShop() {
           b.disabled = false;
           if (leave) leave.disabled = false;
           sfx.debuff();
-          if (result.reason === 'gold') say(QUESTS.usurper.poor);
+          if (result.reason === 'gold') {
+            say(QUESTS.usurper.poor);
+            wrap.dataset.r5State = 'usurper-item-poor';
+          }
           return;
         }
         const finishPurchase = () => {
           it.sold = true;
           sfx.coin();
           say(QUESTS.usurper.bought);
+          wrap.dataset.r5State = 'usurper-item-sold';
           renderHud();
           refresh();
           if (leave) leave.disabled = false;
         };
-        if (!requireRunSave(run, finishPurchase, 'usurper-purchase')) return;
+        if (!requireRunSave(run, finishPurchase, 'usurper-purchase')) {
+          wrap.dataset.r5State = 'usurper-item-save-blocked';
+          return;
+        }
         finishPurchase();
       };
       wrap.appendChild(b);

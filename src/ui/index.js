@@ -216,7 +216,7 @@ screenOwners = Object.freeze({
     runEffects, setRoseAssetsReady, setDisclosedRoseStateIds, roseAssets, assetUrl,
     iconSvg, escHtml, $, $$, screenEl, setTheme, themeForRun, trace,
     semanticUiCheckpoint: combatApi.drainHandlers.semanticUiCheckpoint,
-    sfx, music, show: screenLate.show,
+    sfx, music, show: screenLate.show, REDUCED, COARSE, presentationBarrier,
   }),
   run: createRunScreen({
     S, E, setTheme, setAltitude, persistenceDialogActive, requireRunSave,
@@ -226,9 +226,9 @@ screenOwners = Object.freeze({
     requireBequestClear, omenBanner: screenLate.omenBanner, themeForRun,
   }),
   lamplighter: createLamplighterScreen({
-    S, E, QUESTS, REDUCED, tr, runEffects, assetUrl,
+    S, E, QUESTS, REDUCED, COARSE, tr, runEffects, assetUrl,
     iconSvg, fmtText, sceneBg, heroArt, escHtml, $, $$, screenEl, unlock, sfx,
-    setTheme, themeForRun, contentViewFor,
+    setTheme, themeForRun, contentViewFor, presentationBarrier, trace,
     renderHud: screenLate.renderHud, show: screenLate.show, omenBanner: screenLate.omenBanner,
     routeVisitedNode: screenLate.routeVisitedNode, persistObserved, requireRunSave,
   }),
@@ -241,7 +241,7 @@ screenOwners = Object.freeze({
     requireRunSave, resumePendingHollowRoute: screenLate.resumePendingHollowRoute,
     show: screenLate.show, showRunSaveFailure, showStonePersistenceFailure,
     requireBequestClear, flyTo: screenLate.flyTo, banner: screenLate.banner, el, escHtml,
-    themeForRun, tokenValue, contentViewFor,
+    themeForRun, tokenValue, contentViewFor, presentationBarrier,
   }),
   reward: createRewardScreen({
     S, E, tr, sceneBg, $, el, iconSvg, uiIcon, stageW, stageH,
@@ -249,24 +249,25 @@ screenOwners = Object.freeze({
     relicArt, requireRunSave, renderHud: screenLate.renderHud, show: screenLate.show,
     showCardGrid, openOverlay, closeOverlay, runEffects, setTheme, setAltitude, transition: screenLate.transition,
     assetUrl, omenIconName, screenEl, themeForRun, contentViewFor,
+    REDUCED, COARSE, presentationBarrier, trace,
   }),
   rest: createRestScreen({
     S, E, tr, sceneBg, rasterOr, campfireSvg, iconSvg, $, $$,
     show: screenLate.show, showCardGrid, sfx, V, stageW, stageH, requireHollowRouteClear,
     runEffects, closeOverlay, screenEl, el, chestSvg, renderHud: screenLate.renderHud,
-    contentViewFor,
+    contentViewFor, REDUCED, COARSE, presentationBarrier, trace,
   }),
   shop: createShopScreen({
     S, E, QUESTS, tr, sceneBg, rasterOr, merchantSvg, $, el,
     cardEl, uiIcon, sfx, runEffects, renderHud: screenLate.renderHud, iconSvg, escHtml,
     requireRunSave, V, stageW, stageH, potionSvg, relicArt, showCardGrid,
     leaveHollowDestination, show: screenLate.show, screenEl, contentViewFor,
-    releaseCardFacesIn,
+    releaseCardFacesIn, REDUCED, COARSE, presentationBarrier, trace,
   }),
   event: createEventScreen({
     S, E, tr, sceneBg, rasterOr, eventArtSvg, $, el, sfx,
     leaveHollowDestination, show: screenLate.show, runEffects, renderHud: screenLate.renderHud,
-    showCardGrid, screenEl, contentViewFor,
+    showCardGrid, screenEl, contentViewFor, REDUCED, COARSE, presentationBarrier, trace,
   }),
   end: createEndScreen({
     S, E, Vigil, TERMINAL_OUTCOMES, PROGRESSION, QUESTS,

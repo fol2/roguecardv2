@@ -1,12 +1,60 @@
+import {
+  R5_SCREEN_END_STATES,
+  DURATION_MS,
+  compositionProfile,
+  compositionGrownFrom,
+  screenPresentationAttrs,
+} from '../tokens.js';
+import { runNamedCeremony } from '../tween.js';
+
 export function createRestScreen(deps) {
-  const { contentViewFor, S, E, tr, sceneBg, rasterOr, campfireSvg, iconSvg, $, $$, show, showCardGrid, sfx, V, stageW, stageH, requireHollowRouteClear, runEffects, closeOverlay, screenEl, el, chestSvg, renderHud } = deps;
+  const {
+    contentViewFor, S, E, tr, sceneBg, rasterOr, campfireSvg, iconSvg, $, $$, show, showCardGrid,
+    sfx, V, stageW, stageH, requireHollowRouteClear, runEffects, closeOverlay, screenEl, el,
+    chestSvg, renderHud, REDUCED, COARSE, presentationBarrier, trace,
+  } = deps;
   const runCatalogues = () => contentViewFor(S.run);
+
+  function presentationPolicy() {
+    return {
+      motion: REDUCED ? 'reduced' : 'full',
+      lite: !!COARSE,
+      reduced: !!REDUCED,
+    };
+  }
+
+  function rootAttrs(profile, endState) {
+    const attrs = screenPresentationAttrs(presentationPolicy());
+    return `data-r5-profile="${profile}" data-r5-state="${endState}" data-tier="${attrs.tier}" data-motion="${attrs.motion}"`;
+  }
+
+  function playCeremony(name, endState, root) {
+    return runNamedCeremony({
+      name,
+      endState,
+      barrier: presentationBarrier,
+      trace,
+      from: 0,
+      to: 1,
+      duration: DURATION_MS.ceremony,
+      easing: 'outSoft',
+      policy: presentationPolicy(),
+      onUpdate() {},
+    }).done.then(() => {
+      if (root?.isConnected) root.dataset.r5State = endState;
+    }).catch(() => {
+      if (root?.isConnected) root.dataset.r5State = endState;
+    });
+  }
 
 function renderRest() {
   const run = S.run;
   const canUp = run.player.deck.some((c) => !c.up && runCatalogues().cards[c.id].up);
-  screenEl().innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
-    <div class="ov-title">${tr('ui.rest.title')}</div>
+  const vigil = runEffects.syncVigil();
+  const profile = compositionProfile(compositionGrownFrom(vigil, run));
+  const endState = R5_SCREEN_END_STATES.restActionReady;
+  screenEl().innerHTML = `<div class="center-panel screen-enter r5-scene-panel r5-rest" ${rootAttrs(profile, 'rest')}>${sceneBg()}<div class="panel">
+    <div class="ov-title r5-scene-header">${tr('ui.rest.title')}</div>
     <div class="art-lg">${rasterOr('props', 'campfire', campfireSvg())}</div>
     <div class="ov-sub">${tr('ui.rest.sub')}</div>
     <div class="big-choices">
@@ -14,6 +62,7 @@ function renderRest() {
       <button class="btn" data-a="smith" ${canUp ? '' : 'disabled'}>${iconSvg('hammer', 18)} ${tr('ui.rest.smithBtn')} <span style="font-size:13px;opacity:.8">${tr('ui.rest.smithSub')}</span></button>
     </div>
   </div></div>`;
+  void playCeremony('rest', endState, $('.r5-rest'));
   $('[data-a="rest"]').onclick = (e) => {
     e.currentTarget.disabled = true;
     $('[data-a="smith"]').disabled = true;
@@ -57,6 +106,9 @@ function renderRest() {
 function renderTreasure() {
   const run = S.run;
   let opened = E.nodeRewardClaimed(run);
+  const vigil = runEffects.syncVigil();
+  const profile = compositionProfile(compositionGrownFrom(vigil, run));
+  const endState = R5_SCREEN_END_STATES.treasureOpen;
   const showContinue = (subHtml) => {
     const art = $('.art-lg');
     art.removeAttribute('data-a');
@@ -70,13 +122,16 @@ function renderTreasure() {
     bc.appendChild(btn);
     renderHud();
     runEffects.saveRun(run);
+    const root = $('.r5-rest');
+    if (root) root.dataset.r5State = endState;
   };
-  screenEl().innerHTML = `<div class="center-panel screen-enter">${sceneBg()}<div class="panel">
-    <div class="ov-title">${tr('ui.treasure.title')}</div>
+  screenEl().innerHTML = `<div class="center-panel screen-enter r5-scene-panel r5-rest r5-rest--treasure" ${rootAttrs(profile, 'rest')}>${sceneBg()}<div class="panel">
+    <div class="ov-title r5-scene-header">${tr('ui.treasure.title')}</div>
     <div class="art-lg" style="cursor:pointer" data-a="open">${rasterOr('props', 'chest', chestSvg(false))}</div>
     <div class="ov-sub">${tr('ui.treasure.sub')}</div>
     <div class="big-choices"><button class="btn btn-primary" data-a="open">${tr('ui.treasure.openBtn')}</button></div>
   </div></div>`;
+  void playCeremony('treasure', opened ? endState : 'rest', $('.r5-rest'));
   if (opened) {
     showContinue(tr('ui.treasure.empty'));
     return;

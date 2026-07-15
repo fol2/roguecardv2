@@ -8,9 +8,14 @@ export const rasterOr = (cat, id, svg) => {
 };
 
 export function sceneBg() {
-  const plate = themeForRun(S.run)?.plates?.backdrop;
+  const theme = themeForRun(S.run);
+  const plate = theme?.plates?.backdrop;
   const url = plate ? assetUrl('stage', plate) : null;
-  return url ? `<div class="scene-bg" style="background-image:url('${url}')"></div>` : '';
+  const themeId = theme?.id || theme?.themeId || '';
+  const attrs = `class="scene-bg r5-scene-panel"${themeId ? ` data-r5-theme="${escHtml(String(themeId))}"` : ''}${plate ? ` data-r5-plate="${escHtml(String(plate))}"` : ''}`;
+  return url
+    ? `<div ${attrs} style="background-image:url('${url}')"></div>`
+    : `<div ${attrs} data-r5-plate="empty" aria-hidden="true"></div>`;
 }
 
 export function metaBg(id) {
