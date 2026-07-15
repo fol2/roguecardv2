@@ -344,10 +344,13 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
    instead of clipping the wordmark off the frame (plain `center` overflows
    both ends and the top half becomes unreachable) */
 .title-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; justify-content: safe center; gap: 14px; padding: max(3cqh, 24px) 16px; overflow-y: auto; }
-.title-banner { position: absolute; inset: 0; opacity: 0.35; pointer-events: none; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 18cqh; z-index: 0; }
-.title-banner-frame { max-height: 55cqh; max-width: 90cqw; }
-.title-banner .raster-art { max-height: 55cqh; width: auto; max-width: 90cqw; object-fit: contain; filter: drop-shadow(0 12px 40px rgba(0,0,0,.6)); }
-.title-screen > :not(.title-banner) { position: relative; z-index: 1; }
+/* Full-bleed stage art behind centered wordmark + buttons (pre-P6 composition).
+   Bottom-aligned / low-opacity banner left a blank top half on every shape. */
+.title-banner { position: absolute; inset: 0; opacity: 0.82; pointer-events: none; display: flex; align-items: stretch; justify-content: center; padding: 0; z-index: 0; }
+.title-banner-frame { width: 100%; height: 100%; max-height: none; max-width: none; }
+.title-banner .raster-art { display: block; width: 100%; height: 100%; max-height: none; max-width: none; object-fit: cover; filter: none; }
+/* Keep chrome in the flex flow; never promote parallax into it (absolute fill). */
+.title-screen > :not(.title-banner):not(.r5-title-parallax) { position: relative; z-index: 1; }
 .logo {
   /* the logotype is itself leaded glass: ink stroke behind gold panes, faint lead lines through the letters */
   font-size: clamp(52px, 9cqw, 108px); font-weight: 800; letter-spacing: 0.16em; line-height: 1;
@@ -400,8 +403,10 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   opacity: 0.85;
   pointer-events: none;
 }
-/* Task 32: P7 parallax seams — absolute so markup cannot inflate title layout
-   before the FE stylesheet lands (Task 35). */
+/* Task 32: P7 parallax seams — absolute full-bleed behind UI.
+   Specificity must beat `.title-screen > :not(.title-banner)…` or layers
+   collapse into the flex column and inflate a blank top half. */
+.title-screen > .r5-title-parallax,
 .r5-title-parallax {
   position: absolute;
   inset: 0;
@@ -409,12 +414,19 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
   pointer-events: none;
   overflow: hidden;
 }
+/* PE seam used to leave img at opacity 0 with no reveal — blank stage. */
+.title-screen > .r5-title-parallax img,
 .r5-title-parallax img {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 1;
+}
+/* Banner is the no-parallax fill; when P7 layers exist they own the stage art. */
+.title-screen:has(> .r5-title-parallax) .title-banner {
   opacity: 0;
+  visibility: hidden;
 }
 .title-corner { position: absolute; top: calc(18px + var(--sat)); right: calc(18px + var(--sar)); display: flex; gap: 10px; }
 /* landscape stages are 820 tall: the wordmark eases down and the utility

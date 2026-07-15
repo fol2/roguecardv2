@@ -23,7 +23,10 @@ export function createTitleScreen(deps) {
   } = deps;
 
   function titleParallaxHtml() {
-    const fallback = assetUrl('title', TITLE_PARALLAX_FALLBACK_ID);
+    // Prefer dedicated plates; fall back to title-background (not the wordmark raster)
+    // so revealed full-bleed layers stay stage art, not a stretched logo.
+    const fallback = assetUrl('title-background', 'background')
+      || assetUrl('title', TITLE_PARALLAX_FALLBACK_ID);
     const layers = ['back', 'mid', 'front'];
     return TITLE_PARALLAX_LAYER_IDS.map((id, index) => {
       const url = assetUrl('title', id) || fallback;
