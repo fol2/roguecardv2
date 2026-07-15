@@ -94,6 +94,18 @@ async function stageHollowBase(page, {
     sp.show('hollow');
   }, { paid, gold, type, progress });
   await page.waitForSelector('.r5-lamplighter--hollow, .hollow-lamplighter');
+  // Ceremony settlement is on data-r5-ceremony (Phase-2 state stays on data-r5-state).
+  // FE/PE reveal CSS keys off that attr — wait before any hollow click path.
+  await page.waitForFunction(() => {
+    const root = document.querySelector('.r5-lamplighter');
+    if (!root) return false;
+    const ceremony = root.dataset.r5Ceremony === 'hollow-ready';
+    const settled = ['hollow-unpaid', 'hollow-paid', 'hollow-pay-pressed',
+      'hollow-save-retry', 'hollow-route-recovery', 'hollow-continue-closed',
+      'hollow-return-closed'].includes(root.dataset.r5State);
+    const style = getComputedStyle(root);
+    return ceremony && settled && Number.parseFloat(style.opacity) > 0.9;
+  });
 }
 
 async function freezeNavigation(page) {

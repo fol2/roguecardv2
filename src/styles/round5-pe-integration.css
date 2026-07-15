@@ -1,0 +1,158 @@
+/*
+ * PE integration bridge for the Round 5 FE screen stylesheet.
+ *
+ * FE authors `round5-screens.css` against ceremony terminals on `data-r5-state`.
+ * Task 34 keeps Hollow Phase-2 interactive states on `data-r5-state` and puts
+ * ceremony settlement on `data-r5-ceremony`. Center-panel / title phone
+ * composition also stays PE-owned (`styles.css`); FE screen shells must not
+ * erase those safe-area geometries.
+ *
+ * Keep this file PE-owned. Prefer FE CSS refinements in Task 36 when taste
+ * allows; leave load-bearing gate fixes here until then.
+ */
+
+/* Hollow: reveal after ceremony without overwriting Phase-2 state tokens. */
+.r5-lamplighter[data-r5-ceremony="hollow-ready"],
+.r5-lamplighter--hollow[data-r5-state^="hollow-"] {
+  opacity: 1;
+  transform: none;
+  animation: none;
+}
+
+/* Hollow root is a full-stage grid (styles.css), not an FE flex card shell.
+   FE `.r5-lamplighter` / `.r5-scene-panel` would otherwise clip Pay out of hit-testing. */
+.hollow-lamplighter.r5-lamplighter,
+.r5-lamplighter--hollow {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(360px, 1.2fr);
+  align-items: center;
+  justify-content: center;
+  gap: clamp(18px, 5cqw, 72px);
+  width: auto;
+  height: auto;
+  max-height: none;
+  padding: 7cqh 8cqw;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 28% 42%, rgba(105, 128, 142, 0.13), transparent 27%),
+    linear-gradient(105deg, #05080d 0%, #0a1118 48%, #08090f 100%);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  color: inherit;
+}
+
+@container stage (max-width: 740px) {
+  .hollow-lamplighter.r5-lamplighter,
+  .r5-lamplighter--hollow {
+    display: flex;
+    justify-content: center;
+    grid-template-columns: none;
+    padding: calc(68px + var(--sat)) 18px calc(18px + var(--sab));
+  }
+}
+
+@container stage (max-height: 480px) and (min-width: 500px) {
+  .hollow-lamplighter.r5-lamplighter,
+  .r5-lamplighter--hollow {
+    grid-template-columns: 180px minmax(420px, 1fr);
+    gap: 24px;
+    padding: 48px 7cqw 18px;
+  }
+}
+
+/* Center-panel screens: restore PE safe padding / absolute fill that FE shells
+   overwrite with height:100% + small cqh padding. */
+.center-panel.r5-rewards,
+.center-panel.r5-shop,
+.center-panel.r5-event,
+.center-panel.r5-rest,
+.center-panel.r5-vigil {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  gap: 0;
+  padding: 96px 12px 20px;
+  overflow: visible;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Double-class root is the stage fill, not a nested card — drop FE card chrome. */
+.center-panel.r5-scene-panel {
+  max-width: none;
+  max-height: none;
+  width: auto;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+  opacity: 1;
+  overflow: visible;
+}
+
+@container stage (max-width: 1100px) {
+  .center-panel.r5-rewards,
+  .center-panel.r5-shop,
+  .center-panel.r5-event,
+  .center-panel.r5-rest,
+  .center-panel.r5-vigil {
+    padding: calc(70px + var(--sat)) 8px calc(12px + var(--sab));
+  }
+}
+
+@container stage (max-height: 480px) {
+  .center-panel.r5-rewards,
+  .center-panel.r5-shop,
+  .center-panel.r5-event,
+  .center-panel.r5-rest,
+  .center-panel.r5-vigil {
+    padding: calc(48px + var(--sat)) 8px calc(10px + var(--sab));
+  }
+}
+
+/* Phone portrait title: keep PE thumb-row action rail (FE defaults to column). */
+@container stage (max-width: 740px) {
+  .r5-title {
+    gap: 10px;
+    padding: calc(20px + var(--sat)) 12px calc(14px + var(--sab));
+  }
+
+  .r5-title-actions {
+    flex-flow: row wrap;
+    justify-content: center;
+    width: min(300px, 78cqw);
+    gap: 8px;
+  }
+
+  .r5-title-actions .btn {
+    width: 100%;
+    padding: 9px 12px;
+  }
+
+  .r5-title-actions .btn.ghost {
+    width: auto;
+    flex: 1 1 0;
+    padding: 8px 6px;
+    font-size: 12.5px;
+  }
+}
+
+/* Dawn ledger shares .stats-grid — FE card width/padding must not force a
+   horizontal scroller under the PE 4-column minmax(130px) grid. */
+.stats-grid.r5-dawn-ledger {
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  padding: 0;
+  overflow: visible;
+  transform: none;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
