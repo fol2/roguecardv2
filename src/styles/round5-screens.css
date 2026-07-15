@@ -344,7 +344,7 @@
 .r5-lamplighter .btn[data-r5-state="ready"],
 .r5-vigil .btn[data-r5-state="ready"],
 .r5-monument[data-r5-state="ready"],
-.r5-scene-panel[data-r5-state="ready"] {
+.r5-scene-panel[data-r5-state="ready"]:not(.scene-bg):not(.center-panel):not(.lamp-screen) {
   opacity: 1;
   transform: scale(1);
   border-color: var(--r5-gold);
@@ -527,8 +527,7 @@
   letter-spacing: 0.16em;
   line-height: 1;
   text-align: center;
-  max-height: 2.2em;
-  overflow: hidden;
+  overflow: visible;
   border-bottom: 2px solid var(--r5-gold);
   padding-bottom: 10px;
   transition:
@@ -538,11 +537,30 @@
     border-color var(--r5-dur-ceremony) var(--r5-ease-out-soft);
 }
 
+/* Raster logo host — do not clip GLASSVOW tops or fight .logo-raster */
+.r5-title-wordmark.logo-raster,
+.r5-title-wordmark:has(img),
+.r5-title-wordmark:has(.title-wordmark) {
+  letter-spacing: normal;
+  border-bottom: none;
+  padding-bottom: 0;
+  overflow: visible;
+  max-height: none;
+  line-height: 0;
+}
+
 .r5-title[data-r5-state="igniting"] .r5-title-wordmark,
 .r5-title-wordmark[data-r5-state="igniting"] {
   opacity: 0;
   letter-spacing: 0.5em;
   border-color: transparent;
+}
+
+.r5-title[data-r5-state="igniting"] .r5-title-wordmark.logo-raster,
+.r5-title[data-r5-state="igniting"] .r5-title-wordmark:has(img),
+.r5-title-wordmark.logo-raster[data-r5-state="igniting"],
+.r5-title-wordmark:has(img)[data-r5-state="igniting"] {
+  letter-spacing: normal;
 }
 
 .r5-title[data-r5-state="title-ready"] .r5-title-wordmark,
@@ -551,6 +569,16 @@
   opacity: 1;
   letter-spacing: 0.125em;
   border-color: var(--r5-gold);
+}
+
+.r5-title[data-r5-state="title-ready"] .r5-title-wordmark.logo-raster,
+.r5-title[data-r5-state="title-ready"] .r5-title-wordmark:has(img),
+.r5-title-wordmark.logo-raster[data-r5-state="ready"],
+.r5-title-wordmark.logo-raster[data-r5-state="title-ready"],
+.r5-title-wordmark:has(img)[data-r5-state="ready"],
+.r5-title-wordmark:has(img)[data-r5-state="title-ready"] {
+  letter-spacing: normal;
+  border-color: transparent;
 }
 
 .r5-title-actions {
@@ -644,6 +672,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 16px;
   width: 100%;
   height: 100%;
@@ -674,21 +703,34 @@
   transform: scale(1.035);
 }
 
+/* Horizontal stepper chrome (PE .vow-block / .vow-stepper) — not a circular dial */
 .r5-vow-dial {
-  width: min(30cqw, 140px);
-  aspect-ratio: 1;
-  border-radius: 50%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: auto;
+  min-width: min(42cqw, 220px);
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 10px;
   border: 2px solid color-mix(in srgb, var(--r5-ember) 72%, transparent);
   background: color-mix(in srgb, var(--r5-ink) 80%, transparent);
   color: var(--r5-ember);
-  transform: rotate(0deg);
-  transition: transform var(--r5-dur-standard) var(--r5-ease-spring);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--r5-ink) 88%, transparent);
+  transition:
+    border-color var(--r5-dur-standard) var(--r5-ease-out-soft),
+    box-shadow var(--r5-dur-standard) var(--r5-ease-out-soft),
+    opacity var(--r5-dur-standard) var(--r5-ease-out-soft);
 }
 
 .r5-embark[data-r5-state="embark-lit"] .r5-vow-dial,
 .r5-vow-dial[data-r5-state="ready"] {
-  transform: rotate(18deg);
   border-color: var(--r5-ember);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--r5-ink) 88%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--r5-ember) 55%, transparent);
 }
 
 .r5-begin-rite {
@@ -740,6 +782,7 @@
 
 .r5-end--fallen .r5-monument {
   border-color: color-mix(in srgb, var(--r5-gold-dim) 72%, transparent);
+  width: min(92cqw, 840px);
 }
 
 .r5-end--victory {
@@ -816,6 +859,23 @@
   box-shadow: inset 0 0 120px color-mix(in srgb, var(--r5-gold) 18%, transparent);
 }
 
+/* Dawn FE assists — ceremony / whisper plates stretch shared width (no left-shrink) */
+.r5-end .dawn-ceremony,
+.r5-end--victory .dawn-ceremony,
+.r5-end .dawn-whisper,
+.r5-end--victory .dawn-whisper {
+  width: 100%;
+  max-width: min(92cqw, 780px);
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+.r5-end .dawn-event,
+.r5-end .dawn-ceremony .dawn-event {
+  min-width: 0;
+  width: 100%;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Scene family — rewards / shop / event / rest / lamp / vigil / map          */
 /* -------------------------------------------------------------------------- */
@@ -832,8 +892,10 @@
   overflow: hidden;
 }
 
-/* Shop (and any header that hosts portrait + copy) must not clip into the 2.4em title budget. */
+/* Shop / vigil (and any header that hosts portrait + copy) must not clip into the 2.4em title budget. */
 .r5-shop .r5-scene-header,
+.r5-vigil .r5-scene-header,
+.r5-vigil .ov-title,
 .r5-scene-header:has(.ov-title),
 .r5-scene-header:has(.ov-sub) {
   max-height: none;
@@ -842,7 +904,17 @@
   margin-bottom: 8px;
 }
 
-.r5-scene-panel {
+/*
+ * Decorative panel chrome — real panels only.
+ * Never card-shell absolute-fill hosts (.scene-bg, .center-panel, .lamp-screen).
+ */
+.center-panel.r5-scene-panel > .panel,
+.r5-scene-panel.panel,
+.r5-rewards .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+.r5-shop .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+.r5-event .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+.r5-rest .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+.r5-vigil .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen) {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -863,16 +935,44 @@
     opacity var(--r5-dur-screen) var(--r5-ease-out-soft);
 }
 
-.r5-rewards[data-r5-state="rewards-ready"] .r5-scene-panel,
-.r5-rewards[data-r5-state="boss-relic-ready"] .r5-scene-panel,
-.r5-shop[data-r5-state="shop-ready"] .r5-scene-panel,
-.r5-event[data-r5-state="event-choice-ready"] .r5-scene-panel,
-.r5-rest[data-r5-state="rest-action-ready"] .r5-scene-panel,
-.r5-rest[data-r5-state="treasure-open"] .r5-scene-panel,
-.r5-lamplighter[data-r5-state="lamplighter-ready"] .r5-scene-panel,
-.r5-lamplighter[data-r5-state="hollow-ready"] .r5-scene-panel,
-.r5-vigil[data-r5-state="vigil-ready"] .r5-scene-panel,
-.r5-scene-panel[data-r5-state="ready"] {
+/* Absolute-fill / background hosts — neutralize any leftover .r5-scene-panel chrome */
+.scene-bg.r5-scene-panel,
+.center-panel.r5-scene-panel,
+.lamp-screen.r5-scene-panel,
+.r5-lamplighter.r5-scene-panel {
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  transform: none;
+  opacity: 1;
+  animation: none;
+}
+
+.r5-rewards[data-r5-state="rewards-ready"] .center-panel.r5-scene-panel > .panel,
+.r5-rewards[data-r5-state="boss-relic-ready"] .center-panel.r5-scene-panel > .panel,
+.r5-rewards[data-r5-state="rewards-ready"] .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+.r5-rewards[data-r5-state="boss-relic-ready"] .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+.r5-shop[data-r5-state="shop-ready"] .center-panel.r5-scene-panel > .panel,
+.r5-shop[data-r5-state="shop-ready"] .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+.r5-event[data-r5-state="event-choice-ready"] .center-panel.r5-scene-panel > .panel,
+.r5-event[data-r5-state="event-choice-ready"] .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+.r5-rest[data-r5-state="rest-action-ready"] .center-panel.r5-scene-panel > .panel,
+.r5-rest[data-r5-state="treasure-open"] .center-panel.r5-scene-panel > .panel,
+.r5-rest[data-r5-state="rest-action-ready"] .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+.r5-rest[data-r5-state="treasure-open"] .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+.r5-vigil[data-r5-state="vigil-ready"] .center-panel.r5-scene-panel > .panel,
+.r5-vigil[data-r5-state="vigil-ready"] .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+.center-panel.r5-scene-panel > .panel[data-r5-state="ready"],
+.r5-scene-panel.panel[data-r5-state="ready"],
+.r5-scene-panel[data-r5-state="ready"]:not(.scene-bg):not(.center-panel):not(.lamp-screen) {
   transform: translateY(0);
   opacity: 1;
 }
@@ -895,12 +995,16 @@
   overflow: clip;
 }
 
-.r5-rewards .r5-scene-panel,
-.r5-shop .r5-scene-panel,
-.r5-event .r5-scene-panel,
-.r5-rest .r5-scene-panel,
-.r5-lamplighter .r5-scene-panel,
-.r5-vigil .r5-scene-panel {
+.r5-rewards .center-panel.r5-scene-panel > .panel,
+.r5-shop .center-panel.r5-scene-panel > .panel,
+.r5-event .center-panel.r5-scene-panel > .panel,
+.r5-rest .center-panel.r5-scene-panel > .panel,
+.r5-vigil .center-panel.r5-scene-panel > .panel,
+.r5-rewards .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+.r5-shop .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+.r5-event .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+.r5-rest .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+.r5-vigil .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen) {
   width: min(92cqw, 780px);
 }
 
@@ -908,8 +1012,33 @@
   color: var(--r5-ember);
 }
 
-.r5-lamplighter {
+/* Lamplighter / lamp-screen — full stage, no card shell */
+.r5-lamplighter,
+.r5-lamplighter.lamp-screen,
+.lamp-screen.r5-lamplighter {
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  height: 100%;
   color: var(--r5-ember);
+}
+
+.r5-lamplighter .r5-scene-panel:not(.scene-bg),
+.r5-lamplighter.r5-scene-panel,
+.lamp-screen .r5-scene-panel,
+.lamp-screen.r5-scene-panel {
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  height: auto;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  transform: none;
+  opacity: 1;
 }
 
 .r5-event {
@@ -996,7 +1125,7 @@
 
 .r5-embark[data-tier="lite"][data-r5-state="embark-lit"] .r5-vow-dial,
 .r5-vow-dial[data-tier="lite"][data-r5-state="ready"] {
-  transform: rotate(18deg);
+  border-color: var(--r5-ember);
 }
 
 .r5-end[data-tier="lite"][data-r5-state="dawn-closed"] {
@@ -1098,7 +1227,8 @@
 
 .r5-embark[data-tier="reduced"] .r5-vow-dial,
 .r5-embark[data-motion="reduced"] .r5-vow-dial {
-  transform: rotate(18deg);
+  transform: none;
+  border-color: var(--r5-ember);
 }
 
 .r5-embark[data-tier="reduced"] .r5-aspect-card[data-r5-state="ready"],
@@ -1182,13 +1312,27 @@
   }
 
   .r5-vow-dial {
-    width: min(30cqw, 112px);
+    min-width: min(48cqw, 200px);
+    padding: 6px 12px;
   }
 
   .r5-monument,
-  .r5-dawn-ledger,
-  .r5-scene-panel {
+  .r5-dawn-ledger {
     width: min(88cqw, 420px);
+  }
+
+  .center-panel.r5-scene-panel > .panel,
+  .r5-scene-panel.panel,
+  .r5-rewards .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-shop .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-event .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-rest .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-vigil .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen) {
+    width: min(88cqw, 420px);
+  }
+
+  .r5-end--fallen .r5-monument {
+    width: min(92cqw, 840px);
   }
 
   .r5-monument {
@@ -1230,28 +1374,35 @@
     width: min(42cqw, 320px);
   }
 
-  .r5-scene-panel {
+  .center-panel.r5-scene-panel > .panel,
+  .r5-scene-panel.panel,
+  .r5-rewards .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-shop .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-event .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-rest .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-vigil .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen) {
     width: min(90cqw, 680px);
+  }
+
+  .r5-end--fallen .r5-monument {
+    width: min(92cqw, 840px);
   }
 }
 
-/* Landscape phone / short stages — action rail beside body */
+/* Landscape phone / short stages — compact column (do not row-rail PE layouts) */
 @container stage (max-height: 480px) and (min-width: 500px) {
   .r5-title {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
     padding: 2cqh 3cqw;
-    gap: 2cqw;
+    gap: 8px;
   }
 
   .r5-title-wordmark {
-    max-width: 45cqw;
+    max-width: min(70cqw, 520px);
     font-size: clamp(28px, 6cqw, 56px);
   }
 
   .r5-title-actions {
-    width: min(36cqw, 280px);
+    width: min(300px, 60cqw);
     gap: 8px;
   }
 
@@ -1260,21 +1411,18 @@
   }
 
   .r5-embark {
-    flex-direction: row;
-    flex-wrap: nowrap;
-    align-items: stretch;
-    justify-content: center;
-    gap: 2cqw;
+    gap: 10px;
+    padding: 1.5cqh 3cqw;
   }
 
   .r5-aspect-card {
-    width: min(54cqw, 420px);
-    max-height: 86cqh;
+    width: min(70cqw, 420px);
+    max-height: 50cqh;
     overflow: auto;
   }
 
   .r5-vow-dial {
-    width: min(15cqw, 96px);
+    min-width: min(36cqw, 200px);
   }
 
   .r5-end {
@@ -1295,6 +1443,13 @@
   .r5-dawn-ledger {
     width: min(54cqw, 480px);
     max-height: 86cqh;
+  }
+
+  .r5-end .dawn-ceremony,
+  .r5-end .dawn-whisper {
+    width: 100%;
+    max-width: none;
+    grid-column: 1 / -1;
   }
 
   .r5-end .end-btns {
@@ -1367,11 +1522,17 @@
   .r5-rest,
   .r5-lamplighter,
   .r5-vigil {
-    flex-direction: row;
-    align-items: stretch;
+    gap: 8px;
+    padding: 1cqh 2cqw;
   }
 
-  .r5-scene-panel {
+  .center-panel.r5-scene-panel > .panel,
+  .r5-scene-panel.panel,
+  .r5-rewards .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-shop .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-event .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-rest .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-vigil .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen) {
     max-height: 86cqh;
     width: min(92cqw, 720px);
   }
@@ -1384,11 +1545,11 @@
 /* Desktop / wide landscape */
 @container stage (min-width: 1101px) {
   .r5-title-wordmark {
-    max-width: 44cqw;
+    max-width: min(64cqw, 780px);
   }
 
   .r5-title-actions {
-    width: min(23cqw, 300px);
+    width: min(300px, 40cqw);
   }
 
   .r5-title {
@@ -1400,13 +1561,17 @@
   }
 
   .r5-embark {
-    flex-direction: row;
-    flex-wrap: wrap;
     justify-content: center;
-    align-items: flex-start;
+    align-items: center;
   }
 
-  .r5-scene-panel {
+  .center-panel.r5-scene-panel > .panel,
+  .r5-scene-panel.panel,
+  .r5-rewards .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-shop .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-event .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-rest .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen),
+  .r5-vigil .r5-scene-panel:not(.scene-bg):not(.center-panel):not(.lamp-screen) {
     width: min(72cqw, 780px);
   }
 
@@ -1414,8 +1579,18 @@
     width: min(48cqw, 520px);
   }
 
+  .r5-end--fallen .r5-monument {
+    width: min(92cqw, 840px);
+  }
+
   .r5-dawn-ledger {
     width: min(48cqw, 560px);
+  }
+
+  .r5-end .dawn-ceremony,
+  .r5-end .dawn-whisper {
+    width: 100%;
+    max-width: min(92cqw, 780px);
   }
 }
 
@@ -1465,6 +1640,7 @@
   }
 
   .r5-embark .r5-vow-dial {
-    transform: rotate(18deg);
+    transform: none;
+    border-color: var(--r5-ember);
   }
 }
