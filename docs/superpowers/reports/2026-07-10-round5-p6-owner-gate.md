@@ -3,47 +3,46 @@
 **Status:** READY FOR OWNER RE-REVIEW  
 **Date:** 2026-07-15  
 **PE tip (remediation):** `6bb2eb21`  
-**P6 capture source (this package):** `6bb2eb213eabfc9a25cda7c61e8bd8827a17d25b`  
+**P6 capture source (sheets):** `6bb2eb213eabfc9a25cda7c61e8bd8827a17d25b`  
+**Layout projection:** `docs/superpowers/artifacts/round5-p6-layout-projection/` — **19/19 focus rows, failedApplicable=0**  
 **Artifacts:** `docs/superpowers/artifacts/round5-p6-contact-sheets/` (183 rows)  
-**FE pre-filter:** previously invalidated by owner taste FAIL; code remediations below await owner sign-off
+**FE pre-filter:** previously invalidated by owner taste FAIL; awaits owner sign-off
 
 ## Prior decision: OWNER FAIL
 
-Owner rejected the contact-sheet package with detailed geometry/card regressions
-(see inventory). Mechanical Task 36 PASS is not a substitute for owner taste.
+Owner rejected the contact-sheet package with detailed geometry/card regressions.
+Mechanical Task 36 PASS is not a substitute for owner taste.
+
+## Semantic evidence (required)
+
+Engineering validation for this inventory is the **layout projection**, not
+screenshot reading. See:
+
+`docs/superpowers/reports/2026-07-15-round5-p6-layout-projection-evidence.md`
+
+`npm run project:round5:layout` → JSON under
+`docs/superpowers/artifacts/round5-p6-layout-projection/`.
 
 ## Owner FAIL inventory → remediation status
 
-| # | Issue | Code status |
+| # | Issue | Projection gate |
 |---|---|---|
-| 1 | Dawn phone-portrait whisper mid-align | Fixed (`95dacf99`) |
-| 2 | Dawn phone-landscape whisper width | Fixed (`252a3445`) |
-| 3–6 | Embark layout + VOW not a circle | Fixed (FE merge `5c1b39bc` / `f2479ec2`) |
-| 7 | Event phone-landscape centered | Fixed (`f2479ec2` / sceneBg) |
-| 8 | Fall landscape wider | Fixed (PE bridges `981fbc9b`) |
-| 9 | Lamplighter full screen / phone selection | Fixed (`981fbc9b`) |
-| 10 | Map three.js visible in capture | Fixed (`5ebe7383`) |
-| 11–13,15 | Rest/rewards/shop/treasure phone-landscape | Fixed (`2a2e0432` sceneBg + FE) |
-| 14 | Title blank top / wordmark | Fixed (`bce6e765`) |
-| 16 | Vigil phone-landscape title | Fixed (`f2479ec2`) |
-| 17 | Phase-2 inherits layout | Recaptured with same tip |
-| 18 | Card gem / art / rarity | Fixed (`30e2a780` / `3baa08cb`) |
-
-## Root causes addressed
-
-- `sceneBg()` no longer stamps `r5-scene-panel`
-- FE landscape row / vow-dial / wordmark clipping restored
-- Capture `freeze({ keepBg3d })` keeps `#bg3d` on map
-- Cardface assets wired; hex cost gem + rarity chrome
-- Capture `waitSettled` bounds `__probe.freeze` so persistence plates do not hang
+| 1 | Dawn phone-portrait whisper mid-align | `dawn-phone-portrait-whisper-align` PASS |
+| 2 | Dawn phone-landscape whisper width | `dawn-phone-landscape-whisper-width` PASS |
+| 3–6 | Embark layout + VOW not a circle | `embark-vow-not-circle` / `embark-phone-landscape-column` PASS |
+| 7 | Event phone-landscape centered | `event-phone-landscape-centered` PASS |
+| 8 | Fall landscape wider | `fall-landscape-wider` PASS |
+| 9 | Lamplighter full screen | `lamplighter-fills-stage` PASS |
+| 10 | Map three.js visible | `map-bg3d-visible` PASS |
+| 11–13,15 | Scene phone-landscape panels | `scene-bg-not-panel-stamp` PASS |
+| 14 | Title blank top / wordmark | `title-parallax-covers-top` / `title-wordmark-unclipped` PASS |
+| 16 | Vigil phone-landscape title | `vigil-phone-landscape-title` PASS |
+| 18 | Card gem / art / rarity | `cardface-hex-gem-art-rarity` PASS |
 
 ## This package (for owner)
 
-Re-captured contact sheets at `6bb2eb21`. Open composed sheets under:
-
-`docs/superpowers/artifacts/round5-p6-contact-sheets/sheets/`
-
-Evidence: `docs/superpowers/reports/2026-07-10-round5-p6-capture-evidence.md`
+Sheets: `docs/superpowers/artifacts/round5-p6-contact-sheets/sheets/`  
+Projection: `docs/superpowers/artifacts/round5-p6-layout-projection/manifest.json`
 
 **Owner action required:** taste PASS or FAIL with notes.  
 Do **not** treat this as GO TO P7 until owner PASS.
