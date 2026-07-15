@@ -6,8 +6,9 @@
  * under test-results/round5-contact-sheets/.
  */
 import { createHash } from 'node:crypto';
+import { spawn, execFileSync } from 'node:child_process';
 import {
-  mkdirSync, writeFileSync, existsSync, rmSync,
+  mkdirSync, writeFileSync, existsSync, rmSync, readFileSync, readdirSync, statSync,
 } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,6 +28,7 @@ import { e2eServerSettings } from '../playwright-server.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'test-results', 'round5-contact-sheets');
+const CAPTURE_COMMAND = 'node tools/run-with-strict-e2e-port.mjs -- npm run capture:round5:contact-sheets';
 
 const BASE_SCREENS = Object.freeze([
   'title', 'embark', 'fall', 'dawn', 'rewards', 'boss-relic', 'shop', 'event',
@@ -38,6 +40,81 @@ assertPhase2Manifest(PHASE2_CAPTURE_MANIFEST);
 function fail(message) {
   console.error(message);
   process.exit(1);
+}
+
+function gitHead() {
+  return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim();
+}
+
+async function waitForOrigin(origin, timeoutMs = 30_000) {
+  const start = Date.now();
+  let lastError = null;
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(origin, { redirect: 'manual' });
+      if (res.ok || (res.status >= 300 && res.status < 500)) return;
+      lastError = new Error(`unexpected status ${res.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`dev server not ready at ${origin}: ${lastError?.message || lastError}`);
+}
+
+async function startDevServer(settings) {
+  const child = spawn(settings.command, {
+    cwd: ROOT,
+    shell: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env },
+  });
+  let bootLog = '';
+  const onChunk = (buf) => {
+    bootLog += buf.toString();
+    if (bootLog.length > 8000) bootLog = bootLog.slice(-4000);
+  };
+  child.stdout?.on('data', onChunk);
+  child.stderr?.on('data', onChunk);
+  try {
+    await waitForOrigin(settings.origin);
+  } catch (error) {
+    child.kill('SIGTERM');
+    fail(`${error.message}\n--- server log ---\n${bootLog}`);
+  }
+  return child;
+}
+
+function stopDevServer(child) {
+  if (!child || child.killed) return;
+  child.kill('SIGTERM');
+}
+
+function fileInventory(dir) {
+  const files = [];
+  const walk = (rel) => {
+    const abs = path.join(dir, rel);
+    for (const name of readdirSync(abs)) {
+      const childRel = rel ? path.join(rel, name) : name;
+      const childAbs = path.join(dir, childRel);
+      const st = statSync(childAbs);
+      if (st.isDirectory()) walk(childRel);
+      else {
+        const buf = readFileSync(childAbs);
+        files.push({
+          path: childRel.split(path.sep).join('/'),
+          byteSize: st.size,
+          mediaType: name.endsWith('.png') ? 'image/png'
+            : name.endsWith('.html') ? 'text/html'
+              : name.endsWith('.json') ? 'application/json'
+                : 'application/octet-stream',
+          sha256: createHash('sha256').update(buf).digest('hex'),
+        });
+      }
+    }
+  };
+  walk('');
+  return files.sort((a, b) => a.path.localeCompare(b.path));
 }
 
 async function waitSettled(page) {
@@ -159,8 +236,13 @@ async function main() {
   if (existsSync(OUT)) rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
 
+  const sourceSha = gitHead();
   const port = Number(process.env.SPIREBOUND_E2E_PORT || 5174);
-  const settings = e2eServerSettings(String(port));
+  const settings = e2eServerSettings(
+    process.env.SPIREBOUND_E2E_PORT ? String(port) : undefined,
+  );
+  // Isolated (strict-port) runs must boot their own server; shared 5174 may reuse.
+  const server = settings.isolated ? await startDevServer(settings) : null;
   const browser = await chromium.launch({ headless: true });
   const rows = [];
   const byScreen = new Map();
@@ -253,6 +335,7 @@ async function main() {
     }
   } finally {
     await browser.close();
+    stopDevServer(server);
   }
 
   for (const [screen, groups] of byScreen) {
@@ -270,17 +353,21 @@ async function main() {
     }
   }
 
+  const artifactFiles = fileInventory(OUT).filter((f) => f.path !== 'manifest.json');
   const manifest = {
     generatedAt: new Date().toISOString(),
+    sourceSha,
+    captureCommand: CAPTURE_COMMAND,
     contentHash: ENGLISH_CONTENT_HASH,
     uiHash: ENGLISH_UI_HASH,
     catalogueHash: ENGLISH_CATALOGUE_HASH,
     phase2Count: PHASE2_CAPTURE_MANIFEST.length,
     rows,
+    files: artifactFiles,
     sha256: createHash('sha256').update(JSON.stringify(rows.map((r) => r.id))).digest('hex'),
   };
   writeFileSync(path.join(OUT, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-  console.log(`captured ${rows.length} rows → ${OUT}`);
+  console.log(`captured ${rows.length} rows → ${OUT} (sourceSha=${sourceSha})`);
 }
 
 main().catch((error) => {
