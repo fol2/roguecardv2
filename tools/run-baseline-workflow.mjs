@@ -140,7 +140,8 @@ export async function runBaselineWorkflow({
   const previous = parseRunList(gh(listArgs));
   const previousIds = previous.map((run) => run.databaseId);
 
-  gh(['workflow', 'dispatch', workflow, '--ref', ref]);
+  // GitHub CLI verb is `workflow run` (not `workflow dispatch`).
+  gh(['workflow', 'run', workflow, '--ref', ref]);
 
   const run = await waitForNewDispatchRun({
     listRuns: async () => parseRunList(gh(listArgs)),
