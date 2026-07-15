@@ -1,0 +1,1277 @@
+/* Round 5 screen experience layer — presentation only.
+   Consumes PE-injected --r5-* tokens. No markup/JS ownership. */
+
+/* -------------------------------------------------------------------------- */
+/* Shared type, colour, focus, and scroll hosts under R5 roots                */
+/* -------------------------------------------------------------------------- */
+
+.r5-title,
+.r5-embark,
+.r5-end,
+.r5-scene-panel,
+.r5-rewards,
+.r5-shop,
+.r5-event,
+.r5-rest,
+.r5-lamplighter,
+.r5-vigil,
+.r5-map {
+  color: var(--r5-text);
+  font-family: var(--r5-font-body);
+}
+
+.r5-title-wordmark,
+.r5-scene-header,
+.r5-begin-rite,
+.r5-end--fallen,
+.r5-end--victory,
+.r5-monument,
+.r5-dawn-ledger {
+  font-family: var(--r5-font-display);
+}
+
+.r5-title :focus-visible,
+.r5-embark :focus-visible,
+.r5-end :focus-visible,
+.r5-scene-panel :focus-visible,
+.r5-rewards :focus-visible,
+.r5-shop :focus-visible,
+.r5-event :focus-visible,
+.r5-rest :focus-visible,
+.r5-lamplighter :focus-visible,
+.r5-vigil :focus-visible,
+.r5-map :focus-visible,
+.r5-aspect-card:focus-visible,
+.r5-vow-dial:focus-visible,
+.r5-begin-rite:focus-visible,
+.r5-title-actions :focus-visible {
+  outline: 2px solid var(--r5-ward);
+  outline-offset: 3px;
+}
+
+.r5-scene-panel,
+.r5-dawn-ledger,
+.r5-rewards,
+.r5-shop,
+.r5-event,
+.r5-vigil,
+.r5-map {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--r5-gold-dim) 55%, transparent) transparent;
+}
+
+.r5-scene-panel::-webkit-scrollbar,
+.r5-dawn-ledger::-webkit-scrollbar,
+.r5-rewards::-webkit-scrollbar,
+.r5-shop::-webkit-scrollbar,
+.r5-event::-webkit-scrollbar,
+.r5-vigil::-webkit-scrollbar,
+.r5-map::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.r5-scene-panel::-webkit-scrollbar-thumb,
+.r5-dawn-ledger::-webkit-scrollbar-thumb,
+.r5-rewards::-webkit-scrollbar-thumb,
+.r5-shop::-webkit-scrollbar-thumb,
+.r5-event::-webkit-scrollbar-thumb,
+.r5-vigil::-webkit-scrollbar-thumb,
+.r5-map::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--r5-gold-dim) 45%, transparent);
+  border-radius: 4px;
+}
+
+.r5-scene-panel::-webkit-scrollbar-thumb:hover,
+.r5-dawn-ledger::-webkit-scrollbar-thumb:hover,
+.r5-rewards::-webkit-scrollbar-thumb:hover,
+.r5-shop::-webkit-scrollbar-thumb:hover,
+.r5-event::-webkit-scrollbar-thumb:hover,
+.r5-vigil::-webkit-scrollbar-thumb:hover,
+.r5-map::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--r5-gold) 55%, transparent);
+}
+
+.r5-scene-panel::-webkit-scrollbar-track,
+.r5-dawn-ledger::-webkit-scrollbar-track,
+.r5-rewards::-webkit-scrollbar-track,
+.r5-shop::-webkit-scrollbar-track,
+.r5-event::-webkit-scrollbar-track,
+.r5-vigil::-webkit-scrollbar-track,
+.r5-map::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Compose shared .btn / .font-display without redefining them globally */
+.r5-title-actions .btn,
+.r5-embark .btn,
+.r5-begin-rite.btn,
+.r5-end .btn,
+.r5-scene-panel .btn,
+.r5-rewards .btn,
+.r5-shop .btn,
+.r5-event .btn,
+.r5-rest .btn,
+.r5-lamplighter .btn,
+.r5-vigil .btn {
+  font-family: var(--r5-font-display);
+  color: var(--r5-text);
+  border-color: color-mix(in srgb, var(--r5-gold) 55%, transparent);
+  transition:
+    transform var(--r5-dur-quick) var(--r5-ease-spring),
+    border-color var(--r5-dur-quick) var(--r5-ease-out-soft),
+    box-shadow var(--r5-dur-quick) var(--r5-ease-out-soft),
+    opacity var(--r5-dur-micro) var(--r5-ease-out-soft),
+    background-color var(--r5-dur-quick) var(--r5-ease-out-soft);
+}
+
+.r5-title-actions .btn:focus-visible,
+.r5-embark .btn:focus-visible,
+.r5-begin-rite.btn:focus-visible,
+.r5-end .btn:focus-visible,
+.r5-scene-panel .btn:focus-visible,
+.r5-rewards .btn:focus-visible,
+.r5-shop .btn:focus-visible,
+.r5-event .btn:focus-visible,
+.r5-rest .btn:focus-visible,
+.r5-lamplighter .btn:focus-visible,
+.r5-vigil .btn:focus-visible {
+  outline: 2px solid var(--r5-ward);
+  outline-offset: 3px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Widget interaction matrix (data-r5-state)                                  */
+/* Precedence: disabled > loading > pressed > ready > hover > rest            */
+/* -------------------------------------------------------------------------- */
+
+.r5-aspect-card,
+.r5-vow-dial,
+.r5-begin-rite,
+.r5-title-actions .btn,
+.r5-embark .btn,
+.r5-end .btn,
+.r5-scene-panel .btn,
+.r5-rewards .btn,
+.r5-shop .btn,
+.r5-event .btn,
+.r5-rest .btn,
+.r5-lamplighter .btn,
+.r5-vigil .btn,
+.r5-monument,
+.r5-scene-panel {
+  transition:
+    transform var(--r5-dur-quick) var(--r5-ease-spring),
+    opacity var(--r5-dur-micro) var(--r5-ease-out-soft),
+    border-color var(--r5-dur-quick) var(--r5-ease-out-soft),
+    box-shadow var(--r5-dur-quick) var(--r5-ease-out-soft),
+    filter var(--r5-dur-quick) var(--r5-ease-out-soft),
+    letter-spacing var(--r5-dur-ceremony) var(--r5-ease-out-soft);
+}
+
+/* Rest */
+.r5-aspect-card[data-r5-state="rest"],
+.r5-vow-dial[data-r5-state="rest"],
+.r5-begin-rite[data-r5-state="rest"],
+.r5-title-actions .btn[data-r5-state="rest"],
+.r5-embark .btn[data-r5-state="rest"],
+.r5-end .btn[data-r5-state="rest"],
+.r5-scene-panel .btn[data-r5-state="rest"],
+.r5-rewards .btn[data-r5-state="rest"],
+.r5-shop .btn[data-r5-state="rest"],
+.r5-event .btn[data-r5-state="rest"],
+.r5-rest .btn[data-r5-state="rest"],
+.r5-lamplighter .btn[data-r5-state="rest"],
+.r5-vigil .btn[data-r5-state="rest"],
+.r5-monument[data-r5-state="rest"],
+.r5-scene-panel[data-r5-state="rest"] {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  border-color: color-mix(in srgb, var(--r5-gold) 72%, transparent);
+  color: var(--r5-text);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--r5-ink) 88%, transparent);
+}
+
+/* Hover (attribute or pointer; suppressed when disabled/loading/pressed) */
+.r5-aspect-card[data-r5-state="hover"],
+.r5-vow-dial[data-r5-state="hover"],
+.r5-begin-rite[data-r5-state="hover"],
+.r5-title-actions .btn[data-r5-state="hover"],
+.r5-embark .btn[data-r5-state="hover"],
+.r5-end .btn[data-r5-state="hover"],
+.r5-scene-panel .btn[data-r5-state="hover"],
+.r5-rewards .btn[data-r5-state="hover"],
+.r5-shop .btn[data-r5-state="hover"],
+.r5-event .btn[data-r5-state="hover"],
+.r5-rest .btn[data-r5-state="hover"],
+.r5-lamplighter .btn[data-r5-state="hover"],
+.r5-vigil .btn[data-r5-state="hover"],
+.r5-aspect-card:hover:not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-vow-dial:hover:not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-begin-rite:hover:not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-title-actions .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-embark .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-end .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-scene-panel .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-rewards .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-shop .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-event .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-rest .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-lamplighter .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]),
+.r5-vigil .btn:hover:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]):not([data-r5-state="pressed"]) {
+  opacity: 1;
+  transform: scale(1.04) translateY(-2px);
+  border-color: var(--r5-gold);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--r5-ink) 88%, transparent),
+    0 0 18px color-mix(in srgb, var(--r5-gold) 22%, transparent);
+}
+
+/* Pressed */
+.r5-aspect-card[data-r5-state="pressed"],
+.r5-vow-dial[data-r5-state="pressed"],
+.r5-begin-rite[data-r5-state="pressed"],
+.r5-title-actions .btn[data-r5-state="pressed"],
+.r5-embark .btn[data-r5-state="pressed"],
+.r5-end .btn[data-r5-state="pressed"],
+.r5-scene-panel .btn[data-r5-state="pressed"],
+.r5-rewards .btn[data-r5-state="pressed"],
+.r5-shop .btn[data-r5-state="pressed"],
+.r5-event .btn[data-r5-state="pressed"],
+.r5-rest .btn[data-r5-state="pressed"],
+.r5-lamplighter .btn[data-r5-state="pressed"],
+.r5-vigil .btn[data-r5-state="pressed"],
+.r5-aspect-card:active:not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-vow-dial:active:not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-begin-rite:active:not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-title-actions .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-embark .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-end .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-scene-panel .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-rewards .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-shop .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-event .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-rest .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-lamplighter .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]),
+.r5-vigil .btn:active:not(:disabled):not([data-r5-state="disabled"]):not([data-r5-state="loading"]) {
+  opacity: 1;
+  transform: scale(0.97) translateY(0);
+  border-color: color-mix(in srgb, var(--r5-gold) 88%, transparent);
+  transition-duration: var(--r5-dur-micro);
+  transition-timing-function: var(--r5-ease-out-soft);
+  background-color: color-mix(in srgb, var(--r5-ink) 8%, transparent);
+}
+
+/* Disabled */
+.r5-aspect-card[data-r5-state="disabled"],
+.r5-vow-dial[data-r5-state="disabled"],
+.r5-begin-rite[data-r5-state="disabled"],
+.r5-title-actions .btn[data-r5-state="disabled"],
+.r5-embark .btn[data-r5-state="disabled"],
+.r5-end .btn[data-r5-state="disabled"],
+.r5-scene-panel .btn[data-r5-state="disabled"],
+.r5-rewards .btn[data-r5-state="disabled"],
+.r5-shop .btn[data-r5-state="disabled"],
+.r5-event .btn[data-r5-state="disabled"],
+.r5-rest .btn[data-r5-state="disabled"],
+.r5-lamplighter .btn[data-r5-state="disabled"],
+.r5-vigil .btn[data-r5-state="disabled"],
+.r5-title-actions .btn:disabled,
+.r5-embark .btn:disabled,
+.r5-end .btn:disabled,
+.r5-scene-panel .btn:disabled,
+.r5-rewards .btn:disabled,
+.r5-shop .btn:disabled,
+.r5-event .btn:disabled,
+.r5-rest .btn:disabled,
+.r5-lamplighter .btn:disabled,
+.r5-vigil .btn:disabled,
+.r5-begin-rite:disabled {
+  opacity: 0.42;
+  transform: scale(1) translateY(0);
+  color: var(--r5-text-dim);
+  border-color: color-mix(in srgb, var(--r5-gold-dim) 35%, transparent);
+  filter: saturate(0.35);
+  pointer-events: none;
+  box-shadow: none;
+}
+
+/* Ready — gentle accent pulse (Full); LITE/REDUCED override below */
+.r5-aspect-card[data-r5-state="ready"],
+.r5-vow-dial[data-r5-state="ready"],
+.r5-begin-rite[data-r5-state="ready"],
+.r5-title-actions .btn[data-r5-state="ready"],
+.r5-embark .btn[data-r5-state="ready"],
+.r5-end .btn[data-r5-state="ready"],
+.r5-scene-panel .btn[data-r5-state="ready"],
+.r5-rewards .btn[data-r5-state="ready"],
+.r5-shop .btn[data-r5-state="ready"],
+.r5-event .btn[data-r5-state="ready"],
+.r5-rest .btn[data-r5-state="ready"],
+.r5-lamplighter .btn[data-r5-state="ready"],
+.r5-vigil .btn[data-r5-state="ready"],
+.r5-monument[data-r5-state="ready"],
+.r5-scene-panel[data-r5-state="ready"] {
+  opacity: 1;
+  transform: scale(1);
+  border-color: var(--r5-gold);
+  animation: r5-ready-pulse var(--r5-dur-ceremony) var(--r5-ease-out-soft) infinite;
+}
+
+@keyframes r5-ready-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--r5-gold) 100%, transparent);
+  }
+  50% {
+    transform: scale(1.035);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--r5-gold) 62%, transparent);
+  }
+}
+
+/* Loading — vector fallback opacity; frame/text stay readable */
+.r5-aspect-card[data-r5-state="loading"],
+.r5-vow-dial[data-r5-state="loading"],
+.r5-begin-rite[data-r5-state="loading"],
+.r5-title-wordmark[data-r5-state="loading"],
+.r5-monument[data-r5-state="loading"],
+.r5-scene-panel[data-r5-state="loading"],
+.r5-lamplighter[data-r5-state="loading"] {
+  transform: scale(1) translateY(0);
+  color: var(--r5-text-dim);
+  border-color: color-mix(in srgb, var(--r5-gold) 72%, transparent);
+  transition-duration: var(--r5-dur-quick);
+  transition-timing-function: var(--r5-ease-out-soft);
+}
+
+.r5-aspect-card[data-r5-state="loading"] > *,
+.r5-monument[data-r5-state="loading"] > *,
+.r5-scene-panel[data-r5-state="loading"] > *,
+.r5-lamplighter[data-r5-state="loading"] > * {
+  opacity: 0.72;
+}
+
+.r5-aspect-card[data-r5-state="loading"],
+.r5-monument[data-r5-state="loading"],
+.r5-scene-panel[data-r5-state="loading"] {
+  opacity: 1;
+}
+
+/* Named ceremony terminal states (REDUCED end-state vocabulary) */
+.r5-title[data-r5-state="title-ready"] .r5-title-wordmark,
+.r5-embark[data-r5-state="embark-lit"] .r5-aspect-card,
+.r5-end[data-r5-state="monument-engraved"] .r5-monument,
+.r5-end[data-r5-state="dawn-closed"] .r5-dawn-ledger,
+.r5-rewards[data-r5-state="rewards-ready"],
+.r5-rewards[data-r5-state="boss-relic-ready"],
+.r5-shop[data-r5-state="shop-ready"],
+.r5-event[data-r5-state="event-choice-ready"],
+.r5-rest[data-r5-state="rest-action-ready"],
+.r5-rest[data-r5-state="treasure-open"],
+.r5-lamplighter[data-r5-state="lamplighter-ready"],
+.r5-lamplighter[data-r5-state="hollow-ready"],
+.r5-vigil[data-r5-state="vigil-ready"],
+.r5-map[data-r5-state="map-route-ready"] {
+  opacity: 1;
+  transform: none;
+  animation: none;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Fresh / grown composition profiles                                         */
+/* -------------------------------------------------------------------------- */
+
+.r5-title[data-r5-profile="fresh"] .r5-title-parallax {
+  opacity: 0.55;
+  filter: saturate(0.7);
+}
+
+.r5-title[data-r5-profile="grown"] .r5-title-parallax {
+  opacity: 1;
+  filter: none;
+}
+
+.r5-title[data-r5-profile="fresh"] .r5-title-actions {
+  gap: 10px;
+}
+
+.r5-title[data-r5-profile="grown"] .r5-title-actions {
+  gap: 12px;
+}
+
+.r5-embark[data-r5-profile="fresh"] .r5-vow-dial {
+  opacity: 0.42;
+  filter: saturate(0.4);
+  pointer-events: none;
+}
+
+.r5-embark[data-r5-profile="grown"] .r5-vow-dial {
+  opacity: 1;
+  filter: none;
+  pointer-events: auto;
+}
+
+.r5-embark[data-r5-profile="fresh"] .r5-aspect-card {
+  max-width: 88%;
+}
+
+.r5-end[data-r5-profile="fresh"] .r5-monument {
+  opacity: 0.92;
+  filter: saturate(0.55);
+}
+
+.r5-end[data-r5-profile="grown"] .r5-monument {
+  opacity: 1;
+  filter: none;
+}
+
+.r5-end[data-r5-profile="fresh"] .r5-dawn-ledger {
+  opacity: 0.88;
+}
+
+.r5-end[data-r5-profile="grown"] .r5-dawn-ledger {
+  opacity: 1;
+}
+
+.r5-rewards[data-r5-profile="fresh"],
+.r5-shop[data-r5-profile="fresh"],
+.r5-event[data-r5-profile="fresh"],
+.r5-rest[data-r5-profile="fresh"],
+.r5-lamplighter[data-r5-profile="fresh"],
+.r5-vigil[data-r5-profile="fresh"],
+.r5-map[data-r5-profile="fresh"] {
+  filter: saturate(0.85);
+}
+
+.r5-rewards[data-r5-profile="grown"],
+.r5-shop[data-r5-profile="grown"],
+.r5-event[data-r5-profile="grown"],
+.r5-rest[data-r5-profile="grown"],
+.r5-lamplighter[data-r5-profile="grown"],
+.r5-vigil[data-r5-profile="grown"],
+.r5-map[data-r5-profile="grown"] {
+  filter: none;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Title                                                                      */
+/* -------------------------------------------------------------------------- */
+
+.r5-title {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  gap: 14px;
+  width: 100%;
+  height: 100%;
+  padding: max(3cqh, 24px) 4cqw;
+  overflow: clip;
+  color: var(--r5-text);
+}
+
+.r5-title-parallax {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.9;
+  transition:
+    opacity var(--r5-dur-screen) var(--r5-ease-out-soft),
+    transform var(--r5-dur-screen) var(--r5-ease-out-soft);
+}
+
+.r5-title-wordmark {
+  position: relative;
+  z-index: 1;
+  max-width: min(780px, 88cqw);
+  color: var(--r5-gold);
+  font-family: var(--r5-font-display);
+  font-weight: 800;
+  font-size: clamp(52px, 9cqw, 108px);
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-align: center;
+  max-height: 2.2em;
+  overflow: hidden;
+  border-bottom: 2px solid var(--r5-gold);
+  padding-bottom: 10px;
+  transition:
+    opacity var(--r5-dur-ceremony) var(--r5-ease-out-soft),
+    letter-spacing var(--r5-dur-ceremony) var(--r5-ease-out-soft),
+    transform var(--r5-dur-ceremony) var(--r5-ease-out-soft),
+    border-color var(--r5-dur-ceremony) var(--r5-ease-out-soft);
+}
+
+.r5-title[data-r5-state="igniting"] .r5-title-wordmark,
+.r5-title-wordmark[data-r5-state="igniting"] {
+  opacity: 0;
+  letter-spacing: 0.5em;
+  border-color: transparent;
+}
+
+.r5-title[data-r5-state="title-ready"] .r5-title-wordmark,
+.r5-title-wordmark[data-r5-state="ready"],
+.r5-title-wordmark[data-r5-state="title-ready"] {
+  opacity: 1;
+  letter-spacing: 0.125em;
+  border-color: var(--r5-gold);
+}
+
+.r5-title-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: min(300px, 80cqw);
+}
+
+.r5-title-actions .btn {
+  width: 100%;
+  min-height: 44px;
+  max-height: 3.2em;
+  color: var(--r5-parchment);
+  background: color-mix(in srgb, var(--r5-ink) 88%, transparent);
+  border: 2px solid color-mix(in srgb, var(--r5-gold) 72%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--r5-ink) 88%, transparent);
+}
+
+.r5-title-actions .btn.ghost {
+  color: var(--r5-parchment);
+  background: transparent;
+  border-color: color-mix(in srgb, var(--r5-parchment) 55%, transparent);
+}
+
+.r5-title-actions .btn.danger {
+  border-color: color-mix(in srgb, var(--r5-danger) 72%, transparent);
+  color: var(--r5-danger);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Embark                                                                     */
+/* -------------------------------------------------------------------------- */
+
+.r5-embark {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  height: 100%;
+  padding: max(2cqh, 16px) 4cqw;
+  overflow: clip;
+}
+
+.r5-aspect-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 44px;
+  padding: 12px 14px;
+  color: var(--r5-text);
+  background: color-mix(in srgb, var(--r5-ink) 86%, transparent);
+  border: 2px solid color-mix(in srgb, var(--r5-gold) 72%, transparent);
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--r5-ink) 88%, transparent);
+  cursor: pointer;
+}
+
+.r5-aspect-card[data-r5-state="ready"],
+.r5-embark[data-r5-state="embark-lit"] .r5-aspect-card[data-r5-state="ready"] {
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--r5-ink) 88%, transparent),
+    0 0 0 2px var(--r5-gold);
+  transform: scale(1.035);
+}
+
+.r5-vow-dial {
+  width: min(30cqw, 140px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--r5-ember) 72%, transparent);
+  background: color-mix(in srgb, var(--r5-ink) 80%, transparent);
+  color: var(--r5-ember);
+  transform: rotate(0deg);
+  transition: transform var(--r5-dur-standard) var(--r5-ease-spring);
+}
+
+.r5-embark[data-r5-state="embark-lit"] .r5-vow-dial,
+.r5-vow-dial[data-r5-state="ready"] {
+  transform: rotate(18deg);
+  border-color: var(--r5-ember);
+}
+
+.r5-begin-rite {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 12px 28px;
+  color: var(--r5-ink);
+  font-family: var(--r5-font-display);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: var(--r5-gold);
+  border: 2px solid var(--r5-gold);
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--r5-ink) 88%, transparent);
+  cursor: pointer;
+}
+
+.r5-begin-rite:disabled,
+.r5-begin-rite[data-r5-state="disabled"] {
+  background: color-mix(in srgb, var(--r5-gold-dim) 55%, transparent);
+  color: var(--r5-text-dim);
+}
+
+/* Embark wash on Begin */
+.r5-embark[data-r5-state="embark-lit"] {
+  background: color-mix(in srgb, var(--r5-ink) 24%, transparent);
+}
+
+/* -------------------------------------------------------------------------- */
+/* End — Fall / Dawn                                                          */
+/* -------------------------------------------------------------------------- */
+
+.r5-end {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  height: 100%;
+  padding: max(2cqh, 18px) 4cqw;
+  overflow: clip;
+  color: var(--r5-text);
+}
+
+.r5-end--fallen {
+  color: var(--r5-text-dim);
+}
+
+.r5-end--fallen .r5-monument {
+  border-color: color-mix(in srgb, var(--r5-gold-dim) 72%, transparent);
+}
+
+.r5-end--victory {
+  color: var(--r5-parchment);
+}
+
+.r5-end--victory .r5-dawn-ledger {
+  border-color: color-mix(in srgb, var(--r5-gold) 72%, transparent);
+}
+
+.r5-monument {
+  position: relative;
+  width: min(84cqw, 520px);
+  min-height: 28cqh;
+  padding: 16px;
+  color: var(--r5-text);
+  background: color-mix(in srgb, var(--r5-ink) 90%, transparent);
+  border: 2px solid color-mix(in srgb, var(--r5-gold-dim) 72%, transparent);
+  border-radius: 8px;
+  transform: translateY(24px);
+  opacity: 0;
+  transition:
+    transform var(--r5-dur-screen) var(--r5-ease-out-soft),
+    opacity var(--r5-dur-screen) var(--r5-ease-out-soft);
+}
+
+.r5-end[data-r5-state="monument-engraved"] .r5-monument,
+.r5-monument[data-r5-state="ready"] {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.r5-dawn-ledger {
+  width: min(84cqw, 560px);
+  min-height: 18cqh;
+  padding: 14px 16px;
+  color: var(--r5-text);
+  font-family: var(--r5-font-display);
+  background: color-mix(in srgb, var(--r5-ink) 88%, transparent);
+  border: 2px solid color-mix(in srgb, var(--r5-gold) 55%, transparent);
+  border-radius: 8px;
+  overflow: auto;
+  transform: translateY(18px);
+  opacity: 0;
+  transition:
+    transform var(--r5-dur-screen) var(--r5-ease-out-soft),
+    opacity var(--r5-dur-screen) var(--r5-ease-out-soft);
+}
+
+.r5-end[data-r5-state="dawn-closed"] .r5-dawn-ledger,
+.r5-dawn-ledger[data-r5-state="ready"] {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.r5-end--victory[data-r5-state="dawn-closed"] {
+  box-shadow: inset 0 0 120px color-mix(in srgb, var(--r5-gold) 18%, transparent);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Scene family — rewards / shop / event / rest / lamp / vigil / map          */
+/* -------------------------------------------------------------------------- */
+
+.r5-scene-header {
+  width: 100%;
+  color: var(--r5-gold);
+  font-family: var(--r5-font-display);
+  font-size: clamp(15px, 2.2cqw, 22px);
+  letter-spacing: 0.14em;
+  text-align: center;
+  line-height: 1.2;
+  max-height: 2.4em;
+  overflow: hidden;
+}
+
+.r5-scene-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(92cqw, 720px);
+  max-height: 78cqh;
+  padding: 16px 18px;
+  color: var(--r5-text);
+  background: color-mix(in srgb, var(--r5-ink) 88%, transparent);
+  border: 2px solid color-mix(in srgb, var(--r5-gold) 40%, transparent);
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--r5-ink) 88%, transparent);
+  overflow: auto;
+  transform: translateY(18px);
+  opacity: 0;
+  transition:
+    transform var(--r5-dur-screen) var(--r5-ease-out-soft),
+    opacity var(--r5-dur-screen) var(--r5-ease-out-soft);
+}
+
+.r5-rewards[data-r5-state="rewards-ready"] .r5-scene-panel,
+.r5-rewards[data-r5-state="boss-relic-ready"] .r5-scene-panel,
+.r5-shop[data-r5-state="shop-ready"] .r5-scene-panel,
+.r5-event[data-r5-state="event-choice-ready"] .r5-scene-panel,
+.r5-rest[data-r5-state="rest-action-ready"] .r5-scene-panel,
+.r5-rest[data-r5-state="treasure-open"] .r5-scene-panel,
+.r5-lamplighter[data-r5-state="lamplighter-ready"] .r5-scene-panel,
+.r5-lamplighter[data-r5-state="hollow-ready"] .r5-scene-panel,
+.r5-vigil[data-r5-state="vigil-ready"] .r5-scene-panel,
+.r5-scene-panel[data-r5-state="ready"] {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.r5-rewards,
+.r5-shop,
+.r5-event,
+.r5-rest,
+.r5-lamplighter,
+.r5-vigil,
+.r5-map {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  padding: max(2cqh, 14px) 3cqw;
+  overflow: clip;
+}
+
+.r5-rewards .r5-scene-panel,
+.r5-shop .r5-scene-panel,
+.r5-event .r5-scene-panel,
+.r5-rest .r5-scene-panel,
+.r5-lamplighter .r5-scene-panel,
+.r5-vigil .r5-scene-panel {
+  width: min(92cqw, 780px);
+}
+
+.r5-rest {
+  color: var(--r5-ember);
+}
+
+.r5-lamplighter {
+  color: var(--r5-ember);
+}
+
+.r5-event {
+  color: var(--r5-text);
+}
+
+.r5-shop {
+  color: var(--r5-parchment);
+}
+
+.r5-map {
+  overflow: clip;
+  transition: transform var(--r5-dur-ceremony) var(--r5-ease-out-soft);
+}
+
+.r5-map[data-r5-state="entering"] {
+  transform: translateY(10px);
+  opacity: 0.85;
+}
+
+.r5-map[data-r5-state="map-route-ready"],
+.r5-map[data-r5-state="ready"] {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* LITE tier — no filters/foil/particles; 12% white flat sheen                */
+/* -------------------------------------------------------------------------- */
+
+.r5-title[data-tier="lite"] .r5-title-parallax,
+.r5-embark[data-tier="lite"] .r5-aspect-card,
+.r5-end[data-tier="lite"] .r5-monument,
+.r5-end[data-tier="lite"] .r5-dawn-ledger,
+.r5-scene-panel[data-tier="lite"],
+.r5-rewards[data-tier="lite"] .r5-scene-panel,
+.r5-shop[data-tier="lite"] .r5-scene-panel,
+.r5-event[data-tier="lite"] .r5-scene-panel,
+.r5-rest[data-tier="lite"] .r5-scene-panel,
+.r5-lamplighter[data-tier="lite"] .r5-scene-panel,
+.r5-vigil[data-tier="lite"] .r5-scene-panel,
+.r5-map[data-tier="lite"],
+.r5-aspect-card[data-tier="lite"],
+.r5-vow-dial[data-tier="lite"],
+.r5-begin-rite[data-tier="lite"],
+.r5-monument[data-tier="lite"],
+.r5-dawn-ledger[data-tier="lite"] {
+  filter: none;
+  animation: none;
+  box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.12);
+}
+
+.r5-title[data-tier="lite"] .r5-title-parallax {
+  transform: none;
+  opacity: 1;
+}
+
+.r5-aspect-card[data-tier="lite"][data-r5-state="ready"],
+.r5-begin-rite[data-tier="lite"][data-r5-state="ready"],
+.r5-vow-dial[data-tier="lite"][data-r5-state="ready"],
+.r5-title-actions .btn[data-tier="lite"][data-r5-state="ready"],
+.r5-embark[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-end[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-scene-panel[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-rewards[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-shop[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-event[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-rest[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-lamplighter[data-tier="lite"] .btn[data-r5-state="ready"],
+.r5-vigil[data-tier="lite"] .btn[data-r5-state="ready"] {
+  animation: none;
+  transform: scale(1);
+  box-shadow:
+    inset 0 0 0 999px rgba(255, 255, 255, 0.12),
+    0 0 0 2px var(--r5-gold);
+}
+
+.r5-embark[data-tier="lite"] .r5-vow-dial,
+.r5-embark[data-tier="lite"][data-r5-profile="fresh"] .r5-vow-dial,
+.r5-vow-dial[data-tier="lite"] {
+  filter: none;
+  transition: none;
+}
+
+.r5-embark[data-tier="lite"][data-r5-state="embark-lit"] .r5-vow-dial,
+.r5-vow-dial[data-tier="lite"][data-r5-state="ready"] {
+  transform: rotate(18deg);
+}
+
+.r5-end[data-tier="lite"][data-r5-state="dawn-closed"] {
+  box-shadow: inset 0 0 80px color-mix(in srgb, var(--r5-gold) 12%, transparent);
+}
+
+/* LITE clears Fresh saturate filters on scene roots + embark dial */
+.r5-rewards[data-tier="lite"],
+.r5-rewards[data-tier="lite"][data-r5-profile="fresh"],
+.r5-shop[data-tier="lite"],
+.r5-shop[data-tier="lite"][data-r5-profile="fresh"],
+.r5-event[data-tier="lite"],
+.r5-event[data-tier="lite"][data-r5-profile="fresh"],
+.r5-vigil[data-tier="lite"],
+.r5-vigil[data-tier="lite"][data-r5-profile="fresh"],
+.r5-rest[data-tier="lite"],
+.r5-lamplighter[data-tier="lite"] {
+  filter: none;
+}
+
+/* -------------------------------------------------------------------------- */
+/* REDUCED — terminal frame only; no motion                                   */
+/* -------------------------------------------------------------------------- */
+
+.r5-title[data-tier="reduced"],
+.r5-title[data-motion="reduced"],
+.r5-embark[data-tier="reduced"],
+.r5-embark[data-motion="reduced"],
+.r5-end[data-tier="reduced"],
+.r5-end[data-motion="reduced"],
+.r5-rewards[data-tier="reduced"],
+.r5-rewards[data-motion="reduced"],
+.r5-shop[data-tier="reduced"],
+.r5-shop[data-motion="reduced"],
+.r5-event[data-tier="reduced"],
+.r5-event[data-motion="reduced"],
+.r5-rest[data-tier="reduced"],
+.r5-rest[data-motion="reduced"],
+.r5-lamplighter[data-tier="reduced"],
+.r5-lamplighter[data-motion="reduced"],
+.r5-vigil[data-tier="reduced"],
+.r5-vigil[data-motion="reduced"],
+.r5-map[data-tier="reduced"],
+.r5-map[data-motion="reduced"],
+.r5-scene-panel[data-tier="reduced"],
+.r5-scene-panel[data-motion="reduced"],
+.r5-aspect-card[data-tier="reduced"],
+.r5-aspect-card[data-motion="reduced"],
+.r5-vow-dial[data-tier="reduced"],
+.r5-vow-dial[data-motion="reduced"],
+.r5-begin-rite[data-tier="reduced"],
+.r5-begin-rite[data-motion="reduced"],
+.r5-monument[data-tier="reduced"],
+.r5-monument[data-motion="reduced"],
+.r5-dawn-ledger[data-tier="reduced"],
+.r5-dawn-ledger[data-motion="reduced"],
+.r5-title-wordmark[data-tier="reduced"],
+.r5-title-wordmark[data-motion="reduced"],
+.r5-title-parallax[data-tier="reduced"],
+.r5-title-parallax[data-motion="reduced"] {
+  animation: none !important;
+  transition: none !important;
+  filter: none;
+}
+
+.r5-title[data-tier="reduced"] *,
+.r5-title[data-motion="reduced"] *,
+.r5-embark[data-tier="reduced"] *,
+.r5-embark[data-motion="reduced"] *,
+.r5-end[data-tier="reduced"] *,
+.r5-end[data-motion="reduced"] *,
+.r5-rewards[data-tier="reduced"] *,
+.r5-rewards[data-motion="reduced"] *,
+.r5-shop[data-tier="reduced"] *,
+.r5-shop[data-motion="reduced"] *,
+.r5-event[data-tier="reduced"] *,
+.r5-event[data-motion="reduced"] *,
+.r5-rest[data-tier="reduced"] *,
+.r5-rest[data-motion="reduced"] *,
+.r5-lamplighter[data-tier="reduced"] *,
+.r5-lamplighter[data-motion="reduced"] *,
+.r5-vigil[data-tier="reduced"] *,
+.r5-vigil[data-motion="reduced"] *,
+.r5-map[data-tier="reduced"] *,
+.r5-map[data-motion="reduced"] * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.r5-title[data-tier="reduced"] .r5-title-wordmark,
+.r5-title[data-motion="reduced"] .r5-title-wordmark,
+.r5-title[data-tier="reduced"] .r5-title-parallax,
+.r5-title[data-motion="reduced"] .r5-title-parallax {
+  opacity: 1;
+  letter-spacing: 0.125em;
+  transform: none;
+  border-color: var(--r5-gold);
+}
+
+.r5-embark[data-tier="reduced"] .r5-vow-dial,
+.r5-embark[data-motion="reduced"] .r5-vow-dial {
+  transform: rotate(18deg);
+}
+
+.r5-embark[data-tier="reduced"] .r5-aspect-card[data-r5-state="ready"],
+.r5-embark[data-motion="reduced"] .r5-aspect-card[data-r5-state="ready"] {
+  transform: scale(1.035);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--r5-ink) 88%, transparent),
+    0 0 0 2px var(--r5-gold);
+}
+
+.r5-end[data-tier="reduced"] .r5-monument,
+.r5-end[data-motion="reduced"] .r5-monument,
+.r5-end[data-tier="reduced"] .r5-dawn-ledger,
+.r5-end[data-motion="reduced"] .r5-dawn-ledger,
+.r5-rewards[data-tier="reduced"] .r5-scene-panel,
+.r5-rewards[data-motion="reduced"] .r5-scene-panel,
+.r5-shop[data-tier="reduced"] .r5-scene-panel,
+.r5-shop[data-motion="reduced"] .r5-scene-panel,
+.r5-event[data-tier="reduced"] .r5-scene-panel,
+.r5-event[data-motion="reduced"] .r5-scene-panel,
+.r5-rest[data-tier="reduced"] .r5-scene-panel,
+.r5-rest[data-motion="reduced"] .r5-scene-panel,
+.r5-lamplighter[data-tier="reduced"] .r5-scene-panel,
+.r5-lamplighter[data-motion="reduced"] .r5-scene-panel,
+.r5-vigil[data-tier="reduced"] .r5-scene-panel,
+.r5-vigil[data-motion="reduced"] .r5-scene-panel {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.r5-map[data-tier="reduced"],
+.r5-map[data-motion="reduced"] {
+  transform: none;
+  opacity: 1;
+}
+
+/* Focus remains independent under LITE / REDUCED */
+.r5-title[data-tier="lite"] :focus-visible,
+.r5-title[data-tier="reduced"] :focus-visible,
+.r5-title[data-motion="reduced"] :focus-visible,
+.r5-embark[data-tier="lite"] :focus-visible,
+.r5-embark[data-tier="reduced"] :focus-visible,
+.r5-embark[data-motion="reduced"] :focus-visible,
+.r5-end[data-tier="lite"] :focus-visible,
+.r5-end[data-tier="reduced"] :focus-visible,
+.r5-end[data-motion="reduced"] :focus-visible,
+.r5-scene-panel[data-tier="lite"]:focus-visible,
+.r5-scene-panel[data-tier="reduced"]:focus-visible,
+.r5-scene-panel[data-motion="reduced"]:focus-visible,
+.r5-aspect-card[data-tier="lite"]:focus-visible,
+.r5-aspect-card[data-tier="reduced"]:focus-visible,
+.r5-aspect-card[data-motion="reduced"]:focus-visible,
+.r5-begin-rite[data-tier="lite"]:focus-visible,
+.r5-begin-rite[data-tier="reduced"]:focus-visible,
+.r5-begin-rite[data-motion="reduced"]:focus-visible {
+  outline: 2px solid var(--r5-ward);
+  outline-offset: 3px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Stage-shape composition (@container stage + cqw/cqh)                       */
+/* -------------------------------------------------------------------------- */
+
+/* Phone portrait-ish (narrow) */
+@container stage (max-width: 740px) {
+  .r5-title-wordmark {
+    font-size: clamp(40px, 11cqw, 72px);
+    max-width: 80cqw;
+  }
+
+  .r5-title-actions {
+    width: min(300px, 80cqw);
+  }
+
+  .r5-embark {
+    gap: 12px;
+  }
+
+  .r5-aspect-card {
+    width: min(88cqw, 360px);
+  }
+
+  .r5-vow-dial {
+    width: min(30cqw, 112px);
+  }
+
+  .r5-monument,
+  .r5-dawn-ledger,
+  .r5-scene-panel {
+    width: min(88cqw, 420px);
+  }
+
+  .r5-scene-header {
+    font-size: clamp(14px, 3.4cqw, 18px);
+  }
+}
+
+/* Pad band */
+@container stage (min-width: 741px) and (max-width: 1100px) {
+  .r5-title-wordmark {
+    max-width: 76cqw;
+  }
+
+  .r5-title-actions {
+    width: min(320px, 60cqw);
+  }
+
+  .r5-embark {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .r5-aspect-card {
+    width: min(42cqw, 320px);
+  }
+
+  .r5-scene-panel {
+    width: min(90cqw, 680px);
+  }
+}
+
+/* Landscape phone / short stages — action rail beside body */
+@container stage (max-height: 480px) and (min-width: 500px) {
+  .r5-title {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2cqh 3cqw;
+    gap: 2cqw;
+  }
+
+  .r5-title-wordmark {
+    max-width: 45cqw;
+    font-size: clamp(28px, 6cqw, 56px);
+  }
+
+  .r5-title-actions {
+    width: min(36cqw, 280px);
+    gap: 8px;
+  }
+
+  .r5-title-actions .btn {
+    padding: 8px 14px;
+  }
+
+  .r5-embark {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: center;
+    gap: 2cqw;
+  }
+
+  .r5-aspect-card {
+    width: min(54cqw, 420px);
+    max-height: 86cqh;
+    overflow: auto;
+  }
+
+  .r5-vow-dial {
+    width: min(15cqw, 96px);
+  }
+
+  .r5-end {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 2cqw;
+  }
+
+  .r5-monument {
+    width: min(38cqw, 360px);
+    min-height: auto;
+    max-height: 86cqh;
+  }
+
+  .r5-dawn-ledger {
+    width: min(54cqw, 480px);
+    max-height: 86cqh;
+  }
+
+  .r5-rewards,
+  .r5-shop,
+  .r5-event,
+  .r5-rest,
+  .r5-lamplighter,
+  .r5-vigil {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .r5-scene-panel {
+    max-height: 86cqh;
+    width: min(92cqw, 720px);
+  }
+
+  .r5-map {
+    padding: 1cqh 2cqw;
+  }
+}
+
+/* Desktop / wide landscape */
+@container stage (min-width: 1101px) {
+  .r5-title-wordmark {
+    max-width: 44cqw;
+  }
+
+  .r5-title-actions {
+    width: min(23cqw, 300px);
+  }
+
+  .r5-title {
+    padding: 4cqh 5cqw;
+  }
+
+  .r5-aspect-card {
+    width: min(28cqw, 300px);
+  }
+
+  .r5-embark {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .r5-scene-panel {
+    width: min(72cqw, 780px);
+  }
+
+  .r5-monument {
+    width: min(48cqw, 520px);
+  }
+
+  .r5-dawn-ledger {
+    width: min(48cqw, 560px);
+  }
+}
+
+/* Prefers-reduced-motion as a belt-and-braces peer to data-motion=reduced */
+@media (prefers-reduced-motion: reduce) {
+  .r5-title,
+  .r5-title *,
+  .r5-embark,
+  .r5-embark *,
+  .r5-end,
+  .r5-end *,
+  .r5-rewards,
+  .r5-rewards *,
+  .r5-shop,
+  .r5-shop *,
+  .r5-event,
+  .r5-event *,
+  .r5-rest,
+  .r5-rest *,
+  .r5-lamplighter,
+  .r5-lamplighter *,
+  .r5-vigil,
+  .r5-vigil *,
+  .r5-map,
+  .r5-map *,
+  .r5-aspect-card,
+  .r5-vow-dial,
+  .r5-begin-rite,
+  .r5-monument,
+  .r5-dawn-ledger,
+  .r5-scene-panel,
+  .r5-title-wordmark,
+  .r5-title-parallax,
+  .r5-title-actions .btn {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .r5-title-wordmark,
+  .r5-monument,
+  .r5-dawn-ledger,
+  .r5-scene-panel,
+  .r5-vow-dial {
+    opacity: 1;
+    transform: none;
+    border-color: var(--r5-gold);
+  }
+
+  .r5-embark .r5-vow-dial {
+    transform: rotate(18deg);
+  }
+}
