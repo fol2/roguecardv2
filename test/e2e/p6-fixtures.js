@@ -17,6 +17,21 @@ export const ENGLISH_CONTENT_HASH = sha256(canonicalise(oracle.i18n.domains));
 export const ENGLISH_UI_HASH = sha256(canonicalise(oracle.i18n.ui));
 export const ENGLISH_CATALOGUE_HASH = oracle.i18n.catalogueSha256;
 
+/** Frozen Task 10 pin — must match the oracle-derived hashes above. */
+export const TASK10_ENGLISH_CONTENT_HASH = '9c3aca2811c5f62b4589dd9afc6399f8343793252e2a254b81173a9d0eb01f0b';
+export const TASK10_ENGLISH_UI_HASH = '96caec1a031db9074c78ca68c220cc6d35dc88ee76e7683fef4b8a4f7209c0af';
+export const TASK10_ENGLISH_CATALOGUE_HASH = 'ac60cf36e21507f59bf56f2a0a9124389383860c0204691967e00d790afbae96';
+
+if (ENGLISH_CONTENT_HASH !== TASK10_ENGLISH_CONTENT_HASH) {
+  throw new Error(`Task 10 content hash drift: ${ENGLISH_CONTENT_HASH}`);
+}
+if (ENGLISH_UI_HASH !== TASK10_ENGLISH_UI_HASH) {
+  throw new Error(`Task 10 UI hash drift: ${ENGLISH_UI_HASH}`);
+}
+if (ENGLISH_CATALOGUE_HASH !== TASK10_ENGLISH_CATALOGUE_HASH) {
+  throw new Error(`Task 10 catalogue hash drift: ${ENGLISH_CATALOGUE_HASH}`);
+}
+
 export const FRESH_VIGIL = Object.freeze({
   v: 2,
   deeds: {
@@ -150,11 +165,9 @@ export async function assertCatalogueHashes(page, expect) {
       ui: await digest(canonical(uiCat)),
     };
   });
-  // Prefer frozen oracle hashes; soft-compare when Vite module shape differs.
-  expect(typeof live.content).toBe('string');
-  expect(typeof live.ui).toBe('string');
-  expect(live.content.length).toBe(64);
-  expect(live.ui.length).toBe(64);
+  expect(live.content).toBe(ENGLISH_CONTENT_HASH);
+  expect(live.ui).toBe(ENGLISH_UI_HASH);
+  expect(ENGLISH_CATALOGUE_HASH).toBe(TASK10_ENGLISH_CATALOGUE_HASH);
   return live;
 }
 

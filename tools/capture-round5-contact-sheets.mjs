@@ -22,6 +22,7 @@ import {
   PHASE2_CAPTURE_MANIFEST,
   assertPhase2Manifest,
 } from '../test/e2e/p6-fixtures.js';
+import { stagePhase2State } from '../test/e2e/p6-phase2-stage.js';
 import { e2eServerSettings } from '../playwright-server.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -121,72 +122,7 @@ async function stageScreen(page, screen, profile) {
 }
 
 async function stagePhase2(page, stateId) {
-  await page.evaluate(async (id) => {
-    const sp = window.spirebound;
-    const run = sp.E.newRun(3800, {
-      reveals: ['phials', 'omens', 'emberglass', 'lamplighter', 'act4'],
-      shards: ['usurper', 'hollowLamplighter', 'witchlight', 'shade', 'eighth', 'page'],
-    });
-    sp.S.run = run;
-    if (id.startsWith('title-rose') || id === 'rose-absent') {
-      sp.show('title');
-      return;
-    }
-    if (id.startsWith('rose-') || id === 'rose-raster-ready' || id === 'rose-fallback-ready') {
-      sp.show('vigil', { tab: 'rose' });
-      if (id === 'rose-fallback-ready') window.__probe?.forceRoseFallback?.(true);
-      return;
-    }
-    if (id.startsWith('hollow-')) {
-      run.map = sp.E.genMap(run);
-      const node = run.map.nodes[1] || run.map.nodes[0];
-      run.pendingHollow = {
-        nodeId: node.id,
-        paid: id === 'hollow-paid' || id === 'hollow-continue-closed',
-        deferred: false,
-        answer: id.includes('paid') || id.includes('continue') ? 'paid answer' : null,
-      };
-      sp.show('hollow');
-      const root = document.querySelector('.r5-lamplighter');
-      if (root) root.dataset.r5State = id;
-      return;
-    }
-    if (id.startsWith('sealed-door') || id.startsWith('map-')) {
-      run.act = 2;
-      run.map = sp.E.genMap(run);
-      const marked = run.map.nodes.find((n) => n.type === 'monster') || run.map.nodes[0];
-      marked.questMarked = id === 'map-witchlight-marked';
-      if (id === 'map-eighth-echo-held') run.omens = [null, null, 'eighthOmen'];
-      sp.show('map');
-      const root = document.querySelector('.r5-map');
-      if (root) {
-        if (id.startsWith('sealed-door')) root.dataset.r5Sealed = id;
-        else root.dataset.r5State = id;
-      }
-      return;
-    }
-    if (id.startsWith('dawn-') || id === 'fall-unpaid-shade-bequest') {
-      if (id === 'fall-unpaid-shade-bequest') {
-        sp.show('end', {
-          won: false, offers: [], fallAct: 1, fallRow: 2, unpaidBequest: true,
-          ledger: { whisper: 'unpaid' },
-        });
-        return;
-      }
-      run.pendingRunEnd = { outcome: 'win' };
-      sp.E.stagePendingDawn?.(run, [{ t: 'whisper', text: 'whisper' }], []);
-      sp.show('end', { won: true });
-      const root = document.querySelector('.r5-end');
-      if (root) root.dataset.r5State = id;
-      return;
-    }
-    if (id.startsWith('usurper-')) {
-      run.player.gold = id.includes('poor') ? 10 : 700;
-      sp.show('shop');
-      const wrap = document.querySelector('.quest-shop-item');
-      if (wrap) wrap.dataset.r5State = id;
-    }
-  }, stateId);
+  await stagePhase2State(page, stateId);
 }
 
 async function capturePng(page, filePath) {

@@ -1692,9 +1692,8 @@ html.mesh-on .enemy-art.warded::before { display: none; }
 .end-title { font-size: clamp(44px, 7cqw, 84px); font-weight: 800; letter-spacing: 0.2em; font-family: 'Cinzel', serif; }
 .end-title.lose { color: #ff5964; text-shadow: 0 0 40px rgba(255, 89, 100, 0.5), 0 6px 14px #000; }
 .end-title.win {
-  background: linear-gradient(180deg, #fff3d6, var(--gold) 55%, #8a5a1d);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-  filter: drop-shadow(0 0 34px rgba(242, 193, 78, 0.5));
+  color: var(--gold, #f2c14e);
+  text-shadow: 0 0 34px rgba(242, 193, 78, 0.45), 0 2px 0 rgba(0, 0, 0, 0.55);
 }
 /* defeat: a monument in the dark, embers drifting off a dying flame */
 .meta-bg {
@@ -1719,7 +1718,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   animation: monumentRise 1.6s cubic-bezier(0.2, 0.7, 0.3, 1) 0.4s both;
 }
 @keyframes monumentRise { from { transform: translateY(46px); opacity: 0; } }
-.monument .end-title.lose { color: #6a7288; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.07), 0 -1px 2px #000; }
+.monument .end-title.lose { color: #9aa3b8; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.07), 0 -1px 2px #000; }
 .monument .ov-sub { color: #7c84a0; }
 .mon-flame {
   width: 12px; height: 18px; border-radius: 50% 50% 44% 44% / 64% 64% 36% 36%;

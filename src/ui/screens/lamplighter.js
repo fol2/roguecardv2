@@ -28,7 +28,7 @@ export function createLamplighterScreen(deps) {
     return `data-r5-profile="${profile}" data-r5-state="${endState}" data-tier="${attrs.tier}" data-motion="${attrs.motion}"`;
   }
 
-  function playCeremony(name, endState, root) {
+  function playCeremony(name, endState, root, { preservePhase2State = false } = {}) {
     return runNamedCeremony({
       name,
       endState,
@@ -41,9 +41,15 @@ export function createLamplighterScreen(deps) {
       policy: presentationPolicy(),
       onUpdate() {},
     }).done.then(() => {
-      if (root?.isConnected) root.dataset.r5State = endState;
+      if (!root?.isConnected) return;
+      // Hollow Phase-2 unpaid/paid (and pay/save/route) live on data-r5-state;
+      // ceremony settlement uses a separate attr so it cannot overwrite them.
+      if (preservePhase2State) root.dataset.r5Ceremony = endState;
+      else root.dataset.r5State = endState;
     }).catch(() => {
-      if (root?.isConnected) root.dataset.r5State = endState;
+      if (!root?.isConnected) return;
+      if (preservePhase2State) root.dataset.r5Ceremony = endState;
+      else root.dataset.r5State = endState;
     });
   }
 
@@ -191,7 +197,7 @@ function renderHollow() {
     </div>
   </div>`;
   const root = $('.r5-lamplighter', sc);
-  void playCeremony('hollow', R5_SCREEN_END_STATES.hollowReady, root);
+  void playCeremony('hollow', R5_SCREEN_END_STATES.hollowReady, root, { preservePhase2State: true });
   sc.onclick = (e) => {
     const target = e.target.closest('[data-a]');
     if (!target || target.disabled) return;

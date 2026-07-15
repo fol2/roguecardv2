@@ -38,12 +38,14 @@ export function createTitleScreen(deps) {
     if (phase === 'absent') return '';
     const label = tr('ui.rose.openLabel');
     if (phase === 'fallback') {
-      return `<button type="button" class="title-rose-medallion title-rose-fallback ready" data-a="rose" data-r5-state="ready" aria-label="${escHtml(label)}"></button>`;
+      return `<button type="button" class="title-rose-medallion title-rose-fallback ready" data-a="rose" data-r5-state="title-rose-ready" aria-label="${escHtml(label)}"></button>`;
     }
     const panes = QUEST_IDS.filter((id) => v.shards.includes(id)).map((id) =>
       `<span class="title-rose-pane" style="--rose-mural:url('${escHtml(assets.mural)}');--rose-mask:url('${escHtml(assets.masks[id])}')"></span>`).join('');
     const urls = [assets.mural, assets.frame, ...QUEST_IDS.map((id) => assets.masks[id])];
-    const state = phase === 'ready' ? 'ready' : phase === 'inert' ? 'inert' : 'loading';
+    const state = phase === 'ready' ? 'title-rose-ready'
+      : phase === 'inert' ? 'title-rose-inert'
+        : 'title-rose-loading';
     const readyClass = phase === 'ready' ? ' ready' : '';
     const disabled = phase === 'ready' ? '' : ' disabled';
     return `<button type="button" class="title-rose-medallion${readyClass}" data-a="rose" data-r5-state="${state}" aria-label="${escHtml(label)}"${disabled}>
@@ -58,7 +60,7 @@ export function createTitleScreen(deps) {
     if (REDUCED) {
       medallion.disabled = false;
       medallion.classList.add('ready');
-      medallion.dataset.r5State = 'ready';
+      medallion.dataset.r5State = 'title-rose-ready';
       setRoseDecodeFailed(false);
       setRoseAssetsReady(true);
       trace.emit('checkpoint.ui', { outcome: 'completed', checkpoint: semanticUiCheckpoint() });
@@ -78,7 +80,7 @@ export function createTitleScreen(deps) {
         if (!medallion.isConnected) return;
         medallion.disabled = false;
         medallion.classList.add('ready');
-        medallion.dataset.r5State = 'ready';
+        medallion.dataset.r5State = 'title-rose-ready';
         setRoseDecodeFailed(false);
         setRoseAssetsReady(true);
         trace.emit('checkpoint.ui', { outcome: 'completed', checkpoint: semanticUiCheckpoint() });
@@ -87,7 +89,7 @@ export function createTitleScreen(deps) {
         if (!medallion.isConnected) return;
         medallion.disabled = true;
         medallion.classList.remove('ready');
-        medallion.dataset.r5State = 'inert';
+        medallion.dataset.r5State = 'title-rose-inert';
         setRoseDecodeFailed(true);
         setRoseAssetsReady(false);
       });
@@ -149,7 +151,8 @@ export function createTitleScreen(deps) {
       ? ` data-r5-state="${R5_SCREEN_END_STATES.titleVersionDefault}"`
       : '';
     const sc = screenEl();
-    sc.innerHTML = `<div class="title-screen r5-title screen-enter" data-r5-profile="${profile}" data-r5-state="${initialState}" data-tier="${attrs.tier}" data-motion="${attrs.motion}">
+    const roseAbsentAttr = rosePhase === 'absent' ? ' data-r5-rose="rose-absent"' : '';
+    sc.innerHTML = `<div class="title-screen r5-title screen-enter" data-r5-profile="${profile}" data-r5-state="${initialState}" data-tier="${attrs.tier}" data-motion="${attrs.motion}"${roseAbsentAttr}>
     ${titleParallaxHtml()}
     ${banner ? `<div class="title-banner"><div class="title-banner-frame"><img class="raster-art" src="${banner}" alt=""></div></div>` : ''}
     <div class="logo r5-title-wordmark${titleText ? ' logo-raster' : ''}" data-version-logo data-r5-state="${initialState}">${titleText ? `<img class="title-wordmark" src="${titleText}" alt="${tr('ui.brand.title')}">` : tr('ui.brand.title')}</div>

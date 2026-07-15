@@ -5,7 +5,11 @@ import { test, expect } from './trace-fixture.js';
 import { contrastRatio, COLOUR } from '../../src/ui/tokens.js';
 import { assertFaceContrast } from '../../src/ui/cardface-layout.js';
 import { boot, settle, collectErrors, expectNoErrors } from './helpers.js';
-import { GROWN_VIGIL, seedVigil, assertLocaleCatalogue } from './p6-fixtures.js';
+import {
+  GROWN_VIGIL, seedVigil, assertLocaleCatalogue, assertCatalogueHashes,
+} from './p6-fixtures.js';
+import { stagePhase2State } from './p6-phase2-stage.js';
+import { QIDS } from './emberglass-fixtures.js';
 
 test.beforeEach(() => {
   test.skip(test.info().project.name !== 'desktop', 'contrast matrix on desktop Chromium');
@@ -73,7 +77,6 @@ async function measureDomContrast(page) {
           node = node.parentElement;
           continue;
         }
-        // Alpha-composite against next opaque ancestor.
         let under = node.parentElement;
         while (under) {
           const underParsed = parseColour(getComputedStyle(under).backgroundColor);
@@ -90,7 +93,9 @@ async function measureDomContrast(page) {
     const SELECTORS = [
       '.ov-title', '.ov-sub', '.end-title', '.lamp-title', '.hollow-title',
       '.hollow-ask', '.embark-title', '.map-title', '[data-version-display]',
-      '.r5-scene-header', '.reward-row span', '.shop-dialogue',
+      '.r5-scene-header', '.reward-row span', '.shop-dialogue', '.tagline',
+      '.dawn-whisper', '.dawn-name', '.dawn-copy', '.dawn-kicker',
+      '.bequest-done', '.title-stats',
     ];
     const samples = [];
     const seen = new Set();
@@ -184,6 +189,16 @@ async function sampleCardFacePixels(page) {
   });
 }
 
+async function assertScreenContrast(page, label) {
+  await settle(page);
+  await assertLocaleCatalogue(page, expect);
+  const samples = await measureDomContrast(page);
+  const unknown = samples.filter((s) => s.reason === 'transparent' || s.reason === 'unknown-alpha' || s.reason === 'unknown-fg');
+  expect(unknown, `${label} unknown/transparent ${JSON.stringify(unknown.slice(0, 8))}`).toEqual([]);
+  const failures = samples.filter((s) => !s.ok);
+  expect(failures, `${label} contrast ${JSON.stringify(failures.slice(0, 8))}`).toEqual([]);
+}
+
 test('token pairs and P5 face layout clear ≥4.5:1', () => {
   expect(contrastRatio(COLOUR.text, COLOUR.ink)).toBeGreaterThanOrEqual(4.5);
   expect(contrastRatio(COLOUR.parchment, COLOUR.ink)).toBeGreaterThanOrEqual(4.5);
@@ -193,17 +208,16 @@ test('token pairs and P5 face layout clear ≥4.5:1', () => {
 });
 
 test('visible P6 screen text clears ≥4.5:1 with alpha compositing', async ({ page }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
   const errors = collectErrors(page);
   await seedVigil(page, GROWN_VIGIL);
   await boot(page, { query: 'trace=1&mesh=0', seed: 3501 });
+  await assertCatalogueHashes(page, expect);
 
-  // Skip Title wordmark chrome until FE stylesheet lands (Task 35); PE panel copy is gated.
   const screens = [
-    async () => {
-      await page.evaluate(() => window.spirebound.show('embark'));
-    },
-    async () => {
+    ['title', async () => { await page.evaluate(() => window.spirebound.show('title')); }],
+    ['embark', async () => { await page.evaluate(() => window.spirebound.show('embark')); }],
+    ['rewards', async () => {
       await page.evaluate(() => {
         const sp = window.spirebound;
         sp.S.run.pendingReward = {
@@ -214,37 +228,84 @@ test('visible P6 screen text clears ≥4.5:1 with alpha compositing', async ({ p
         };
         sp.show('reward');
       });
-    },
-    async () => {
-      await page.evaluate(() => window.spirebound.show('shop'));
-    },
-    async () => {
+    }],
+    ['shop', async () => { await page.evaluate(() => window.spirebound.show('shop')); }],
+    ['event', async () => {
       await page.evaluate(() => {
         const sp = window.spirebound;
         sp.show('event', sp.E.rollEvent(sp.S.run));
       });
-    },
-    async () => {
-      await page.evaluate(() => window.spirebound.show('rest'));
-    },
-    async () => {
-      await page.evaluate(() => window.spirebound.show('vigil'));
-    },
-    async () => {
-      await page.evaluate(() => window.spirebound.show('map'));
-    },
+    }],
+    ['rest', async () => { await page.evaluate(() => window.spirebound.show('rest')); }],
+    ['treasure', async () => { await page.evaluate(() => window.spirebound.show('treasure')); }],
+    ['lamplighter', async () => {
+      await page.evaluate(() => {
+        window.spirebound.S.lamp = null;
+        window.spirebound.show('lamplighter');
+      });
+    }],
+    ['hollow', async () => {
+      await page.evaluate(() => {
+        const sp = window.spirebound;
+        const run = sp.S.run;
+        run.map = sp.E.genMap(run);
+        const node = run.map.nodes[1] || run.map.nodes[0];
+        run.nodeId = node.id;
+        if (!run.map.visited.includes(node.id)) run.map.visited.push(node.id);
+        run.pendingHollow = {
+          nodeId: node.id, type: node.type, paid: false, deferred: false, answer: null,
+        };
+        sp.show('hollow');
+      });
+    }],
+    ['vigil', async () => { await page.evaluate(() => window.spirebound.show('vigil')); }],
+    ['map', async () => { await page.evaluate(() => window.spirebound.show('map')); }],
+    ['fall', async () => {
+      await page.evaluate(() => {
+        const sp = window.spirebound;
+        const run = sp.S.run;
+        run.pendingRunEnd = { outcome: 'death' };
+        sp.show('end', {
+          won: false,
+          offers: [{ kind: 'gold', amount: 40 }],
+          fallAct: 1,
+          fallRow: 3,
+          unpaidBequest: false,
+          ledger: { whisper: 'The stone keeps the climb.' },
+        });
+      });
+    }],
+    ['dawn', async () => {
+      await page.evaluate(({ questIds }) => {
+        const sp = window.spirebound;
+        const run = sp.E.newRun(3502, {
+          reveals: ['emberglass', 'act4'],
+          shards: questIds.slice(0, 5),
+        });
+        run.pendingRunEnd = { outcome: 'win' };
+        if (!sp.E.saveRun(run) || !sp.E.stagePendingDawn(run, [
+          { t: 'whisper', text: 'The climb continues.' },
+        ], [])) throw new Error('dawn contrast fixture failed');
+        sp.S.run = run;
+        sp.show('end', { won: true });
+      }, { questIds: QIDS });
+    }],
   ];
 
-  for (const go of screens) {
+  for (const [label, go] of screens) {
     await go();
-    await settle(page);
-    await assertLocaleCatalogue(page, expect);
-    const samples = await measureDomContrast(page);
-    // Fail hard on transparent/unknown backgrounds.
-    const unknown = samples.filter((s) => s.reason === 'transparent' || s.reason === 'unknown-alpha' || s.reason === 'unknown-fg');
-    expect(unknown, JSON.stringify(unknown.slice(0, 8))).toEqual([]);
-    const failures = samples.filter((s) => !s.ok);
-    expect(failures, JSON.stringify(failures.slice(0, 8))).toEqual([]);
+    await assertScreenContrast(page, label);
+  }
+
+  // Phase-2 terminals where copy is visible.
+  for (const id of [
+    'hollow-unpaid',
+    'usurper-item-normal',
+    'dawn-whisper-held',
+    'fall-unpaid-shade-bequest',
+  ]) {
+    await stagePhase2State(page, id);
+    await assertScreenContrast(page, id);
   }
 
   await page.evaluate(() => window.spirebound.show('shop'));
