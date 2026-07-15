@@ -703,10 +703,11 @@
   transform: scale(1.035);
 }
 
-/* Horizontal stepper chrome (PE .vow-block / .vow-stepper) — not a circular dial */
-.r5-vow-dial {
+/* Vow-block chrome (PE column: .vow-stepper row + .vow-desc below) — not a circular dial */
+.r5-vow-dial,
+.vow-block.r5-vow-dial {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 12px;
@@ -1411,6 +1412,10 @@
   }
 
   .r5-embark {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: nowrap;
     gap: 10px;
     padding: 1.5cqh 3cqw;
   }
