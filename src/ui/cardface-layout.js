@@ -8,7 +8,8 @@ import { COLOUR, contrastRatio, resolveTier } from './tokens.js';
 
 export const CARD_FACE_WIDTH = 152;
 export const CARD_FACE_HEIGHT = 216;
-export const BODY_FONT_STEPS = Object.freeze([13, 12, 11]);
+// Production `.card-text` is 12.8px (11.5 / 10.5 at stage breakpoints).
+export const BODY_FONT_STEPS = Object.freeze([12.8, 11.5, 10.5]);
 export const BODY_MAX_LINES = 6;
 export const FACE_CACHE_MAX_ENTRIES = 24;
 export const FACE_CACHE_BYTE_CAPS = Object.freeze({
@@ -31,8 +32,8 @@ const KEYWORD_RE = new RegExp(
 
 const VALUE_RE = /([@#])(\d+)\1/g;
 
-/** Icon slot reserved ahead of a keyword run (stage px at 13px body). */
-export const KEYWORD_ICON_WIDTH_AT_13 = 11;
+/** Production DOM keywords are tinted text only (no inline icon slot). */
+export const KEYWORD_ICON_WIDTH_AT_13 = 0;
 
 export function estimateFaceBytes(width = CARD_FACE_WIDTH, height = CARD_FACE_HEIGHT, dpr = 1) {
   const w = Math.ceil(Number(width) * Number(dpr));
@@ -81,45 +82,73 @@ export function faceCacheKey({
   ].join('\u001f');
 }
 
-/** Geometry boxes in stage px for the canonical 152×216 face (PE DOM parity). */
+/**
+ * Geometry boxes in stage px for the canonical 152×216 face.
+ * Mirrors production `.card-inner` flex stack in `styles.css` (not a PE redesign).
+ */
 export function layoutRegions(width = CARD_FACE_WIDTH, height = CARD_FACE_HEIGHT) {
   const w = Number(width) || CARD_FACE_WIDTH;
   const h = Number(height) || CARD_FACE_HEIGHT;
-  // Art band mirrors DOM `.card-art` (~43% tall) with side insets for margins.
+  // `.card-art { height: 43% }` — full inner width, top of the pane.
   const artH = h * 0.43;
-  const artY = h * 0.07;
+  // Name band ≈ padding 5+3 + 13.5px Cinzel; type row ≈ 10px + tracking.
+  const nameH = 22;
+  const typeH = 14;
   const chipW = 24;
   const chipH = 5;
+  const rarityPad = 5;
+  const nameY = artH;
+  const typeY = nameY + nameH;
+  const bodyY = typeY + typeH;
+  const bodyBottom = h - rarityPad - chipH - 6;
   return Object.freeze({
     width: w,
     height: h,
-    art: Object.freeze({
-      x: w * 0.07, y: artY, w: w * 0.86, h: artH,
-    }),
-    // Hex cost gem — matches `.card-cost` clip-path polygon footprint.
-    cost: Object.freeze({ x: 6, y: 6, size: 34 }),
-    name: Object.freeze({
-      x: w * 0.09, y: h * 0.58, w: w * 0.82, h: h * 0.11,
-    }),
+    art: Object.freeze({ x: 0, y: 0, w, h: artH }),
+    // `.card-cost` sits at top/left -8 on the card host (36×36 hex).
+    cost: Object.freeze({ x: -8, y: -8, size: 36 }),
+    name: Object.freeze({ x: 6, y: nameY, w: w - 12, h: nameH }),
+    type: Object.freeze({ x: 6, y: typeY, w: w - 12, h: typeH }),
     body: Object.freeze({
-      x: w * 0.10, y: h * 0.70, w: w * 0.80, h: h * 0.20,
+      x: 10,
+      y: bodyY,
+      w: w - 20,
+      h: Math.max(24, bodyBottom - bodyY),
     }),
-    // Rarity chip matching `.card-rarity` (not a 2px full-width rail).
+    // `.card-rarity` chip — not a full-width rail.
     rarityRail: Object.freeze({
       x: (w - chipW) / 2,
-      y: h - chipH - 5,
+      y: h - chipH - rarityPad,
       w: chipW,
       h: chipH,
       radius: 3,
     }),
-    upgradeMark: Object.freeze({ size: 22 }),
   });
 }
 
+/** Production `.card-rarity` fills (common / uncommon / rare / starter). */
 export function rarityRailColour(rarity) {
-  if (rarity === 'uncommon') return COLOUR.ward;
+  if (rarity === 'uncommon') return '#47c2e0';
   if (rarity === 'rare' || rarity === 'boss') return COLOUR.gold;
-  return COLOUR.textDim;
+  if (rarity === 'starter') return '#3c465e';
+  return '#5d6a88';
+}
+
+/** Production `--tint` / `--edge` for card type chrome. */
+export function typeTintCss(type) {
+  if (type === 'attack') return '#ff5964';
+  if (type === 'skill') return '#4ea8de';
+  if (type === 'power') return '#b388ff';
+  if (type === 'curse') return '#c77bd4';
+  return '#7fae9c';
+}
+
+export function typeEdgeCss(type) {
+  if (type === 'attack') return '#7e3040';
+  if (type === 'skill') return '#2f5a80';
+  if (type === 'power') return '#5c3f8f';
+  if (type === 'curse') return '#5c3a5c';
+  return '#47584f';
 }
 
 /** Approximate glyph advance for Node-pure layout (slightly conservative). */
@@ -339,11 +368,10 @@ export function upgradeDiffRanges(baseText, upText) {
 export function faceContrastPairs() {
   return Object.freeze([
     Object.freeze({ role: 'cost', fg: COLOUR.ink, bg: COLOUR.gold }),
-    Object.freeze({ role: 'name', fg: COLOUR.parchment, bg: COLOUR.ink }),
-    Object.freeze({ role: 'body', fg: COLOUR.text, bg: COLOUR.ink }),
-    Object.freeze({ role: 'name-upgraded', fg: COLOUR.ember, bg: COLOUR.ink }),
-    Object.freeze({ role: 'rarity-common', fg: COLOUR.textDim, bg: COLOUR.ink }),
-    Object.freeze({ role: 'rarity-uncommon', fg: COLOUR.ward, bg: COLOUR.ink }),
+    Object.freeze({ role: 'name', fg: '#e8dfc8', bg: COLOUR.ink }),
+    Object.freeze({ role: 'body', fg: '#c6ccdf', bg: COLOUR.ink }),
+    Object.freeze({ role: 'name-upgraded', fg: '#9be8a8', bg: COLOUR.ink }),
+    // Rare gilt chip (common/uncommon bars are decorative fills, not glyphs).
     Object.freeze({ role: 'rarity-rare', fg: COLOUR.gold, bg: COLOUR.ink }),
     Object.freeze({ role: 'rarity-boss', fg: COLOUR.gold, bg: COLOUR.ink }),
   ]);

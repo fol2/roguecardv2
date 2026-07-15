@@ -1397,7 +1397,7 @@ export async function createCombatRenderer({
     // Mid act label
     const midSeat = seatCenter(domRect('#hud .hud-mid'));
     const mid = new Text({
-      text: `${String(hudState.actName || '').toUpperCase()}  ·  Floor ${hudState.floor ?? 0}  ·  ${hudState.bossName || ''}`,
+      text: `${String(hudState.actName || '').toUpperCase()}  ·  Act ${hudState.act ?? 1}  ·  Floor ${hudState.floor ?? 0}  ·  ${hudState.bossName || ''}`,
       style: {
         fontFamily: 'Cinzel', fontSize: 12, fontWeight: '600',
         fill: 0xb8b4a8, letterSpacing: 1.5,

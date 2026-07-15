@@ -140,6 +140,7 @@ export function createCombat({
       gold: p.gold,
       deckCount: p.deck.length,
       floor: S.run.floorsClimbed,
+      act: (S.run.act ?? 0) + 1,
       actName: theme?.name ?? '',
       bossName: theme?.bossName ?? '',
       potionsEnabled,
@@ -449,7 +450,7 @@ function renderHud() {
         <div class="hud-hpbar"><div style="width:${(100 * hp) / p.maxHp}%"></div></div>
       </div>
       <div class="hud-stat">${uiIcon('coin', 14)} <span class="gold-num">${p.gold}</span></div>
-      <div class="hud-mid"><b>${act.name.toUpperCase()}</b> &nbsp;·&nbsp; Floor ${S.run.floorsClimbed} &nbsp;·&nbsp; ${act.bossName}</div>
+      <div class="hud-mid"><b>${act.name.toUpperCase()}</b> &nbsp;·&nbsp; Act ${S.run.act + 1} &nbsp;·&nbsp; Floor ${S.run.floorsClimbed} &nbsp;·&nbsp; ${act.bossName}</div>
       <div class="hud-right">
         ${E.runRevealed(S.run, 'phials') ? p.potions.map((id, i) => `<button class="potion-slot ${id ? 'full' : ''}" data-slot="${i}">${id ? rasterOr('potions', id, potionSvg(runCatalogues().potions[id].tone)) : ''}</button>`).join('') : ''}
         <button class="icon-btn deck-btn" data-act="deck" aria-label="${tr('ui.hud.deckAria')}">${uiIcon('deck', 32)}<span class="deck-count">${p.deck.length}</span></button>

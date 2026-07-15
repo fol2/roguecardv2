@@ -1,37 +1,15 @@
 {
   "id": "lamplighter__phone-portrait__grown",
-  "deltaCount": 6,
+  "deltaCount": 3,
   "expectedCount": 3,
-  "unexpectedCount": 3,
-  "unexpectedPaths": [
-    "embark.aspectCards",
-    "scene.centerPanel.height",
-    "lamp.root.height"
-  ],
+  "unexpectedCount": 0,
+  "unexpectedPaths": [],
   "expectedPathsHit": [
-    "scene.sceneBgStampedAsPanel",
+    "lamp.root.height",
     "cardface.hasArtTexture",
     "cardface.rarityAccentDistinct"
   ],
   "deltas": [
-    {
-      "path": "embark.aspectCards",
-      "kind": "value-drift",
-      "live": [],
-      "golden": []
-    },
-    {
-      "path": "scene.sceneBgStampedAsPanel",
-      "kind": "value-drift",
-      "live": false,
-      "golden": true
-    },
-    {
-      "path": "scene.centerPanel.height",
-      "kind": "box-drift",
-      "live": 844,
-      "golden": 856.6599356079101
-    },
     {
       "path": "lamp.root.height",
       "kind": "box-drift",

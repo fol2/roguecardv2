@@ -1,0 +1,2007 @@
+/*
+ * Round 5 PE layout bridges — MUST load after round5-screens.css.
+ * Restores owner golden 9f10ef2 geometry where FE screen CSS drifted.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Title — centered stack + INTENTIONAL full-bleed background (≠ golden)      */
+/* Golden 9f10ef2 used a contained dim banner (≤55cqh / 90cqw, bottom-lean).  */
+/* Owner asked to fullscreen the stage art edge-to-edge while keeping the     */
+/* wordmark/CTA safe-center from the prior title-base fix.                    */
+/* -------------------------------------------------------------------------- */
+
+/* P7 parallax owns the stage: absolute fill, visible, never flex-inflate.
+   Leave opacity to FE profile rules (fresh ~0.55 / grown 1). */
+#screen .r5-title > .r5-title-parallax,
+#screen .r5-title .r5-title-parallax,
+#screen .title-screen > .r5-title-parallax {
+  position: absolute !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+  flex: none !important;
+  visibility: visible !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+  z-index: 0 !important;
+}
+
+#screen .r5-title > .r5-title-parallax img,
+#screen .r5-title .r5-title-parallax img,
+#screen .title-screen > .r5-title-parallax img {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: cover !important;
+  opacity: 1 !important;
+}
+
+/* No-parallax fallback: banner itself is full-bleed cover (not golden inset). */
+#screen .r5-title .title-banner,
+#screen .title-screen .title-banner {
+  position: absolute !important;
+  inset: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  flex: none !important;
+  display: flex !important;
+  align-items: stretch !important;
+  justify-content: center !important;
+  opacity: 0.82 !important;
+  visibility: visible !important;
+  pointer-events: none !important;
+  z-index: 0;
+}
+
+/* When parallax layers exist they own the art — hide the banner fill. */
+#screen .r5-title:has(> .r5-title-parallax) .title-banner,
+#screen .title-screen:has(> .r5-title-parallax) .title-banner {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+#screen .r5-title .title-banner-frame,
+#screen .title-screen .title-banner-frame {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  max-width: none !important;
+}
+
+#screen .r5-title .title-banner .raster-art,
+#screen .title-screen .title-banner .raster-art {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  max-width: none !important;
+  object-fit: cover !important;
+  filter: none !important;
+}
+
+/* Match golden `.title-screen`: absolute fill + safe-centered stack.
+   Never pin the wordmark with margin-top:auto; never let FE 4cqh desktop
+   padding or relative height collapse fight vertical centering. */
+#screen .r5-title {
+  position: absolute !important;
+  inset: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  justify-content: safe center !important;
+  gap: 14px;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: max(3cqh, 24px) 16px !important;
+  overflow-x: clip;
+  overflow-y: auto;
+  box-sizing: border-box !important;
+}
+
+#screen .r5-title .r5-title-wordmark,
+#screen .r5-title .logo {
+  position: relative !important;
+  z-index: 1;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  border-bottom: none !important;
+  padding-bottom: 0 !important;
+  transform: none !important;
+}
+
+#screen .r5-title .r5-title-wordmark.logo-raster,
+#screen .r5-title .logo-raster {
+  width: min(780px, 88cqw);
+  max-width: min(780px, 88cqw);
+  line-height: 0;
+}
+
+#screen .r5-title .tagline {
+  color: var(--text-dim);
+  letter-spacing: 0.34em;
+  font-size: 14px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  font-family: 'Cinzel', serif;
+}
+
+#screen .r5-title .r5-title-actions,
+#screen .r5-title .title-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 300px;
+  max-width: 300px;
+  align-items: stretch;
+}
+
+/* Undo FE min-height / chrome so title buttons match production .btn. */
+#screen .r5-title .r5-title-actions .btn,
+#screen .r5-title .title-btns .btn {
+  width: 100%;
+  min-height: 0 !important;
+  max-height: none !important;
+  color: var(--parchment);
+  background: var(--glass-fill);
+  border: 1.5px solid var(--lead);
+  box-shadow:
+    inset 0 0 0 1px var(--gold-line),
+    inset 0 10px 20px -12px rgba(255, 255, 255, 0.14),
+    0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+#screen .r5-title .r5-title-actions .btn.ghost,
+#screen .r5-title .title-btns .btn.ghost {
+  background: rgba(14, 18, 34, 0.6);
+  font-size: 15px;
+  padding: 9px 22px;
+  color: var(--parchment);
+  border-color: var(--lead);
+}
+
+#screen .r5-title .title-stats {
+  color: var(--text-dim);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  margin-top: 6px;
+  text-align: center;
+}
+
+/* Corner / absolute chrome must not be forced into the title flex flow. */
+#screen .r5-title > .title-rose-medallion,
+#screen .title-screen > .title-rose-medallion {
+  position: absolute;
+  left: calc(18px + var(--sal));
+  bottom: calc(18px + var(--sab));
+  margin: 0;
+  z-index: 2;
+  width: 78px;
+  height: 78px;
+}
+
+#screen .r5-title > .title-version,
+#screen .r5-title > .title-version-debug,
+#screen .title-screen > .title-version,
+#screen .title-screen > .title-version-debug {
+  position: absolute;
+  z-index: 2;
+}
+
+/* Default embark cards — golden 232px plates (not FE stretched shells). */
+#screen .r5-embark .r5-aspect-card,
+#screen .r5-embark .aspect-card {
+  width: 232px;
+  max-width: 232px;
+  box-sizing: border-box;
+  transform: none;
+}
+
+#screen .r5-embark .r5-aspect-card[data-r5-state="ready"],
+#screen .r5-embark[data-r5-state="embark-lit"] .r5-aspect-card[data-r5-state="ready"] {
+  transform: none;
+}
+
+/* Strip PE .r5-vow-dial orange chrome — golden .vow-block is borderless. */
+#screen .r5-embark .r5-vow-dial,
+#screen .r5-embark .vow-block.r5-vow-dial,
+#screen .r5-embark .r5-vow-dial[data-r5-state],
+#screen .r5-embark .vow-block.r5-vow-dial[data-r5-state],
+#screen .r5-embark .r5-vow-dial:hover,
+#screen .r5-embark .r5-vow-dial:active,
+#screen .r5-embark[data-r5-state="embark-lit"] .r5-vow-dial {
+  min-width: 0;
+  width: max-content;
+  max-width: min(92cqw, 460px);
+  min-height: 0;
+  padding: 0;
+  gap: 6px;
+  margin: 2px 0;
+  box-sizing: border-box;
+  border: none !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: inherit;
+  transform: none !important;
+  filter: none;
+}
+
+#screen .r5-embark .vow-desc {
+  min-height: 0;
+  max-width: 460px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+/* Dawn phone-portrait: stacked ceremony + ledger. */
+@container stage (max-width: 740px) {
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding-top: calc(18px + var(--sat) + 32px);
+  }
+
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .end-title,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .ov-sub {
+    width: 100%;
+    text-align: center;
+  }
+
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .dawn-ceremony,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .stats-grid.r5-dawn-ledger {
+    width: min(92cqw, 560px);
+    max-width: min(92cqw, 560px);
+    flex: 0 0 auto;
+  }
+
+  #screen .r5-end--victory .dawn-ceremony {
+    justify-items: center;
+  }
+
+  #screen .r5-end--victory .dawn-ceremony .dawn-event,
+  #screen .r5-end--victory .dawn-whisper {
+    width: fit-content;
+    max-width: 100%;
+    align-self: center;
+  }
+
+  #screen .r5-title .r5-title-wordmark,
+  #screen .r5-title .logo {
+    margin-top: 0 !important;
+  }
+
+  #screen .r5-title {
+    position: absolute !important;
+    inset: 0 !important;
+    justify-content: center !important;
+    justify-content: safe center !important;
+    gap: 10px !important;
+    padding: calc(20px + var(--sat)) 12px calc(14px + var(--sab)) !important;
+  }
+
+  #screen .r5-title .r5-title-wordmark.logo-raster,
+  #screen .r5-title .logo-raster {
+    width: min(780px, 88cqw);
+    max-width: min(780px, 88cqw);
+  }
+
+  #screen .r5-title > .title-rose-medallion {
+    width: 58px;
+    height: 58px;
+  }
+
+  #screen .r5-title .tagline {
+    font-size: 11px !important;
+    letter-spacing: 0.22em !important;
+    padding: 0 18px;
+    text-align: center;
+    line-height: 1.6 !important;
+    margin-bottom: 12px !important;
+  }
+
+  #screen .r5-title .r5-title-actions,
+  #screen .r5-title .title-btns {
+    flex-flow: row wrap !important;
+    flex-direction: row !important;
+    justify-content: center;
+    width: min(300px, 78cqw) !important;
+    max-width: min(300px, 78cqw) !important;
+    gap: 8px !important;
+  }
+
+  #screen .r5-title .r5-title-actions .btn,
+  #screen .r5-title .title-btns .btn {
+    width: 100%;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 9px 12px;
+    font-size: 17px;
+    line-height: normal;
+    font-family: 'Cinzel', serif;
+  }
+
+  #screen .r5-title .r5-title-actions .btn.ghost,
+  #screen .r5-title .title-btns .btn.ghost {
+    width: auto !important;
+    flex: 1 1 0;
+    padding: 8px 6px !important;
+    font-size: 12.5px !important;
+  }
+
+  #screen .r5-title .title-stats {
+    margin-top: 0;
+    font-size: 12px;
+  }
+
+  #screen .r5-embark .aspect-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  #screen .r5-embark .r5-aspect-card,
+  #screen .r5-embark .aspect-card {
+    width: min(330px, 88cqw);
+    max-width: min(330px, 88cqw);
+    padding: 8px 12px;
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    column-gap: 10px;
+    align-items: center;
+    text-align: left;
+  }
+
+  #screen .r5-embark .asp-hero {
+    width: 52px;
+    height: 52px;
+    grid-row: 1 / 3;
+    margin: 0;
+  }
+
+  #screen .r5-embark .asp-name { font-size: 15px; margin-bottom: 1px; }
+  #screen .r5-embark .asp-blurb { font-size: 11px; line-height: 1.4; }
+}
+
+@container stage (max-height: 480px) and (min-width: 500px) {
+  /* FE dawn chrome must not create extra grid tracks. */
+  #screen .r5-end .r5-dawn-bloom,
+  #screen .r5-end .r5-dawn-parallax,
+  #screen .r5-end .r5-dawn-close-rail,
+  #screen .r5-end .meta-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #screen .r5-end .r5-dawn-close-rail {
+    pointer-events: auto;
+    inset: auto;
+    /* keep PE/FE placement for the close control; just out of grid flow */
+  }
+
+  /* Dawn landscape: force PE grid (FE .r5-end is flex-row). */
+  #screen .r5-end.end-screen:has(.dawn-ceremony),
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) {
+    display: grid !important;
+    flex-direction: unset;
+    grid-template-columns: minmax(0, 1.15fr) minmax(330px, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    align-items: stretch;
+    justify-items: stretch;
+    padding: calc(50px + var(--sat)) calc(12px + var(--sar)) calc(4px + var(--sab)) calc(12px + var(--sal));
+    gap: 3px 12px;
+    overflow: hidden;
+  }
+
+  #screen .r5-end.end-screen:has(.dawn-ceremony) > .end-title,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .end-title {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 30px;
+    margin: 0;
+    line-height: 1.1;
+  }
+
+  #screen .r5-end.end-screen:has(.dawn-ceremony) > .ov-sub,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .ov-sub {
+    grid-column: 1;
+    grid-row: 2;
+    font-size: 11px !important;
+    margin: 0;
+    line-height: 1.3;
+  }
+
+  #screen .r5-end.end-screen:has(.dawn-ceremony) > .end-btns,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .end-btns {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    margin: 0;
+  }
+
+  #screen .r5-end.end-screen:has(.dawn-ceremony) > .end-btns .btn,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .end-btns .btn {
+    padding: 4px 14px;
+    font-size: 11px;
+    min-height: 0;
+  }
+
+  #screen .r5-end.end-screen:has(.dawn-ceremony) > .dawn-ceremony,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .dawn-ceremony {
+    grid-column: 1;
+    grid-row: 3;
+    width: 100%;
+    max-width: none;
+    justify-items: center;
+    align-self: stretch;
+    height: auto;
+    min-height: 219px;
+    max-height: none;
+  }
+
+  #screen .r5-end.end-screen:has(.dawn-ceremony) > .stats-grid,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .stats-grid {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    align-self: center;
+    width: auto;
+    max-width: none;
+    margin-top: 12px;
+  }
+
+  #screen .r5-end.end-screen:has(.dawn-ceremony) > .stats-grid .stat-cell,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .stats-grid .stat-cell {
+    padding: 3px 4px;
+  }
+
+  #screen .r5-end.end-screen:has(.dawn-ceremony) > .stats-grid .stat-cell .v,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .stats-grid .stat-cell .v {
+    font-size: 15px;
+  }
+
+  #screen .r5-end .dawn-ceremony .dawn-event,
+  #screen .r5-end--victory .dawn-ceremony .dawn-event,
+  #screen .r5-end .dawn-whisper,
+  #screen .r5-end--victory .dawn-whisper {
+    width: fit-content;
+    max-width: 100%;
+    grid-column: auto;
+    align-self: center;
+  }
+
+  #screen .r5-embark .aspect-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+    margin: 28px 0 0;
+  }
+
+  #screen .r5-embark .r5-aspect-card,
+  #screen .r5-embark .aspect-card {
+    width: 252px;
+    max-width: 252px;
+    max-height: none;
+    overflow: visible;
+    flex: 0 0 auto;
+    padding: 5px 10px;
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    column-gap: 10px;
+    align-items: center;
+    text-align: left;
+    transform: none;
+  }
+
+  #screen .r5-embark .asp-hero {
+    width: 44px;
+    height: 44px;
+    grid-row: 1 / 3;
+    margin: 0;
+  }
+
+  #screen .r5-embark .asp-name { font-size: 13.5px; margin-bottom: 1px; }
+  #screen .r5-embark .asp-blurb { font-size: 10.5px; line-height: 1.3; }
+
+  #screen .r5-embark .r5-vow-dial,
+  #screen .r5-embark .vow-block.r5-vow-dial {
+    min-width: 0;
+    width: max-content;
+    max-width: 174px;
+    min-height: 0;
+    max-height: none;
+    padding: 0;
+    gap: 2px;
+    margin: 2px 0 0;
+    overflow: visible;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  #screen .r5-embark .vow-btn {
+    width: 24px;
+    height: 24px;
+    font-size: 15px;
+  }
+
+  #screen .r5-embark .vow-level {
+    font-size: 13px;
+    min-width: 96px;
+  }
+
+  #screen .r5-embark .vow-desc {
+    font-size: 10.5px;
+    line-height: 1.35;
+    min-height: 0;
+    max-width: 700px;
+  }
+
+  /* Golden ≤480 `.ov-title`: 18px / mb 2px / mt 0 / full content width.
+     Do not pin width:502 or margin:12px auto — that shrink-wraps + drops the
+     title ~18px and ghosts phone-landscape vigil against 9f10ef2. */
+  #screen .r5-vigil .ov-title,
+  #screen .center-panel.r5-vigil .ov-title,
+  #screen .center-panel .vigil-panel > .ov-title {
+    font-size: 18px;
+    margin-top: 0;
+    margin-bottom: 2px;
+    margin-left: 0;
+    margin-right: 0;
+    letter-spacing: 0.12em;
+    width: auto;
+    max-width: none;
+    text-align: center;
+  }
+
+  #screen .r5-vigil .ov-title::after,
+  #screen .center-panel.r5-vigil .ov-title::after,
+  #screen .center-panel .vigil-panel > .ov-title::after {
+    margin-top: 8px;
+  }
+
+  #screen .r5-title {
+    position: absolute !important;
+    inset: 0 !important;
+    justify-content: center !important;
+    justify-content: safe center !important;
+    gap: 6px;
+    padding: 10px 16px !important;
+    overflow-y: auto;
+    overflow-x: clip;
+  }
+
+  #screen .r5-title .r5-title-wordmark,
+  #screen .r5-title .logo {
+    margin-top: 0 !important;
+    transform: none !important;
+  }
+
+  #screen .r5-title .r5-title-wordmark.logo-raster,
+  #screen .r5-title .logo-raster {
+    width: min(230px, 28cqw);
+    max-width: min(230px, 28cqw);
+  }
+
+  #screen .r5-title .tagline {
+    display: none;
+  }
+
+  #screen .r5-title .r5-title-actions,
+  #screen .r5-title .title-btns {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: auto;
+    max-width: 94cqw;
+    gap: 7px;
+  }
+
+  #screen .r5-title .r5-title-actions .btn,
+  #screen .r5-title .title-btns .btn {
+    width: auto;
+    flex: 0 0 auto;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 7px 15px;
+    font-size: 12.5px;
+    line-height: normal;
+    font-family: 'Cinzel', serif;
+    white-space: nowrap;
+  }
+
+  #screen .r5-title .r5-title-actions .btn.ghost,
+  #screen .r5-title .title-btns .btn.ghost {
+    flex: 0 0 auto;
+    padding: 7px 15px;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+
+  #screen .r5-title .title-stats {
+    font-size: 10.5px;
+    margin-top: 0;
+  }
+}
+
+@container stage (min-width: 1000px) {
+  /* Beat FE `@container (min-width: 1101px) { .r5-title { padding: 4cqh } }`. */
+  #screen .r5-title {
+    position: absolute !important;
+    inset: 0 !important;
+    justify-content: center !important;
+    justify-content: safe center !important;
+    gap: 8px;
+    padding: 16px !important;
+    overflow-y: auto;
+    overflow-x: clip;
+  }
+
+  #screen .r5-title .r5-title-wordmark,
+  #screen .r5-title .logo {
+    margin-top: 0 !important;
+    transform: none !important;
+  }
+
+  #screen .r5-title .tagline {
+    margin-bottom: 2px;
+  }
+
+  #screen .r5-title .r5-title-wordmark.logo-raster,
+  #screen .r5-title .logo-raster {
+    width: min(520px, 60cqw);
+    max-width: min(520px, 60cqw);
+  }
+
+  #screen .r5-title .r5-title-actions,
+  #screen .r5-title .title-btns {
+    flex-flow: row wrap;
+    justify-content: center;
+    width: 340px;
+    max-width: 340px;
+    gap: 8px;
+  }
+
+  #screen .r5-title .r5-title-actions .btn,
+  #screen .r5-title .title-btns .btn {
+    width: 100%;
+    padding: 8px 24px;
+  }
+
+  #screen .r5-title .r5-title-actions .btn.ghost,
+  #screen .r5-title .title-btns .btn.ghost {
+    width: auto;
+    flex: 1 1 0;
+    padding: 8px 8px;
+    font-size: 13px;
+  }
+
+  #screen .r5-title .title-stats {
+    margin-top: 0;
+  }
+
+  #screen .r5-embark .r5-aspect-card,
+  #screen .r5-embark .aspect-card {
+    width: 232px;
+    max-width: 232px;
+    padding: 12px 15px 13px;
+  }
+
+  #screen .r5-embark .asp-hero {
+    width: 84px;
+    height: 84px;
+    margin: 0 auto 4px;
+  }
+
+  #screen .r5-embark .asp-name {
+    font-size: 17px;
+    margin-bottom: 5px;
+  }
+
+  #screen .r5-embark .asp-blurb {
+    font-size: 12.2px;
+    line-height: 1.48;
+  }
+
+  #screen .r5-embark .r5-vow-dial,
+  #screen .r5-embark .vow-block.r5-vow-dial {
+    gap: 5px;
+    padding: 0;
+    max-width: 217px;
+    min-height: 0;
+    margin-top: 8px;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+}
+
+@container stage (min-width: 741px) {
+  #screen .r5-end--fallen .r5-monument {
+    width: min(92cqw, 840px);
+    max-width: min(92cqw, 840px);
+  }
+}
+
+/*
+ * FE ready selectors use a descendant `.center-panel` under `.r5-shop` etc.,
+ * but the DOM is a single `.center-panel.r5-shop` root — so panels stay at the
+ * FE rest opacity:0 forever. Match the real compound root.
+ */
+#screen .center-panel.r5-shop[data-r5-state="shop-ready"] > .panel,
+#screen .center-panel.r5-event[data-r5-state="event-choice-ready"] > .panel,
+#screen .center-panel.r5-rest[data-r5-state="rest-action-ready"] > .panel,
+#screen .center-panel.r5-rest[data-r5-state="treasure-open"] > .panel,
+#screen .center-panel.r5-rest.r5-rest--treasure > .panel,
+#screen .center-panel.r5-rewards[data-r5-state="rewards-ready"] > .panel,
+#screen .center-panel.r5-rewards[data-r5-state="boss-relic-ready"] > .panel,
+#screen .center-panel.r5-vigil[data-r5-state="vigil-ready"] > .panel {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/*
+ * Scene titles — restore golden `.ov-title` (parchment / 26px).
+ * FE `.r5-scene-header` overrides dual-class titles (VICTORY, BOSS RELIC,
+ * REST SITE, events, vigil, …) to gold / clamp(~22px).
+ * Lamplighter keeps its own gold `.lamp-title` (not parchment).
+ */
+#screen .ov-title,
+#screen .ov-title.r5-scene-header,
+#screen .r5-scene-header.ov-title,
+#screen .r5-shop .ov-title,
+#screen .r5-rewards .ov-title,
+#screen .r5-event .ov-title,
+#screen .r5-rest .ov-title,
+#screen .r5-vigil .ov-title {
+  color: var(--parchment, #e8dfc8);
+  font-family: 'Cinzel', serif;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  /* Match golden `.ov-title` — `normal`, not FE `1.2` (≈3.8px shorter at 26px). */
+  line-height: normal;
+  /* FE .r5-scene-header clips at 2.4em — golden .ov-title is unclipped. */
+  max-height: none;
+  overflow: visible;
+  margin-bottom: 4px;
+}
+
+/* Keep the gold underline rule even when FE dual-classes the title. */
+#screen .ov-title::after,
+#screen .ov-title.r5-scene-header::after,
+#screen .r5-scene-header.ov-title::after,
+#screen .r5-rewards .ov-title::after {
+  content: '';
+  display: block;
+  width: 84px;
+  height: 2px;
+  margin: 8px auto 0;
+  background: linear-gradient(90deg, transparent, var(--gold, #f2c14e), transparent);
+}
+
+/* Lamplighter title — golden gold clamp, not FE scene-header gold/22px. */
+#screen .lamp-title,
+#screen .lamp-title.r5-scene-header,
+#screen .r5-lamplighter .lamp-title {
+  width: auto;
+  max-width: none;
+  max-height: none;
+  overflow: visible;
+  color: var(--gold, #f2c14e);
+  font-family: 'Cinzel', serif;
+  font-size: clamp(24px, 4cqw, 34px);
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-align: center;
+  text-shadow: 0 0 18px rgba(242, 193, 78, 0.3);
+  /* Golden `.lamp-title` uses initial/normal line-height, not FE 1.2. */
+  line-height: normal;
+  margin: 0;
+}
+
+/* Keep shop header chrome from inheriting FE gold into nested copy. */
+#screen .r5-shop > .panel .r5-scene-header,
+#screen .r5-shop .r5-scene-header {
+  color: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+}
+
+/* Golden shrinks .ov-title at phone-portrait (≤740), NOT pad-portrait (820). */
+@container stage (max-width: 740px) {
+  #screen .ov-title,
+  #screen .ov-title.r5-scene-header,
+  #screen .r5-scene-header.ov-title,
+  #screen .r5-shop .ov-title,
+  #screen .r5-rewards .ov-title,
+  #screen .r5-event .ov-title,
+  #screen .r5-rest .ov-title,
+  #screen .r5-vigil .ov-title {
+    font-size: 20px;
+  }
+}
+
+@container stage (max-height: 480px) {
+  #screen .ov-title,
+  #screen .ov-title.r5-scene-header,
+  #screen .r5-scene-header.ov-title,
+  #screen .r5-shop .ov-title,
+  #screen .r5-rewards .ov-title,
+  #screen .r5-event .ov-title,
+  #screen .r5-rest .ov-title,
+  #screen .r5-vigil .ov-title {
+    font-size: 18px;
+    margin-bottom: 2px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Rewards — restore 9f10ef2 geometry (width / padding / position / gaps)     */
+/* Live probe golden@5199 vs current@5174: FE card-shell panel was 780×flex   */
+/* gap-12 / pad 16×18 with center padding:0; golden is 560×block / pad 28 with */
+/* center padding 96/12/20 (≤740 → 70/8/12; ≤480 landscape → 48/8/10).         */
+/* Vertical rhythm: .ornament margin + .ov-actions margin-top, not flex gap.  */
+/* -------------------------------------------------------------------------- */
+
+#screen .center-panel.r5-rewards,
+#screen .center-panel.r5-scene-panel.r5-rewards {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 96px 12px 20px;
+  overflow: visible;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+  opacity: 1;
+}
+
+#screen .center-panel.r5-rewards > .panel,
+#screen .center-panel.r5-scene-panel.r5-rewards > .panel {
+  display: block;
+  box-sizing: border-box;
+  width: min(560px, 92cqw);
+  max-width: min(560px, 92cqw);
+  max-height: calc(100cqh - 116px);
+  padding: 28px;
+  gap: normal;
+  text-align: center;
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: pan-y;
+  transform: none;
+  opacity: 1;
+  /* Prefer golden glass panel over FE card-shell chrome (border/radius/bg). */
+  color: inherit;
+  background: var(--glass-fill);
+  border: 1.5px solid var(--lead);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 0 0 1px var(--gold-line),
+    inset 0 10px 20px -12px rgba(255, 255, 255, 0.14),
+    0 24px 70px rgba(0, 0, 0, 0.65);
+}
+
+#screen .r5-rewards .reward-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 420px;
+}
+
+#screen .r5-rewards .ov-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+#screen .r5-rewards .ornament {
+  text-align: center;
+  color: var(--gold-dim);
+  letter-spacing: 0.4em;
+  font-size: 13px;
+  margin: 6px 0;
+}
+
+/* Continue / primary — golden .btn, not FE interaction-matrix chrome. */
+#screen .r5-rewards .btn,
+#screen .r5-rewards .btn.btn-primary {
+  min-height: 0;
+  max-height: none;
+  padding: 12px 34px;
+  border-radius: 10px;
+  font-family: 'Cinzel', serif;
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: 0.06em;
+  color: #1a1206;
+  background: linear-gradient(180deg, #f2c14e, #c89a30);
+  border: 1.5px solid transparent;
+  box-shadow:
+    inset 0 0 0 1px var(--gold-line),
+    inset 0 10px 20px -12px rgba(255, 255, 255, 0.14),
+    0 4px 14px rgba(0, 0, 0, 0.5);
+  transform: none;
+}
+
+/* Padding / list min-width: golden uses phone-portrait ≤740, not ≤1100. */
+@container stage (max-width: 740px) {
+  #screen .center-panel.r5-rewards,
+  #screen .center-panel.r5-scene-panel.r5-rewards {
+    padding: calc(70px + var(--sat)) 8px calc(12px + var(--sab));
+  }
+
+  #screen .r5-rewards .reward-list {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+@container stage (max-height: 480px) {
+  #screen .center-panel.r5-rewards,
+  #screen .center-panel.r5-scene-panel.r5-rewards {
+    padding: calc(48px + var(--sat)) 8px calc(10px + var(--sab));
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Boss-relic — restore 9f10ef2 size / position / inline format                */
+/* Rewards bridge caps .panel at min(560px,92cqw); golden boss inline is       */
+/* width:min(620px,94vw) with no max-width. FE .r5-scene-header also clips     */
+/* the dual-class title (max-height:2.4em / overflow:hidden). Pad-portrait     */
+/* (820cqw) keeps golden desktop center padding + 26px title — only ≤740 and  */
+/* ≤480 landscape tighten host padding / title size.                          */
+/* -------------------------------------------------------------------------- */
+
+#screen .center-panel.r5-rewards.r5-rewards--boss > .panel,
+#screen .center-panel.r5-scene-panel.r5-rewards.r5-rewards--boss > .panel {
+  position: static;
+  display: block;
+  flex-direction: row;
+  align-items: normal;
+  justify-content: normal;
+  gap: normal;
+  width: min(620px, 94vw);
+  max-width: none;
+  max-height: calc(100cqh - 116px);
+  padding: 28px;
+  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+#screen .r5-rewards--boss .ov-title,
+#screen .r5-rewards--boss .ov-title.r5-scene-header,
+#screen .r5-rewards.r5-rewards--boss .ov-title {
+  max-height: none;
+  overflow: visible;
+  line-height: normal;
+  margin-bottom: 4px;
+}
+
+#screen .r5-rewards--boss .ov-sub {
+  margin-bottom: 18px;
+  font-size: 15px;
+  text-align: center;
+  color: var(--text-dim, #9aa3bd);
+}
+
+#screen .r5-rewards--boss .big-choices {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+/* Take None — golden .btn.ghost (rewards bridge restyled all .r5-rewards .btn as primary). */
+#screen .r5-rewards--boss .big-choices > .btn.ghost,
+#screen .r5-rewards.r5-rewards--boss .btn.ghost {
+  width: 100%;
+  min-height: 0;
+  max-height: none;
+  margin-top: 10px;
+  padding: 9px 22px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-family: 'Cinzel', serif;
+  color: var(--parchment, #e8dfc8);
+  background: rgba(14, 18, 34, 0.6);
+  border: 1.5px solid var(--lead);
+  border-radius: 10px;
+  box-shadow:
+    inset 0 0 0 1px var(--gold-line),
+    inset 0 10px 20px -12px rgba(255, 255, 255, 0.14),
+    0 4px 14px rgba(0, 0, 0, 0.5);
+  transform: none;
+}
+
+/* Pad-portrait only: undo rewards-bridge ≤1100 host padding (golden only
+   tightens ≤740 / ≤480). Exclude phone-landscape (844×390) via min-height. */
+@container stage (min-width: 741px) and (max-width: 1100px) and (min-height: 481px) {
+  #screen .center-panel.r5-rewards.r5-rewards--boss,
+  #screen .center-panel.r5-scene-panel.r5-rewards.r5-rewards--boss {
+    padding: 96px 12px 20px;
+  }
+
+  #screen .r5-rewards--boss .ov-title,
+  #screen .r5-rewards--boss .ov-title.r5-scene-header,
+  #screen .r5-rewards.r5-rewards--boss .ov-title {
+    font-size: 26px;
+  }
+}
+
+@container stage (max-width: 740px) {
+  #screen .r5-rewards--boss .ov-title,
+  #screen .r5-rewards--boss .ov-title.r5-scene-header,
+  #screen .r5-rewards.r5-rewards--boss .ov-title {
+    font-size: 20px;
+  }
+
+  #screen .r5-rewards--boss .ov-sub {
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+}
+
+@container stage (max-height: 480px) {
+  #screen .center-panel.r5-rewards.r5-rewards--boss,
+  #screen .center-panel.r5-scene-panel.r5-rewards.r5-rewards--boss {
+    padding: calc(48px + var(--sat)) 8px calc(10px + var(--sab));
+  }
+
+  #screen .r5-rewards--boss .ov-title,
+  #screen .r5-rewards--boss .ov-title.r5-scene-header,
+  #screen .r5-rewards.r5-rewards--boss .ov-title {
+    font-size: 18px;
+    margin-bottom: 2px;
+  }
+
+  #screen .r5-rewards--boss .ov-sub {
+    font-size: 12.5px;
+    margin-bottom: 8px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Event — restore 9f10ef2 geometry (width / padding / block layout / art)    */
+/* FE `.center-panel.r5-scene-panel > .panel` is flex column + gap-12 + pad    */
+/* 16×18 + max-height 78cqh + card-shell chrome (width ~720). Golden computed */
+/* width is `.center-panel .panel` → min(560px, 92cqw) (beats `.event-panel`  */
+/* 660 / ≤1100 100cqw on specificity) + pad 28 + glass chrome. On short       */
+/* stages, flex + `.raster-art { height:100% }` lets the illustration claim   */
+/* the panel and crush `.ov-title` / `.event-choices` (missing titles +        */
+/* buttons). Golden is block layout; art height:auto.                         */
+/* -------------------------------------------------------------------------- */
+
+#screen .center-panel.r5-event,
+#screen .center-panel.r5-scene-panel.r5-event {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 96px 12px 20px;
+  overflow: visible;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+  opacity: 1;
+}
+
+#screen .center-panel.r5-event > .panel,
+#screen .center-panel.r5-event > .panel.event-panel,
+#screen .center-panel.r5-scene-panel.r5-event > .panel,
+#screen .center-panel.r5-scene-panel.r5-event > .panel.event-panel {
+  display: block;
+  box-sizing: border-box;
+  /* Match golden computed width: `.center-panel .panel` wins over `.event-panel`. */
+  width: min(560px, 92cqw);
+  max-width: min(560px, 92cqw);
+  max-height: calc(100cqh - 116px);
+  padding: 28px;
+  gap: normal;
+  text-align: center;
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: pan-y;
+  transform: none;
+  opacity: 1;
+  color: inherit;
+  background: var(--glass-fill);
+  border: 1.5px solid var(--lead);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 0 0 1px var(--gold-line),
+    inset 0 10px 20px -12px rgba(255, 255, 255, 0.14),
+    0 24px 70px rgba(0, 0, 0, 0.65);
+}
+
+#screen .r5-event .ov-title,
+#screen .r5-event .ov-title.r5-scene-header,
+#screen .center-panel.r5-event .ov-title {
+  display: block;
+  flex-shrink: 0;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  opacity: 1;
+  visibility: visible;
+  margin-bottom: 4px;
+}
+
+#screen .r5-event .ov-title::after {
+  content: '';
+  display: block;
+  width: 84px;
+  height: 2px;
+  margin: 8px auto 0;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+#screen .r5-event .event-art {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+  min-height: 0;
+}
+
+/* Golden styles `.event-art svg` only; raster still inherits `.raster-art`
+   height:100% which expands under FE flex and starves title/choices. */
+#screen .r5-event .event-art svg {
+  width: min(440px, 80%);
+  height: auto;
+  max-height: none;
+  border-radius: 10px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+}
+
+#screen .r5-event .event-art .raster-art,
+#screen .r5-event .event-art img.raster-art {
+  width: 100%;
+  height: auto;
+  max-height: none;
+  object-fit: contain;
+}
+
+#screen .r5-event .event-text {
+  font-size: 17px;
+  line-height: 1.6;
+  color: #cdd3e4;
+  text-align: center;
+  margin-bottom: 20px;
+  font-style: italic;
+}
+
+#screen .r5-event .event-log {
+  text-align: center;
+  color: var(--gold);
+  margin-bottom: 14px;
+  font-size: 16px;
+}
+
+#screen .r5-event .event-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+  min-height: 0;
+}
+
+#screen .r5-event .event-choice {
+  text-align: left;
+  padding: 13px 20px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  min-height: 0;
+  max-height: none;
+  transform: none;
+}
+
+#screen .r5-event .event-choice b {
+  font-family: 'Cinzel', serif;
+  color: var(--parchment);
+  letter-spacing: 0.04em;
+}
+
+#screen .r5-event .event-choice .sub {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+#screen .r5-event .event-choice.btn-primary,
+#screen .r5-event .event-choice.btn-primary b,
+#screen .r5-event .event-choice.btn-primary .sub {
+  color: #1a1206;
+}
+
+#screen .r5-event .event-choice.btn-primary {
+  background: linear-gradient(180deg, #f2c14e, #c89a30);
+  border-color: transparent;
+  font-weight: 700;
+  box-shadow:
+    inset 0 0 0 1px var(--gold-line),
+    inset 0 10px 20px -12px rgba(255, 255, 255, 0.14),
+    0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+@container stage (max-width: 1100px) {
+  #screen .center-panel.r5-event,
+  #screen .center-panel.r5-scene-panel.r5-event {
+    padding: calc(70px + var(--sat)) 8px calc(12px + var(--sab));
+  }
+
+  /* Golden `.event-panel { width:100cqw }` loses to `.center-panel .panel`
+     (still min(560px, 92cqw)); only tighten copy size here. */
+  #screen .r5-event .event-text {
+    font-size: 15px;
+  }
+}
+
+@container stage (max-height: 480px) {
+  #screen .center-panel.r5-event,
+  #screen .center-panel.r5-scene-panel.r5-event {
+    padding: calc(48px + var(--sat)) 8px calc(10px + var(--sab));
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Rest — restore 9f10ef2 geometry (width / padding / position / wrap layout) */
+/* Live probe golden@5199 vs current@5174: FE card-shell panel was 780×flex   */
+/* gap-12 / pad 16×18 with host padding:0 + flex-column; golden is 560×block  */
+/* / pad 28 with center padding 96/12/20. Wider FE panel keeps .big-choices   */
+/* buttons on one row; golden 560 content width wraps them (same flex-wrap).  */
+/* -------------------------------------------------------------------------- */
+
+#screen .center-panel.r5-rest,
+#screen .center-panel.r5-scene-panel.r5-rest {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 96px 12px 20px;
+  overflow: visible;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+  opacity: 1;
+  color: var(--text, #d7dcea);
+}
+
+#screen .center-panel.r5-rest > .panel,
+#screen .center-panel.r5-scene-panel.r5-rest > .panel {
+  display: block;
+  box-sizing: border-box;
+  width: min(560px, 92cqw);
+  max-width: min(560px, 92cqw);
+  max-height: calc(100cqh - 116px);
+  padding: 28px;
+  gap: normal;
+  text-align: center;
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: pan-y;
+  transform: none;
+  opacity: 1;
+  color: inherit;
+  background: var(--glass-fill);
+  border: 1.5px solid var(--lead);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 0 0 1px var(--gold-line),
+    inset 0 10px 20px -12px rgba(255, 255, 255, 0.14),
+    0 24px 70px rgba(0, 0, 0, 0.65);
+}
+
+#screen .r5-rest .ov-title,
+#screen .r5-rest .ov-title.r5-scene-header,
+#screen .center-panel.r5-rest .ov-title {
+  display: block;
+  flex-shrink: 0;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  margin-bottom: 4px;
+}
+
+#screen .r5-rest .art-lg {
+  width: min(340px, 70%);
+  max-width: 100%;
+  margin: 6px auto 12px;
+}
+
+#screen .r5-rest .art-lg svg,
+#screen .r5-rest .art-lg > .raster-art,
+#screen .r5-rest .art-lg img.raster-art {
+  width: 100%;
+  height: auto;
+  max-height: 42cqh;
+  display: block;
+  object-fit: contain;
+}
+
+#screen .r5-rest .ov-sub {
+  text-align: center;
+  color: var(--text-dim, #8b93ad);
+  margin-bottom: 18px;
+  font-size: 15px;
+}
+
+#screen .r5-rest .big-choices {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+/* Golden .btn chrome — undo FE interaction-matrix min-height / gold borders. */
+#screen .r5-rest .btn {
+  min-height: 0;
+  max-height: none;
+  padding: 12px 34px;
+  border-radius: 10px;
+  font-family: 'Cinzel', serif;
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: 0.06em;
+  color: var(--parchment, #e8dfc8);
+  background: var(--glass-fill);
+  border: 1.5px solid var(--lead);
+  box-shadow:
+    inset 0 0 0 1px var(--gold-line),
+    inset 0 10px 20px -12px rgba(255, 255, 255, 0.14),
+    0 4px 14px rgba(0, 0, 0, 0.5);
+  transform: none;
+}
+
+#screen .r5-rest .btn.btn-primary {
+  color: #1a1206;
+  background: linear-gradient(180deg, #f2c14e, #c89a30);
+  border-color: transparent;
+  font-weight: 700;
+}
+
+/*
+ * Golden only tightens center-panel / ov-sub under ≤740 (phone) and ≤480
+ * landscape. Pad-portrait is 820cqw — keeps desktop 96/12/20 + 26px title +
+ * 15px ov-sub. Undo the shared scene-title ≤1100 → 20px bridge for rest.
+ */
+@container stage (min-width: 741px) and (max-width: 1100px) {
+  #screen .center-panel.r5-rest,
+  #screen .center-panel.r5-scene-panel.r5-rest {
+    padding: 96px 12px 20px;
+  }
+
+  #screen .r5-rest .ov-title,
+  #screen .r5-rest .ov-title.r5-scene-header,
+  #screen .center-panel.r5-rest .ov-title {
+    font-size: 26px;
+  }
+
+  #screen .r5-rest .ov-sub {
+    font-size: 15px;
+    margin-bottom: 18px;
+  }
+}
+
+@container stage (max-width: 740px) {
+  #screen .center-panel.r5-rest,
+  #screen .center-panel.r5-scene-panel.r5-rest {
+    padding: calc(70px + var(--sat)) 8px calc(12px + var(--sab));
+  }
+
+  #screen .r5-rest .ov-title,
+  #screen .r5-rest .ov-title.r5-scene-header,
+  #screen .center-panel.r5-rest .ov-title {
+    font-size: 20px;
+  }
+
+  #screen .r5-rest .ov-sub {
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+}
+
+@container stage (max-height: 480px) {
+  #screen .center-panel.r5-rest,
+  #screen .center-panel.r5-scene-panel.r5-rest {
+    padding: calc(48px + var(--sat)) 8px calc(10px + var(--sab));
+  }
+
+  #screen .r5-rest .ov-title,
+  #screen .r5-rest .ov-title.r5-scene-header,
+  #screen .center-panel.r5-rest .ov-title {
+    font-size: 18px;
+    margin-bottom: 2px;
+  }
+
+  #screen .r5-rest .ov-sub {
+    margin-bottom: 8px;
+    font-size: 12.5px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Shop — restore 9f10ef2 geometry + subtitle typography + cost hex overlay   */
+/* FE card-shell: flex/gap-12/pad 16×18/max-height 78cqh/radius 12; center     */
+/* padding 0. Golden: center pad 96/12/20, panel display:block pad 28 glass,  */
+/* width min(980px,96vw). FE `.r5-scene-header` Cinzel cascades into          */
+/* `.ov-sub` (looks ALL CAPS); golden subtitle is Alegreya sentence case.     */
+/* Exported faces bake cost at (-8,-8) clipped inside the PNG — overlay a     */
+/* real `.card-cost` like golden so the hex overhangs the card corner.        */
+/* -------------------------------------------------------------------------- */
+
+#screen .center-panel.r5-shop,
+#screen .center-panel.r5-scene-panel.r5-shop {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 96px 12px 20px;
+  overflow: visible;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+  opacity: 1;
+  color: inherit;
+}
+
+#screen .center-panel.r5-shop > .panel,
+#screen .center-panel.r5-shop > .panel.ov-panel,
+#screen .center-panel.r5-scene-panel.r5-shop > .panel,
+#screen .center-panel.r5-scene-panel.r5-shop > .panel.ov-panel {
+  display: block;
+  box-sizing: border-box;
+  width: min(980px, 96cqw);
+  max-width: min(980px, 96cqw);
+  max-height: calc(100cqh - 116px);
+  padding: 28px;
+  gap: normal;
+  text-align: center;
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: pan-y;
+  transform: none;
+  opacity: 1;
+  color: inherit;
+  background: var(--glass-fill);
+  border: 1.5px solid var(--lead);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 0 0 1px var(--gold-line),
+    inset 0 10px 20px -12px rgba(255, 255, 255, 0.14),
+    0 24px 70px rgba(0, 0, 0, 0.65);
+}
+
+/* Header chrome — body font so subtitle is not Cinzel/small-caps-looking. */
+#screen .r5-shop > .panel .r5-scene-header,
+#screen .r5-shop .r5-scene-header {
+  color: inherit;
+  font-family: Alegreya, Georgia, serif;
+  font-size: inherit;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: normal;
+  margin-bottom: 0;
+  max-height: none;
+  overflow: visible;
+}
+
+#screen .r5-shop .ov-sub,
+#screen .r5-shop .shop-dialogue {
+  font-family: Alegreya, Georgia, serif;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+  color: var(--text-dim, #8b93ad);
+  line-height: normal;
+  margin-bottom: 0;
+}
+
+/* Cost hex must paint outside the card box (golden top/left -8). */
+#screen .r5-shop .shop-item,
+#screen .r5-shop .card,
+#screen .r5-shop .card-lift {
+  overflow: visible;
+}
+
+#screen .r5-shop .ov-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+/*
+ * Golden only tightens `.center-panel` / `.ov-panel` in the ≤740 (phone
+ * portrait) and ≤480-tall (phone landscape) blocks — pad-portrait (820cqw)
+ * keeps desktop 96/12/20 + panel pad 28 / radius 16.
+ */
+@container stage (min-width: 741px) and (max-width: 1100px) {
+  #screen .center-panel.r5-shop,
+  #screen .center-panel.r5-scene-panel.r5-shop {
+    padding: 96px 12px 20px;
+  }
+}
+
+@container stage (max-width: 740px) {
+  #screen .center-panel.r5-shop,
+  #screen .center-panel.r5-scene-panel.r5-shop {
+    padding: calc(70px + var(--sat)) 8px calc(12px + var(--sab));
+  }
+
+  #screen .center-panel.r5-shop > .panel,
+  #screen .center-panel.r5-shop > .panel.ov-panel,
+  #screen .center-panel.r5-scene-panel.r5-shop > .panel,
+  #screen .center-panel.r5-scene-panel.r5-shop > .panel.ov-panel {
+    width: 100cqw;
+    max-width: 100cqw;
+    max-height: none;
+    height: 100%;
+    padding: calc(16px + var(--sat)) 14px calc(18px + var(--sab));
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  #screen .r5-shop .ov-sub,
+  #screen .r5-shop .shop-dialogue {
+    font-size: 13px;
+  }
+}
+
+@container stage (max-height: 480px) and (min-width: 500px) {
+  #screen .center-panel.r5-shop,
+  #screen .center-panel.r5-scene-panel.r5-shop {
+    padding: calc(48px + var(--sat)) 8px calc(10px + var(--sab));
+  }
+
+  #screen .center-panel.r5-shop > .panel,
+  #screen .center-panel.r5-shop > .panel.ov-panel,
+  #screen .center-panel.r5-scene-panel.r5-shop > .panel,
+  #screen .center-panel.r5-scene-panel.r5-shop > .panel.ov-panel {
+    width: 100cqw;
+    max-width: 100cqw;
+    max-height: none;
+    height: 100%;
+    padding: 12px calc(16px + var(--sar)) calc(10px + var(--sab)) calc(16px + var(--sal));
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  #screen .r5-shop .ov-sub,
+  #screen .r5-shop .shop-dialogue {
+    font-size: 12.5px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Hollow — restore 9f10ef2 `.hollow-kicker` typography                        */
+/* Live probe golden@5199 vs current@5174: dual-class `.hollow-kicker          */
+/* .r5-scene-header` inherits FE gold / clamp(15–22px) / Cinzel / center /     */
+/* letter-spacing 0.14em / max-height 2.4em. Golden is body-font grey #83939d, */
+/* 11px, tracking 0.22em, text-align start, unclipped. Title + ask already     */
+/* match golden (no r5-scene-header on those nodes).                           */
+/* -------------------------------------------------------------------------- */
+#screen .hollow-kicker,
+#screen .hollow-kicker.r5-scene-header,
+#screen .r5-lamplighter--hollow .hollow-kicker,
+#screen .hollow-lamplighter .hollow-kicker {
+  width: auto;
+  color: #83939d;
+  font-family: Alegreya, Georgia, serif;
+  font-size: 11px;
+  font-weight: 400;
+  font-style: normal;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-align: start;
+  line-height: normal;
+  max-height: none;
+  overflow: visible;
+  margin-bottom: 10px;
+  text-shadow: none;
+}
+
+@container stage (max-height: 480px) and (min-width: 500px) {
+  #screen .hollow-kicker,
+  #screen .hollow-kicker.r5-scene-header,
+  #screen .r5-lamplighter--hollow .hollow-kicker,
+  #screen .hollow-lamplighter .hollow-kicker {
+    margin-bottom: 5px;
+    font-size: 9px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Treasure — restore 9f10ef2 size / position / inline format                 */
+/* Treasure reuses `.r5-rest.r5-rest--treasure`; Rest bridge already restores */
+/* host pad 96/12/20 + panel display:block / pad 28 / width min(560px,92cqw). */
+/* Remaining FE shell leftovers on the treasure panel only: position:relative */
+/* (golden is static) and max-width:560px (golden is none). Closed chest ends */
+/* ceremony at data-r5-state="rest" — keep panel visible via --treasure.      */
+/* -------------------------------------------------------------------------- */
+
+#screen .center-panel.r5-rest.r5-rest--treasure,
+#screen .center-panel.r5-scene-panel.r5-rest.r5-rest--treasure {
+  /* Closed-chest ceremony end-state is "rest", not treasure-open. */
+  opacity: 1;
+  transform: none;
+}
+
+#screen .center-panel.r5-rest.r5-rest--treasure > .panel,
+#screen .center-panel.r5-scene-panel.r5-rest.r5-rest--treasure > .panel {
+  position: static;
+  max-width: none;
+  display: block;
+  box-sizing: border-box;
+  width: min(560px, 92cqw);
+  padding: 28px;
+  gap: normal;
+  text-align: center;
+  transform: none;
+  opacity: 1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Lamplighter — restore 9f10ef2 `.lamp-screen` geometry                      */
+/* Live probe golden@5199 vs current@5174: FE `.r5-lamplighter` shared shell   */
+/* sets gap:12 / padding:max(2cqh,14px) 3cqw / color:ember / overflow:clip     */
+/* (and landscape gap:8 / pad 1cqh 2cqw). Golden is gap:10 / pad 4cqh 16px /    */
+/* justify center / overflow-y:auto / --text. Dual-class `.lamp-title          */
+/* .r5-scene-header` also forced width:100% + max-height:2.4em + overflow      */
+/* hidden (title collapsed on phone). Markup drops r5-scene-header; bridges   */
+/* still neutralize if it returns. Do not touch treasure/rewards/shop blocks. */
+/* -------------------------------------------------------------------------- */
+
+#screen .lamp-screen.r5-lamplighter,
+#screen .r5-lamplighter.lamp-screen,
+#screen .r5-lamplighter:not(.r5-lamplighter--hollow):not(.hollow-lamplighter) {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 4cqh 16px;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  /* Golden `.lamp-screen { overflow-y: auto }` → computed overflow:auto. */
+  overflow-x: auto;
+  overflow-y: auto;
+  color: var(--text, #d7dcea);
+  /* Undo FE `.r5-lamplighter { font-family: var(--r5-font-body) }` if it drifts. */
+  font-family: 'Alegreya', Georgia, serif;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  filter: none;
+  transform: none;
+  opacity: 1;
+}
+
+/* Keep the fixed hero box from flex-shrinking while art decodes. */
+#screen .lamp-screen.r5-lamplighter .lamp-hero,
+#screen .r5-lamplighter.lamp-screen .lamp-hero {
+  flex: 0 0 auto;
+  width: 78px;
+  height: 78px;
+  min-width: 78px;
+  min-height: 78px;
+}
+
+#screen .lamp-screen.r5-lamplighter .lamp-hero svg,
+#screen .lamp-screen.r5-lamplighter .lamp-hero .hero-sprite,
+#screen .r5-lamplighter.lamp-screen .lamp-hero svg,
+#screen .r5-lamplighter.lamp-screen .lamp-hero .hero-sprite {
+  width: 100%;
+  height: 100%;
+}
+
+/* Phone shrinks — match golden ≤740 lamp tunes (styles.css has the same). */
+@container stage (max-width: 740px) {
+  #screen .lamp-screen.r5-lamplighter .lamp-boons,
+  #screen .r5-lamplighter.lamp-screen .lamp-boons {
+    gap: 10px;
+  }
+
+  #screen .lamp-screen.r5-lamplighter .lamp-boon,
+  #screen .r5-lamplighter.lamp-screen .lamp-boon {
+    width: min(300px, 82cqw);
+    min-height: 0;
+  }
+
+  #screen .lamp-screen.r5-lamplighter .lamp-hero,
+  #screen .r5-lamplighter.lamp-screen .lamp-hero {
+    flex: 0 0 auto;
+    width: 60px;
+    height: 60px;
+    min-width: 60px;
+    min-height: 60px;
+  }
+
+  #screen .lamp-screen.r5-lamplighter .lamp-arts,
+  #screen .r5-lamplighter.lamp-screen .lamp-arts {
+    gap: 7px;
+  }
+
+  #screen .lamp-screen.r5-lamplighter .lamp-art,
+  #screen .r5-lamplighter.lamp-screen .lamp-art {
+    padding: 6px 12px;
+    font-size: 12.5px;
+  }
+}
+
+/* FE landscape shell shrinks ALL `.r5-lamplighter` — keep golden pad/gap. */
+@container stage (max-height: 480px) {
+  #screen .lamp-screen.r5-lamplighter,
+  #screen .r5-lamplighter.lamp-screen,
+  #screen .r5-lamplighter:not(.r5-lamplighter--hollow):not(.hollow-lamplighter) {
+    gap: 10px;
+    padding: 4cqh 16px;
+  }
+}
+
+/* Golden .btn chrome — undo FE interaction-matrix disabled saturate / dim. */
+#screen .lamp-screen.r5-lamplighter .btn,
+#screen .lamp-screen .btn {
+  min-height: 0;
+  max-height: none;
+  padding: 12px 34px;
+  border-radius: 10px;
+  font-family: 'Cinzel', serif;
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: 0.06em;
+  color: var(--parchment, #e8dfc8);
+  background: var(--glass-fill);
+  border: 1.5px solid var(--lead);
+  box-shadow:
+    inset 0 0 0 1px var(--gold-line),
+    inset 0 10px 20px -12px rgba(255, 255, 255, 0.14),
+    0 4px 14px rgba(0, 0, 0, 0.5);
+  transform: none;
+  filter: none;
+}
+
+#screen .lamp-screen.r5-lamplighter .btn.btn-primary,
+#screen .lamp-screen .btn.btn-primary {
+  color: #1a1206;
+  background: linear-gradient(180deg, #f2c14e, #c89a30);
+  border-color: transparent;
+  font-weight: 700;
+}
+
+#screen .lamp-screen.r5-lamplighter .btn:disabled,
+#screen .lamp-screen.r5-lamplighter .btn[data-r5-state="disabled"],
+#screen .lamp-screen .btn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  filter: none;
+  color: #1a1206;
+  transform: none;
+  box-shadow:
+    inset 0 0 0 1px var(--gold-line),
+    inset 0 10px 20px -12px rgba(255, 255, 255, 0.14),
+    0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Vigil — restore 9f10ef2 geometry + glass-fill panel background             */
+/* Live probe golden@5199 vs current@5174: FE card-shell replaces             */
+/* `.panel.vigil-panel` glass-fill gradient with solid color-mix(--r5-ink     */
+/* 88%), pad 16×18 / gap-12 / radius-12 / 2px gold border / overflow:auto,    */
+/* and zeros host padding (flex-column). Golden is host pad 96/12/20 (≤740 →  */
+/* 70/8/12; ≤480 landscape → 48/8/10), panel flex-column pad 28 / gap normal  */
+/* / width min(560px,92cqw) / glass-fill / lead 1.5 / radius 16 / overflow    */
+/* hidden (--vigil-safe-max). Title chrome already bridged above.             */
+/* -------------------------------------------------------------------------- */
+
+#screen .center-panel.r5-vigil,
+#screen .center-panel.r5-scene-panel.r5-vigil {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 96px 12px 20px;
+  overflow: visible;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+  opacity: 1;
+  color: var(--text, #d7dcea);
+}
+
+#screen .center-panel.r5-vigil > .panel,
+#screen .center-panel.r5-vigil > .panel.vigil-panel,
+#screen .center-panel.r5-scene-panel.r5-vigil > .panel,
+#screen .center-panel.r5-scene-panel.r5-vigil > .panel.vigil-panel {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: min(560px, 92cqw);
+  max-width: min(560px, 92cqw);
+  /* Golden `.center-panel .vigil-panel` — keep --vigil-safe-max from styles.css */
+  max-height: var(--vigil-safe-max, calc(100cqh - 116px));
+  padding: 28px;
+  gap: normal;
+  text-align: center;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  touch-action: pan-y;
+  transform: none;
+  opacity: 1;
+  color: inherit;
+  /* Key background restore — FE solid ink-88 → golden glass-fill gradient */
+  background: var(--glass-fill);
+  border: 1.5px solid var(--lead);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 0 0 1px var(--gold-line),
+    inset 0 10px 20px -12px rgba(255, 255, 255, 0.14),
+    0 24px 70px rgba(0, 0, 0, 0.65);
+}
+
+/* Undo FE `.r5-scene-header` margin on dual-class vigil title (golden mb 4px). */
+#screen .r5-vigil .ov-title,
+#screen .r5-vigil .ov-title.r5-scene-header,
+#screen .center-panel.r5-vigil .ov-title {
+  display: block;
+  flex-shrink: 0;
+  width: auto;
+  max-width: none;
+  margin-top: 0;
+  margin-bottom: 4px;
+  margin-left: 0;
+  margin-right: 0;
+  max-height: none;
+  overflow: visible;
+}
+
+/*
+ * Golden only tightens `.center-panel` in ≤740 and ≤480-tall blocks —
+ * pad-portrait (820cqw) keeps desktop 96/12/20 + panel pad 28 / radius 16.
+ */
+@container stage (min-width: 741px) and (max-width: 1100px) {
+  #screen .center-panel.r5-vigil,
+  #screen .center-panel.r5-scene-panel.r5-vigil {
+    padding: 96px 12px 20px;
+  }
+}
+
+@container stage (max-width: 740px) {
+  #screen .center-panel.r5-vigil,
+  #screen .center-panel.r5-scene-panel.r5-vigil {
+    padding: calc(70px + var(--sat)) 8px calc(12px + var(--sab));
+  }
+
+  #screen .center-panel.r5-vigil > .panel,
+  #screen .center-panel.r5-vigil > .panel.vigil-panel,
+  #screen .center-panel.r5-scene-panel.r5-vigil > .panel,
+  #screen .center-panel.r5-scene-panel.r5-vigil > .panel.vigil-panel {
+    width: min(560px, 92cqw);
+    max-width: min(560px, 92cqw);
+    padding: 28px;
+    border-radius: 16px;
+  }
+}
+
+@container stage (max-height: 480px) and (min-width: 500px) {
+  #screen .center-panel.r5-vigil,
+  #screen .center-panel.r5-scene-panel.r5-vigil {
+    padding: calc(48px + var(--sat)) 8px calc(10px + var(--sab));
+  }
+
+  #screen .center-panel.r5-vigil > .panel,
+  #screen .center-panel.r5-vigil > .panel.vigil-panel,
+  #screen .center-panel.r5-scene-panel.r5-vigil > .panel,
+  #screen .center-panel.r5-scene-panel.r5-vigil > .panel.vigil-panel {
+    width: min(560px, 92cqw);
+    max-width: min(560px, 92cqw);
+    padding: 28px;
+    border-radius: 16px;
+  }
+
+  /* Re-assert golden ≤480 title rhythm after the desktop mb:4 rule above. */
+  #screen .r5-vigil .ov-title,
+  #screen .r5-vigil .ov-title.r5-scene-header,
+  #screen .center-panel.r5-vigil .ov-title,
+  #screen .center-panel .vigil-panel > .ov-title {
+    font-size: 18px;
+    margin-top: 0;
+    margin-bottom: 2px;
+    width: auto;
+    max-width: none;
+  }
+
+  #screen .r5-vigil .ov-title::after,
+  #screen .center-panel.r5-vigil .ov-title::after,
+  #screen .center-panel .vigil-panel > .ov-title::after {
+    margin-top: 8px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* HUD — phone-portrait deck/menu RIGHT-ALIGNED (intentional ≠ golden)        */
+/* Golden 9f10ef2 hides .hud-mid at ≤740 and leaves .hud-right left-packed    */
+/* next to gold (no flex spacer). Owner: menu + deck must sit on the right.   */
+/* Core fix lives in styles.css (@container max-width 740 .hud-right); this   */
+/* re-asserts so later FE/PE screen CSS cannot undo it.                       */
+/* Also: DOM/Pixi hud-mid restored "Act N" to match golden mid-line copy.     */
+/* -------------------------------------------------------------------------- */
+@container stage (max-width: 740px) {
+  #hud .hud-right,
+  #hud.show .hud-right {
+    margin-left: auto !important;
+  }
+}

@@ -11,18 +11,22 @@ This record freezes the integrated FE screen stylesheet + PE experience layer fo
 
 ---
 
-## Status: READY FOR OWNER RE-REVIEW
+## Status: OWNER PASS (taste) — baseline refresh pending Task 37 Steps 3–4
 
-Owner FAIL remediation recapture after layout/card/map/capture fixes. Write-set: FE import is `import './styles/round5-screens.css';` only; no `round5-pe-integration.css`. This does **not** claim owner taste PASS.
+Owner approved the contact-compare package after PE layout-bridge remediation.
+Write-set: FE `round5-screens.css` plus PE `round5-pe-layout-bridges.css` (imported
+after screens CSS from `src/main.js`); no `round5-pe-integration.css`.
 
 | Gate | Result |
 |---|---|
-| Owner FAIL remediations (layout / cards / map 3D / capture freeze) | PASS (code; see owner-gate inventory) |
-| PE stylesheet write-set | PASS (bridges + `#overlay.open` opacity in `src/styles.css`) |
-| Contact-sheet capture | PASS (**183** rows; `sourceSha` == `6bb2eb21…`) |
+| Owner FAIL remediations (layout / cards / map 3D / capture freeze) | PASS (code + owner taste) |
+| PE stylesheet write-set | PASS (`src/styles/round5-pe-layout-bridges.css` + thin `src/styles.css` hooks) |
+| Layout projection vs original golden | PASS (`unexpectedTotal=0`, 19/19) |
+| Contact-sheet capture | PASS (**183** rows; promoted with remediation tip — sourceSha retargeted after commit) |
 | Persistence plates in sheets | PASS (`dawn-cursor-retry`, `dawn-final-clear-retry`, `usurper-item-save-blocked` held; freeze bounded) |
-| Visual baseline refresh | **not run** (deferred to owner sign-off / Task 37) |
+| Visual baseline refresh | **pending** Task 37 Step 3 |
 | WebKit-safe | **PASS** |
+| Intentional ≠ golden | title fullscreen bg; phone-portrait HUD right pack (see owner-gate) |
 
 ---
 

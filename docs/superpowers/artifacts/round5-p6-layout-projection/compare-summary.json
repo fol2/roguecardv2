@@ -1,0 +1,85 @@
+{
+  "unexpectedTotal": 0,
+  "clearRows": 19,
+  "focusRows": 19,
+  "liveShaHint": "worktree tip",
+  "goldenSha": "272e0e491b91528f75c2e344211cdc42f839d381",
+  "rows": [
+    {
+      "id": "dawn__phone-landscape__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "dawn__phone-portrait__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "embark__desktop-landscape__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "embark__pad-landscape__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "embark__phone-landscape__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "event__phone-landscape__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "fall__desktop-landscape__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "fall__pad-landscape__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "lamplighter__phone-landscape__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "lamplighter__phone-portrait__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "map__desktop-landscape__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "rest__phone-landscape__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "rewards__phone-landscape__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "shop__phone-landscape__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "title__desktop-landscape__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "title__phone-landscape__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "title__phone-portrait__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "treasure__phone-landscape__grown",
+      "unexpectedCount": 0
+    },
+    {
+      "id": "vigil__phone-landscape__grown",
+      "unexpectedCount": 0
+    }
+  ]
+}

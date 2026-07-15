@@ -1,77 +1,20 @@
 {
   "id": "title__phone-portrait__grown",
-  "deltaCount": 11,
-  "expectedCount": 2,
-  "unexpectedCount": 9,
-  "unexpectedPaths": [
-    "embark.aspectCards",
-    "title.parallaxTop",
-    "title.wordmark.left",
-    "title.wordmark.top",
-    "title.wordmark.width",
-    "title.wordmark.height",
-    "title.wordmark.right",
-    "title.wordmark.bottom",
-    "title.wordmark.cy"
-  ],
+  "deltaCount": 3,
+  "expectedCount": 3,
+  "unexpectedCount": 0,
+  "unexpectedPaths": [],
   "expectedPathsHit": [
+    "title.parallaxTop",
     "cardface.hasArtTexture",
     "cardface.rarityAccentDistinct"
   ],
   "deltas": [
     {
-      "path": "embark.aspectCards",
-      "kind": "value-drift",
-      "live": [],
-      "golden": []
-    },
-    {
       "path": "title.parallaxTop",
       "kind": "value-drift",
       "live": 0,
       "golden": 120.27540088653564
-    },
-    {
-      "path": "title.wordmark.left",
-      "kind": "box-drift",
-      "live": 38.98984664916992,
-      "golden": 20.832356169522264
-    },
-    {
-      "path": "title.wordmark.top",
-      "kind": "box-drift",
-      "live": 243.8749951171875,
-      "golden": 440.1907009887695
-    },
-    {
-      "path": "title.wordmark.width",
-      "kind": "box-drift",
-      "live": 311.99999099731446,
-      "golden": 348.3353198570033
-    },
-    {
-      "path": "title.wordmark.height",
-      "kind": "box-drift",
-      "live": 81.04687850952148,
-      "golden": 90.4777439880371
-    },
-    {
-      "path": "title.wordmark.right",
-      "kind": "box-drift",
-      "live": 350.9898376464844,
-      "golden": 369.16767602652556
-    },
-    {
-      "path": "title.wordmark.bottom",
-      "kind": "box-drift",
-      "live": 324.921873626709,
-      "golden": 530.6684449768065
-    },
-    {
-      "path": "title.wordmark.cy",
-      "kind": "box-drift",
-      "live": 284.3984343719482,
-      "golden": 485.42957298278805
     },
     {
       "path": "cardface.hasArtTexture",

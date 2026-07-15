@@ -93,7 +93,9 @@ function renderShop() {
     miscRow.innerHTML = '';
     for (const it of st.cards) {
       const wrap = el('div', `shop-item ${it.sold ? 'sold' : ''} ${gold() < it.price ? 'cant' : ''}`);
-      const c = cardEl({ id: it.id, up: false, uid: null }, { size: 138 });
+      // Live DOM faces match golden public-preview (art + tint rim + fmtText).
+      // Task-26 export PNGs omit art until decode and diverge on rim/punctuation.
+      const c = cardEl({ id: it.id, up: false, uid: null }, { size: 138, domFace: true });
       if (c.dataset.cardFaceKey) wrap.dataset.cardFaceKey = c.dataset.cardFaceKey;
       c.onclick = () => {
         if (it.sold || gold() < it.price) return sfx.debuff();

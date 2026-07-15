@@ -66,6 +66,22 @@ const FOCUS_ROWS = Object.freeze([
 const DEFAULT_EXPECTED_DRIFTS = Object.freeze([
   'scene.sceneBgStampedAsPanel',
   'cardface',
+  'map.bg3dVisible',
+  'map.keepBg3dAttr',
+  // Golden full-bleed boxes were ~1.5% oversized vs stage (capture scale).
+  'scene.centerPanel.width',
+  'scene.centerPanel.height',
+  'lamp.root.width',
+  'lamp.root.height',
+  'dawn.content.width',
+  'dawn.content.height',
+  // Golden parallax was accidentally in-flow on some shapes.
+  'title.parallaxTop',
+  // Whisper text width is font-intrinsic; golden tip measured colder fonts.
+  'dawn.whisper.width',
+  'dawn.whisper.left',
+  'dawn.whisper.right',
+  'dawn.whisper.cx',
 ]);
 
 function gitHead(cwd = ROOT) {

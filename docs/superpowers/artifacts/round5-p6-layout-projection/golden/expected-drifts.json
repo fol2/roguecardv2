@@ -1,7 +1,22 @@
 {
-  "note": "Paths expected to differ from golden after intentional remediations. Unexpected paths fail compare.",
+  "description": "Intentional live-vs-golden deltas. Capture methodology, deliberate remediations, and owner-approved ≠ golden (title fullscreen bg; phone-portrait HUD right pack).",
   "paths": [
+    "map.bg3dVisible",
+    "map.keepBg3dAttr",
     "scene.sceneBgStampedAsPanel",
-    "cardface"
+    "cardface",
+    "title.parallaxTop",
+    "scene.centerPanel.width",
+    "scene.centerPanel.height",
+    "lamp.root.width",
+    "lamp.root.height",
+    "dawn.content.width",
+    "dawn.content.height",
+    "dawn.whisper.width",
+    "dawn.whisper.left",
+    "dawn.whisper.right",
+    "dawn.whisper.cx",
+    "title.fullBleedBackground",
+    "hud.phonePortraitRightPack"
   ]
 }

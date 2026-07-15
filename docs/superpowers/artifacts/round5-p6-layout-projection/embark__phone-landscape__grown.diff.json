@@ -1,106 +1,14 @@
 {
   "id": "embark__phone-landscape__grown",
-  "deltaCount": 9,
+  "deltaCount": 2,
   "expectedCount": 2,
-  "unexpectedCount": 7,
-  "unexpectedPaths": [
-    "embark.vowDial.left",
-    "embark.vowDial.top",
-    "embark.vowDial.width",
-    "embark.vowDial.right",
-    "embark.vowDial.bottom",
-    "embark.vowDial.cy",
-    "embark.aspectCards"
-  ],
+  "unexpectedCount": 0,
+  "unexpectedPaths": [],
   "expectedPathsHit": [
     "cardface.hasArtTexture",
     "cardface.rarityAccentDistinct"
   ],
   "deltas": [
-    {
-      "path": "embark.vowDial.left",
-      "kind": "box-drift",
-      "live": 312.0000191688538,
-      "golden": 334.71004276275636
-    },
-    {
-      "path": "embark.vowDial.top",
-      "kind": "box-drift",
-      "live": 341.271099281311,
-      "golden": 267.0808622182743
-    },
-    {
-      "path": "embark.vowDial.width",
-      "kind": "box-drift",
-      "live": 219.99998178482056,
-      "golden": 174.57999496459962
-    },
-    {
-      "path": "embark.vowDial.right",
-      "kind": "box-drift",
-      "live": 532.0000009536743,
-      "golden": 509.290037727356
-    },
-    {
-      "path": "embark.vowDial.bottom",
-      "kind": "box-drift",
-      "live": 385.2710996627808,
-      "golden": 307.8552585631154
-    },
-    {
-      "path": "embark.vowDial.cy",
-      "kind": "box-drift",
-      "live": 363.2710994720459,
-      "golden": 287.46806039069486
-    },
-    {
-      "path": "embark.aspectCards",
-      "kind": "value-drift",
-      "live": [
-        {
-          "left": 204.65001430511475,
-          "top": 48.35866632461547,
-          "width": 434.69997138977055,
-          "height": 138.98108968734743,
-          "right": 639.3499856948853,
-          "bottom": 187.3397560119629,
-          "cx": 422,
-          "cy": 117.84921116828919
-        },
-        {
-          "left": 212.00000915527346,
-          "top": 196.9898564338684,
-          "width": 420.00002193450933,
-          "height": 134.28127202987673,
-          "right": 632.0000310897829,
-          "bottom": 331.27112846374513,
-          "cx": 422.0000201225281,
-          "cy": 264.13049244880676
-        }
-      ],
-      "golden": [
-        {
-          "left": 160.1300075531006,
-          "top": 148.11968455720947,
-          "width": 255.78003005981446,
-          "height": 104.75115245321462,
-          "right": 415.91003761291506,
-          "bottom": 252.87083701042408,
-          "cx": 288.02002258300786,
-          "cy": 200.49526078381678
-        },
-        {
-          "left": 428.09000263214114,
-          "top": 148.11968455720947,
-          "width": 255.77998981475832,
-          "height": 104.75115245321462,
-          "right": 683.8699924468995,
-          "bottom": 252.87083701042408,
-          "cx": 555.9799975395204,
-          "cy": 200.49526078381678
-        }
-      ]
-    },
     {
       "path": "cardface.hasArtTexture",
       "kind": "missing-golden",

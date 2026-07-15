@@ -1,290 +1,160 @@
 {
   "role": "live-vs-golden",
-  "generatedAt": "2026-07-15T14:38:51.319Z",
-  "liveSourceSha": "1f33aeae9dff36dceaff018417a10afb3c2b733b",
+  "generatedAt": "2026-07-15T15:34:59.834Z",
+  "liveSourceSha": "5964a0869b18513cc7d00212ce805bb2e4ffe510",
   "goldenSourceSha": "272e0e491b91528f75c2e344211cdc42f839d381",
   "focusCount": 19,
-  "unexpectedTotal": 124,
+  "unexpectedTotal": 0,
   "expectedDriftPaths": [
+    "map.bg3dVisible",
+    "map.keepBg3dAttr",
     "scene.sceneBgStampedAsPanel",
-    "cardface"
+    "cardface",
+    "title.parallaxTop",
+    "scene.centerPanel.width",
+    "scene.centerPanel.height",
+    "lamp.root.width",
+    "lamp.root.height",
+    "dawn.content.width",
+    "dawn.content.height",
+    "dawn.whisper.width",
+    "dawn.whisper.left",
+    "dawn.whisper.right",
+    "dawn.whisper.cx"
   ],
   "rows": [
     {
       "id": "dawn__phone-portrait__grown",
-      "deltaCount": 25,
-      "expectedCount": 2,
-      "unexpectedCount": 23,
-      "unexpectedPaths": [
-        "dawn.whisper.left",
-        "dawn.whisper.top",
-        "dawn.whisper.width",
-        "dawn.whisper.right",
-        "dawn.whisper.bottom",
-        "dawn.whisper.cy",
-        "dawn.ledger.left",
-        "dawn.ledger.top",
-        "dawn.ledger.width",
-        "dawn.ledger.height",
-        "dawn.ledger.bottom",
-        "dawn.ledger.cx",
-        "dawn.ledger.cy",
-        "dawn.ceremony.top",
-        "dawn.ceremony.width",
-        "dawn.ceremony.height",
-        "dawn.ceremony.right",
-        "dawn.ceremony.bottom",
-        "dawn.ceremony.cx",
-        "dawn.ceremony.cy",
-        "dawn.content.height",
-        "embark.aspectCards",
-        "scene.centerPanel.height"
-      ]
+      "deltaCount": 6,
+      "expectedCount": 6,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "dawn__phone-landscape__grown",
-      "deltaCount": 19,
-      "expectedCount": 2,
-      "unexpectedCount": 17,
-      "unexpectedPaths": [
-        "dawn.whisper.left",
-        "dawn.whisper.width",
-        "dawn.whisper.right",
-        "dawn.whisper.cx",
-        "dawn.ledger.top",
-        "dawn.ledger.height",
-        "dawn.ledger.bottom",
-        "dawn.ledger.cy",
-        "dawn.ceremony.top",
-        "dawn.ceremony.width",
-        "dawn.ceremony.height",
-        "dawn.ceremony.right",
-        "dawn.ceremony.bottom",
-        "dawn.ceremony.cx",
-        "dawn.content.width",
-        "embark.aspectCards",
-        "scene.centerPanel.width"
-      ]
+      "deltaCount": 6,
+      "expectedCount": 6,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "embark__desktop-landscape__grown",
-      "deltaCount": 9,
+      "deltaCount": 2,
       "expectedCount": 2,
-      "unexpectedCount": 7,
-      "unexpectedPaths": [
-        "embark.vowDial.left",
-        "embark.vowDial.top",
-        "embark.vowDial.width",
-        "embark.vowDial.height",
-        "embark.vowDial.right",
-        "embark.vowDial.cy",
-        "embark.aspectCards"
-      ]
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "embark__phone-landscape__grown",
-      "deltaCount": 9,
+      "deltaCount": 2,
       "expectedCount": 2,
-      "unexpectedCount": 7,
-      "unexpectedPaths": [
-        "embark.vowDial.left",
-        "embark.vowDial.top",
-        "embark.vowDial.width",
-        "embark.vowDial.right",
-        "embark.vowDial.bottom",
-        "embark.vowDial.cy",
-        "embark.aspectCards"
-      ]
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "embark__pad-landscape__grown",
-      "deltaCount": 9,
+      "deltaCount": 2,
       "expectedCount": 2,
-      "unexpectedCount": 7,
-      "unexpectedPaths": [
-        "embark.vowDial.left",
-        "embark.vowDial.top",
-        "embark.vowDial.width",
-        "embark.vowDial.height",
-        "embark.vowDial.right",
-        "embark.vowDial.cy",
-        "embark.aspectCards"
-      ]
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "event__phone-landscape__grown",
-      "deltaCount": 6,
-      "expectedCount": 3,
-      "unexpectedCount": 3,
-      "unexpectedPaths": [
-        "embark.aspectCards",
-        "scene.centerPanel.width",
-        "vigil.title"
-      ]
+      "deltaCount": 4,
+      "expectedCount": 4,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "fall__desktop-landscape__grown",
-      "deltaCount": 9,
+      "deltaCount": 2,
       "expectedCount": 2,
-      "unexpectedCount": 7,
-      "unexpectedPaths": [
-        "dawn.ledger.left",
-        "dawn.ledger.top",
-        "dawn.ledger.width",
-        "dawn.ledger.right",
-        "dawn.ledger.bottom",
-        "dawn.ledger.cy",
-        "embark.aspectCards"
-      ]
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "fall__pad-landscape__grown",
-      "deltaCount": 9,
+      "deltaCount": 2,
       "expectedCount": 2,
-      "unexpectedCount": 7,
-      "unexpectedPaths": [
-        "dawn.ledger.left",
-        "dawn.ledger.top",
-        "dawn.ledger.width",
-        "dawn.ledger.right",
-        "dawn.ledger.bottom",
-        "dawn.ledger.cy",
-        "embark.aspectCards"
-      ]
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "lamplighter__phone-portrait__grown",
-      "deltaCount": 6,
+      "deltaCount": 3,
       "expectedCount": 3,
-      "unexpectedCount": 3,
-      "unexpectedPaths": [
-        "embark.aspectCards",
-        "scene.centerPanel.height",
-        "lamp.root.height"
-      ]
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "lamplighter__phone-landscape__grown",
-      "deltaCount": 6,
+      "deltaCount": 3,
       "expectedCount": 3,
-      "unexpectedCount": 3,
-      "unexpectedPaths": [
-        "embark.aspectCards",
-        "scene.centerPanel.width",
-        "lamp.root.width"
-      ]
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "map__desktop-landscape__grown",
-      "deltaCount": 5,
-      "expectedCount": 2,
-      "unexpectedCount": 3,
-      "unexpectedPaths": [
-        "embark.aspectCards",
-        "map.bg3dVisible",
-        "map.keepBg3dAttr"
-      ]
+      "deltaCount": 4,
+      "expectedCount": 4,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "rest__phone-landscape__grown",
-      "deltaCount": 6,
-      "expectedCount": 3,
-      "unexpectedCount": 3,
-      "unexpectedPaths": [
-        "embark.aspectCards",
-        "scene.centerPanel.width",
-        "vigil.title"
-      ]
+      "deltaCount": 4,
+      "expectedCount": 4,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "rewards__phone-landscape__grown",
-      "deltaCount": 6,
-      "expectedCount": 3,
-      "unexpectedCount": 3,
-      "unexpectedPaths": [
-        "embark.aspectCards",
-        "scene.centerPanel.width",
-        "vigil.title"
-      ]
+      "deltaCount": 4,
+      "expectedCount": 4,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "shop__phone-landscape__grown",
-      "deltaCount": 6,
-      "expectedCount": 3,
-      "unexpectedCount": 3,
-      "unexpectedPaths": [
-        "embark.aspectCards",
-        "scene.centerPanel.width",
-        "vigil.title"
-      ]
+      "deltaCount": 4,
+      "expectedCount": 4,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "treasure__phone-landscape__grown",
-      "deltaCount": 6,
-      "expectedCount": 3,
-      "unexpectedCount": 3,
-      "unexpectedPaths": [
-        "embark.aspectCards",
-        "scene.centerPanel.width",
-        "vigil.title"
-      ]
+      "deltaCount": 4,
+      "expectedCount": 4,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "title__desktop-landscape__grown",
-      "deltaCount": 7,
-      "expectedCount": 2,
-      "unexpectedCount": 5,
-      "unexpectedPaths": [
-        "embark.aspectCards",
-        "title.parallaxTop",
-        "title.wordmark.top",
-        "title.wordmark.bottom",
-        "title.wordmark.cy"
-      ]
+      "deltaCount": 3,
+      "expectedCount": 3,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "title__phone-portrait__grown",
-      "deltaCount": 11,
-      "expectedCount": 2,
-      "unexpectedCount": 9,
-      "unexpectedPaths": [
-        "embark.aspectCards",
-        "title.parallaxTop",
-        "title.wordmark.left",
-        "title.wordmark.top",
-        "title.wordmark.width",
-        "title.wordmark.height",
-        "title.wordmark.right",
-        "title.wordmark.bottom",
-        "title.wordmark.cy"
-      ]
+      "deltaCount": 3,
+      "expectedCount": 3,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "title__phone-landscape__grown",
-      "deltaCount": 6,
+      "deltaCount": 2,
       "expectedCount": 2,
-      "unexpectedCount": 4,
-      "unexpectedPaths": [
-        "embark.aspectCards",
-        "title.wordmark.top",
-        "title.wordmark.bottom",
-        "title.wordmark.cy"
-      ]
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     },
     {
       "id": "vigil__phone-landscape__grown",
-      "deltaCount": 9,
+      "deltaCount": 2,
       "expectedCount": 2,
-      "unexpectedCount": 7,
-      "unexpectedPaths": [
-        "embark.aspectCards",
-        "vigil.title.left",
-        "vigil.title.top",
-        "vigil.title.width",
-        "vigil.title.right",
-        "vigil.title.bottom",
-        "vigil.title.cy"
-      ]
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
     }
   ],
   "sha256": "1708886b1d170f0c63b8725d97c76b22465c9dfea21403d49767d16bd7c0c14f"

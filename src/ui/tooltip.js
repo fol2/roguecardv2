@@ -1,7 +1,9 @@
 import * as E from '../engine.js';
+import { cardArtSvg } from '../art.js';
 import { stageH, stageW, toStage } from '../stage.js';
-import { $, FINE, S, el } from './context.js';
+import { $, $$, FINE, S, el } from './context.js';
 import { contentViewFor } from './content.js';
+import { rasterOr } from './assets.js';
 
 export function createTooltip({
   tr,
@@ -157,9 +159,13 @@ export function createTooltip({
 
   /**
    * DOM card host for shop / reward / overlay / (until Task 27) combat hand.
-   * Sole face bake is the Pixi composer export — no competing P1 DOM face layout.
+   * Default face bake is the Pixi composer export.
+   * `domFace`: live CSS face (art + tint rim + fmtText) — shop / contact-compare
+   * golden (public-preview) path; use when export PNGs cannot match DOM chrome.
+   * `costOverlay`: bake face without the clipped in-canvas gem and mount a real
+   * `.card-cost` (top/left -8) so export hosts match golden overhang.
    */
-  function cardEl(inst, { inCombat = false, size = null } = {}) {
+  function cardEl(inst, { inCombat = false, size = null, costOverlay = false, domFace = false } = {}) {
     const data = E.cardData(inst, S.run);
     const card = el('div', `card t-${data.type} r-${data.rarity}${inst.up ? ' upgraded' : ''}`);
     if (size) card.style.setProperty('--cw', `${size}px`);
@@ -173,10 +179,34 @@ export function createTooltip({
     }
     card._tip = { title: data.name, body: text };
 
+    // Live DOM face — identical structure to golden public-preview cardEl.
+    if (domFace) {
+      const costHtml = effectiveCost != null
+        ? `<div class="card-cost${effectiveCost === 0 ? ' free' : ''}">${effectiveCost}</div>`
+        : '';
+      card.innerHTML = `<div class="card-lift">${costHtml}<div class="card-inner">
+      <div class="card-art">${rasterOr('cards', inst.id, cardArtSvg(inst.id, data.type))}</div>
+      <div class="card-name">${data.name}</div>
+      <div class="card-type">${data.type}</div>
+      <div class="card-text"><span class="ct-inner">${text}</span></div>
+      <div class="card-rarity"></div>
+    </div></div>`;
+      const keywords = KEYWORDS();
+      $$('.kw', card).forEach((keyword) => {
+        keyword._tip = { title: keyword.textContent, body: keywords[keyword.textContent] || '' };
+      });
+      wireCardFoil(card);
+      return card;
+    }
+
     const composer = typeof getCardFaceComposer === 'function' ? getCardFaceComposer() : null;
     if (!composer || typeof composer.exportImage !== 'function') {
       // Composer not booted — empty shell only (never a second DOM face bake).
       card.innerHTML = '<div class="card-lift"><div class="card-inner card-inner-export"></div></div>';
+      if (costOverlay && effectiveCost != null) {
+        const lift = $('.card-lift', card);
+        lift?.insertBefore(el('div', `card-cost${effectiveCost === 0 ? ' free' : ''}`, String(effectiveCost)), lift.firstChild);
+      }
       wireCardFoil(card);
       return card;
     }
@@ -189,13 +219,17 @@ export function createTooltip({
       { id: inst.id, up: !!inst.up },
       {
         up: !!inst.up,
-        effectiveCost,
+        // null omits the gem from the bake when a DOM `.card-cost` will overlay.
+        effectiveCost: costOverlay ? null : effectiveCost,
         effectiveText,
       },
     );
     card.dataset.cardFaceKey = exported.key;
     card._cardFaceRelease = exported.release;
-    card.innerHTML = `<div class="card-lift"><div class="card-inner card-inner-export">
+    const costHtml = (costOverlay && effectiveCost != null)
+      ? `<div class="card-cost${effectiveCost === 0 ? ' free' : ''}">${effectiveCost}</div>`
+      : '';
+    card.innerHTML = `<div class="card-lift">${costHtml}<div class="card-inner card-inner-export">
       <img class="card-face-export" alt="" draggable="false"
         data-card-face-key="${exported.key}"
         src="${exported.url}"

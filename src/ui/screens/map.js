@@ -134,7 +134,7 @@ function renderMap() {
   const eighthEcho = omenId === 'eighthOmen';
   screenEl().innerHTML = `
     <div class="map-shell r5-map" ${rootAttrs(profile, 'rest')} data-r5-sealed="${sealedState}"${eighthEcho ? ' data-r5-eighth="map-eighth-echo-held"' : ''}>
-    <div class="map-title r5-scene-header"><b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits${omen ? ` &nbsp;·&nbsp; <span class="mt-omen" style="color:${omen.tone}">${omenMark(omenId, 'mt-omen-art', 'mt-omen-fallback', 18)}<span class="mt-omen-name">${omen.name}</span></span>` : ''}</div>
+    <div class="map-title r5-scene-header">ACT ${run.act + 1} — <b>${act.name.toUpperCase()}</b> — ${act.bossName} awaits${omen ? ` &nbsp;·&nbsp; <span class="mt-omen" style="color:${omen.tone}">${omenMark(omenId, 'mt-omen-art', 'mt-omen-fallback', 18)}<span class="mt-omen-name">${omen.name}</span></span>` : ''}</div>
     <div class="map-screen screen-enter">
       <div class="map-haze" style="--haze:${haze}"></div>
       <svg class="map-svg" width="100%" height="100%">${mapDefs}${edges}${dots}</svg>

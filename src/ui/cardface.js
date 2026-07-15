@@ -16,6 +16,7 @@ import {
   faceDprCap,
   layoutCardFace,
   rarityRailColour,
+  typeTintCss,
 } from './cardface-layout.js';
 import { COLOUR, resolveTier } from './tokens.js';
 
@@ -26,13 +27,42 @@ function hexToInt(hex, fallback = 0xffffff) {
   return Number.parseInt(clean, 16);
 }
 
-function typeTint(type) {
-  if (type === 'attack') return 0x7e3040;
-  if (type === 'skill') return 0x2f5a80;
-  if (type === 'power') return 0x5c3f8f;
-  if (type === 'curse') return 0x5c3a5c;
-  return 0x47584f;
+function parseRgb(css) {
+  if (typeof css !== 'string') return null;
+  const hex = css.trim().replace(/^#/, '');
+  if (/^[0-9a-fA-F]{6}$/.test(hex)) {
+    return {
+      r: Number.parseInt(hex.slice(0, 2), 16),
+      g: Number.parseInt(hex.slice(2, 4), 16),
+      b: Number.parseInt(hex.slice(4, 6), 16),
+    };
+  }
+  const m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i.exec(css);
+  if (!m) return null;
+  return { r: +m[1], g: +m[2], b: +m[3] };
 }
+
+function mixCss(a, b, t) {
+  const A = parseRgb(a);
+  const B = parseRgb(b);
+  if (!A || !B) return a;
+  const u = Math.max(0, Math.min(1, t));
+  const r = Math.round(A.r + (B.r - A.r) * u);
+  const g = Math.round(A.g + (B.g - A.g) * u);
+  const bch = Math.round(A.b + (B.b - A.b) * u);
+  return `#${[r, g, bch].map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Production parchment / body / upgraded-name (styles.css), not Round5 COLOUR drift. */
+const PROD = Object.freeze({
+  parchment: '#e8dfc8',
+  body: '#c6ccdf',
+  nameUp: '#9be8a8',
+  lead: '#05070e',
+  costInk: '#241a05',
+  paneTop: 'rgba(16, 20, 36, 0.9)',
+  paneBot: 'rgba(9, 11, 20, 0.94)',
+});
 
 /** Flat hex vertices matching `.card-cost` clip-path polygon (stage-local). */
 function hexGemPoints(cx, cy, size) {
@@ -45,14 +75,7 @@ function hexGemPoints(cx, cy, size) {
   return pairs.map(([px, py]) => [x + px * size, y + py * size]);
 }
 
-function drawHexGemPixi(graphics, cx, cy, size, fill, stroke) {
-  const pts = hexGemPoints(cx, cy, size).flat();
-  graphics.poly(pts)
-    .fill({ color: fill })
-    .stroke({ color: stroke, width: 1.5 });
-}
-
-function drawHexGemCanvas(ctx, cx, cy, size, fillCss, strokeCss) {
+function clipHexPath(ctx, cx, cy, size) {
   const pts = hexGemPoints(cx, cy, size);
   ctx.beginPath();
   pts.forEach(([px, py], i) => {
@@ -60,11 +83,56 @@ function drawHexGemCanvas(ctx, cx, cy, size, fillCss, strokeCss) {
     else ctx.lineTo(px, py);
   });
   ctx.closePath();
-  ctx.fillStyle = fillCss;
+}
+
+/** Production `.card-cost` gold / free green hex gem (conic approximated). */
+function drawHexGemCanvas(ctx, cx, cy, size, { free = false } = {}) {
+  ctx.save();
+  clipHexPath(ctx, cx, cy, size);
+  ctx.clip();
+  const g = ctx.createLinearGradient(cx - size / 2, cy - size / 2, cx + size / 2, cy + size / 2);
+  if (free) {
+    g.addColorStop(0, '#d9fbe7');
+    g.addColorStop(0.35, '#37d67a');
+    g.addColorStop(0.7, '#17703e');
+    g.addColorStop(1, '#37d67a');
+  } else {
+    g.addColorStop(0, '#ffe9ac');
+    g.addColorStop(0.35, '#f2c14e');
+    g.addColorStop(0.7, '#b3831f');
+    g.addColorStop(1, '#f2c14e');
+  }
+  ctx.fillStyle = g;
   ctx.fill();
-  ctx.strokeStyle = strokeCss;
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
+  const shine = ctx.createLinearGradient(cx - size / 2, cy - size / 2, cx + size / 2, cy + size / 2);
+  shine.addColorStop(0, 'rgba(255,255,255,0.55)');
+  shine.addColorStop(0.28, 'transparent');
+  ctx.fillStyle = shine;
+  ctx.fill();
+  const shade = ctx.createLinearGradient(cx + size / 2, cy + size / 2, cx - size / 2, cy - size / 2);
+  shade.addColorStop(0, free ? 'rgba(19,91,50,0.8)' : 'rgba(122,84,23,0.75)');
+  shade.addColorStop(0.3, 'transparent');
+  ctx.fillStyle = shade;
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  clipHexPath(ctx, cx, cy, size * 0.78);
+  ctx.clip();
+  const inset = ctx.createLinearGradient(cx, cy - size / 2, cx, cy + size / 2);
+  inset.addColorStop(0, 'rgba(255,255,255,0.35)');
+  inset.addColorStop(0.42, 'transparent');
+  inset.addColorStop(0.88, 'rgba(0,0,0,0.22)');
+  ctx.fillStyle = inset;
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawHexGemPixi(graphics, cx, cy, size, fill, stroke) {
+  const pts = hexGemPoints(cx, cy, size).flat();
+  graphics.poly(pts)
+    .fill({ color: fill })
+    .stroke({ color: stroke, width: 1.5 });
 }
 
 function drawRarityChipPixi(graphics, region, colour, alpha = 1) {
@@ -73,10 +141,22 @@ function drawRarityChipPixi(graphics, region, colour, alpha = 1) {
     .fill({ color: colour, alpha });
 }
 
-function drawRarityChipCanvas(ctx, region, colourCss) {
+function drawRarityChipCanvas(ctx, region, colourCss, rarity) {
   const r = region.radius ?? 3;
   roundRectPath(ctx, region.x, region.y, region.w, region.h, r);
-  ctx.fillStyle = colourCss;
+  if (rarity === 'uncommon') {
+    const g = ctx.createLinearGradient(region.x, region.y, region.x + region.w, region.y);
+    g.addColorStop(0, '#47c2e0');
+    g.addColorStop(1, '#7fe3f2');
+    ctx.fillStyle = g;
+  } else if (rarity === 'rare' || rarity === 'boss') {
+    const g = ctx.createLinearGradient(region.x, region.y, region.x + region.w, region.y);
+    g.addColorStop(0, COLOUR.gold);
+    g.addColorStop(1, '#ffe9ac');
+    ctx.fillStyle = g;
+  } else {
+    ctx.fillStyle = colourCss;
+  }
   ctx.fill();
 }
 
@@ -306,23 +386,190 @@ export function createCardFaceComposer({
     return { layout, dpr, fields };
   }
 
+  /**
+   * Production-parity face bake. Canvas2d is the sole paint authority so combat
+   * textures and shop/deck exportImage share one raster that mirrors styles.css.
+   */
+  function paintFaceCanvas2d(layout) {
+    if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
+      return null;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = CARD_FACE_WIDTH;
+    canvas.height = CARD_FACE_HEIGHT;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const { width, height, regions } = layout;
+    const tint = typeTintCss(layout.type);
+    const lead = PROD.lead;
+
+    // `.card-inner` pane — radius 11, lead border, type-tinted glass gradient.
+    ctx.save();
+    roundRectPath(ctx, 0, 0, width, height, 11);
+    ctx.clip();
+    const pane = ctx.createLinearGradient(0, 0, width * 0.15, height);
+    pane.addColorStop(0, mixCss(tint, '#101424', 0.85));
+    pane.addColorStop(0.58, '#090b14');
+    ctx.fillStyle = pane;
+    ctx.fillRect(0, 0, width, height);
+    // Inset tint rim (approx inset box-shadow).
+    ctx.strokeStyle = mixCss(tint, 'rgba(0,0,0,0)', 0.4);
+    ctx.globalAlpha = 0.4;
+    ctx.lineWidth = 1;
+    roundRectPath(ctx, 1, 1, width - 2, height - 2, 10);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    ctx.strokeStyle = layout.rarity === 'rare' || layout.rarity === 'boss' ? '#1a1408' : lead;
+    ctx.lineWidth = 2;
+    roundRectPath(ctx, 1, 1, width - 2, height - 2, 11);
+    ctx.stroke();
+
+    // `.card-art` — full-width 43% band + radial tint wash + art image.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(regions.art.x, regions.art.y, regions.art.w, regions.art.h);
+    ctx.clip();
+    const artWash = ctx.createRadialGradient(
+      regions.art.x + regions.art.w / 2,
+      regions.art.y + regions.art.h * 0.45,
+      4,
+      regions.art.x + regions.art.w / 2,
+      regions.art.y + regions.art.h * 0.45,
+      regions.art.w * 0.55,
+    );
+    artWash.addColorStop(0, mixCss(tint, 'rgba(0,0,0,0)', 0.14));
+    artWash.addColorStop(0.75, 'rgba(0,0,0,0)');
+    ctx.fillStyle = artWash;
+    ctx.fillRect(regions.art.x, regions.art.y, regions.art.w, regions.art.h);
+
+    const artImg = assets?.cardArtImage?.(layout.id) || null;
+    if (artImg && artImg.complete && artImg.naturalWidth > 0) {
+      try {
+        ctx.drawImage(
+          artImg,
+          regions.art.x, regions.art.y, regions.art.w, regions.art.h,
+        );
+      } catch { /* tainted / stub */ }
+    }
+    ctx.restore();
+    ctx.strokeStyle = lead;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, regions.art.y + regions.art.h);
+    ctx.lineTo(width, regions.art.y + regions.art.h);
+    ctx.stroke();
+
+    // Name band gold hairlines + Cinzel 13.5 (upgraded → #9be8a8).
+    const nameCy = regions.name.y + regions.name.h / 2;
+    ctx.strokeStyle = 'rgba(242,193,78,0.22)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(width * 0.04, regions.name.y + 1);
+    ctx.lineTo(width * 0.96, regions.name.y + 1);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(242,193,78,0.14)';
+    ctx.beginPath();
+    ctx.moveTo(width * 0.10, regions.name.y + regions.name.h - 1);
+    ctx.lineTo(width * 0.90, regions.name.y + regions.name.h - 1);
+    ctx.stroke();
+    ctx.fillStyle = layout.up ? PROD.nameUp : PROD.parchment;
+    ctx.font = '700 13.5px Cinzel, serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(layout.name, width / 2, nameCy, regions.name.w);
+
+    // `.card-type` — uppercase tracked tint label.
+    ctx.fillStyle = tint;
+    ctx.globalAlpha = 0.9;
+    ctx.font = '500 10px Alegreya, serif';
+    if (typeof ctx.letterSpacing === 'string' || typeof ctx.letterSpacing === 'number') {
+      ctx.letterSpacing = '0.28em';
+    }
+    ctx.fillText(String(layout.type || '').toUpperCase(), width / 2, regions.type.y + regions.type.h / 2);
+    ctx.letterSpacing = '0px';
+    ctx.globalAlpha = 1;
+
+    // Body — production keyword tint + parchment values (no inline icons).
+    const body = layout.body;
+    const lineHeight = body.fontSize * 1.32;
+    const bodyTop = regions.body.y
+      + Math.max(0, (regions.body.h - body.lines.length * lineHeight) / 2);
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    body.lines.forEach((line, index) => {
+      const y = bodyTop + index * lineHeight;
+      const advances = line.map((tok) => {
+        if (tok.kind === 'value') return approximateMeasure(String(tok.value), body.fontSize, 'body') * 1.05;
+        if (tok.kind === 'ellipsis') return approximateMeasure('…', body.fontSize, 'body');
+        return approximateMeasure(tok.text || '', body.fontSize, 'body');
+      });
+      const total = advances.reduce((a, b) => a + b, 0);
+      let x = regions.body.x + (regions.body.w - total) / 2;
+      line.forEach((tok, ti) => {
+        const text = tok.kind === 'value' ? String(tok.value)
+          : tok.kind === 'ellipsis' ? '…'
+            : (tok.text || '');
+        if (!text) return;
+        if (tok.kind === 'keyword') {
+          ctx.fillStyle = tint;
+          ctx.font = `${body.fontSize}px Alegreya, serif`;
+          ctx.fillText(text, x, y);
+          ctx.strokeStyle = mixCss(tint, 'rgba(0,0,0,0)', 0.6);
+          ctx.globalAlpha = 0.6;
+          ctx.beginPath();
+          ctx.moveTo(x, y + body.fontSize + 1);
+          ctx.lineTo(x + advances[ti], y + body.fontSize + 1);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        } else if (tok.kind === 'value') {
+          ctx.fillStyle = PROD.parchment;
+          ctx.font = `700 ${body.fontSize}px Alegreya, serif`;
+          ctx.fillText(text, x, y);
+        } else {
+          ctx.fillStyle = PROD.body;
+          ctx.font = `${body.fontSize}px Alegreya, serif`;
+          ctx.fillText(text, x, y);
+        }
+        x += advances[ti];
+      });
+    });
+
+    drawRarityChipCanvas(ctx, regions.rarityRail, rarityRailColour(layout.rarity), layout.rarity);
+
+    // Cost gem last so it sits above the art (production z-index 4).
+    if (layout.cost != null) {
+      const cx = regions.cost.x + regions.cost.size / 2;
+      const cy = regions.cost.y + regions.cost.size / 2;
+      drawHexGemCanvas(ctx, cx, cy, regions.cost.size, { free: layout.cost === 0 });
+      ctx.fillStyle = PROD.costInk;
+      ctx.font = '800 17px Cinzel, serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(layout.cost), cx, cy);
+    }
+
+    return canvas;
+  }
+
+  /** Pixi display list mirroring the canvas bake (extract fallback / live preview). */
   function paintFace(layout) {
     const root = new Container();
     const { width, height, regions } = layout;
+    const tint = hexToInt(typeTintCss(layout.type), 0x8fa3d8);
 
     const frame = new Graphics();
-    frame.roundRect(0, 0, width, height, 14)
-      .fill({ color: ink, alpha: 0.96 })
-      .stroke({ color: ink, width: 2, alpha: 0.96 });
-    frame.roundRect(3, 3, width - 6, height - 6, 12)
-      .stroke({ color: goldDim, width: 1, alpha: 0.66 });
-    frame.roundRect(1, 1, width - 2, height - 2, 13)
-      .stroke({ color: typeTint(layout.type), width: 2, alpha: 0.55 });
+    frame.roundRect(0, 0, width, height, 11)
+      .fill({ color: hexToInt(mixCss(typeTintCss(layout.type), '#101424', 0.85), ink), alpha: 0.96 })
+      .stroke({ color: hexToInt(PROD.lead, 0x05070e), width: 2 });
+    frame.roundRect(1, 1, width - 2, height - 2, 10)
+      .stroke({ color: tint, width: 1, alpha: 0.4 });
     root.addChild(frame);
 
     const artBg = new Graphics();
-    artBg.roundRect(regions.art.x, regions.art.y, regions.art.w, regions.art.h, 10)
-      .fill({ color: typeTint(layout.type), alpha: 0.35 });
+    artBg.rect(regions.art.x, regions.art.y, regions.art.w, regions.art.h)
+      .fill({ color: tint, alpha: 0.14 });
     root.addChild(artBg);
     const artTex = assets?.cardArt?.(layout.id) || assets?.getCardArt?.(layout.id) || null;
     if (artTex && artTex !== Texture.EMPTY) {
@@ -333,20 +580,25 @@ export function createCardFaceComposer({
       sprite.height = regions.art.h;
       root.addChild(sprite);
     }
+    const artRule = new Graphics();
+    artRule.rect(0, regions.art.y + regions.art.h - 1, width, 1)
+      .fill({ color: hexToInt(PROD.lead, 0x05070e) });
+    root.addChild(artRule);
 
     if (layout.cost != null) {
       const gem = new Graphics();
       const cx = regions.cost.x + regions.cost.size / 2;
       const cy = regions.cost.y + regions.cost.size / 2;
-      drawHexGemPixi(gem, cx, cy, regions.cost.size, gold, ink);
+      const gemFill = layout.cost === 0 ? 0x37d67a : gold;
+      drawHexGemPixi(gem, cx, cy, regions.cost.size, gemFill, hexToInt(PROD.lead, ink));
       root.addChild(gem);
       const costText = new Text({
         text: String(layout.cost),
         style: {
           fontFamily: 'Cinzel',
-          fontSize: 18,
+          fontSize: 17,
           fontWeight: '800',
-          fill: ink,
+          fill: hexToInt(PROD.costInk, 0x241a05),
           align: 'center',
         },
       });
@@ -360,9 +612,9 @@ export function createCardFaceComposer({
       text: layout.name,
       style: {
         fontFamily: 'Cinzel',
-        fontSize: 17,
+        fontSize: 13.5,
         fontWeight: '700',
-        fill: layout.up ? ember : parchment,
+        fill: layout.up ? hexToInt(PROD.nameUp, 0x9be8a8) : hexToInt(PROD.parchment, parchment),
         align: 'center',
         letterSpacing: 0.3,
       },
@@ -376,11 +628,28 @@ export function createCardFaceComposer({
     }
     root.addChild(nameText);
 
+    const typeText = new Text({
+      text: String(layout.type || '').toUpperCase(),
+      style: {
+        fontFamily: 'Alegreya',
+        fontSize: 10,
+        fill: tint,
+        align: 'center',
+        letterSpacing: 2.8,
+      },
+    });
+    typeText.alpha = 0.9;
+    typeText.anchor?.set?.(0.5, 0.5);
+    typeText.x = regions.type.x + regions.type.w / 2;
+    typeText.y = regions.type.y + regions.type.h / 2;
+    root.addChild(typeText);
+
     const body = layout.body;
-    const lineHeight = body.fontSize * 1.25;
+    const lineHeight = body.fontSize * 1.32;
     const bodyTop = regions.body.y
       + Math.max(0, (regions.body.h - body.lines.length * lineHeight) / 2);
     body.lines.forEach((line, index) => {
+      // Pixi path: one coloured line as plain text (canvas path is authoritative for export).
       const plain = linePlainText(line);
       if (!plain) return;
       const lineText = new Text({
@@ -388,7 +657,7 @@ export function createCardFaceComposer({
         style: {
           fontFamily: 'Alegreya',
           fontSize: body.fontSize,
-          fill: textColour,
+          fill: hexToInt(PROD.body, textColour),
           align: 'center',
           wordWrap: false,
         },
@@ -403,33 +672,23 @@ export function createCardFaceComposer({
     drawRarityChipPixi(
       chip,
       regions.rarityRail,
-      hexToInt(rarityRailColour(layout.rarity), 0xaaa6b8),
+      hexToInt(rarityRailColour(layout.rarity), 0x5d6a88),
       tier === 'lite' ? 0.82 : 1,
     );
     root.addChild(chip);
-
-    if (layout.up) {
-      const mark = new Graphics();
-      mark.circle(width - 18, 18, 11)
-        .fill({ color: ember, alpha: 0.92 })
-        .stroke({ color: ink, width: 1 });
-      root.addChild(mark);
-      const plus = new Text({
-        text: '+',
-        style: { fontFamily: 'Cinzel', fontSize: 14, fontWeight: '700', fill: ink },
-      });
-      plus.anchor?.set?.(0.5, 0.5);
-      plus.x = width - 18;
-      plus.y = 18;
-      root.addChild(plus);
-    }
-
     return root;
   }
 
   function bakeTexture(layout) {
     if (typeof bakeFace === 'function') {
       return bakeFace(layout);
+    }
+    // Prefer the production-parity canvas bake so combat == shop/deck.
+    const canvas = paintFaceCanvas2d(layout);
+    if (canvas && typeof Texture.from === 'function') {
+      try {
+        return Texture.from(canvas);
+      } catch { /* fall through to Pixi generateTexture */ }
     }
     const canGenerate = typeof renderer.generateTexture === 'function'
       || typeof renderer.textureGenerator?.generateTexture === 'function';
@@ -500,94 +759,6 @@ export function createCardFaceComposer({
       texture: entry.texture,
       release() { releaseRef(entry); },
     });
-  }
-
-  function paintFaceCanvas2d(layout) {
-    if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
-      return null;
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = CARD_FACE_WIDTH;
-    canvas.height = CARD_FACE_HEIGHT;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    const { width, height, regions } = layout;
-    const inkCss = tokens?.ink || COLOUR.ink;
-    const goldCss = tokens?.gold || COLOUR.gold;
-    const goldDimCss = tokens?.['gold-dim'] || COLOUR.goldDim;
-    const parchmentCss = tokens?.parchment || COLOUR.parchment;
-    const textCss = tokens?.text || COLOUR.text;
-    const emberCss = tokens?.ember || COLOUR.ember;
-    const typeFill = layout.type === 'attack' ? '#7e3040'
-      : layout.type === 'skill' ? '#2f5a80'
-        : layout.type === 'power' ? '#5c3f8f'
-          : layout.type === 'curse' ? '#5c3a5c' : '#47584f';
-
-    ctx.fillStyle = inkCss;
-    roundRectPath(ctx, 0, 0, width, height, 14);
-    ctx.fill();
-    ctx.strokeStyle = goldDimCss;
-    ctx.lineWidth = 1;
-    roundRectPath(ctx, 3, 3, width - 6, height - 6, 12);
-    ctx.stroke();
-    ctx.fillStyle = typeFill;
-    ctx.globalAlpha = 0.35;
-    roundRectPath(ctx, regions.art.x, regions.art.y, regions.art.w, regions.art.h, 10);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    const artImg = assets?.cardArtImage?.(layout.id) || null;
-    if (artImg && artImg.complete && artImg.naturalWidth > 0) {
-      try {
-        ctx.drawImage(
-          artImg,
-          regions.art.x, regions.art.y, regions.art.w, regions.art.h,
-        );
-      } catch { /* tainted / stub */ }
-    }
-
-    if (layout.cost != null) {
-      const cx = regions.cost.x + regions.cost.size / 2;
-      const cy = regions.cost.y + regions.cost.size / 2;
-      drawHexGemCanvas(ctx, cx, cy, regions.cost.size, goldCss, inkCss);
-      ctx.fillStyle = inkCss;
-      ctx.font = '800 18px Cinzel, serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(String(layout.cost), cx, cy);
-    }
-
-    ctx.fillStyle = layout.up ? emberCss : parchmentCss;
-    ctx.font = '700 17px Cinzel, serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(
-      layout.name,
-      regions.name.x + regions.name.w / 2,
-      regions.name.y + regions.name.h / 2,
-      regions.name.w,
-    );
-
-    const body = layout.body;
-    const lineHeight = body.fontSize * 1.25;
-    const bodyTop = regions.body.y
-      + Math.max(0, (regions.body.h - body.lines.length * lineHeight) / 2);
-    ctx.fillStyle = textCss;
-    ctx.font = `${body.fontSize}px Alegreya, serif`;
-    ctx.textBaseline = 'top';
-    body.lines.forEach((line, index) => {
-      const plain = linePlainText(line);
-      if (!plain) return;
-      ctx.fillText(
-        plain,
-        regions.body.x + regions.body.w / 2,
-        bodyTop + index * lineHeight,
-        regions.body.w,
-      );
-    });
-
-    drawRarityChipCanvas(ctx, regions.rarityRail, rarityRailColour(layout.rarity));
-    return canvas;
   }
 
   function roundRect(ctx, x, y, w, h, r) {

@@ -486,15 +486,15 @@ function forceHand(run, cb, ids) {
   assert.match(uiSources, /(?:const|function)\s+FACET_DESC\b[\s\S]*?=>\s*tr\(/,
     'FACET_DESC remains a lazy locale factory');
   assert.match(uiSources, /(?:const|function)\s+KEYWORDS\b[\s\S]*?=>\s*\(\{/, 'KEYWORDS remains a lazy factory');
-  // Task 26 — DOM card faces are composer exports (no second P1 .card-art bake).
-  // Keyword spans still come from fmtText for tip bodies; live .kw nodes on the
-  // card face itself are gone with the raster export.
+  // Task 26 — default cardEl uses composer export; shop opts into live DOM
+  // faces (domFace) so contact-compare matches golden public-preview art/rim.
+  // Keyword spans still come from fmtText for tip bodies (+ live .kw on domFace).
   assert.match(uiSources, /function fmtText\b[\s\S]{0,2500}class="kw"/,
     'fmtText still wraps keyword spans for tip bodies');
   assert.match(uiSources, /composer\.exportImage|exportImage\(/,
     'cardEl consumes the single composer exportImage path');
-  assert.doesNotMatch(uiSources, /card-art\$\{|cardArtSvg\(inst\.id/,
-    'P1 DOM card-art bake is not competing at the cardEl merge boundary');
+  assert.match(uiSources, /domFace[\s\S]{0,1200}card-art|if\s*\(\s*domFace\s*\)/,
+    'live DOM card-art bake is gated behind domFace (shop golden parity)');
   const combatSource = readFileSync(new URL('../src/ui/combat.js', import.meta.url), 'utf8');
   const drainSource = readFileSync(new URL('../src/ui/drain.js', import.meta.url), 'utf8');
   assert.match(combatSource, /function syncHand\([\s\S]*?releaseCardFace/,
@@ -9291,7 +9291,7 @@ export default defineContentRegistration({
 
   assert.equal(CARD_FACE_WIDTH, 152);
   assert.equal(CARD_FACE_HEIGHT, 216);
-  assert.deepEqual([...BODY_FONT_STEPS], [13, 12, 11]);
+  assert.deepEqual([...BODY_FONT_STEPS], [12.8, 11.5, 10.5]);
   assert.equal(BODY_MAX_LINES, 6);
   assert.equal(FACE_CACHE_MAX_ENTRIES, 24);
   assert.equal(FACE_CACHE_BYTE_CAPS.lite, 4_191_990);
@@ -9314,11 +9314,19 @@ export default defineContentRegistration({
   assert.ok(regions.body.w > 100);
   assert.equal(regions.rarityRail.h, 5, 'rarity chrome is a .card-rarity chip height, not a 2px rail');
   assert.equal(regions.rarityRail.w, 24);
-  assert.ok(regions.art.h < CARD_FACE_HEIGHT * 0.5, 'art band leaves PE margins');
+  assert.ok(regions.type, 'production type row region present');
+  assert.equal(regions.art.x, 0, 'art band is full-bleed like .card-art');
+  assert.ok(regions.art.h < CARD_FACE_HEIGHT * 0.5, 'art band leaves room for name/type/body');
+  assert.equal(regions.cost.size, 36, 'cost gem matches .card-cost 36px');
   assert.match(
     readFileSync(new URL('../src/ui/cardface.js', import.meta.url), 'utf8'),
     /hexGemPoints|drawHexGem/,
     'cardface paints hex cost gem matching .card-cost clip-path',
+  );
+  assert.match(
+    readFileSync(new URL('../src/ui/cardface.js', import.meta.url), 'utf8'),
+    /toUpperCase\(\)|card-type|regions\.type/,
+    'cardface paints production ATTACK/SKILL type row',
   );
   assert.match(
     readFileSync(new URL('../src/ui/combat-gl.js', import.meta.url), 'utf8'),
@@ -9359,7 +9367,7 @@ export default defineContentRegistration({
   assert.equal(overflow.ellipsized, true);
   assert.ok(overflow.diagnostic);
   assert.equal(overflow.diagnostic.code, 'cardface-body-overflow');
-  assert.equal(overflow.fontSize, 11);
+  assert.equal(overflow.fontSize, 10.5);
 
   // Every base + upgraded core card fits without emergency fallback.
   for (const [id, card] of Object.entries(CARDS)) {

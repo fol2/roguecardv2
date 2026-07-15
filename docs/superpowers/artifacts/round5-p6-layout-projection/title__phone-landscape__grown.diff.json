@@ -1,43 +1,14 @@
 {
   "id": "title__phone-landscape__grown",
-  "deltaCount": 6,
+  "deltaCount": 2,
   "expectedCount": 2,
-  "unexpectedCount": 4,
-  "unexpectedPaths": [
-    "embark.aspectCards",
-    "title.wordmark.top",
-    "title.wordmark.bottom",
-    "title.wordmark.cy"
-  ],
+  "unexpectedCount": 0,
+  "unexpectedPaths": [],
   "expectedPathsHit": [
     "cardface.hasArtTexture",
     "cardface.rarityAccentDistinct"
   ],
   "deltas": [
-    {
-      "path": "embark.aspectCards",
-      "kind": "value-drift",
-      "live": [],
-      "golden": []
-    },
-    {
-      "path": "title.wordmark.top",
-      "kind": "box-drift",
-      "live": 7.786719703674302,
-      "golden": 261.2446252215542
-    },
-    {
-      "path": "title.wordmark.bottom",
-      "kind": "box-drift",
-      "live": 67.521098279953,
-      "golden": 321.87498503709566
-    },
-    {
-      "path": "title.wordmark.cy",
-      "kind": "box-drift",
-      "live": 37.65390899181365,
-      "golden": 291.5598051293249
-    },
     {
       "path": "cardface.hasArtTexture",
       "kind": "missing-golden",

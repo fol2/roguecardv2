@@ -1,0 +1,1129 @@
+{
+  "label": "golden-9f10ef2",
+  "origin": "http://127.0.0.1:5199",
+  "sha": "9f10ef276c81330d9a79f2f54a0a5f1c50a5f922",
+  "note": "Base screens captured from 9f10ef2. Phase-2 FE Lab states are PE-only and were not staged on this tip.",
+  "generatedAt": "2026-07-15T18:31:04.593Z",
+  "rows": [
+    {
+      "id": "boss-relic__desktop-landscape__fresh",
+      "kind": "base",
+      "screen": "boss-relic",
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "file": "base/boss-relic__desktop-landscape__fresh.png"
+    },
+    {
+      "id": "boss-relic__desktop-landscape__grown",
+      "kind": "base",
+      "screen": "boss-relic",
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "file": "base/boss-relic__desktop-landscape__grown.png"
+    },
+    {
+      "id": "boss-relic__pad-landscape__fresh",
+      "kind": "base",
+      "screen": "boss-relic",
+      "shape": "pad-landscape",
+      "profile": "fresh",
+      "file": "base/boss-relic__pad-landscape__fresh.png"
+    },
+    {
+      "id": "boss-relic__pad-landscape__grown",
+      "kind": "base",
+      "screen": "boss-relic",
+      "shape": "pad-landscape",
+      "profile": "grown",
+      "file": "base/boss-relic__pad-landscape__grown.png"
+    },
+    {
+      "id": "boss-relic__pad-portrait__fresh",
+      "kind": "base",
+      "screen": "boss-relic",
+      "shape": "pad-portrait",
+      "profile": "fresh",
+      "file": "base/boss-relic__pad-portrait__fresh.png"
+    },
+    {
+      "id": "boss-relic__pad-portrait__grown",
+      "kind": "base",
+      "screen": "boss-relic",
+      "shape": "pad-portrait",
+      "profile": "grown",
+      "file": "base/boss-relic__pad-portrait__grown.png"
+    },
+    {
+      "id": "boss-relic__phone-landscape__fresh",
+      "kind": "base",
+      "screen": "boss-relic",
+      "shape": "phone-landscape",
+      "profile": "fresh",
+      "file": "base/boss-relic__phone-landscape__fresh.png"
+    },
+    {
+      "id": "boss-relic__phone-landscape__grown",
+      "kind": "base",
+      "screen": "boss-relic",
+      "shape": "phone-landscape",
+      "profile": "grown",
+      "file": "base/boss-relic__phone-landscape__grown.png"
+    },
+    {
+      "id": "boss-relic__phone-portrait__fresh",
+      "kind": "base",
+      "screen": "boss-relic",
+      "shape": "phone-portrait",
+      "profile": "fresh",
+      "file": "base/boss-relic__phone-portrait__fresh.png"
+    },
+    {
+      "id": "boss-relic__phone-portrait__grown",
+      "kind": "base",
+      "screen": "boss-relic",
+      "shape": "phone-portrait",
+      "profile": "grown",
+      "file": "base/boss-relic__phone-portrait__grown.png"
+    },
+    {
+      "id": "dawn__desktop-landscape__fresh",
+      "kind": "base",
+      "screen": "dawn",
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "file": "base/dawn__desktop-landscape__fresh.png"
+    },
+    {
+      "id": "dawn__desktop-landscape__grown",
+      "kind": "base",
+      "screen": "dawn",
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "file": "base/dawn__desktop-landscape__grown.png"
+    },
+    {
+      "id": "dawn__pad-landscape__fresh",
+      "kind": "base",
+      "screen": "dawn",
+      "shape": "pad-landscape",
+      "profile": "fresh",
+      "file": "base/dawn__pad-landscape__fresh.png"
+    },
+    {
+      "id": "dawn__pad-landscape__grown",
+      "kind": "base",
+      "screen": "dawn",
+      "shape": "pad-landscape",
+      "profile": "grown",
+      "file": "base/dawn__pad-landscape__grown.png"
+    },
+    {
+      "id": "dawn__pad-portrait__fresh",
+      "kind": "base",
+      "screen": "dawn",
+      "shape": "pad-portrait",
+      "profile": "fresh",
+      "file": "base/dawn__pad-portrait__fresh.png"
+    },
+    {
+      "id": "dawn__pad-portrait__grown",
+      "kind": "base",
+      "screen": "dawn",
+      "shape": "pad-portrait",
+      "profile": "grown",
+      "file": "base/dawn__pad-portrait__grown.png"
+    },
+    {
+      "id": "dawn__phone-landscape__fresh",
+      "kind": "base",
+      "screen": "dawn",
+      "shape": "phone-landscape",
+      "profile": "fresh",
+      "file": "base/dawn__phone-landscape__fresh.png"
+    },
+    {
+      "id": "dawn__phone-landscape__grown",
+      "kind": "base",
+      "screen": "dawn",
+      "shape": "phone-landscape",
+      "profile": "grown",
+      "file": "base/dawn__phone-landscape__grown.png"
+    },
+    {
+      "id": "dawn__phone-portrait__fresh",
+      "kind": "base",
+      "screen": "dawn",
+      "shape": "phone-portrait",
+      "profile": "fresh",
+      "file": "base/dawn__phone-portrait__fresh.png"
+    },
+    {
+      "id": "dawn__phone-portrait__grown",
+      "kind": "base",
+      "screen": "dawn",
+      "shape": "phone-portrait",
+      "profile": "grown",
+      "file": "base/dawn__phone-portrait__grown.png"
+    },
+    {
+      "id": "embark__desktop-landscape__fresh",
+      "kind": "base",
+      "screen": "embark",
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "file": "base/embark__desktop-landscape__fresh.png"
+    },
+    {
+      "id": "embark__desktop-landscape__grown",
+      "kind": "base",
+      "screen": "embark",
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "file": "base/embark__desktop-landscape__grown.png"
+    },
+    {
+      "id": "embark__pad-landscape__fresh",
+      "kind": "base",
+      "screen": "embark",
+      "shape": "pad-landscape",
+      "profile": "fresh",
+      "file": "base/embark__pad-landscape__fresh.png"
+    },
+    {
+      "id": "embark__pad-landscape__grown",
+      "kind": "base",
+      "screen": "embark",
+      "shape": "pad-landscape",
+      "profile": "grown",
+      "file": "base/embark__pad-landscape__grown.png"
+    },
+    {
+      "id": "embark__pad-portrait__fresh",
+      "kind": "base",
+      "screen": "embark",
+      "shape": "pad-portrait",
+      "profile": "fresh",
+      "file": "base/embark__pad-portrait__fresh.png"
+    },
+    {
+      "id": "embark__pad-portrait__grown",
+      "kind": "base",
+      "screen": "embark",
+      "shape": "pad-portrait",
+      "profile": "grown",
+      "file": "base/embark__pad-portrait__grown.png"
+    },
+    {
+      "id": "embark__phone-landscape__fresh",
+      "kind": "base",
+      "screen": "embark",
+      "shape": "phone-landscape",
+      "profile": "fresh",
+      "file": "base/embark__phone-landscape__fresh.png"
+    },
+    {
+      "id": "embark__phone-landscape__grown",
+      "kind": "base",
+      "screen": "embark",
+      "shape": "phone-landscape",
+      "profile": "grown",
+      "file": "base/embark__phone-landscape__grown.png"
+    },
+    {
+      "id": "embark__phone-portrait__fresh",
+      "kind": "base",
+      "screen": "embark",
+      "shape": "phone-portrait",
+      "profile": "fresh",
+      "file": "base/embark__phone-portrait__fresh.png"
+    },
+    {
+      "id": "embark__phone-portrait__grown",
+      "kind": "base",
+      "screen": "embark",
+      "shape": "phone-portrait",
+      "profile": "grown",
+      "file": "base/embark__phone-portrait__grown.png"
+    },
+    {
+      "id": "event__desktop-landscape__fresh",
+      "kind": "base",
+      "screen": "event",
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "file": "base/event__desktop-landscape__fresh.png"
+    },
+    {
+      "id": "event__desktop-landscape__grown",
+      "kind": "base",
+      "screen": "event",
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "file": "base/event__desktop-landscape__grown.png"
+    },
+    {
+      "id": "event__pad-landscape__fresh",
+      "kind": "base",
+      "screen": "event",
+      "shape": "pad-landscape",
+      "profile": "fresh",
+      "file": "base/event__pad-landscape__fresh.png"
+    },
+    {
+      "id": "event__pad-landscape__grown",
+      "kind": "base",
+      "screen": "event",
+      "shape": "pad-landscape",
+      "profile": "grown",
+      "file": "base/event__pad-landscape__grown.png"
+    },
+    {
+      "id": "event__pad-portrait__fresh",
+      "kind": "base",
+      "screen": "event",
+      "shape": "pad-portrait",
+      "profile": "fresh",
+      "file": "base/event__pad-portrait__fresh.png"
+    },
+    {
+      "id": "event__pad-portrait__grown",
+      "kind": "base",
+      "screen": "event",
+      "shape": "pad-portrait",
+      "profile": "grown",
+      "file": "base/event__pad-portrait__grown.png"
+    },
+    {
+      "id": "event__phone-landscape__fresh",
+      "kind": "base",
+      "screen": "event",
+      "shape": "phone-landscape",
+      "profile": "fresh",
+      "file": "base/event__phone-landscape__fresh.png"
+    },
+    {
+      "id": "event__phone-landscape__grown",
+      "kind": "base",
+      "screen": "event",
+      "shape": "phone-landscape",
+      "profile": "grown",
+      "file": "base/event__phone-landscape__grown.png"
+    },
+    {
+      "id": "event__phone-portrait__fresh",
+      "kind": "base",
+      "screen": "event",
+      "shape": "phone-portrait",
+      "profile": "fresh",
+      "file": "base/event__phone-portrait__fresh.png"
+    },
+    {
+      "id": "event__phone-portrait__grown",
+      "kind": "base",
+      "screen": "event",
+      "shape": "phone-portrait",
+      "profile": "grown",
+      "file": "base/event__phone-portrait__grown.png"
+    },
+    {
+      "id": "fall__desktop-landscape__fresh",
+      "kind": "base",
+      "screen": "fall",
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "file": "base/fall__desktop-landscape__fresh.png"
+    },
+    {
+      "id": "fall__desktop-landscape__grown",
+      "kind": "base",
+      "screen": "fall",
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "file": "base/fall__desktop-landscape__grown.png"
+    },
+    {
+      "id": "fall__pad-landscape__fresh",
+      "kind": "base",
+      "screen": "fall",
+      "shape": "pad-landscape",
+      "profile": "fresh",
+      "file": "base/fall__pad-landscape__fresh.png"
+    },
+    {
+      "id": "fall__pad-landscape__grown",
+      "kind": "base",
+      "screen": "fall",
+      "shape": "pad-landscape",
+      "profile": "grown",
+      "file": "base/fall__pad-landscape__grown.png"
+    },
+    {
+      "id": "fall__pad-portrait__fresh",
+      "kind": "base",
+      "screen": "fall",
+      "shape": "pad-portrait",
+      "profile": "fresh",
+      "file": "base/fall__pad-portrait__fresh.png"
+    },
+    {
+      "id": "fall__pad-portrait__grown",
+      "kind": "base",
+      "screen": "fall",
+      "shape": "pad-portrait",
+      "profile": "grown",
+      "file": "base/fall__pad-portrait__grown.png"
+    },
+    {
+      "id": "fall__phone-landscape__fresh",
+      "kind": "base",
+      "screen": "fall",
+      "shape": "phone-landscape",
+      "profile": "fresh",
+      "file": "base/fall__phone-landscape__fresh.png"
+    },
+    {
+      "id": "fall__phone-landscape__grown",
+      "kind": "base",
+      "screen": "fall",
+      "shape": "phone-landscape",
+      "profile": "grown",
+      "file": "base/fall__phone-landscape__grown.png"
+    },
+    {
+      "id": "fall__phone-portrait__fresh",
+      "kind": "base",
+      "screen": "fall",
+      "shape": "phone-portrait",
+      "profile": "fresh",
+      "file": "base/fall__phone-portrait__fresh.png"
+    },
+    {
+      "id": "fall__phone-portrait__grown",
+      "kind": "base",
+      "screen": "fall",
+      "shape": "phone-portrait",
+      "profile": "grown",
+      "file": "base/fall__phone-portrait__grown.png"
+    },
+    {
+      "id": "hollow__desktop-landscape__fresh",
+      "kind": "base",
+      "screen": "hollow",
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "file": "base/hollow__desktop-landscape__fresh.png"
+    },
+    {
+      "id": "hollow__desktop-landscape__grown",
+      "kind": "base",
+      "screen": "hollow",
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "file": "base/hollow__desktop-landscape__grown.png"
+    },
+    {
+      "id": "hollow__pad-landscape__fresh",
+      "kind": "base",
+      "screen": "hollow",
+      "shape": "pad-landscape",
+      "profile": "fresh",
+      "file": "base/hollow__pad-landscape__fresh.png"
+    },
+    {
+      "id": "hollow__pad-landscape__grown",
+      "kind": "base",
+      "screen": "hollow",
+      "shape": "pad-landscape",
+      "profile": "grown",
+      "file": "base/hollow__pad-landscape__grown.png"
+    },
+    {
+      "id": "hollow__pad-portrait__fresh",
+      "kind": "base",
+      "screen": "hollow",
+      "shape": "pad-portrait",
+      "profile": "fresh",
+      "file": "base/hollow__pad-portrait__fresh.png"
+    },
+    {
+      "id": "hollow__pad-portrait__grown",
+      "kind": "base",
+      "screen": "hollow",
+      "shape": "pad-portrait",
+      "profile": "grown",
+      "file": "base/hollow__pad-portrait__grown.png"
+    },
+    {
+      "id": "hollow__phone-landscape__fresh",
+      "kind": "base",
+      "screen": "hollow",
+      "shape": "phone-landscape",
+      "profile": "fresh",
+      "file": "base/hollow__phone-landscape__fresh.png"
+    },
+    {
+      "id": "hollow__phone-landscape__grown",
+      "kind": "base",
+      "screen": "hollow",
+      "shape": "phone-landscape",
+      "profile": "grown",
+      "file": "base/hollow__phone-landscape__grown.png"
+    },
+    {
+      "id": "hollow__phone-portrait__fresh",
+      "kind": "base",
+      "screen": "hollow",
+      "shape": "phone-portrait",
+      "profile": "fresh",
+      "file": "base/hollow__phone-portrait__fresh.png"
+    },
+    {
+      "id": "hollow__phone-portrait__grown",
+      "kind": "base",
+      "screen": "hollow",
+      "shape": "phone-portrait",
+      "profile": "grown",
+      "file": "base/hollow__phone-portrait__grown.png"
+    },
+    {
+      "id": "lamplighter__desktop-landscape__fresh",
+      "kind": "base",
+      "screen": "lamplighter",
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "file": "base/lamplighter__desktop-landscape__fresh.png"
+    },
+    {
+      "id": "lamplighter__desktop-landscape__grown",
+      "kind": "base",
+      "screen": "lamplighter",
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "file": "base/lamplighter__desktop-landscape__grown.png"
+    },
+    {
+      "id": "lamplighter__pad-landscape__fresh",
+      "kind": "base",
+      "screen": "lamplighter",
+      "shape": "pad-landscape",
+      "profile": "fresh",
+      "file": "base/lamplighter__pad-landscape__fresh.png"
+    },
+    {
+      "id": "lamplighter__pad-landscape__grown",
+      "kind": "base",
+      "screen": "lamplighter",
+      "shape": "pad-landscape",
+      "profile": "grown",
+      "file": "base/lamplighter__pad-landscape__grown.png"
+    },
+    {
+      "id": "lamplighter__pad-portrait__fresh",
+      "kind": "base",
+      "screen": "lamplighter",
+      "shape": "pad-portrait",
+      "profile": "fresh",
+      "file": "base/lamplighter__pad-portrait__fresh.png"
+    },
+    {
+      "id": "lamplighter__pad-portrait__grown",
+      "kind": "base",
+      "screen": "lamplighter",
+      "shape": "pad-portrait",
+      "profile": "grown",
+      "file": "base/lamplighter__pad-portrait__grown.png"
+    },
+    {
+      "id": "lamplighter__phone-landscape__fresh",
+      "kind": "base",
+      "screen": "lamplighter",
+      "shape": "phone-landscape",
+      "profile": "fresh",
+      "file": "base/lamplighter__phone-landscape__fresh.png"
+    },
+    {
+      "id": "lamplighter__phone-landscape__grown",
+      "kind": "base",
+      "screen": "lamplighter",
+      "shape": "phone-landscape",
+      "profile": "grown",
+      "file": "base/lamplighter__phone-landscape__grown.png"
+    },
+    {
+      "id": "lamplighter__phone-portrait__fresh",
+      "kind": "base",
+      "screen": "lamplighter",
+      "shape": "phone-portrait",
+      "profile": "fresh",
+      "file": "base/lamplighter__phone-portrait__fresh.png"
+    },
+    {
+      "id": "lamplighter__phone-portrait__grown",
+      "kind": "base",
+      "screen": "lamplighter",
+      "shape": "phone-portrait",
+      "profile": "grown",
+      "file": "base/lamplighter__phone-portrait__grown.png"
+    },
+    {
+      "id": "map__desktop-landscape__fresh",
+      "kind": "base",
+      "screen": "map",
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "file": "base/map__desktop-landscape__fresh.png"
+    },
+    {
+      "id": "map__desktop-landscape__grown",
+      "kind": "base",
+      "screen": "map",
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "file": "base/map__desktop-landscape__grown.png"
+    },
+    {
+      "id": "map__pad-landscape__fresh",
+      "kind": "base",
+      "screen": "map",
+      "shape": "pad-landscape",
+      "profile": "fresh",
+      "file": "base/map__pad-landscape__fresh.png"
+    },
+    {
+      "id": "map__pad-landscape__grown",
+      "kind": "base",
+      "screen": "map",
+      "shape": "pad-landscape",
+      "profile": "grown",
+      "file": "base/map__pad-landscape__grown.png"
+    },
+    {
+      "id": "map__pad-portrait__fresh",
+      "kind": "base",
+      "screen": "map",
+      "shape": "pad-portrait",
+      "profile": "fresh",
+      "file": "base/map__pad-portrait__fresh.png"
+    },
+    {
+      "id": "map__pad-portrait__grown",
+      "kind": "base",
+      "screen": "map",
+      "shape": "pad-portrait",
+      "profile": "grown",
+      "file": "base/map__pad-portrait__grown.png"
+    },
+    {
+      "id": "map__phone-landscape__fresh",
+      "kind": "base",
+      "screen": "map",
+      "shape": "phone-landscape",
+      "profile": "fresh",
+      "file": "base/map__phone-landscape__fresh.png"
+    },
+    {
+      "id": "map__phone-landscape__grown",
+      "kind": "base",
+      "screen": "map",
+      "shape": "phone-landscape",
+      "profile": "grown",
+      "file": "base/map__phone-landscape__grown.png"
+    },
+    {
+      "id": "map__phone-portrait__fresh",
+      "kind": "base",
+      "screen": "map",
+      "shape": "phone-portrait",
+      "profile": "fresh",
+      "file": "base/map__phone-portrait__fresh.png"
+    },
+    {
+      "id": "map__phone-portrait__grown",
+      "kind": "base",
+      "screen": "map",
+      "shape": "phone-portrait",
+      "profile": "grown",
+      "file": "base/map__phone-portrait__grown.png"
+    },
+    {
+      "id": "rest__desktop-landscape__fresh",
+      "kind": "base",
+      "screen": "rest",
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "file": "base/rest__desktop-landscape__fresh.png"
+    },
+    {
+      "id": "rest__desktop-landscape__grown",
+      "kind": "base",
+      "screen": "rest",
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "file": "base/rest__desktop-landscape__grown.png"
+    },
+    {
+      "id": "rest__pad-landscape__fresh",
+      "kind": "base",
+      "screen": "rest",
+      "shape": "pad-landscape",
+      "profile": "fresh",
+      "file": "base/rest__pad-landscape__fresh.png"
+    },
+    {
+      "id": "rest__pad-landscape__grown",
+      "kind": "base",
+      "screen": "rest",
+      "shape": "pad-landscape",
+      "profile": "grown",
+      "file": "base/rest__pad-landscape__grown.png"
+    },
+    {
+      "id": "rest__pad-portrait__fresh",
+      "kind": "base",
+      "screen": "rest",
+      "shape": "pad-portrait",
+      "profile": "fresh",
+      "file": "base/rest__pad-portrait__fresh.png"
+    },
+    {
+      "id": "rest__pad-portrait__grown",
+      "kind": "base",
+      "screen": "rest",
+      "shape": "pad-portrait",
+      "profile": "grown",
+      "file": "base/rest__pad-portrait__grown.png"
+    },
+    {
+      "id": "rest__phone-landscape__fresh",
+      "kind": "base",
+      "screen": "rest",
+      "shape": "phone-landscape",
+      "profile": "fresh",
+      "file": "base/rest__phone-landscape__fresh.png"
+    },
+    {
+      "id": "rest__phone-landscape__grown",
+      "kind": "base",
+      "screen": "rest",
+      "shape": "phone-landscape",
+      "profile": "grown",
+      "file": "base/rest__phone-landscape__grown.png"
+    },
+    {
+      "id": "rest__phone-portrait__fresh",
+      "kind": "base",
+      "screen": "rest",
+      "shape": "phone-portrait",
+      "profile": "fresh",
+      "file": "base/rest__phone-portrait__fresh.png"
+    },
+    {
+      "id": "rest__phone-portrait__grown",
+      "kind": "base",
+      "screen": "rest",
+      "shape": "phone-portrait",
+      "profile": "grown",
+      "file": "base/rest__phone-portrait__grown.png"
+    },
+    {
+      "id": "rewards__desktop-landscape__fresh",
+      "kind": "base",
+      "screen": "rewards",
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "file": "base/rewards__desktop-landscape__fresh.png"
+    },
+    {
+      "id": "rewards__desktop-landscape__grown",
+      "kind": "base",
+      "screen": "rewards",
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "file": "base/rewards__desktop-landscape__grown.png"
+    },
+    {
+      "id": "rewards__pad-landscape__fresh",
+      "kind": "base",
+      "screen": "rewards",
+      "shape": "pad-landscape",
+      "profile": "fresh",
+      "file": "base/rewards__pad-landscape__fresh.png"
+    },
+    {
+      "id": "rewards__pad-landscape__grown",
+      "kind": "base",
+      "screen": "rewards",
+      "shape": "pad-landscape",
+      "profile": "grown",
+      "file": "base/rewards__pad-landscape__grown.png"
+    },
+    {
+      "id": "rewards__pad-portrait__fresh",
+      "kind": "base",
+      "screen": "rewards",
+      "shape": "pad-portrait",
+      "profile": "fresh",
+      "file": "base/rewards__pad-portrait__fresh.png"
+    },
+    {
+      "id": "rewards__pad-portrait__grown",
+      "kind": "base",
+      "screen": "rewards",
+      "shape": "pad-portrait",
+      "profile": "grown",
+      "file": "base/rewards__pad-portrait__grown.png"
+    },
+    {
+      "id": "rewards__phone-landscape__fresh",
+      "kind": "base",
+      "screen": "rewards",
+      "shape": "phone-landscape",
+      "profile": "fresh",
+      "file": "base/rewards__phone-landscape__fresh.png"
+    },
+    {
+      "id": "rewards__phone-landscape__grown",
+      "kind": "base",
+      "screen": "rewards",
+      "shape": "phone-landscape",
+      "profile": "grown",
+      "file": "base/rewards__phone-landscape__grown.png"
+    },
+    {
+      "id": "rewards__phone-portrait__fresh",
+      "kind": "base",
+      "screen": "rewards",
+      "shape": "phone-portrait",
+      "profile": "fresh",
+      "file": "base/rewards__phone-portrait__fresh.png"
+    },
+    {
+      "id": "rewards__phone-portrait__grown",
+      "kind": "base",
+      "screen": "rewards",
+      "shape": "phone-portrait",
+      "profile": "grown",
+      "file": "base/rewards__phone-portrait__grown.png"
+    },
+    {
+      "id": "shop__desktop-landscape__fresh",
+      "kind": "base",
+      "screen": "shop",
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "file": "base/shop__desktop-landscape__fresh.png"
+    },
+    {
+      "id": "shop__desktop-landscape__grown",
+      "kind": "base",
+      "screen": "shop",
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "file": "base/shop__desktop-landscape__grown.png"
+    },
+    {
+      "id": "shop__pad-landscape__fresh",
+      "kind": "base",
+      "screen": "shop",
+      "shape": "pad-landscape",
+      "profile": "fresh",
+      "file": "base/shop__pad-landscape__fresh.png"
+    },
+    {
+      "id": "shop__pad-landscape__grown",
+      "kind": "base",
+      "screen": "shop",
+      "shape": "pad-landscape",
+      "profile": "grown",
+      "file": "base/shop__pad-landscape__grown.png"
+    },
+    {
+      "id": "shop__pad-portrait__fresh",
+      "kind": "base",
+      "screen": "shop",
+      "shape": "pad-portrait",
+      "profile": "fresh",
+      "file": "base/shop__pad-portrait__fresh.png"
+    },
+    {
+      "id": "shop__pad-portrait__grown",
+      "kind": "base",
+      "screen": "shop",
+      "shape": "pad-portrait",
+      "profile": "grown",
+      "file": "base/shop__pad-portrait__grown.png"
+    },
+    {
+      "id": "shop__phone-landscape__fresh",
+      "kind": "base",
+      "screen": "shop",
+      "shape": "phone-landscape",
+      "profile": "fresh",
+      "file": "base/shop__phone-landscape__fresh.png"
+    },
+    {
+      "id": "shop__phone-landscape__grown",
+      "kind": "base",
+      "screen": "shop",
+      "shape": "phone-landscape",
+      "profile": "grown",
+      "file": "base/shop__phone-landscape__grown.png"
+    },
+    {
+      "id": "shop__phone-portrait__fresh",
+      "kind": "base",
+      "screen": "shop",
+      "shape": "phone-portrait",
+      "profile": "fresh",
+      "file": "base/shop__phone-portrait__fresh.png"
+    },
+    {
+      "id": "shop__phone-portrait__grown",
+      "kind": "base",
+      "screen": "shop",
+      "shape": "phone-portrait",
+      "profile": "grown",
+      "file": "base/shop__phone-portrait__grown.png"
+    },
+    {
+      "id": "title__desktop-landscape__fresh",
+      "kind": "base",
+      "screen": "title",
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "file": "base/title__desktop-landscape__fresh.png"
+    },
+    {
+      "id": "title__desktop-landscape__grown",
+      "kind": "base",
+      "screen": "title",
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "file": "base/title__desktop-landscape__grown.png"
+    },
+    {
+      "id": "title__pad-landscape__fresh",
+      "kind": "base",
+      "screen": "title",
+      "shape": "pad-landscape",
+      "profile": "fresh",
+      "file": "base/title__pad-landscape__fresh.png"
+    },
+    {
+      "id": "title__pad-landscape__grown",
+      "kind": "base",
+      "screen": "title",
+      "shape": "pad-landscape",
+      "profile": "grown",
+      "file": "base/title__pad-landscape__grown.png"
+    },
+    {
+      "id": "title__pad-portrait__fresh",
+      "kind": "base",
+      "screen": "title",
+      "shape": "pad-portrait",
+      "profile": "fresh",
+      "file": "base/title__pad-portrait__fresh.png"
+    },
+    {
+      "id": "title__pad-portrait__grown",
+      "kind": "base",
+      "screen": "title",
+      "shape": "pad-portrait",
+      "profile": "grown",
+      "file": "base/title__pad-portrait__grown.png"
+    },
+    {
+      "id": "title__phone-landscape__fresh",
+      "kind": "base",
+      "screen": "title",
+      "shape": "phone-landscape",
+      "profile": "fresh",
+      "file": "base/title__phone-landscape__fresh.png"
+    },
+    {
+      "id": "title__phone-landscape__grown",
+      "kind": "base",
+      "screen": "title",
+      "shape": "phone-landscape",
+      "profile": "grown",
+      "file": "base/title__phone-landscape__grown.png"
+    },
+    {
+      "id": "title__phone-portrait__fresh",
+      "kind": "base",
+      "screen": "title",
+      "shape": "phone-portrait",
+      "profile": "fresh",
+      "file": "base/title__phone-portrait__fresh.png"
+    },
+    {
+      "id": "title__phone-portrait__grown",
+      "kind": "base",
+      "screen": "title",
+      "shape": "phone-portrait",
+      "profile": "grown",
+      "file": "base/title__phone-portrait__grown.png"
+    },
+    {
+      "id": "treasure__desktop-landscape__fresh",
+      "kind": "base",
+      "screen": "treasure",
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "file": "base/treasure__desktop-landscape__fresh.png"
+    },
+    {
+      "id": "treasure__desktop-landscape__grown",
+      "kind": "base",
+      "screen": "treasure",
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "file": "base/treasure__desktop-landscape__grown.png"
+    },
+    {
+      "id": "treasure__pad-landscape__fresh",
+      "kind": "base",
+      "screen": "treasure",
+      "shape": "pad-landscape",
+      "profile": "fresh",
+      "file": "base/treasure__pad-landscape__fresh.png"
+    },
+    {
+      "id": "treasure__pad-landscape__grown",
+      "kind": "base",
+      "screen": "treasure",
+      "shape": "pad-landscape",
+      "profile": "grown",
+      "file": "base/treasure__pad-landscape__grown.png"
+    },
+    {
+      "id": "treasure__pad-portrait__fresh",
+      "kind": "base",
+      "screen": "treasure",
+      "shape": "pad-portrait",
+      "profile": "fresh",
+      "file": "base/treasure__pad-portrait__fresh.png"
+    },
+    {
+      "id": "treasure__pad-portrait__grown",
+      "kind": "base",
+      "screen": "treasure",
+      "shape": "pad-portrait",
+      "profile": "grown",
+      "file": "base/treasure__pad-portrait__grown.png"
+    },
+    {
+      "id": "treasure__phone-landscape__fresh",
+      "kind": "base",
+      "screen": "treasure",
+      "shape": "phone-landscape",
+      "profile": "fresh",
+      "file": "base/treasure__phone-landscape__fresh.png"
+    },
+    {
+      "id": "treasure__phone-landscape__grown",
+      "kind": "base",
+      "screen": "treasure",
+      "shape": "phone-landscape",
+      "profile": "grown",
+      "file": "base/treasure__phone-landscape__grown.png"
+    },
+    {
+      "id": "treasure__phone-portrait__fresh",
+      "kind": "base",
+      "screen": "treasure",
+      "shape": "phone-portrait",
+      "profile": "fresh",
+      "file": "base/treasure__phone-portrait__fresh.png"
+    },
+    {
+      "id": "treasure__phone-portrait__grown",
+      "kind": "base",
+      "screen": "treasure",
+      "shape": "phone-portrait",
+      "profile": "grown",
+      "file": "base/treasure__phone-portrait__grown.png"
+    },
+    {
+      "id": "vigil__desktop-landscape__fresh",
+      "kind": "base",
+      "screen": "vigil",
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "file": "base/vigil__desktop-landscape__fresh.png"
+    },
+    {
+      "id": "vigil__desktop-landscape__grown",
+      "kind": "base",
+      "screen": "vigil",
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "file": "base/vigil__desktop-landscape__grown.png"
+    },
+    {
+      "id": "vigil__pad-landscape__fresh",
+      "kind": "base",
+      "screen": "vigil",
+      "shape": "pad-landscape",
+      "profile": "fresh",
+      "file": "base/vigil__pad-landscape__fresh.png"
+    },
+    {
+      "id": "vigil__pad-landscape__grown",
+      "kind": "base",
+      "screen": "vigil",
+      "shape": "pad-landscape",
+      "profile": "grown",
+      "file": "base/vigil__pad-landscape__grown.png"
+    },
+    {
+      "id": "vigil__pad-portrait__fresh",
+      "kind": "base",
+      "screen": "vigil",
+      "shape": "pad-portrait",
+      "profile": "fresh",
+      "file": "base/vigil__pad-portrait__fresh.png"
+    },
+    {
+      "id": "vigil__pad-portrait__grown",
+      "kind": "base",
+      "screen": "vigil",
+      "shape": "pad-portrait",
+      "profile": "grown",
+      "file": "base/vigil__pad-portrait__grown.png"
+    },
+    {
+      "id": "vigil__phone-landscape__fresh",
+      "kind": "base",
+      "screen": "vigil",
+      "shape": "phone-landscape",
+      "profile": "fresh",
+      "file": "base/vigil__phone-landscape__fresh.png"
+    },
+    {
+      "id": "vigil__phone-landscape__grown",
+      "kind": "base",
+      "screen": "vigil",
+      "shape": "phone-landscape",
+      "profile": "grown",
+      "file": "base/vigil__phone-landscape__grown.png"
+    },
+    {
+      "id": "vigil__phone-portrait__fresh",
+      "kind": "base",
+      "screen": "vigil",
+      "shape": "phone-portrait",
+      "profile": "fresh",
+      "file": "base/vigil__phone-portrait__fresh.png"
+    },
+    {
+      "id": "vigil__phone-portrait__grown",
+      "kind": "base",
+      "screen": "vigil",
+      "shape": "phone-portrait",
+      "profile": "grown",
+      "file": "base/vigil__phone-portrait__grown.png"
+    }
+  ]
+}

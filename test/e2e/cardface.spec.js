@@ -42,7 +42,7 @@ test.describe('card-face composer', () => {
     expect(seam.apis).toBe(true);
     expect(seam.maxEntries).toBe(24);
 
-    // Open shop so cardEl consumes exportImage.
+    // Open shop — live DOM faces (golden parity); composer export exercised below.
     await page.evaluate(() => {
       const sp = window.spirebound;
       const node = sp.S.run.map.nodes.find((n) => n.type === 'shop')
@@ -53,22 +53,28 @@ test.describe('card-face composer', () => {
     await settle(page);
 
     const shopFaces = await page.evaluate(() => {
-      const imgs = [...document.querySelectorAll('img.card-face-export[data-card-face-key]')];
-      const cards = [...document.querySelectorAll('.card[data-card-face-key]')];
+      const cards = [...document.querySelectorAll('.r5-shop .card, .shop-row .card')];
+      const arts = [...document.querySelectorAll('.r5-shop .card .card-art img.raster-art, .shop-row .card .card-art img.raster-art')];
       return {
-        imgCount: imgs.length,
         cardCount: cards.length,
-        keys: cards.map((c) => c.dataset.cardFaceKey).filter(Boolean),
-        urls: imgs.map((img) => img.getAttribute('src') || ''),
-        // No competing P1 DOM face bake when composer is available.
-        legacyDomFaces: [...document.querySelectorAll('.card .card-art, .card .card-name')].length,
+        artCount: arts.length,
+        hasDomName: cards.every((c) => !!c.querySelector('.card-name')),
+        hasDomText: cards.every((c) => !!c.querySelector('.card-text .ct-inner')),
+        hasTintRim: cards.every((c) => {
+          const inner = c.querySelector('.card-inner:not(.card-inner-export)');
+          if (!inner) return false;
+          const shadow = getComputedStyle(inner).boxShadow || '';
+          return shadow.includes('inset') && shadow !== 'none';
+        }),
+        exportImgCount: [...document.querySelectorAll('img.card-face-export')].length,
       };
     });
-    expect(shopFaces.imgCount).toBeGreaterThan(0);
     expect(shopFaces.cardCount).toBeGreaterThan(0);
-    expect(shopFaces.keys.every((k) => k.startsWith('en\u001f') || k.includes('en'))).toBe(true);
-    expect(shopFaces.urls.every((u) => u.startsWith('blob:'))).toBe(true);
-    expect(shopFaces.legacyDomFaces).toBe(0);
+    expect(shopFaces.artCount).toBeGreaterThan(0);
+    expect(shopFaces.hasDomName).toBe(true);
+    expect(shopFaces.hasDomText).toBe(true);
+    expect(shopFaces.hasTintRim).toBe(true);
+    expect(shopFaces.exportImgCount).toBe(0);
 
     // Wait for warm card-art decode, then assert export paints real art + hex gem.
     await page.waitForFunction(async () => {
@@ -102,18 +108,28 @@ test.describe('card-face composer', () => {
       return unique.size >= 2 && gemGoldish;
     }, null, { timeout: 8000 });
 
-    // Leaving shop must revoke blob URLs before #screen is replaced.
-    // If release ran, re-export creates a fresh object URL (entry.url was cleared).
-    const shopBlobUrls = shopFaces.urls.filter((u) => u.startsWith('blob:'));
+    // Composer revoke: hold an export blob, release, re-export must not reuse it.
+    const heldBlob = await page.evaluate(() => {
+      const face = window.spirebound.combatGl.cardFace;
+      const sampleId = window.spirebound.S.run.shopData?.cards?.[0]?.id || 'strike';
+      const exported = face.exportImage({ id: sampleId }, { up: false });
+      window.__cardFaceProbeHold = exported;
+      return exported.url;
+    });
     await page.evaluate(() => {
       window.spirebound.show('map');
     });
     await settle(page);
-    const revoked = await page.evaluate((oldUrls) => {
+    const revoked = await page.evaluate((oldUrl) => {
+      const held = window.__cardFaceProbeHold;
+      if (held) {
+        try { held.release(); } catch { /* ignore */ }
+        window.__cardFaceProbeHold = null;
+      }
       const face = window.spirebound.combatGl.cardFace;
       const sampleId = window.spirebound.S.run.shopData?.cards?.[0]?.id || 'strike';
       const exported = face.exportImage({ id: sampleId }, { up: false });
-      const reusedOldUrl = oldUrls.includes(exported.url);
+      const reusedOldUrl = exported.url === oldUrl;
       exported.release();
       return {
         lingering: [...document.querySelectorAll('#screen [data-card-face-key]')].length,
@@ -121,7 +137,7 @@ test.describe('card-face composer', () => {
         sampleId,
         newUrlKind: String(exported.url).startsWith('blob:') ? 'blob' : 'other',
       };
-    }, shopBlobUrls);
+    }, heldBlob);
     expect(revoked.lingering).toBe(0);
     expect(revoked.reusedOldUrl).toBe(false);
     expect(revoked.newUrlKind).toBe('blob');
@@ -249,11 +265,12 @@ test.describe('card-face composer', () => {
             painted = true;
           }
         } catch { /* stub */ }
-        const cost = painted ? bestLive(ctx, 24, 24, 24, 14) : null;
-        const name = painted ? bestLive(ctx, 76, 132, 76, 118) : null;
-        const body = painted ? bestLive(ctx, 76, 168, 76, 200) : null;
-        // Boss rarity role shares gold-on-ink with the cost gem (rail is only 2px tall).
-        const rarityRole = painted ? bestLive(ctx, 24, 14, 76, 40, 4) : null;
+        // Sample windows match production layoutRegions (art 43%, name/type/body stack).
+        const cost = painted ? bestLive(ctx, 18, 18, 40, 50) : null;
+        const name = painted ? bestLive(ctx, 76, 104, 76, 90) : null;
+        const body = painted ? bestLive(ctx, 76, 155, 76, 190) : null;
+        // Boss rarity role shares gold-on-ink with the cost gem.
+        const rarityRole = painted ? bestLive(ctx, 18, 14, 50, 55, 4) : null;
         out.push({
           id: pick.id,
           rarity: pick.rarity,

@@ -1,37 +1,15 @@
 {
   "id": "lamplighter__phone-landscape__grown",
-  "deltaCount": 6,
+  "deltaCount": 3,
   "expectedCount": 3,
-  "unexpectedCount": 3,
-  "unexpectedPaths": [
-    "embark.aspectCards",
-    "scene.centerPanel.width",
-    "lamp.root.width"
-  ],
+  "unexpectedCount": 0,
+  "unexpectedPaths": [],
   "expectedPathsHit": [
-    "scene.sceneBgStampedAsPanel",
+    "lamp.root.width",
     "cardface.hasArtTexture",
     "cardface.rarityAccentDistinct"
   ],
   "deltas": [
-    {
-      "path": "embark.aspectCards",
-      "kind": "value-drift",
-      "live": [],
-      "golden": []
-    },
-    {
-      "path": "scene.sceneBgStampedAsPanel",
-      "kind": "value-drift",
-      "live": false,
-      "golden": true
-    },
-    {
-      "path": "scene.centerPanel.width",
-      "kind": "box-drift",
-      "live": 844.0000000000001,
-      "golden": 856.6599678039552
-    },
     {
       "path": "lamp.root.width",
       "kind": "box-drift",

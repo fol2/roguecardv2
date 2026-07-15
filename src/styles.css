@@ -350,7 +350,7 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 .title-banner-frame { width: 100%; height: 100%; max-height: none; max-width: none; }
 .title-banner .raster-art { display: block; width: 100%; height: 100%; max-height: none; max-width: none; object-fit: cover; filter: none; }
 /* Keep chrome in the flex flow; never promote parallax into it (absolute fill). */
-.title-screen > :not(.title-banner):not(.r5-title-parallax) { position: relative; z-index: 1; }
+.title-screen > :not(.title-banner):not(.r5-title-parallax):not(.title-rose-medallion):not(.title-version):not(.title-version-debug) { position: relative; z-index: 1; }
 .logo {
   /* the logotype is itself leaded glass: ink stroke behind gold panes, faint lead lines through the letters */
   font-size: clamp(52px, 9cqw, 108px); font-weight: 800; letter-spacing: 0.16em; line-height: 1;
@@ -553,6 +553,17 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 }
 .card.tilting .card-inner {
   transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+}
+/* Task 26 export host: baked face owns chrome — kill CSS pane so we don't double-border. */
+.card-inner.card-inner-export {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.card-inner.card-inner-export::before,
+.card-inner.card-inner-export::after {
+  content: none;
+  display: none;
 }
 .card.t-attack { --edge: #7e3040; --tint: var(--atk); }
 .card.t-skill { --edge: #2f5a80; --tint: var(--skl); }
@@ -2049,7 +2060,8 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .hud-stat { font-size: 14px; gap: 5px; }
   .hud-hp-wrap { min-width: 96px; }
   .hud-mid { display: none; } /* act & floor live on the map title instead */
-  .hud-right { gap: 6px; overflow: visible; }
+  /* Without .hud-mid's flex:1 spacer, pack deck/menu (and potions) to the right. */
+  .hud-right { gap: 6px; overflow: visible; margin-left: auto; }
   .icon-btn { width: 36px; height: 36px; font-size: 15px; }
   .icon-btn.deck-btn { width: 40px; height: 40px; overflow: visible; }
   .icon-btn.deck-btn .ui-icon { width: 46px; height: 46px; }
@@ -2889,95 +2901,5 @@ html.freeze[data-freeze-keep-bg3d] #bg3d { visibility: visible !important; }
   opacity: 1;
 }
 
-/* Dawn phone-portrait: title+sub centered; ceremony + stats share a row;
-   whisper/ceremony width matches the stats column. */
-@container stage (max-width: 740px) {
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-  }
-
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .end-title,
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .ov-sub {
-    width: 100%;
-    text-align: center;
-  }
-
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .dawn-ceremony,
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .stats-grid.r5-dawn-ledger {
-    width: min(92cqw, 560px);
-  }
-
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) {
-    flex-wrap: wrap;
-    flex-direction: row;
-    justify-content: center;
-    align-content: center;
-    gap: 8px 10px;
-  }
-
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .end-title,
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .ov-sub,
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .end-btns,
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .r5-dawn-bloom,
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .r5-dawn-parallax,
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .r5-dawn-close-rail,
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .meta-bg {
-    flex: 0 0 100%;
-  }
-
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .dawn-ceremony,
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .stats-grid.r5-dawn-ledger {
-    flex: 1 1 calc(50% - 8px);
-    min-width: min(42cqw, 240px);
-    max-width: min(46cqw, 280px);
-  }
-
-  /* Override max-width 740 2-col ceremony: lone whisper must fill the
-     ceremony cell on the title mid axis (not sit in the left grid cell). */
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .dawn-ceremony {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: stretch;
-  }
-
-  #screen .r5-end--victory .dawn-ceremony .dawn-event {
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-}
-
-/* Dawn phone-landscape: ceremony/whisper spans like .end-btns (1 / -1),
-   not half-width grid-column 1. Stats stop at row 3 so they do not overlap. */
-@container stage (max-height: 480px) and (min-width: 500px) {
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .dawn-ceremony {
-    grid-column: 1 / -1;
-    width: 100%;
-    max-width: none;
-  }
-
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .stats-grid {
-    grid-row: 1 / 3;
-  }
-
-  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .end-btns {
-    grid-column: 1 / -1;
-    width: 100%;
-  }
-
-  #screen .r5-end--victory .dawn-ceremony .dawn-event {
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-}
-
-/* Fall desktop / pad landscape: widen monument toward ~min(92cqw, 840px). */
-@container stage (min-width: 741px) {
-  #screen .r5-end--fallen .r5-monument {
-    width: min(92cqw, 840px);
-    max-width: min(92cqw, 840px);
-  }
-}
+/* Dawn / embark / title / fall golden restores live in
+   styles/round5-pe-layout-bridges.css (imported after FE screens CSS). */

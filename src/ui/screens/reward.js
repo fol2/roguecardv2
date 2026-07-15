@@ -191,7 +191,8 @@ function renderBossRelic() {
   const endState = R5_SCREEN_END_STATES.bossRelicReady;
   const picks = E.rollBossRelics(run);
   const sc = screenEl();
-  sc.innerHTML = `<div class="center-panel screen-enter r5-scene-panel r5-rewards r5-rewards--boss" ${rootAttrs(profile, 'rest')}><div class="panel" style="width:min(620px,94cqw)">
+  // Golden 9f10ef2 uses 94vw (not 94cqw) on this inline width — match exactly.
+  sc.innerHTML = `<div class="center-panel screen-enter r5-scene-panel r5-rewards r5-rewards--boss" ${rootAttrs(profile, 'rest')}><div class="panel" style="width:min(620px,94vw)">
     <div class="ov-title r5-scene-header">${tr('ui.reward.bossRelicTitle')}</div>
     <div class="ov-sub">${tr('ui.reward.bossRelicSub')}</div>
     <div class="big-choices" style="flex-direction:column"></div>

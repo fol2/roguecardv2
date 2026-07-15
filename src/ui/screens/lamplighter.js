@@ -89,7 +89,7 @@ function renderLamplighter() {
   sc.innerHTML = `<div class="lamp-screen screen-enter r5-lamplighter" ${rootAttrs(profile, 'rest')}>
     ${sceneBg()}
     <div class="lamp-hero">${heroArt(run.aspect)}</div>
-    <div class="lamp-title r5-scene-header">${tr('ui.lamp.title')}</div>
+    <div class="lamp-title">${tr('ui.lamp.title')}</div>
     <div class="lamp-sub">${tr('ui.lamp.sub', { aspect: asp.name })}</div>
     <div class="lamp-label">${tr('ui.lamp.boonLabel')}</div>
     <div class="lamp-boons">${boonCards}</div>

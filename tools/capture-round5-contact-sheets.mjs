@@ -117,14 +117,51 @@ function fileInventory(dir) {
   return files.sort((a, b) => a.path.localeCompare(b.path));
 }
 
-async function waitSettled(page, { keepBg3d = false } = {}) {
+/** Screen roots that must be opaque before freeze+screenshot. */
+const SCREEN_PAINT_SELECTOR = Object.freeze({
+  title: '.r5-title',
+  embark: '.r5-embark',
+  fall: '.r5-end--fallen',
+  dawn: '.r5-end--victory',
+  rewards: '.r5-rewards',
+  'boss-relic': '.r5-rewards--boss',
+  shop: '.r5-shop',
+  event: '.r5-event',
+  rest: '.r5-rest',
+  treasure: '.r5-rest--treasure',
+  lamplighter: '.r5-lamplighter',
+  hollow: '.r5-lamplighter--hollow',
+  vigil: '.r5-vigil',
+  map: '.r5-map',
+});
+
+/** App ready + fonts/settle — do NOT freeze yet (freeze pauses .screen-enter at opacity 0). */
+async function waitReady(page) {
   await page.waitForFunction(() => window.spirebound && window.__probe);
+  // Require app.ready — the title+.r5-title fallback races initUI's final
+  // show('title') and can wipe a just-staged shop/event/rest screen.
   await page.waitForFunction(() => {
     const records = window.__probe?.behaviourTrace?.()?.records;
-    if (records?.some((record) => record.eventName === 'app.ready')) return true;
-    return window.spirebound?.S?.screen === 'title'
-      && !!document.querySelector('.r5-title');
+    return records?.some((record) => record.eventName === 'app.ready');
+  }, null, { timeout: 30_000 });
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await Promise.all([...document.images]
+      .filter((img) => img.complete)
+      .map((img) => img.decode().catch(() => {})));
+    // Clear any prior CSS freeze so staged screens can animate in.
+    document.documentElement.classList.remove('freeze');
+    document.documentElement.removeAttribute('data-freeze-keep-bg3d');
+    const bound = (work, ms = 2500) => Promise.race([
+      Promise.resolve(typeof work === 'function' ? work() : work).catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, ms)),
+    ]);
+    if (window.__probe?.settle) await bound(() => window.__probe.settle());
   });
+}
+
+/** After the target screen is painted: settle, then freeze for a stable shot. */
+async function waitSettled(page, { keepBg3d = false } = {}) {
   await page.evaluate(async (opts) => {
     await document.fonts.ready;
     // Only decode images that have already finished; pending/hung loads (loading
@@ -146,6 +183,40 @@ async function waitSettled(page, { keepBg3d = false } = {}) {
     const keepBg3d = !!(opts.keepBg3d || mapOn);
     if (window.__probe?.freeze) await bound(() => window.__probe.freeze({ keepBg3d }));
   }, { keepBg3d });
+}
+
+/** Fail loud if the staged screen root never became visible (HUD-only bug). */
+async function assertScreenPainted(page, screen) {
+  const selector = SCREEN_PAINT_SELECTOR[screen];
+  if (!selector) fail(`no paint selector for screen ${screen}`);
+  const needsPanel = [
+    'shop', 'event', 'rest', 'treasure', 'rewards', 'boss-relic', 'vigil',
+  ].includes(screen);
+  try {
+    await page.waitForFunction(({ sel, panel }) => {
+      const el = document.querySelector(sel);
+      if (!el) return false;
+      const cs = getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      if (!(Number.parseFloat(cs.opacity || '0') > 0.9
+        && cs.visibility !== 'hidden'
+        && rect.width > 8
+        && rect.height > 8)) {
+        return false;
+      }
+      if (!panel) return true;
+      const pane = el.querySelector(':scope > .panel, :scope > .ov-panel, .panel');
+      if (!pane) return false;
+      const pcs = getComputedStyle(pane);
+      const prect = pane.getBoundingClientRect();
+      return Number.parseFloat(pcs.opacity || '0') > 0.9
+        && pcs.visibility !== 'hidden'
+        && prect.width > 8
+        && prect.height > 8;
+    }, { sel: selector, panel: needsPanel }, { timeout: 8000 });
+  } catch {
+    fail(`screen root not painted (opacity/visibility) for ${screen} (${selector})`);
+  }
 }
 
 const PERSISTENCE_PLATE_SELECTORS = Object.freeze({
@@ -232,7 +303,11 @@ async function stageScreen(page, screen, profile) {
       return;
     }
     if (screenId === 'vigil') { sp.show('vigil'); return; }
-    if (screenId === 'map') { sp.show('map'); return; }
+    if (screenId === 'map') {
+      run.map = sp.E.genMap(run);
+      sp.show('map');
+      return;
+    }
   }, [screen, profile === 'grown']);
 }
 
@@ -300,8 +375,9 @@ async function main() {
             localStorage.setItem('spirebound_vigil_v2', JSON.stringify(vigil));
           }, profile === 'grown' ? GROWN_VIGIL : FRESH_VIGIL);
           await page.goto(`${settings.origin}/?shape=${shape}&mesh=0&trace=1`);
-          await waitSettled(page);
+          await waitReady(page);
           await stageScreen(page, screen, profile);
+          await assertScreenPainted(page, screen);
           await waitSettled(page, { keepBg3d: screen === 'map' });
           const locale = await scanLocale(page);
           if (locale.locale !== 'en' && locale.locale !== '') {
@@ -351,8 +427,12 @@ async function main() {
         localStorage.setItem('spirebound_vigil_v2', JSON.stringify(vigil));
       }, GROWN_VIGIL);
       await page.goto(`${settings.origin}/?shape=desktop-landscape&mesh=0&trace=1`);
-      await waitSettled(page);
+      await waitReady(page);
       await stagePhase2(page, entry.id);
+      // Phase-2 roots vary; assert the owning screen shell when known.
+      if (SCREEN_PAINT_SELECTOR[entry.screen]) {
+        await assertScreenPainted(page, entry.screen);
+      }
       await waitSettled(page, { keepBg3d: entry.screen === 'map' });
       await assertPersistencePlateHeld(page, entry.id);
       const locale = await scanLocale(page);

@@ -381,13 +381,62 @@ export function cardfaceContractFactsWith({
 
 const BOX_KEYS = Object.freeze(['left', 'top', 'width', 'height', 'right', 'bottom', 'cx', 'cy']);
 
+/** Per-screen geometry slices — ignore cross-screen leftovers in golden diffs. */
+export const SCREEN_GEOMETRY_KEYS = Object.freeze({
+  dawn: Object.freeze(['dawn']),
+  embark: Object.freeze(['embark']),
+  title: Object.freeze(['title']),
+  map: Object.freeze(['map']),
+  scene: Object.freeze(['scene']),
+  event: Object.freeze(['scene']),
+  rest: Object.freeze(['scene']),
+  rewards: Object.freeze(['scene']),
+  shop: Object.freeze(['scene']),
+  treasure: Object.freeze(['scene']),
+  lamplighter: Object.freeze(['lamp']),
+  hollow: Object.freeze(['lamp']),
+  fall: Object.freeze(['fall']),
+  vigil: Object.freeze(['vigil']),
+});
+
+const META_COMPARE_KEYS = Object.freeze([
+  'version', 'screen', 'shape', 'profile', 'stage', 'cardface',
+]);
+
 function isBox(value) {
   return !!value && typeof value === 'object'
     && BOX_KEYS.every((key) => key in value);
 }
 
 function pathIgnored(path, ignorePaths) {
-  return ignorePaths.some((prefix) => path === prefix || path.startsWith(`${prefix}.`));
+  return ignorePaths.some((prefix) => path === prefix
+    || path.startsWith(`${prefix}.`)
+    || path.startsWith(`${prefix}[`));
+}
+
+function isStructurallyEmpty(node) {
+  if (node == null) return true;
+  if (Array.isArray(node)) return node.length === 0;
+  if (typeof node !== 'object' || isBox(node)) return false;
+  return Object.values(node).every((v) => isStructurallyEmpty(v));
+}
+
+/**
+ * Keep only meta + this screen's geometry slices so dawn diffs do not
+ * complain about empty embark/title leftovers (and vice versa).
+ */
+export function projectionForScreenCompare(projection) {
+  if (!projection || typeof projection !== 'object') return projection;
+  const screen = projection.screen || '';
+  const keep = new Set([
+    ...META_COMPARE_KEYS,
+    ...(SCREEN_GEOMETRY_KEYS[screen] || []),
+  ]);
+  const out = {};
+  for (const key of Object.keys(projection)) {
+    if (keep.has(key)) out[key] = projection[key];
+  }
+  return out;
 }
 
 /**
@@ -399,9 +448,12 @@ function pathIgnored(path, ignorePaths) {
 export function diffLayoutProjections(live, golden, {
   boxTol = 8,
   ignorePaths = [],
+  scopeToScreen = true,
 } = {}) {
   if (!live || !golden) throw new Error('diffLayoutProjections requires live and golden');
   const deltas = [];
+  const liveScoped = scopeToScreen ? projectionForScreenCompare(live) : live;
+  const goldenScoped = scopeToScreen ? projectionForScreenCompare(golden) : golden;
 
   const push = (path, kind, liveValue, goldenValue) => {
     if (pathIgnored(path, ignorePaths)) return;
@@ -416,7 +468,9 @@ export function diffLayoutProjections(live, golden, {
   const walk = (liveNode, goldenNode, path) => {
     if (pathIgnored(path, ignorePaths)) return;
 
-    if (liveNode == null && goldenNode == null) return;
+    // Empty / absent structural equivalence for sparse screen sections.
+    if (isStructurallyEmpty(liveNode) && isStructurallyEmpty(goldenNode)) return;
+
     if (liveNode == null || goldenNode == null) {
       push(path, liveNode == null ? 'missing-live' : 'missing-golden', liveNode, goldenNode);
       return;
@@ -433,8 +487,18 @@ export function diffLayoutProjections(live, golden, {
       return;
     }
 
-    if (typeof liveNode !== 'object' || typeof goldenNode !== 'object'
-      || Array.isArray(liveNode) || Array.isArray(goldenNode)) {
+    if (Array.isArray(liveNode) || Array.isArray(goldenNode)) {
+      const liveArr = Array.isArray(liveNode) ? liveNode : [];
+      const goldenArr = Array.isArray(goldenNode) ? goldenNode : [];
+      if (liveArr.length !== goldenArr.length) {
+        push(`${path}.length`, 'value-drift', liveArr.length, goldenArr.length);
+      }
+      const n = Math.max(liveArr.length, goldenArr.length);
+      for (let i = 0; i < n; i += 1) walk(liveArr[i], goldenArr[i], `${path}[${i}]`);
+      return;
+    }
+
+    if (typeof liveNode !== 'object' || typeof goldenNode !== 'object') {
       if (liveNode !== goldenNode) {
         // Numeric soft compare for bare numbers at leaves.
         if (typeof liveNode === 'number' && typeof goldenNode === 'number') {
@@ -448,17 +512,6 @@ export function diffLayoutProjections(live, golden, {
       return;
     }
 
-    if (Array.isArray(liveNode) || Array.isArray(goldenNode)) {
-      const liveArr = Array.isArray(liveNode) ? liveNode : [];
-      const goldenArr = Array.isArray(goldenNode) ? goldenNode : [];
-      if (liveArr.length !== goldenArr.length) {
-        push(`${path}.length`, 'value-drift', liveArr.length, goldenArr.length);
-      }
-      const n = Math.max(liveArr.length, goldenArr.length);
-      for (let i = 0; i < n; i += 1) walk(liveArr[i], goldenArr[i], `${path}[${i}]`);
-      return;
-    }
-
     const keys = new Set([...Object.keys(liveNode), ...Object.keys(goldenNode)]);
     for (const key of keys) {
       // Meta identity fields are recorded but not geometry truth.
@@ -467,7 +520,7 @@ export function diffLayoutProjections(live, golden, {
     }
   };
 
-  walk(live, golden, '');
+  walk(liveScoped, goldenScoped, '');
   return Object.freeze({
     boxTol,
     deltas: Object.freeze(deltas),
