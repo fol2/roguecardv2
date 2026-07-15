@@ -1,7 +1,7 @@
 {
   "role": "live-vs-golden",
   "generatedAt": "2026-07-15T15:34:59.834Z",
-  "liveSourceSha": "5964a0869b18513cc7d00212ce805bb2e4ffe510",
+  "liveSourceSha": "f96fefd1a154882bae92d82189d06fb7fa60609a",
   "goldenSourceSha": "272e0e491b91528f75c2e344211cdc42f839d381",
   "focusCount": 19,
   "unexpectedTotal": 0,

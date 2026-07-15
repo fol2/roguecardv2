@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-07-15T16:26:22.177Z",
-  "sourceSha": "5964a0869b18513cc7d00212ce805bb2e4ffe510",
+  "sourceSha": "f96fefd1a154882bae92d82189d06fb7fa60609a",
   "captureCommand": "node tools/run-with-strict-e2e-port.mjs -- npm run capture:round5:contact-sheets",
   "contentHash": "9c3aca2811c5f62b4589dd9afc6399f8343793252e2a254b81173a9d0eb01f0b",
   "uiHash": "96caec1a031db9074c78ca68c220cc6d35dc88ee76e7683fef4b8a4f7209c0af",
