@@ -2923,8 +2923,17 @@ html.freeze[data-freeze-keep-bg3d] #bg3d { visibility: visible !important; }
     max-width: min(46cqw, 280px);
   }
 
+  /* Override max-width 740 2-col ceremony: lone whisper must fill the
+     ceremony cell on the title mid axis (not sit in the left grid cell). */
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .dawn-ceremony {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+  }
+
   #screen .r5-end--victory .dawn-ceremony .dawn-event {
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 }
 
