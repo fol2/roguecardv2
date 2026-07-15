@@ -1,0 +1,85 @@
+{
+  "id": "embark__phone-landscape__grown",
+  "projection": {
+    "version": 1,
+    "screen": "embark",
+    "shape": "phone-landscape",
+    "profile": "grown",
+    "stage": {
+      "w": 844,
+      "h": 390,
+      "shape": "phone-landscape"
+    },
+    "dawn": {
+      "whisper": null,
+      "ledger": null,
+      "ceremony": null,
+      "content": null
+    },
+    "embark": {
+      "vowDial": {
+        "left": 334.71004276275636,
+        "top": 267.0808622182743,
+        "width": 174.57999496459962,
+        "height": 40.77439634484108,
+        "right": 509.290037727356,
+        "bottom": 307.8552585631154,
+        "cx": 422.0000402450562,
+        "cy": 287.46806039069486,
+        "aspectRatio": 4.281608328131339
+      },
+      "aspectCards": [
+        {
+          "left": 160.1300075531006,
+          "top": 148.11968455720947,
+          "width": 255.78003005981446,
+          "height": 104.75115245321462,
+          "right": 415.91003761291506,
+          "bottom": 252.87083701042408,
+          "cx": 288.02002258300786,
+          "cy": 200.49526078381678
+        },
+        {
+          "left": 428.09000263214114,
+          "top": 148.11968455720947,
+          "width": 255.77998981475832,
+          "height": 104.75115245321462,
+          "right": 683.8699924468995,
+          "bottom": 252.87083701042408,
+          "cx": 555.9799975395204,
+          "cy": 200.49526078381678
+        }
+      ]
+    },
+    "scene": {
+      "sceneBgCount": 0,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": null
+    },
+    "title": {
+      "parallaxCount": 0,
+      "parallaxTop": null,
+      "wordmark": null,
+      "wordmarkClipped": null
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": null,
+      "selectionVisible": false
+    },
+    "fall": {
+      "panel": null
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": null,
+      "rarityAccentDistinct": null
+    }
+  }
+}

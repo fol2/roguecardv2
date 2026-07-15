@@ -1,0 +1,75 @@
+{
+  "id": "vigil__phone-landscape__grown",
+  "deltaCount": 9,
+  "expectedCount": 2,
+  "unexpectedCount": 7,
+  "unexpectedPaths": [
+    "embark.aspectCards",
+    "vigil.title.left",
+    "vigil.title.top",
+    "vigil.title.width",
+    "vigil.title.right",
+    "vigil.title.bottom",
+    "vigil.title.cy"
+  ],
+  "expectedPathsHit": [
+    "cardface.hasArtTexture",
+    "cardface.rarityAccentDistinct"
+  ],
+  "deltas": [
+    {
+      "path": "embark.aspectCards",
+      "kind": "value-drift",
+      "live": [],
+      "golden": []
+    },
+    {
+      "path": "vigil.title.left",
+      "kind": "box-drift",
+      "live": 162.0000041484833,
+      "golden": 171.00001611709595
+    },
+    {
+      "path": "vigil.title.top",
+      "kind": "box-drift",
+      "live": 55.489848804473866,
+      "golden": 67.49999922605667
+    },
+    {
+      "path": "vigil.title.width",
+      "kind": "box-drift",
+      "live": 520.0000520706177,
+      "golden": 502.0000080108643
+    },
+    {
+      "path": "vigil.title.right",
+      "kind": "box-drift",
+      "live": 682.000056219101,
+      "golden": 673.0000241279603
+    },
+    {
+      "path": "vigil.title.bottom",
+      "kind": "box-drift",
+      "live": 90.5367227077484,
+      "golden": 102.5000051596222
+    },
+    {
+      "path": "vigil.title.cy",
+      "kind": "box-drift",
+      "live": 73.01328575611113,
+      "golden": 85.00000219283945
+    },
+    {
+      "path": "cardface.hasArtTexture",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    },
+    {
+      "path": "cardface.rarityAccentDistinct",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    }
+  ]
+}

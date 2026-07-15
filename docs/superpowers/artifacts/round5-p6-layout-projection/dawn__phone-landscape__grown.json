@@ -3,30 +3,6 @@
   "screen": "dawn",
   "shape": "phone-landscape",
   "profile": "grown",
-  "summary": {
-    "applicable": 2,
-    "passedApplicable": 2,
-    "failedApplicable": 0,
-    "failedIds": [],
-    "passedIds": [
-      "dawn-phone-landscape-whisper-width",
-      "cardface-hex-gem-art-rarity"
-    ]
-  },
-  "gates": [
-    {
-      "id": "dawn-phone-landscape-whisper-width",
-      "applicable": true,
-      "pass": true,
-      "detail": "widthRatio=0.9431095123291016 whisper.cx=421.99221509695053 stage.cx=422"
-    },
-    {
-      "id": "cardface-hex-gem-art-rarity",
-      "applicable": true,
-      "pass": true,
-      "detail": "vertices=6 art=true rarity=true"
-    }
-  ],
   "projection": {
     "version": 1,
     "screen": "dawn",

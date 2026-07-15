@@ -3,30 +3,6 @@
   "screen": "vigil",
   "shape": "phone-landscape",
   "profile": "grown",
-  "summary": {
-    "applicable": 2,
-    "passedApplicable": 2,
-    "failedApplicable": 0,
-    "failedIds": [],
-    "passedIds": [
-      "vigil-phone-landscape-title",
-      "cardface-hex-gem-art-rarity"
-    ]
-  },
-  "gates": [
-    {
-      "id": "vigil-phone-landscape-title",
-      "applicable": true,
-      "pass": true,
-      "detail": "title=520.0000520706177x35.04687390327454 visible=true"
-    },
-    {
-      "id": "cardface-hex-gem-art-rarity",
-      "applicable": true,
-      "pass": true,
-      "detail": "vertices=6 art=true rarity=true"
-    }
-  ],
   "projection": {
     "version": 1,
     "screen": "vigil",

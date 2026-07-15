@@ -3,30 +3,6 @@
   "screen": "embark",
   "shape": "pad-landscape",
   "profile": "grown",
-  "summary": {
-    "applicable": 2,
-    "passedApplicable": 2,
-    "failedApplicable": 0,
-    "failedIds": [],
-    "passedIds": [
-      "embark-vow-not-circle",
-      "cardface-hex-gem-art-rarity"
-    ]
-  },
-  "gates": [
-    {
-      "id": "embark-vow-not-circle",
-      "applicable": true,
-      "pass": true,
-      "detail": "aspectRatio=2.4600006631469826"
-    },
-    {
-      "id": "cardface-hex-gem-art-rarity",
-      "applicable": true,
-      "pass": true,
-      "detail": "vertices=6 art=true rarity=true"
-    }
-  ],
   "projection": {
     "version": 1,
     "screen": "embark",

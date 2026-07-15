@@ -1,0 +1,64 @@
+{
+  "id": "rest__phone-landscape__grown",
+  "deltaCount": 6,
+  "expectedCount": 3,
+  "unexpectedCount": 3,
+  "unexpectedPaths": [
+    "embark.aspectCards",
+    "scene.centerPanel.width",
+    "vigil.title"
+  ],
+  "expectedPathsHit": [
+    "scene.sceneBgStampedAsPanel",
+    "cardface.hasArtTexture",
+    "cardface.rarityAccentDistinct"
+  ],
+  "deltas": [
+    {
+      "path": "embark.aspectCards",
+      "kind": "value-drift",
+      "live": [],
+      "golden": []
+    },
+    {
+      "path": "scene.sceneBgStampedAsPanel",
+      "kind": "value-drift",
+      "live": false,
+      "golden": true
+    },
+    {
+      "path": "scene.centerPanel.width",
+      "kind": "box-drift",
+      "live": 844.0000000000001,
+      "golden": 856.6599678039552
+    },
+    {
+      "path": "vigil.title",
+      "kind": "missing-live",
+      "live": null,
+      "golden": {
+        "left": 167.23502068519593,
+        "top": 104.66498779439773,
+        "width": 509.5300189971924,
+        "height": 35.5250127133091,
+        "right": 676.7650396823883,
+        "bottom": 140.19000050770683,
+        "cx": 422.00003018379215,
+        "cy": 122.42749415105229,
+        "visible": true
+      }
+    },
+    {
+      "path": "cardface.hasArtTexture",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    },
+    {
+      "path": "cardface.rarityAccentDistinct",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    }
+  ]
+}

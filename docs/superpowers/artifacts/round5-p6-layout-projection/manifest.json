@@ -1,360 +1,289 @@
 {
-  "generatedAt": "2026-07-15T14:18:50.967Z",
-  "sourceSha": "fccead6f09cf41f85be57e76f6b7b22c0c6233df",
-  "gateIds": [
-    "dawn-phone-portrait-whisper-align",
-    "dawn-phone-landscape-whisper-width",
-    "embark-vow-not-circle",
-    "embark-phone-landscape-column",
-    "event-phone-landscape-centered",
-    "fall-landscape-wider",
-    "lamplighter-fills-stage",
-    "map-bg3d-visible",
-    "scene-bg-not-panel-stamp",
-    "title-parallax-covers-top",
-    "title-wordmark-unclipped",
-    "vigil-phone-landscape-title",
-    "cardface-hex-gem-art-rarity"
-  ],
+  "role": "live-vs-golden",
+  "generatedAt": "2026-07-15T14:38:51.319Z",
+  "liveSourceSha": "1f33aeae9dff36dceaff018417a10afb3c2b733b",
+  "goldenSourceSha": "272e0e491b91528f75c2e344211cdc42f839d381",
   "focusCount": 19,
-  "failedCount": 0,
-  "failed": [],
+  "unexpectedTotal": 124,
+  "expectedDriftPaths": [
+    "scene.sceneBgStampedAsPanel",
+    "cardface"
+  ],
   "rows": [
     {
       "id": "dawn__phone-portrait__grown",
-      "summary": {
-        "applicable": 2,
-        "passedApplicable": 2,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "dawn-phone-portrait-whisper-align",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "dawn-phone-portrait-whisper-align",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 25,
+      "expectedCount": 2,
+      "unexpectedCount": 23,
+      "unexpectedPaths": [
+        "dawn.whisper.left",
+        "dawn.whisper.top",
+        "dawn.whisper.width",
+        "dawn.whisper.right",
+        "dawn.whisper.bottom",
+        "dawn.whisper.cy",
+        "dawn.ledger.left",
+        "dawn.ledger.top",
+        "dawn.ledger.width",
+        "dawn.ledger.height",
+        "dawn.ledger.bottom",
+        "dawn.ledger.cx",
+        "dawn.ledger.cy",
+        "dawn.ceremony.top",
+        "dawn.ceremony.width",
+        "dawn.ceremony.height",
+        "dawn.ceremony.right",
+        "dawn.ceremony.bottom",
+        "dawn.ceremony.cx",
+        "dawn.ceremony.cy",
+        "dawn.content.height",
+        "embark.aspectCards",
+        "scene.centerPanel.height"
       ]
     },
     {
       "id": "dawn__phone-landscape__grown",
-      "summary": {
-        "applicable": 2,
-        "passedApplicable": 2,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "dawn-phone-landscape-whisper-width",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "dawn-phone-landscape-whisper-width",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 19,
+      "expectedCount": 2,
+      "unexpectedCount": 17,
+      "unexpectedPaths": [
+        "dawn.whisper.left",
+        "dawn.whisper.width",
+        "dawn.whisper.right",
+        "dawn.whisper.cx",
+        "dawn.ledger.top",
+        "dawn.ledger.height",
+        "dawn.ledger.bottom",
+        "dawn.ledger.cy",
+        "dawn.ceremony.top",
+        "dawn.ceremony.width",
+        "dawn.ceremony.height",
+        "dawn.ceremony.right",
+        "dawn.ceremony.bottom",
+        "dawn.ceremony.cx",
+        "dawn.content.width",
+        "embark.aspectCards",
+        "scene.centerPanel.width"
       ]
     },
     {
       "id": "embark__desktop-landscape__grown",
-      "summary": {
-        "applicable": 2,
-        "passedApplicable": 2,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "embark-vow-not-circle",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "embark-vow-not-circle",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 9,
+      "expectedCount": 2,
+      "unexpectedCount": 7,
+      "unexpectedPaths": [
+        "embark.vowDial.left",
+        "embark.vowDial.top",
+        "embark.vowDial.width",
+        "embark.vowDial.height",
+        "embark.vowDial.right",
+        "embark.vowDial.cy",
+        "embark.aspectCards"
       ]
     },
     {
       "id": "embark__phone-landscape__grown",
-      "summary": {
-        "applicable": 3,
-        "passedApplicable": 3,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "embark-vow-not-circle",
-          "embark-phone-landscape-column",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "embark-vow-not-circle",
-        "embark-phone-landscape-column",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 9,
+      "expectedCount": 2,
+      "unexpectedCount": 7,
+      "unexpectedPaths": [
+        "embark.vowDial.left",
+        "embark.vowDial.top",
+        "embark.vowDial.width",
+        "embark.vowDial.right",
+        "embark.vowDial.bottom",
+        "embark.vowDial.cy",
+        "embark.aspectCards"
       ]
     },
     {
       "id": "embark__pad-landscape__grown",
-      "summary": {
-        "applicable": 2,
-        "passedApplicable": 2,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "embark-vow-not-circle",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "embark-vow-not-circle",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 9,
+      "expectedCount": 2,
+      "unexpectedCount": 7,
+      "unexpectedPaths": [
+        "embark.vowDial.left",
+        "embark.vowDial.top",
+        "embark.vowDial.width",
+        "embark.vowDial.height",
+        "embark.vowDial.right",
+        "embark.vowDial.cy",
+        "embark.aspectCards"
       ]
     },
     {
       "id": "event__phone-landscape__grown",
-      "summary": {
-        "applicable": 3,
-        "passedApplicable": 3,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "event-phone-landscape-centered",
-          "scene-bg-not-panel-stamp",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "event-phone-landscape-centered",
-        "scene-bg-not-panel-stamp",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 6,
+      "expectedCount": 3,
+      "unexpectedCount": 3,
+      "unexpectedPaths": [
+        "embark.aspectCards",
+        "scene.centerPanel.width",
+        "vigil.title"
       ]
     },
     {
       "id": "fall__desktop-landscape__grown",
-      "summary": {
-        "applicable": 2,
-        "passedApplicable": 2,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "fall-landscape-wider",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "fall-landscape-wider",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 9,
+      "expectedCount": 2,
+      "unexpectedCount": 7,
+      "unexpectedPaths": [
+        "dawn.ledger.left",
+        "dawn.ledger.top",
+        "dawn.ledger.width",
+        "dawn.ledger.right",
+        "dawn.ledger.bottom",
+        "dawn.ledger.cy",
+        "embark.aspectCards"
       ]
     },
     {
       "id": "fall__pad-landscape__grown",
-      "summary": {
-        "applicable": 2,
-        "passedApplicable": 2,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "fall-landscape-wider",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "fall-landscape-wider",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 9,
+      "expectedCount": 2,
+      "unexpectedCount": 7,
+      "unexpectedPaths": [
+        "dawn.ledger.left",
+        "dawn.ledger.top",
+        "dawn.ledger.width",
+        "dawn.ledger.right",
+        "dawn.ledger.bottom",
+        "dawn.ledger.cy",
+        "embark.aspectCards"
       ]
     },
     {
       "id": "lamplighter__phone-portrait__grown",
-      "summary": {
-        "applicable": 3,
-        "passedApplicable": 3,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "lamplighter-fills-stage",
-          "scene-bg-not-panel-stamp",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "lamplighter-fills-stage",
-        "scene-bg-not-panel-stamp",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 6,
+      "expectedCount": 3,
+      "unexpectedCount": 3,
+      "unexpectedPaths": [
+        "embark.aspectCards",
+        "scene.centerPanel.height",
+        "lamp.root.height"
       ]
     },
     {
       "id": "lamplighter__phone-landscape__grown",
-      "summary": {
-        "applicable": 3,
-        "passedApplicable": 3,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "lamplighter-fills-stage",
-          "scene-bg-not-panel-stamp",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "lamplighter-fills-stage",
-        "scene-bg-not-panel-stamp",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 6,
+      "expectedCount": 3,
+      "unexpectedCount": 3,
+      "unexpectedPaths": [
+        "embark.aspectCards",
+        "scene.centerPanel.width",
+        "lamp.root.width"
       ]
     },
     {
       "id": "map__desktop-landscape__grown",
-      "summary": {
-        "applicable": 2,
-        "passedApplicable": 2,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "map-bg3d-visible",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "map-bg3d-visible",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 5,
+      "expectedCount": 2,
+      "unexpectedCount": 3,
+      "unexpectedPaths": [
+        "embark.aspectCards",
+        "map.bg3dVisible",
+        "map.keepBg3dAttr"
       ]
     },
     {
       "id": "rest__phone-landscape__grown",
-      "summary": {
-        "applicable": 2,
-        "passedApplicable": 2,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "scene-bg-not-panel-stamp",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "scene-bg-not-panel-stamp",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 6,
+      "expectedCount": 3,
+      "unexpectedCount": 3,
+      "unexpectedPaths": [
+        "embark.aspectCards",
+        "scene.centerPanel.width",
+        "vigil.title"
       ]
     },
     {
       "id": "rewards__phone-landscape__grown",
-      "summary": {
-        "applicable": 2,
-        "passedApplicable": 2,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "scene-bg-not-panel-stamp",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "scene-bg-not-panel-stamp",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 6,
+      "expectedCount": 3,
+      "unexpectedCount": 3,
+      "unexpectedPaths": [
+        "embark.aspectCards",
+        "scene.centerPanel.width",
+        "vigil.title"
       ]
     },
     {
       "id": "shop__phone-landscape__grown",
-      "summary": {
-        "applicable": 2,
-        "passedApplicable": 2,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "scene-bg-not-panel-stamp",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "scene-bg-not-panel-stamp",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 6,
+      "expectedCount": 3,
+      "unexpectedCount": 3,
+      "unexpectedPaths": [
+        "embark.aspectCards",
+        "scene.centerPanel.width",
+        "vigil.title"
       ]
     },
     {
       "id": "treasure__phone-landscape__grown",
-      "summary": {
-        "applicable": 2,
-        "passedApplicable": 2,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "scene-bg-not-panel-stamp",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "scene-bg-not-panel-stamp",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 6,
+      "expectedCount": 3,
+      "unexpectedCount": 3,
+      "unexpectedPaths": [
+        "embark.aspectCards",
+        "scene.centerPanel.width",
+        "vigil.title"
       ]
     },
     {
       "id": "title__desktop-landscape__grown",
-      "summary": {
-        "applicable": 3,
-        "passedApplicable": 3,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "title-parallax-covers-top",
-          "title-wordmark-unclipped",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "title-parallax-covers-top",
-        "title-wordmark-unclipped",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 7,
+      "expectedCount": 2,
+      "unexpectedCount": 5,
+      "unexpectedPaths": [
+        "embark.aspectCards",
+        "title.parallaxTop",
+        "title.wordmark.top",
+        "title.wordmark.bottom",
+        "title.wordmark.cy"
       ]
     },
     {
       "id": "title__phone-portrait__grown",
-      "summary": {
-        "applicable": 3,
-        "passedApplicable": 3,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "title-parallax-covers-top",
-          "title-wordmark-unclipped",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "title-parallax-covers-top",
-        "title-wordmark-unclipped",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 11,
+      "expectedCount": 2,
+      "unexpectedCount": 9,
+      "unexpectedPaths": [
+        "embark.aspectCards",
+        "title.parallaxTop",
+        "title.wordmark.left",
+        "title.wordmark.top",
+        "title.wordmark.width",
+        "title.wordmark.height",
+        "title.wordmark.right",
+        "title.wordmark.bottom",
+        "title.wordmark.cy"
       ]
     },
     {
       "id": "title__phone-landscape__grown",
-      "summary": {
-        "applicable": 3,
-        "passedApplicable": 3,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "title-parallax-covers-top",
-          "title-wordmark-unclipped",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "title-parallax-covers-top",
-        "title-wordmark-unclipped",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 6,
+      "expectedCount": 2,
+      "unexpectedCount": 4,
+      "unexpectedPaths": [
+        "embark.aspectCards",
+        "title.wordmark.top",
+        "title.wordmark.bottom",
+        "title.wordmark.cy"
       ]
     },
     {
       "id": "vigil__phone-landscape__grown",
-      "summary": {
-        "applicable": 2,
-        "passedApplicable": 2,
-        "failedApplicable": 0,
-        "failedIds": [],
-        "passedIds": [
-          "vigil-phone-landscape-title",
-          "cardface-hex-gem-art-rarity"
-        ]
-      },
-      "applicableGateIds": [
-        "vigil-phone-landscape-title",
-        "cardface-hex-gem-art-rarity"
+      "deltaCount": 9,
+      "expectedCount": 2,
+      "unexpectedCount": 7,
+      "unexpectedPaths": [
+        "embark.aspectCards",
+        "vigil.title.left",
+        "vigil.title.top",
+        "vigil.title.width",
+        "vigil.title.right",
+        "vigil.title.bottom",
+        "vigil.title.cy"
       ]
     }
   ],

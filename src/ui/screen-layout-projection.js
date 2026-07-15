@@ -378,3 +378,116 @@ export function cardfaceContractFactsWith({
     rarityAccentDistinct: !!distinct,
   });
 }
+
+const BOX_KEYS = Object.freeze(['left', 'top', 'width', 'height', 'right', 'bottom', 'cx', 'cy']);
+
+function isBox(value) {
+  return !!value && typeof value === 'object'
+    && BOX_KEYS.every((key) => key in value);
+}
+
+function pathIgnored(path, ignorePaths) {
+  return ignorePaths.some((prefix) => path === prefix || path.startsWith(`${prefix}.`));
+}
+
+/**
+ * Structural diff of live projection vs a frozen ORIGINAL golden projection.
+ * This is the real comparison subject — not hand-written taste thresholds.
+ *
+ * @returns {{ deltas: Array<{path, kind, live, golden}>, boxTol }}
+ */
+export function diffLayoutProjections(live, golden, {
+  boxTol = 8,
+  ignorePaths = [],
+} = {}) {
+  if (!live || !golden) throw new Error('diffLayoutProjections requires live and golden');
+  const deltas = [];
+
+  const push = (path, kind, liveValue, goldenValue) => {
+    if (pathIgnored(path, ignorePaths)) return;
+    deltas.push(Object.freeze({
+      path,
+      kind,
+      live: liveValue === undefined ? null : liveValue,
+      golden: goldenValue === undefined ? null : goldenValue,
+    }));
+  };
+
+  const walk = (liveNode, goldenNode, path) => {
+    if (pathIgnored(path, ignorePaths)) return;
+
+    if (liveNode == null && goldenNode == null) return;
+    if (liveNode == null || goldenNode == null) {
+      push(path, liveNode == null ? 'missing-live' : 'missing-golden', liveNode, goldenNode);
+      return;
+    }
+
+    if (isBox(liveNode) && isBox(goldenNode)) {
+      for (const key of BOX_KEYS) {
+        const lv = Number(liveNode[key]);
+        const gv = Number(goldenNode[key]);
+        if (!Number.isFinite(lv) || !Number.isFinite(gv) || Math.abs(lv - gv) > boxTol) {
+          push(`${path}.${key}`, 'box-drift', lv, gv);
+        }
+      }
+      return;
+    }
+
+    if (typeof liveNode !== 'object' || typeof goldenNode !== 'object'
+      || Array.isArray(liveNode) || Array.isArray(goldenNode)) {
+      if (liveNode !== goldenNode) {
+        // Numeric soft compare for bare numbers at leaves.
+        if (typeof liveNode === 'number' && typeof goldenNode === 'number') {
+          if (Math.abs(liveNode - goldenNode) > boxTol) {
+            push(path, 'value-drift', liveNode, goldenNode);
+          }
+          return;
+        }
+        push(path, 'value-drift', liveNode, goldenNode);
+      }
+      return;
+    }
+
+    if (Array.isArray(liveNode) || Array.isArray(goldenNode)) {
+      const liveArr = Array.isArray(liveNode) ? liveNode : [];
+      const goldenArr = Array.isArray(goldenNode) ? goldenNode : [];
+      if (liveArr.length !== goldenArr.length) {
+        push(`${path}.length`, 'value-drift', liveArr.length, goldenArr.length);
+      }
+      const n = Math.max(liveArr.length, goldenArr.length);
+      for (let i = 0; i < n; i += 1) walk(liveArr[i], goldenArr[i], `${path}[${i}]`);
+      return;
+    }
+
+    const keys = new Set([...Object.keys(liveNode), ...Object.keys(goldenNode)]);
+    for (const key of keys) {
+      // Meta identity fields are recorded but not geometry truth.
+      if (key === 'version') continue;
+      walk(liveNode[key], goldenNode[key], path ? `${path}.${key}` : key);
+    }
+  };
+
+  walk(live, golden, '');
+  return Object.freeze({
+    boxTol,
+    deltas: Object.freeze(deltas),
+  });
+}
+
+export function summarizeProjectionDiff(diff, {
+  expectedPaths = [],
+} = {}) {
+  const unexpected = diff.deltas.filter((d) => !expectedPaths.some(
+    (prefix) => d.path === prefix || d.path.startsWith(`${prefix}.`) || d.path.startsWith(`${prefix}[`),
+  ));
+  const expected = diff.deltas.filter((d) => expectedPaths.some(
+    (prefix) => d.path === prefix || d.path.startsWith(`${prefix}.`) || d.path.startsWith(`${prefix}[`),
+  ));
+  return Object.freeze({
+    deltaCount: diff.deltas.length,
+    expectedCount: expected.length,
+    unexpectedCount: unexpected.length,
+    unexpectedPaths: Object.freeze(unexpected.map((d) => d.path)),
+    expectedPathsHit: Object.freeze(expected.map((d) => d.path)),
+  });
+}

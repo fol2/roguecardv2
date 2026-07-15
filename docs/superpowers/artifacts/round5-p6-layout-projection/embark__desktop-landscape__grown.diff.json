@@ -1,0 +1,117 @@
+{
+  "id": "embark__desktop-landscape__grown",
+  "deltaCount": 9,
+  "expectedCount": 2,
+  "unexpectedCount": 7,
+  "unexpectedPaths": [
+    "embark.vowDial.left",
+    "embark.vowDial.top",
+    "embark.vowDial.width",
+    "embark.vowDial.height",
+    "embark.vowDial.right",
+    "embark.vowDial.cy",
+    "embark.aspectCards"
+  ],
+  "expectedPathsHit": [
+    "cardface.hasArtTexture",
+    "cardface.rarityAccentDistinct"
+  ],
+  "deltas": [
+    {
+      "path": "embark.vowDial.left",
+      "kind": "box-drift",
+      "live": 606.0000211715699,
+      "golden": 620.3950069427491
+    },
+    {
+      "path": "embark.vowDial.top",
+      "kind": "box-drift",
+      "live": 491.6159068584442,
+      "golden": 517.4631499179036
+    },
+    {
+      "path": "embark.vowDial.width",
+      "kind": "box-drift",
+      "live": 245.99995765686037,
+      "golden": 217.20998611450196
+    },
+    {
+      "path": "embark.vowDial.height",
+      "kind": "box-drift",
+      "live": 99.99997515678406,
+      "golden": 75.10999279166661
+    },
+    {
+      "path": "embark.vowDial.right",
+      "kind": "box-drift",
+      "live": 851.9999788284302,
+      "golden": 837.604993057251
+    },
+    {
+      "path": "embark.vowDial.cy",
+      "kind": "box-drift",
+      "live": 541.6158944368362,
+      "golden": 555.0181463137369
+    },
+    {
+      "path": "embark.aspectCards",
+      "kind": "value-drift",
+      "live": [
+        {
+          "left": 415.7499911785126,
+          "top": 240.3890295743942,
+          "width": 310.5000321865082,
+          "height": 235.20373570919037,
+          "right": 726.2500233650208,
+          "bottom": 475.5927652835845,
+          "cx": 571.0000072717667,
+          "cy": 357.99089742898934
+        },
+        {
+          "left": 736.9999952316284,
+          "top": 244.36589345932003,
+          "width": 300.00002975463866,
+          "height": 227.2499905586243,
+          "right": 1037.0000249862671,
+          "bottom": 471.6158840179443,
+          "cx": 887.0000101089478,
+          "cy": 357.9908887386322
+        }
+      ],
+      "golden": [
+        {
+          "left": 485.40000615119936,
+          "top": 242.65187649823878,
+          "width": 235.48000216484073,
+          "height": 256.5412573225798,
+          "right": 720.8800083160401,
+          "bottom": 499.19313382081856,
+          "cx": 603.1400072336197,
+          "cy": 370.92250515952867
+        },
+        {
+          "left": 737.11999168396,
+          "top": 242.65187649823878,
+          "width": 235.47996740341188,
+          "height": 256.5412573225798,
+          "right": 972.5999590873719,
+          "bottom": 499.19313382081856,
+          "cx": 854.859975385666,
+          "cy": 370.92250515952867
+        }
+      ]
+    },
+    {
+      "path": "cardface.hasArtTexture",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    },
+    {
+      "path": "cardface.rarityAccentDistinct",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    }
+  ]
+}

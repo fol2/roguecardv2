@@ -1,0 +1,75 @@
+{
+  "id": "fall__pad-landscape__grown",
+  "deltaCount": 9,
+  "expectedCount": 2,
+  "unexpectedCount": 7,
+  "unexpectedPaths": [
+    "dawn.ledger.left",
+    "dawn.ledger.top",
+    "dawn.ledger.width",
+    "dawn.ledger.right",
+    "dawn.ledger.bottom",
+    "dawn.ledger.cy",
+    "embark.aspectCards"
+  ],
+  "expectedPathsHit": [
+    "cardface.hasArtTexture",
+    "cardface.rarityAccentDistinct"
+  ],
+  "deltas": [
+    {
+      "path": "dawn.ledger.left",
+      "kind": "box-drift",
+      "live": 260.5781127929688,
+      "golden": 269.9375168994326
+    },
+    {
+      "path": "dawn.ledger.top",
+      "kind": "box-drift",
+      "live": 403.0000144958496,
+      "golden": 499.00001678466793
+    },
+    {
+      "path": "dawn.ledger.width",
+      "kind": "box-drift",
+      "live": 658.8125564575196,
+      "golden": 640.1250287621716
+    },
+    {
+      "path": "dawn.ledger.right",
+      "kind": "box-drift",
+      "live": 919.3906692504884,
+      "golden": 910.0625456616042
+    },
+    {
+      "path": "dawn.ledger.bottom",
+      "kind": "box-drift",
+      "live": 566.999983215332,
+      "golden": 663.0000167846679
+    },
+    {
+      "path": "dawn.ledger.cy",
+      "kind": "box-drift",
+      "live": 484.99999885559083,
+      "golden": 581.0000167846679
+    },
+    {
+      "path": "embark.aspectCards",
+      "kind": "value-drift",
+      "live": [],
+      "golden": []
+    },
+    {
+      "path": "cardface.hasArtTexture",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    },
+    {
+      "path": "cardface.rarityAccentDistinct",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    }
+  ]
+}

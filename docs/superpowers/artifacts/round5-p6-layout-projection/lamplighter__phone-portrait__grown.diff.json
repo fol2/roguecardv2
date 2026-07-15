@@ -1,0 +1,54 @@
+{
+  "id": "lamplighter__phone-portrait__grown",
+  "deltaCount": 6,
+  "expectedCount": 3,
+  "unexpectedCount": 3,
+  "unexpectedPaths": [
+    "embark.aspectCards",
+    "scene.centerPanel.height",
+    "lamp.root.height"
+  ],
+  "expectedPathsHit": [
+    "scene.sceneBgStampedAsPanel",
+    "cardface.hasArtTexture",
+    "cardface.rarityAccentDistinct"
+  ],
+  "deltas": [
+    {
+      "path": "embark.aspectCards",
+      "kind": "value-drift",
+      "live": [],
+      "golden": []
+    },
+    {
+      "path": "scene.sceneBgStampedAsPanel",
+      "kind": "value-drift",
+      "live": false,
+      "golden": true
+    },
+    {
+      "path": "scene.centerPanel.height",
+      "kind": "box-drift",
+      "live": 844,
+      "golden": 856.6599356079101
+    },
+    {
+      "path": "lamp.root.height",
+      "kind": "box-drift",
+      "live": 844,
+      "golden": 856.6599356079101
+    },
+    {
+      "path": "cardface.hasArtTexture",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    },
+    {
+      "path": "cardface.rarityAccentDistinct",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    }
+  ]
+}

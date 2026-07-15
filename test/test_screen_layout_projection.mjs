@@ -8,6 +8,8 @@ import {
   OWNER_FAIL_GATE_IDS,
   evaluateOwnerFailGates,
   summarizeGateReport,
+  diffLayoutProjections,
+  summarizeProjectionDiff,
 } from '../src/ui/screen-layout-projection.js';
 
 assert.equal(LAYOUT_PROJECTION_VERSION, 1);
@@ -288,6 +290,42 @@ function base(overrides = {}) {
   const summary = summarizeGateReport(ok);
   assert.equal(summary.failedApplicable, 0);
   assert.ok(summary.passedApplicable >= 2);
+}
+
+// --- ORIGINAL golden diff (true comparison subject) ---
+{
+  const golden = base({
+    screen: 'event',
+    shape: 'phone-landscape',
+    stage: { w: 740, h: 360, shape: 'phone-landscape' },
+    scene: {
+      sceneBgCount: 1,
+      sceneBgStampedAsPanel: true,
+      centerPanel: box(170, 20, 400, 320),
+    },
+  });
+  const live = base({
+    screen: 'event',
+    shape: 'phone-landscape',
+    stage: { w: 740, h: 360, shape: 'phone-landscape' },
+    scene: {
+      sceneBgCount: 1,
+      sceneBgStampedAsPanel: false,
+      centerPanel: box(172, 22, 400, 320),
+    },
+  });
+  const diff = diffLayoutProjections(live, golden, { boxTol: 8 });
+  assert.ok(diff.deltas.some((d) => d.path === 'scene.sceneBgStampedAsPanel'));
+  const open = summarizeProjectionDiff(diff, { expectedPaths: [] });
+  assert.ok(open.unexpectedCount >= 1);
+  const allowed = summarizeProjectionDiff(diff, {
+    expectedPaths: ['scene.sceneBgStampedAsPanel'],
+  });
+  assert.equal(
+    allowed.unexpectedPaths.filter((p) => p.startsWith('scene.centerPanel')).length,
+    0,
+  );
+  assert.ok(allowed.expectedPathsHit.includes('scene.sceneBgStampedAsPanel'));
 }
 
 console.log('screen-layout-projection unit checks passed');

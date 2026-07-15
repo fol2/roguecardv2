@@ -3,30 +3,6 @@
   "screen": "fall",
   "shape": "pad-landscape",
   "profile": "grown",
-  "summary": {
-    "applicable": 2,
-    "passedApplicable": 2,
-    "failedApplicable": 0,
-    "failedIds": [],
-    "passedIds": [
-      "fall-landscape-wider",
-      "cardface-hex-gem-art-rarity"
-    ]
-  },
-  "gates": [
-    {
-      "id": "fall-landscape-wider",
-      "applicable": true,
-      "pass": true,
-      "detail": "widthRatio=0.9999999741376456 min=0.55"
-    },
-    {
-      "id": "cardface-hex-gem-art-rarity",
-      "applicable": true,
-      "pass": true,
-      "detail": "vertices=6 art=true rarity=true"
-    }
-  ],
   "projection": {
     "version": 1,
     "screen": "fall",

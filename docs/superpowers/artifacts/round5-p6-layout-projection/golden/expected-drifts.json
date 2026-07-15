@@ -1,0 +1,7 @@
+{
+  "note": "Paths expected to differ from golden after intentional remediations. Unexpected paths fail compare.",
+  "paths": [
+    "scene.sceneBgStampedAsPanel",
+    "cardface"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "role": "golden-original",
+  "generatedAt": "2026-07-15T14:38:13.993Z",
+  "sourceSha": "272e0e491b91528f75c2e344211cdc42f839d381",
+  "captureRoot": "/Users/jamesto/Coding/roguecardv2/.worktrees/round5-layout-golden",
+  "focusCount": 19,
+  "rows": [
+    "dawn__phone-portrait__grown",
+    "dawn__phone-landscape__grown",
+    "embark__desktop-landscape__grown",
+    "embark__phone-landscape__grown",
+    "embark__pad-landscape__grown",
+    "event__phone-landscape__grown",
+    "fall__desktop-landscape__grown",
+    "fall__pad-landscape__grown",
+    "lamplighter__phone-portrait__grown",
+    "lamplighter__phone-landscape__grown",
+    "map__desktop-landscape__grown",
+    "rest__phone-landscape__grown",
+    "rewards__phone-landscape__grown",
+    "shop__phone-landscape__grown",
+    "treasure__phone-landscape__grown",
+    "title__desktop-landscape__grown",
+    "title__phone-portrait__grown",
+    "title__phone-landscape__grown",
+    "vigil__phone-landscape__grown"
+  ],
+  "sha256": "1708886b1d170f0c63b8725d97c76b22465c9dfea21403d49767d16bd7c0c14f"
+}

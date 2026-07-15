@@ -1,0 +1,47 @@
+{
+  "id": "map__desktop-landscape__grown",
+  "deltaCount": 5,
+  "expectedCount": 2,
+  "unexpectedCount": 3,
+  "unexpectedPaths": [
+    "embark.aspectCards",
+    "map.bg3dVisible",
+    "map.keepBg3dAttr"
+  ],
+  "expectedPathsHit": [
+    "cardface.hasArtTexture",
+    "cardface.rarityAccentDistinct"
+  ],
+  "deltas": [
+    {
+      "path": "embark.aspectCards",
+      "kind": "value-drift",
+      "live": [],
+      "golden": []
+    },
+    {
+      "path": "map.bg3dVisible",
+      "kind": "value-drift",
+      "live": true,
+      "golden": false
+    },
+    {
+      "path": "map.keepBg3dAttr",
+      "kind": "value-drift",
+      "live": true,
+      "golden": false
+    },
+    {
+      "path": "cardface.hasArtTexture",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    },
+    {
+      "path": "cardface.rarityAccentDistinct",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    }
+  ]
+}

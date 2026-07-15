@@ -3,37 +3,6 @@
   "screen": "title",
   "shape": "phone-landscape",
   "profile": "grown",
-  "summary": {
-    "applicable": 3,
-    "passedApplicable": 3,
-    "failedApplicable": 0,
-    "failedIds": [],
-    "passedIds": [
-      "title-parallax-covers-top",
-      "title-wordmark-unclipped",
-      "cardface-hex-gem-art-rarity"
-    ]
-  },
-  "gates": [
-    {
-      "id": "title-parallax-covers-top",
-      "applicable": true,
-      "pass": true,
-      "detail": "parallaxCount=3 parallaxTop=-0.010156250000015278"
-    },
-    {
-      "id": "title-wordmark-unclipped",
-      "applicable": true,
-      "pass": true,
-      "detail": "clipped=false wordmark=229.99999284744266x59.734378576278694"
-    },
-    {
-      "id": "cardface-hex-gem-art-rarity",
-      "applicable": true,
-      "pass": true,
-      "detail": "vertices=6 art=true rarity=true"
-    }
-  ],
   "projection": {
     "version": 1,
     "screen": "title",

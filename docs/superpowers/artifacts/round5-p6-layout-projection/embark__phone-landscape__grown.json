@@ -3,37 +3,6 @@
   "screen": "embark",
   "shape": "phone-landscape",
   "profile": "grown",
-  "summary": {
-    "applicable": 3,
-    "passedApplicable": 3,
-    "failedApplicable": 0,
-    "failedIds": [],
-    "passedIds": [
-      "embark-vow-not-circle",
-      "embark-phone-landscape-column",
-      "cardface-hex-gem-art-rarity"
-    ]
-  },
-  "gates": [
-    {
-      "id": "embark-vow-not-circle",
-      "applicable": true,
-      "pass": true,
-      "detail": "aspectRatio=4.99999954266982"
-    },
-    {
-      "id": "embark-phone-landscape-column",
-      "applicable": true,
-      "pass": true,
-      "detail": "stacked=true sideBySide=false a.bottom=187.3397560119629 b.top=196.9898564338684"
-    },
-    {
-      "id": "cardface-hex-gem-art-rarity",
-      "applicable": true,
-      "pass": true,
-      "detail": "vertices=6 art=true rarity=true"
-    }
-  ],
   "projection": {
     "version": 1,
     "screen": "embark",

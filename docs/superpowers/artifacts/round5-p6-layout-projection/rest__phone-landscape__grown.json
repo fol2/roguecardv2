@@ -3,30 +3,6 @@
   "screen": "rest",
   "shape": "phone-landscape",
   "profile": "grown",
-  "summary": {
-    "applicable": 2,
-    "passedApplicable": 2,
-    "failedApplicable": 0,
-    "failedIds": [],
-    "passedIds": [
-      "scene-bg-not-panel-stamp",
-      "cardface-hex-gem-art-rarity"
-    ]
-  },
-  "gates": [
-    {
-      "id": "scene-bg-not-panel-stamp",
-      "applicable": true,
-      "pass": true,
-      "detail": "sceneBgCount=1 stampedAsPanel=false"
-    },
-    {
-      "id": "cardface-hex-gem-art-rarity",
-      "applicable": true,
-      "pass": true,
-      "detail": "vertices=6 art=true rarity=true"
-    }
-  ],
   "projection": {
     "version": 1,
     "screen": "rest",

@@ -38,6 +38,8 @@
     "test:e2e:webkit": "playwright test trace stage lab theme-profile production-profile p6-screens --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps",
     "capture:round5:contact-sheets": "node tools/capture-round5-contact-sheets.mjs",
     "project:round5:layout": "node tools/run-with-strict-e2e-port.mjs -- node tools/project-round5-layout.mjs",
+    "project:round5:layout:golden": "LAYOUT_PROJECTION_MODE=golden node tools/run-with-strict-e2e-port.mjs -- node tools/project-round5-layout.mjs",
+    "project:round5:layout:compare": "LAYOUT_PROJECTION_MODE=compare node tools/run-with-strict-e2e-port.mjs -- node tools/project-round5-layout.mjs",
     "test:layout-projection": "node test/test_screen_layout_projection.mjs",
     "test:e2e:leak": "playwright test leak --project=desktop --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps",
     "test:e2e:update": "playwright test visual --update-snapshots --project=desktop --project=portrait --project=landscape --workers=1 --no-deps",
