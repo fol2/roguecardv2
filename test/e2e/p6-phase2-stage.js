@@ -36,7 +36,9 @@ async function writeVigil(page, vigil) {
     localStorage.removeItem('spirebound_save_v2');
     localStorage.setItem('spirebound_vigil_v2', JSON.stringify(value));
   }, vigil);
-  await page.reload();
+  // domcontentloaded: Phase-2 loading terminals may install hanging asset routes
+  // that would otherwise prevent the window `load` event forever.
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await waitAppReady(page);
 }
 
@@ -115,21 +117,14 @@ async function stageHollowBase(page, {
 
 async function freezeNavigation(page) {
   await page.evaluate(() => {
-    const sp = window.spirebound;
-    if (window.__p6FreezeShow) return;
-    window.__p6FreezeShow = sp.show;
-    sp.show = (name, opts) => {
-      if (name === 'hollow' || name === 'title' || name === 'end' || name === 'shop'
-        || name === 'vigil' || name === 'map') {
-        return window.__p6FreezeShow.call(sp, name, opts);
-      }
-      // Swallow destination navigations so Hollow close terminals stay painted.
-      return undefined;
-    };
+    // Honoured inside createNavigator().show — not window.spirebound.show, which
+    // screen owners do not close over.
+    globalThis.__p6NavFreeze = ['hollow'];
   });
 }
 
 async function stageUsurperShop(page, { gold = 700 } = {}) {
+  await page.evaluate(() => { globalThis.__p6NavFreeze = null; });
   await page.evaluate((goldAmount) => {
     const sp = window.spirebound;
     const storedVigil = JSON.parse(localStorage.getItem('spirebound_vigil_v2') || '{}');
@@ -139,7 +134,7 @@ async function stageUsurperShop(page, { gold = 700 } = {}) {
     };
     const run = sp.E.newRun(3830, {
       reveals: ['emberglass', 'phials'],
-      shards: storedVigil.shards || [],
+      shards: storedVigil.shards?.length ? storedVigil.shards : ['usurper'],
       quests,
     });
     run.act = 1;
@@ -154,15 +149,24 @@ async function stageUsurperShop(page, { gold = 700 } = {}) {
     sp.S.run = run;
     sp.S.shopData = null;
     sp.show('shop');
+    if (sp.S.screen !== 'shop') {
+      throw new Error(`usurper shop staging stayed on ${sp.S.screen}`);
+    }
   }, gold);
-  await page.waitForSelector('.r5-shop');
-  await page.waitForSelector('.quest-shop-item', { timeout: 15_000 });
+  await page.waitForSelector('.r5-shop', { state: 'attached' });
+  await page.waitForFunction(() => {
+    const item = document.querySelector('.quest-shop-item');
+    return item && !!item.dataset.r5State;
+  }, null, { timeout: 15_000 });
 }
 
 /**
  * Stage one Phase-2 capture id via real owners. Throws on unknown id.
  */
 export async function stagePhase2State(page, stateId) {
+  // Clear any prior Hollow freeze from an earlier state on a reused page.
+  await page.evaluate(() => { globalThis.__p6NavFreeze = null; }).catch(() => {});
+
   if (stateId === 'rose-absent') {
     await writeVigil(page, {
       v: 2,
@@ -179,9 +183,6 @@ export async function stagePhase2State(page, stateId) {
   }
 
   if (stateId === 'title-rose-loading') {
-    // Routes must precede writeVigil reload so the title boot cannot cache the asset.
-    await page.route('**/assets/**/*rose*', (route) => {});
-    await page.route('**/assets/rose/**', (route) => {});
     await writeVigil(page, {
       v: 2,
       deeds: {
@@ -191,16 +192,18 @@ export async function stagePhase2State(page, stateId) {
       unlocks: [], vowUnlocked: 1, lastFall: null,
       runsPlayed: 4, quests: {}, shards: ['usurper'], whispers: 1, news: true,
     });
+    // Stall only Rose meta rasters after boot so reload is not blocked by load.
+    await page.route('**/assets/meta/**emberglass*', (route) => {});
+    await page.route('**/meta/emberglass*', (route) => {});
     await page.evaluate(() => window.spirebound.show('title'));
-    await page.waitForSelector('.title-rose-medallion[data-r5-state="title-rose-loading"]');
+    // Loading medallion is attached but CSS-hidden until ready — do not require visible.
+    await page.waitForSelector('.title-rose-medallion[data-r5-state="title-rose-loading"]', {
+      state: 'attached',
+    });
     return;
   }
 
   if (stateId === 'title-rose-inert') {
-    await page.route('**/assets/**', (route) => {
-      if (/rose|mural|mask|frame/i.test(route.request().url())) return route.abort();
-      return route.continue();
-    });
     await writeVigil(page, {
       v: 2,
       deeds: {
@@ -210,8 +213,13 @@ export async function stagePhase2State(page, stateId) {
       unlocks: [], vowUnlocked: 1, lastFall: null,
       runsPlayed: 4, quests: {}, shards: ['usurper'], whispers: 1, news: true,
     });
+    await page.route('**/assets/**', (route) => {
+      if (/emberglass|rose/i.test(route.request().url())) return route.abort();
+      return route.continue();
+    });
     await page.evaluate(() => window.spirebound.show('title'));
     await page.waitForSelector('.title-rose-medallion[data-r5-state="title-rose-inert"]', {
+      state: 'attached',
       timeout: 15_000,
     });
     return;
@@ -296,7 +304,7 @@ export async function stagePhase2State(page, stateId) {
 
   if (stateId === 'hollow-pay-pressed') {
     await stageHollowBase(page, { paid: false, gold: 0, progress: 1 });
-    await page.click('[data-a="hollow-pay"]');
+    await page.click('[data-a="hollow-pay"]', { force: true });
     await page.waitForSelector('.r5-lamplighter[data-r5-state="hollow-pay-pressed"]');
     return;
   }
@@ -315,7 +323,7 @@ export async function stagePhase2State(page, stateId) {
         return window.__hollowSetItemOriginal.call(this, key, value);
       };
     });
-    await page.click('[data-a="hollow-pay"]');
+    await page.click('[data-a="hollow-pay"]', { force: true });
     await page.waitForSelector('.r5-lamplighter[data-r5-state="hollow-save-retry"]');
     return;
   }
@@ -328,7 +336,7 @@ export async function stagePhase2State(page, stateId) {
       }
     });
     await stageHollowBase(page, { paid: false, gold: 999, progress: 0 });
-    await page.click('[data-a="hollow-pay"]');
+    await page.click('[data-a="hollow-pay"]', { force: true });
     await page.waitForSelector('.r5-lamplighter[data-r5-state="hollow-paid"]');
     return;
   }
@@ -336,18 +344,18 @@ export async function stagePhase2State(page, stateId) {
   if (stateId === 'hollow-continue-closed' || stateId === 'hollow-return-closed') {
     await freezeNavigation(page);
     await stageHollowBase(page, {
-      paid: stateId === 'hollow-continue-closed',
+      paid: false,
       gold: 999,
       type: 'rest',
       progress: 0,
     });
     if (stateId === 'hollow-continue-closed') {
-      await page.click('[data-a="hollow-pay"]');
+      await page.click('[data-a="hollow-pay"]', { force: true });
       await page.waitForSelector('.r5-lamplighter[data-r5-state="hollow-paid"]');
-      await page.click('[data-a="hollow-continue"]');
+      await page.click('[data-a="hollow-continue"]', { force: true });
       await page.waitForSelector('.r5-lamplighter[data-r5-state="hollow-continue-closed"]');
     } else {
-      await page.click('[data-a="hollow-leave"]');
+      await page.click('[data-a="hollow-leave"]', { force: true });
       await page.waitForSelector('.r5-lamplighter[data-r5-state="hollow-return-closed"]');
     }
     return;
@@ -363,13 +371,14 @@ export async function stagePhase2State(page, stateId) {
       run.nodeId = 'missing-node';
       run.pendingHollow.nodeId = 'missing-node';
     });
-    await page.click('[data-a="hollow-continue"]');
+    await page.click('[data-a="hollow-continue"]', { force: true });
     await page.waitForSelector('.r5-lamplighter[data-r5-state="hollow-route-recovery"]');
     return;
   }
 
   if (stateId === 'map-witchlight-marked' || stateId === 'map-eighth-echo-held'
     || stateId.startsWith('sealed-door') || stateId === 'map-drag-suppressed') {
+    await page.evaluate(() => { globalThis.__p6NavFreeze = null; });
     await page.evaluate(({ id, questIds }) => {
       const sp = window.spirebound;
       const run = sp.E.newRun(3840, {
@@ -390,40 +399,54 @@ export async function stagePhase2State(page, stateId) {
       sp.S.run = run;
       sp.E.saveRun(run);
       sp.show('map');
+      if (sp.S.screen !== 'map') {
+        throw new Error(`map staging stayed on ${sp.S.screen}`);
+      }
     }, { id: stateId, questIds: QIDS });
-    await page.waitForSelector('.r5-map');
+    await page.waitForSelector('.r5-map', { state: 'attached' });
     if (stateId === 'map-witchlight-marked') {
-      await page.waitForSelector('[data-r5-state="map-witchlight-marked"]');
+      // SVG <g> pale-lens is often not "visible" to Playwright.
+      await page.waitForSelector('[data-r5-state="map-witchlight-marked"]', { state: 'attached' });
       return;
     }
     if (stateId === 'map-eighth-echo-held') {
-      await page.waitForSelector('.r5-map[data-r5-eighth="map-eighth-echo-held"]');
+      await page.waitForSelector('.r5-map[data-r5-eighth="map-eighth-echo-held"]', { state: 'attached' });
       return;
     }
     if (stateId === 'sealed-door-hidden') {
-      await page.waitForSelector('.r5-map[data-r5-sealed="sealed-door-hidden"]');
+      await page.waitForSelector('.r5-map[data-r5-sealed="sealed-door-hidden"]', { state: 'attached' });
       return;
     }
     if (stateId === 'sealed-door-visible') {
-      await page.waitForSelector('.r5-map[data-r5-sealed="sealed-door-visible"], .sealed-door');
+      await page.waitForSelector('.r5-map[data-r5-sealed="sealed-door-visible"], .sealed-door', {
+        state: 'attached',
+      });
       return;
     }
     if (stateId === 'sealed-door-promise-open') {
-      await page.waitForSelector('.sealed-door');
-      await page.click('[data-a="sealed-door"]');
-      await page.waitForSelector('.sealed-door-panel[data-r5-state="sealed-door-promise-open"]');
+      await page.waitForSelector('.sealed-door', { state: 'attached' });
+      await page.click('[data-a="sealed-door"]', { force: true });
+      await page.waitForSelector('.sealed-door-panel[data-r5-state="sealed-door-promise-open"]', {
+        state: 'attached',
+      });
       return;
     }
     if (stateId === 'map-drag-suppressed') {
-      const box = await page.locator('.map-screen').boundingBox();
-      if (box) {
-        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-        await page.mouse.down();
-        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 40, { steps: 6 });
-        await page.mouse.up();
-        await page.locator('.map-screen').click({ position: { x: 40, y: 40 } });
-      }
-      await page.waitForSelector('.r5-map[data-r5-state="map-drag-suppressed"]');
+      await page.waitForSelector('.map-screen', { state: 'attached' });
+      // Map pan listeners ignore pointerType === 'mouse' (touch/pen only).
+      await page.evaluate(() => {
+        const ms = document.querySelector('.map-screen');
+        const svg = document.querySelector('.map-svg');
+        if (!ms || !svg) throw new Error('map drag hosts missing');
+        const x = ms.getBoundingClientRect().left + ms.clientWidth / 2;
+        const y = ms.getBoundingClientRect().top + ms.clientHeight / 2;
+        const touch = { bubbles: true, pointerId: 1, pointerType: 'touch' };
+        ms.dispatchEvent(new PointerEvent('pointerdown', { ...touch, clientX: x, clientY: y }));
+        ms.dispatchEvent(new PointerEvent('pointermove', { ...touch, clientX: x, clientY: y + 40 }));
+        ms.dispatchEvent(new PointerEvent('pointerup', { ...touch, clientX: x, clientY: y + 40 }));
+        svg.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y + 40 }));
+      });
+      await page.waitForSelector('.r5-map[data-r5-state="map-drag-suppressed"]', { state: 'attached' });
       return;
     }
   }
@@ -501,13 +524,17 @@ export async function stagePhase2State(page, stateId) {
 
   if (stateId === 'usurper-item-normal') {
     await stageUsurperShop(page, { gold: 700 });
-    await page.waitForSelector('.quest-shop-item[data-r5-state="usurper-item-normal"]');
+    await page.waitForFunction(() => (
+      document.querySelector('.quest-shop-item')?.dataset?.r5State === 'usurper-item-normal'
+    ), null, { timeout: 15_000 });
     return;
   }
 
   if (stateId === 'usurper-item-poor') {
     await stageUsurperShop(page, { gold: 0 });
-    await page.waitForSelector('.quest-shop-item[data-r5-state="usurper-item-poor"]');
+    await page.waitForFunction(() => (
+      document.querySelector('.quest-shop-item')?.dataset?.r5State === 'usurper-item-poor'
+    ), null, { timeout: 15_000 });
     return;
   }
 
@@ -519,8 +546,10 @@ export async function stagePhase2State(page, stateId) {
       }
     });
     await stageUsurperShop(page, { gold: 700 });
-    await page.click('.quest-shop-item button');
-    await page.waitForSelector('.quest-shop-item[data-r5-state="usurper-item-sold"]');
+    await page.click('.quest-shop-item button', { force: true });
+    await page.waitForFunction(() => (
+      document.querySelector('.quest-shop-item')?.dataset?.r5State === 'usurper-item-sold'
+    ), null, { timeout: 15_000 });
     return;
   }
 
@@ -538,8 +567,10 @@ export async function stagePhase2State(page, stateId) {
         return window.__usurperSetItemOriginal.call(this, key, value);
       };
     });
-    await page.click('.quest-shop-item button');
-    await page.waitForSelector('.quest-shop-item[data-r5-state="usurper-item-save-blocked"]');
+    await page.click('.quest-shop-item button', { force: true });
+    await page.waitForFunction(() => (
+      document.querySelector('.quest-shop-item')?.dataset?.r5State === 'usurper-item-save-blocked'
+    ), null, { timeout: 15_000 });
     return;
   }
 

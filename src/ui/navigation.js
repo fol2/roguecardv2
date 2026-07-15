@@ -70,6 +70,15 @@ export function createNavigator({ routes, beforeShow, publishMapWarmReader, trac
 
   let activeRouteCleanup = null;
   function show(name, data) {
+    // Test/capture freeze: allow only an explicit allow-list of routes (or block all
+    // when the flag is `true`) so Phase-2 Hollow close terminals stay painted.
+    const freeze = typeof globalThis !== 'undefined' ? globalThis.__p6NavFreeze : null;
+    if (freeze) {
+      const allowed = freeze === true ? null
+        : Array.isArray(freeze) ? freeze
+          : [freeze];
+      if (!allowed || !allowed.includes(name)) return;
+    }
     const renderer = routeMap.get(name);
     if (typeof renderer !== 'function') {
       trace.emit('error.ui', {

@@ -302,9 +302,13 @@ async function main() {
     }
 
     for (const entry of PHASE2_CAPTURE_MANIFEST) {
+      // REDUCED short-circuits title-rose-loading/inert to ready; those two need
+      // full motion. Everything else prefers reduce for stable terminals.
+      const needsFullMotion = entry.id === 'title-rose-loading'
+        || entry.id === 'title-rose-inert';
       const context = await browser.newContext({
         viewport: { width: 1280, height: 800 },
-        reducedMotion: 'reduce',
+        reducedMotion: needsFullMotion ? 'no-preference' : 'reduce',
       });
       const page = await context.newPage();
       await page.addInitScript((vigil) => {
@@ -318,6 +322,7 @@ async function main() {
       const locale = await scanLocale(page);
       const file = path.join(OUT, 'phase2', `${entry.id}.png`);
       await capturePng(page, file);
+      await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {});
       rows.push({
         id: entry.id,
         kind: 'phase2',
