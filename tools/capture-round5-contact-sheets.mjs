@@ -220,6 +220,7 @@ async function capturePng(page, filePath) {
 
 function composeSheet(label, files, outPath) {
   // Lightweight sheet: write a manifest HTML grid that references the PNGs.
+  mkdirSync(path.dirname(outPath), { recursive: true });
   const cells = files.map((file) => {
     const rel = path.relative(path.dirname(outPath), file);
     return `<figure><img src="${rel}" alt=""><figcaption>${path.basename(file, '.png')}</figcaption></figure>`;
