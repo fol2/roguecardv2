@@ -175,6 +175,7 @@ Examples:
 - Usurper save-blocked stamps `#run-save-failure[data-r5-state="usurper-item-save-blocked"]` from `showRunSaveFailure`.
 - `#overlay.open { opacity: 1 }` (and REDUCED `animation: none`) keeps the 72% ink scrim from sticking at the fadein from-keyframe.
 - Hollow close terminals use navigator `__p6NavFreeze` (not a patched `window.spirebound.show`).
+- **Map `#bg3d` during freeze:** `__probe.freeze({ keepBg3d: true })` sets `html[data-freeze-keep-bg3d]`, and CSS overrides `html.freeze #bg3d { visibility: hidden }` so map contact sheets keep the three.js tower. Capture `waitSettled` auto-detects `.r5-map` / `S.screen === 'map'` and also accepts `{ keepBg3d }` for base/phase2 map rows.
 
 ---
 

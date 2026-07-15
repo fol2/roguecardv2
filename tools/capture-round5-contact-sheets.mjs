@@ -355,7 +355,7 @@ async function main() {
       await page.goto(`${settings.origin}/?shape=desktop-landscape&mesh=0&trace=1`);
       await waitSettled(page);
       await stagePhase2(page, entry.id);
-      await waitSettled(page);
+      await waitSettled(page, { keepBg3d: entry.screen === 'map' });
       await assertPersistencePlateHeld(page, entry.id);
       const locale = await scanLocale(page);
       const file = path.join(OUT, 'phase2', `${entry.id}.png`);

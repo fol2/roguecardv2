@@ -86,7 +86,7 @@ function renderLamplighter() {
   }).join('');
   const chosen = runCatalogues().arts[L.art];
   const sc = screenEl();
-  sc.innerHTML = `<div class="lamp-screen screen-enter r5-scene-panel r5-lamplighter" ${rootAttrs(profile, 'rest')}>
+  sc.innerHTML = `<div class="lamp-screen screen-enter r5-lamplighter" ${rootAttrs(profile, 'rest')}>
     ${sceneBg()}
     <div class="lamp-hero">${heroArt(run.aspect)}</div>
     <div class="lamp-title r5-scene-header">${tr('ui.lamp.title')}</div>
@@ -172,7 +172,7 @@ function renderHollow() {
   const profile = compositionProfile(compositionGrownFrom(vigil, run));
   const hollowState = pending.paid ? 'hollow-paid' : 'hollow-unpaid';
   const sc = screenEl();
-  sc.innerHTML = `<div class="hollow-lamplighter r5-scene-panel r5-lamplighter r5-lamplighter--hollow${REDUCED ? ' reduced' : ''}" ${rootAttrs(profile, hollowState)}>
+  sc.innerHTML = `<div class="hollow-lamplighter r5-lamplighter r5-lamplighter--hollow${REDUCED ? ' reduced' : ''}" ${rootAttrs(profile, hollowState)}>
     <div class="hollow-vignette"></div>
     <div class="hollow-figure" aria-hidden="true">
       <svg viewBox="0 0 180 300" role="presentation">

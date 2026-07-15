@@ -2855,3 +2855,113 @@ html.freeze[data-freeze-keep-bg3d] #bg3d { visibility: visible !important; }
   border-radius: 0;
   box-shadow: none;
 }
+
+/* Lamplighter root: full-bleed stage shell (not FE scene-panel card). */
+.lamp-screen.r5-lamplighter {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: transparent;
+  max-width: none;
+  max-height: none;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+  opacity: 1;
+}
+
+/* Dawn phone-portrait: title+sub centered; ceremony + stats share a row;
+   whisper/ceremony width matches the stats column. */
+@container stage (max-width: 740px) {
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .end-title,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .ov-sub {
+    width: 100%;
+    text-align: center;
+  }
+
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .dawn-ceremony,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .stats-grid.r5-dawn-ledger {
+    width: min(92cqw, 560px);
+  }
+
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) {
+    flex-wrap: wrap;
+    flex-direction: row;
+    justify-content: center;
+    align-content: center;
+    gap: 8px 10px;
+  }
+
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .end-title,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .ov-sub,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .end-btns,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .r5-dawn-bloom,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .r5-dawn-parallax,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .r5-dawn-close-rail,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .meta-bg {
+    flex: 0 0 100%;
+  }
+
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .dawn-ceremony,
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .stats-grid.r5-dawn-ledger {
+    flex: 1 1 calc(50% - 8px);
+    min-width: min(42cqw, 240px);
+    max-width: min(46cqw, 280px);
+  }
+
+  #screen .r5-end--victory .dawn-ceremony .dawn-event {
+    width: 100%;
+  }
+}
+
+/* Dawn phone-landscape: ceremony/whisper width matches buttons / column. */
+@container stage (max-height: 480px) and (min-width: 500px) {
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .dawn-ceremony {
+    width: 100%;
+    max-width: none;
+  }
+
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .end-btns {
+    width: 100%;
+  }
+
+  #screen .r5-end--victory .dawn-ceremony .dawn-event {
+    width: 100%;
+  }
+}
+
+/* Fall desktop / pad landscape: widen monument toward ~min(92cqw, 840px). */
+@container stage (min-width: 741px) {
+  #screen .r5-end--fallen .r5-monument {
+    width: min(92cqw, 840px);
+    max-width: min(92cqw, 840px);
+  }
+}
+
+/* Center-panel + r5-scene-panel: keep absolute fill after sceneBg no longer
+   carries the scene-panel class (roots still stamp both). */
+.center-panel.r5-scene-panel {
+  position: absolute;
+  inset: 0;
+  max-width: none;
+  max-height: none;
+  width: auto;
+  height: auto;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+  opacity: 1;
+  overflow: visible;
+}
