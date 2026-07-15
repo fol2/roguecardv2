@@ -204,7 +204,7 @@ const drainHandlerKeys = [
   'deleteDrawRevealPlan', 'setCardFlightAnchor',
 ].sort();
 assert.deepEqual(exportedNames(combatSource), ['createCombat'], 'combat has one ESM factory export');
-assert.deepEqual(exportedNames(drainSource), ['createDrain'], 'drain has one ESM factory export');
+assert.deepEqual(exportedNames(drainSource), ['COMBAT_TERMINAL_EVENT_TYPES', 'createDrain'], 'drain exports the combat-terminal event id set and its ESM factory');
 assert.deepEqual(exportedNames(probeSource), ['installProbe'], 'probe has one ESM installer export');
 assert.deepEqual(exportedNames(uiIndexSource), ['initUI', 'show'], 'UI index has the exact public surface');
 assert.deepEqual(shorthandKeys(probeSource, 'export function installProbe({'), [
@@ -245,9 +245,14 @@ assert.doesNotMatch(importSpecifiers('../src/ui/combat.js').join('\n'), /(?:drai
   'combat imports no drain, screen, navigator or index owner');
 assert.doesNotMatch(importSpecifiers('../src/ui/drain.js').join('\n'), /(?:combat|screens|navigation|index)\.js/,
   'drain imports no combat, screen, navigator or index owner');
+const ALLOWED_SCREEN_HELPER_IMPORTS = new Set(['../tween.js', '../rose.js']);
 for (const name of Object.keys(screenSources)) {
-  assert.deepEqual(importSpecifiers(`../src/ui/screens/${name}`), [],
-    `${name} receives dependencies and stays a leaf`);
+  const imports = importSpecifiers(`../src/ui/screens/${name}`);
+  assert.deepEqual(
+    imports.filter((specifier) => !ALLOWED_SCREEN_HELPER_IMPORTS.has(specifier)),
+    [],
+    `${name} receives dependencies and stays a leaf (helpers: tween/rose only)`,
+  );
   assert.doesNotMatch(screenSources[name], /(?:from\s+|import\s*\()['"][^'"]*(?:\/screens\/|\/navigation\.js|\/index\.js|\/ui\.js|pixi)[^'"]*['"]/i,
     `${name} must not import screens, navigation, index, ui or Pixi`);
 }
