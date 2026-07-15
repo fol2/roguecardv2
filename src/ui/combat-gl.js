@@ -213,14 +213,13 @@ export function createCardFaceAssets({ cardIds = Object.keys(CARDS) } = {}) {
     cardArt(id) {
       if (textures.has(id)) return textures.get(id);
       const img = warmImage(id);
-      if (!img) {
-        textures.set(id, null);
+      if (!img || !(img.complete && img.naturalWidth > 0)) {
+        // Defer Pixi texture until decode completes — avoids Assets cache warnings
+        // from Texture.from(url) and lets canvas2d export use the HTMLImageElement.
         return null;
       }
       try {
-        const tex = (img.complete && img.naturalWidth > 0)
-          ? Texture.from(img)
-          : Texture.from(img.src);
+        const tex = Texture.from(img);
         textures.set(id, tex);
         return tex;
       } catch {

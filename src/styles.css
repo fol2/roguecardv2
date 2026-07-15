@@ -2781,11 +2781,15 @@ html.freeze[data-freeze-keep-bg3d] #bg3d { visibility: visible !important; }
   justify-content: center;
 }
 
-/* Double-class root is the stage fill, not a nested FE card. */
+/* Double-class root is the stage fill, not a nested FE card.
+   Remains load-bearing after sceneBg no longer stamps r5-scene-panel. */
 .center-panel.r5-scene-panel {
+  position: absolute;
+  inset: 0;
   max-width: none;
   max-height: none;
   width: auto;
+  height: auto;
   background: transparent;
   border: none;
   border-radius: 0;
@@ -2946,22 +2950,4 @@ html.freeze[data-freeze-keep-bg3d] #bg3d { visibility: visible !important; }
     width: min(92cqw, 840px);
     max-width: min(92cqw, 840px);
   }
-}
-
-/* Center-panel + r5-scene-panel: keep absolute fill after sceneBg no longer
-   carries the scene-panel class (roots still stamp both). */
-.center-panel.r5-scene-panel {
-  position: absolute;
-  inset: 0;
-  max-width: none;
-  max-height: none;
-  width: auto;
-  height: auto;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  transform: none;
-  opacity: 1;
-  overflow: visible;
 }
