@@ -303,6 +303,7 @@ test.describe('P6 remaining screens', () => {
 
     await stagePhase2State(page, 'usurper-item-save-blocked');
     await expect(page.locator('.quest-shop-item')).toHaveAttribute('data-r5-state', 'usurper-item-save-blocked');
+    await expect(page.locator('#overlay.open #run-save-failure[data-r5-state="usurper-item-save-blocked"]')).toBeVisible();
 
     await assertLocaleCatalogue(page, expect);
     expectNoErrors(errors, 'shop usurper');

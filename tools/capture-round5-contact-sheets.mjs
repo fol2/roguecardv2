@@ -144,6 +144,29 @@ async function waitSettled(page) {
   });
 }
 
+const PERSISTENCE_PLATE_SELECTORS = Object.freeze({
+  'dawn-cursor-retry': '#overlay.open #dawn-save-failure[data-r5-state="dawn-cursor-retry"]',
+  'dawn-final-clear-retry': '#overlay.open #dawn-save-failure[data-r5-state="dawn-final-clear-retry"]',
+  'usurper-item-save-blocked': '#overlay.open #run-save-failure[data-r5-state="usurper-item-save-blocked"]',
+});
+
+async function assertPersistencePlateHeld(page, stateId) {
+  const selector = PERSISTENCE_PLATE_SELECTORS[stateId];
+  if (!selector) return;
+  const ok = await page.evaluate((sel) => {
+    const plate = document.querySelector(sel);
+    const overlay = document.querySelector('#overlay.open');
+    if (!plate || !overlay) return false;
+    const ocs = getComputedStyle(overlay);
+    const pcs = getComputedStyle(plate);
+    return Number.parseFloat(ocs.opacity) > 0.9
+      && Number.parseFloat(pcs.opacity) > 0.9
+      && pcs.visibility !== 'hidden'
+      && plate.getBoundingClientRect().width > 0;
+  }, selector);
+  if (!ok) fail(`persistence plate not held for ${stateId} (${selector})`);
+}
+
 async function scanLocale(page) {
   return page.evaluate(() => {
     const text = document.body.innerText || '';
@@ -327,6 +350,7 @@ async function main() {
       await waitSettled(page);
       await stagePhase2(page, entry.id);
       await waitSettled(page);
+      await assertPersistencePlateHeld(page, entry.id);
       const locale = await scanLocale(page);
       const file = path.join(OUT, 'phase2', `${entry.id}.png`);
       await capturePng(page, file);

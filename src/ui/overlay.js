@@ -353,14 +353,21 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
   }
 
   function showRunSaveFailure(run, onSaved, kind = null) {
+    // Stamp Phase-2 terminal ids on the plate so capture / FE can target the
+    // held overlay (quest item data-r5-state alone is not enough for sheets).
+    const r5State = kind === 'usurper-purchase' ? 'usurper-item-save-blocked' : null;
     const html = persistenceFailureHtml({
       id: 'run-save-failure',
       title: tr('ui.persistence.saveFailedTitle'),
       description: tr('ui.persistence.runSaveBody'),
       retry: { action: 'retry-save', label: tr('ui.persistence.retrySave') },
       reload: { action: 'reload-save', label: tr('ui.persistence.reloadClimb') },
-    });
+    }).replace(
+      'class="panel ov-panel"',
+      `class="panel ov-panel" id="run-save-failure"${r5State ? ` data-r5-state="${r5State}"` : ''}`,
+    );
     openPersistenceDialog(html, '[data-a="retry-save"]', (root, transaction) => {
+      if (r5State) root.dataset.r5State = r5State;
       root.onclick = (event) => {
         if (!transaction.active()) return;
         const action = event.target.closest('[data-a]')?.dataset.a;

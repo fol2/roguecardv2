@@ -42,6 +42,22 @@ async function writeVigil(page, vigil) {
   await waitAppReady(page);
 }
 
+async function waitVisiblePersistencePlate(page, selector) {
+  await page.waitForSelector(`#overlay.open ${selector}`);
+  await page.waitForFunction((sel) => {
+    const overlay = document.querySelector('#overlay.open');
+    const plate = overlay?.querySelector(sel);
+    if (!overlay || !plate) return false;
+    const ocs = getComputedStyle(overlay);
+    const pcs = getComputedStyle(plate);
+    return ocs.display !== 'none'
+      && Number.parseFloat(ocs.opacity) > 0.9
+      && pcs.visibility !== 'hidden'
+      && Number.parseFloat(pcs.opacity) > 0.9
+      && plate.getBoundingClientRect().width > 0;
+  }, selector, { timeout: 15_000 });
+}
+
 async function stageDawnEvent(page, event) {
   await page.evaluate(({ event, questIds }) => {
     const sp = window.spirebound;
@@ -475,7 +491,7 @@ export async function stagePhase2State(page, stateId) {
       sp.S.run = run;
       sp.show('end', { won: true });
     });
-    await page.waitForSelector('#dawn-save-failure[data-r5-state="dawn-cursor-retry"], [data-r5-state="dawn-cursor-retry"]');
+    await waitVisiblePersistencePlate(page, '#dawn-save-failure[data-r5-state="dawn-cursor-retry"]');
     return;
   }
 
@@ -498,7 +514,7 @@ export async function stagePhase2State(page, stateId) {
       sp.S.run = run;
       sp.show('end', { won: true });
     });
-    await page.waitForSelector('#dawn-save-failure[data-r5-state="dawn-final-clear-retry"], [data-r5-state="dawn-final-clear-retry"]');
+    await waitVisiblePersistencePlate(page, '#dawn-save-failure[data-r5-state="dawn-final-clear-retry"]');
     return;
   }
 
@@ -571,6 +587,7 @@ export async function stagePhase2State(page, stateId) {
     await page.waitForFunction(() => (
       document.querySelector('.quest-shop-item')?.dataset?.r5State === 'usurper-item-save-blocked'
     ), null, { timeout: 15_000 });
+    await waitVisiblePersistencePlate(page, '#run-save-failure[data-r5-state="usurper-item-save-blocked"]');
     return;
   }
 

@@ -129,7 +129,9 @@ body.worldstop #bg3d, body.worldstop #screen { filter: saturate(0.07) brightness
 #aim { position: fixed; inset: 0; z-index: 45; pointer-events: none; width: 100%; height: 100%; }
 #overlay { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center;
   background: rgba(5, 7, 16, 0.72); backdrop-filter: blur(6px); }
-#overlay.open { display: flex; animation: fadein 0.22s ease-out; }
+/* opacity:1 is load-bearing — capture/REDUCED must not leave the scrim at the
+   fadein from-keyframe (invisible plate over held Dawn / shop terminals). */
+#overlay.open { display: flex; opacity: 1; animation: fadein 0.22s ease-out; }
 #overlay.run-save-lock { z-index: 80; }
 #tooltip { position: fixed; z-index: 70; pointer-events: none; max-width: 300px; display: none;
   background: var(--panel); border: 1px solid var(--panel-line); border-radius: 8px; padding: 10px 12px;
@@ -1972,6 +1974,7 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .enemy-sprite[class*="idle-"], .idle-motes::before, .idle-motes::after { animation: none; }
   .pile-btn.pile-bump { animation: none; }
   #tooltip { animation: fadein 0.1s both; }
+  #overlay.open { animation: none; opacity: 1; }
   .mnode.avail .nwrap, .mnode.avail .icg, .mnode.avail .nglyph { animation: none; }
   .mnode .pale-lens { animation: none; opacity: 1; }
   .reward-list .reward-row, .shop-row .shop-item, .deed-list .deed-row { animation: none; }
