@@ -1,35 +1,44 @@
 # Round 5 P6 owner gate
 
-**Status:** PENDING OWNER CHECKPOINT  
-**Date prepared:** 2026-07-14  
-**PE tip:** see branch `jamesto/round5-production-engineering-continuation`  
-**P6 capture source:** `1681b611`  
-**FE pre-filter:** PASS (`docs/superpowers/reports/2026-07-10-round5-fe-contact-sheet-review.md`)  
-**Artifacts:** `docs/superpowers/artifacts/round5-p6-contact-sheets/`
+**Status:** OWNER FAIL — remediation in progress  
+**Date:** 2026-07-15  
+**PE tip (at fail):** `275425e8`  
+**P6 capture source (failed set):** `1681b611`  
+**FE pre-filter:** invalidated (mechanical PASS; owner taste FAIL)
 
-## Decision: OWNER PENDING
+## Decision: OWNER FAIL
 
-Task 37 requires the owner to sign each screen/contact-sheet set before PE may refresh visual baselines or select `GO TO P7` / `P6 PREFIX EXIT`.
+Owner rejected the contact-sheet package with detailed geometry/card regressions.
+Task 36 mechanical pre-filter is **not** a substitute for owner taste or
+pixel-vs-original comparison. Remediation must restore pre-P6 layout fidelity
+before re-presenting.
 
-This document is the prepared gate package. It does **not** claim owner approval.
+## Owner FAIL inventory (required fixes)
 
-## What the owner reviews
+1. Dawn phone-portrait: whisper alignment; title mid; whisper+stats horizontal
+2. Dawn phone-landscape: whisper width match
+3–6. Embark landscape/portrait: layout + VOW must not be a circle; match original
+7. Event phone-landscape: centered, not squeezed
+8. Fall desktop/pad landscape: wider
+9. Lamplighter: full screen; phone selection visible
+10. Map: three.js not abandoned — capture freeze hid `#bg3d`
+11–13,15. Rest/rewards/shop/treasure phone-landscape: centered / full span
+14. Title all shapes: blank top half + wordmark wrong
+16. Vigil phone-landscape: title visible
+17. Phase-2 inherits same layout bugs
+18. Card regression: cost gem, art asset, art margin, rarity accent
 
-Committed contact sheets under `docs/superpowers/artifacts/round5-p6-contact-sheets/` (base + Phase-2 sections), plus FE mechanical pre-filter PASS.
+## Root-cause summary (audit)
 
-For each screen family (Title/Embark, Fall/Dawn, rewards, shop, event, rest, lamplighter/Hollow, Vigil, map), record:
+- FE `.r5-scene-panel` stamped onto `sceneBg()` → breaks absolute fill
+- FE landscape `flex-direction: row` on embark/title/scene family
+- FE `.r5-vow-dial` circle/rotate on `.vow-block`
+- FE wordmark `overflow:hidden` / border clips logo
+- Capture `freeze` hides `#bg3d`
+- Cardface `assets: null` → canvas2d fallback without art/hex cost
 
-- `PASS` or `FAIL` + notes
-- Ceremony feel / art direction notes if FAIL
+## After remediation
 
-## After owner PASS (PE resumes)
+Re-capture → FE re-critique → re-present to owner → only then GO TO P7.
 
-1. Record owner signatures in this file → `Decision: GO TO P7` or `P6 PREFIX EXIT`
-2. Refresh visual baselines (Task 37 Step 3)
-3. Continue Tasks 38–40
-
-## Explicit non-claims
-
-No actual-Safari, Simulator, hardware, packaging, or mobile-support claim.
-
-**WebKit-safe API review: PASS** (engineering portability only).
+**WebKit-safe API review: PASS** (engineering only; not visual approval).
