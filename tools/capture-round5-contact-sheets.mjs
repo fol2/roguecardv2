@@ -132,8 +132,15 @@ async function waitSettled(page) {
     await Promise.all([...document.images]
       .filter((img) => img.complete)
       .map((img) => img.decode().catch(() => {})));
-    if (window.__probe?.settle) await window.__probe.settle();
-    if (window.__probe?.freeze) window.__probe.freeze();
+    // Persistence-dialog / save-retry terminals intentionally keep the
+    // presentation barrier open — bound settle so capture can still shoot.
+    if (window.__probe?.settle) {
+      await Promise.race([
+        Promise.resolve(window.__probe.settle()).catch(() => {}),
+        new Promise((resolve) => setTimeout(resolve, 2500)),
+      ]);
+    }
+    try { window.__probe?.freeze?.(); } catch { /* best-effort */ }
   });
 }
 
