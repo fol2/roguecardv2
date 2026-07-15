@@ -179,6 +179,9 @@ export async function stagePhase2State(page, stateId) {
   }
 
   if (stateId === 'title-rose-loading') {
+    // Routes must precede writeVigil reload so the title boot cannot cache the asset.
+    await page.route('**/assets/**/*rose*', (route) => {});
+    await page.route('**/assets/rose/**', (route) => {});
     await writeVigil(page, {
       v: 2,
       deeds: {
@@ -188,14 +191,16 @@ export async function stagePhase2State(page, stateId) {
       unlocks: [], vowUnlocked: 1, lastFall: null,
       runsPlayed: 4, quests: {}, shards: ['usurper'], whispers: 1, news: true,
     });
-    await page.route('**/assets/**/*rose*', (route) => {});
-    await page.route('**/assets/rose/**', (route) => {});
     await page.evaluate(() => window.spirebound.show('title'));
     await page.waitForSelector('.title-rose-medallion[data-r5-state="title-rose-loading"]');
     return;
   }
 
   if (stateId === 'title-rose-inert') {
+    await page.route('**/assets/**', (route) => {
+      if (/rose|mural|mask|frame/i.test(route.request().url())) return route.abort();
+      return route.continue();
+    });
     await writeVigil(page, {
       v: 2,
       deeds: {
@@ -204,10 +209,6 @@ export async function stagePhase2State(page, stateId) {
       },
       unlocks: [], vowUnlocked: 1, lastFall: null,
       runsPlayed: 4, quests: {}, shards: ['usurper'], whispers: 1, news: true,
-    });
-    await page.route('**/assets/**', (route) => {
-      if (/rose|mural|mask|frame/i.test(route.request().url())) return route.abort();
-      return route.continue();
     });
     await page.evaluate(() => window.spirebound.show('title'));
     await page.waitForSelector('.title-rose-medallion[data-r5-state="title-rose-inert"]', {

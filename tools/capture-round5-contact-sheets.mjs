@@ -127,7 +127,11 @@ async function waitSettled(page) {
   });
   await page.evaluate(async () => {
     await document.fonts.ready;
-    await Promise.all([...document.images].map((img) => img.decode().catch(() => {})));
+    // Only decode images that have already finished; pending/hung loads (loading
+    // terminals) must not block capture settle.
+    await Promise.all([...document.images]
+      .filter((img) => img.complete)
+      .map((img) => img.decode().catch(() => {})));
     if (window.__probe?.settle) await window.__probe.settle();
     if (window.__probe?.freeze) window.__probe.freeze();
   });
