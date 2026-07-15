@@ -440,10 +440,10 @@ export function installProbe({
         return combat.freezeForProbe(options);
       }
       await presentationSettled();
-      combat.freeze();
+      combat.freeze(options);
       const renderer = resolveCombatRenderer();
       if (renderer?.freezeForTest) return renderer.freezeForTest(options);
-      return { frozen: true, cssOnly: true };
+      return { frozen: true, cssOnly: true, keepBg3d: !!options.keepBg3d };
     },
     async loseRendererContextForTest() {
       const renderer = resolveCombatRenderer();

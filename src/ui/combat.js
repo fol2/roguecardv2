@@ -2796,7 +2796,10 @@ function setCardFlightAnchor(uid, anchor) {
   return copy;
 }
 
-function freeze() {
+function freeze(options = {}) {
+  const keepBg3d = !!(options && options.keepBg3d);
+  if (keepBg3d) document.documentElement.setAttribute('data-freeze-keep-bg3d', '');
+  else document.documentElement.removeAttribute('data-freeze-keep-bg3d');
   document.documentElement.classList.add('freeze');
   uiFrozen = true;
   V.freezeVfx();
@@ -2817,12 +2820,12 @@ async function freezeForProbe(options = {}) {
     const check = () => (done() ? resolve(true) : setTimeout(check, 16));
     check();
   });
-  freeze();
+  freeze(options);
   const renderer = glRenderer();
   if (renderer && typeof renderer.freezeForTest === 'function') {
     return renderer.freezeForTest(options);
   }
-  return { frozen: true, cssOnly: true };
+  return { frozen: true, cssOnly: true, keepBg3d: !!options.keepBg3d };
 }
 
 function startRig() {

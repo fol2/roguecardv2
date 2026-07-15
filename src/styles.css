@@ -2276,6 +2276,8 @@ html.mesh-on .enemy-art.warded::before { display: none; }
    particle canvas, mesh warp planes, animated grain, in-flight floaters) */
 html.freeze *, html.freeze *::before, html.freeze *::after { animation-play-state: paused !important; transition: none !important; }
 html.freeze #bg3d, html.freeze #vfx, html.freeze #uigl, html.freeze #mesh, html.freeze #grain, html.freeze #floaties { visibility: hidden !important; }
+/* Map P6 contact sheets: keep the three.js tower visible under DOM nodes. */
+html.freeze[data-freeze-keep-bg3d] #bg3d { visibility: visible !important; }
 
 /* ---- entrance redesign: embark screen */
 .embark-screen {

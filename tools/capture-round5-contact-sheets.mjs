@@ -117,7 +117,7 @@ function fileInventory(dir) {
   return files.sort((a, b) => a.path.localeCompare(b.path));
 }
 
-async function waitSettled(page) {
+async function waitSettled(page, { keepBg3d = false } = {}) {
   await page.waitForFunction(() => window.spirebound && window.__probe);
   await page.waitForFunction(() => {
     const records = window.__probe?.behaviourTrace?.()?.records;
@@ -125,7 +125,7 @@ async function waitSettled(page) {
     return window.spirebound?.S?.screen === 'title'
       && !!document.querySelector('.r5-title');
   });
-  await page.evaluate(async () => {
+  await page.evaluate(async (opts) => {
     await document.fonts.ready;
     // Only decode images that have already finished; pending/hung loads (loading
     // terminals) must not block capture settle.
@@ -140,8 +140,14 @@ async function waitSettled(page) {
         new Promise((resolve) => setTimeout(resolve, 2500)),
       ]);
     }
-    try { window.__probe?.freeze?.(); } catch { /* best-effort */ }
-  });
+    // Map sheets must keep #bg3d visible — freeze normally hides three.js.
+    const mapOn = !!document.querySelector('.r5-map')
+      || window.spirebound?.S?.screen === 'map';
+    const keepBg3d = !!(opts.keepBg3d || mapOn);
+    try {
+      await window.__probe?.freeze?.({ keepBg3d });
+    } catch { /* best-effort */ }
+  }, { keepBg3d });
 }
 
 const PERSISTENCE_PLATE_SELECTORS = Object.freeze({
@@ -298,7 +304,7 @@ async function main() {
           await page.goto(`${settings.origin}/?shape=${shape}&mesh=0&trace=1`);
           await waitSettled(page);
           await stageScreen(page, screen, profile);
-          await waitSettled(page);
+          await waitSettled(page, { keepBg3d: screen === 'map' });
           const locale = await scanLocale(page);
           if (locale.locale !== 'en' && locale.locale !== '') {
             fail(`locale must be en for ${screen}/${shape}/${profile}`);
