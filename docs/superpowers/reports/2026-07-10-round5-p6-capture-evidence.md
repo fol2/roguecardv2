@@ -13,9 +13,12 @@ This record freezes the integrated FE screen stylesheet + PE experience layer fo
 
 ## Status: PASS
 
+Write-set remediation: unauthorized `src/styles/round5-pe-integration.css` deleted; PE layout bridges live only in authorized `src/styles.css`. `src/main.js` imports the FE layer solely via `import './styles/round5-screens.css';`.
+
 | Gate | Result |
 |---|---|
 | FE merge write-set proof | PASS (`src/styles/round5-screens.css` only) |
+| PE stylesheet write-set | PASS (bridges in `src/styles.css`; no `round5-pe-integration.css`) |
 | `npm test` | PASS (`unit checks passed; monte-carlo: 300 runs`) |
 | Focused Playwright `p6-screens end-ceremony contrast stage` (desktop, `--workers=1 --no-deps`) | PASS (**63** passed) |
 | Contact-sheet capture | PASS (**183** rows; `sourceSha` == capture HEAD) |
@@ -32,8 +35,9 @@ This record freezes the integrated FE screen stylesheet + PE experience layer fo
 | FE head (stylesheet authoring) | `cd099004626b7f744e440ff5d7db4d9ad9d36cb2` | `../round5-front-end` |
 | **FE_CSS_MERGE** | `2795d397fff5efb5202f18f4cdd348a7a211826c` | `style: merge Round 5 FE screen stylesheet` (`^1` = PE tip, `^2` = FE head) |
 | Integrate import (first PE import commit) | `79a8ec084d552772a401247cfd7a7051c6ffd0e2` | `style: integrate the Round 5 screen experience layer` |
-| **P6 capture source** | `17594f82358f232dd5df8a56cd0a1a47bf380697` | Clean HEAD used for capture; equals `manifest.sourceSha` |
-| Evidence tip | `ae16cb994d706a9a4209e4d850d5a7a047244db5` | `test: capture the integrated P6 screen pass` (artifact commit) |
+| Write-set remediations (PE bridges → `styles.css`) | `91e3e600fad2a1a07a4e184d79d2ecb6c0b6b757` | `fix: fold PE screen layout bridges into styles.css` |
+| **P6 capture source** | `91e3e600fad2a1a07a4e184d79d2ecb6c0b6b757` | Clean HEAD used for recapture; equals `manifest.sourceSha` |
+| Evidence tip | this commit | `test: recapture P6 sheets after write-set fix` |
 
 ### Rollback
 
@@ -41,7 +45,7 @@ This record freezes the integrated FE screen stylesheet + PE experience layer fo
 git revert -m 1 2795d397fff5efb5202f18f4cdd348a7a211826c
 ```
 
-That reverts the FE stylesheet merge parent. PE-owned follow-ups (`src/main.js` import, `src/styles/round5-pe-integration.css`, capture/staging fixes) may need separate reverts if a full unwind is required.
+That reverts the FE stylesheet merge parent. PE-owned follow-ups (`src/main.js` FE import, `src/styles.css` bridges, capture/staging fixes) may need separate reverts if a full unwind is required.
 
 ---
 
@@ -53,17 +57,19 @@ Exact diff `$FE_BASE..$FE_HEAD`:
 
 1. `src/styles/round5-screens.css`
 
-### PE-owned integration (post-merge)
+### PE-owned integration (post-merge; write-set clean)
 
 | Path | Role |
 |---|---|
-| `src/main.js` | `import './styles/round5-screens.css'` then `import './styles/round5-pe-integration.css'` |
-| `src/styles/round5-pe-integration.css` | PE geometry / hollow / title / dawn bridges onto FE experience layer |
+| `src/main.js` | `import './styles.css'` then `import './styles/round5-screens.css'` only |
+| `src/styles.css` | PE layout bridges under FE shells: hollow stage grid, center-panel safe fill, phone title rails, dawn ledger overflow |
 | `src/ui/navigation.js` | `__p6NavFreeze` honour inside `createNavigator().show` |
 | `test/e2e/p6-phase2-stage.js` | Real-owner Phase-2 staging for capture + `p6-screens` |
 | `tools/capture-round5-contact-sheets.mjs` | Deterministic capture / sheets / manifest |
 
-FE must not edit PE JS or the PE integration stylesheet; critique is report-only (Task 36).
+**Removed (Critical breach):** `src/styles/round5-pe-integration.css` — not in the PE or FE write set.
+
+FE must not edit PE JS or `src/styles.css`; critique is report-only (Task 36).
 
 ---
 
@@ -104,7 +110,7 @@ Promoted (committed) tree: `docs/superpowers/artifacts/round5-p6-contact-sheets/
 
 | Manifest field | Value |
 |---|---|
-| `sourceSha` | `17594f82358f232dd5df8a56cd0a1a47bf380697` |
+| `sourceSha` | `91e3e600fad2a1a07a4e184d79d2ecb6c0b6b757` |
 | `captureCommand` | `node tools/run-with-strict-e2e-port.mjs -- npm run capture:round5:contact-sheets` |
 | Rows | 183 (140 base + 43 Phase-2) |
 | Files (excl. manifest self) | 204 (PNGs + sheet HTML) |
@@ -163,6 +169,6 @@ Examples:
 
 ## Concerns
 
-1. PE integration CSS is required after FE merge so hollow ceremony reveal, title rails, and dawn ledger overflow stay stage-safe — FE critique should treat `round5-pe-integration.css` as PE-owned, not restyle targets.
+1. PE layout bridges in `src/styles.css` restore stage geometry under FE shells (hollow grid, center-panel fill, phone title rails, dawn ledger). FE critique must not move those bridges into `round5-screens.css`.
 2. Visual baselines were **not** refreshed; Darwin/Linux pixel gates may still reflect pre-FE chrome until Task 36/37.
 3. Capture evidence is Chromium headless on Darwin; WebKit device lanes were not re-run for this tip (prior P5→P6 WebKit-safe carry-forward + desktop focused matrix only).
