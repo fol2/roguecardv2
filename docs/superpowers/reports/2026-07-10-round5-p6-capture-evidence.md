@@ -45,7 +45,7 @@ Task 36 close-loop (Fall phone-landscape): FE CSS `451895b2` → PE `1681b611` +
 | Prior P6 capture source (Task 36 mid) | `7735a9d1164381bad75ea123b080dc1a3c654b50` | Persistence plates held; Fall phone-landscape still FAIL |
 | Fall phone-landscape FE CSS | `1681b6119dad2124c49982dce2c158867ba5c6bc` | `style: apply Fall phone-landscape FE CSS fix` (from FE `451895b2`) |
 | **P6 capture source** | `1681b6119dad2124c49982dce2c158867ba5c6bc` | Clean HEAD for Fall phone-landscape recapture; equals `manifest.sourceSha` |
-| Evidence tip | _(pending recapture commit)_ | `test: recapture P6 sheets after Fall phone-landscape FE fix` |
+| Evidence tip | `00260a65a5d2d63c345dcc9d807b406c01332d46` | artifact commit (`test: recapture P6 sheets after Fall phone-landscape FE fix`) |
 
 ### Rollback
 
