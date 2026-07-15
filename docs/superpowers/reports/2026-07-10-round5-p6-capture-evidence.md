@@ -37,7 +37,7 @@ Write-set remediation: unauthorized `src/styles/round5-pe-integration.css` delet
 | Integrate import (first PE import commit) | `79a8ec084d552772a401247cfd7a7051c6ffd0e2` | `style: integrate the Round 5 screen experience layer` |
 | Write-set remediations (PE bridges → `styles.css`) | `91e3e600fad2a1a07a4e184d79d2ecb6c0b6b757` | `fix: fold PE screen layout bridges into styles.css` |
 | **P6 capture source** | `91e3e600fad2a1a07a4e184d79d2ecb6c0b6b757` | Clean HEAD used for recapture; equals `manifest.sourceSha` |
-| Evidence tip | this commit | `test: recapture P6 sheets after write-set fix` |
+| Evidence tip | `f33a9219ceb2a57a2ec39525e253e69b942d2b24` | artifact commit (`test: recapture P6 sheets after write-set fix`) |
 
 ### Rollback
 
