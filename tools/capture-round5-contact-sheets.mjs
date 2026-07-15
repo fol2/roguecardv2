@@ -133,20 +133,18 @@ async function waitSettled(page, { keepBg3d = false } = {}) {
       .filter((img) => img.complete)
       .map((img) => img.decode().catch(() => {})));
     // Persistence-dialog / save-retry terminals intentionally keep the
-    // presentation barrier open — bound settle so capture can still shoot.
-    if (window.__probe?.settle) {
-      await Promise.race([
-        Promise.resolve(window.__probe.settle()).catch(() => {}),
-        new Promise((resolve) => setTimeout(resolve, 2500)),
-      ]);
-    }
+    // presentation barrier open. Bound both settle and freeze — freezeForProbe
+    // also waits for barrier idle and would hang forever on dawn/usurper retry.
+    const bound = (work, ms = 2500) => Promise.race([
+      Promise.resolve(typeof work === 'function' ? work() : work).catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, ms)),
+    ]);
+    if (window.__probe?.settle) await bound(() => window.__probe.settle());
     // Map sheets must keep #bg3d visible — freeze normally hides three.js.
     const mapOn = !!document.querySelector('.r5-map')
       || window.spirebound?.S?.screen === 'map';
     const keepBg3d = !!(opts.keepBg3d || mapOn);
-    try {
-      await window.__probe?.freeze?.({ keepBg3d });
-    } catch { /* best-effort */ }
+    if (window.__probe?.freeze) await bound(() => window.__probe.freeze({ keepBg3d }));
   }, { keepBg3d });
 }
 
