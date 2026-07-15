@@ -7,22 +7,24 @@
 
 This record freezes the integrated FE screen stylesheet + PE experience layer for FE mechanical critique (Task 36). It does **not** refresh visual baselines, open a ship PR, or claim Safari / WKWebView / hardware mobile support.
 
-**WebKit-safe API review: PASS** — Task 35 changes stay on standard DOM / `localStorage` / Playwright APIs; navigator freeze uses `globalThis.__p6NavFreeze` (no Safari-only, no `webkit*` prefixes, no non-standard gesture APIs).
+**WebKit-safe API review: PASS** — Task 35/36 PE changes stay on standard DOM / `localStorage` / Playwright APIs; navigator freeze uses `globalThis.__p6NavFreeze`; overlay opacity / `data-r5-state` stamps use no Safari-only, no `webkit*` prefixes, no non-standard gesture APIs.
 
 ---
 
 ## Status: PASS
 
-Write-set remediation: unauthorized `src/styles/round5-pe-integration.css` deleted; PE layout bridges live only in authorized `src/styles.css`. `src/main.js` imports the FE layer solely via `import './styles/round5-screens.css';`.
+Task 36 close-loop: FE CSS remediation (`b0769441` → PE `c09fc0e2`) + PE persistence-plate hold (`7735a9d1`) + recapture. Write-set remediation still holds: no `round5-pe-integration.css`; FE import is `import './styles/round5-screens.css';` only.
 
 | Gate | Result |
 |---|---|
-| FE merge write-set proof | PASS (`src/styles/round5-screens.css` only) |
-| PE stylesheet write-set | PASS (bridges in `src/styles.css`; no `round5-pe-integration.css`) |
+| FE CSS merge write-set | PASS (`src/styles/round5-screens.css` only from FE tip) |
+| PE stylesheet write-set | PASS (bridges + `#overlay.open` opacity in `src/styles.css`) |
 | `npm test` | PASS (`unit checks passed; monte-carlo: 300 runs`) |
 | Focused Playwright `p6-screens end-ceremony contrast stage` (desktop, `--workers=1 --no-deps`) | PASS (**63** passed) |
-| Contact-sheet capture | PASS (**183** rows; `sourceSha` == capture HEAD) |
-| Visual baseline refresh | **not run** (deferred to FE critique / owner sign-off) |
+| Contact-sheet capture | PASS (**183** rows; `sourceSha` == `7735a9d1…`) |
+| Persistence plates in sheets | PASS (`dawn-cursor-retry`, `dawn-final-clear-retry`, `usurper-item-save-blocked` show `#overlay.open` alertdialog) |
+| Visual baseline refresh | **not run** (deferred to FE re-critique / owner sign-off) |
+| WebKit-safe | **PASS** |
 
 ---
 
@@ -36,8 +38,11 @@ Write-set remediation: unauthorized `src/styles/round5-pe-integration.css` delet
 | **FE_CSS_MERGE** | `2795d397fff5efb5202f18f4cdd348a7a211826c` | `style: merge Round 5 FE screen stylesheet` (`^1` = PE tip, `^2` = FE head) |
 | Integrate import (first PE import commit) | `79a8ec084d552772a401247cfd7a7051c6ffd0e2` | `style: integrate the Round 5 screen experience layer` |
 | Write-set remediations (PE bridges → `styles.css`) | `91e3e600fad2a1a07a4e184d79d2ecb6c0b6b757` | `fix: fold PE screen layout bridges into styles.css` |
-| **P6 capture source** | `91e3e600fad2a1a07a4e184d79d2ecb6c0b6b757` | Clean HEAD used for recapture; equals `manifest.sourceSha` |
-| Evidence tip | `f33a9219ceb2a57a2ec39525e253e69b942d2b24` | artifact commit (`test: recapture P6 sheets after write-set fix`) |
+| Prior P6 capture source (pre Task 36 FE) | `91e3e600fad2a1a07a4e184d79d2ecb6c0b6b757` | Sheets lacked held persistence plates |
+| Task 36 FE CSS merge | `c09fc0e2e9b66d4989599be3d6e6249fbc2afdc2` | `style: apply Task 36 FE contact-sheet CSS fixes` (from FE `b0769441`) |
+| PE persistence-plate hold | `7735a9d1164381bad75ea123b080dc1a3c654b50` | Overlay stamp + `#overlay.open` opacity + capture assert |
+| **P6 capture source** | `7735a9d1164381bad75ea123b080dc1a3c654b50` | Clean HEAD for Task 36 FE-fix recapture; equals `manifest.sourceSha` |
+| Evidence tip | _(pending recapture commit)_ | `test: recapture P6 sheets after Task 36 FE fixes` |
 
 ### Rollback
 
@@ -85,10 +90,10 @@ Carry-forward from `docs/superpowers/reports/2026-07-10-round5-p5-to-p6-handoff.
 | Lamplighter | `.r5-lamplighter`, `.lamp-screen` |
 | Hollow | `.r5-lamplighter--hollow`, `.hollow-lamplighter`, `[data-r5-ceremony]` |
 | Map | `.r5-map`, `.map-screen` |
-| Shop / Usurper | `.r5-shop`, `.quest-shop-item[data-r5-state]` |
+| Shop / Usurper | `.r5-shop`, `.quest-shop-item[data-r5-state]`, `#run-save-failure[data-r5-state="usurper-item-save-blocked"]` |
 | Event / rest / treasure / rewards / boss-relic | `.r5-scene-panel` / `.center-panel` families |
 | End (Dawn / Fall) | `.r5-end`, `.end-screen`, `.dawn-ceremony`, `#dawn-save-failure` |
-| Shared | `#stage`, `#screen`, `.screen-enter`, `.scene-bg`, `data-r5-profile`, `data-r5-state`, `data-r5-ceremony` |
+| Shared | `#stage`, `#screen`, `#overlay.open`, `.screen-enter`, `.scene-bg`, `data-r5-profile`, `data-r5-state`, `data-r5-ceremony` |
 
 Phase-2 capture ids (43) are listed in `test/e2e/p6-fixtures.js` `PHASE2_CAPTURE_MANIFEST` and mirrored under the artifact `phase2/` directory.
 
@@ -110,7 +115,7 @@ Promoted (committed) tree: `docs/superpowers/artifacts/round5-p6-contact-sheets/
 
 | Manifest field | Value |
 |---|---|
-| `sourceSha` | `91e3e600fad2a1a07a4e184d79d2ecb6c0b6b757` |
+| `sourceSha` | `7735a9d1164381bad75ea123b080dc1a3c654b50` |
 | `captureCommand` | `node tools/run-with-strict-e2e-port.mjs -- npm run capture:round5:contact-sheets` |
 | Rows | 183 (140 base + 43 Phase-2) |
 | Files (excl. manifest self) | 204 (PNGs + sheet HTML) |
