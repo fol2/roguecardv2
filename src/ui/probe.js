@@ -1,6 +1,16 @@
 // Read-only browser diagnostics and real-handler test drivers.
 // The index owner installs the returned object in the global probe slot.
 
+import {
+  LAYOUT_PROJECTION_VERSION,
+  boxFromRect,
+  cardfaceContractFactsWith,
+  evaluateOwnerFailGates,
+  summarizeGateReport,
+} from './screen-layout-projection.js';
+import { rarityRailColour } from './cardface-layout.js';
+import { assetUrl } from '../art.js';
+
 export function installProbe({
   context,
   combat,
@@ -196,6 +206,167 @@ export function installProbe({
     resetBehaviourTrace: () => trace.reset(),
     translateForProbe: (key) => tr(key),
     settle: () => presentationSettled(),
+    /**
+     * P6 owner-FAIL layout projection (stage px). JSON-safe; no pixels.
+     * Pair with screenLayoutGates() for semantic evidence.
+     */
+    screenLayout() {
+      const stage = stageInfo();
+      const shape = stage?.shape || null;
+      const screen = S.screen;
+      const root = document.querySelector(
+        '.r5-title, .r5-embark, .r5-end, .r5-scene-panel, .r5-lamplighter, .r5-map, .r5-vigil, .r5-shop, .r5-event, .r5-rest, .r5-rewards',
+      );
+      const profile = root?.dataset?.r5Profile
+        || document.querySelector('[data-r5-profile]')?.dataset?.r5Profile
+        || null;
+      const measure = (sel, scope = document) => {
+        const node = typeof sel === 'string' ? scope.querySelector(sel) : sel;
+        return node ? boxFromRect(stageRect(node)) : null;
+      };
+      const sceneBgs = [...document.querySelectorAll('.scene-bg')];
+      const sceneBgStampedAsPanel = sceneBgs.some((el) => el.classList.contains('r5-scene-panel'));
+      const centerPanel = measure('.center-panel, .r5-scene-panel, .r5-end, .r5-lamplighter');
+
+      const vow = document.querySelector('.r5-vow-dial');
+      const vowBox = vow ? boxFromRect(stageRect(vow)) : null;
+      const aspectCards = [...document.querySelectorAll('.r5-aspect-card')]
+        .map((el) => boxFromRect(stageRect(el)))
+        .filter(Boolean);
+
+      const whisper = measure('.dawn-whisper');
+      const ledger = measure('.r5-dawn-ledger, .stats-grid');
+      const ceremony = measure('.dawn-ceremony');
+      const dawnContent = measure('.r5-end .panel, .dawn-ceremony, .r5-end');
+      const fallPanel = measure('.r5-end--fallen .panel, .r5-end.r5-end--fallen, .bequest, .r5-end .panel');
+
+      const parallaxNodes = [...document.querySelectorAll('.r5-title-parallax')];
+      const parallaxBoxes = parallaxNodes.map((el) => boxFromRect(stageRect(el))).filter(Boolean);
+      const parallaxTop = parallaxBoxes.length
+        ? Math.min(...parallaxBoxes.map((b) => b.top))
+        : null;
+      const wordmarkEl = document.querySelector('.r5-title-wordmark');
+      let wordmarkClipped = null;
+      if (wordmarkEl) {
+        const cs = getComputedStyle(wordmarkEl);
+        const overflowHidden = cs.overflow === 'hidden' || cs.overflow === 'clip'
+          || cs.overflowX === 'hidden' || cs.overflowX === 'clip'
+          || cs.overflowY === 'hidden' || cs.overflowY === 'clip';
+        wordmarkClipped = overflowHidden
+          && (wordmarkEl.scrollWidth > wordmarkEl.clientWidth + 1
+            || wordmarkEl.scrollHeight > wordmarkEl.clientHeight + 1);
+        if (!overflowHidden) wordmarkClipped = false;
+      }
+
+      const bg3d = document.getElementById('bg3d');
+      let bg3dVisible = false;
+      if (bg3d) {
+        const cs = getComputedStyle(bg3d);
+        bg3dVisible = cs.display !== 'none'
+          && cs.visibility !== 'hidden'
+          && Number.parseFloat(cs.opacity || '1') > 0.05;
+      }
+
+      const lampRoot = document.querySelector('.r5-lamplighter');
+      const lampSelection = document.querySelector(
+        '.r5-lamplighter .lamp-boon, .r5-lamplighter .lamp-boons, .r5-lamplighter .lamp-arts',
+      );
+      const vigilTitle = document.querySelector('.r5-vigil .ov-title, .vigil-panel .ov-title');
+
+      const logicalScreen = (() => {
+        if (document.querySelector('.r5-end--fallen, .r5-end[data-won="false"]')) return 'fall';
+        if (document.querySelector('.r5-end--victory, .dawn-ceremony, .dawn-whisper, .r5-dawn-ledger')) {
+          return 'dawn';
+        }
+        if (document.querySelector('.r5-embark')) return 'embark';
+        if (document.querySelector('.r5-title')) return 'title';
+        if (document.querySelector('.r5-map')) return 'map';
+        if (document.querySelector('.r5-lamplighter--hollow, .hollow-lamplighter')) return 'hollow';
+        if (document.querySelector('.r5-lamplighter')) return 'lamplighter';
+        if (document.querySelector('.r5-event')) return 'event';
+        if (document.querySelector('.r5-rest--treasure')) return 'treasure';
+        if (document.querySelector('.r5-rest')) return 'rest';
+        if (document.querySelector('.r5-rewards--boss')) return 'boss-relic';
+        if (document.querySelector('.r5-rewards')) return 'rewards';
+        if (document.querySelector('.r5-shop')) return 'shop';
+        if (document.querySelector('.r5-vigil')) return 'vigil';
+        return screen;
+      })();
+
+      const hasArtTexture = !!assetUrl('cards', 'strike') || !!assetUrl('card', 'strike');
+      const cardface = cardfaceContractFactsWith({
+        hasArtTexture,
+        rarityRailColour,
+      });
+
+      return Object.freeze({
+        version: LAYOUT_PROJECTION_VERSION,
+        screen: logicalScreen,
+        shape,
+        profile,
+        stage: Object.freeze({
+          w: stageW(),
+          h: stageH(),
+          shape,
+        }),
+        dawn: Object.freeze({
+          whisper,
+          ledger,
+          ceremony,
+          content: dawnContent,
+        }),
+        embark: Object.freeze({
+          vowDial: vowBox
+            ? Object.freeze({
+              ...vowBox,
+              aspectRatio: vowBox.height > 0 ? vowBox.width / vowBox.height : null,
+            })
+            : null,
+          aspectCards: Object.freeze(aspectCards),
+        }),
+        scene: Object.freeze({
+          sceneBgCount: sceneBgs.length,
+          sceneBgStampedAsPanel,
+          centerPanel,
+        }),
+        title: Object.freeze({
+          parallaxCount: parallaxNodes.length,
+          parallaxTop,
+          wordmark: measure(wordmarkEl || '.r5-title-wordmark'),
+          wordmarkClipped,
+        }),
+        map: Object.freeze({
+          bg3dVisible,
+          keepBg3dAttr: document.documentElement.hasAttribute('data-freeze-keep-bg3d'),
+        }),
+        lamp: Object.freeze({
+          root: lampRoot ? boxFromRect(stageRect(lampRoot)) : null,
+          selectionVisible: !!(lampSelection && boxFromRect(stageRect(lampSelection))?.height > 0),
+        }),
+        fall: Object.freeze({
+          panel: fallPanel,
+        }),
+        vigil: Object.freeze({
+          title: vigilTitle
+            ? Object.freeze({
+              ...boxFromRect(stageRect(vigilTitle)),
+              visible: getComputedStyle(vigilTitle).visibility !== 'hidden'
+                && Number.parseFloat(getComputedStyle(vigilTitle).opacity || '1') > 0.05,
+            })
+            : null,
+        }),
+        cardface,
+      });
+    },
+    screenLayoutGates() {
+      const projection = this.screenLayout();
+      const report = evaluateOwnerFailGates(projection);
+      return Object.freeze({
+        projection,
+        report,
+        summary: summarizeGateReport(report),
+      });
+    },
     moduleContracts() {
       return {
         combat: Object.keys(combat).sort(),

@@ -1,0 +1,106 @@
+{
+  "id": "lamplighter__phone-portrait__grown",
+  "screen": "lamplighter",
+  "shape": "phone-portrait",
+  "profile": "grown",
+  "summary": {
+    "applicable": 3,
+    "passedApplicable": 3,
+    "failedApplicable": 0,
+    "failedIds": [],
+    "passedIds": [
+      "lamplighter-fills-stage",
+      "scene-bg-not-panel-stamp",
+      "cardface-hex-gem-art-rarity"
+    ]
+  },
+  "gates": [
+    {
+      "id": "lamplighter-fills-stage",
+      "applicable": true,
+      "pass": true,
+      "detail": "root=389.99996459960937x844 stage=390x844 selection=true"
+    },
+    {
+      "id": "scene-bg-not-panel-stamp",
+      "applicable": true,
+      "pass": true,
+      "detail": "sceneBgCount=1 stampedAsPanel=false"
+    },
+    {
+      "id": "cardface-hex-gem-art-rarity",
+      "applicable": true,
+      "pass": true,
+      "detail": "vertices=6 art=true rarity=true"
+    }
+  ],
+  "projection": {
+    "version": 1,
+    "screen": "lamplighter",
+    "shape": "phone-portrait",
+    "profile": "grown",
+    "stage": {
+      "w": 390,
+      "h": 844,
+      "shape": "phone-portrait"
+    },
+    "dawn": {
+      "whisper": null,
+      "ledger": null,
+      "ceremony": null,
+      "content": null
+    },
+    "embark": {
+      "vowDial": null,
+      "aspectCards": []
+    },
+    "scene": {
+      "sceneBgCount": 1,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": {
+        "left": -0.010156250000000285,
+        "top": 0,
+        "width": 389.99996459960937,
+        "height": 844,
+        "right": 389.98980834960935,
+        "bottom": 844,
+        "cx": 194.9898260498047,
+        "cy": 422
+      }
+    },
+    "title": {
+      "parallaxCount": 0,
+      "parallaxTop": null,
+      "wordmark": null,
+      "wordmarkClipped": null
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": {
+        "left": -0.010156250000000285,
+        "top": 0,
+        "width": 389.99996459960937,
+        "height": 844,
+        "right": 389.98980834960935,
+        "bottom": 844,
+        "cx": 194.9898260498047,
+        "cy": 422
+      },
+      "selectionVisible": true
+    },
+    "fall": {
+      "panel": null
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": true,
+      "rarityAccentDistinct": true
+    }
+  }
+}

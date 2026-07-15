@@ -1,0 +1,106 @@
+{
+  "id": "lamplighter__phone-landscape__grown",
+  "screen": "lamplighter",
+  "shape": "phone-landscape",
+  "profile": "grown",
+  "summary": {
+    "applicable": 3,
+    "passedApplicable": 3,
+    "failedApplicable": 0,
+    "failedIds": [],
+    "passedIds": [
+      "lamplighter-fills-stage",
+      "scene-bg-not-panel-stamp",
+      "cardface-hex-gem-art-rarity"
+    ]
+  },
+  "gates": [
+    {
+      "id": "lamplighter-fills-stage",
+      "applicable": true,
+      "pass": true,
+      "detail": "root=844.0000000000001x390.00002899169925 stage=844x390 selection=true"
+    },
+    {
+      "id": "scene-bg-not-panel-stamp",
+      "applicable": true,
+      "pass": true,
+      "detail": "sceneBgCount=1 stampedAsPanel=false"
+    },
+    {
+      "id": "cardface-hex-gem-art-rarity",
+      "applicable": true,
+      "pass": true,
+      "detail": "vertices=6 art=true rarity=true"
+    }
+  ],
+  "projection": {
+    "version": 1,
+    "screen": "lamplighter",
+    "shape": "phone-landscape",
+    "profile": "grown",
+    "stage": {
+      "w": 844,
+      "h": 390,
+      "shape": "phone-landscape"
+    },
+    "dawn": {
+      "whisper": null,
+      "ledger": null,
+      "ceremony": null,
+      "content": null
+    },
+    "embark": {
+      "vowDial": null,
+      "aspectCards": []
+    },
+    "scene": {
+      "sceneBgCount": 1,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": {
+        "left": 0,
+        "top": -0.010156250000015278,
+        "width": 844.0000000000001,
+        "height": 390.00002899169925,
+        "right": 844.0000000000001,
+        "bottom": 389.98987274169923,
+        "cx": 422.00000000000006,
+        "cy": 194.9898582458496
+      }
+    },
+    "title": {
+      "parallaxCount": 0,
+      "parallaxTop": null,
+      "wordmark": null,
+      "wordmarkClipped": null
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": {
+        "left": 0,
+        "top": -0.010156250000015278,
+        "width": 844.0000000000001,
+        "height": 390.00002899169925,
+        "right": 844.0000000000001,
+        "bottom": 389.98987274169923,
+        "cx": 422.00000000000006,
+        "cy": 194.9898582458496
+      },
+      "selectionVisible": true
+    },
+    "fall": {
+      "panel": null
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": true,
+      "rarityAccentDistinct": true
+    }
+  }
+}

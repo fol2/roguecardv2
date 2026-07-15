@@ -1,0 +1,126 @@
+{
+  "id": "dawn__phone-landscape__grown",
+  "screen": "dawn",
+  "shape": "phone-landscape",
+  "profile": "grown",
+  "summary": {
+    "applicable": 2,
+    "passedApplicable": 2,
+    "failedApplicable": 0,
+    "failedIds": [],
+    "passedIds": [
+      "dawn-phone-landscape-whisper-width",
+      "cardface-hex-gem-art-rarity"
+    ]
+  },
+  "gates": [
+    {
+      "id": "dawn-phone-landscape-whisper-width",
+      "applicable": true,
+      "pass": true,
+      "detail": "widthRatio=0.9431095123291016 whisper.cx=421.99221509695053 stage.cx=422"
+    },
+    {
+      "id": "cardface-hex-gem-art-rarity",
+      "applicable": true,
+      "pass": true,
+      "detail": "vertices=6 art=true rarity=true"
+    }
+  ],
+  "projection": {
+    "version": 1,
+    "screen": "dawn",
+    "shape": "phone-landscape",
+    "profile": "grown",
+    "stage": {
+      "w": 844,
+      "h": 390,
+      "shape": "phone-landscape"
+    },
+    "dawn": {
+      "whisper": {
+        "left": 24.00000089406967,
+        "top": 227.13048572540282,
+        "width": 795.9844284057617,
+        "height": 13.499982738494873,
+        "right": 819.9844292998314,
+        "bottom": 240.6304684638977,
+        "cx": 421.99221509695053,
+        "cy": 233.88047709465025
+      },
+      "ledger": {
+        "left": 456.1718759536744,
+        "top": 47.98984050750731,
+        "width": 375.81256008148193,
+        "height": 104.99999542236328,
+        "right": 831.9844360351562,
+        "bottom": 152.9898359298706,
+        "cx": 644.0781559944153,
+        "cy": 100.48983821868896
+      },
+      "ceremony": {
+        "left": 12.000000447034836,
+        "top": 157.98984146118164,
+        "width": 819.9844066619874,
+        "height": 137.00000667572021,
+        "right": 831.9844071090222,
+        "bottom": 294.98984813690186,
+        "cx": 421.9922037780285,
+        "cy": 226.48984479904175
+      },
+      "content": {
+        "left": 0,
+        "top": -0.010156250000015278,
+        "width": 844.0000000000001,
+        "height": 390.00002899169925,
+        "right": 844.0000000000001,
+        "bottom": 389.98987274169923,
+        "cx": 422.00000000000006,
+        "cy": 194.9898582458496
+      }
+    },
+    "embark": {
+      "vowDial": null,
+      "aspectCards": []
+    },
+    "scene": {
+      "sceneBgCount": 0,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": {
+        "left": 0,
+        "top": -0.010156250000015278,
+        "width": 844.0000000000001,
+        "height": 390.00002899169925,
+        "right": 844.0000000000001,
+        "bottom": 389.98987274169923,
+        "cx": 422.00000000000006,
+        "cy": 194.9898582458496
+      }
+    },
+    "title": {
+      "parallaxCount": 0,
+      "parallaxTop": null,
+      "wordmark": null,
+      "wordmarkClipped": null
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": null,
+      "selectionVisible": false
+    },
+    "fall": {
+      "panel": null
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": true,
+      "rarityAccentDistinct": true
+    }
+  }
+}

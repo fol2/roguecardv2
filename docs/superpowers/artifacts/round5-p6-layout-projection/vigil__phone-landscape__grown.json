@@ -1,0 +1,100 @@
+{
+  "id": "vigil__phone-landscape__grown",
+  "screen": "vigil",
+  "shape": "phone-landscape",
+  "profile": "grown",
+  "summary": {
+    "applicable": 2,
+    "passedApplicable": 2,
+    "failedApplicable": 0,
+    "failedIds": [],
+    "passedIds": [
+      "vigil-phone-landscape-title",
+      "cardface-hex-gem-art-rarity"
+    ]
+  },
+  "gates": [
+    {
+      "id": "vigil-phone-landscape-title",
+      "applicable": true,
+      "pass": true,
+      "detail": "title=520.0000520706177x35.04687390327454 visible=true"
+    },
+    {
+      "id": "cardface-hex-gem-art-rarity",
+      "applicable": true,
+      "pass": true,
+      "detail": "vertices=6 art=true rarity=true"
+    }
+  ],
+  "projection": {
+    "version": 1,
+    "screen": "vigil",
+    "shape": "phone-landscape",
+    "profile": "grown",
+    "stage": {
+      "w": 844,
+      "h": 390,
+      "shape": "phone-landscape"
+    },
+    "dawn": {
+      "whisper": null,
+      "ledger": null,
+      "ceremony": null,
+      "content": null
+    },
+    "embark": {
+      "vowDial": null,
+      "aspectCards": []
+    },
+    "scene": {
+      "sceneBgCount": 0,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": {
+        "left": 0,
+        "top": -0.010156250000015278,
+        "width": 844.0000000000001,
+        "height": 390.00002899169925,
+        "right": 844.0000000000001,
+        "bottom": 389.98987274169923,
+        "cx": 422.00000000000006,
+        "cy": 194.9898582458496
+      }
+    },
+    "title": {
+      "parallaxCount": 0,
+      "parallaxTop": null,
+      "wordmark": null,
+      "wordmarkClipped": null
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": null,
+      "selectionVisible": false
+    },
+    "fall": {
+      "panel": null
+    },
+    "vigil": {
+      "title": {
+        "left": 162.0000041484833,
+        "top": 55.489848804473866,
+        "width": 520.0000520706177,
+        "height": 35.04687390327454,
+        "right": 682.000056219101,
+        "bottom": 90.5367227077484,
+        "cx": 422.00003018379215,
+        "cy": 73.01328575611113,
+        "visible": true
+      }
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": true,
+      "rarityAccentDistinct": true
+    }
+  }
+}

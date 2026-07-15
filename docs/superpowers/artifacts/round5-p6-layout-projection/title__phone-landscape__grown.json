@@ -1,0 +1,97 @@
+{
+  "id": "title__phone-landscape__grown",
+  "screen": "title",
+  "shape": "phone-landscape",
+  "profile": "grown",
+  "summary": {
+    "applicable": 3,
+    "passedApplicable": 3,
+    "failedApplicable": 0,
+    "failedIds": [],
+    "passedIds": [
+      "title-parallax-covers-top",
+      "title-wordmark-unclipped",
+      "cardface-hex-gem-art-rarity"
+    ]
+  },
+  "gates": [
+    {
+      "id": "title-parallax-covers-top",
+      "applicable": true,
+      "pass": true,
+      "detail": "parallaxCount=3 parallaxTop=-0.010156250000015278"
+    },
+    {
+      "id": "title-wordmark-unclipped",
+      "applicable": true,
+      "pass": true,
+      "detail": "clipped=false wordmark=229.99999284744266x59.734378576278694"
+    },
+    {
+      "id": "cardface-hex-gem-art-rarity",
+      "applicable": true,
+      "pass": true,
+      "detail": "vertices=6 art=true rarity=true"
+    }
+  ],
+  "projection": {
+    "version": 1,
+    "screen": "title",
+    "shape": "phone-landscape",
+    "profile": "grown",
+    "stage": {
+      "w": 844,
+      "h": 390,
+      "shape": "phone-landscape"
+    },
+    "dawn": {
+      "whisper": null,
+      "ledger": null,
+      "ceremony": null,
+      "content": null
+    },
+    "embark": {
+      "vowDial": null,
+      "aspectCards": []
+    },
+    "scene": {
+      "sceneBgCount": 0,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": null
+    },
+    "title": {
+      "parallaxCount": 3,
+      "parallaxTop": -0.010156250000015278,
+      "wordmark": {
+        "left": 307.00001363754274,
+        "top": 7.786719703674302,
+        "width": 229.99999284744266,
+        "height": 59.734378576278694,
+        "right": 537.0000064849854,
+        "bottom": 67.521098279953,
+        "cx": 422.00001006126405,
+        "cy": 37.65390899181365
+      },
+      "wordmarkClipped": false
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": null,
+      "selectionVisible": false
+    },
+    "fall": {
+      "panel": null
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": true,
+      "rarityAccentDistinct": true
+    }
+  }
+}

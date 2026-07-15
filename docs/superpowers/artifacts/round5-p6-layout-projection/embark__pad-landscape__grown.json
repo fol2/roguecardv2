@@ -1,0 +1,112 @@
+{
+  "id": "embark__pad-landscape__grown",
+  "screen": "embark",
+  "shape": "pad-landscape",
+  "profile": "grown",
+  "summary": {
+    "applicable": 2,
+    "passedApplicable": 2,
+    "failedApplicable": 0,
+    "failedIds": [],
+    "passedIds": [
+      "embark-vow-not-circle",
+      "cardface-hex-gem-art-rarity"
+    ]
+  },
+  "gates": [
+    {
+      "id": "embark-vow-not-circle",
+      "applicable": true,
+      "pass": true,
+      "detail": "aspectRatio=2.4600006631469826"
+    },
+    {
+      "id": "cardface-hex-gem-art-rarity",
+      "applicable": true,
+      "pass": true,
+      "detail": "vertices=6 art=true rarity=true"
+    }
+  ],
+  "projection": {
+    "version": 1,
+    "screen": "embark",
+    "shape": "pad-landscape",
+    "profile": "grown",
+    "stage": {
+      "w": 1180,
+      "h": 820,
+      "shape": "pad-landscape"
+    },
+    "dawn": {
+      "whisper": null,
+      "ledger": null,
+      "ceremony": null,
+      "content": null
+    },
+    "embark": {
+      "vowDial": {
+        "left": 466.98435974121094,
+        "top": 491.62500915527346,
+        "width": 246.00006256103515,
+        "height": 99.9999984741211,
+        "right": 712.9844223022461,
+        "bottom": 591.6250076293945,
+        "cx": 589.9843910217285,
+        "cy": 541.625008392334,
+        "aspectRatio": 2.4600006631469826
+      },
+      "aspectCards": [
+        {
+          "left": 276.734375,
+          "top": 240.39814414978028,
+          "width": 310.49998931884767,
+          "height": 235.20373268127443,
+          "right": 587.2343643188476,
+          "bottom": 475.6018768310547,
+          "cx": 431.9843696594238,
+          "cy": 358.0000104904175
+        },
+        {
+          "left": 597.9844146728516,
+          "top": 244.375008392334,
+          "width": 299.99999542236327,
+          "height": 227.2499885559082,
+          "right": 897.9844100952148,
+          "bottom": 471.6249969482422,
+          "cx": 747.9844123840332,
+          "cy": 358.0000026702881
+        }
+      ]
+    },
+    "scene": {
+      "sceneBgCount": 0,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": null
+    },
+    "title": {
+      "parallaxCount": 0,
+      "parallaxTop": null,
+      "wordmark": null,
+      "wordmarkClipped": null
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": null,
+      "selectionVisible": false
+    },
+    "fall": {
+      "panel": null
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": true,
+      "rarityAccentDistinct": true
+    }
+  }
+}
