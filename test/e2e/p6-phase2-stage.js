@@ -27,6 +27,11 @@ async function waitAppReady(page) {
 }
 
 async function writeVigil(page, vigil) {
+  // Register after any caller addInitScript so reload does not restore a prior profile.
+  await page.addInitScript((value) => {
+    localStorage.removeItem('spirebound_save_v2');
+    localStorage.setItem('spirebound_vigil_v2', JSON.stringify(value));
+  }, vigil);
   await page.evaluate((value) => {
     localStorage.removeItem('spirebound_save_v2');
     localStorage.setItem('spirebound_vigil_v2', JSON.stringify(value));
