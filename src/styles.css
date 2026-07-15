@@ -2702,3 +2702,151 @@ html.freeze #bg3d, html.freeze #vfx, html.freeze #uigl, html.freeze #mesh, html.
   /* Keep layout boxes for the PR17 packer / readUI anchors. */
   pointer-events: none;
 }
+
+/* ============ Round 5 FE screen layer — PE layout bridges
+   FE `round5-screens.css` loads after this file. Bridges use ≥2 classes or
+   `#screen` so stage geometry (absolute fill, safe padding, hollow grid,
+   phone title rails) wins over FE card shells without owning FE presentation. */
+
+/* Hollow: reveal after ceremony without overwriting Phase-2 state tokens. */
+.r5-lamplighter[data-r5-ceremony="hollow-ready"],
+.r5-lamplighter--hollow[data-r5-state^="hollow-"] {
+  opacity: 1;
+  transform: none;
+  animation: none;
+}
+
+/* Hollow root is a full-stage grid, not an FE flex card shell. */
+.hollow-lamplighter.r5-lamplighter,
+.r5-lamplighter--hollow {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(360px, 1.2fr);
+  align-items: center;
+  justify-content: center;
+  gap: clamp(18px, 5cqw, 72px);
+  width: auto;
+  height: auto;
+  max-height: none;
+  padding: 7cqh 8cqw;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 28% 42%, rgba(105, 128, 142, 0.13), transparent 27%),
+    linear-gradient(105deg, #05080d 0%, #0a1118 48%, #08090f 100%);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  color: inherit;
+}
+
+@container stage (max-width: 740px) {
+  .hollow-lamplighter.r5-lamplighter,
+  .r5-lamplighter--hollow {
+    display: flex;
+    justify-content: center;
+    grid-template-columns: none;
+    padding: calc(68px + var(--sat)) 18px calc(18px + var(--sab));
+  }
+}
+
+@container stage (max-height: 480px) and (min-width: 500px) {
+  .hollow-lamplighter.r5-lamplighter,
+  .r5-lamplighter--hollow {
+    grid-template-columns: 180px minmax(420px, 1fr);
+    gap: 24px;
+    padding: 48px 7cqw 18px;
+  }
+}
+
+/* Center-panel screens: restore PE safe padding / absolute fill. */
+.center-panel.r5-rewards,
+.center-panel.r5-shop,
+.center-panel.r5-event,
+.center-panel.r5-rest,
+.center-panel.r5-vigil {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  gap: 0;
+  padding: 96px 12px 20px;
+  overflow: visible;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Double-class root is the stage fill, not a nested FE card. */
+.center-panel.r5-scene-panel {
+  max-width: none;
+  max-height: none;
+  width: auto;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+  opacity: 1;
+  overflow: visible;
+}
+
+@container stage (max-width: 1100px) {
+  .center-panel.r5-rewards,
+  .center-panel.r5-shop,
+  .center-panel.r5-event,
+  .center-panel.r5-rest,
+  .center-panel.r5-vigil {
+    padding: calc(70px + var(--sat)) 8px calc(12px + var(--sab));
+  }
+}
+
+@container stage (max-height: 480px) {
+  .center-panel.r5-rewards,
+  .center-panel.r5-shop,
+  .center-panel.r5-event,
+  .center-panel.r5-rest,
+  .center-panel.r5-vigil {
+    padding: calc(48px + var(--sat)) 8px calc(10px + var(--sab));
+  }
+}
+
+/* Phone portrait title: PE thumb-row action rail (FE defaults to column). */
+@container stage (max-width: 740px) {
+  #screen .r5-title {
+    gap: 10px;
+    padding: calc(20px + var(--sat)) 12px calc(14px + var(--sab));
+  }
+
+  #screen .r5-title-actions {
+    flex-flow: row wrap;
+    justify-content: center;
+    width: min(300px, 78cqw);
+    gap: 8px;
+  }
+
+  #screen .r5-title-actions .btn {
+    width: 100%;
+    padding: 9px 12px;
+  }
+
+  #screen .r5-title-actions .btn.ghost {
+    width: auto;
+    flex: 1 1 0;
+    padding: 8px 6px;
+    font-size: 12.5px;
+  }
+}
+
+/* Dawn ledger shares .stats-grid — keep PE 4-column grid from scrolling. */
+.stats-grid.r5-dawn-ledger {
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  padding: 0;
+  overflow: visible;
+  transform: none;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
