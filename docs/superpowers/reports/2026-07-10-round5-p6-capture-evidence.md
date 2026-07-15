@@ -33,7 +33,7 @@ This record freezes the integrated FE screen stylesheet + PE experience layer fo
 | **FE_CSS_MERGE** | `2795d397fff5efb5202f18f4cdd348a7a211826c` | `style: merge Round 5 FE screen stylesheet` (`^1` = PE tip, `^2` = FE head) |
 | Integrate import (first PE import commit) | `79a8ec084d552772a401247cfd7a7051c6ffd0e2` | `style: integrate the Round 5 screen experience layer` |
 | **P6 capture source** | `17594f82358f232dd5df8a56cd0a1a47bf380697` | Clean HEAD used for capture; equals `manifest.sourceSha` |
-| Evidence tip | `2ed905ddc8f8230687b40aded1b95e7d9fa6dc3c` | provisional — amended to final tip below |
+| Evidence tip | `ae16cb994d706a9a4209e4d850d5a7a047244db5` | `test: capture the integrated P6 screen pass` (artifact commit) |
 
 ### Rollback
 
