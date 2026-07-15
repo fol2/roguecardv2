@@ -13,17 +13,18 @@ This record freezes the integrated FE screen stylesheet + PE experience layer fo
 
 ## Status: PASS
 
-Task 36 close-loop: FE CSS remediation (`b0769441` → PE `c09fc0e2`) + PE persistence-plate hold (`7735a9d1`) + recapture. Write-set remediation still holds: no `round5-pe-integration.css`; FE import is `import './styles/round5-screens.css';` only.
+Task 36 close-loop (Fall phone-landscape): FE CSS `451895b2` → PE `1681b611` + full recapture. Prior persistence-plate hold still in ancestry. Write-set: FE import is `import './styles/round5-screens.css';` only; no `round5-pe-integration.css`.
 
 | Gate | Result |
 |---|---|
-| FE CSS merge write-set | PASS (`src/styles/round5-screens.css` only from FE tip) |
+| FE CSS merge write-set | PASS (`src/styles/round5-screens.css` only from FE tip `451895b2`) |
 | PE stylesheet write-set | PASS (bridges + `#overlay.open` opacity in `src/styles.css`) |
 | `npm test` | PASS (`unit checks passed; monte-carlo: 300 runs`) |
 | Focused Playwright `p6-screens end-ceremony contrast stage` (desktop, `--workers=1 --no-deps`) | PASS (**63** passed) |
-| Contact-sheet capture | PASS (**183** rows; `sourceSha` == `7735a9d1…`) |
-| Persistence plates in sheets | PASS (`dawn-cursor-retry`, `dawn-final-clear-retry`, `usurper-item-save-blocked` show `#overlay.open` alertdialog) |
-| Visual baseline refresh | **not run** (deferred to FE re-critique / owner sign-off) |
+| Contact-sheet capture | PASS (**183** rows; `sourceSha` == `1681b611…`) |
+| Fall phone-landscape sheets | PASS (full 4×2 stats + VIEW FINAL DECK + RETURN TO THE VIGIL) |
+| Persistence plates in sheets | PASS (held from prior Task 36 tip) |
+| Visual baseline refresh | **not run** (deferred to FE final PASS critique / owner sign-off) |
 | WebKit-safe | **PASS** |
 
 ---
@@ -41,8 +42,10 @@ Task 36 close-loop: FE CSS remediation (`b0769441` → PE `c09fc0e2`) + PE persi
 | Prior P6 capture source (pre Task 36 FE) | `91e3e600fad2a1a07a4e184d79d2ecb6c0b6b757` | Sheets lacked held persistence plates |
 | Task 36 FE CSS merge | `c09fc0e2e9b66d4989599be3d6e6249fbc2afdc2` | `style: apply Task 36 FE contact-sheet CSS fixes` (from FE `b0769441`) |
 | PE persistence-plate hold | `7735a9d1164381bad75ea123b080dc1a3c654b50` | Overlay stamp + `#overlay.open` opacity + capture assert |
-| **P6 capture source** | `7735a9d1164381bad75ea123b080dc1a3c654b50` | Clean HEAD for Task 36 FE-fix recapture; equals `manifest.sourceSha` |
-| Evidence tip | `86b0afcd64365505a77e5f2b4c75fc361c783c9a` | artifact commit (`test: recapture P6 sheets after Task 36 FE fixes`) |
+| Prior P6 capture source (Task 36 mid) | `7735a9d1164381bad75ea123b080dc1a3c654b50` | Persistence plates held; Fall phone-landscape still FAIL |
+| Fall phone-landscape FE CSS | `1681b6119dad2124c49982dce2c158867ba5c6bc` | `style: apply Fall phone-landscape FE CSS fix` (from FE `451895b2`) |
+| **P6 capture source** | `1681b6119dad2124c49982dce2c158867ba5c6bc` | Clean HEAD for Fall phone-landscape recapture; equals `manifest.sourceSha` |
+| Evidence tip | _(pending recapture commit)_ | `test: recapture P6 sheets after Fall phone-landscape FE fix` |
 
 ### Rollback
 
@@ -115,7 +118,7 @@ Promoted (committed) tree: `docs/superpowers/artifacts/round5-p6-contact-sheets/
 
 | Manifest field | Value |
 |---|---|
-| `sourceSha` | `7735a9d1164381bad75ea123b080dc1a3c654b50` |
+| `sourceSha` | `1681b6119dad2124c49982dce2c158867ba5c6bc` |
 | `captureCommand` | `node tools/run-with-strict-e2e-port.mjs -- npm run capture:round5:contact-sheets` |
 | Rows | 183 (140 base + 43 Phase-2) |
 | Files (excl. manifest self) | 204 (PNGs + sheet HTML) |
