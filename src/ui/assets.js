@@ -12,7 +12,9 @@ export function sceneBg() {
   const plate = theme?.plates?.backdrop;
   const url = plate ? assetUrl('stage', plate) : null;
   const themeId = theme?.id || theme?.themeId || '';
-  const attrs = `class="scene-bg r5-scene-panel"${themeId ? ` data-r5-theme="${escHtml(String(themeId))}"` : ''}${plate ? ` data-r5-plate="${escHtml(String(plate))}"` : ''}`;
+  // Never stamp r5-scene-panel on the backdrop — FE scene-panel is a card shell
+  // (width cap + border) and causes phone-landscape ghost left panels.
+  const attrs = `class="scene-bg"${themeId ? ` data-r5-theme="${escHtml(String(themeId))}"` : ''}${plate ? ` data-r5-plate="${escHtml(String(plate))}"` : ''}`;
   return url
     ? `<div ${attrs} style="background-image:url('${url}')"></div>`
     : `<div ${attrs} data-r5-plate="empty" aria-hidden="true"></div>`;
