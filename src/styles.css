@@ -2937,19 +2937,28 @@ html.freeze[data-freeze-keep-bg3d] #bg3d { visibility: visible !important; }
   }
 }
 
-/* Dawn phone-landscape: ceremony/whisper width matches buttons / column. */
+/* Dawn phone-landscape: ceremony/whisper spans like .end-btns (1 / -1),
+   not half-width grid-column 1. Stats stop at row 3 so they do not overlap. */
 @container stage (max-height: 480px) and (min-width: 500px) {
   #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .dawn-ceremony {
+    grid-column: 1 / -1;
     width: 100%;
     max-width: none;
   }
 
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .stats-grid {
+    grid-row: 1 / 3;
+  }
+
   #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .end-btns {
+    grid-column: 1 / -1;
     width: 100%;
   }
 
   #screen .r5-end--victory .dawn-ceremony .dawn-event {
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 }
 
