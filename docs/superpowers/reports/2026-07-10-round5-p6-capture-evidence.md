@@ -42,7 +42,7 @@ Task 36 close-loop: FE CSS remediation (`b0769441` → PE `c09fc0e2`) + PE persi
 | Task 36 FE CSS merge | `c09fc0e2e9b66d4989599be3d6e6249fbc2afdc2` | `style: apply Task 36 FE contact-sheet CSS fixes` (from FE `b0769441`) |
 | PE persistence-plate hold | `7735a9d1164381bad75ea123b080dc1a3c654b50` | Overlay stamp + `#overlay.open` opacity + capture assert |
 | **P6 capture source** | `7735a9d1164381bad75ea123b080dc1a3c654b50` | Clean HEAD for Task 36 FE-fix recapture; equals `manifest.sourceSha` |
-| Evidence tip | _(pending recapture commit)_ | `test: recapture P6 sheets after Task 36 FE fixes` |
+| Evidence tip | `86b0afcd64365505a77e5f2b4c75fc361c783c9a` | artifact commit (`test: recapture P6 sheets after Task 36 FE fixes`) |
 
 ### Rollback
 
@@ -168,6 +168,9 @@ Examples:
 
 - Standing / full CI / visual baseline update: **skipped** (owner cadence).
 - Capture settle races `presentationBarrier.whenIdle()` against 2.5s so intentional persistence-dialog terminals (`dawn-cursor-retry`, `dawn-final-clear-retry`, `usurper-item-save-blocked`, …) remain screenshotable while holding the barrier.
+- After settle, capture **asserts** `#overlay.open` plate opacity/visibility for those three ids before `#stage` screenshot.
+- Usurper save-blocked stamps `#run-save-failure[data-r5-state="usurper-item-save-blocked"]` from `showRunSaveFailure`.
+- `#overlay.open { opacity: 1 }` (and REDUCED `animation: none`) keeps the 72% ink scrim from sticking at the fadein from-keyframe.
 - Hollow close terminals use navigator `__p6NavFreeze` (not a patched `window.spirebound.show`).
 
 ---
@@ -176,4 +179,5 @@ Examples:
 
 1. PE layout bridges in `src/styles.css` restore stage geometry under FE shells (hollow grid, center-panel fill, phone title rails, dawn ledger). FE critique must not move those bridges into `round5-screens.css`.
 2. Visual baselines were **not** refreshed; Darwin/Linux pixel gates may still reflect pre-FE chrome until Task 36/37.
-3. Capture evidence is Chromium headless on Darwin; WebKit device lanes were not re-run for this tip (prior P5→P6 WebKit-safe carry-forward + desktop focused matrix only).
+3. Capture evidence is Chromium headless on Darwin; WebKit device lanes were not re-run for this tip (WebKit-safe API review PASS; desktop focused matrix only).
+4. Task 36 FE pre-filter FAIL rows that were CSS-only (contrast / overflow / title-rose-loading) need FE re-critique against this recapture tip.
