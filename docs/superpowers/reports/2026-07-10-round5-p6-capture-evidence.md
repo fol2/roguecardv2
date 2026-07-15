@@ -183,4 +183,4 @@ Examples:
 1. PE layout bridges in `src/styles.css` restore stage geometry under FE shells (hollow grid, center-panel fill, phone title rails, dawn ledger). FE critique must not move those bridges into `round5-screens.css`.
 2. Visual baselines were **not** refreshed; Darwin/Linux pixel gates may still reflect pre-FE chrome until Task 36/37.
 3. Capture evidence is Chromium headless on Darwin; WebKit device lanes were not re-run for this tip (WebKit-safe API review PASS; desktop focused matrix only).
-4. Task 36 FE pre-filter FAIL rows that were CSS-only (contrast / overflow / title-rose-loading) need FE re-critique against this recapture tip.
+4. Task 36 FE final PASS critique should confirm Fall phone-landscape (fresh/grown) against this tip; prior CSS FAIL rows (contrast / overflow / title-rose / persistence) already remediated in ancestry.
