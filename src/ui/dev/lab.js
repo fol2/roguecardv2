@@ -122,46 +122,46 @@ export async function initLab() {
   const registry = build({ fixtures: ['sample'] });
   const content = registry.context;
 
+  // Capture + freeze durable keys BEFORE importing ui/vigil — importing ui.js
+  // evaluates loadVigil, which migrates non-JSON Lab sentinels to a real ledger.
+  const durableKeys = {
+    save: localStorage.getItem('spirebound_save_v2'),
+    stats: localStorage.getItem('spirebound_stats_v1'),
+    vigil: localStorage.getItem('spirebound_vigil_v2'),
+  };
+  const DURABLE_STORAGE = Object.freeze({
+    spirebound_save_v2: durableKeys.save,
+    spirebound_stats_v1: durableKeys.stats,
+    spirebound_vigil_v2: durableKeys.vigil,
+  });
+  const rawSetItem = Storage.prototype.setItem;
+  const rawRemoveItem = Storage.prototype.removeItem;
+  function restoreDurableKey(key) {
+    const value = DURABLE_STORAGE[key];
+    if (value != null) rawSetItem.call(localStorage, key, value);
+    else rawRemoveItem.call(localStorage, key);
+  }
+  Storage.prototype.setItem = function labFreezeSetItem(key, value) {
+    if (this === localStorage && Object.prototype.hasOwnProperty.call(DURABLE_STORAGE, key)) {
+      restoreDurableKey(key);
+      return;
+    }
+    return rawSetItem.call(this, key, value);
+  };
+  Storage.prototype.removeItem = function labFreezeRemoveItem(key) {
+    if (this === localStorage && Object.prototype.hasOwnProperty.call(DURABLE_STORAGE, key)) {
+      restoreDurableKey(key);
+      return;
+    }
+    return rawRemoveItem.call(this, key);
+  };
+
   // Boot the normal stage/UI stack so probe drivers and combat renderers exist.
   const { initStage } = await import('../../stage.js');
   const { initScene } = await import('../../scene3d.js');
   const { initVfx } = await import('../../vfx.js');
   const { initMesh } = await import('../../mesh.js');
   const { initUI } = await import('../../ui.js');
-  // Capture durable keys before initUI; title syncVigil must not claim Lab isolation.
-  const durableKeys = {
-    save: localStorage.getItem('spirebound_save_v2'),
-    stats: localStorage.getItem('spirebound_stats_v1'),
-    vigil: localStorage.getItem('spirebound_vigil_v2'),
-  };
-  // Freeze durable keys for the whole Lab session — loadVigil migrates non-JSON
-  // sentinels and syncVigil would otherwise rewrite them after climb/title boots.
-  const DURABLE_STORAGE = Object.freeze({
-    spirebound_save_v2: durableKeys.save,
-    spirebound_stats_v1: durableKeys.stats,
-    spirebound_vigil_v2: durableKeys.vigil,
-  });
-  const rawSetItem = localStorage.setItem.bind(localStorage);
-  const rawRemoveItem = localStorage.removeItem.bind(localStorage);
-  function restoreDurableKey(key) {
-    const value = DURABLE_STORAGE[key];
-    if (value != null) rawSetItem(key, value);
-    else rawRemoveItem(key);
-  }
-  localStorage.setItem = (key, value) => {
-    if (Object.prototype.hasOwnProperty.call(DURABLE_STORAGE, key)) {
-      restoreDurableKey(key);
-      return;
-    }
-    return rawSetItem(key, value);
-  };
-  localStorage.removeItem = (key) => {
-    if (Object.prototype.hasOwnProperty.call(DURABLE_STORAGE, key)) {
-      restoreDurableKey(key);
-      return;
-    }
-    return rawRemoveItem(key);
-  };
   initStage();
   initScene();
   initVfx();
