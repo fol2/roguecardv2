@@ -702,6 +702,10 @@ export async function initLab() {
   }, 500);
 
   renderEditor();
+  // Interactivity signal for tests/tooling: the launcher chrome exists and
+  // window.__probe is the Lab probe. [data-lab-root] alone appears earlier,
+  // before the context/commands imports resolve.
+  root.setAttribute('data-lab-ready', '1');
 
   if (bootQuery.has('scenario')) {
     try {

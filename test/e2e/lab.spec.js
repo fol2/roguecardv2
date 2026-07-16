@@ -68,7 +68,10 @@ async function readSentinels(page) {
 }
 
 async function waitLabReady(page) {
-  await page.waitForFunction(() => window.__probe && document.querySelector('[data-lab-root]'));
+  // [data-lab-ready] is stamped after the launcher renders and the Lab probe
+  // replaces the base probe — [data-lab-root] alone exists several dynamic
+  // imports earlier, which let loaded CI runners assert against an empty panel.
+  await page.waitForFunction(() => window.__probe && document.querySelector('[data-lab-root][data-lab-ready]'));
 }
 
 async function waitLabStaged(page, mode = null) {

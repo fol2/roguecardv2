@@ -298,13 +298,16 @@ test('long-press inspect shows tooltip on Pixi hand seat', async ({ page }) => {
     }));
   }, { origin: from });
 
-  // Hold still past the 380ms long-press timer; assert inspect chrome while pressed.
+  // Hold still past the 380ms long-press timer; assert inspect chrome while
+  // pressed. The armed timer cannot be cancelled without movement/pointerup
+  // (pointer.js), so this readiness wait is deterministic — no tight latency
+  // budget, which false-timed-out on loaded CI runners.
   await page.waitForFunction(() => {
     const tip = document.getElementById('tooltip');
     if (!tip || getComputedStyle(tip).display !== 'block') return false;
     const title = tip.querySelector('.tt-title')?.textContent || '';
     return title.length > 0;
-  }, null, { timeout: 2000 });
+  });
   const during = await page.evaluate(() => {
     const tip = document.getElementById('tooltip');
     const title = tip?.querySelector?.('.tt-title')?.textContent || '';
