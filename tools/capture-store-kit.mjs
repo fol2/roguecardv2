@@ -86,13 +86,22 @@ async function startDevServer(settings) {
 }
 
 async function waitCombatPainted(page) {
+  await page.waitForSelector('.sl-backdrop[data-plate-id]', { timeout: 20_000 });
   await page.waitForFunction(() => {
+    if (window.spirebound?.S?.screen !== 'combat') return false;
     const read = window.spirebound?.combatGl?.readUI?.();
     const seats = read?.hand?.seats?.length || 0;
-    const enemies = read?.plates?.enemies?.length || 0;
-    return seats > 0 && enemies > 0;
+    if (seats > 0) return true;
+    // Fallback: DOM still paints energy/end-turn while Pixi hand catches up.
+    return !!document.querySelector('#energy, .energy, [data-a="end"], .end-turn');
   }, null, { timeout: 20_000 });
-  await page.waitForSelector('.sl-backdrop[data-plate-id]', { timeout: 10_000 });
+  await page.evaluate(async () => {
+    const bound = (work, ms = 2500) => Promise.race([
+      Promise.resolve(typeof work === 'function' ? work() : work).catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, ms)),
+    ]);
+    if (window.__probe?.settle) await bound(() => window.__probe.settle());
+  });
 }
 
 async function settleAndFreeze(page, { keepBg3d = false, keepCombat = false } = {}) {
