@@ -6957,6 +6957,16 @@ Watch required checks and stop all execution after opening the P6 prefix PR.
 
 ### Task 38: `[FE]` Author and promote the exact P7 visual package
 
+> **Addendum (2026-07-16, owner-directed) — FE branch state:** the FE prep work
+> so far lives on `jamesto/round5-front-end-p7-prep` @ `79c40695` (stage bible +
+> store draft, docs/scratch only) and its history has **diverged** from the PE
+> standing branch, so Step 1's `merge-base --is-ancestor` assertion will fail
+> as written. Resolution: after the Task 37 GO, create a fresh FE branch from
+> the PE tip and cherry-pick the docs-only prep commit(s) onto it (they carry
+> no owner-approval claim and no final-path assets, so replaying them is not a
+> post-publication rewrite; the old branch is left untouched). Do not merge FE
+> and PE histories any other way, and never before GO.
+
 **Files (FE worktree only):**
 - Create candidates under: `scratch/style-tests/round5/{stage,title,meta}/`
 - Create after owner approval: exact nine boss plates, three title layers, `src/assets/meta/unlock-toast-frame.png`
