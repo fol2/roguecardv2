@@ -194,26 +194,35 @@ export function createEndScreen(deps) {
     });
   }
 
-  async function drainEndQueue(run, host, policy) {
+  function mountPendingDawnPanels(run, host) {
     const pending = run.pendingDawn;
     if (!pending) throw new Error('winning end screen requires a staged dawn presentation');
     const events = pending.events.map((event) => ({ ...event }));
-    const newUnlocks = [...pending.newUnlocks];
-    // Mount remaining outbox panels before reveal turns so durable copy
-    // (eighthResolved / shadeResolved text) is already on `[data-event=…]`
-    // while bloom/parallax and earlier panels animate — opacity stays 0 until
-    // each panel's shown turn.
+    // Prefer panels already pre-mounted before bloom/parallax; append any gap.
+    const existing = [...host.querySelectorAll(':scope > .dawn-event')];
     const panels = [];
     for (let i = pending.cursor; i < events.length; i++) {
       const event = events[i];
-      const html = dawnEventHtml(event);
-      if (!html) throw new Error(`unrenderable dawn event: ${event.t}`);
-      const panel = el('div', 'dawn-event', html);
-      panel.dataset.event = event.t;
-      panel.dataset.r5State = DAWN_PANEL_END_STATES[event.t] || '';
-      host.appendChild(panel);
+      const slot = i - pending.cursor;
+      let panel = existing[slot];
+      if (!panel) {
+        const html = dawnEventHtml(event);
+        if (!html) throw new Error(`unrenderable dawn event: ${event.t}`);
+        panel = el('div', 'dawn-event', html);
+        panel.dataset.event = event.t;
+        panel.dataset.r5State = DAWN_PANEL_END_STATES[event.t] || '';
+        host.appendChild(panel);
+      } else {
+        panel.dataset.event = event.t;
+        panel.dataset.r5State = DAWN_PANEL_END_STATES[event.t] || '';
+      }
       panels.push({ event, panel, index: i });
     }
+    return { events, newUnlocks: [...pending.newUnlocks], panels };
+  }
+
+  async function drainEndQueue(run, host, policy) {
+    const { newUnlocks, panels } = mountPendingDawnPanels(run, host);
     for (const { event, panel, index: i } of panels) {
       const dawnCue = music.dawnEventCue(event);
       if (dawnCue) music.play(dawnCue);
@@ -256,6 +265,11 @@ export function createEndScreen(deps) {
     let dawnOutcome = 'settled';
     let owedUnlocks = [];
     try {
+      // Mount remaining outbox panels before bloom/parallax so durable copy
+      // (eighthResolved / shadeResolved text) is already on `[data-event=…]`
+      // while those phases animate — opacity stays 0 until each shown turn.
+      mountPendingDawnPanels(run, host);
+
       const applyPhase = (phaseId) => {
         if (root?.isConnected) root.dataset.r5Phase = phaseId;
         const bloom = root?.querySelector('.r5-dawn-bloom');
