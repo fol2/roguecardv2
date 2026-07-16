@@ -1002,16 +1002,21 @@ test.describe('Round 5 production Pixi layer', () => {
       canvas.width = 512;
       canvas.height = 128;
       const ctx = canvas.getContext('2d');
-      const sample = 'Round Five Emberglass';
-      const measure = (font) => {
+      // Cinzel (display) diverges sharply from generic serif on short mixed-case.
+      // Alegreya (text) can sit within ~0.2px of Linux CI's default serif on that
+      // same sample even when FontFace is loaded — use a glyph-heavy body sample
+      // so measureText remains a real independent proof of rasterisation.
+      const displaySample = 'Round Five Emberglass';
+      const bodySample = 'mmmmmmmmmmiiiiiiWWWW';
+      const measure = (font, sample) => {
         ctx.font = font;
         return ctx.measureText(sample).width;
       };
-      const cinzel = measure('700 32px "Cinzel", serif');
-      const cinzelFallback = measure('700 32px "__no-such-font__cinzel__", serif');
-      const alegreya = measure('400 24px "Alegreya", serif');
-      const alegreyaFallback = measure('400 24px "__no-such-font__alegreya__", serif');
-      const alegreyaItalic = measure('italic 400 24px "Alegreya", serif');
+      const cinzel = measure('700 32px "Cinzel", serif', displaySample);
+      const cinzelFallback = measure('700 32px "__no-such-font__cinzel__", serif', displaySample);
+      const alegreya = measure('400 24px "Alegreya", serif', bodySample);
+      const alegreyaFallback = measure('400 24px "__no-such-font__alegreya__", serif', bodySample);
+      const alegreyaItalic = measure('italic 400 24px "Alegreya", serif', bodySample);
       return {
         fontsStatus,
         cinzelCheck: document.fonts.check('700 16px Cinzel'),
@@ -1030,6 +1035,9 @@ test.describe('Round 5 production Pixi layer', () => {
     expect(proof.alegreyaCheck).toBe(true);
     expect(proof.alegreyaItalicCheck).toBe(true);
     expect(Math.abs(proof.cinzel - proof.cinzelFallback)).toBeGreaterThan(0.5);
+    // Unloaded Alegreya collapses to the same serif fallback → delta 0. Loaded
+    // but near-serif metrics on CI Linux produced ~0.21 on the old short sample;
+    // bodySample keeps a comfortable gap while still requiring real rasterisation.
     expect(Math.abs(proof.alegreya - proof.alegreyaFallback)).toBeGreaterThan(0.5);
     expect(Math.abs(proof.alegreyaItalic - proof.alegreya)).toBeGreaterThan(0.1);
 
