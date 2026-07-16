@@ -358,6 +358,9 @@ test.describe('Fall and Dawn ceremonies', () => {
     await expect(page.locator('.bequest-done, .r5-bequest-unpaid')).toContainText(
       'The unpaid gift remains in the standing stone',
     );
+    // The root mounts at data-r5-state="rest" and the ceremony advances it —
+    // wait for the terminal state like the engraved-monument test above.
+    await page.waitForFunction(() => document.querySelector('.r5-end')?.dataset.r5State === 'fall-unpaid-shade-bequest');
     await expect(page.locator('.r5-end')).toHaveAttribute('data-r5-state', 'fall-unpaid-shade-bequest');
     const fallEnds = await page.evaluate(() => window.__probe.behaviourTrace().records
       .filter((record) => record.eventName === 'presentation.fall' && record.phase === 'end'
