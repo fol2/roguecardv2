@@ -96,8 +96,14 @@ export async function waitForDawnComplete(page, timeout = 30_000) {
     const raw = localStorage.getItem('spirebound_save_v2');
     const pending = raw ? JSON.parse(raw).pendingDawn : null;
     const root = document.querySelector('.r5-end, .end-screen');
-    const closed = !root || root.dataset.r5State === 'dawn-closed' || ceremony?.classList.contains('complete');
-    return ceremony?.classList.contains('complete') && pending == null && closed;
+    // Queue `.complete` alone is not closed — ledger/close still run and keep
+    // end buttons locked until `dawn-closed` and the ceremony promise settles.
+    const buttons = [...document.querySelectorAll('.end-btns button')];
+    return ceremony?.classList.contains('complete')
+      && pending == null
+      && root?.dataset.r5State === 'dawn-closed'
+      && buttons.length > 0
+      && buttons.every((button) => !button.disabled);
   }, null, { timeout });
 }
 

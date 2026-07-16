@@ -199,18 +199,26 @@ export function createEndScreen(deps) {
     if (!pending) throw new Error('winning end screen requires a staged dawn presentation');
     const events = pending.events.map((event) => ({ ...event }));
     const newUnlocks = [...pending.newUnlocks];
+    // Mount remaining outbox panels before reveal turns so durable copy
+    // (eighthResolved / shadeResolved text) is already on `[data-event=…]`
+    // while bloom/parallax and earlier panels animate — opacity stays 0 until
+    // each panel's shown turn.
+    const panels = [];
     for (let i = pending.cursor; i < events.length; i++) {
       const event = events[i];
       const html = dawnEventHtml(event);
       if (!html) throw new Error(`unrenderable dawn event: ${event.t}`);
-      const dawnCue = music.dawnEventCue(event);
-      if (dawnCue) music.play(dawnCue);
-      dawnPanelSfx(event.t);
-      const panelSpan = beginDawnPanelSpan(event);
       const panel = el('div', 'dawn-event', html);
       panel.dataset.event = event.t;
       panel.dataset.r5State = DAWN_PANEL_END_STATES[event.t] || '';
       host.appendChild(panel);
+      panels.push({ event, panel, index: i });
+    }
+    for (const { event, panel, index: i } of panels) {
+      const dawnCue = music.dawnEventCue(event);
+      if (dawnCue) music.play(dawnCue);
+      dawnPanelSfx(event.t);
+      const panelSpan = beginDawnPanelSpan(event);
       if (REDUCED || isReducedPolicy(policy)) {
         panel.classList.add('shown');
         panelSpan.finish('settled', {
