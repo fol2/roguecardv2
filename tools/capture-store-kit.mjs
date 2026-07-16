@@ -13,6 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { validateStoreShotList } from '../src/ui/shipfront-assets.js';
+import { FRESH_VIGIL, GROWN_VIGIL } from '../test/e2e/p6-fixtures.js';
 import { e2eServerSettings } from '../playwright-server.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -116,28 +117,24 @@ async function settleAndFreeze(page, { keepBg3d = false, keepCombat = false } = 
 }
 
 async function stageShot(page, shot, origin) {
+  const grown = shot.profile === 'grown';
+  const vigil = grown ? GROWN_VIGIL : FRESH_VIGIL;
   const q = new URLSearchParams({ shape: shot.shape, seed: String(shot.seed) });
   await page.goto(`${origin}/?${q}`);
   await page.waitForFunction(() => window.spirebound && window.__probe);
-  await page.evaluate(() => localStorage.clear());
-  await page.evaluate(([seed, profile]) => {
+  await page.evaluate(([seed, isGrown, seedVigil]) => {
     const sp = window.spirebound;
-    const grown = profile === 'grown';
-    if (grown) {
-      try {
-        const v = sp.Vigil;
-        if (v?.save && typeof v.load === 'function') {
-          const cur = v.load() || {};
-          cur.shards = cur.shards?.length ? cur.shards : ['paleOnes', 'ownShade', 'usurper'];
-          v.save(cur);
-        }
-      } catch (_) { /* optional */ }
-    }
-    sp.S.run = sp.E.newRun(seed, { aspect: 0 });
-    if (grown) {
-      sp.S.run.act = Math.min(2, sp.S.run.act || 0);
-    }
-  }, [shot.seed, shot.profile]);
+    localStorage.removeItem('spirebound_save_v2');
+    sp.Vigil.save({ ...seedVigil, quests: { ...(seedVigil.quests || {}) } });
+    sp.S.run = sp.E.newRun(seed, {
+      aspect: 0,
+      reveals: isGrown
+        ? ['phials', 'omens', 'emberglass', 'lamplighter', 'act4']
+        : [],
+      shards: isGrown ? ['usurper'] : [],
+    });
+    if (isGrown) sp.S.run.act = Math.min(2, sp.S.run.act || 0);
+  }, [shot.seed, grown, vigil]);
 
   if (shot.id === 'title') {
     await page.evaluate(() => window.spirebound.show('title'));
@@ -150,15 +147,17 @@ async function stageShot(page, shot, origin) {
     await waitCombatPainted(page);
     await settleAndFreeze(page, { keepCombat: true });
   } else if (shot.id === 'map') {
-    await page.evaluate(() => window.spirebound.show('map'));
+    await page.evaluate(() => {
+      const sp = window.spirebound;
+      sp.S.run.map = sp.E.genMap(sp.S.run);
+      sp.show('map');
+    });
     await page.waitForFunction(() => window.spirebound.S.screen === 'map');
     await settleAndFreeze(page, { keepBg3d: true });
   } else if (shot.id === 'rose-window') {
     await page.evaluate(() => window.spirebound.show('vigil', { tab: 'rose' }));
     await page.waitForFunction(() => window.spirebound.S.screen === 'vigil');
-    await page.waitForSelector('.r5-vigil, .rose-window, [data-r5-state*="rose"]', {
-      timeout: 10_000,
-    }).catch(() => {});
+    await page.waitForSelector('.rose-window, .rose-view', { timeout: 10_000 });
     await settleAndFreeze(page);
   } else if (shot.id === 'boss') {
     await page.evaluate(() => {
