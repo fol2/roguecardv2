@@ -508,21 +508,26 @@
     align-self: center;
   }
 
+  /* INTENTIONAL (≠ golden): owner-FAIL gate embark-phone-landscape-column
+     requires the aspect cards stacked and cx-aligned on phone landscape —
+     the Step 2 owner PASS was recorded against the stacked geometry. */
   #screen .r5-embark .aspect-row {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     flex-wrap: nowrap;
     justify-content: center;
-    align-items: stretch;
-    gap: 12px;
+    align-items: center;
+    gap: 10px;
     width: 100%;
-    margin: 28px 0 0;
+    margin: 14px 0 0;
   }
 
+  /* Wide + stacked: blurbs wrap ≤3 lines so both cards, the vow dial and the
+     CTA row all fit the 430px-tall stage without overlap. */
   #screen .r5-embark .r5-aspect-card,
   #screen .r5-embark .aspect-card {
-    width: 252px;
-    max-width: 252px;
+    width: 470px;
+    max-width: 470px;
     max-height: none;
     overflow: visible;
     flex: 0 0 auto;

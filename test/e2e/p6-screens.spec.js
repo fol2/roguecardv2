@@ -292,7 +292,16 @@ test.describe('P6 remaining screens', () => {
 
     await stagePhase2State(page, 'usurper-item-normal');
     await expect(page.locator('.quest-shop-item')).toHaveAttribute('data-r5-state', 'usurper-item-normal');
-    const cardFaces = await page.locator('[data-card-face-key]').count();
+    // Owner PASS locks the shop to live DOM faces (golden parity, f96fefd1) —
+    // textured means decoded raster art (or the SVG fallback), not composer keys.
+    await page.waitForFunction(() => {
+      const arts = [...document.querySelectorAll('.cards-row .card .card-art')];
+      return arts.length > 0 && arts.every((art) => {
+        const img = art.querySelector('img');
+        return img ? (img.complete && img.naturalWidth > 0) : !!art.querySelector('svg');
+      });
+    });
+    const cardFaces = await page.locator('.cards-row .card .card-art').count();
     expect(cardFaces).toBeGreaterThan(0);
 
     await stagePhase2State(page, 'usurper-item-poor');
