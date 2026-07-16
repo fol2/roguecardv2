@@ -424,6 +424,12 @@ test.describe('P6 remaining screens', () => {
         .map((r) => r.attributes.phase);
       return phases.includes('entrance') && phases.includes('path') && phases.includes('camera');
     }, null, { timeout: 20_000 });
+    // Wait for the span sequence to settle (map.js stamps map-route-ready on
+    // .done) — clicking a DOM-on-3D node mid-camera-pan never passes
+    // Playwright's stability check on a loaded runner.
+    await page.waitForFunction(() => (
+      document.querySelector('.r5-map')?.dataset.r5State === 'map-route-ready'
+    ));
     await expect(page.locator('[data-r5-state="map-witchlight-marked"]')).toHaveCount(1);
     const sealed = await page.locator('.sealed-door').count();
     if (sealed) {
