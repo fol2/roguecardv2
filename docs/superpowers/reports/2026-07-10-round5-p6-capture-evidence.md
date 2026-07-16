@@ -188,3 +188,25 @@ Examples:
 2. Visual baselines were **not** refreshed; Darwin/Linux pixel gates may still reflect pre-FE chrome until Task 36/37.
 3. Capture evidence is Chromium headless on Darwin; WebKit device lanes were not re-run for this tip (WebKit-safe API review PASS; desktop focused matrix only).
 4. Task 36 FE final PASS critique should confirm Fall phone-landscape (fresh/grown) against this tip; prior CSS FAIL rows (contrast / overflow / title-rose / persistence) already remediated in ancestry.
+
+---
+
+## Correction recapture (2026-07-16, Task 37 Step 3)
+
+Post-PASS ancestry landed three corrections that invalidated the promoted
+`6bb2eb21` package, so the sheets were recaptured and re-promoted:
+
+| Item | Value |
+|---|---|
+| **P6 capture source** | `82ab5c3857839379d2607f53c5076ed8b3185c2a` (equals `manifest.sourceSha`) |
+| Manifest `sha256` | `1ad8a249ff854b0c…` (see `manifest.json`) |
+| Rows | 183 (28×4 shapes + 71 desktop-landscape; counts unchanged) |
+| Corrections captured | `09806910` / `8d342f73` rose-tab + dawn/Rose overflow fixes; `946a179c` embark phone-landscape restack (owner-FAIL gate `embark-phone-landscape-column` restored — f96fefd1's landscape bridge had reverted it to a row) plus shop live-DOM-face test realignment |
+| Semantic guards | `p6-layout-projection` e2e PASS ×2 repeats; `test:layout-projection` Node PASS; p6-screens shop/matrix states PASS |
+| Determinism note | Recapture is not byte-stable vs the prior package (WebGL render variance); staleness is judged by the semantic gates above, not byte equality |
+| Pending spec-only diffs at capture | e2e spec hardening (`emberglass`, `p6-screens` map) committed immediately after capture; `src/**` identical between capture source and promotion commit |
+
+Visual baselines: darwin refreshed locally and linux installed from
+`update-baselines.yml` run 29498831426 at the same capture source SHA — the
+only pixel deltas on both platforms are the six `rose-window*` baselines that
+had captured the pre-`09806910` overflow bug.
