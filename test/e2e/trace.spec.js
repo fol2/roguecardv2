@@ -582,23 +582,26 @@ test('detached Title version timeout cannot emit a stale hidden action', async (
   await page.waitForFunction(() => window.__probe);
   const logo = page.locator('[data-version-logo]');
   await expect(logo).toBeVisible();
-  await page.evaluate(() => {
+  // Click burst, debug-shown check, seq snapshot, and leave-title all share one
+  // synchronous task: the 3s auto-hide schedules and clears without an await
+  // boundary in between, so no CI-load stall between protocol round-trips can
+  // let the still-on-title auto-hide fire first (seen in run 29484816194).
+  const shown = await page.evaluate(() => {
     const target = document.querySelector('[data-version-logo]');
     if (!target) throw new Error('title version logo missing');
     for (let index = 0; index < 5; index += 1) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  });
-  await expect(page.locator('[data-version-debug]')).toBeVisible({ timeout: 10_000 });
-  // Leave title in the same turn as the seq snapshot so the 3s auto-hide cannot
-  // race Playwright click actionability and emit a still-on-title hidden action.
-  const shownSeq = await page.evaluate(() => {
+    const debugEl = document.querySelector('[data-version-debug]');
+    const debugShown = !!debugEl && !debugEl.hidden;
     const seq = window.__probe.behaviourTrace().lastSeq;
     window.spirebound.show('embark');
-    return seq;
+    return { seq, debugShown, scheduled: window.__titleTimerProbe.scheduled };
   });
+  expect(shown.debugShown).toBe(true);
+  expect(shown.scheduled).toBe(1);
   await page.waitForFunction(() => window.__probe?.state().screen === 'embark');
   await page.waitForTimeout(3200);
   const stale = await page.evaluate((after) => window.__probe.behaviourTrace().records
-    .filter((record) => record.seq > after && record.eventName === 'app.version-debug'), shownSeq);
+    .filter((record) => record.seq > after && record.eventName === 'app.version-debug'), shown.seq);
   expect(stale).toEqual([]);
   expect(await page.evaluate(() => ({
     scheduled: window.__titleTimerProbe.scheduled,
