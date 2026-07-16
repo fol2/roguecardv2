@@ -43,7 +43,15 @@ test('ordinary production build ignores the trace query', async ({ browser }) =>
     };
     });
     await page.goto(`/${query}`);
-    await page.waitForFunction(() => window.__probe);
+    // Probe/spirebound install before boot show('title') → syncVigil; waiting only
+    // for __probe races ahead of the vigil setItem(s) (especially on a warm second
+    // capture). Prefer app.ready when tracing; else title DOM like helpers.boot.
+    await page.waitForFunction(() => {
+      const records = window.__probe?.behaviourTrace?.()?.records;
+      if (records?.some((record) => record.eventName === 'app.ready')) return true;
+      return window.spirebound?.S?.screen === 'title'
+        && !!document.querySelector('.r5-title');
+    });
     const result = await page.evaluate(() => ({
       trace: window.__probe.behaviourTrace(),
       storageWrites: window.__productionStorageWrites,
