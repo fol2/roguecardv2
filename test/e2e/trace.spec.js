@@ -836,9 +836,25 @@ test('draw-wave failures close presentation, queue and every child trace owner',
 test('raw pointer moves and idle animation frames do not create trace noise', async ({ page }) => {
   await page.goto('/?trace=1');
   await page.waitForFunction(() => window.__probe);
-  await page.waitForFunction(() => window.__probe.behaviourTrace().records
-    .some((record) => record.eventName === 'audio.music-request'));
-  await page.evaluate(() => window.__probe.resetBehaviourTrace());
+  // music-request alone is not a quiet boot — combat-gl texture preload can
+  // still emit renderer.textured-ready hundreds of ms later on CI.
+  await page.waitForFunction(() => {
+    const names = new Set(window.__probe.behaviourTrace().records.map((r) => r.eventName));
+    return names.has('audio.music-request') && names.has('renderer.textured-ready');
+  }, null, { timeout: 30_000 });
+  // Drain any straggler boot emissions that race the markers above.
+  await page.evaluate(async () => {
+    const len = () => window.__probe.behaviourTrace().records.length;
+    let last = len();
+    let quietFor = 0;
+    while (quietFor < 200) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const next = len();
+      if (next === last) quietFor += 16;
+      else { last = next; quietFor = 0; }
+    }
+    window.__probe.resetBehaviourTrace();
+  });
   const counts = await page.evaluate(async () => {
     const before = window.__probe.behaviourTrace().records.length;
     for (let index = 0; index < 100; index += 1) {
@@ -856,8 +872,14 @@ test('raw pointer moves and idle animation frames do not create trace noise', as
       })(),
       new Promise((resolve) => setTimeout(resolve, 1500)),
     ]);
-    return { before, after: window.__probe.behaviourTrace().records.length };
+    const records = window.__probe.behaviourTrace().records;
+    return {
+      before,
+      after: records.length,
+      names: records.map((r) => r.eventName),
+    };
   });
+  expect(counts.names, `unexpected trace noise: ${counts.names.join(',')}`).toEqual([]);
   expect(counts.after).toBe(counts.before);
 });
 
