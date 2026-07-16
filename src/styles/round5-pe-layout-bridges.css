@@ -238,6 +238,17 @@
   line-height: 1.55;
 }
 
+/* Dawn ledger: never report as a horizontal scroller (4×minmax(130px) + gap
+   exceeds many stage columns once PE padding/borders apply). */
+#screen .r5-end--victory .stats-grid.r5-dawn-ledger,
+#screen .r5-end .stats-grid.r5-dawn-ledger {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 /* Dawn phone-portrait: stacked ceremony + ledger. */
 @container stage (max-width: 740px) {
   #screen .r5-end--victory.end-screen:has(.dawn-ceremony) {
@@ -259,6 +270,13 @@
     width: min(92cqw, 560px);
     max-width: min(92cqw, 560px);
     flex: 0 0 auto;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .stats-grid.r5-dawn-ledger {
+    overflow-x: hidden;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   #screen .r5-end--victory .dawn-ceremony {
@@ -453,8 +471,13 @@
     grid-column: 2;
     grid-row: 1 / 4;
     align-self: center;
-    width: auto;
-    max-width: none;
+    /* Column can be narrower than 4×minmax(130px); never become a horizontal scroller. */
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     margin-top: 12px;
   }
 
@@ -1912,6 +1935,27 @@
     0 24px 70px rgba(0, 0, 0, 0.65);
 }
 
+/* Rose tab needs golden 720px column — PE deeds-tab 560px must not win. */
+#screen .center-panel.r5-vigil > .panel.vigil-panel.rose-tab-open,
+#screen .center-panel.r5-vigil > .panel.rose-tab-open,
+#screen .center-panel.r5-scene-panel.r5-vigil > .panel.vigil-panel.rose-tab-open,
+#screen .center-panel.r5-scene-panel.r5-vigil > .panel.rose-tab-open {
+  width: min(720px, 92cqw);
+  max-width: min(720px, 92cqw);
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+#screen .center-panel.r5-vigil .vigil-panel.rose-tab-open .rose-pane-detail,
+#screen .center-panel.r5-vigil .vigil-panel.rose-tab-open .whisper-log,
+#screen .center-panel.r5-scene-panel.r5-vigil .vigil-panel.rose-tab-open .rose-pane-detail,
+#screen .center-panel.r5-scene-panel.r5-vigil .vigil-panel.rose-tab-open .whisper-log {
+  width: min(620px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 /* Undo FE `.r5-scene-header` margin on dual-class vigil title (golden mb 4px). */
 #screen .r5-vigil .ov-title,
 #screen .r5-vigil .ov-title.r5-scene-header,
@@ -1954,6 +1998,14 @@
     padding: 28px;
     border-radius: 16px;
   }
+
+  #screen .center-panel.r5-vigil > .panel.vigil-panel.rose-tab-open,
+  #screen .center-panel.r5-vigil > .panel.rose-tab-open,
+  #screen .center-panel.r5-scene-panel.r5-vigil > .panel.vigil-panel.rose-tab-open,
+  #screen .center-panel.r5-scene-panel.r5-vigil > .panel.rose-tab-open {
+    width: min(720px, 92cqw);
+    max-width: min(720px, 92cqw);
+  }
 }
 
 @container stage (max-height: 480px) and (min-width: 500px) {
@@ -1970,6 +2022,14 @@
     max-width: min(560px, 92cqw);
     padding: 28px;
     border-radius: 16px;
+  }
+
+  #screen .center-panel.r5-vigil > .panel.vigil-panel.rose-tab-open,
+  #screen .center-panel.r5-vigil > .panel.rose-tab-open,
+  #screen .center-panel.r5-scene-panel.r5-vigil > .panel.vigil-panel.rose-tab-open,
+  #screen .center-panel.r5-scene-panel.r5-vigil > .panel.rose-tab-open {
+    width: min(720px, 92cqw);
+    max-width: min(720px, 92cqw);
   }
 
   /* Re-assert golden ≤480 title rhythm after the desktop mb:4 rule above. */
