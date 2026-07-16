@@ -781,20 +781,27 @@ test('live Map warm set follows current act and adds Eighth only when active', a
 test('probe invariant failures emit copy-free error.invariant evidence', async ({ page }) => {
   await boot(page);
   await startFight(page, ['sporeling']);
-  await page.evaluate(() => {
+  // Mutate + sample in one turn: chrome-clamp / refit rAF can rebuild the
+  // presentation model from live engine HP and heal a split-evaluate desync.
+  const result = await page.evaluate(() => {
     // Plate HP is Pixi-owned (Task 22b-2+); mutating the DOM label no longer
     // desyncs the probe. Nudge the engine value against the frozen plate model.
     const player = window.spirebound.S.cb.player;
     player.hp = Math.max(0, player.hp - 1);
+    const invariants = window.__probe.invariants();
+    const error = window.__probe.behaviourTrace().records
+      .find((record) => record.eventName === 'error.invariant');
+    return {
+      failed: invariants.some((item) => !item.pass),
+      error,
+    };
   });
-  expect((await page.evaluate(() => window.__probe.invariants())).some((item) => !item.pass)).toBe(true);
-  const error = await page.evaluate(() => window.__probe.behaviourTrace().records
-    .find((record) => record.eventName === 'error.invariant'));
-  expect(error).toMatchObject({
+  expect(result.failed).toBe(true);
+  expect(result.error).toMatchObject({
     phase: 'point', outcome: 'failed',
     attributes: { code: 'probe-invariant-failed' },
   });
-  expect(error.attributes.count).toBeGreaterThan(0);
+  expect(result.error.attributes.count).toBeGreaterThan(0);
 });
 
 test('draw-wave failures close presentation, queue and every child trace owner', async ({ page }) => {
