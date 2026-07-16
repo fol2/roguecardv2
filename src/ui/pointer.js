@@ -156,6 +156,8 @@ export function createCombatPointerRouter({
     // only mounts under import.meta.env.DEV and is dead-code-eliminated here.
     if (event.target?.closest?.('#overlay.open, #pop-menu, .modal')) return;
     if (import.meta.env.DEV && event.target?.closest?.('[data-dev-shell]')) return;
+    // Content Lab chrome sits above combat but inside #stage; do not capture it.
+    if (import.meta.env.DEV && event.target?.closest?.('[data-lab-panel], [data-lab-god], [data-lab-result-host]')) return;
 
     // Never treat #uigl as an interactive composed target — it is paint-only.
     if (event.target?.id === 'uigl' || pathIds(event).includes('uigl')) {

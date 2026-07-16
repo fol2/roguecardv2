@@ -77,23 +77,30 @@ const FACTORIES = Object.freeze({
   'card-flight': replayCardFlight,
 });
 
+function attachReplayStub(host, kind, reason) {
+  const stub = document.createElement('div');
+  stub.className = 'lab-replay-stub';
+  stub.setAttribute('data-replay-kind', String(kind || 'unknown'));
+  stub.setAttribute('data-replay-stub', reason || 'failed');
+  stub.textContent = reason ? `Replay preview unavailable (${reason})` : 'Replay preview';
+  host.appendChild(stub);
+  return stub;
+}
+
 /**
  * @param {HTMLElement} host
- * @param {object} descriptor Lab Replay Descriptor (`kind` / `subject` / …)
- * @returns {{ ok: true, dispose: () => void } | { ok: false, reason: string }}
+ * @param {object} descriptor
+ * @returns {{ ok: boolean, reason?: string, ready?: Promise<'settled'|'failed'>, dispose: () => void }}
  */
 export function renderReplayPreview(host, descriptor) {
-  if (!host || typeof host.replaceChildren !== 'function') {
-    throw new TypeError('renderReplayPreview requires a host element');
-  }
-  host.replaceChildren();
+  if (!host) return { ok: false, reason: 'missing-host', dispose: () => {} };
   if (!descriptor || typeof descriptor !== 'object') {
-    return { ok: false, reason: 'unsupported-presentation' };
+    return { ok: false, reason: 'unsupported-presentation', dispose: () => {} };
   }
   const kind = descriptor.kind;
   const factory = FACTORIES[kind];
   if (typeof factory !== 'function') {
-    return { ok: false, reason: 'unsupported-presentation' };
+    return { ok: false, reason: 'unsupported-presentation', dispose: () => {} };
   }
 
   let disposeFn = () => {};
@@ -101,24 +108,36 @@ export function renderReplayPreview(host, descriptor) {
   const marker = document.createElement('div');
   marker.className = 'lab-replay-pending';
   marker.setAttribute('data-replay-kind', String(kind));
+  marker.textContent = 'Loading replay preview…';
   host.appendChild(marker);
 
-  Promise.resolve()
+  const ready = Promise.resolve()
     .then(() => factory(host, descriptor))
     .then((dispose) => {
       if (cancelled) {
         try { dispose?.(); } catch { /* */ }
-        return;
+        return 'failed';
       }
       try { marker.remove(); } catch { /* */ }
       disposeFn = typeof dispose === 'function' ? dispose : () => {};
+      // Canvas-only hosts are "empty" to Playwright (textContent-based). Keep a
+      // durable text stub so e2e and operators can observe a settled preview.
+      if (!host.querySelector('[data-replay-stub]')) {
+        attachReplayStub(host, kind, 'settled');
+      }
+      return 'settled';
     })
     .catch(() => {
       try { marker.remove(); } catch { /* */ }
+      if (!cancelled && !host.querySelector('[data-replay-stub]')) {
+        attachReplayStub(host, kind, 'failed');
+      }
+      return 'failed';
     });
 
   return {
     ok: true,
+    ready,
     dispose: () => {
       cancelled = true;
       try { disposeFn(); } catch { /* */ }

@@ -134,17 +134,42 @@ export async function initLab() {
     stats: localStorage.getItem('spirebound_stats_v1'),
     vigil: localStorage.getItem('spirebound_vigil_v2'),
   };
+  // Freeze durable keys for the whole Lab session — loadVigil migrates non-JSON
+  // sentinels and syncVigil would otherwise rewrite them after climb/title boots.
+  const DURABLE_STORAGE = Object.freeze({
+    spirebound_save_v2: durableKeys.save,
+    spirebound_stats_v1: durableKeys.stats,
+    spirebound_vigil_v2: durableKeys.vigil,
+  });
+  const rawSetItem = localStorage.setItem.bind(localStorage);
+  const rawRemoveItem = localStorage.removeItem.bind(localStorage);
+  function restoreDurableKey(key) {
+    const value = DURABLE_STORAGE[key];
+    if (value != null) rawSetItem(key, value);
+    else rawRemoveItem(key);
+  }
+  localStorage.setItem = (key, value) => {
+    if (Object.prototype.hasOwnProperty.call(DURABLE_STORAGE, key)) {
+      restoreDurableKey(key);
+      return;
+    }
+    return rawSetItem(key, value);
+  };
+  localStorage.removeItem = (key) => {
+    if (Object.prototype.hasOwnProperty.call(DURABLE_STORAGE, key)) {
+      restoreDurableKey(key);
+      return;
+    }
+    return rawRemoveItem(key);
+  };
   initStage();
   initScene();
   initVfx();
   initMesh();
-  initUI();
-  if (durableKeys.save != null) localStorage.setItem('spirebound_save_v2', durableKeys.save);
-  else localStorage.removeItem('spirebound_save_v2');
-  if (durableKeys.stats != null) localStorage.setItem('spirebound_stats_v1', durableKeys.stats);
-  else localStorage.removeItem('spirebound_stats_v1');
-  if (durableKeys.vigil != null) localStorage.setItem('spirebound_vigil_v2', durableKeys.vigil);
-  else localStorage.removeItem('spirebound_vigil_v2');
+  // Must await: initUI is async (fonts + Pixi). Restoring before it finishes lets
+  // late show('title') → syncVigil clobber combat and durable sentinels.
+  await initUI();
+  for (const key of Object.keys(DURABLE_STORAGE)) restoreDurableKey(key);
 
   const stage = document.getElementById('stage') || document.body;
   const style = document.createElement('style');
@@ -336,10 +361,12 @@ export async function initLab() {
       startSandbox(model, { writeUrl: true, auto: false });
     });
     panel.querySelector('[data-lab-replay]')?.addEventListener('click', () => runReplayPreview());
-    panel.querySelector('[data-lab-trace-copy]')?.addEventListener('click', () => {
+    panel.querySelector('[data-lab-trace-copy]')?.addEventListener('click', async () => {
       const text = window.__probe?.behaviourTrace({ format: 'text' })?.text
         || JSON.stringify(window.__probe?.behaviourTrace()?.records || [], null, 2);
-      navigator.clipboard?.writeText(text);
+      try {
+        await navigator.clipboard?.writeText(text);
+      } catch { /* clipboard may be denied in some hosts */ }
     });
     panel.querySelector('[data-lab-enemy-add]')?.addEventListener('click', () => {
       model = gatherForm();
@@ -449,7 +476,13 @@ export async function initLab() {
       return;
     }
     previewDispose = result.dispose;
-    span.finish('settled');
+    // Finish the trace only after Pixi settles (or fails with a durable stub).
+    Promise.resolve(result.ready)
+      .then((phase) => {
+        if (phase === 'failed') span.finish('failed');
+        else span.finish('settled');
+      })
+      .catch(() => span.finish('failed'));
   }
 
   function showLabResult(descriptor) {
