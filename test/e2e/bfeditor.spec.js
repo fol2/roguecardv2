@@ -226,12 +226,18 @@ test('Save POSTs the edited layout to /__bf-save', async ({ page }) => {
 });
 
 test('clearing a slot override restores the base formation intact', async ({ page }) => {
-  await openBfEditor(page);
-  await page.locator('.bf-box[data-bf="enemy-0"]').click();
+  test.setTimeout(120_000);
+  // Pin shape + 2-foe formation so desktop-landscape slots[2] override is in scope.
+  await openBfEditor(page, { shape: 'desktop-landscape', bft: 'duskfang,sporeling' });
   const panel = page.locator('#bf-panel');
+  // Sidebar select is more reliable than overlay hit-testing under CI load.
+  await panel.locator('[data-select="enemy-0"]').click();
+  await expect(panel.locator('input[data-path="x"]')).toBeVisible({ timeout: 15_000 });
   // the layout file ships a desktop-landscape slots override: clear it first
   // so "pre-edit" is the base formation, then exercise edit → clear
-  await panel.locator('button[data-clear="0"]').click();
+  const clear0 = panel.locator('button[data-clear="0"]');
+  await expect(clear0).toBeVisible({ timeout: 15_000 });
+  await clear0.click();
   const preEdit = await page.evaluate(() => window.__bfEditor.resolved().slots[2][0].x);
   const input = panel.locator('input[data-path="x"]');
   await input.fill(String(preEdit + 37));
