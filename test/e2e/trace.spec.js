@@ -754,7 +754,11 @@ test('Rose checkpoint becomes ready only after the real asset decode owner compl
   vigil.quests.paleOnes = { state: 'complete', progress: 9, memory: {} };
   vigil.shards = ['paleOnes'];
   await seed(page, vigil);
-  await expect(page.locator('.title-rose-medallion')).toBeEnabled();
+  const medallion = page.locator('.title-rose-medallion');
+  // Real asset decode owns ready — CI Linux decode routinely exceeds 5s.
+  await expect(medallion).toHaveAttribute('data-r5-state', 'title-rose-ready', { timeout: 15_000 });
+  await expect(medallion).toHaveClass(/ready/);
+  await expect(medallion).toBeEnabled();
   const rose = await page.evaluate(() => window.__probe.behaviourTrace().records
     .filter((record) => record.eventName === 'checkpoint.ui').map((record) => record.checkpoint.rose));
   expect(rose.some((state) => state.ready === true && state.fallback === false &&
