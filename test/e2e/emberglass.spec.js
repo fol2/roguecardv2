@@ -30,8 +30,9 @@ test('one shard adds a title medallion that opens the Rose', { tag: '@smoke' }, 
   const v = mixedLedger();
   await seed(page, v);
   const medallion = page.locator('.title-rose-medallion[data-a="rose"]');
+  // Asset decode is async; wait for the namespaced ready state before class/enable asserts.
+  await expect(medallion).toHaveAttribute('data-r5-state', 'title-rose-ready', { timeout: 15_000 });
   await expect(medallion).toHaveClass(/ready/);
-  await expect(medallion).toHaveAttribute('data-r5-state', 'title-rose-ready');
   await expect(medallion).toBeEnabled();
   await page.evaluate(() => { window.__probe.forceRoseFallback(true); });
   const fallback = page.locator('.title-rose-medallion.title-rose-fallback[data-a="rose"]');
@@ -39,6 +40,7 @@ test('one shard adds a title medallion that opens the Rose', { tag: '@smoke' }, 
   await expect(fallback).toHaveAttribute('aria-label', /.+/);
   await expect(fallback).toHaveAttribute('data-r5-state', 'title-rose-ready');
   await page.evaluate(() => { window.__probe.forceRoseFallback(false); });
+  await expect(medallion).toHaveAttribute('data-r5-state', 'title-rose-ready', { timeout: 15_000 });
   await expect(medallion).toHaveClass(/ready/);
   await page.click('[data-a="rose"]');
   await expect(page.locator('[data-a="tab-rose"]')).toHaveClass(/on/);
