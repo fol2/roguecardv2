@@ -5,12 +5,14 @@ const UNIT_LANES = ['changes', 'unit-tests', 'build-dist'];
 const SMOKE_LANES = ['changes', 'smoke-e2e'];
 const P2_BASE_GATE_LANES = ['changes', 'unit', 'e2e-nonvisual', 'progression'];
 const P2_BASE_E2E_LANES = [
-  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-pixi', 'e2e-trace', 'e2e-main',
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-pixi', 'e2e-trace',
+  'e2e-screens', 'e2e-lab', 'e2e-main',
 ];
 
 /** Full-mode e2e leaf lanes (audio/heavy spliced in when slow is relevant). */
 export const FULL_E2E_LANES = Object.freeze([
-  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-pixi', 'e2e-trace', 'e2e-main',
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-pixi', 'e2e-trace',
+  'e2e-screens', 'e2e-lab', 'e2e-main',
   'e2e-webkit', 'e2e-leak', 'e2e-visual',
 ]);
 
