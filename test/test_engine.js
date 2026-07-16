@@ -356,7 +356,7 @@ function forceHand(run, cb, ids) {
   assert.deepEqual(exportNames(sourceOf('policy')), ['REDUCED'],
     'policy exact browser-owned export surface');
   assert.deepEqual(exportNames(sourceOf('rose')), [
-    'TITLE_ROSE_PHASES', 'getRoseState', 'roseAssets', 'setDisclosedRoseStateIds',
+    'TITLE_ROSE_PHASES', 'decodeRoseImage', 'getRoseState', 'roseAssets', 'setDisclosedRoseStateIds',
     'setForceRoseFallback', 'setRoseAssetsReady', 'setRoseDecodeFailed', 'titleRosePhase',
   ].sort(), 'rose exact browser-owned export surface');
   assert.deepEqual(exportNames(sourceOf('assets')), [

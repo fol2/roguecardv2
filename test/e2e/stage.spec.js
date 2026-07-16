@@ -220,7 +220,7 @@ test('P1 shared UI modules preserve exact browser boundaries and live commands',
   expect(result.exports.policy).toEqual(['REDUCED']);
   expect(result.exports.format).toEqual(['ROMAN']);
   expect(result.exports.rose).toEqual([
-    'TITLE_ROSE_PHASES', 'getRoseState', 'roseAssets', 'setDisclosedRoseStateIds',
+    'TITLE_ROSE_PHASES', 'decodeRoseImage', 'getRoseState', 'roseAssets', 'setDisclosedRoseStateIds',
     'setForceRoseFallback', 'setRoseAssetsReady', 'setRoseDecodeFailed', 'titleRosePhase',
   ]);
   expect(result.exports.commands).toEqual(['bindUICommands', 'uiCommands']);
