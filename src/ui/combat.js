@@ -2808,8 +2808,11 @@ function setCardFlightAnchor(uid, anchor) {
 
 function freeze(options = {}) {
   const keepBg3d = !!(options && options.keepBg3d);
+  const keepCombat = !!(options && options.keepCombat);
   if (keepBg3d) document.documentElement.setAttribute('data-freeze-keep-bg3d', '');
   else document.documentElement.removeAttribute('data-freeze-keep-bg3d');
+  if (keepCombat) document.documentElement.setAttribute('data-freeze-keep-combat', '');
+  else document.documentElement.removeAttribute('data-freeze-keep-combat');
   document.documentElement.classList.add('freeze');
   uiFrozen = true;
   V.freezeVfx();
@@ -2835,7 +2838,12 @@ async function freezeForProbe(options = {}) {
   if (renderer && typeof renderer.freezeForTest === 'function') {
     return renderer.freezeForTest(options);
   }
-  return { frozen: true, cssOnly: true, keepBg3d: !!options.keepBg3d };
+  return {
+    frozen: true,
+    cssOnly: true,
+    keepBg3d: !!options.keepBg3d,
+    keepCombat: !!options.keepCombat,
+  };
 }
 
 function startRig() {

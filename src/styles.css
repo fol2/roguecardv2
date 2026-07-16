@@ -2312,6 +2312,9 @@ html.freeze *, html.freeze *::before, html.freeze *::after { animation-play-stat
 html.freeze #bg3d, html.freeze #vfx, html.freeze #uigl, html.freeze #mesh, html.freeze #grain, html.freeze #floaties { visibility: hidden !important; }
 /* Map P6 contact sheets: keep the three.js tower visible under DOM nodes. */
 html.freeze[data-freeze-keep-bg3d] #bg3d { visibility: visible !important; }
+/* Store-kit / marketing combat shots: keep Pixi chrome + character mesh. */
+html.freeze[data-freeze-keep-combat] #uigl,
+html.freeze[data-freeze-keep-combat] #mesh { visibility: visible !important; }
 
 /* ---- entrance redesign: embark screen */
 .embark-screen {

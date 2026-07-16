@@ -84,17 +84,46 @@ async function startDevServer(settings) {
   return child;
 }
 
-async function stageShot(page, shot) {
+async function waitCombatPainted(page) {
+  await page.waitForFunction(() => {
+    const read = window.spirebound?.combatGl?.readUI?.();
+    const seats = read?.hand?.seats?.length || 0;
+    const enemies = read?.plates?.enemies?.length || 0;
+    return seats > 0 && enemies > 0;
+  }, null, { timeout: 20_000 });
+  await page.waitForSelector('.sl-backdrop[data-plate-id]', { timeout: 10_000 });
+}
+
+async function settleAndFreeze(page, { keepBg3d = false, keepCombat = false } = {}) {
+  await page.evaluate(async (opts) => {
+    document.documentElement.classList.remove('freeze');
+    document.documentElement.removeAttribute('data-freeze-keep-bg3d');
+    document.documentElement.removeAttribute('data-freeze-keep-combat');
+    const bound = (work, ms = 2500) => Promise.race([
+      Promise.resolve(typeof work === 'function' ? work() : work).catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, ms)),
+    ]);
+    await document.fonts.ready.catch(() => {});
+    if (window.__probe?.settle) await bound(() => window.__probe.settle());
+    if (window.__probe?.freeze) {
+      await bound(() => window.__probe.freeze({
+        keepBg3d: !!opts.keepBg3d,
+        keepCombat: !!opts.keepCombat,
+      }));
+    }
+  }, { keepBg3d, keepCombat });
+  await page.waitForTimeout(200);
+}
+
+async function stageShot(page, shot, origin) {
   const q = new URLSearchParams({ shape: shot.shape, seed: String(shot.seed) });
-  await page.goto(`/?${q}`);
+  await page.goto(`${origin}/?${q}`);
   await page.waitForFunction(() => window.spirebound && window.__probe);
   await page.evaluate(() => localStorage.clear());
   await page.evaluate(([seed, profile]) => {
     const sp = window.spirebound;
     const grown = profile === 'grown';
     if (grown) {
-      const vigil = sp.Vigil?.load?.() || {};
-      // Best-effort grown profile: ensure a usable run + rose-ready vigil when available.
       try {
         const v = sp.Vigil;
         if (v?.save && typeof v.load === 'function') {
@@ -106,7 +135,6 @@ async function stageShot(page, shot) {
     }
     sp.S.run = sp.E.newRun(seed, { aspect: 0 });
     if (grown) {
-      // Advance act enough that boss ids resolve; keep map/combat staging explicit below.
       sp.S.run.act = Math.min(2, sp.S.run.act || 0);
     }
   }, [shot.seed, shot.profile]);
@@ -114,29 +142,37 @@ async function stageShot(page, shot) {
   if (shot.id === 'title') {
     await page.evaluate(() => window.spirebound.show('title'));
     await page.waitForSelector('.r5-title');
+    await settleAndFreeze(page);
   } else if (shot.id === 'combat') {
     await page.evaluate(() => {
       window.spirebound.startCombatUI(['duskfang'], 'normal');
     });
-    await page.evaluate(() => window.__probe.settle());
+    await waitCombatPainted(page);
+    await settleAndFreeze(page, { keepCombat: true });
   } else if (shot.id === 'map') {
     await page.evaluate(() => window.spirebound.show('map'));
     await page.waitForFunction(() => window.spirebound.S.screen === 'map');
+    await settleAndFreeze(page, { keepBg3d: true });
   } else if (shot.id === 'rose-window') {
-    await page.evaluate(() => window.spirebound.show('vigil'));
+    await page.evaluate(() => window.spirebound.show('vigil', { tab: 'rose' }));
     await page.waitForFunction(() => window.spirebound.S.screen === 'vigil');
+    await page.waitForSelector('.r5-vigil, .rose-window, [data-r5-state*="rose"]', {
+      timeout: 10_000,
+    }).catch(() => {});
+    await settleAndFreeze(page);
   } else if (shot.id === 'boss') {
     await page.evaluate(() => {
       const sp = window.spirebound;
       sp.S.run.act = 0;
       sp.startCombatUI(['rootheart'], 'boss');
     });
-    await page.evaluate(() => window.__probe.settle());
-    await page.waitForSelector('.sl-backdrop[data-plate-id]');
+    await waitCombatPainted(page);
+    await page.waitForFunction(() => {
+      const el = document.querySelector('.sl-backdrop[data-plate-id]');
+      return el && String(el.getAttribute('data-plate-id') || '').includes('rootheart');
+    }, null, { timeout: 10_000 }).catch(() => {});
+    await settleAndFreeze(page, { keepCombat: true });
   }
-
-  await page.evaluate(() => window.__probe.freeze?.());
-  await page.waitForTimeout(200);
 }
 
 async function main() {
@@ -148,7 +184,10 @@ async function main() {
     if (existsSync(p)) rmSync(p);
   }
 
-  const settings = e2eServerSettings({ port: 0 });
+  const port = Number(process.env.SPIREBOUND_E2E_PORT || 5174);
+  const settings = e2eServerSettings(
+    process.env.SPIREBOUND_E2E_PORT ? String(port) : undefined,
+  );
   const server = await startDevServer(settings);
   const browser = await chromium.launch();
   const context = await browser.newContext({
@@ -159,7 +198,7 @@ async function main() {
 
   try {
     for (const shot of SHOTS) {
-      await stageShot(page, shot);
+      await stageShot(page, shot, settings.origin);
       const pngPath = path.join(OUT, `${shot.id}.png`);
       await page.locator('#stage').screenshot({ path: pngPath });
       console.log('wrote', pngPath);

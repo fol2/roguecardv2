@@ -42,6 +42,29 @@ if [[ "$public_only" -eq 1 ]]; then
   # Feature / OG crops from the same source (public only).
   sips -z 500 1024 "$src" --out public/feature-graphic.png >/dev/null
   sips -z 630 1200 "$src" --out public/og.png >/dev/null
+  # Record the four public outputs under the store-kit manifest only (no second metadata file).
+  manifest="docs/store-assets/round5/manifest.json"
+  if [[ -f "$manifest" ]]; then
+    node --input-type=module -e "
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
+const manifestPath = process.argv[1];
+const files = [
+  'public/icon-180.png',
+  'public/icon-512.png',
+  'public/og.png',
+  'public/feature-graphic.png',
+];
+const sha = (p) => createHash('sha256').update(readFileSync(p)).digest('hex');
+const m = JSON.parse(readFileSync(manifestPath, 'utf8'));
+m.derivedPublicAssets = Object.fromEntries(files.map((file) => [file, {
+  sha256: sha(file),
+  source: process.argv[2],
+  label: 'provisional/marketing-only',
+}]));
+writeFileSync(manifestPath, \`\${JSON.stringify(m, null, 2)}\\n\`);
+" "$manifest" "$src"
+  fi
   echo "icons(public-only): public/icon-{180,512}.png public/feature-graphic.png public/og.png from $src"
   exit 0
 fi
