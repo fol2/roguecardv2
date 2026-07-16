@@ -336,6 +336,16 @@ test('run-end persistence failure owns input until finalisation retries', async 
     };
   });
   await page.reload();
+  // `boot()` is fire-and-forget in main.js, so reload's load can resolve before
+  // fonts/pixi finish and show('title') opens the run-end persistence plate.
+  // CI after a heavy dawn test routinely exceeds the default 5s expect window.
+  await page.waitForFunction(() => {
+    const records = window.__probe?.behaviourTrace?.()?.records;
+    if (Array.isArray(records) && records.some((record) => record.eventName === 'app.ready')) {
+      return true;
+    }
+    return !!document.querySelector('#overlay.open [data-a="retry-end"]');
+  });
 
   await expect(page.locator('.ov-title')).toHaveText('The Vigil Could Not Hold');
   await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
