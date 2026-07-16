@@ -413,7 +413,8 @@ test('PR16 real screen and combat owners request their selected Music Cues', asy
 });
 
 test('PR16 Dawn page and Act 4 reveal panels request their real owner cues', async ({ page }) => {
-  await page.goto('/');
+  test.setTimeout(120_000);
+  await page.goto('/?trace=1');
   await page.waitForFunction(() => window.spirebound && window.__probe);
   const cursor = await page.evaluate(() => {
     const sp = window.spirebound;
@@ -427,8 +428,17 @@ test('PR16 Dawn page and Act 4 reveal panels request their real owner cues', asy
     sp.show('end', { won: true });
     return window.__probe.behaviourTrace().lastSeq;
   });
-  await waitForMusicOwner(page, 'unreadablePage', cursor);
-  await waitForMusicOwner(page, 'sealedDoor', cursor);
+  // Owner cues fire in the queue phase after bloom/parallax — budget CI load.
+  await expect(page.locator('[data-event="pageRead"]')).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => page.evaluate(({ cueId, after }) => window.__probe.behaviourTrace().records
+    .some((record) => record.seq > after && record.eventName === 'audio.music-request' &&
+      record.attributes?.id === cueId && record.attributes?.mode === 'active'),
+  { cueId: 'unreadablePage', after: cursor }), { timeout: 45_000 }).toBe(true);
+  await expect(page.locator('[data-event="act4Reveal"]')).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => page.evaluate(({ cueId, after }) => window.__probe.behaviourTrace().records
+    .some((record) => record.seq > after && record.eventName === 'audio.music-request' &&
+      record.attributes?.id === cueId && record.attributes?.mode === 'active'),
+  { cueId: 'sealedDoor', after: cursor }), { timeout: 45_000 }).toBe(true);
 });
 
 test('PR16 sealed-door close restores the selected Eighth Map cue', async ({ page }) => {

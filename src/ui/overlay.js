@@ -341,7 +341,10 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
           background.addEventListener(type, blockBackground, true);
         }
       }
-      requestAnimationFrame(() => $(focusSelector, $('#overlay'))?.focus());
+      // Focus sync (DOM is already mounted); rAF retries if a same-tick blur wins.
+      const focusRetry = () => $(focusSelector, $('#overlay'))?.focus();
+      focusRetry();
+      requestAnimationFrame(focusRetry);
       return transaction;
     } catch (error) {
       transaction.settled = true;

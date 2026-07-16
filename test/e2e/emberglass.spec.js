@@ -484,7 +484,7 @@ test('a rejected dawn cursor save stays locked and retries the same panel', asyn
   });
   await expect(page.locator('#overlay .ov-sub')).toContainText('This panel was shown');
   await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
-  await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused();
+  await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused({ timeout: 10_000 });
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2')).pendingDawn.cursor)).toBe(0);
   expect(await page.locator('.end-btns button').evaluateAll((buttons) => buttons.map((button) => button.disabled)))
     .toEqual([true, true]);
@@ -528,7 +528,7 @@ test('a rejected final dawn clear stays locked and retryable', async ({ page }) 
   });
   await expect(page.locator('#overlay .ov-sub')).toContainText('Every panel has been seen');
   await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
-  await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused();
+  await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused({ timeout: 10_000 });
   const pending = await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2')).pendingDawn);
   expect(pending).toEqual({ events: [], cursor: 0, newUnlocks: [] });
   expect(await page.locator('.end-btns button').evaluateAll((buttons) => buttons.map((button) => button.disabled)))

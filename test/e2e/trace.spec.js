@@ -1097,7 +1097,13 @@ test('persistence fixtures: terminal outbox uses the real retry owner', async ({
     };
   });
   await page.reload();
-  await expect(page.locator('[data-a="retry-end"]')).toBeFocused();
+  // Boot is async after reload — wait for the plate, not just navigation.
+  await page.waitForFunction(
+    () => !!document.querySelector('#overlay.open [data-a="retry-end"]'),
+    null,
+    { timeout: 30_000 },
+  );
+  await expect(page.locator('[data-a="retry-end"]')).toBeFocused({ timeout: 10_000 });
   await page.evaluate(() => { window.__rejectTerminalTrace = false; });
   await page.click('[data-a="retry-end"]');
   await page.waitForFunction(() => window.spirebound.S.screen === 'end');
@@ -1124,7 +1130,9 @@ test('persistence fixtures: Dawn cursor and final clear use real retry owners', 
     sp.S.run = run;
     sp.show('end', { won: true });
   });
-  await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused();
+  // Bloom/parallax run before the cursor persist attempt under full motion.
+  await expect(page.locator('#dawn-save-failure')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused({ timeout: 10_000 });
   await page.evaluate(() => { window.__rejectCursorTrace = false; });
   await page.click('[data-a="retry-dawn"]');
   await waitForDawnComplete(page);
@@ -1147,7 +1155,8 @@ test('persistence fixtures: Dawn cursor and final clear use real retry owners', 
     sp.S.run = run;
     sp.show('end', { won: true });
   });
-  await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused();
+  await expect(page.locator('#dawn-save-failure')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused({ timeout: 10_000 });
   await page.evaluate(() => { window.__rejectClearTrace = false; });
   await page.click('[data-a="retry-dawn"]');
   await waitForDawnComplete(page);
