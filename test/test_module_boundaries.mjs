@@ -245,13 +245,15 @@ assert.doesNotMatch(importSpecifiers('../src/ui/combat.js').join('\n'), /(?:drai
   'combat imports no drain, screen, navigator or index owner');
 assert.doesNotMatch(importSpecifiers('../src/ui/drain.js').join('\n'), /(?:combat|screens|navigation|index)\.js/,
   'drain imports no combat, screen, navigator or index owner');
-const ALLOWED_SCREEN_HELPER_IMPORTS = new Set(['../tween.js', '../rose.js']);
+const ALLOWED_SCREEN_HELPER_IMPORTS = new Set([
+  '../tween.js', '../rose.js', '../shipfront-assets.js',
+]);
 for (const name of Object.keys(screenSources)) {
   const imports = importSpecifiers(`../src/ui/screens/${name}`);
   assert.deepEqual(
     imports.filter((specifier) => !ALLOWED_SCREEN_HELPER_IMPORTS.has(specifier)),
     [],
-    `${name} receives dependencies and stays a leaf (helpers: tween/rose only)`,
+    `${name} receives dependencies and stays a leaf (helpers: tween/rose/shipfront only)`,
   );
   assert.doesNotMatch(screenSources[name], /(?:from\s+|import\s*\()['"][^'"]*(?:\/screens\/|\/navigation\.js|\/index\.js|\/ui\.js|pixi)[^'"]*['"]/i,
     `${name} must not import screens, navigation, index, ui or Pixi`);
