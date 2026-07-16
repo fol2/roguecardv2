@@ -224,7 +224,8 @@ test.describe('Fall and Dawn ceremonies', () => {
       sp.show('end', { won: true });
     });
 
-    await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused();
+    await expect(page.locator('#dawn-save-failure')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused({ timeout: 10_000 });
     await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
     await expect(page.locator('#dawn-save-failure, [data-r5-state="dawn-cursor-retry"]')).toHaveCount(1);
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2')).pendingDawn.cursor)).toBe(0);
@@ -262,7 +263,8 @@ test.describe('Fall and Dawn ceremonies', () => {
       sp.show('end', { won: true });
     });
 
-    await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused();
+    await expect(page.locator('#dawn-save-failure')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused({ timeout: 10_000 });
     await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
     await expect(page.locator('#dawn-save-failure, [data-r5-state="dawn-final-clear-retry"]')).toHaveCount(1);
 

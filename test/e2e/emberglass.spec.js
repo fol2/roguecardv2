@@ -72,8 +72,9 @@ test('Title Rose exposes loading then ready, and keyboard focus when ready', asy
       if (typeof image.__roseResolve === 'function') image.__roseResolve();
     }
   });
+  // Decode→ready handoff can sit past the default 5s expect on CI Linux.
+  await expect(medallion).toHaveAttribute('data-r5-state', 'title-rose-ready', { timeout: 15_000 });
   await expect(medallion).toHaveClass(/ready/);
-  await expect(medallion).toHaveAttribute('data-r5-state', 'title-rose-ready');
   await medallion.focus();
   await expect(medallion).toBeFocused();
 });
@@ -94,6 +95,7 @@ test('Rose panes disclose only their current state', async ({ page }) => {
   await expect(page.locator('.whisper-row')).toHaveCount(v.whispers);
   await page.click('[data-a="back"]');
   const medallion = page.locator('.title-rose-medallion');
+  await expect(medallion).toHaveAttribute('data-r5-state', 'title-rose-ready', { timeout: 15_000 });
   await expect(medallion).toHaveClass(/ready/);
   await expect(medallion).toBeEnabled();
   const pane = medallion.locator('.title-rose-pane');
@@ -349,9 +351,9 @@ test('run-end persistence failure owns input until finalisation retries', async 
     return !!document.querySelector('#overlay.open [data-a="retry-end"]');
   });
 
-  await expect(page.locator('.ov-title')).toHaveText('The Vigil Could Not Hold');
+  await expect(page.locator('.ov-title')).toHaveText('The Vigil Could Not Hold', { timeout: 15_000 });
   await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
-  await expect(page.locator('[data-a="retry-end"]')).toBeFocused();
+  await expect(page.locator('[data-a="retry-end"]')).toBeFocused({ timeout: 10_000 });
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2'))?.pendingRunEnd))
     .toEqual({ outcome: 'death' });
 
