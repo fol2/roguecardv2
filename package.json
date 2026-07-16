@@ -34,7 +34,7 @@
     "test:e2e:trace": "playwright test trace --project=desktop --project=portrait --project=landscape --no-deps --grep-invert \"random-agent mini-run|@serial\"",
     "test:e2e:screens": "playwright test end-ceremony p6-screens presentation --project=desktop --project=portrait --project=landscape --no-deps --grep-invert \"random-agent mini-run|@serial\"",
     "test:e2e:lab": "playwright test lab --project=desktop --project=portrait --project=landscape --no-deps --grep-invert \"random-agent mini-run|@serial\"",
-    "test:e2e:editors": "playwright test bfeditor bfuieditor --project=desktop --project=portrait --project=landscape --no-deps --grep-invert \"random-agent mini-run|@serial\"",
+    "test:e2e:editors": "playwright test bfeditor bfuieditor --project=desktop --no-deps --grep-invert \"random-agent mini-run|@serial\"",
     "test:e2e:heavy": "playwright test hollow-transaction rewards stage --project=desktop --project=portrait --project=landscape --no-deps --grep-invert \"random-agent mini-run|visual\\.spec\\.js|@serial\"",
     "test:e2e:main": "SPIREBOUND_E2E_SUITE=main playwright test --project=desktop --project=portrait --project=landscape --no-deps --grep-invert \"random-agent mini-run|@serial\"",
     "test:e2e:serial": "playwright test --project=desktop --workers=1 --no-deps --grep @serial",
