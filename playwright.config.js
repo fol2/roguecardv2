@@ -9,12 +9,15 @@ import { e2eServerSettings } from './playwright-server.js';
 
 const e2eServer = e2eServerSettings(process.env.SPIREBOUND_E2E_PORT);
 
-// CI peels duration-heavy specs out of main (SPIREBOUND_E2E_SUITE=main).
-// Unset suite keeps the full local `test:e2e:main` surface.
-const E2E_SLOW_SPECS = /(?:^|\/)(audio|battle|emberglass(?:-persistence)?|hollow-transaction|rewards|stage)\.spec\.js$/;
+// `test:e2e:main` sets SPIREBOUND_E2E_SUITE=main so duration-heavy peels stay
+// out of the residual main matrix. Pixi/trace owned main shards (~6m vs ~2m);
+// run them via test:e2e:pixi / test:e2e:trace. visual/leak/perf have their own
+// CI jobs too — grep-invert cannot filter by filename, so ignore them here.
+
+const E2E_MAIN_PEEL = /(?:^|\/)(audio|battle|emberglass(?:-persistence)?|hollow-transaction|rewards|stage|pixi|trace|visual|leak|perf)\.spec\.js$/;
 const e2eSuite = process.env.SPIREBOUND_E2E_SUITE;
 const testIgnore = [/trace-production\.spec\.js/];
-if (e2eSuite === 'main') testIgnore.push(E2E_SLOW_SPECS);
+if (e2eSuite === 'main') testIgnore.push(E2E_MAIN_PEEL);
 
 export default defineConfig({
   testDir: 'test/e2e',

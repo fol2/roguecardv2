@@ -62,7 +62,7 @@ assert.doesNotMatch(musicResolveSource, /behaviour-trace|\bdocument\b|\bwindow\b
 
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 assert.equal(packageJson.scripts['test:e2e'], 'npm run test:e2e:nonvisual && npm run test:e2e:visual');
-assert.equal(packageJson.scripts['test:e2e:nonvisual'], 'npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:main && npm run test:e2e:serial');
+assert.equal(packageJson.scripts['test:e2e:nonvisual'], 'npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:pixi && npm run test:e2e:trace && npm run test:e2e:main && npm run test:e2e:serial');
 assert.equal(
   packageJson.scripts['test:e2e:bfuieditor-disk'],
   'playwright test bfuieditor --project=bfuieditor-disk --workers=1',
@@ -116,7 +116,7 @@ const productionPlaywright = readFileSync(new URL('../playwright.trace-productio
 const productionTraceSpec = readFileSync(new URL('./e2e/trace-production.spec.js', import.meta.url), 'utf8');
 assert.match(defaultPlaywright, /testIgnore[\s\S]*?trace-production\\\.spec\\\.js/);
 assert.match(defaultPlaywright, /SPIREBOUND_E2E_SUITE/);
-assert.match(defaultPlaywright, /E2E_SLOW_SPECS/);
+assert.match(defaultPlaywright, /E2E_MAIN_PEEL/);
 assert.match(
   defaultPlaywright,
   /name:\s*'iphone-webkit',\s*use:\s*\{\s*\.\.\.devices\['iPhone 17 Pro'\],\s*browserName:\s*'webkit'\s*\}/,
