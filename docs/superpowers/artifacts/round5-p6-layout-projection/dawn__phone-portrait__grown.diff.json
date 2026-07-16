@@ -1,13 +1,27 @@
 {
   "id": "dawn__phone-portrait__grown",
-  "deltaCount": 6,
-  "expectedCount": 6,
+  "deltaCount": 20,
+  "expectedCount": 20,
   "unexpectedCount": 0,
   "unexpectedPaths": [],
   "expectedPathsHit": [
     "dawn.whisper.left",
+    "dawn.whisper.top",
     "dawn.whisper.width",
     "dawn.whisper.right",
+    "dawn.whisper.bottom",
+    "dawn.whisper.cy",
+    "dawn.ledger.left",
+    "dawn.ledger.top",
+    "dawn.ledger.width",
+    "dawn.ledger.height",
+    "dawn.ledger.right",
+    "dawn.ledger.bottom",
+    "dawn.ceremony.top",
+    "dawn.ceremony.width",
+    "dawn.ceremony.right",
+    "dawn.ceremony.bottom",
+    "dawn.ceremony.cy",
     "dawn.content.height",
     "cardface.hasArtTexture",
     "cardface.rarityAccentDistinct"
@@ -16,20 +30,104 @@
     {
       "path": "dawn.whisper.left",
       "kind": "box-drift",
-      "live": 48.958579254150386,
+      "live": 45.05232971191406,
       "golden": 65.63505631171321
+    },
+    {
+      "path": "dawn.whisper.top",
+      "kind": "box-drift",
+      "live": 355.04687576293946,
+      "golden": 411.39005096435545
     },
     {
       "path": "dawn.whisper.width",
       "kind": "box-drift",
-      "live": 113.45309921264648,
+      "live": 113.4531314086914,
       "golden": 75.01485971438969
     },
     {
       "path": "dawn.whisper.right",
       "kind": "box-drift",
-      "live": 162.41167846679687,
+      "live": 158.50546112060547,
       "golden": 140.64991602610291
+    },
+    {
+      "path": "dawn.whisper.bottom",
+      "kind": "box-drift",
+      "live": 368.5468705749512,
+      "golden": 425.09259109497066
+    },
+    {
+      "path": "dawn.whisper.cy",
+      "kind": "box-drift",
+      "live": 361.7968731689453,
+      "golden": 418.2413210296631
+    },
+    {
+      "path": "dawn.ledger.left",
+      "kind": "box-drift",
+      "live": 23.396078643798827,
+      "golden": 15.344990559128124
+    },
+    {
+      "path": "dawn.ledger.top",
+      "kind": "box-drift",
+      "live": 395.99998733520505,
+      "golden": 452.95749526977534
+    },
+    {
+      "path": "dawn.ledger.width",
+      "kind": "box-drift",
+      "live": 343.1874626159668,
+      "golden": 359.3099866856959
+    },
+    {
+      "path": "dawn.ledger.height",
+      "kind": "box-drift",
+      "live": 199.99999588012696,
+      "golden": 97.43994552612304
+    },
+    {
+      "path": "dawn.ledger.right",
+      "kind": "box-drift",
+      "live": 366.58354125976564,
+      "golden": 374.654977244824
+    },
+    {
+      "path": "dawn.ledger.bottom",
+      "kind": "box-drift",
+      "live": 595.999983215332,
+      "golden": 550.3974407958983
+    },
+    {
+      "path": "dawn.ceremony.top",
+      "kind": "box-drift",
+      "live": 307.99998657226564,
+      "golden": 363.63748886108397
+    },
+    {
+      "path": "dawn.ceremony.width",
+      "kind": "box-drift",
+      "live": 343.1874626159668,
+      "golden": 359.3099866856959
+    },
+    {
+      "path": "dawn.ceremony.right",
+      "kind": "box-drift",
+      "live": 361.17731018066405,
+      "golden": 374.654977244824
+    },
+    {
+      "path": "dawn.ceremony.bottom",
+      "kind": "box-drift",
+      "live": 389.9999967956543,
+      "golden": 446.86748458862303
+    },
+    {
+      "path": "dawn.ceremony.cy",
+      "kind": "box-drift",
+      "live": 348.99999168396,
+      "golden": 405.2524867248535
     },
     {
       "path": "dawn.content.height",

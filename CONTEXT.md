@@ -100,7 +100,17 @@ _Avoid_: active Round 5 gate, reviving retired Tasks 3–4, treating Playwright 
 
 **P4 (Pixi chrome)**: COMPLETE as of Task 25 (`Decision: GO TO P5`).
 
-**P5 (cards / ceremonies / leak)**: in progress — Tasks 26–28 landed the single card-face composer, Pixi hand, and Pixi floaters/banners/pile flights; Task 29 adds the DOM allowed-list, leak/cache gates, and CI wiring.
+**P5 (cards / ceremonies / leak)**: COMPLETE as of Task 30.
+
+**P6 (presentation / FE stylesheet / owner gate)**: COMPLETE as of Task 37 —
+owner PASS 2026-07-15, corrections + baselines + sheets re-promoted, and
+`Decision: GO TO P7` recorded 2026-07-16
+(`docs/superpowers/reports/2026-07-10-round5-p6-owner-gate.md`). CI e2e runs
+as duration-balanced pool shards
+(`docs/superpowers/specs/2026-07-16-e2e-pool-shards-design.md`).
+
+**P7 (ship-front)**: in progress — Tasks 38–40 (FE P7 visual package, PE
+integration + store kit, Full-Round gate/PR).
 
 ### Audio
 

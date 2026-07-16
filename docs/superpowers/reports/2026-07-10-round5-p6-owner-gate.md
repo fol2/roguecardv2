@@ -1,7 +1,7 @@
 # Round 5 P6 owner gate
 
-**Status:** OWNER PASS (taste) — baselines / `Decision: GO TO P7` pending Task 37 Steps 3–4  
-**Date:** 2026-07-15  
+**Status:** CLOSED — `Decision: GO TO P7` (recorded 2026-07-16; owner confirm in-session)  
+**Date:** 2026-07-15 (OWNER PASS) / 2026-07-16 (GO)  
 **PE tip (remediation, pre-commit dirty at sign-off):** `5964a086` + layout-bridge remediation package  
 **Layout projection:** `docs/superpowers/artifacts/round5-p6-layout-projection/` — **19/19 focus rows, unexpectedTotal=0**  
 **Artifacts:** `docs/superpowers/artifacts/round5-p6-contact-sheets/` (183 rows)  
@@ -22,9 +22,19 @@ These deltas are approved and must not be “fixed” toward golden without a ne
 owner decision:
 
 1. **Title background full-bleed / fullscreen** — stage art edge-to-edge (vs
-   golden inset / contained banner).
+   golden inset / contained banner). Includes the safe-center wordmark
+   position (`title.wordmark.*` whitelisted 2026-07-16).
 2. **Phone-portrait HUD deck/menu right-aligned** — `margin-left: auto` on
    `.hud-right` when `.hud-mid` is hidden (golden remains left-packed).
+3. **Dawn whisper/ledger/ceremony inside stage bounds** — `09806910` /
+   `8d342f73` overflow fixes on phone shapes (owner GO 2026-07-16).
+4. **Embark aspect cards stacked + compact vow dial** — restores the
+   owner-FAIL gate `embark-phone-landscape-column` that f96fefd1's landscape
+   bridge had reverted to a row; wide stacked cards keep the CTA row on the
+   430px stage (`946a179c`, owner GO 2026-07-16).
+5. **Rose-window baselines past the overflow fix** — the 2026-07-16 refresh
+   replaced six baselines that had captured the pre-`09806910` right-shifted
+   overlay on both platforms.
 
 ## Semantic evidence (required)
 
@@ -58,10 +68,23 @@ Rewards, boss-relic, rest, event, treasure, vigil, lamplighter (golden panel
 geometry via PE bridges), Hollow (kicker typography), Shop (panel + live DOM
 card faces), HUD (`Act N` restored; intentional phone-portrait right pack).
 
-## Next (Task 37 Steps 3–4)
+## Decision: GO TO P7 (2026-07-16)
 
-1. Commit remediation tip; append `P6 baseline source: <HEAD>`; push continuation branch.
-2. Local + remote baseline refresh; promote sheets/manifest; standing `--profile p6`.
-3. Full Step 4 gate bundle → record **`Decision: GO TO P7`** in this report + status docs.
+Steps 3–4 executed on the continuation branch; owner confirmed the correction
+packet (embark restack before/after, rose-window baseline catch-up, golden
+whitelist entries 3–5) in-session on 2026-07-16.
+
+| Evidence | Result |
+|---|---|
+| Post-PASS regressions repaired | `946a179c` embark restack + shop live-DOM-face assert; `f96fefd1` fallout — both deterministic repro, fixed, CI-green |
+| Flake root-causes (no blind bumps) | trace title-timer task-ordering; Lab `data-lab-ready` interactivity stamp; long-press latency budget removed; fall-ceremony terminal-state wait; Rose decode settlement wait; map DOM-on-3D forced click |
+| CI (rebuilt pool topology) | run 29502052109 @ `c3e542a8` — **all 33 jobs green** (`unit`, `e2e`, `e2e nonvisual`, `p2-base`); design `docs/superpowers/specs/2026-07-16-e2e-pool-shards-design.md` |
+| Baselines | darwin local + linux `update-baselines.yml` run 29498831426 @ `82ab5c38`, installer SHA-verified; only the six rose-window baselines changed (overflow catch-up); visual 72/72 |
+| Contact sheets | 183 rows recaptured @ `82ab5c38`, promoted with correction record in the capture-evidence report |
+| Layout projection vs golden | `unexpectedTotal=0` (19 rows) after owner-sanctioned whitelist entries 3–5 |
+| Standing `--profile p6` | green at the GO tip (recorded in the ignored ledger) |
+
+PERF evidence: no `PERF_WARNING` blocking closure; hard bundle/leak/context/
+cache gates green via standing.
 
 **WebKit-safe API review: PASS** (engineering only; not visual approval).
