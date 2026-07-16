@@ -434,7 +434,10 @@ test.describe('P6 remaining screens', () => {
     const sealed = await page.locator('.sealed-door').count();
     if (sealed) {
       await expect(page.locator('.r5-map')).toHaveAttribute('data-r5-sealed', 'sealed-door-visible');
-      await page.click('[data-a="sealed-door"]');
+      // DOM-on-3D nodes are re-projected onto the tower every frame, so
+      // Playwright's stability check starves under software-GL frame jitter —
+      // force the click like stagePhase2State's quest-shop button.
+      await page.click('[data-a="sealed-door"]', { force: true });
       await expect(page.locator('.sealed-door-panel')).toHaveAttribute('data-r5-state', 'sealed-door-promise-open');
     } else {
       await expect(page.locator('.r5-map')).toHaveAttribute('data-r5-sealed', 'sealed-door-hidden');
