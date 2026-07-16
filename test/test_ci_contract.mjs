@@ -306,10 +306,22 @@ assert.equal(pkg.scripts['test:boundaries'], 'node test/test_module_boundaries.m
 assert.match(pkg.scripts['test:ci'], /npm run test:boundaries/);
 assert.equal(pkg.scripts['content:compile'], 'node tools/compile-content-registrations.mjs');
 assert.equal(pkg.scripts['test:content-registrations'], 'node tools/compile-content-registrations.mjs --check');
+// WebKit runs as three bounded invocations — one browser instance across all
+// six WebGL-heavy specs accumulated enough pressure to hang late navigations.
 assert.equal(
   pkg.scripts['test:e2e:webkit'],
-  'playwright test trace stage lab theme-profile production-profile p6-screens --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
+  'playwright test stage trace --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-lab && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-screens',
 );
+assert.equal(
+  pkg.scripts['test:e2e:webkit-lab'],
+  'playwright test lab theme-profile --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
+);
+assert.equal(
+  pkg.scripts['test:e2e:webkit-screens'],
+  'playwright test production-profile p6-screens --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
+);
+const webkitChain = ['test:e2e:webkit', 'test:e2e:webkit-lab', 'test:e2e:webkit-screens']
+  .map((name) => pkg.scripts[name]).join(' && ');
 assert.equal(
   pkg.scripts['test:e2e:leak'],
   'playwright test leak --project=desktop --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
@@ -416,25 +428,27 @@ assert.match(perfWorkflow, /perf-metrics-full\.json/);
 assert.match(perfWorkflow, /npm run test:e2e:leak/);
 
 assert.match(
-  pkg.scripts['test:e2e:webkit'],
+  webkitChain,
   /production-profile/,
-  'test:e2e:webkit must include production-profile',
+  'the webkit chain must include production-profile',
 );
 assert.match(
-  pkg.scripts['test:e2e:webkit'],
+  webkitChain,
   /p6-screens/,
-  'test:e2e:webkit must include p6-screens',
+  'the webkit chain must include p6-screens',
 );
 for (const token of ['trace', 'stage', 'lab', 'theme-profile', 'production-profile', 'p6-screens']) {
   assert.match(
-    pkg.scripts['test:e2e:webkit'],
+    webkitChain,
     new RegExp(`\\b${token}\\b`),
-    `test:e2e:webkit must retain cumulative token ${token}`,
+    `the webkit chain must retain cumulative token ${token}`,
   );
 }
-assert.match(pkg.scripts['test:e2e:webkit'], /--project=iphone-webkit/);
-assert.match(pkg.scripts['test:e2e:webkit'], /--project=ipad-webkit/);
-assert.match(pkg.scripts['test:e2e:webkit'], /--workers=1/);
+for (const name of ['test:e2e:webkit', 'test:e2e:webkit-lab', 'test:e2e:webkit-screens']) {
+  assert.match(pkg.scripts[name], /--project=iphone-webkit/);
+  assert.match(pkg.scripts[name], /--project=ipad-webkit/);
+  assert.match(pkg.scripts[name], /--workers=1/);
+}
 
 const agents = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
 assert.match(agents, /test:e2e:perf\s+# performance reference; warns on target misses/);

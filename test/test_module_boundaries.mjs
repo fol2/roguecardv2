@@ -75,7 +75,7 @@ assert.equal(packageJson.scripts['content:compile'], 'node tools/compile-content
 assert.equal(packageJson.scripts['test:content-registrations'], 'node tools/compile-content-registrations.mjs --check');
 assert.equal(
   packageJson.scripts['test:e2e:webkit'],
-  'playwright test trace stage lab theme-profile production-profile p6-screens --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
+  'playwright test stage trace --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-lab && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-screens',
 );
 assert.equal(
   packageJson.scripts['test:e2e:leak'],
