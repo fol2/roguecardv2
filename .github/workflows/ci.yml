@@ -489,8 +489,9 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
-  e2e_main:
-    name: e2e main ${{ matrix.shard }}/6
+  # Interactive bfeditor/bfuieditor suites owned residual main wall-clock (~9m).
+  e2e_editors:
+    name: e2e editors ${{ matrix.shard }}/6
     needs: changes
     if: needs.changes.outputs.e2e == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base')
     strategy:
@@ -504,7 +505,34 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-playwright
-      - run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:main -- --shard=${{ matrix.shard }}/6
+      - run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:editors -- --shard=${{ matrix.shard }}/6
+      - name: Verify clean checkout
+        if: always()
+        run: test -z "$(git status --porcelain --untracked-files=all)"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-editors-${{ matrix.shard }}-${{ github.run_id }}
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  e2e_main:
+    name: e2e main ${{ matrix.shard }}/4
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true' && (needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'p2-base')
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: [1, 2, 3, 4]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-playwright
+      - run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:main -- --shard=${{ matrix.shard }}/4
       - name: Verify clean checkout
         if: always()
         run: test -z "$(git status --porcelain --untracked-files=all)"
@@ -593,7 +621,7 @@ jobs:
   e2e_nonvisual:
     name: e2e nonvisual
     if: always()
-    needs: [changes, e2e_aux, e2e_random, e2e_audio, e2e_heavy, e2e_battle, e2e_emberglass, e2e_pixi, e2e_trace, e2e_screens, e2e_lab, e2e_main]
+    needs: [changes, e2e_aux, e2e_random, e2e_audio, e2e_heavy, e2e_battle, e2e_emberglass, e2e_pixi, e2e_trace, e2e_screens, e2e_lab, e2e_editors, e2e_main]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -607,12 +635,12 @@ jobs:
           CI_SLOW_RELEVANT: ${{ needs.changes.outputs.e2e_slow }}
           CI_MODE: p2-base
           CI_RESULTS: >-
-            {"changes":"${{ needs.changes.result }}","e2e-aux":"${{ needs.e2e_aux.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-audio":"${{ needs.e2e_audio.result }}","e2e-heavy":"${{ needs.e2e_heavy.result }}","e2e-battle":"${{ needs.e2e_battle.result }}","e2e-emberglass":"${{ needs.e2e_emberglass.result }}","e2e-pixi":"${{ needs.e2e_pixi.result }}","e2e-trace":"${{ needs.e2e_trace.result }}","e2e-screens":"${{ needs.e2e_screens.result }}","e2e-lab":"${{ needs.e2e_lab.result }}","e2e-main":"${{ needs.e2e_main.result }}"}
+            {"changes":"${{ needs.changes.result }}","e2e-aux":"${{ needs.e2e_aux.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-audio":"${{ needs.e2e_audio.result }}","e2e-heavy":"${{ needs.e2e_heavy.result }}","e2e-battle":"${{ needs.e2e_battle.result }}","e2e-emberglass":"${{ needs.e2e_emberglass.result }}","e2e-pixi":"${{ needs.e2e_pixi.result }}","e2e-trace":"${{ needs.e2e_trace.result }}","e2e-screens":"${{ needs.e2e_screens.result }}","e2e-lab":"${{ needs.e2e_lab.result }}","e2e-editors":"${{ needs.e2e_editors.result }}","e2e-main":"${{ needs.e2e_main.result }}"}
 
   e2e:
     name: e2e
     if: always()
-    needs: [changes, smoke_e2e, e2e_aux, e2e_random, e2e_audio, e2e_heavy, e2e_battle, e2e_emberglass, e2e_pixi, e2e_trace, e2e_screens, e2e_lab, e2e_main, e2e_webkit, e2e_leak, e2e_visual]
+    needs: [changes, smoke_e2e, e2e_aux, e2e_random, e2e_audio, e2e_heavy, e2e_battle, e2e_emberglass, e2e_pixi, e2e_trace, e2e_screens, e2e_lab, e2e_editors, e2e_main, e2e_webkit, e2e_leak, e2e_visual]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -626,7 +654,7 @@ jobs:
           CI_SLOW_RELEVANT: ${{ needs.changes.outputs.e2e_slow }}
           CI_MODE: ${{ needs.changes.outputs.mode }}
           CI_RESULTS: >-
-            {"changes":"${{ needs.changes.result }}","smoke-e2e":"${{ needs.smoke_e2e.result }}","e2e-aux":"${{ needs.e2e_aux.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-audio":"${{ needs.e2e_audio.result }}","e2e-heavy":"${{ needs.e2e_heavy.result }}","e2e-battle":"${{ needs.e2e_battle.result }}","e2e-emberglass":"${{ needs.e2e_emberglass.result }}","e2e-pixi":"${{ needs.e2e_pixi.result }}","e2e-trace":"${{ needs.e2e_trace.result }}","e2e-screens":"${{ needs.e2e_screens.result }}","e2e-lab":"${{ needs.e2e_lab.result }}","e2e-main":"${{ needs.e2e_main.result }}","e2e-webkit":"${{ needs.e2e_webkit.result }}","e2e-leak":"${{ needs.e2e_leak.result }}","e2e-visual":"${{ needs.e2e_visual.result }}"}
+            {"changes":"${{ needs.changes.result }}","smoke-e2e":"${{ needs.smoke_e2e.result }}","e2e-aux":"${{ needs.e2e_aux.result }}","e2e-random":"${{ needs.e2e_random.result }}","e2e-audio":"${{ needs.e2e_audio.result }}","e2e-heavy":"${{ needs.e2e_heavy.result }}","e2e-battle":"${{ needs.e2e_battle.result }}","e2e-emberglass":"${{ needs.e2e_emberglass.result }}","e2e-pixi":"${{ needs.e2e_pixi.result }}","e2e-trace":"${{ needs.e2e_trace.result }}","e2e-screens":"${{ needs.e2e_screens.result }}","e2e-lab":"${{ needs.e2e_lab.result }}","e2e-editors":"${{ needs.e2e_editors.result }}","e2e-main":"${{ needs.e2e_main.result }}","e2e-webkit":"${{ needs.e2e_webkit.result }}","e2e-leak":"${{ needs.e2e_leak.result }}","e2e-visual":"${{ needs.e2e_visual.result }}"}
 
   p2-base:
     name: p2-base
