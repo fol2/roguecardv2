@@ -2,7 +2,7 @@
 
 **Status:** FE preparation draft — candidates live under `scratch/style-tests/round5/`; final paths require per-file owner promotion (Task 38 Steps 5–6).  
 **Date:** 2026-07-16  
-**PE tip synced for prep:** `9cc268ff` (`jamesto/round5-production-engineering-continuation`)
+**PE tip synced for prep:** `98e153b8` (`jamesto/round5-production-engineering-continuation`); FE branch `jamesto/round5-front-end-p7`
 
 ## Boss → act mapping
 
@@ -32,7 +32,8 @@ Legacy fallback remains `src/assets/title/title.png` / `title-background` resolu
 
 ## Dimensions and alpha
 
-- Stage plates: **1536×1024**, 8-bit RGBA PNG (match current `actN-*` plates).
+- Stage backdrop/mid: **1536×1024**, 8-bit RGBA PNG.
+- Stage ledge heights match act plates: rootheart **1536×761**, leviathan **1536×652**, sovereign **1536×574**.
 - Title layers: match existing title full-bleed plate aspect; keep edge bleed for all five stage shapes.
 - Unlock frame: opaque frame with transparent interior cutout suitable for toast illustration.
 

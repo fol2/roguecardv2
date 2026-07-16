@@ -1,7 +1,8 @@
 # Round 5 store FE draft (provisional / marketing-only)
 
-**Status:** FE draft — not a store submission. PE finalises age-rating/privacy in Task 39.  
-**Date:** 2026-07-16  
+**Status:** FE draft — not a store submission. PE finalises age-rating/privacy in Task 39.
+**Date:** 2026-07-16
+**FE branch:** `jamesto/round5-front-end-p7` (onto PE tip `98e153b8`; candidates ready for owner Step 5)
 **Label:** `provisional/marketing-only`
 
 ## Shot composition (five store kit ids)
@@ -28,7 +29,7 @@
 
 ## Checklist for PE (Task 39)
 
-- [ ] Age rating / content descriptors  
-- [ ] Privacy / data collection statement  
-- [ ] Confirm every store PNG labelled provisional/marketing-only in manifest  
-- [ ] No Act 4 / sealedDoor gameplay claims from visual approval alone  
+- [ ] Age rating / content descriptors
+- [ ] Privacy / data collection statement
+- [ ] Confirm every store PNG labelled provisional/marketing-only in manifest
+- [ ] No Act 4 / sealedDoor gameplay claims from visual approval alone
