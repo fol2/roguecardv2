@@ -116,16 +116,19 @@ async function settleAndFreeze(page, { keepBg3d = false, keepCombat = false } = 
   await page.waitForTimeout(200);
 }
 
-async function stageShot(page, shot, origin) {
+async function stageShot(page, context, shot, origin) {
   const grown = shot.profile === 'grown';
   const vigil = grown ? GROWN_VIGIL : FRESH_VIGIL;
   const q = new URLSearchParams({ shape: shot.shape, seed: String(shot.seed) });
+  // Seed Vigil before navigation so loadVigil() sees emberglass unlocks.
+  await context.addInitScript((seedVigil) => {
+    localStorage.removeItem('spirebound_save_v2');
+    localStorage.setItem('spirebound_vigil_v2', JSON.stringify(seedVigil));
+  }, vigil);
   await page.goto(`${origin}/?${q}`);
   await page.waitForFunction(() => window.spirebound && window.__probe);
-  await page.evaluate(([seed, isGrown, seedVigil]) => {
+  await page.evaluate(([seed, isGrown]) => {
     const sp = window.spirebound;
-    localStorage.removeItem('spirebound_save_v2');
-    sp.Vigil.saveVigil({ ...seedVigil, quests: { ...(seedVigil.quests || {}) } });
     sp.S.run = sp.E.newRun(seed, {
       aspect: 0,
       reveals: isGrown
@@ -134,7 +137,7 @@ async function stageShot(page, shot, origin) {
       shards: isGrown ? ['usurper'] : [],
     });
     if (isGrown) sp.S.run.act = Math.min(2, sp.S.run.act || 0);
-  }, [shot.seed, grown, vigil]);
+  }, [shot.seed, grown]);
 
   if (shot.id === 'title') {
     await page.evaluate(() => window.spirebound.show('title'));
@@ -197,7 +200,7 @@ async function main() {
 
   try {
     for (const shot of SHOTS) {
-      await stageShot(page, shot, settings.origin);
+      await stageShot(page, context, shot, settings.origin);
       const pngPath = path.join(OUT, `${shot.id}.png`);
       await page.locator('#stage').screenshot({ path: pngPath });
       console.log('wrote', pngPath);
