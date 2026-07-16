@@ -32,7 +32,11 @@ contracts shared by Playwright regression journeys.
 | Doc | Status |
 |---|---|
 | [`superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md`](superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md) | **Golden design** — PE-led commercial-grade production engineering with a small, isolated FE presentation lane; execution begins at P1 after loaded-predecessor/drift validation and proceeds through cumulative Playwright Chromium/WebKit browser gates |
-| [`superpowers/plans/2026-07-10-round5-production-engineering.md`](superpowers/plans/2026-07-10-round5-production-engineering.md) | **Active executor** — P1–P6 COMPLETE (Task 37 `Decision: GO TO P7`, 2026-07-16); P7 ship-front in progress (Tasks 38–40) |
+| [`superpowers/plans/2026-07-10-round5-production-engineering.md`](superpowers/plans/2026-07-10-round5-production-engineering.md) | **Active executor** — P1–P6 COMPLETE (Task 37 `Decision: GO TO P7`, 2026-07-16); P7 ship-front kit integrated (Task 39); Task 40 Full-Round gate next |
+| [`superpowers/reports/2026-07-10-round5-p7-handoff.md`](superpowers/reports/2026-07-10-round5-p7-handoff.md) | **P7 hand-off** — FE merge hashes, capture source SHA, provisional store kit + public icons |
+| [`store-shot-list.md`](store-shot-list.md) | Exact five store-kit shot ids / seeds / profiles |
+| [`store-listing-content.md`](store-listing-content.md) | Provisional store listing copy + age-rating / privacy checklist |
+| [`store-assets/round5/`](store-assets/round5/) | Provisional marketing captures + `manifest.json` |
 | [`superpowers/reports/2026-07-10-round5-p2-registry-evidence.md`](superpowers/reports/2026-07-10-round5-p2-registry-evidence.md) | **P2 evidence** — three-leg equality, 100% core doctor, freeze/no-accessor, sample isolation, Music contract, theme-profile Chromium results; WebKit theme rerun owned by Task 20 (`test:e2e:webkit`) |
 | [`superpowers/reports/2026-07-12-round5-task10-handover.md`](superpowers/reports/2026-07-12-round5-task10-handover.md) | **Task 10 handover** — oracle provenance and gates; historical start procedure for Task 11 |
 | [`superpowers/specs/2026-07-11-mobile-migration-simulator-tooling-design.md`](superpowers/specs/2026-07-11-mobile-migration-simulator-tooling-design.md) | **Deferred / non-executable** — future actual Safari/iOS Simulator automation design; requires explicit owner activation, fresh drift audit, a separate tool plan and tool-maturity proof |
