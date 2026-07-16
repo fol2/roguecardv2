@@ -1237,7 +1237,7 @@ function forceHand(run, cb, ids) {
   );
   const calls = [];
   const result = await runWithStrictE2EPort({
-    argv: ['npm', 'run', 'test:e2e:main'],
+    argv: ['npm', 'run', 'test:e2e:pool'],
     env: { HOME: '/tmp/home', SPIREBOUND_E2E_PORT: '49999' },
     allocatePort: async () => 60002,
     spawn: (command, args, options) => {
@@ -1248,7 +1248,7 @@ function forceHand(run, cb, ids) {
   });
   assert.equal(result.port, 60002);
   assert.deepEqual(calls[0].command, 'npm');
-  assert.deepEqual(calls[0].args, ['run', 'test:e2e:main']);
+  assert.deepEqual(calls[0].args, ['run', 'test:e2e:pool']);
   assert.equal(calls[0].options.shell, false);
   assert.equal(calls[0].options.stdio, 'inherit');
   assert.equal(calls[0].options.env.HOME, '/tmp/home');

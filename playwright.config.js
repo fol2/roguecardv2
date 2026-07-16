@@ -9,16 +9,19 @@ import { e2eServerSettings } from './playwright-server.js';
 
 const e2eServer = e2eServerSettings(process.env.SPIREBOUND_E2E_PORT);
 
-// `test:e2e:main` sets SPIREBOUND_E2E_SUITE=main so duration-heavy peels stay
-// out of the residual main matrix. Pixi/trace/screens/lab/editors owned the
-// remaining main wall-clock skew; run them via dedicated scripts.
-// visual/leak/perf have their own CI jobs — grep-invert cannot filter by
-// filename, so ignore them here.
+// `test:e2e:pool` / tools/e2e-shard.mjs set SPIREBOUND_E2E_SUITE=pool: the
+// entire nonvisual kit as one duration-balanced lane. visual/leak/perf keep
+// dedicated jobs (baseline-, isolation- and budget-sensitive) — grep-invert
+// cannot filter by filename, so ignore them here. SPIREBOUND_E2E_SKIP_SLOW=1
+// drops the slow product suites when the changes filter proves the diff
+// cannot affect them (unrelated-e2e-only PRs).
 
-const E2E_MAIN_PEEL = /(?:^|\/)(audio|battle|emberglass(?:-persistence)?|hollow-transaction|rewards|stage|pixi|trace|end-ceremony|p6-screens|presentation|lab|bfeditor|bfuieditor|visual|leak|perf)\.spec\.js$/;
+const E2E_POOL_PEEL = /(?:^|\/)(visual|leak|perf)\.spec\.js$/;
+const E2E_SLOW_SPECS = /(?:^|\/)(audio|hollow-transaction|rewards|stage)\.spec\.js$/;
 const e2eSuite = process.env.SPIREBOUND_E2E_SUITE;
 const testIgnore = [/trace-production\.spec\.js/];
-if (e2eSuite === 'main') testIgnore.push(E2E_MAIN_PEEL);
+if (e2eSuite === 'pool') testIgnore.push(E2E_POOL_PEEL);
+if (process.env.SPIREBOUND_E2E_SKIP_SLOW === '1') testIgnore.push(E2E_SLOW_SPECS);
 
 export default defineConfig({
   testDir: 'test/e2e',

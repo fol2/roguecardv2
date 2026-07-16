@@ -6765,6 +6765,18 @@ git commit -m "docs: approve the P6 FE contact-sheet pre-filter"
 - Consumes the owner's non-delegable taste decision and produces the PE-owned
   gate evidence: `Decision: GO TO P7` or `Decision: P6 PREFIX EXIT`.
 
+> **Addendum (2026-07-16, owner-directed):** the per-suite peel CI topology was
+> replaced during Task 37 by the duration-balanced pool —
+> `docs/superpowers/specs/2026-07-16-e2e-pool-shards-design.md`. Invariants for
+> this task's remaining steps and every later task/executor:
+> aggregate check names (`unit`, `e2e`, `e2e nonvisual`, `p2-base`) are
+> unchanged; `npm run test:e2e` / `test:e2e:nonvisual` remain the local
+> commands this plan cites (nonvisual now = disk → random-agent → pool →
+> serial); if a pool shard runs long, refresh
+> `tools/e2e-shard-timings.json` via `node tools/e2e-shard.mjs --record` —
+> never hand-peel a suite into its own CI lane (contract-blocked by
+> `test/test_ci_contract.mjs`).
+
 - [ ] **Step 1: PE merges the final FE CSS/review commit and re-captures**
 
 Verify the merge diff remains FE-only and present the fixed-format sheets plus

@@ -4,15 +4,14 @@ import { pathToFileURL } from 'node:url';
 const UNIT_LANES = ['changes', 'unit-tests', 'build-dist'];
 const SMOKE_LANES = ['changes', 'smoke-e2e'];
 const P2_BASE_GATE_LANES = ['changes', 'unit', 'e2e-nonvisual', 'progression'];
-const P2_BASE_E2E_LANES = [
-  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-pixi', 'e2e-trace',
-  'e2e-screens', 'e2e-lab', 'e2e-editors', 'e2e-main',
-];
+// The pool lane is the whole nonvisual kit, duration-balanced by
+// tools/e2e-shard.mjs — slow-spec relevance narrows what the pool runs
+// (SPIREBOUND_E2E_SKIP_SLOW), never which lanes are required.
+const P2_BASE_E2E_LANES = ['changes', 'e2e-aux', 'e2e-random', 'e2e-pool'];
 
-/** Full-mode e2e leaf lanes (audio/heavy spliced in when slow is relevant). */
+/** Full-mode e2e leaf lanes. */
 export const FULL_E2E_LANES = Object.freeze([
-  'changes', 'e2e-aux', 'e2e-random', 'e2e-battle', 'e2e-emberglass', 'e2e-pixi', 'e2e-trace',
-  'e2e-screens', 'e2e-lab', 'e2e-editors', 'e2e-main',
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-pool',
   'e2e-webkit', 'e2e-leak', 'e2e-visual',
 ]);
 
@@ -32,20 +31,7 @@ export function resolveCiMode(eventName, draftValue, refName = '') {
   throw new Error(`Unsupported CI event: ${eventName}`);
 }
 
-/** Core nonvisual lanes always required when e2e is relevant. */
-function e2eCoreLanes(mode) {
-  if (mode === 'p2-base') return [...P2_BASE_E2E_LANES];
-  if (mode === 'full') return [...FULL_E2E_LANES];
-  return null;
-}
-
-/**
- * @param {string} gate
- * @param {unknown} relevant
- * @param {string} mode
- * @param {{ slow?: unknown }} [opts] - when slow is explicitly false, omit audio/heavy
- */
-export function requiredCiLanes(gate, relevant, mode, opts = {}) {
+export function requiredCiLanes(gate, relevant, mode) {
   if (gate === 'p2-base') {
     if (mode !== 'p2-base' && mode !== 'full') throw new Error(`Unsupported p2-base CI mode: ${mode}`);
     if (!truthy(relevant)) return ['changes'];
@@ -55,18 +41,13 @@ export function requiredCiLanes(gate, relevant, mode, opts = {}) {
   if (gate === 'unit') return [...UNIT_LANES];
   if (gate !== 'e2e') throw new Error(`Unsupported CI gate: ${gate}`);
   if (mode === 'smoke') return [...SMOKE_LANES];
-  const core = e2eCoreLanes(mode);
-  if (!core) throw new Error(`Unsupported CI mode: ${mode}`);
-  // Default slow=true so standing / unspecified callers keep full fidelity.
-  if (opts.slow !== undefined && !truthy(opts.slow)) return core;
-  const withSlow = [...core];
-  const battleIdx = withSlow.indexOf('e2e-battle');
-  withSlow.splice(battleIdx, 0, 'e2e-audio', 'e2e-heavy');
-  return withSlow;
+  if (mode === 'p2-base') return [...P2_BASE_E2E_LANES];
+  if (mode === 'full') return [...FULL_E2E_LANES];
+  throw new Error(`Unsupported CI mode: ${mode}`);
 }
 
-export function verifyCiGate({ gate, relevant, mode, results, slow }) {
-  const required = requiredCiLanes(gate, relevant, mode, { slow });
+export function verifyCiGate({ gate, relevant, mode, results }) {
+  const required = requiredCiLanes(gate, relevant, mode);
   const failed = required
     .filter((lane) => results[lane] !== 'success')
     .map((lane) => `${lane}=${results[lane] ?? 'missing'}`);
@@ -95,7 +76,6 @@ function runCli() {
       gate: process.env.CI_GATE,
       relevant: process.env.CI_RELEVANT,
       mode: process.env.CI_MODE,
-      slow: process.env.CI_SLOW_RELEVANT,
       results: JSON.parse(process.env.CI_RESULTS || '{}'),
     });
     console.log(result.message);
