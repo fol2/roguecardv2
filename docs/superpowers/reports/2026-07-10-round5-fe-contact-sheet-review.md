@@ -1,244 +1,86 @@
-# Round 5 P6 FE contact-sheet mechanical review
+# Round 5 FE contact-sheet / asset promotion hand-off
 
-**Date:** 2026-07-15 (UTC)  
-**Branch:** `jamesto/round5-front-end-p6`  
-**Worktree:** `.worktrees/round5-front-end`  
-**Reviewer role:** FE (mechanical pre-filter only; not owner taste)
+**Date:** 2026-07-17
+**FE branch:** `jamesto/round5-front-end-p7`
+**PE tip at FE base:** `98e153b8` (`jamesto/round5-production-engineering-continuation`)
 
-## Status
+## Commits
 
-| Field | Value |
-|---|---|
-| **Status** | **PASS** |
-| **FE pre-filter** | **PASS** |
-| **PE tip reviewed** | `f8b09c5b0e98864b1d325d63b318927439c4d8c9` |
-| **Artifact `sourceSha`** | `1681b6119dad2124c49982dce2c158867ba5c6bc` |
-| **FE merge tip (this critique)** | branch HEAD after merge of PE tip (commit stamped below) |
-| **PE recapture** | **NOT REQUIRED** |
-| **WebKit-safe** | **N/A** |
+| Role | SHA | Message |
+|---|---|---|
+| Preparation (docs + scratch candidates) | `f098c1f6` | docs: prepare the Round 5 ship-front candidates |
+| Asset promotion (exactly 13 PNGs) | `5516aba8` | art: promote approved Round 5 ship-front assets |
+| Hand-off report | `5a199630` lineage | docs: record / repair the Round 5 asset promotion hand-off |
+| Backdrop correction | tip after this commit | art: use original act backdrops for boss plates |
 
-Final Task 36 mechanical pre-filter after PE Fall phone-landscape recapture (`00260a65` / evidence tip `f8b09c5b`).
+## Owner decisions (13/13)
 
----
+A/B test applied to boss mid/ledge only:
 
-## Prior FAIL close-out
+- Backdrop → **original** live act plates (`act1/2/3-backdrop` bytes copied into boss backdrop paths). Not arm A.
+- Mid / ledge → arm B (prompt-only; white-void alpha re-applied where needed)
+- Title ×3 + unlock toast → promote (single candidate set)
 
-| Axis | Result on `sourceSha` `1681b6119dad…` |
-|---|---|
-| Contrast (ink on gold primaries) | **PASS** (≥7:1 measured on rewards CONTINUE) |
-| Shop header clip / card overlap | **PASS** |
-| Fall phone-portrait action rail | **PASS** |
-| Fall phone-landscape overflow | **PASS** — full 4×2 stats + VIEW FINAL DECK + RETURN TO THE VIGIL |
-| `title-rose-loading` six-spoke | **PASS** |
-| `dawn-cursor-retry` / `dawn-final-clear-retry` plates | **PASS** |
-| `usurper-item-save-blocked` plate | **PASS** (held from prior tip; still present in matrix) |
-| Non-default browser treatment | **PASS** |
-| Fresh / grown coherence | **PASS** |
-| LITE / REDUCED CSS terminals | **PASS** (stylesheet layer; no separate LITE PNG matrix) |
+| # | Final path | Decision | Source | SHA-256 |
+|---|---|---|---|---|
+| 1 | `src/assets/stage/rootheart-backdrop.png` | promote | original `act1-backdrop` | `9efa43aed645789c1e8d5ba995ae9fbaf4fbd22b6280efbc83eb0ce2c659d743` |
+| 2 | `src/assets/stage/rootheart-mid.png` | promote | B — prompt-only | `02934979993732aea96de4f8168f879fc50e717b9ce617b49b0c5726657e72b0` |
+| 3 | `src/assets/stage/rootheart-ledge.png` | promote | B — prompt-only | `843489d24eadeb07bed7c5fbb896cff1540f562238e7f94f7cb2cd45e364bcbc` |
+| 4 | `src/assets/stage/leviathan-backdrop.png` | promote | original `act2-backdrop` | `3961239760244fcdcb2fb3513a512d080a983d6675b081cd68f8a278a4efff55` |
+| 5 | `src/assets/stage/leviathan-mid.png` | promote | B — prompt-only | `56778d5e8bcb8f7996aff2eedcc0aef8ba2608d25c061d20667393f8028d8e53` |
+| 6 | `src/assets/stage/leviathan-ledge.png` | promote | B — prompt-only | `b9748a5e18a1d75c33fd0f76d5adf41978c902e89f8edae74bb4d7b00586c7fd` |
+| 7 | `src/assets/stage/sovereign-backdrop.png` | promote | original `act3-backdrop` | `b5e9409f1a9854461c84fa51e0f3d0fffd0d8c333b0782ebdac8b8c3306bd0c4` |
+| 8 | `src/assets/stage/sovereign-mid.png` | promote | B — prompt-only | `178920e562a90edd5c48b070cf4e29e946aa4b4add6a6c0706504b81e079e360` |
+| 9 | `src/assets/stage/sovereign-ledge.png` | promote | B — prompt-only | `dd3604fc15ce8cf449b129ae0f53e9f718ba61cebdc80f7ef3292e5a062065f9` |
+| 10 | `src/assets/title/round5-back.png` | promote | non-boss title layer | `a00c44d1c31f2239404d397dfa0852c00b106a05fe6ac26bcb23f02316100c31` |
+| 11 | `src/assets/title/round5-mid.png` | promote | non-boss title layer | `695a967b3fd7d2971ccdf465e8aa3293ac0ba9e00f43a70dbc739a10a60c892d` |
+| 12 | `src/assets/title/round5-foreground.png` | promote | non-boss title layer | `bf4c77031588042ccd0a2973d97d8a9416269198d45b058f77043c79aaccf116` |
+| 13 | `src/assets/meta/unlock-toast-frame.png` | promote | non-boss unlock frame | `7271641a5c54050ba90116d5f282412c961994fac2ad5e20e439bee318e8c8c0` |
 
-No FE CSS changes in this tip — sheets already include Fall landscape fix `1681b611`.
+## Crop / contact-sheet evidence
 
----
+- Stage A contact sheet: `scratch/style-tests/round5/stage/contact-sheet.png`
+- Stage B candidates: `scratch/style-tests/round5/stage/b/`
+- A/B review page: `scratch/style-tests/round5/stage/review-ab.html`
+- Title contact sheet: `scratch/style-tests/round5/title/contact-sheet.png`
+- Meta contact sheet: `scratch/style-tests/round5/meta/contact-sheet.png`
+- Prompt ledgers: `scratch/style-tests/round5/{stage,stage/b,title,meta}/prompt-ledger.md`
 
-## Pass/fail matrix (183 rows)
+## Exact FE write set (promotion paths)
 
-All rows **PASS**. Failures would name screen/state/shape, expected rule, and exact FE CSS change; none remain.
+Exactly these thirteen final paths — no theme/manifest/wiring edits on FE:
 
-| Screen | State | Shape | Result | Expected rule (on FAIL) | Recommended FE CSS (on FAIL) |
-|---|---|---|---|---|---|
-| title | fresh | phone-portrait | PASS | — | — |
-| embark | fresh | phone-portrait | PASS | — | — |
-| fall | fresh | phone-portrait | PASS | — | — |
-| dawn | fresh | phone-portrait | PASS | — | — |
-| rewards | fresh | phone-portrait | PASS | — | — |
-| boss-relic | fresh | phone-portrait | PASS | — | — |
-| shop | fresh | phone-portrait | PASS | — | — |
-| event | fresh | phone-portrait | PASS | — | — |
-| rest | fresh | phone-portrait | PASS | — | — |
-| treasure | fresh | phone-portrait | PASS | — | — |
-| lamplighter | fresh | phone-portrait | PASS | — | — |
-| hollow | fresh | phone-portrait | PASS | — | — |
-| vigil | fresh | phone-portrait | PASS | — | — |
-| map | fresh | phone-portrait | PASS | — | — |
-| title | grown | phone-portrait | PASS | — | — |
-| embark | grown | phone-portrait | PASS | — | — |
-| fall | grown | phone-portrait | PASS | — | — |
-| dawn | grown | phone-portrait | PASS | — | — |
-| rewards | grown | phone-portrait | PASS | — | — |
-| boss-relic | grown | phone-portrait | PASS | — | — |
-| shop | grown | phone-portrait | PASS | — | — |
-| event | grown | phone-portrait | PASS | — | — |
-| rest | grown | phone-portrait | PASS | — | — |
-| treasure | grown | phone-portrait | PASS | — | — |
-| lamplighter | grown | phone-portrait | PASS | — | — |
-| hollow | grown | phone-portrait | PASS | — | — |
-| vigil | grown | phone-portrait | PASS | — | — |
-| map | grown | phone-portrait | PASS | — | — |
-| title | fresh | phone-landscape | PASS | — | — |
-| embark | fresh | phone-landscape | PASS | — | — |
-| fall | fresh | phone-landscape | PASS | — | — |
-| dawn | fresh | phone-landscape | PASS | — | — |
-| rewards | fresh | phone-landscape | PASS | — | — |
-| boss-relic | fresh | phone-landscape | PASS | — | — |
-| shop | fresh | phone-landscape | PASS | — | — |
-| event | fresh | phone-landscape | PASS | — | — |
-| rest | fresh | phone-landscape | PASS | — | — |
-| treasure | fresh | phone-landscape | PASS | — | — |
-| lamplighter | fresh | phone-landscape | PASS | — | — |
-| hollow | fresh | phone-landscape | PASS | — | — |
-| vigil | fresh | phone-landscape | PASS | — | — |
-| map | fresh | phone-landscape | PASS | — | — |
-| title | grown | phone-landscape | PASS | — | — |
-| embark | grown | phone-landscape | PASS | — | — |
-| fall | grown | phone-landscape | PASS | — | — |
-| dawn | grown | phone-landscape | PASS | — | — |
-| rewards | grown | phone-landscape | PASS | — | — |
-| boss-relic | grown | phone-landscape | PASS | — | — |
-| shop | grown | phone-landscape | PASS | — | — |
-| event | grown | phone-landscape | PASS | — | — |
-| rest | grown | phone-landscape | PASS | — | — |
-| treasure | grown | phone-landscape | PASS | — | — |
-| lamplighter | grown | phone-landscape | PASS | — | — |
-| hollow | grown | phone-landscape | PASS | — | — |
-| vigil | grown | phone-landscape | PASS | — | — |
-| map | grown | phone-landscape | PASS | — | — |
-| title | fresh | pad-portrait | PASS | — | — |
-| embark | fresh | pad-portrait | PASS | — | — |
-| fall | fresh | pad-portrait | PASS | — | — |
-| dawn | fresh | pad-portrait | PASS | — | — |
-| rewards | fresh | pad-portrait | PASS | — | — |
-| boss-relic | fresh | pad-portrait | PASS | — | — |
-| shop | fresh | pad-portrait | PASS | — | — |
-| event | fresh | pad-portrait | PASS | — | — |
-| rest | fresh | pad-portrait | PASS | — | — |
-| treasure | fresh | pad-portrait | PASS | — | — |
-| lamplighter | fresh | pad-portrait | PASS | — | — |
-| hollow | fresh | pad-portrait | PASS | — | — |
-| vigil | fresh | pad-portrait | PASS | — | — |
-| map | fresh | pad-portrait | PASS | — | — |
-| title | grown | pad-portrait | PASS | — | — |
-| embark | grown | pad-portrait | PASS | — | — |
-| fall | grown | pad-portrait | PASS | — | — |
-| dawn | grown | pad-portrait | PASS | — | — |
-| rewards | grown | pad-portrait | PASS | — | — |
-| boss-relic | grown | pad-portrait | PASS | — | — |
-| shop | grown | pad-portrait | PASS | — | — |
-| event | grown | pad-portrait | PASS | — | — |
-| rest | grown | pad-portrait | PASS | — | — |
-| treasure | grown | pad-portrait | PASS | — | — |
-| lamplighter | grown | pad-portrait | PASS | — | — |
-| hollow | grown | pad-portrait | PASS | — | — |
-| vigil | grown | pad-portrait | PASS | — | — |
-| map | grown | pad-portrait | PASS | — | — |
-| title | fresh | pad-landscape | PASS | — | — |
-| embark | fresh | pad-landscape | PASS | — | — |
-| fall | fresh | pad-landscape | PASS | — | — |
-| dawn | fresh | pad-landscape | PASS | — | — |
-| rewards | fresh | pad-landscape | PASS | — | — |
-| boss-relic | fresh | pad-landscape | PASS | — | — |
-| shop | fresh | pad-landscape | PASS | — | — |
-| event | fresh | pad-landscape | PASS | — | — |
-| rest | fresh | pad-landscape | PASS | — | — |
-| treasure | fresh | pad-landscape | PASS | — | — |
-| lamplighter | fresh | pad-landscape | PASS | — | — |
-| hollow | fresh | pad-landscape | PASS | — | — |
-| vigil | fresh | pad-landscape | PASS | — | — |
-| map | fresh | pad-landscape | PASS | — | — |
-| title | grown | pad-landscape | PASS | — | — |
-| embark | grown | pad-landscape | PASS | — | — |
-| fall | grown | pad-landscape | PASS | — | — |
-| dawn | grown | pad-landscape | PASS | — | — |
-| rewards | grown | pad-landscape | PASS | — | — |
-| boss-relic | grown | pad-landscape | PASS | — | — |
-| shop | grown | pad-landscape | PASS | — | — |
-| event | grown | pad-landscape | PASS | — | — |
-| rest | grown | pad-landscape | PASS | — | — |
-| treasure | grown | pad-landscape | PASS | — | — |
-| lamplighter | grown | pad-landscape | PASS | — | — |
-| hollow | grown | pad-landscape | PASS | — | — |
-| vigil | grown | pad-landscape | PASS | — | — |
-| map | grown | pad-landscape | PASS | — | — |
-| title | fresh | desktop-landscape | PASS | — | — |
-| embark | fresh | desktop-landscape | PASS | — | — |
-| fall | fresh | desktop-landscape | PASS | — | — |
-| dawn | fresh | desktop-landscape | PASS | — | — |
-| rewards | fresh | desktop-landscape | PASS | — | — |
-| boss-relic | fresh | desktop-landscape | PASS | — | — |
-| shop | fresh | desktop-landscape | PASS | — | — |
-| event | fresh | desktop-landscape | PASS | — | — |
-| rest | fresh | desktop-landscape | PASS | — | — |
-| treasure | fresh | desktop-landscape | PASS | — | — |
-| lamplighter | fresh | desktop-landscape | PASS | — | — |
-| hollow | fresh | desktop-landscape | PASS | — | — |
-| vigil | fresh | desktop-landscape | PASS | — | — |
-| map | fresh | desktop-landscape | PASS | — | — |
-| title | grown | desktop-landscape | PASS | — | — |
-| embark | grown | desktop-landscape | PASS | — | — |
-| fall | grown | desktop-landscape | PASS | — | — |
-| dawn | grown | desktop-landscape | PASS | — | — |
-| rewards | grown | desktop-landscape | PASS | — | — |
-| boss-relic | grown | desktop-landscape | PASS | — | — |
-| shop | grown | desktop-landscape | PASS | — | — |
-| event | grown | desktop-landscape | PASS | — | — |
-| rest | grown | desktop-landscape | PASS | — | — |
-| treasure | grown | desktop-landscape | PASS | — | — |
-| lamplighter | grown | desktop-landscape | PASS | — | — |
-| hollow | grown | desktop-landscape | PASS | — | — |
-| vigil | grown | desktop-landscape | PASS | — | — |
-| map | grown | desktop-landscape | PASS | — | — |
-| title | rose-absent | desktop-landscape | PASS | — | — |
-| title | title-rose-loading | desktop-landscape | PASS | — | — |
-| title | title-rose-inert | desktop-landscape | PASS | — | — |
-| title | title-rose-ready | desktop-landscape | PASS | — | — |
-| vigil | rose-raster-ready | desktop-landscape | PASS | — | — |
-| vigil | rose-fallback-ready | desktop-landscape | PASS | — | — |
-| vigil | rose-pane-dormant | desktop-landscape | PASS | — | — |
-| vigil | rose-pane-armed | desktop-landscape | PASS | — | — |
-| vigil | rose-pane-revealed | desktop-landscape | PASS | — | — |
-| vigil | rose-pane-complete | desktop-landscape | PASS | — | — |
-| vigil | rose-pane-selected | desktop-landscape | PASS | — | — |
-| vigil | rose-whispers-ready | desktop-landscape | PASS | — | — |
-| vigil | rose-six-shards | desktop-landscape | PASS | — | — |
-| hollow | hollow-unpaid | desktop-landscape | PASS | — | — |
-| hollow | hollow-pay-pressed | desktop-landscape | PASS | — | — |
-| hollow | hollow-save-retry | desktop-landscape | PASS | — | — |
-| hollow | hollow-paid | desktop-landscape | PASS | — | — |
-| hollow | hollow-continue-closed | desktop-landscape | PASS | — | — |
-| hollow | hollow-return-closed | desktop-landscape | PASS | — | — |
-| hollow | hollow-route-recovery | desktop-landscape | PASS | — | — |
-| map | map-witchlight-marked | desktop-landscape | PASS | — | — |
-| map | map-eighth-echo-held | desktop-landscape | PASS | — | — |
-| map | sealed-door-hidden | desktop-landscape | PASS | — | — |
-| map | sealed-door-visible | desktop-landscape | PASS | — | — |
-| map | sealed-door-promise-open | desktop-landscape | PASS | — | — |
-| map | map-drag-suppressed | desktop-landscape | PASS | — | — |
-| end | dawn-whisper-held | desktop-landscape | PASS | — | — |
-| end | dawn-quest-reveal-held | desktop-landscape | PASS | — | — |
-| end | dawn-quest-progress-held | desktop-landscape | PASS | — | — |
-| end | dawn-quest-unlock-held | desktop-landscape | PASS | — | — |
-| end | dawn-page-read-held | desktop-landscape | PASS | — | — |
-| end | dawn-eighth-resolved-held | desktop-landscape | PASS | — | — |
-| end | dawn-shade-resolved-held | desktop-landscape | PASS | — | — |
-| end | dawn-quest-complete-held | desktop-landscape | PASS | — | — |
-| end | dawn-shard-grant-held | desktop-landscape | PASS | — | — |
-| end | dawn-act4-promise-held | desktop-landscape | PASS | — | — |
-| end | dawn-cursor-retry | desktop-landscape | PASS | — | — |
-| end | dawn-final-clear-retry | desktop-landscape | PASS | — | — |
-| shop | usurper-item-normal | desktop-landscape | PASS | — | — |
-| shop | usurper-item-poor | desktop-landscape | PASS | — | — |
-| shop | usurper-item-save-blocked | desktop-landscape | PASS | — | — |
-| shop | usurper-item-sold | desktop-landscape | PASS | — | — |
-| end | fall-unpaid-shade-bequest | desktop-landscape | PASS | — | — |
+```
+src/assets/stage/rootheart-backdrop.png
+src/assets/stage/rootheart-mid.png
+src/assets/stage/rootheart-ledge.png
+src/assets/stage/leviathan-backdrop.png
+src/assets/stage/leviathan-mid.png
+src/assets/stage/leviathan-ledge.png
+src/assets/stage/sovereign-backdrop.png
+src/assets/stage/sovereign-mid.png
+src/assets/stage/sovereign-ledge.png
+src/assets/title/round5-back.png
+src/assets/title/round5-mid.png
+src/assets/title/round5-foreground.png
+src/assets/meta/unlock-toast-frame.png
+```
 
----
+## Frozen final-path interface (for PE Task 39)
 
-## Report card
+PE must merge this report-hand-off head and wire:
 
-| Item | Value |
-|---|---|
-| Status | **PASS** |
-| PE tip | `f8b09c5b` |
-| Artifact sourceSha | `1681b6119dad` |
-| FE pre-filter | **PASS** |
-| PE recapture needed | **NO** |
-| WebKit-safe | **N/A** |
+- theme `bossPlates` for `rootheart` / `leviathan` / `sovereign` → the three plate ids each (backdrop bytes match act originals; mid/ledge are B)
+- absent boss override → act-standard plates
+- title layers `round5-back` / `round5-mid` / `round5-foreground` with legacy `title.png` / title-background fallback
+- `unlock-toast-frame` with existing deed/content illustration fallback
+
+## PE rollback requirements (PE must record)
+
+Before/when merging, PE records in the P7 hand-off:
+
+- `PE_PRE_FE_P7` (pre-merge SHA)
+- `FE_P7_MERGE` (merge commit)
+- rollback: `git revert -m 1 "$FE_P7_MERGE"`
+
+FE does not edit PE theme/capture code.
