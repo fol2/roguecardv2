@@ -125,7 +125,7 @@ async function stageShot(page, shot, origin) {
   await page.evaluate(([seed, isGrown, seedVigil]) => {
     const sp = window.spirebound;
     localStorage.removeItem('spirebound_save_v2');
-    sp.Vigil.save({ ...seedVigil, quests: { ...(seedVigil.quests || {}) } });
+    sp.Vigil.saveVigil({ ...seedVigil, quests: { ...(seedVigil.quests || {}) } });
     sp.S.run = sp.E.newRun(seed, {
       aspect: 0,
       reveals: isGrown
