@@ -2592,11 +2592,78 @@ html.freeze[data-freeze-keep-bg3d] #bg3d { visibility: visible !important; }
   }
   .rose-tab-open .rose-view .rose-window { grid-column: 1; grid-row: 1 / 3; }
   .rose-tab-open .rose-view .rose-pane-detail { grid-column: 2; grid-row: 1; width: 100%; }
-  .rose-tab-open .rose-assets .rose-pane-copy { width: 27.5%; }
-  .rose-tab-open .rose-assets .rose-pane-select { width: 27.5%; min-height: 52px; }
+  /* Landscape rose window is short: keep asset labels inside the frame, and
+   * shrink fallback slot chrome so mark/copy fit without scroll overflow. */
+  .rose-tab-open .rose-assets .rose-pane-copy {
+    width: 32%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    left: clamp(20%, var(--rose-x), calc(100% - 20%));
+    top: clamp(16%, var(--rose-y), calc(100% - 16%));
+    padding: 2px 3px;
+  }
+  .rose-tab-open .rose-assets .rose-pane-select {
+    width: 30%;
+    height: 12%;
+    min-width: 0;
+    min-height: 0;
+    max-height: 36px;
+    left: clamp(18%, var(--rose-x), calc(100% - 18%));
+    top: clamp(18%, var(--rose-y), calc(100% - 18%));
+  }
   .rose-tab-open .rose-assets .rose-pane-name,
   .rose-tab-open .rose-assets .rose-pane-progress,
-  .rose-tab-open .rose-assets .rose-pane-mystery { font-size: 7px; }
+  .rose-tab-open .rose-assets .rose-pane-mystery {
+    font-size: 6px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rose-tab-open .rose-fallback {
+    gap: 3px;
+    padding: 3px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
+  }
+  .rose-tab-open .rose-fallback .rose-slot {
+    min-height: 0;
+    padding: 2px;
+    gap: 1px;
+    overflow: hidden;
+    justify-content: center;
+  }
+  .rose-tab-open .rose-fallback .rose-slot-mark {
+    line-height: 0;
+    flex: 0 0 auto;
+    max-height: 16px;
+    overflow: hidden;
+  }
+  .rose-tab-open .rose-fallback .rose-slot-mark svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+  }
+  .rose-tab-open .rose-fallback .rose-pane-copy {
+    flex: 0 0 auto;
+    font-size: 5px;
+    line-height: 1;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 0;
+  }
+  .rose-tab-open .rose-fallback .rose-pane-name,
+  .rose-tab-open .rose-fallback .rose-pane-progress,
+  .rose-tab-open .rose-fallback .rose-pane-mystery {
+    font-size: 5px;
+    line-height: 1;
+    margin: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .rose-tab-open .rose-view .rose-fallback { width: 100% !important; }
   .rose-tab-open .rose-view .whisper-log { grid-column: 2; grid-row: 2; width: 100%; }
   .end-screen:has(.dawn-ceremony) {

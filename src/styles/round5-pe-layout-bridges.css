@@ -257,18 +257,24 @@
     align-items: center;
     text-align: center;
     padding-top: calc(18px + var(--sat) + 32px);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
 
   #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .end-title,
   #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .ov-sub {
     width: 100%;
+    max-width: 100%;
     text-align: center;
+    box-sizing: border-box;
   }
 
   #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .dawn-ceremony,
   #screen .r5-end--victory.end-screen:has(.dawn-ceremony) > .stats-grid.r5-dawn-ledger {
-    width: min(92cqw, 560px);
-    max-width: min(92cqw, 560px);
+    width: min(88cqw, 560px);
+    max-width: min(88cqw, 100%);
     flex: 0 0 auto;
     min-width: 0;
     box-sizing: border-box;
@@ -416,7 +422,7 @@
     grid-template-rows: auto auto minmax(0, 1fr) auto;
     align-items: stretch;
     justify-items: stretch;
-    padding: calc(50px + var(--sat)) calc(12px + var(--sar)) calc(4px + var(--sab)) calc(12px + var(--sal));
+    padding: calc(50px + var(--sat)) calc(12px + var(--sar)) calc(8px + var(--sab)) calc(12px + var(--sal));
     gap: 3px 12px;
     overflow: hidden;
   }
@@ -462,8 +468,9 @@
     justify-items: center;
     align-self: stretch;
     height: auto;
-    min-height: 219px;
-    max-height: none;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
   }
 
   #screen .r5-end.end-screen:has(.dawn-ceremony) > .stats-grid,
