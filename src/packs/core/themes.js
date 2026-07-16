@@ -144,7 +144,13 @@ export const THEMES = {
     },
     mapHaze: "text-dim",
     lanternLights: [],
-    bossPlates: {},
+    bossPlates: {
+      rootheart: {
+        backdrop: "rootheart-backdrop",
+        mid: "rootheart-mid",
+        ledge: "rootheart-ledge",
+      },
+    },
   },
   act2: {
     legacyAct: {
@@ -283,7 +289,13 @@ export const THEMES = {
     },
     mapHaze: "text-dim",
     lanternLights: [],
-    bossPlates: {},
+    bossPlates: {
+      leviathan: {
+        backdrop: "leviathan-backdrop",
+        mid: "leviathan-mid",
+        ledge: "leviathan-ledge",
+      },
+    },
   },
   act3: {
     legacyAct: {
@@ -426,6 +438,12 @@ export const THEMES = {
     },
     mapHaze: "text-dim",
     lanternLights: [],
-    bossPlates: {},
+    bossPlates: {
+      sovereign: {
+        backdrop: "sovereign-backdrop",
+        mid: "sovereign-mid",
+        ledge: "sovereign-ledge",
+      },
+    },
   },
 };

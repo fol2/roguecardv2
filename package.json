@@ -35,6 +35,7 @@
     "test:e2e:webkit-lab": "playwright test lab theme-profile --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps",
     "test:e2e:webkit-screens": "playwright test production-profile p6-screens --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps",
     "capture:round5:contact-sheets": "node tools/capture-round5-contact-sheets.mjs",
+    "capture:store-kit": "node tools/capture-store-kit.mjs",
     "project:round5:layout": "node tools/run-with-strict-e2e-port.mjs -- node tools/project-round5-layout.mjs",
     "project:round5:layout:golden": "LAYOUT_PROJECTION_MODE=golden node tools/run-with-strict-e2e-port.mjs -- node tools/project-round5-layout.mjs",
     "project:round5:layout:compare": "LAYOUT_PROJECTION_MODE=compare node tools/run-with-strict-e2e-port.mjs -- node tools/project-round5-layout.mjs",

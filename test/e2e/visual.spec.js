@@ -10,7 +10,7 @@
 // green, then commit the -snapshots folders.
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { boot, startFight, stable, freeze, settle, expectScreenshot } from './helpers.js';
 import { mixedLedger, completeLedger, seed } from './emberglass-fixtures.js';
 
@@ -337,3 +337,32 @@ for (const row of P6_VISUAL_CASES) {
     });
   }
 }
+
+// Task 39 — declared ship-front visual contract (ids / fallbacks; no new snapshots here).
+test('shipfront visual contract declares boss overrides, title layers, unlock frame', async () => {
+  const { TITLE_PARALLAX_LAYER_IDS, TITLE_PARALLAX_FALLBACK_ID } = await import('../../src/ui/tokens.js');
+  const {
+    TITLE_LAYER_IDS, TITLE_FALLBACK_ID, UNLOCK_TOAST_FRAME_ID,
+  } = await import('../../src/ui/shipfront-assets.js');
+  const bosses = ['rootheart', 'leviathan', 'sovereign'];
+  const layers = ['backdrop', 'mid', 'ledge'];
+  for (const boss of bosses) {
+    for (const layer of layers) {
+      test.info().annotations.push({
+        type: 'shipfront',
+        description: `${boss}-${layer} boss override plate`,
+      });
+    }
+  }
+  test.info().annotations.push({
+    type: 'shipfront',
+    description: 'absent boss override → act-standard plates',
+  });
+  expect(TITLE_LAYER_IDS).toEqual([...TITLE_PARALLAX_LAYER_IDS]);
+  expect(TITLE_FALLBACK_ID).toBe(TITLE_PARALLAX_FALLBACK_ID);
+  expect(TITLE_PARALLAX_LAYER_IDS).toEqual([
+    'round5-back', 'round5-mid', 'round5-foreground',
+  ]);
+  expect(TITLE_PARALLAX_FALLBACK_ID).toBe('title');
+  expect(UNLOCK_TOAST_FRAME_ID).toBe('unlock-toast-frame');
+});

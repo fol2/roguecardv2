@@ -7103,6 +7103,71 @@ function randomAgentRun(seed) {
     assert.equal(titleRosePhase({ shardCount: 1, assets: {} }), 'loading');
   }
 
+  // Task 39 — ship-front resolver contracts (pure).
+  {
+    const {
+      resolveCombatPlates, resolveTitleLayers, resolveUnlockToastFrame,
+      validateStoreShotList, TITLE_LAYER_IDS, TITLE_FALLBACK_ID, UNLOCK_TOAST_FRAME_ID,
+    } = await import('../src/ui/shipfront-assets.js');
+    const act1 = {
+      plates: { backdrop: 'act1-backdrop', mid: 'act1-mid', ledge: 'act1-ledge' },
+      bossPlates: {
+        rootheart: {
+          backdrop: 'rootheart-backdrop', mid: 'rootheart-mid', ledge: 'rootheart-ledge',
+        },
+      },
+    };
+    const all = new Set([
+      'act1-backdrop', 'act1-mid', 'act1-ledge',
+      'rootheart-backdrop', 'rootheart-mid', 'rootheart-ledge',
+      'round5-back', 'round5-mid', 'round5-foreground', 'title',
+      'unlock-toast-frame',
+    ]);
+    assert.deepEqual(
+      resolveCombatPlates(act1, { kind: 'boss', bossId: 'rootheart' }, all),
+      { backdrop: 'rootheart-backdrop', mid: 'rootheart-mid', ledge: 'rootheart-ledge' },
+    );
+    assert.deepEqual(
+      resolveCombatPlates(act1, { kind: 'normal', bossId: 'rootheart' }, all),
+      { backdrop: 'act1-backdrop', mid: 'act1-mid', ledge: 'act1-ledge' },
+      'normal fights never consume boss overrides',
+    );
+    assert.deepEqual(
+      resolveCombatPlates(act1, { kind: 'boss', bossId: 'missing' }, all),
+      { backdrop: 'act1-backdrop', mid: 'act1-mid', ledge: 'act1-ledge' },
+      'absent boss override resolves act-standard plates',
+    );
+    const noBossArt = new Set(['act1-backdrop', 'act1-mid', 'act1-ledge']);
+    assert.deepEqual(
+      resolveCombatPlates(act1, { kind: 'boss', bossId: 'rootheart' }, noBossArt),
+      { backdrop: 'act1-backdrop', mid: 'act1-mid', ledge: 'act1-ledge' },
+      'unavailable boss plate ids fall back to act plates',
+    );
+    assert.deepEqual(resolveTitleLayers(all), [...TITLE_LAYER_IDS]);
+    assert.deepEqual(
+      resolveTitleLayers(new Set(['title'])),
+      [TITLE_FALLBACK_ID, TITLE_FALLBACK_ID, TITLE_FALLBACK_ID],
+    );
+    assert.equal(resolveUnlockToastFrame(all), UNLOCK_TOAST_FRAME_ID);
+    assert.equal(resolveUnlockToastFrame(new Set()), null);
+    const shots = [
+      { id: 'title', seed: 1, shape: 'desktop-landscape', profile: 'fresh' },
+      { id: 'combat', seed: 2, shape: 'desktop-landscape', profile: 'fresh' },
+      { id: 'map', seed: 3, shape: 'desktop-landscape', profile: 'fresh' },
+      { id: 'rose-window', seed: 4, shape: 'desktop-landscape', profile: 'grown' },
+      { id: 'boss', seed: 5, shape: 'desktop-landscape', profile: 'grown' },
+    ];
+    assert.equal(validateStoreShotList(shots).ok, true);
+    assert.equal(validateStoreShotList(shots.slice(0, 4)).ok, false);
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    assert.equal(pkg.scripts['capture:store-kit'], 'node tools/capture-store-kit.mjs');
+    const genIcons = readFileSync(new URL('../tools/gen-icons.sh', import.meta.url), 'utf8');
+    assert.match(genIcons, /--public-only/);
+    assert.match(genIcons, /requires explicit --source/);
+  }
+
+
+
   // tween.js honours REDUCED policy by applying endState once.
   const { tween, runNamedCeremony } = await import('../src/ui/tween.js');
   {

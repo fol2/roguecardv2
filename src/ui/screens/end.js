@@ -6,6 +6,7 @@ import {
   screenPresentationAttrs,
 } from '../tokens.js';
 import { runPhasedCeremony } from '../tween.js';
+import { resolveUnlockToastFrame } from '../shipfront-assets.js';
 
 const DAWN_OMEN_SFX = new Set([
   'whisper', 'questReveal', 'questProgress', 'pageRead', 'eighthResolved', 'shadeResolved', 'act4Reveal',
@@ -110,10 +111,26 @@ export function createEndScreen(deps) {
     return { icon: `${kindIcon}${iconSvg('coin', 20)}`, name: tr('ui.end.bequestNote.gold', { n: o.amount }), note: tr('ui.end.bequestNote.goldCache') };
   }
   function unlockToastInfo(u) {
-    if (u === 'aspect2') return { kind: tr('ui.end.unlock.aspect'), name: tr('ui.end.unlock.ashwarden') };
+    if (u === 'aspect2') {
+      return {
+        kind: tr('ui.end.unlock.aspect'),
+        name: tr('ui.end.unlock.ashwarden'),
+        art: assetUrl('heroes', 'ashwarden') || assetUrl('deeds', 'aspect2'),
+      };
+    }
     const [k, id] = u.split(':');
-    if (k === 'card') return { kind: tr('ui.end.unlock.card'), name: runCatalogues().cards[id]?.name || id };
-    return { kind: tr('ui.end.unlock.relic'), name: runCatalogues().relics[id]?.name || id };
+    if (k === 'card') {
+      return {
+        kind: tr('ui.end.unlock.card'),
+        name: runCatalogues().cards[id]?.name || id,
+        art: assetUrl('cards', id),
+      };
+    }
+    return {
+      kind: tr('ui.end.unlock.relic'),
+      name: runCatalogues().relics[id]?.name || id,
+      art: assetUrl('relics', id),
+    };
   }
   function showUnlockToasts(list = [], runId = S.run?.runId) {
     if (!list.length) return;
@@ -121,11 +138,23 @@ export function createEndScreen(deps) {
     if (!stillOnEnd()) return;
     let host = $('#toasts');
     if (!host) { host = el('div'); host.id = 'toasts'; stageEl().appendChild(host); }
+    const frameId = resolveUnlockToastFrame((id) => !!assetUrl('meta', id));
+    const frameUrl = frameId ? assetUrl('meta', frameId) : null;
     list.forEach((u, i) => {
       const info = unlockToastInfo(u);
       setTimeout(() => {
         if (!stillOnEnd()) return;
-        const t = el('div', 'unlock-toast', `<div class="ut-kind">${tr('ui.end.unlock.header', { kind: info.kind })}</div><div class="ut-name">${info.name}</div>`);
+        const art = info.art
+          ? `<img class="ut-art" src="${escHtml(info.art)}" alt="" aria-hidden="true">`
+          : '';
+        const frame = frameUrl
+          ? `<img class="ut-frame" src="${escHtml(frameUrl)}" alt="" aria-hidden="true" data-frame-id="${escHtml(frameId)}">`
+          : '';
+        const t = el(
+          'div',
+          `unlock-toast${frameUrl ? ' unlock-toast-framed' : ''}`,
+          `${frame}${art}<div class="ut-kind">${tr('ui.end.unlock.header', { kind: info.kind })}</div><div class="ut-name">${info.name}</div>`,
+        );
         host.appendChild(t);
         globalThis.requestAnimationFrame(() => t.classList.add('in'));
         sfx.relic();

@@ -46,8 +46,10 @@ import {
 import {
   handSeatCenter as pureHandSeatCenter, handZoneWidth as pureHandZoneWidth,
 } from './hand-layout.js';
+import { resolveCombatPlates } from './shipfront-assets.js';
 
 const runCatalogues = () => contentViewFor(S.run);
+const stageAssetAvailable = (id) => !!assetUrl('stage', id);
 
 /**
  * Construct the combat presentation owner. Cross-owner operations are injected
@@ -514,13 +516,20 @@ function renderCombat() {
   const theme = themeForRun(S.run);
   const glow = theme?.legacyAct?.theme?.glow ?? 0x66ff9e;
   const ledge = `#${glow.toString(16).padStart(6, '0')}`;
-  const plates = theme?.plates || {};
+  const bossId = cb.kind === 'boss'
+    ? (cb.enemies.find((en) => (en.def || runCatalogues().enemies[en.key])?.boss)?.key
+      || cb.enemies[0]?.key
+      || null)
+    : null;
+  const plates = resolveCombatPlates(theme, { kind: cb.kind, bossId }, stageAssetAvailable);
   const pixiActive = glActive();
   const combatScreenClass = `combat-screen screen-enter intro${pixiActive ? ' pixi-bottom-chrome pixi-plate-chrome' : ''}`;
-  sc.innerHTML = `<div class="${combatScreenClass}" style="--ledge:${ledge}">
+  sc.innerHTML = `<div class="${combatScreenClass}" style="--ledge:${ledge}" data-plate-boss="${bossId || ''}">
     ${['backdrop', 'mid', 'ledge'].map((l) => {
       const u = assetUrl('stage', plates[l]);
-      return u ? `<img class="sl sl-${l}" src="${u}" alt="" aria-hidden="true">` : '';
+      return u
+        ? `<img class="sl sl-${l}" data-plate-id="${plates[l]}" src="${u}" alt="" aria-hidden="true">`
+        : '';
     }).join('')}
     <div class="stage-dim" aria-hidden="true"></div>
     <div class="stage-ledge"></div>

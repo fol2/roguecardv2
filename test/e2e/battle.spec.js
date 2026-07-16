@@ -220,6 +220,58 @@ test('boss death reaches the rewards screen with the world restored', async ({ p
   expectNoErrors(errors, 'boss death');
 });
 
+test('boss encounters resolve boss plate ids; normal fights keep act plates', async ({ page }) => {
+  const errors = collectErrors(page);
+  await boot(page);
+
+  await startFight(page, ['rootheart'], 'boss');
+  let plates = await page.evaluate(() => ({
+    backdrop: document.querySelector('.sl-backdrop')?.dataset.plateId || null,
+    mid: document.querySelector('.sl-mid')?.dataset.plateId || null,
+    ledge: document.querySelector('.sl-ledge')?.dataset.plateId || null,
+  }));
+  expect(plates).toEqual({
+    backdrop: 'rootheart-backdrop',
+    mid: 'rootheart-mid',
+    ledge: 'rootheart-ledge',
+  });
+
+  await startFight(page, ['duskfang'], 'normal');
+  plates = await page.evaluate(() => ({
+    backdrop: document.querySelector('.sl-backdrop')?.dataset.plateId || null,
+    mid: document.querySelector('.sl-mid')?.dataset.plateId || null,
+    ledge: document.querySelector('.sl-ledge')?.dataset.plateId || null,
+  }));
+  expect(plates).toEqual({
+    backdrop: 'act1-backdrop',
+    mid: 'act1-mid',
+    ledge: 'act1-ledge',
+  });
+
+  // Deliberately absent boss override on a boss fight → act-standard plates.
+  await page.evaluate(() => {
+    const theme = window.spirebound.S.run
+      ? window.spirebound.themeForRun?.(window.spirebound.S.run)
+      : null;
+    // Force an unknown boss id through startCombatUI with a boss kind but no override key.
+    window.spirebound.startCombatUI(['duskfang'], 'boss');
+  });
+  await settle(page);
+  plates = await page.evaluate(() => ({
+    backdrop: document.querySelector('.sl-backdrop')?.dataset.plateId || null,
+    mid: document.querySelector('.sl-mid')?.dataset.plateId || null,
+    ledge: document.querySelector('.sl-ledge')?.dataset.plateId || null,
+    kind: window.spirebound.S.cb?.kind,
+    bossKey: window.spirebound.S.cb?.enemies?.[0]?.key,
+  }));
+  expect(plates.kind).toBe('boss');
+  expect(plates.bossKey).toBe('duskfang');
+  expect(plates.backdrop).toBe('act1-backdrop');
+  expect(plates.mid).toBe('act1-mid');
+  expect(plates.ledge).toBe('act1-ledge');
+  expectNoErrors(errors, 'boss plate resolution');
+});
+
 test('lantern art fires clean', async ({ page }) => {
   const errors = collectErrors(page);
   await boot(page);
