@@ -5883,7 +5883,13 @@ function randomAgentRun(seed) {
   checkManifest('boons', Object.keys(BOONS));
   checkManifest('arts', Object.keys(ARTS));
   checkManifest('heroes', ASPECTS.map((a) => a.id));
-  checkManifest('stage', [1, 2, 3].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => `act${a}-${l}`)));
+  const BOSS_STAGE_OPTIONAL = ['rootheart', 'leviathan', 'sovereign']
+    .flatMap((boss) => ['backdrop', 'mid', 'ledge'].map((l) => `${boss}-${l}`));
+  checkManifest(
+    'stage',
+    [1, 2, 3].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => `act${a}-${l}`)),
+    BOSS_STAGE_OPTIONAL,
+  );
   checkManifest('props', ['campfire', 'chest', 'chest-open', 'merchant']);
   checkManifest('statuses', Object.keys(STATUS_INFO));
   checkManifest('deeds', Object.keys(DEEDS));
@@ -5892,7 +5898,7 @@ function randomAgentRun(seed) {
     'emberglass-mural', 'emberglass-frame',
     ...QUEST_IDS.map((id) => 'emberglass-mask-' + id),
   ];
-  checkManifest('meta', ['fallen', 'ascended', 'monument-node'], ROSE_OPTIONAL);
+  checkManifest('meta', ['fallen', 'ascended', 'monument-node'], [...ROSE_OPTIONAL, 'unlock-toast-frame']);
   {
     const roseIds = [
       'emberglass-mural', 'emberglass-frame',
