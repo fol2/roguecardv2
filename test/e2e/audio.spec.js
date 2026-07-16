@@ -458,6 +458,9 @@ test('PR16 sealed-door close restores the selected Eighth Map cue', async ({ pag
 });
 
 test('PR16 nominal boss victory holds its cue through reward and boss-relic navigation', async ({ page }) => {
+  // Full-motion Rootheart death + reward/bossRelic nav regularly exceeds the
+  // suite's 90s default under CI dual-worker load (victory cue itself is fine).
+  test.setTimeout(120_000);
   await boot(page);
   let cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
   await startFight(page, ['rootheart'], 'boss');
