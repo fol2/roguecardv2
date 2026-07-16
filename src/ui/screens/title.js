@@ -8,7 +8,7 @@ import {
   titleRosePhase,
 } from '../tokens.js';
 import { runNamedCeremony } from '../tween.js';
-import { setRoseDecodeFailed } from '../rose.js';
+import { decodeRoseImage, setRoseDecodeFailed } from '../rose.js';
 
 /** Once-per-page-session wordmark ignition. */
 let titleIgnitionDone = false;
@@ -70,15 +70,7 @@ export function createTitleScreen(deps) {
       return;
     }
     const images = $$('.title-rose-preload img', medallion);
-    const decode = (image) => {
-      if (image.decode) return image.decode();
-      if (image.complete) return image.naturalWidth ? Promise.resolve() : Promise.reject(new Error('Rose asset failed to load'));
-      return new Promise((resolve, reject) => {
-        image.addEventListener('load', resolve, { once: true });
-        image.addEventListener('error', reject, { once: true });
-      });
-    };
-    Promise.all(images.map(decode))
+    Promise.all(images.map(decodeRoseImage))
       .then(() => {
         if (!medallion.isConnected) return;
         medallion.disabled = false;

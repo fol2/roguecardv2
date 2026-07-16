@@ -37,11 +37,21 @@ async function openBfEditor(page, params = {}) {
   });
   // Editor immediately rewrites the query (bfa/bfh/bft); that second navigation
   // aborts Playwright's goto wait even at domcontentloaded — commit + settle.
-  try {
-    await page.goto(`/?${query.toString()}`, { waitUntil: 'commit' });
-  } catch (error) {
-    if (!/interrupted by another navigation/i.test(String(error?.message || error))) throw error;
+  // After /__bf-save Vite can also restart mid-goto (net::ERR_ABORTED).
+  const navAbort = /interrupted by another navigation|ERR_ABORTED|net::ERR_/i;
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await page.goto(`/?${query.toString()}`, { waitUntil: 'commit' });
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+      if (!navAbort.test(String(error?.message || error))) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
   }
+  if (lastError && !navAbort.test(String(lastError?.message || lastError))) throw lastError;
   await page.waitForFunction(() => Boolean(
     typeof window.__bfEditor?.resolved === 'function'
     && typeof window.__bfEditor?.working === 'function'
@@ -51,7 +61,7 @@ async function openBfEditor(page, params = {}) {
     && document.querySelector('#bf-toolbar')
     && document.querySelector('#bf-panel')
     && document.querySelector('.bf-box[data-bf="hero"]')
-  ));
+  ), null, { timeout: 30_000 });
 }
 
 async function waitForEditorOverlayStable(page) {

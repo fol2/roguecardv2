@@ -53,3 +53,22 @@ export function getRoseState() {
     stateIds: Object.freeze([...disclosedRoseStateIds]),
   });
 }
+
+/** Load then decode — Chromium can leave bare decode() pending on in-flight src. */
+export function decodeRoseImage(image) {
+  const ensureLoaded = () => {
+    if (image.complete) {
+      return image.naturalWidth
+        ? Promise.resolve()
+        : Promise.reject(new Error('Rose asset failed to load'));
+    }
+    return new Promise((resolve, reject) => {
+      image.addEventListener('load', () => {
+        if (image.naturalWidth) resolve();
+        else reject(new Error('Rose asset failed to load'));
+      }, { once: true });
+      image.addEventListener('error', () => reject(new Error('Rose asset failed to load')), { once: true });
+    });
+  };
+  return ensureLoaded().then(() => (image.decode ? image.decode() : undefined));
+}

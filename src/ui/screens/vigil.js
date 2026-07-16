@@ -6,6 +6,7 @@ import {
   screenPresentationAttrs,
 } from '../tokens.js';
 import { runNamedCeremony } from '../tween.js';
+import { decodeRoseImage } from '../rose.js';
 
 export function createVigilScreen(deps) {
   const {
@@ -179,7 +180,7 @@ function decodeRoseAssets(root) {
   const rose = $('.rose-window.rose-assets', root);
   if (!rose) return;
   const images = $$('.rose-preload img', rose);
-  Promise.all(images.map((image) => image.decode ? image.decode() : Promise.resolve()))
+  Promise.all(images.map(decodeRoseImage))
     .then(() => {
       if (!rose.isConnected) return;
       rose.classList.add('ready');

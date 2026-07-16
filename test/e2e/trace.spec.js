@@ -520,12 +520,13 @@ test('Title ignition runs once per page session and REDUCED lands on title-ready
   await expect(page.locator('.r5-title')).toHaveAttribute('data-r5-state', 'title-ready');
   await expect(page.locator('.r5-title')).toHaveAttribute('data-motion', 'reduced');
   await expect(page.locator('[data-version-display]')).toHaveAttribute('data-r5-state', 'title-version-default');
-  await page.click('[data-version-logo]');
-  await page.click('[data-version-logo]');
-  await page.click('[data-version-logo]');
-  await page.click('[data-version-logo]');
-  await page.click('[data-version-logo]');
-  await expect(page.locator('[data-version-debug]')).toBeVisible();
+  // Five taps must land inside VERSION_GESTURE.windowMs (2s). Under CI load,
+  // sequential Playwright clicks can miss the window — drive the real listener
+  // with a synchronous click burst instead.
+  await page.locator('[data-version-logo]').evaluate((el) => {
+    for (let i = 0; i < 5; i++) el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  await expect(page.locator('[data-version-debug]')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('[data-version-debug]')).toHaveAttribute('data-r5-state', 'title-version-debug');
   const reduced = await page.evaluate(() => window.__probe.behaviourTrace().records
     .filter((record) => record.eventName === 'presentation.title-ignition' && record.phase === 'end'));

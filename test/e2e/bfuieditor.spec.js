@@ -32,10 +32,15 @@ async function openBfuiEditor(page, params = {}) {
     shape: 'desktop-landscape',
     ...params,
   });
-  try {
-    await page.goto(`/?${query.toString()}`, { waitUntil: 'commit' });
-  } catch (error) {
-    if (!/interrupted by another navigation/i.test(String(error?.message || error))) throw error;
+  const navAbort = /interrupted by another navigation|ERR_ABORTED|net::ERR_/i;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await page.goto(`/?${query.toString()}`, { waitUntil: 'commit' });
+      break;
+    } catch (error) {
+      if (!navAbort.test(String(error?.message || error))) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
   }
   await page.waitForFunction(() => Boolean(
     typeof window.__bfuiEditor?.resolved === 'function'
