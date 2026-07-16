@@ -6765,6 +6765,14 @@ git commit -m "docs: approve the P6 FE contact-sheet pre-filter"
 - Consumes the owner's non-delegable taste decision and produces the PE-owned
   gate evidence: `Decision: GO TO P7` or `Decision: P6 PREFIX EXIT`.
 
+> **Addendum (2026-07-16, owner-directed) — branch mapping:** every
+> `codex/round5-production-engineering` reference in Tasks 37–40 scripts means
+> the live PE standing branch, currently
+> `jamesto/round5-production-engineering-continuation` (Draft PR #27).
+> Substitute it verbatim in push/PR/ancestor commands; the branch was renamed
+> when execution moved runtimes, and the plan's scripts were not rewritten to
+> avoid churning reviewed text.
+>
 > **Addendum (2026-07-16, owner-directed):** the per-suite peel CI topology was
 > replaced during Task 37 by the duration-balanced pool —
 > `docs/superpowers/specs/2026-07-16-e2e-pool-shards-design.md`. Invariants for
