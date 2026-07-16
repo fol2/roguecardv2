@@ -1119,10 +1119,9 @@ test.describe('Round 5 production Pixi layer', () => {
     const png2 = await encodeUigl(page);
     expect(png1).toBe(png2);
 
-    // Release page1's freeze before a second page boots — landscape CI already
-    // spent most of the default 90s budget on the first encode, and a frozen
-    // ticker + live WebGL owners starve the sibling page's Pixi ready.
-    await page.evaluate(() => window.__probe.unfreeze());
+    // Park page1 so its three live WebGL owners do not starve a sibling page
+    // on CI landscape (Pixi never reaches ready while page1 still holds GL).
+    await page.goto('about:blank');
 
     // Second fresh page at the same frozen tick must also match.
     const page2 = await page.context().newPage();
@@ -1139,6 +1138,22 @@ test.describe('Round 5 production Pixi layer', () => {
     const png3 = await encodeUigl(page2);
     expect(png1).toBe(png3);
     await page2.close();
+
+    // Restore page1 for context-recovery + shake evidence on one session.
+    await page.goto('/?trace=1&shape=desktop-landscape');
+    await page.waitForFunction(() => window.spirebound?.pixi?.status() === 'ready', null, {
+      timeout: 30_000,
+    });
+    await page.evaluate(async () => {
+      await window.__probe.stageCoreTheme({ themeId: 'act1' });
+      await window.__probe.settle();
+      const V = await import('/src/vfx.js');
+      V.shake(14);
+    });
+    await page.waitForFunction(() => {
+      const text = window.__probe.behaviourTrace({ format: 'text' }).text || '';
+      return text.includes('presentation.shake-sync');
+    }, null, { timeout: 5_000 });
 
     await page.evaluate(async () => {
       await window.__probe.loseRendererContextForTest();

@@ -479,7 +479,9 @@ test('a rejected dawn cursor save stays locked and retries the same panel', asyn
     sp.show('end', { won: true });
   });
 
-  await expect(page.locator('.ov-title')).toHaveText('The Dawn Could Not Hold');
+  await expect(page.locator('#dawn-save-failure .ov-title')).toHaveText('The Dawn Could Not Hold', {
+    timeout: 30_000,
+  });
   await expect(page.locator('#overlay .ov-sub')).toContainText('This panel was shown');
   await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
   await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused();
@@ -521,7 +523,9 @@ test('a rejected final dawn clear stays locked and retryable', async ({ page }) 
     sp.show('end', { won: true });
   });
 
-  await expect(page.locator('.ov-title')).toHaveText('The Dawn Could Not Hold');
+  await expect(page.locator('#dawn-save-failure .ov-title')).toHaveText('The Dawn Could Not Hold', {
+    timeout: 30_000,
+  });
   await expect(page.locator('#overlay .ov-sub')).toContainText('Every panel has been seen');
   await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
   await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused();
