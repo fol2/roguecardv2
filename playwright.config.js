@@ -88,8 +88,10 @@ export default defineConfig({
     { name: 'portrait', dependencies: ['bfeditor-disk'], use: { viewport: { width: 375, height: 812 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } },
     { name: 'landscape', dependencies: ['bfeditor-disk'], use: { viewport: { width: 812, height: 375 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } },
     // Playwright patched WebKit + device descriptors — not Safari / Simulator.
-    { name: 'iphone-webkit', use: { ...devices['iPhone 17 Pro'], browserName: 'webkit' } },
-    { name: 'ipad-webkit', use: { ...devices['iPad Mini landscape'], browserName: 'webkit' } },
+    // launchOptions reset: the global args are Chromium GPU flags; WebKit's
+    // MiniBrowser rejects unknown options outright ("Cannot parse arguments").
+    { name: 'iphone-webkit', use: { ...devices['iPhone 17 Pro'], browserName: 'webkit', launchOptions: { args: [] } } },
+    { name: 'ipad-webkit', use: { ...devices['iPad Mini landscape'], browserName: 'webkit', launchOptions: { args: [] } } },
   ],
   webServer: {
     command: e2eServer.command,

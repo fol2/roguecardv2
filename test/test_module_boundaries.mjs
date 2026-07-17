@@ -119,11 +119,11 @@ assert.match(defaultPlaywright, /SPIREBOUND_E2E_SUITE/);
 assert.match(defaultPlaywright, /E2E_POOL_PEEL/);
 assert.match(
   defaultPlaywright,
-  /name:\s*'iphone-webkit',\s*use:\s*\{\s*\.\.\.devices\['iPhone 17 Pro'\],\s*browserName:\s*'webkit'\s*\}/,
+  /name:\s*'iphone-webkit',\s*use:\s*\{\s*\.\.\.devices\['iPhone 17 Pro'\],\s*browserName:\s*'webkit',\s*launchOptions:\s*\{\s*args:\s*\[\]\s*\}\s*\}/,
 );
 assert.match(
   defaultPlaywright,
-  /name:\s*'ipad-webkit',\s*use:\s*\{\s*\.\.\.devices\['iPad Mini landscape'\],\s*browserName:\s*'webkit'\s*\}/,
+  /name:\s*'ipad-webkit',\s*use:\s*\{\s*\.\.\.devices\['iPad Mini landscape'\],\s*browserName:\s*'webkit',\s*launchOptions:\s*\{\s*args:\s*\[\]\s*\}\s*\}/,
 );
 assert.match(defaultPlaywright, /name:\s*'desktop'/);
 assert.match(defaultPlaywright, /name:\s*'portrait'/);

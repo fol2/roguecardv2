@@ -343,11 +343,11 @@ assert.doesNotMatch(playwright, /E2E_MAIN_PEEL/,
 
 assert.match(
   playwright,
-  /name:\s*'iphone-webkit',\s*use:\s*\{\s*\.\.\.devices\['iPhone 17 Pro'\],\s*browserName:\s*'webkit'\s*\}/,
+  /name:\s*'iphone-webkit',\s*use:\s*\{\s*\.\.\.devices\['iPhone 17 Pro'\],\s*browserName:\s*'webkit',\s*launchOptions:\s*\{\s*args:\s*\[\]\s*\}\s*\}/,
 );
 assert.match(
   playwright,
-  /name:\s*'ipad-webkit',\s*use:\s*\{\s*\.\.\.devices\['iPad Mini landscape'\],\s*browserName:\s*'webkit'\s*\}/,
+  /name:\s*'ipad-webkit',\s*use:\s*\{\s*\.\.\.devices\['iPad Mini landscape'\],\s*browserName:\s*'webkit',\s*launchOptions:\s*\{\s*args:\s*\[\]\s*\}\s*\}/,
 );
 assert.match(playwright, /name:\s*'desktop'/);
 assert.match(playwright, /name:\s*'portrait'/);
