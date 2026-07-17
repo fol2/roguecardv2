@@ -423,6 +423,9 @@ test('drain recovery reconstructs card flights without live seats or anchors', a
 test('app-version trace is copy-free and five-tap debug has no action control', async ({ page }) => {
   await page.goto('/?trace=1');
   await page.waitForFunction(() => window.__probe);
+  // The wordmark stays hidden through the once-per-session title ignition,
+  // which can outlast toBeVisible's 5s window on a loaded runner.
+  await page.waitForFunction(() => document.querySelector('.r5-title')?.dataset.r5State === 'title-ready');
   const logo = page.locator('[data-version-logo]');
   await expect(logo).toBeVisible();
   await expect(logo).not.toHaveAttribute('data-a', /.+/);
