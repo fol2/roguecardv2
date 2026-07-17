@@ -119,10 +119,15 @@ async function expectNoOverflow(page, label, explicit = [], safeExplicit = []) {
 // The title mounts after an async ignition, so a fixed wait can sample its
 // screenIn enter animation (scale 1.015 → none) mid-flight on a loaded runner,
 // where it transiently overhangs the stage by ~2px. Settle it before measuring.
+// Checked via computed style, not getAnimations(): WPE under-reports running
+// CSS animations there, while computed transform shares the exact pipeline
+// getBoundingClientRect measures, so 'none' here means an untransformed rect.
 async function titleEnterSettled(page) {
   await page.waitForFunction(() => {
     const el = document.querySelector('.title-screen');
-    return !!el && el.getAnimations().every((a) => a.playState === 'finished' || a.playState === 'idle');
+    if (!el) return false;
+    const cs = getComputedStyle(el);
+    return cs.transform === 'none' && cs.opacity === '1';
   });
 }
 
@@ -787,8 +792,15 @@ function rectsIntersect(a, b, gap = 0) {
   return !(a.right + gap <= b.left || b.right + gap <= a.left || a.bottom + gap <= b.top || b.bottom + gap <= a.top);
 }
 
-async function versionChromeGeometry(page) {
-  return page.evaluate(() => {
+async function versionChromeGeometry(page, { fiveTap = false } = {}) {
+  return page.evaluate((tap) => {
+    if (tap) {
+      // Tap and measure in one synchronous task: the debug chrome auto-hides
+      // after VERSION_GESTURE.hideMs (3s), and separate protocol round-trips
+      // between tapping and sampling can lose that race on a loaded runner.
+      const target = document.querySelector('[data-version-logo]');
+      for (let i = 0; i < 5; i += 1) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }
     const stageEl = document.getElementById('stage');
     const stage = stageEl.getBoundingClientRect();
     const rootStyle = getComputedStyle(document.documentElement);
@@ -821,7 +833,7 @@ async function versionChromeGeometry(page) {
       displayText: document.querySelector('[data-version-display]')?.textContent || '',
       hasDataA: !!document.querySelector('[data-version-display]')?.hasAttribute('data-a'),
     };
-  });
+  }, fiveTap);
 }
 
 test('fresh and grown Title/Embark expose fixed r5 selectors and data states', async ({ page }) => {
@@ -905,12 +917,7 @@ for (const shape of CANONICAL_SHAPES) {
       expect(rectsIntersect(hidden.label, hidden.stats, 8)).toBe(false);
       if (hidden.rose?.visible) expect(rectsIntersect(hidden.label, hidden.rose, 24)).toBe(false);
 
-      await page.evaluate(() => {
-        const target = document.querySelector('[data-version-logo]');
-        for (let i = 0; i < 5; i += 1) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      });
-      await expect(page.locator('[data-version-debug]')).toBeVisible();
-      const shown = await versionChromeGeometry(page);
+      const shown = await versionChromeGeometry(page, { fiveTap: true });
       expect(shown.debug.visible).toBe(true);
       expect(inside(shown.debug, shown.safe), 'debug inside safe').toBe(true);
       expect(shown.debug.right).toBeGreaterThan((shown.safe.left + shown.safe.right) / 2);
