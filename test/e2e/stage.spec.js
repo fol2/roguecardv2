@@ -116,6 +116,16 @@ async function expectNoOverflow(page, label, explicit = [], safeExplicit = []) {
   expect(bad, `${label}: ${bad.join('; ')}`).toEqual([]);
 }
 
+// The title mounts after an async ignition, so a fixed wait can sample its
+// screenIn enter animation (scale 1.015 → none) mid-flight on a loaded runner,
+// where it transiently overhangs the stage by ~2px. Settle it before measuring.
+async function titleEnterSettled(page) {
+  await page.waitForFunction(() => {
+    const el = document.querySelector('.title-screen');
+    return !!el && el.getAnimations().every((a) => a.playState === 'finished' || a.playState === 'idle');
+  });
+}
+
 test('viewport maps to its canonical stage shape', async ({ page }) => {
   const want = EXPECT_SHAPE[test.info().project.name];
   await boot(page);
@@ -304,10 +314,15 @@ test('Eighth Omen floor echo survives its delayed real map-selection callback', 
   // One assertion covers appear+copy: split waits can race the banner's short lifetime.
   const echoText = page.locator('.eighth-floor-echo .efe-text');
   const echoReady = expect(echoText).toHaveText(/\/\//, { timeout: 10_000 });
-  await page.evaluate(() => {
+  // The map's svg.onclick silently swallows clicks while S.busy (queue drain);
+  // on a loaded runner the drain can outlast .mnode.avail appearing. Dispatch
+  // exactly once, in the same synchronous task that observes busy === false.
+  await page.waitForFunction(() => {
+    if (window.spirebound.S.busy) return false;
     const node = document.querySelector('.mnode.avail');
-    if (!node) throw new Error('no available map node');
+    if (!node) return false;
     node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    return true;
   });
   await expect.poll(() => page.evaluate(() => window.spirebound.S.run.floorsClimbed))
     .toBeGreaterThan(beforeFloor);
@@ -498,6 +513,7 @@ test('title and embark screens fit their stage: no scrollable overflow anywhere'
   });
   await page.reload();
   await page.waitForFunction(() => window.spirebound && window.__probe);
+  await titleEnterSettled(page);
   await expectNoOverflow(page, 'title');
   // title always says Begin the Climb (Begin Anew confirmation lives on Embark)
   await expect(page.locator('[data-a="embark"]')).toHaveText('Begin the Climb');
@@ -523,6 +539,7 @@ test('maximum Emberglass profile and ceremonies fit every stage', async ({ page 
     sp.show('title');
   });
   await stable(page);
+  await titleEnterSettled(page);
   await expectNoOverflow(page, 'title', [
     '.title-screen', '.title-btns', '.title-rose-medallion.ready', '[data-a="vigil"]',
   ], [
