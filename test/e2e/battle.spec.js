@@ -519,8 +519,12 @@ test('PR17 geometry is readable from probe.ui / Pixi readUI', async ({ page }) =
     return plates.map((p) => ({ left: p.plateBounds?.left, right: p.plateBounds?.right }));
   });
   if (afterKill.length > 1 && beforeKill.length > 1) {
-    expect(Math.abs((afterKill[1].left ?? 0) - (beforeKill[1].left ?? 0))).toBeLessThanOrEqual(1);
-    expect(Math.abs((afterKill[1].right ?? 0) - (beforeKill[1].right ?? 0))).toBeLessThanOrEqual(1);
+    // 3px, not 1: plateBounds passes through snapRect(rect, resolution), and a
+    // resolution re-snap under runner load shifts every plate ~1-2px with no
+    // reflow (observed 1.82px). A real formation reflow moves survivors by
+    // tens of px, so this still fails loudly on the regression it guards.
+    expect(Math.abs((afterKill[1].left ?? 0) - (beforeKill[1].left ?? 0))).toBeLessThanOrEqual(3);
+    expect(Math.abs((afterKill[1].right ?? 0) - (beforeKill[1].right ?? 0))).toBeLessThanOrEqual(3);
   }
   expectNoErrors(errors, 'PR17 via readUI');
 });
