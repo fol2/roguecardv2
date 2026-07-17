@@ -32,7 +32,8 @@ contracts shared by Playwright regression journeys.
 | Doc | Status |
 |---|---|
 | [`superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md`](superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md) | **Golden design** — PE-led commercial-grade production engineering with a small, isolated FE presentation lane; execution begins at P1 after loaded-predecessor/drift validation and proceeds through cumulative Playwright Chromium/WebKit browser gates |
-| [`superpowers/plans/2026-07-10-round5-production-engineering.md`](superpowers/plans/2026-07-10-round5-production-engineering.md) | **Active executor** — P1–P6 COMPLETE (Task 37 `Decision: GO TO P7`, 2026-07-16); P7 ship-front kit integrated (Task 39); Task 40 Full-Round gate next |
+| [`superpowers/plans/2026-07-10-round5-production-engineering.md`](superpowers/plans/2026-07-10-round5-production-engineering.md) | **Executor** — P1–P7 COMPLETE (Task 40 Full-Round gate, 2026-07-17); PR #27 |
+| [`superpowers/reports/2026-07-10-round5-full-round-gate.md`](superpowers/reports/2026-07-10-round5-full-round-gate.md) | **Full-Round gate** — closure evidence, CI tip, deferred mobile claims |
 | [`superpowers/reports/2026-07-10-round5-p7-handoff.md`](superpowers/reports/2026-07-10-round5-p7-handoff.md) | **P7 hand-off** — FE merge hashes, capture source SHA, provisional store kit + public icons |
 | [`store-shot-list.md`](store-shot-list.md) | Exact five store-kit shot ids / seeds / profiles |
 | [`store-listing-content.md`](store-listing-content.md) | Provisional store listing copy + age-rating / privacy checklist |

@@ -109,8 +109,10 @@ owner PASS 2026-07-15, corrections + baselines + sheets re-promoted, and
 as duration-balanced pool shards
 (`docs/superpowers/specs/2026-07-16-e2e-pool-shards-design.md`).
 
-**P7 (ship-front)**: in progress — Tasks 38–40 (FE P7 visual package, PE
-integration + store kit, Full-Round gate/PR).
+**P7 (ship-front) / Full-Round**: COMPLETE as of Task 40 — FE package merged,
+store kit + public icons, `dist/` refreshed, Darwin/Linux title baselines, and
+Full-Round report at
+`docs/superpowers/reports/2026-07-10-round5-full-round-gate.md` (PR #27).
 
 ### Audio
 
