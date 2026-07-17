@@ -1,5 +1,5 @@
 name: Setup Playwright Chromium + WebKit
-description: npm ci plus cached Playwright Chromium and WebKit (deps only on cache miss)
+description: npm ci plus cached Playwright Chromium and WebKit (system deps every run — apt libs live on the VM, not in the cache)
 
 runs:
   using: composite
@@ -22,6 +22,9 @@ runs:
       shell: bash
       run: |
         if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
+          # Cached browsers skip the download, but WebKit's shared libraries
+          # (libwoff2dec & co.) are not in the runner image or the cache.
+          npx playwright install-deps chromium webkit
           npx playwright install chromium webkit
         else
           npx playwright install --with-deps chromium webkit

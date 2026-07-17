@@ -375,6 +375,11 @@ const setupPlaywright = readFileSync(
 assert.match(setupPlaywright, /playwright install(?: --with-deps)? chromium webkit/);
 assert.match(setupPlaywright, /npx playwright install chromium webkit/);
 assert.match(setupPlaywright, /npx playwright install --with-deps chromium webkit/);
+assert.match(
+  setupPlaywright,
+  /npx playwright install-deps chromium webkit/,
+  'cache-hit path must still run install-deps: WebKit shared libraries (libwoff2dec & co.) live on the runner VM, not in the browser cache',
+);
 
 for (const profile of ['p2', 'p3', 'p4', 'p5', 'p6', 'full']) {
   const rows = STANDING_GATE_PROFILES[profile];
