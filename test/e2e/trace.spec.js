@@ -436,11 +436,16 @@ test('app-version trace is copy-free and five-tap debug has no action control', 
   });
   await expect(page.locator('[data-version-display]')).toHaveText(expectedDisplay);
   await expect(page.locator('[data-version-display]')).toBeVisible();
-  // Five taps outside a two-second window do nothing.
+  // Five taps outside a two-second window do nothing. The mocked timestamps
+  // run 10.5s..2.1s into the PAST: ascending-from-now offsets used to leave a
+  // future-stamped tap in the gesture window (the handler's `now - t < 2000`
+  // keeps negative deltas), so the next four real taps made five and
+  // spuriously showed the debug chrome — masked only by the 3s auto-hide
+  // beating the following toBeHidden's 5s window on a healthy runner.
   await page.evaluate(() => {
     const target = document.querySelector('[data-version-logo]');
     const nativeNow = performance.now.bind(performance);
-    let offset = 0;
+    let offset = -10_500;
     const originalNow = performance.now;
     performance.now = () => nativeNow() + offset;
     try {
