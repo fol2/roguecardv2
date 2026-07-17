@@ -4,7 +4,7 @@ Guidance for AI coding agents (Claude Code, Cursor, Codex, …) working in this 
 
 ## What this is
 
-**Glassvow** / **琉璃誓言** (official display title; engineering name **Spirebound** stays on the repo, package, `spirebound_*` save keys, and `window.spirebound` hook; **Emberglass** is the in-game Rose Window quest chain, not the product name — see README naming layers) — a complete browser roguelite deckbuilder (Vite + vanilla JS + three.js, no UI framework). Combat art, cards, relics, enemies, events, and stage plates are raster assets in `src/assets/` (resolved through `assetUrl()` with SVG fallbacks); structural UI icons and status chips are hand-drawn SVG in `src/art.js`; SFX are sample-backed with synth fallback (`src/audio.js`); BGM is a Music Cue layer (`src/music.js`). Music/SFX assets are versioned and selected through `public/audio-selection.json`; see `docs/audio-packs.md`. Deeper design/lore context lives in `README.md`.
+**Glassvow** / **琉璃誓言** (official display title; engineering name **Spirebound** stays on the repo, package, `spirebound_*` save keys, and `window.spirebound` hook; **Emberglass** is the in-game Rose Window quest chain, not the product name — see README naming layers) — a complete browser roguelite deckbuilder (Vite + vanilla JS + three.js + a pixi.js combat layer, no UI framework). Combat art, cards, relics, enemies, events, and stage plates are raster assets in `src/assets/` (resolved through `assetUrl()` with SVG fallbacks); structural UI icons and status chips are hand-drawn SVG in `src/art.js`; SFX are sample-backed with synth fallback (`src/audio.js`); BGM is a Music Cue layer (`src/music.js`). Music/SFX assets are versioned and selected through `public/audio-selection.json`; see `docs/audio-packs.md`. Deeper design/lore context lives in `README.md`.
 
 ## Agent skills
 
@@ -54,14 +54,17 @@ Standard commands are in `README.md` and `package.json` (`dev`, `build`, `previe
 
 ### The golden rule: the engine is pure, the UI plays it back
 
-`src/engine.js` holds all game logic and is deliberately free of DOM/rendering. Instead of drawing, engine functions **push animation events into `cb.queue`**; `src/ui.js` `drain()`s that queue and turns each event into DOM/VFX/SFX. Keep this separation intact — it is why `npm test` can drive full runs headless in Node. When you add a mechanic, the engine emits a new event *type* and the UI grows a handler for it; the engine must not reach into the DOM.
+`src/engine.js` holds all game logic and is deliberately free of DOM/rendering. Instead of drawing, engine functions **push animation events into `cb.queue`**; the `src/ui/` package (`src/ui/drain.js`, reached through the stable `src/ui.js` re-export) `drain()`s that queue and turns each event into DOM/Pixi/VFX/SFX. Keep this separation intact — it is why `npm test` can drive full runs headless in Node. When you add a mechanic, the engine emits a new event *type* and the UI grows a handler for it; the engine must not reach into the DOM.
 
 Consequence: **every damage/block calculation has a pure preview mirror** (`previewPlay`, `previewBlock`, `previewEnemyDmg`) that the UI uses to show lethal/ghost numbers. If you change combat math, update its preview mirror or the parity tests break.
 
 ### Module dependency graph (import direction is load-bearing)
 
 ```
-data.js   ← pure content tables + constants, imports nothing
+packs/core/*  ← pure content registrations (cards/relics/enemies/themes/…), one domain per file
+registry.js + content-registration.js ← content-pack schemas, merge policies, validation (Node-pure)
+content.js ← compiles packs/compiled/production.js into the frozen CORE_CONTENT context
+data.js   ← thin assembler: re-exports the core content views + protocol constants from content.js
 art.js    ← pure procedural SVG + assetUrl(); imports nothing
 stage.js  ← fixed virtual viewport; imports nothing
 audio-catalog.js        ← pure Music/SFX id catalogue, imports nothing
@@ -71,13 +74,18 @@ audio-assets.js         ← Vite asset glob + runtime selection bridge (browser-
 audio.js  ← WebAudio SFX + shared AudioContext; imports audio-packs/assets/catalog (browser-only)
 music-resolve.js ← Node-pure Music Cue resolve (quest/Eighth/theme/screen/Dawn); imports no audio/trace/DOM/stage
 music.js  ← Music Cue playback; imports audio.js + music-resolve + audio-packs/assets/catalog (browser-only)
-engine.js ← imports data.js only         (game logic; localStorage save/load is try/catch-guarded → no-ops in Node)
+engine.js ← imports data.js only         (game logic; localStorage save/load is try/catch-guarded → no-ops in Node;
+                                          run-scoped content seam T(run) defaults to core, ephemeral runs never persist)
 vigil.js  ← imports data.js only         (meta-progression; Node-safe storage adapter + _setStore() test hook)
 scene3d.js← imports three + data.js + stage.js  (the 3D tower / camera)
 vfx.js    ← 2D canvas combat VFX; imports stage.js
 mesh.js   ← WebGL character warp; imports stage.js
-ui.js     ← imports ALL of the above     (the only orchestrator; owns the DOM)
-main.js   ← initStage → initScene → initVfx → initMesh → initUI
+ui.js     ← 1-line re-export of ui/index.js (kept as the stable import path)
+ui/       ← the only orchestrator; owns the DOM. index.js is the composition root; drain.js plays back cb.queue;
+            pixi-app.js + combat-gl.js own the Pixi combat presentation (#uigl canvas, WebGL lifecycle);
+            pointer.js routes input; screens/ hold per-screen modules; probe.js owns window.__probe;
+            dev/ is dev-only tooling (Content Lab, doctor, content manager) — never imported in production builds
+main.js   ← initStage → initScene → initVfx → initMesh → initUI (dev-only ?lab/?dashboard/?contentedit/?dev shells lazy-load first)
 ```
 
 **Never import `audio.js` or `music.js` from `engine.js` or `vigil.js`** — top-level `localStorage` access throws in Node and would break the tests. Engine and vigil are the two modules that must stay Node-runnable. **`stage.js` is browser-only** (DOM) — same import ban for engine/vigil.
@@ -102,7 +110,7 @@ SHATTER (facets/chips/shatter/embers/kindle + Lantern Arts), Omens & the Unlit W
 
 - **Internal keys ≠ display names.** The de-clone renamed display strings only (Block→Ward, poison→Smolder, etc.) in `STATUS_INFO`/card text; the *internal* status keys and card ids (`poison`, `vulnerable`, `str`, id `'strike'`/`'defend'`) are unchanged to protect saves and test anchors. Change display text in the data tables, never the keys.
 - **Structural UI icons must come from `art.js`** (`iconSvg`/`iconInline`) — never font glyphs like ⚔/♛ for map nodes, intents, shields, or piles. Font glyphs render as tofu on non-Mac platforms. Decorative relic/status sigils are the deliberate exception.
-- **`window.spirebound = { S, E, startCombatUI, show }`** and **`window.__probe`** (ui.js) are console/test hooks — god-mode bots, geometry readers, battle drivers. The probe reports coordinates in **stage px**.
+- **`window.spirebound = { S, E, startCombatUI, show }`** (`src/ui/index.js`) and **`window.__probe`** (`src/ui/probe.js`) are console/test hooks — god-mode bots, geometry readers, battle drivers. The probe reports coordinates in **stage px**.
 - **Combat-stage geometry lives in `src/battlefield-layout.js`**, not CSS — hero/enemy positions & sizes, formations, the 3 background plates and the ground line, per stage shape. Edit it by hand or with the dev-only editor at `http://localhost:5174/?bfedit=1` (drag/resize, per-shape overrides, Save writes the file). `src/battlefield.js` is the resolver; both must stay Node-importable and import nothing.
 - **Audio gallery/backend:** `http://localhost:5174/?audio=1` lists every SFX and Music Cue, previews the effective file, and in development persists independent pack versions or per-id overrides through `POST /__audio-save` (hot-applied, no reload). The current root assets are immutable `stained-glass-v1` / `ashglass-v1`; later versions use subdirectories. Art gallery remains `?gallery=1`.
 - **Combat chrome geometry lives in `src/ui-chrome-layout.js`**, not CSS — energy / lantern / end-turn / piles / top HUD unit, per stage shape. Dev editor: `http://localhost:5174/?bfuiedit=1` (Save → `POST /__bfui-save`). Resolver is `src/uic.js` (not `src/ui-chrome.js`, which is asset helpers). Safe-area is baked into the numbers.
