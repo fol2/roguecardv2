@@ -316,22 +316,27 @@ test('Eighth Omen floor echo survives its delayed real map-selection callback', 
   });
   await page.waitForSelector('.mnode.avail');
   const beforeFloor = await page.evaluate(() => window.spirebound.S.run.floorsClimbed);
-  // One assertion covers appear+copy: split waits can race the banner's short lifetime.
-  const echoText = page.locator('.eighth-floor-echo .efe-text');
-  const echoReady = expect(echoText).toHaveText(/\/\//, { timeout: 10_000 });
   // The map's svg.onclick silently swallows clicks while S.busy (queue drain);
   // on a loaded runner the drain can outlast .mnode.avail appearing. Dispatch
-  // exactly once, in the same synchronous task that observes busy === false.
+  // exactly once, in the same synchronous task that observes busy === false —
+  // with a MutationObserver armed before the click so the banner's short
+  // 220ms-to-3.4s lifetime cannot slip between protocol round-trips.
   await page.waitForFunction(() => {
     if (window.spirebound.S.busy) return false;
     const node = document.querySelector('.mnode.avail');
     if (!node) return false;
+    window.__efeText = null;
+    new MutationObserver((muts, obs) => {
+      const t = document.querySelector('.eighth-floor-echo .efe-text')?.textContent;
+      if (t) { window.__efeText = t; obs.disconnect(); }
+    }).observe(document.body, { childList: true, subtree: true });
     node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     return true;
   });
   await expect.poll(() => page.evaluate(() => window.spirebound.S.run.floorsClimbed))
     .toBeGreaterThan(beforeFloor);
-  await echoReady;
+  await expect.poll(() => page.evaluate(() => window.__efeText), { timeout: 10_000 })
+    .toMatch(/\/\//);
 });
 
 // Idle rotateX(0)/rotateY(0) under perspective promotes a 3D layer that Chromium

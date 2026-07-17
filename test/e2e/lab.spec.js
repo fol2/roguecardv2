@@ -93,6 +93,7 @@ async function setNumber(page, sel, value) {
 
 test.describe('Content Lab', () => {
   test('URL combat round-trip, play, replay hydrate without auto-run', async ({ page }) => {
+    test.slow(); // ~66s on a healthy CI runner — the default 90s cap leaves no jank headroom
     await seedSentinels(page);
     const encoded = encodeLabScenario(COMBAT_SCENARIO);
     await page.goto(`/?lab=1&scenario=${encoded}`);
@@ -166,6 +167,7 @@ test.describe('Content Lab', () => {
   });
 
   test('registry editor Start sandbox writes canonical URL and round-trips', async ({ page }) => {
+    test.slow(); // ~66s on a healthy CI runner — the default 90s cap leaves no jank headroom
     await seedSentinels(page);
     await page.goto('/?lab=1');
     await waitLabReady(page);
@@ -458,12 +460,6 @@ test.describe('Content Lab', () => {
 
   test('trace transcript copy copies live panel text after a real beat', async ({ page }) => {
     await seedSentinels(page);
-    // Playwright WebKit rejects clipboard-write; a real click is enough for writeText.
-    const project = test.info().project.name;
-    const clipboardPerms = project === 'iphone-webkit' || project === 'ipad-webkit'
-      ? ['clipboard-read']
-      : ['clipboard-read', 'clipboard-write'];
-    await page.context().grantPermissions(clipboardPerms);
     const encoded = encodeLabScenario(COMBAT_SCENARIO);
     await page.goto(`/?lab=1&scenario=${encoded}`);
     await waitLabReady(page);
@@ -484,8 +480,22 @@ test.describe('Content Lab', () => {
     const panelText = await page.locator('[data-lab-trace]').innerText();
     expect(panelText.trim().length).toBeGreaterThan(0);
 
+    // Capture the payload at the API boundary: Linux WPE denies OS clipboard
+    // reads outright (NotAllowedError, no grantable permission), and the copy
+    // handler already tolerates write denial — what this test owns is that the
+    // button hands the live transcript text to the clipboard API.
+    await page.evaluate(() => {
+      window.__labCopied = null;
+      const clip = navigator.clipboard;
+      const orig = clip.writeText?.bind(clip);
+      clip.writeText = (text) => {
+        window.__labCopied = String(text);
+        return orig ? orig(text).catch(() => {}) : Promise.resolve();
+      };
+    });
     await page.locator('[data-lab-trace-copy]').click();
-    const clipboard = await page.evaluate(async () => navigator.clipboard.readText());
+    await page.waitForFunction(() => typeof window.__labCopied === 'string');
+    const clipboard = await page.evaluate(() => window.__labCopied);
     expect(clipboard.trim().length).toBeGreaterThan(0);
     // Copied payload is the text transcript (header and/or span lines), not empty.
     expect(clipboard).toMatch(/# trace |phase=/);
