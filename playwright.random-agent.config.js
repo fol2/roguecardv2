@@ -1,5 +1,7 @@
 // CI/local constrained lane for the long multi-fight playback sweep. The
 // ordinary battle cases still exercise full motion under the base config.
+// Task 29 leak.spec reuses the same reduced-motion desktop isolation so the
+// long random-agent cycle does not thrash ceremony timing budgets.
 import { defineConfig } from '@playwright/test';
 import base from './playwright.config.js';
 

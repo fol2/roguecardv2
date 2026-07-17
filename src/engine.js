@@ -1,5 +1,95 @@
 // SPIREBOUND engine — pure game logic, no DOM. UI consumes cb.queue for animation.
-import { ASPECTS, VOWS, CARDS, CARD_POOLS, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE, PROGRESSION, QUEST_IDS, QUESTS, QUEST_STATES, QUEST_ACTIVE_STATES, TERMINAL_OUTCOMES, RUN_ID_RE, VARIANTS, SHADE_KITS, BOONS, DEEDS } from './data.js';
+import { PLAYER, ACTS, ASPECTS, VOWS, CARDS, CARD_POOLS, STATUS_INFO, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE, PROGRESSION, QUEST_IDS, WHISPERS, QUESTS, QUEST_STATES, QUEST_ACTIVE_STATES, TERMINAL_OUTCOMES, RUN_ID_RE, VARIANTS, SHADE_KITS, BOONS, DEEDS } from './data.js';
+
+
+// ---------------------------------------------------------------- run→content seam (Task 12B)
+const RUN_CONTENT = new WeakMap();
+const EPHEMERAL_RUNS = new WeakSet();
+
+/** Frozen core engine view built only from the 28 data.js content imports. */
+const CORE_ENGINE_CONTENT = Object.freeze({
+  id: 'core',
+  localeToken: 'en',
+  player: PLAYER,
+  acts: ACTS,
+  cards: CARDS,
+  cardPools: CARD_POOLS,
+  statuses: STATUS_INFO,
+  relics: RELICS,
+  relicPools: RELIC_POOLS,
+  potions: POTIONS,
+  enemies: ENEMIES,
+  encounters: ENCOUNTERS,
+  events: EVENTS,
+  rewardGold: REWARD_GOLD,
+  shop: SHOP,
+  omens: OMENS,
+  affixes: AFFIXES,
+  arts: ARTS,
+  deeds: DEEDS,
+  progression: PROGRESSION,
+  reveals: REVEALS,
+  poolGate: POOL_GATE,
+  questIds: QUEST_IDS,
+  whispers: WHISPERS,
+  quests: QUESTS,
+  shadeKits: SHADE_KITS,
+  variants: VARIANTS,
+  aspects: ASPECTS,
+  vows: VOWS,
+  boons: BOONS,
+  themeOrder: Object.freeze(ACTS.map((_, i) => `act${i + 1}`)),
+});
+
+function assertEngineContent(content) {
+  if (!content || typeof content !== 'object' || Object.isFrozen(content) !== true) {
+    throw new TypeError('engine content must be a recursively frozen content context');
+  }
+  if (typeof content.id !== 'string' || !content.id.trim()) {
+    throw new TypeError('engine content requires a non-empty id');
+  }
+  for (const key of [
+    'cards', 'relics', 'potions', 'enemies', 'events', 'omens', 'arts', 'aspects', 'vows',
+    'boons', 'quests', 'questIds', 'progression', 'variants', 'encounters', 'rewardGold', 'acts',
+  ]) {
+    if (content[key] == null) throw new TypeError(`engine content missing domain: ${key}`);
+  }
+  return content;
+}
+
+function resolveNewRunContent(opts = {}) {
+  if (opts.content != null) return assertEngineContent(opts.content);
+  return CORE_ENGINE_CONTENT;
+}
+
+function engineContentFor(run) {
+  if (run == null) return CORE_ENGINE_CONTENT;
+  return RUN_CONTENT.get(run) || CORE_ENGINE_CONTENT;
+}
+
+/** @private short alias used throughout run-capable paths */
+const T = engineContentFor;
+
+export function contentIdFor(run) {
+  return engineContentFor(run).id;
+}
+
+export function isEphemeralRun(run) {
+  return !!run && EPHEMERAL_RUNS.has(run);
+}
+
+export function themeCount(run) {
+  const content = engineContentFor(run);
+  return content.themeOrder?.length ?? content.acts?.length ?? 0;
+}
+
+export function isFinalTheme(run) {
+  return Number.isInteger(run?.act) && run.act >= 0 && run.act === themeCount(run) - 1;
+}
+
+function deepCopyJson(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
+}
 
 // ---------------------------------------------------------------- RNG (mulberry32)
 export function makeRng(state) {
@@ -68,10 +158,18 @@ export function finaliseTerminalOutbox(run, persist, onFailure, onFinalised) {
 // ---------------------------------------------------------------- run lifecycle
 // opts: { aspect, vow, unlocks (vigil snapshot), reveals (vigil snapshot; null/absent = fully revealed), monument (last fall), lamplighter, quests, shards }
 export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
+  const content = resolveNewRunContent(opts);
+  // Reject unknown catalogue ids before RNG consumption or run mutation.
+  if (opts.art != null && !Object.hasOwn(content.arts, opts.art)) {
+    throw new Error(`unknown art: ${opts.art}`);
+  }
+  if (opts.boon != null && !Object.hasOwn(content.boons, opts.boon)) {
+    throw new Error(`unknown boon: ${opts.boon}`);
+  }
   const startedAt = Date.now();
-  const aspect = clamp(opts.aspect || 0, 0, ASPECTS.length - 1);
-  const A = ASPECTS[aspect];
-  const vow = clamp(opts.vow || 0, 0, VOWS.length);
+  const aspect = clamp(opts.aspect || 0, 0, content.aspects.length - 1);
+  const A = content.aspects[aspect];
+  const vow = clamp(opts.vow || 0, 0, content.vows.length);
   const run = {
     v: 2, runId: opts.runId || freshRunId(seed, startedAt), seed, rngState: seed, uid: 1, act: 0, nodeId: null, floorsClimbed: 0, bossRelicAct: -1, orphanRewardClaimed: false, orphanRewardResolving: false,
     aspect, vow, art: opts.art || A.art || 'flare', omens: [], boon: opts.boon || null, boonReceipt: null,
@@ -79,9 +177,9 @@ export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
     reveals: opts.reveals ? [...opts.reveals] : null,
     monument: opts.monument ? { ...opts.monument, claimed: false } : null,
     quests: opts.quests
-      ? Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      ? Object.fromEntries(content.questIds.map((id) => [id, {
           state: opts.quests[id]?.state || 'dormant',
-          progress: Math.min(QUESTS[id].target,
+          progress: Math.min(content.quests[id].target,
             Math.max(0, Math.floor(Number(opts.quests[id]?.progress) || 0))),
           memory: { ...(opts.quests[id]?.memory || {}) },
         }]))
@@ -108,6 +206,8 @@ export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
     },
     map: null,
   };
+  RUN_CONTENT.set(run, content);
+  if (opts.ephemeral) EPHEMERAL_RUNS.add(run);
   if (opts.lamplighter) run.pendingLamplighter = true;
   for (const id of A.startDeck) run.player.deck.push(makeCard(run, id));
   if (vowMods(run).startHex) run.player.deck.push(makeCard(run, 'hex'));
@@ -119,7 +219,7 @@ export function newRun(seed = (Math.random() * 2 ** 31) | 0, opts = {}) {
   return run;
 }
 export function questRecord(run, id) {
-  return run.quests && QUEST_IDS.includes(id) ? run.quests[id] || null : null;
+  return run.quests && T(run).questIds.includes(id) ? run.quests[id] || null : null;
 }
 
 export function revealQuest(run, id, queue = run.endQueue) {
@@ -133,26 +233,29 @@ export function revealQuest(run, id, queue = run.endQueue) {
 }
 
 export function questProgressTarget(state, id, progress = questRecord(state, id)?.progress ?? 0) {
+  const { progression, quests } = T(state);
   if (id === 'paleOnes' && !state?.unlocks?.includes('insight:witchlightLens') &&
-      progress <= PROGRESSION.emberglass.paleOnes.lensAt) {
-    return PROGRESSION.emberglass.paleOnes.lensAt;
+      progress <= progression.emberglass.paleOnes.lensAt) {
+    return progression.emberglass.paleOnes.lensAt;
   }
-  return QUESTS[id]?.target ?? 0;
+  return quests[id]?.target ?? 0;
 }
 
-export function questProgressName(id, target) {
-  if (id === 'paleOnes' && target === PROGRESSION.emberglass.paleOnes.lensAt) {
-    return QUESTS.paleOnes.huntName;
+export function questProgressName(id, target, run = null) {
+  const { progression, quests } = T(run);
+  if (id === 'paleOnes' && target === progression.emberglass.paleOnes.lensAt) {
+    return quests.paleOnes.huntName;
   }
-  return QUESTS[id]?.name ?? id;
+  return quests[id]?.name ?? id;
 }
 
 export function questDisclosure(state, id) {
-  const quest = QUESTS[id];
+  const { progression, quests } = T(state);
+  const quest = quests[id];
   const progress = questRecord(state, id)?.progress ?? 0;
   const huntingPaleOnes = id === 'paleOnes' &&
     !state?.unlocks?.includes('insight:witchlightLens') &&
-    progress <= PROGRESSION.emberglass.paleOnes.lensAt;
+    progress <= progression.emberglass.paleOnes.lensAt;
   return {
     name: huntingPaleOnes ? quest.huntName : quest.name,
     inscription: huntingPaleOnes ? quest.huntInscription : quest.inscription,
@@ -164,9 +267,9 @@ export function questDisclosure(state, id) {
 export function advanceQuest(run, id, n = 1, queue = run.endQueue) {
   const q = revealQuest(run, id, queue);
   if (!q || q.state === 'dormant' || q.state === 'complete' || n <= 0) return q;
-  q.progress = Math.min(QUESTS[id].target, q.progress + n);
+  q.progress = Math.min(T(run).quests[id].target, q.progress + n);
   queue?.push({ t: 'questProgress', id, progress: q.progress, target: questProgressTarget(run, id, q.progress) });
-  if (q.progress >= QUESTS[id].target) {
+  if (q.progress >= T(run).quests[id].target) {
     q.state = 'complete';
     if (id === 'hollowLamplighter') q.memory = {};
     if (!run.questCompletions.includes(id)) run.questCompletions.push(id);
@@ -180,13 +283,13 @@ function prepareEighthOmen(run) {
   const q = questRecord(run, 'eighthOmen');
   if (!q || !QUEST_ACTIVE_STATES.includes(q.state)) return;
   const due = q.memory.dueIn;
-  const guaranteeRuns = Math.max(1, Math.floor(PROGRESSION.emberglass.eighthOmen.guaranteeRuns));
+  const guaranteeRuns = Math.max(1, Math.floor(T(run).progression.emberglass.eighthOmen.guaranteeRuns));
   let active = false;
   if (Number.isInteger(due) && due >= 1 && due <= guaranteeRuns) {
-    active = due === 1 || questRoll(run) < PROGRESSION.emberglass.eighthOmen.recurrenceChance;
+    active = due === 1 || questRoll(run) < T(run).progression.emberglass.eighthOmen.recurrenceChance;
     if (!active) q.memory.dueIn = due - 1;
   } else if (q.memory.seen) {
-    active = questRoll(run) < PROGRESSION.emberglass.eighthOmen.recurrenceChance;
+    active = questRoll(run) < T(run).progression.emberglass.eighthOmen.recurrenceChance;
   }
   run.questScratch.eighthOmen = { active };
   if (active) {
@@ -199,7 +302,7 @@ function prepareEighthOmen(run) {
 export function markShadeFall(run, act, row) {
   const q = questRecord(run, 'ownShade');
   if (!q || q.state === 'dormant' || q.state === 'complete') return false;
-  if (act < PROGRESSION.emberglass.ownShade.minDeathAct) return false;
+  if (act < T(run).progression.emberglass.ownShade.minDeathAct) return false;
   run.questScratch.ownShade ||= {};
   const bequest = run.questScratch.ownShade.pendingBequest ?? null;
   run.questScratch.ownShade.fall = { act, row, shadeAspect: run.aspect, bequest };
@@ -210,7 +313,7 @@ export function setPendingEncounter(run, kind, enemyIds, questId = null) {
   run.pendingCombat = kind;
   run.pendingEnemyIds = [...enemyIds];
   run.pendingQuestId = questId ??
-    enemyIds.map((id) => VARIANTS[id]?.drop?.quest).find((id) => QUEST_IDS.includes(id)) ?? null;
+    enemyIds.map((id) => T(run).variants[id]?.drop?.quest).find((id) => T(run).questIds.includes(id)) ?? null;
 }
 
 export function clearPendingEncounter(run) {
@@ -267,12 +370,12 @@ export function pendingRewardHasUntaken(run) {
   if (rewards.relic && !taken.relic) return true;
   return false;
 }
-// vows stack: at Vow N, vows 1..N are all in force. Reads VOWS[i].mods.
+// vows stack: at Vow N, vows 1..N are all in force. Reads T(run).vows[i].mods.
 export function vowMods(run) {
   const m = { hpMult: 1, enemyDmgBonus: 0, bossFacetDelta: 0, startHex: false };
-  const lvl = clamp(run.vow || 0, 0, VOWS.length);
+  const lvl = clamp(run.vow || 0, 0, T(run).vows.length);
   for (let i = 0; i < lvl; i++) {
-    const vm = VOWS[i].mods;
+    const vm = T(run).vows[i].mods;
     if (vm.hpMult) m.hpMult *= vm.hpMult;
     if (vm.enemyDmgBonus) m.enemyDmgBonus += vm.enemyDmgBonus;
     if (vm.bossFacetDelta) m.bossFacetDelta += vm.bossFacetDelta;
@@ -285,15 +388,15 @@ export function vowMods(run) {
 export const omenEnabled = (run) => runRevealed(run, 'omens') || !!run.questScratch.eighthOmen?.active;
 export function rollOmen(run) {
   if (run.questScratch.eighthOmen?.active) return 'eighthOmen';
-  return pick(runRng(run), Object.keys(OMENS).filter((id) => id !== 'eighthOmen'));
+  return pick(runRng(run), Object.keys(T(run).omens).filter((id) => id !== 'eighthOmen'));
 }
-export function omenMods(run) { return OMENS[run.omens?.[run.act]]?.mods || {}; }
+export function omenMods(run) { return T(run).omens[run.omens?.[run.act]]?.mods || {}; }
 export function restHealFrac(run) { return Math.min(0.3, omenMods(run).restHealFrac ?? 0.3, vowMods(run).restHealFrac ?? 0.3); }
 export function makeCard(run, id, up = false) {
   return { uid: run.uid++, id, up, bonus: 0 };
 }
-export function cardData(inst) {
-  const base = CARDS[inst.id];
+export function cardData(inst, run = null) {
+  const base = T(run).cards[inst.id];
   return inst.up && base.up ? { ...base, ...base.up, name: base.name + '+' } : base;
 }
 export function runRng(run) {
@@ -302,19 +405,46 @@ export function runRng(run) {
 }
 
 const PALE_BY_ACT = ['paleDuskfang', 'paleDrownedOne', 'paleVoidWisp'];
-export const paleVariantForAct = (act) => PALE_BY_ACT[clamp(act | 0, 0, 2)];
+export const paleVariantForAct = (act) => PALE_BY_ACT[clamp(act | 0, 0, PALE_BY_ACT.length - 1)];
+
+/** Theme-index mark schedule for Pale Ones (no digit equality on run.act). */
+function paleMarkCount(run) {
+  const pale = run.questScratch?.paleOnes;
+  if (!run.unlocks.includes('insight:witchlightLens') || !pale) return 0;
+  const cfg = T(run).progression.emberglass.paleOnes;
+  const schedule = [
+    Math.max(0, Math.floor(cfg.markedAct1)),
+    pale.markedAct2 ? 1 : 0,
+  ];
+  return schedule.at(run.act) ?? 0;
+}
+
+/** Sole shards-gated reveal id (legacy key lives in progression tables, not call sites). */
+export function sealedSummitRevealId(run) {
+  const thresholds = T(run).progression?.revealThresholds || {};
+  for (const [id, trigger] of Object.entries(thresholds)) {
+    if (Number.isFinite(trigger?.shards)) return id;
+  }
+  return null;
+}
+
+export function sealedSummitShardThreshold(run) {
+  const id = sealedSummitRevealId(run);
+  if (!id) return 0;
+  return Math.max(0, Math.floor(T(run).progression.revealThresholds[id].shards));
+}
 
 function preparePaleRun(run) {
   const q = questRecord(run, 'paleOnes');
   if (!q || !QUEST_ACTIVE_STATES.includes(q.state)) return;
   const lens = run.unlocks.includes('insight:witchlightLens');
-  const hiddenRemaining = !lens && q.progress < PROGRESSION.emberglass.paleOnes.lensAt
-    ? Math.max(0, Math.floor(PROGRESSION.emberglass.paleOnes.hiddenPerRun))
+  const hiddenRemaining = !lens && q.progress < T(run).progression.emberglass.paleOnes.lensAt
+    ? Math.max(0, Math.floor(T(run).progression.emberglass.paleOnes.hiddenPerRun))
     : 0;
   run.questScratch.paleOnes = {
     hiddenDue: hiddenRemaining > 0,
     hiddenRemaining,
-    markedAct2: lens && runRng(run)() < PROGRESSION.emberglass.paleOnes.markedAct2Chance,
+    markedAct2: lens && runRng(run)() < T(run).progression.emberglass.paleOnes.markedAct2Chance,
   };
 }
 
@@ -326,8 +456,8 @@ function prepareHollowLamplighter(run) {
     return;
   }
   const misses = hq.memory.eligibleMisses || 0;
-  const due = misses >= PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1 ||
-    runRng(run)() < PROGRESSION.emberglass.hollowLamplighter.appearanceChance;
+  const due = misses >= T(run).progression.emberglass.hollowLamplighter.pityEligibleRuns - 1 ||
+    runRng(run)() < T(run).progression.emberglass.hollowLamplighter.appearanceChance;
   run.questScratch.hollowLamplighter = { due, met: false, meetings: 0, debtActive: false };
 }
 
@@ -401,12 +531,7 @@ export function genMap(run) {
       delete best.unlit; delete best.bounty;
     }
   }
-  const pale = run.questScratch?.paleOnes;
-  const markCount = run.unlocks.includes('insight:witchlightLens') && pale
-    ? run.act === 0
-      ? Math.max(0, Math.floor(PROGRESSION.emberglass.paleOnes.markedAct1))
-      : run.act === 1 && pale.markedAct2 ? 1 : 0
-    : 0;
+  const markCount = paleMarkCount(run);
   if (markCount > 0) {
     const candidates = nodes.filter((n) => n.row === 0 && n.type === 'monster');
     for (let i = 0; i < markCount && candidates.length; i++) {
@@ -447,7 +572,7 @@ export function visitNode(run, node) {
     run.stats.unlitVisited++;
   }
   const hollow = run.questScratch?.hollowLamplighter;
-  const maxMeetings = Math.max(0, Math.floor(PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun));
+  const maxMeetings = Math.max(0, Math.floor(T(run).progression.emberglass.hollowLamplighter.maxMeetingsPerRun));
   const storedMeetings = Number.isInteger(hollow?.meetings)
     ? hollow.meetings
     : hollow?.met ? maxMeetings : 0;
@@ -514,12 +639,12 @@ export function claimMonument(run) {
     run.questScratch.ownShade ||= {};
     run.questScratch.ownShade.pendingBequest = m.bequest ?? null;
     const progress = questRecord(run, 'ownShade')?.progress || 0;
-    const tierIds = Object.keys(VARIANTS)
+    const tierIds = Object.keys(T(run).variants)
       .filter((id) => /^ownShade[1-9]\d*$/.test(id))
       .sort((a, b) => Number(a.slice('ownShade'.length)) - Number(b.slice('ownShade'.length)));
     const tierCount = Math.min(
-      PROGRESSION.emberglass.ownShade.tiers.length,
-      QUESTS.ownShade.target,
+      T(run).progression.emberglass.ownShade.tiers.length,
+      T(run).quests.ownShade.target,
       tierIds.length,
     );
     if (tierCount < 1) throw new Error('Your Own Shade has no authored combat tier');
@@ -614,17 +739,17 @@ export const runRevealed = (run, id) => run.reveals == null || run.reveals.inclu
 export function cardPool(run, tier) {
   const extra = (run.unlocks || [])
     .filter((u) => u.startsWith('card:')).map((u) => u.slice(5))
-    .filter((id) => CARDS[id] && CARDS[id].rarity === tier);
-  let base = CARD_POOLS[tier];
-  if (run.reveals != null) base = base.filter((id) => !POOL_GATE.cards[id] || run.reveals.includes(POOL_GATE.cards[id]));
+    .filter((id) => T(run).cards[id] && T(run).cards[id].rarity === tier);
+  let base = T(run).cardPools[tier];
+  if (run.reveals != null) base = base.filter((id) => !T(run).poolGate.cards[id] || run.reveals.includes(T(run).poolGate.cards[id]));
   return extra.length ? [...base, ...extra] : base;
 }
 export function relicPool(run, tier) {
   const extra = (run.unlocks || [])
     .filter((u) => u.startsWith('relic:')).map((u) => u.slice(6))
-    .filter((id) => RELICS[id] && RELICS[id].rarity === tier);
-  let base = RELIC_POOLS[tier];
-  if (run.reveals != null) base = base.filter((id) => !POOL_GATE.relics[id] || run.reveals.includes(POOL_GATE.relics[id]));
+    .filter((id) => T(run).relics[id] && T(run).relics[id].rarity === tier);
+  let base = T(run).relicPools[tier];
+  if (run.reveals != null) base = base.filter((id) => !T(run).poolGate.relics[id] || run.reveals.includes(T(run).poolGate.relics[id]));
   return extra.length ? [...base, ...extra] : base;
 }
 export function healPlayer(run, n, cb = null) {
@@ -637,7 +762,7 @@ export function healPlayer(run, n, cb = null) {
   return healed;
 }
 export function gainRelic(run, id, cb = null) {
-  const r = RELICS[id];
+  const r = T(run).relics[id];
   if (!r) return;
   if (r.replaces) {
     const i = run.player.relics.indexOf(r.replaces);
@@ -730,13 +855,13 @@ export function claimBossRelic(run, id) {
   return { already: false, id: id || null };
 }
 export function hasPendingBossRelic(run) {
-  if (!run || run.act >= 2 || run.pendingCombat || run.pendingReward || run.pendingRunEnd) return false;
+  if (!run || isFinalTheme(run) || run.pendingCombat || run.pendingReward || run.pendingRunEnd) return false;
   const node = run.map?.nodes?.find((candidate) => candidate.id === run.nodeId);
   return node?.type === 'boss' && run.map.visited?.includes(node.id) === true;
 }
 export function gainPotion(run, id) {
   if (!runRevealed(run, 'phials')) return false;
-  if (id === 'random') id = pick(runRng(run), Object.keys(POTIONS));
+  if (id === 'random') id = pick(runRng(run), Object.keys(T(run).potions));
   const i = run.player.potions.indexOf(null);
   if (i < 0) return false;
   run.player.potions[i] = id;
@@ -761,13 +886,13 @@ export function rollCardReward(run, kind = 'normal') {
     if (!out.includes(id)) out.push(id);
   }
   const pageQuest = questRecord(run, 'unreadablePage');
-  const isFinalBossReward = kind === 'boss' && run.act >= 2;
+  const isFinalBossReward = kind === 'boss' && isFinalTheme(run);
   if (!isFinalBossReward && pageQuest && QUEST_ACTIVE_STATES.includes(pageQuest.state) &&
-      pageQuest.progress < QUESTS.unreadablePage.target) {
+      pageQuest.progress < T(run).quests.unreadablePage.target) {
     const scratch = (run.questScratch.unreadablePage ||= {});
     scratch.rewardOrdinal = (scratch.rewardOrdinal || 0) + 1;
     if (!scratch.offered &&
-        scratch.rewardOrdinal === PROGRESSION.emberglass.unreadablePage.offerRewardOrdinal && out.length) {
+        scratch.rewardOrdinal === T(run).progression.emberglass.unreadablePage.offerRewardOrdinal && out.length) {
       out[out.length - 1] = 'unreadablePage';
       scratch.offered = true;
       revealQuest(run, 'unreadablePage', run.endQueue);
@@ -792,10 +917,10 @@ export function rollEventCards(run, n) {
 }
 export function genCombatRewards(run, kind, affix = null) {
   const rng = runRng(run);
-  let gold = irange(rng, REWARD_GOLD[run.act][kind === 'boss' ? 'boss' : kind === 'elite' ? 'elite' : 'normal']);
-  gold = Math.round(gold * (omenMods(run).goldMult || 1) * (AFFIXES[affix]?.mods.goldMult || 1));
+  let gold = irange(rng, T(run).rewardGold[run.act][kind === 'boss' ? 'boss' : kind === 'elite' ? 'elite' : 'normal']);
+  gold = Math.round(gold * (omenMods(run).goldMult || 1) * (T(run).affixes[affix]?.mods.goldMult || 1));
   const rw = { gold, cards: rollCardReward(run, kind), potion: null, relic: null };
-  if (kind !== 'boss' && rng() < 0.4 && runRevealed(run, 'phials')) rw.potion = pick(rng, Object.keys(POTIONS));
+  if (kind !== 'boss' && rng() < 0.4 && runRevealed(run, 'phials')) rw.potion = pick(rng, Object.keys(T(run).potions));
   if (kind === 'elite') rw.relic = randomRelic(run);
   return rw;
 }
@@ -817,14 +942,14 @@ export function genShop(run) {
   const questItems = [];
   const usurper = questRecord(run, 'usurper');
   if (usurper && QUEST_ACTIVE_STATES.includes(usurper.state) &&
-      run.act >= PROGRESSION.emberglass.usurper.minShopAct &&
+      run.act >= T(run).progression.emberglass.usurper.minShopAct &&
       !run.questScratch?.usurper?.bought) {
     revealQuest(run, 'usurper');
     questItems.push({
       id: 'flamelessLantern',
-      name: QUESTS.usurper.itemName,
-      text: QUESTS.usurper.itemText,
-      price: PROGRESSION.emberglass.usurper.price,
+      name: T(run).quests.usurper.itemName,
+      text: T(run).quests.usurper.itemText,
+      price: T(run).progression.emberglass.usurper.price,
       sold: false,
     });
   }
@@ -833,19 +958,19 @@ export function genShop(run) {
   for (const t of wants) {
     let id, tries = 0;
     do { id = pick(rng, cardPool(run, t)); } while (cardIds.some((c) => c.id === id) && ++tries < 20);
-    cardIds.push({ id, price: price(SHOP.cardPrice[t], disc), sold: false });
+    cardIds.push({ id, price: price(T(run).shop.cardPrice[t], disc), sold: false });
   }
   const owned = new Set(run.player.relics);
   const relics = [];
   for (const t of ['common', 'uncommon']) {
     const avail = relicPool(run, t).filter((id) => !owned.has(id) && !relics.some((r) => r.id === id));
-    if (avail.length) relics.push({ id: pick(rng, avail), price: price(SHOP.relicPrice[t], disc), sold: false });
+    if (avail.length) relics.push({ id: pick(rng, avail), price: price(T(run).shop.relicPrice[t], disc), sold: false });
   }
   const potions = [];
   if (runRevealed(run, 'phials')) {
-    for (let i = 0; i < 2; i++) potions.push({ id: pick(rng, Object.keys(POTIONS)), price: price(SHOP.potionPrice, disc), sold: false });
+    for (let i = 0; i < 2; i++) potions.push({ id: pick(rng, Object.keys(T(run).potions)), price: price(T(run).shop.potionPrice, disc), sold: false });
   }
-  return { cards: cardIds, relics, potions, questItems, removeCost: Math.round(SHOP.removeCost * disc), removed: false };
+  return { cards: cardIds, relics, potions, questItems, removeCost: Math.round(T(run).shop.removeCost * disc), removed: false };
 }
 export function shopSessionKey(run) {
   return `${run.runId}:${run.act}:${run.nodeId ?? ''}`;
@@ -862,9 +987,9 @@ export function buyQuestItem(run, itemId) {
   if (itemId !== 'flamelessLantern') return { ok: false, reason: 'unknown' };
   const q = questRecord(run, 'usurper');
   if (!q || !QUEST_ACTIVE_STATES.includes(q.state)) return { ok: false, reason: 'inactive' };
-  if (run.act < PROGRESSION.emberglass.usurper.minShopAct) return { ok: false, reason: 'act' };
+  if (run.act < T(run).progression.emberglass.usurper.minShopAct) return { ok: false, reason: 'act' };
   if (run.questScratch?.usurper?.bought) return { ok: false, reason: 'bought' };
-  const price = PROGRESSION.emberglass.usurper.price;
+  const price = T(run).progression.emberglass.usurper.price;
   if (run.player.gold < price) return { ok: false, reason: 'gold' };
   run.player.gold -= price;
   run.questScratch.usurper = { bought: true };
@@ -873,8 +998,8 @@ export function buyQuestItem(run, itemId) {
 export function rollEvent(run) {
   const rng = runRng(run);
   const seen = (run.seenEvents ||= []);
-  let ids = Object.keys(EVENTS).filter((id) => !seen.includes(id));
-  if (!ids.length) { run.seenEvents = []; ids = Object.keys(EVENTS); }
+  let ids = Object.keys(T(run).events).filter((id) => !seen.includes(id));
+  if (!ids.length) { run.seenEvents = []; ids = Object.keys(T(run).events); }
   const id = pick(rng, ids);
   seen.push(id);
   return id;
@@ -886,7 +1011,7 @@ export function rollEncounter(run, type, row, node) {
     ? pale.hiddenRemaining
     : pale?.hiddenDue ? 1 : 0;
   const hiddenRemaining = Math.min(savedHiddenRemaining,
-    Math.max(0, Math.floor(PROGRESSION.emberglass.paleOnes.hiddenPerRun)));
+    Math.max(0, Math.floor(T(run).progression.emberglass.paleOnes.hiddenPerRun)));
   if (pale) {
     pale.hiddenRemaining = hiddenRemaining;
     pale.hiddenDue = hiddenRemaining > 0;
@@ -896,11 +1021,11 @@ export function rollEncounter(run, type, row, node) {
     pale.hiddenDue = pale.hiddenRemaining > 0;
     return [paleVariantForAct(run.act)];
   }
-  if (type === 'boss' && run.act === 2 && run.questScratch?.usurper?.bought) {
+  if (type === 'boss' && isFinalTheme(run) && run.questScratch?.usurper?.bought) {
     return ['usurpedSovereign'];
   }
   const rng = runRng(run);
-  const pools = ENCOUNTERS[run.act];
+  const pools = T(run).encounters[run.act];
   const pool = type === 'boss' ? pools.boss : type === 'elite' ? pools.elite : row < 3 ? pools.weak : pools.normal;
   const last = run.lastEnc;
   let enc, tries = 0;
@@ -934,11 +1059,11 @@ export function makeVariant(baseDef, variantDef) {
 
 function heroShadeBase(run) {
   const aspectIndex = run.monument?.shadeAspect ?? run.aspect ?? 0;
-  const aspect = ASPECTS[aspectIndex] || ASPECTS[0];
-  const kit = SHADE_KITS[aspect.id];
+  const aspect = T(run).aspects[aspectIndex] || T(run).aspects[0];
+  const kit = T(run).shadeKits[aspect.id];
   return {
     name: aspect.name + ' Shade', hp: [110, 110], facets: 6, boss: true,
-    art: ENEMIES.shade.art, moves: kit.moves, ai: kit.ai,
+    art: T(run).enemies.shade.art, moves: kit.moves, ai: kit.ai,
     presentation: {
       artCategory: 'heroes', artId: aspect.id, layoutKey: 'shade',
       kind: 'humanoid', hue: aspect.hue || 0,
@@ -947,9 +1072,9 @@ function heroShadeBase(run) {
 }
 
 export function resolveCombatant(run, id) {
-  const variant = VARIANTS[id];
+  const variant = T(run).variants[id];
   if (!variant) {
-    const def = ENEMIES[id];
+    const def = T(run).enemies[id];
     return {
       def, baseKey: id, variantId: null,
       presentation: {
@@ -958,7 +1083,7 @@ export function resolveCombatant(run, id) {
       },
     };
   }
-  const base = variant.base === 'hero' ? heroShadeBase(run) : ENEMIES[variant.base];
+  const base = variant.base === 'hero' ? heroShadeBase(run) : T(run).enemies[variant.base];
   const def = makeVariant(base, variant);
   const basePresentation = base.presentation || {
     artCategory: 'enemies', artId: variant.base, layoutKey: variant.base,
@@ -976,8 +1101,8 @@ export function startCombat(run, enemyIds, kind = 'normal', opts = {}) {
   const vm = vowMods(run);
   // every elite arrives wearing a title; the title is a promise
   const affixed = kind === 'elite' || (om.allCombatsAffixed && kind !== 'boss');
-  const affix = affixed ? (opts.affix || pick(rng, Object.keys(AFFIXES))) : null;
-  const af = affix ? AFFIXES[affix].mods : {};
+  const affix = affixed ? (opts.affix || pick(rng, Object.keys(T(run).affixes))) : null;
+  const af = affix ? T(run).affixes[affix].mods : {};
   const cb = {
     kind, affix, turn: 0, over: false, result: null, queue: [],
     player: {
@@ -1006,7 +1131,7 @@ export function startCombat(run, enemyIds, kind = 'normal', opts = {}) {
     if (questId === 'paleOnes' || questId === 'ownShade') revealQuest(run, questId, cb.queue);
   }
   if (kind === 'boss' && cb.enemies[0]) cb.queue.push({ t: 'bossIntro', name: cb.enemies[0].name });
-  const aspectName = ASPECTS[run.aspect].name.replace(/^The\s+/, '');
+  const aspectName = T(run).aspects[run.aspect].name.replace(/^The\s+/, '');
   for (const e of cb.enemies) {
     for (const line of e.def.dialogue || []) {
       cb.queue.push({ t: 'variantDialogue', idx: e.idx, text: line.replace(/\{aspect\}/g, aspectName) });
@@ -1084,7 +1209,7 @@ export function gainEmbers(run, cb, n) {
       const event = { t: 'hollowTithe', n: tithe, remaining };
       if (remaining === 0) {
         delete q.memory.emberDebt;
-        event.paid = QUESTS.hollowLamplighter.meetings[0].paid;
+        event.paid = T(run).quests.hollowLamplighter.meetings[0].paid;
       }
       cb.queue.push(event);
       if (remaining === 0) advanceQuest(run, 'hollowLamplighter', 1, cb.queue);
@@ -1151,12 +1276,12 @@ function jumpSmolder(run, cb, from, amount) {
 }
 // the Lantern Art: the hero's one always-available answer, paid in embers
 export function canUseArt(run, cb) {
-  const art = ARTS[run.art];
+  const art = T(run).arts[run.art];
   return !!art && !cb.over && cb.artUsedTurn !== cb.turn && cb.embers >= art.cost;
 }
 export function useArt(run, cb) {
   if (!canUseArt(run, cb)) return false;
-  const art = ARTS[run.art];
+  const art = T(run).arts[run.art];
   cb.artUsedTurn = cb.turn;
   run.stats.embersSpent += art.cost;
   gainEmbers(run, cb, -art.cost);
@@ -1189,7 +1314,7 @@ function applyArtEffect(run, cb, fx) {
 // the universal rite: once per turn, feed any hand card to the lantern
 export function canKindle(run, cb, inst) {
   if (!inst || cb.over) return false;
-  if (cardData(inst).type === 'curse') return false; // hexes cling to the hand
+  if (cardData(inst, run).type === 'curse') return false; // hexes cling to the hand
   return !(cb.kindledTurn === cb.turn && cb.kindlesThisTurn >= kindleLimit(run));
 }
 function kindleLimit(run) { return hasRelic(run, 'crownOfTithes') ? 2 : 1; }
@@ -1249,7 +1374,7 @@ function onEnemyDeath(run, cb, e) {
   if (e.boss) run.stats.bosses++;
   if (e.def.drop?.quest === 'paleOnes') {
     const q = advanceQuest(run, 'paleOnes', e.def.drop.n, cb.queue);
-    if (q && q.progress >= PROGRESSION.emberglass.paleOnes.lensAt &&
+    if (q && q.progress >= T(run).progression.emberglass.paleOnes.lensAt &&
         !run.unlocks.includes('insight:witchlightLens')) {
       run.unlocks.push('insight:witchlightLens');
       cb.queue.push({ t: 'questUnlock', id: 'insight:witchlightLens' });
@@ -1269,14 +1394,14 @@ function onEnemyDeath(run, cb, e) {
     }
     if (!wasComplete && q?.state === 'complete' &&
         !run.endQueue.some((event) => event.t === 'shadeResolved')) {
-      run.endQueue.push({ t: 'shadeResolved', text: QUESTS.ownShade.final });
+      run.endQueue.push({ t: 'shadeResolved', text: T(run).quests.ownShade.final });
     }
   }
   if (e.def.drop?.quest === 'usurper') {
     const wasComplete = questRecord(run, 'usurper')?.state === 'complete';
     const q = advanceQuest(run, 'usurper', e.def.drop.n, cb.queue);
     if (!wasComplete && q?.state === 'complete') {
-      cb.queue.push({ t: 'variantDialogue', idx: e.idx, text: QUESTS.usurper.death });
+      cb.queue.push({ t: 'variantDialogue', idx: e.idx, text: T(run).quests.usurper.death });
     }
   }
   if (cb.enemies.every((x) => x.hp <= 0)) { winCombat(run, cb); return; }
@@ -1314,7 +1439,7 @@ function damagePlayer(run, cb, base, { source = 'self', isAttack = false, attack
   if (P.hp <= 0) { loseCombat(run, cb); return loss; }
   if (isAttack && attacker) {
     // what clings to their blows: omen ash, affix cinders
-    const applies = { ...(omenMods(run).playerHitApplies || {}), ...(cb.affix ? AFFIXES[cb.affix].mods.attackApplies || {} : {}) };
+    const applies = { ...(omenMods(run).playerHitApplies || {}), ...(cb.affix ? T(run).affixes[cb.affix].mods.attackApplies || {} : {}) };
     for (const [sid, n] of Object.entries(applies)) addStatus(cb, P, sid, n);
     if (P.statuses.thorns && attacker.hp > 0) hitEnemy(run, cb, attacker, P.statuses.thorns, { isAttack: false });
   }
@@ -1381,7 +1506,7 @@ function startPlayerTurn(run, cb) {
 }
 
 export function effCost(run, cb, inst) {
-  const d = cardData(inst);
+  const d = cardData(inst, run);
   if (d.cost == null) return null;
   if (hasRelic(run, 'duskmirror') && !cb.counters.firstCardPlayed) return 0;
   if (omenMods(run).firstCardDiscount && !cb.counters.firstCardPlayed) {
@@ -1391,7 +1516,7 @@ export function effCost(run, cb, inst) {
 }
 export function canPlay(run, cb, inst, targetIdx) {
   if (cb.over) return false;
-  const d = cardData(inst);
+  const d = cardData(inst, run);
   if (d.unplayable) return false;
   const cost = effCost(run, cb, inst);
   if (cost > cb.player.energy) return false;
@@ -1403,7 +1528,7 @@ export function playCard(run, cb, uid, targetIdx = null) {
   const i = cb.hand.findIndex((c) => c.uid === uid);
   if (i < 0) return false;
   const inst = cb.hand[i];
-  const d = cardData(inst);
+  const d = cardData(inst, run);
   if (!canPlay(run, cb, inst, targetIdx)) return false;
   const P = cb.player;
   const cost = effCost(run, cb, inst);
@@ -1572,7 +1697,7 @@ function applySpecial(run, cb, inst, d, fx, target, sealMult) {
 export function usePotion(run, cb, slot, targetIdx = null) {
   const id = run.player.potions[slot];
   if (!id) return false;
-  const p = POTIONS[id];
+  const p = T(run).potions[id];
   if (p.combatOnly && (!cb || cb.over)) return false;
   if (p.needsTarget && (targetIdx == null || !cb.enemies[targetIdx] || cb.enemies[targetIdx].hp <= 0)) return false;
   run.player.potions[slot] = null;
@@ -1595,7 +1720,7 @@ export function endTurn(run, cb) {
   cb.queue.push({ t: 'endTurn' });
   // hand end-of-turn penalties
   for (const c of [...cb.hand]) {
-    const d = cardData(c);
+    const d = cardData(c, run);
     if (d.endTurnDmg) damagePlayer(run, cb, d.endTurnDmg, { source: 'burn' });
     if (d.endTurnLoseHp) damagePlayer(run, cb, d.endTurnLoseHp, { source: 'burn' });
     if (cb.over) return;
@@ -1672,25 +1797,25 @@ export function endTurn(run, cb) {
 function winCombat(run, cb) {
   cb.over = true;
   cb.result = 'win';
-  if (cb.kind === 'boss' && run.act === 2 && run.questScratch?.eighthOmen?.active) {
+  if (cb.kind === 'boss' && isFinalTheme(run) && run.questScratch?.eighthOmen?.active) {
     const wasComplete = questRecord(run, 'eighthOmen')?.state === 'complete';
     const q = advanceQuest(run, 'eighthOmen', 1, run.endQueue);
     if (!wasComplete && q?.state === 'complete' &&
         !run.endQueue.some((event) => event.t === 'eighthResolved')) {
-      run.endQueue.push({ t: 'eighthResolved', text: QUESTS.eighthOmen.resolved });
+      run.endQueue.push({ t: 'eighthResolved', text: T(run).quests.eighthOmen.resolved });
     }
   }
   const pageQuest = questRecord(run, 'unreadablePage');
-  if (cb.kind === 'boss' && run.act === 2 &&
+  if (cb.kind === 'boss' && isFinalTheme(run) &&
       run.player.deck.some((card) => card.id === 'unreadablePage') &&
       pageQuest && QUEST_ACTIVE_STATES.includes(pageQuest.state) &&
-      pageQuest.progress < QUESTS.unreadablePage.target &&
+      pageQuest.progress < T(run).quests.unreadablePage.target &&
       !run.endQueue.some((event) => event.t === 'pageRead')) {
     const q = advanceQuest(run, 'unreadablePage', 1, run.endQueue);
     run.endQueue.push({
       t: 'pageRead',
       index: q.progress,
-      text: QUESTS.unreadablePage.pages[q.progress - 1],
+      text: T(run).quests.unreadablePage.pages[q.progress - 1],
     });
   }
   // write back
@@ -1735,7 +1860,7 @@ export function previewEnemyDmg(run, cb, e) {
 // what would this card actually do to this target? pure arithmetic mirroring
 // hitEnemy/gainBlock (str, weak, vulnerable, seal, specials) — no state touched
 export function previewPlay(run, cb, inst, targetIdx = null) {
-  const d = cardData(inst);
+  const d = cardData(inst, run);
   const P = cb.player;
   const target = targetIdx != null ? cb.enemies[targetIdx] : null;
   const sealMult = hasRelic(run, 'executionersSeal') && d.type === 'attack' && (cb.counters.attacks + 1) % 10 === 0 ? 2 : 1;
@@ -1791,10 +1916,10 @@ export function addCardToDeck(run, id, up = false) {
   run.player.deck.push(c);
   return c;
 }
-export const removableCards = (run) => run.player.deck.filter((c) => !cardData(c).unremovable);
+export const removableCards = (run) => run.player.deck.filter((c) => !cardData(c, run).unremovable);
 export function removeCardFromDeck(run, uid) {
   const i = run.player.deck.findIndex((c) => c.uid === uid);
-  if (i < 0 || cardData(run.player.deck[i]).unremovable) return false;
+  if (i < 0 || cardData(run.player.deck[i], run).unremovable) return false;
   run.player.deck.splice(i, 1);
   return true;
 }
@@ -1814,7 +1939,7 @@ const DAWN_UNLOCKS = new Set(Object.values(DEEDS).flatMap((deed) => deed.unlocks
 const isPlainRecord = (value) => value && typeof value === 'object' && !Array.isArray(value);
 const hasExactRecordKeys = (value, keys) => isPlainRecord(value) &&
   Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
-const validAspectIndex = (value) => Number.isInteger(value) && value >= 0 && value < ASPECTS.length;
+const validAspectIndex = (value, content = CORE_ENGINE_CONTENT) => Number.isInteger(value) && value >= 0 && value < content.aspects.length;
 const DAWN_EVENT_TYPES = new Set([
   'whisper', 'questReveal', 'questProgress', 'questUnlock', 'pageRead',
   'eighthResolved', 'shadeResolved', 'questComplete', 'shardGrant', 'act4Reveal',
@@ -1823,20 +1948,20 @@ const END_EVENT_TYPES = new Set([
   'questReveal', 'questProgress', 'questUnlock', 'pageRead',
   'eighthResolved', 'shadeResolved', 'questComplete',
 ]);
-const validRunEvent = (event, allowedTypes) => {
+const validRunEvent = (event, allowedTypes, content = CORE_ENGINE_CONTENT) => {
   if (!isPlainRecord(event) || typeof event.t !== 'string' || !allowedTypes.has(event.t)) return false;
   if (event.t === 'whisper') {
     return hasExactRecordKeys(event, ['t', 'text']) && typeof event.text === 'string';
   }
   if (['questReveal', 'questComplete', 'shardGrant'].includes(event.t)) {
-    return hasExactRecordKeys(event, ['t', 'id']) && QUEST_IDS.includes(event.id);
+    return hasExactRecordKeys(event, ['t', 'id']) && content.questIds.includes(event.id);
   }
   if (event.t === 'questProgress') {
     const validTargets = event.id === 'paleOnes'
-      ? [PROGRESSION.emberglass.paleOnes.lensAt, QUESTS.paleOnes.target]
-      : [QUESTS[event.id]?.target];
+      ? [content.progression.emberglass.paleOnes.lensAt, content.quests.paleOnes.target]
+      : [content.quests[event.id]?.target];
     return hasExactRecordKeys(event, ['t', 'id', 'progress', 'target']) &&
-      QUEST_IDS.includes(event.id) && Number.isInteger(event.progress) && event.progress >= 0 &&
+      content.questIds.includes(event.id) && Number.isInteger(event.progress) && event.progress >= 0 &&
       validTargets.includes(event.target) && event.progress <= event.target;
   }
   if (event.t === 'questUnlock') {
@@ -1845,23 +1970,24 @@ const validRunEvent = (event, allowedTypes) => {
   if (event.t === 'pageRead') {
     return hasExactRecordKeys(event, ['t', 'index', 'text']) &&
       Number.isInteger(event.index) && event.index >= 1 &&
-      event.index <= QUESTS.unreadablePage.target && typeof event.text === 'string';
+      event.index <= content.quests.unreadablePage.target && typeof event.text === 'string';
   }
   if (event.t === 'eighthResolved' || event.t === 'shadeResolved') {
     return hasExactRecordKeys(event, ['t', 'text']) && typeof event.text === 'string';
   }
   return event.t === 'act4Reveal' && hasExactRecordKeys(event, ['t']);
 };
-const validDawnEvent = (event) => validRunEvent(event, DAWN_EVENT_TYPES);
-const validPendingDawn = (pending) => pending == null || (
+const validDawnEvent = (event, content = CORE_ENGINE_CONTENT) => validRunEvent(event, DAWN_EVENT_TYPES, content);
+const validPendingDawn = (pending, content = CORE_ENGINE_CONTENT) => pending == null || (
   hasExactRecordKeys(pending, ['events', 'cursor', 'newUnlocks']) &&
-  Array.isArray(pending.events) && pending.events.every(validDawnEvent) &&
+  Array.isArray(pending.events) && pending.events.every((event) => validDawnEvent(event, content)) &&
   Number.isInteger(pending.cursor) && pending.cursor >= 0 && pending.cursor <= pending.events.length &&
   Array.isArray(pending.newUnlocks) &&
   pending.newUnlocks.every((id) => typeof id === 'string' && DAWN_UNLOCKS.has(id)) &&
   new Set(pending.newUnlocks).size === pending.newUnlocks.length
 );
 export function saveRun(run) {
+  if (isEphemeralRun(run)) return true;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(run));
     return true;
@@ -1869,23 +1995,22 @@ export function saveRun(run) {
     return false;
   }
 }
-export function loadRun() {
+function normaliseRunSnapshot(run, content) {
   try {
-    const s = localStorage.getItem(SAVE_KEY);
-    if (!s) return null;
-    const run = JSON.parse(s);
     if (!run || run.v !== 2 || !run.player || !run.map) return null;
+    // Bind for validation/additive fills so omen rolls read the explicit view.
+    RUN_CONTENT.set(run, content);
     const hasOwn = (registry, id) => Object.hasOwn(registry, id);
     // stale-content shield: a save referencing ids this build no longer ships
     // (dev churn, old versions) is unresumable — drop it rather than crash mid-run
-    if (!run.player.deck.every((c) => hasOwn(CARDS, c.id))) return null;
-    if (!run.player.relics.every((id) => hasOwn(RELICS, id))) return null;
-    if (!run.player.potions.every((id) => id == null || hasOwn(POTIONS, id))) return null;
-    if (run.art != null && !hasOwn(ARTS, run.art)) return null;
-    if (!(run.omens || []).every((id) => id == null || hasOwn(OMENS, id))) return null;
+    if (!run.player.deck.every((c) => hasOwn(content.cards, c.id))) return null;
+    if (!run.player.relics.every((id) => hasOwn(content.relics, id))) return null;
+    if (!run.player.potions.every((id) => id == null || hasOwn(content.potions, id))) return null;
+    if (run.art != null && !hasOwn(content.arts, run.art)) return null;
+    if (!(run.omens || []).every((id) => id == null || hasOwn(content.omens, id))) return null;
     // additive fields self-heal: a save from an older v2 build stays playable
     run.art ??= 'flare';
-    run.aspect = clamp(run.aspect ?? 0, 0, ASPECTS.length - 1); run.vow = clamp(run.vow ?? 0, 0, VOWS.length);
+    run.aspect = clamp(run.aspect ?? 0, 0, content.aspects.length - 1); run.vow = clamp(run.vow ?? 0, 0, content.vows.length);
     run.runId ??= legacyRunId(run);
     run.unlocks ??= []; run.omens ??= []; run.boon ??= null; run.bossRelicAct ??= -1; run.orphanRewardClaimed ??= false; run.orphanRewardResolving ??= false;
     run.reveals ??= null;
@@ -1902,22 +2027,23 @@ export function loadRun() {
     run.pendingHollow ??= null;
     run.pendingHollowRoute ??= null;
     run.boonReceipt ??= null;
-    if (run.reveals != null && !(Array.isArray(run.reveals) && run.reveals.every((id) => REVEALS.some((r) => r.id === id)))) return null;
+    if (run.reveals != null && !(Array.isArray(run.reveals) && run.reveals.every((id) => content.reveals.some((r) => r.id === id)))) return null;
     const onlyKeys = (x, keys) => Object.keys(x).every((k) => keys.includes(k));
     const optionalBool = (x, k) => x[k] == null || typeof x[k] === 'boolean';
     const validBequest = (b) => b == null || (isPlainRecord(b) && (
-      (b.kind === 'card' && hasOwn(CARDS, b.id) && optionalBool(b, 'up')) ||
-      (b.kind === 'relic' && hasOwn(RELICS, b.id)) ||
+      (b.kind === 'card' && hasOwn(content.cards, b.id) && optionalBool(b, 'up')) ||
+      (b.kind === 'relic' && hasOwn(content.relics, b.id)) ||
       (b.kind === 'gold' && Number.isFinite(b.amount) && b.amount >= 0)
     ));
+    const themeBound = (content.themeOrder?.length ?? content.acts.length) - 1;
     const validMonument = (monument) => monument == null || (
-      Number.isInteger(monument.act) && monument.act >= 0 && monument.act <= 2 &&
+      Number.isInteger(monument.act) && monument.act >= 0 && monument.act <= themeBound &&
       Number.isInteger(monument.row) && monument.row >= 0 &&
       validBequest(monument.bequest) && typeof monument.claimed === 'boolean' && (
         hasExactRecordKeys(monument, ['act', 'row', 'bequest', 'claimed']) ||
         (hasExactRecordKeys(monument, ['act', 'row', 'bequest', 'standing', 'claimed']) && monument.standing === false) ||
         (hasExactRecordKeys(monument, ['act', 'row', 'bequest', 'standing', 'shadeAspect', 'claimed']) &&
-          monument.standing === true && validAspectIndex(monument.shadeAspect))
+          monument.standing === true && validAspectIndex(monument.shadeAspect, content))
       )
     );
     const validMemory = (id, q) => {
@@ -1928,8 +2054,8 @@ export function loadRun() {
         if (q.state === 'complete') return onlyKeys(m, ['seen']) && (m.seen == null || m.seen === true);
         const dueMax = Math.max(
           1,
-          Math.floor(PROGRESSION.emberglass.eighthOmen.guaranteeRuns),
-          Math.floor(PROGRESSION.emberglass.eighthOmen.saveDueInMax),
+          Math.floor(content.progression.emberglass.eighthOmen.guaranteeRuns),
+          Math.floor(content.progression.emberglass.eighthOmen.saveDueInMax),
         );
         const dueValid = Number.isInteger(m.dueIn) && m.dueIn >= 1 && m.dueIn <= dueMax;
         return onlyKeys(m, ['dueIn', 'seen']) && optionalBool(m, 'seen') &&
@@ -1941,8 +2067,8 @@ export function loadRun() {
           (m.eligibleMisses == null || (Number.isInteger(m.eligibleMisses) && m.eligibleMisses >= 0));
         const debtMax = Math.max(
           1,
-          Math.floor(PROGRESSION.emberglass.hollowLamplighter.emberDebt),
-          Math.floor(PROGRESSION.emberglass.hollowLamplighter.saveEmberDebtMax),
+          Math.floor(content.progression.emberglass.hollowLamplighter.emberDebt),
+          Math.floor(content.progression.emberglass.hollowLamplighter.saveEmberDebtMax),
         );
         return onlyKeys(m, ['eligibleMisses', 'emberDebt']) &&
           (m.eligibleMisses == null || (Number.isInteger(m.eligibleMisses) && m.eligibleMisses >= 0)) &&
@@ -1953,15 +2079,15 @@ export function loadRun() {
     };
     const validQuest = (id, q) => {
       if (!isPlainRecord(q) || !QUEST_STATES.includes(q.state) ||
-        !Number.isInteger(q.progress) || q.progress < 0 || q.progress > QUESTS[id].target) return false;
+        !Number.isInteger(q.progress) || q.progress < 0 || q.progress > content.quests[id].target) return false;
       const coherentProgress = q.state === 'dormant'
         ? q.progress === 0
         : q.state === 'complete'
-          ? q.progress === QUESTS[id].target
-          : q.progress < QUESTS[id].target;
+          ? q.progress === content.quests[id].target
+          : q.progress < content.quests[id].target;
       return coherentProgress && validMemory(id, q);
     };
-    const validEnemyId = (id) => hasOwn(ENEMIES, id) || hasOwn(VARIANTS, id);
+    const validEnemyId = (id) => hasOwn(content.enemies, id) || hasOwn(content.variants, id);
     const validPendingReward = (pending) => {
       if (pending == null) return true;
       if (!hasExactRecordKeys(pending, ['kind', 'rewards', 'taken', 'perfect']) ||
@@ -1970,9 +2096,9 @@ export function loadRun() {
       if (!hasExactRecordKeys(rewards, ['gold', 'cards', 'potion', 'relic']) ||
         !Number.isInteger(rewards.gold) || rewards.gold < 0 ||
         !Array.isArray(rewards.cards) || !rewards.cards.length ||
-        rewards.cards.some((id) => !hasOwn(CARDS, id)) || new Set(rewards.cards).size !== rewards.cards.length ||
-        (rewards.potion != null && !hasOwn(POTIONS, rewards.potion)) ||
-        (rewards.relic != null && !hasOwn(RELICS, rewards.relic))) return false;
+        rewards.cards.some((id) => !hasOwn(content.cards, id)) || new Set(rewards.cards).size !== rewards.cards.length ||
+        (rewards.potion != null && !hasOwn(content.potions, rewards.potion)) ||
+        (rewards.relic != null && !hasOwn(content.relics, rewards.relic))) return false;
       return hasExactRecordKeys(pending.taken, ['gold', 'potion', 'relic', 'card']) &&
         Object.values(pending.taken).every((value) => typeof value === 'boolean');
     };
@@ -1993,26 +2119,26 @@ export function loadRun() {
         !HOLLOW_DESTINATION_TYPES.includes(pending.type)) return false;
       const node = run.map.nodes.find((candidate) => candidate.id === pending.nodeId);
       if (!node || node.type !== pending.type || run.nodeId !== node.id || !run.map.visited.includes(node.id)) return false;
-      if (pending.type === 'event') return hasOwn(EVENTS, pending.eventId);
+      if (pending.type === 'event') return hasOwn(content.events, pending.eventId);
       return pending.eventId === null;
     };
     const validBoonReceipt = (receipt) => {
       if (receipt == null) return true;
       if (!hasExactRecordKeys(receipt, ['id', 'playerDelta', 'statsGoldEarned', 'relicsAdded', 'potionSlotsAdded']) ||
-        !hasOwn(BOONS, receipt.id) || receipt.id !== run.boon) return false;
+        !hasOwn(content.boons, receipt.id) || receipt.id !== run.boon) return false;
       const delta = receipt.playerDelta;
       if (!hasExactRecordKeys(delta, ['gold', 'hp', 'maxHp', 'energyMax']) ||
         Object.values(delta).some((n) => !Number.isFinite(n)) ||
         !Number.isFinite(receipt.statsGoldEarned) || receipt.statsGoldEarned < 0 ||
-        !Array.isArray(receipt.relicsAdded) || receipt.relicsAdded.some((id) => !hasOwn(RELICS, id)) ||
+        !Array.isArray(receipt.relicsAdded) || receipt.relicsAdded.some((id) => !hasOwn(content.relics, id)) ||
         !Array.isArray(receipt.potionSlotsAdded)) return false;
       return receipt.potionSlotsAdded.every((slot) =>
         hasExactRecordKeys(slot, ['index', 'id']) && Number.isInteger(slot.index) &&
-        slot.index >= 0 && slot.index < run.player.potions.length && hasOwn(POTIONS, slot.id));
+        slot.index >= 0 && slot.index < run.player.potions.length && hasOwn(content.potions, slot.id));
     };
 
     const validScratch = (scratch) => {
-      if (!isPlainRecord(scratch) || Object.keys(scratch).some((id) => !QUEST_IDS.includes(id))) return false;
+      if (!isPlainRecord(scratch) || Object.keys(scratch).some((id) => !content.questIds.includes(id))) return false;
       for (const [id, x] of Object.entries(scratch)) {
         if (!isPlainRecord(x)) return false;
         if (id === 'paleOnes' && !(onlyKeys(x, ['hiddenDue', 'hiddenRemaining', 'markedAct2']) &&
@@ -2033,34 +2159,34 @@ export function loadRun() {
         if (id === 'ownShade') {
           const fall = x.fall;
           const validFall = fall == null || (isPlainRecord(fall) && onlyKeys(fall, ['act', 'row', 'shadeAspect', 'bequest']) &&
-            Number.isInteger(fall.act) && fall.act >= 0 && fall.act <= 2 && Number.isInteger(fall.row) && fall.row >= 0 &&
-            validAspectIndex(fall.shadeAspect) && validBequest(fall.bequest));
+            Number.isInteger(fall.act) && fall.act >= 0 && fall.act <= themeBound && Number.isInteger(fall.row) && fall.row >= 0 &&
+            validAspectIndex(fall.shadeAspect, content) && validBequest(fall.bequest));
           if (!(onlyKeys(x, ['fall', 'pendingBequest']) && validFall && validBequest(x.pendingBequest))) return false;
         }
       }
       return true;
     };
 
-    const validEndEvent = (event) => validRunEvent(event, END_EVENT_TYPES);
+    const validEndEvent = (event) => validRunEvent(event, END_EVENT_TYPES, content);
 
     if (!isPlainRecord(run.quests)) return null;
     if (!validRunId(run.runId)) return null;
-    if (run.boon != null && !hasOwn(BOONS, run.boon)) return null;
+    if (run.boon != null && !hasOwn(content.boons, run.boon)) return null;
     if (!validMonument(run.monument)) return null;
-    if (Object.keys(run.quests).some((id) => !QUEST_IDS.includes(id))) return null;
+    if (Object.keys(run.quests).some((id) => !content.questIds.includes(id))) return null;
     if (Object.entries(run.quests).some(([id, q]) => !validQuest(id, q))) return null;
-    if (!(Array.isArray(run.shards) && run.shards.every((id) => QUEST_IDS.includes(id)) && new Set(run.shards).size === run.shards.length)) return null;
+    if (!(Array.isArray(run.shards) && run.shards.every((id) => content.questIds.includes(id)) && new Set(run.shards).size === run.shards.length)) return null;
     if (!validScratch(run.questScratch)) return null;
-    if (!(Array.isArray(run.questCompletions) && run.questCompletions.every((id) => QUEST_IDS.includes(id)) && new Set(run.questCompletions).size === run.questCompletions.length)) return null;
+    if (!(Array.isArray(run.questCompletions) && run.questCompletions.every((id) => content.questIds.includes(id)) && new Set(run.questCompletions).size === run.questCompletions.length)) return null;
     if (!(Array.isArray(run.endQueue) && run.endQueue.every(validEndEvent))) return null;
     if (run.pendingCombat != null && !['monster', 'elite', 'boss'].includes(run.pendingCombat)) return null;
     if (run.pendingEnemyIds != null && !(Array.isArray(run.pendingEnemyIds) && run.pendingEnemyIds.length && run.pendingEnemyIds.every(validEnemyId))) return null;
-    if (run.pendingQuestId != null && !QUEST_IDS.includes(run.pendingQuestId)) return null;
+    if (run.pendingQuestId != null && !content.questIds.includes(run.pendingQuestId)) return null;
     if (run.pendingEnemyIds != null && run.pendingCombat == null) return null;
     if (run.pendingQuestId != null && run.pendingCombat == null) return null;
     if (!validPendingReward(run.pendingReward)) return null;
     if (!validPendingRunEnd(run.pendingRunEnd)) return null;
-    if (!validPendingDawn(run.pendingDawn)) return null;
+    if (!validPendingDawn(run.pendingDawn, content)) return null;
     if (!validPendingHollow(run.pendingHollow)) return null;
     if (!validPendingHollowRoute(run.pendingHollowRoute)) return null;
     if (!validBoonReceipt(run.boonReceipt)) return null;
@@ -2076,7 +2202,7 @@ export function loadRun() {
       (run.pendingCombat != null || run.pendingReward != null || run.pendingRunEnd != null ||
         run.pendingHollow != null || run.pendingHollowRoute != null)) return null;
     if (!run.map.nodes.every((n) =>
-      (n.questVariantId == null || hasOwn(VARIANTS, n.questVariantId)) &&
+      (n.questVariantId == null || hasOwn(content.variants, n.questVariantId)) &&
       (n.questMarked == null || typeof n.questMarked === 'boolean'))) return null;
     // The immediately preceding Phase 2 build could persist the final
     // Hollow completion before run-end reconciliation removed its pity
@@ -2090,7 +2216,25 @@ export function loadRun() {
     return run;
   } catch { return null; }
 }
+export function _normaliseRunSnapshotForTest(raw, content) {
+  assertEngineContent(content);
+  if (raw == null || typeof raw !== 'object') return null;
+  const normalised = normaliseRunSnapshot(deepCopyJson(raw), content);
+  if (normalised) RUN_CONTENT.set(normalised, content);
+  return normalised;
+}
+export function loadRun() {
+  try {
+    const s = localStorage.getItem(SAVE_KEY);
+    if (!s) return null;
+    // Production load stays core-only and binds no custom context.
+    const run = normaliseRunSnapshot(JSON.parse(s), CORE_ENGINE_CONTENT);
+    if (run) RUN_CONTENT.delete(run);
+    return run;
+  } catch { return null; }
+}
 export function clearSave(runId = null) {
+  // Ephemeral Lab runs never touch storage; predecessor success shape is true.
   try {
     if (runId != null) {
       const raw = localStorage.getItem(SAVE_KEY);
@@ -2113,6 +2257,7 @@ export function loadStats() {
   } catch { return { runs: 0, wins: 0, best: 0, lastRunId: null }; }
 }
 export function commitRunStats(run, won) {
+  if (isEphemeralRun(run)) return true;
   const s = loadStats();
   if (s.lastRunId !== run.runId) {
     s.runs++;
@@ -2125,6 +2270,7 @@ export function commitRunStats(run, won) {
   return true;
 }
 export function recordRunEnd(run, won) {
+  if (isEphemeralRun(run)) return true;
   if (!commitRunStats(run, won)) return false;
   return clearSave(run.runId);
 }
@@ -2138,7 +2284,7 @@ export function stagePendingDawn(run, events, newUnlocks = []) {
     cursor: 0,
     newUnlocks: Array.isArray(newUnlocks) ? [...newUnlocks] : newUnlocks,
   };
-  if (!validPendingDawn(pending) || !commitRunStats(run, true)) return false;
+  if (!validPendingDawn(pending, engineContentFor(run)) || !commitRunStats(run, true)) return false;
   const journal = run.pendingRunEnd;
   const receiptCacheKeys = [
     'vigilCommitted', 'vigilWon', 'vigilResult',
@@ -2159,7 +2305,7 @@ export function stagePendingDawn(run, events, newUnlocks = []) {
 
 export function advancePendingDawn(run, nextCursor) {
   const pending = run?.pendingDawn;
-  if (!validPendingDawn(pending) || pending == null ||
+  if (!validPendingDawn(pending, engineContentFor(run)) || pending == null ||
       !Number.isInteger(nextCursor) || nextCursor !== pending.cursor + 1 ||
       nextCursor > pending.events.length) return false;
   const previous = pending.cursor;
@@ -2171,7 +2317,7 @@ export function advancePendingDawn(run, nextCursor) {
 
 export function completePendingDawn(run) {
   const pending = run?.pendingDawn;
-  if (!validPendingDawn(pending) || pending == null || pending.cursor !== pending.events.length) return false;
+  if (!validPendingDawn(pending, engineContentFor(run)) || pending == null || pending.cursor !== pending.events.length) return false;
   if (!clearSave(run.runId)) return false;
   run.pendingDawn = null;
   return true;
@@ -2225,13 +2371,13 @@ const multisetAdded = (after, before) => {
 };
 
 export function applyBoon(run, id) {
-  if (!Object.hasOwn(BOONS, id)) throw new Error('unknown boon: ' + id);
+  if (!Object.hasOwn(T(run).boons, id)) throw new Error('unknown boon: ' + id);
   const before = {
     gold: run.player.gold, hp: run.player.hp, maxHp: run.player.maxHp,
     energyMax: run.player.energyMax, goldEarned: run.stats.goldEarned,
     relics: [...run.player.relics], potions: [...run.player.potions],
   };
-  applyEventOps(run, BOONS[id].ops);
+  applyEventOps(run, T(run).boons[id].ops);
   run.boon = id;
   run.boonReceipt = {
     id,
@@ -2286,7 +2432,7 @@ export function payHollowPrice(run) {
   if (!q || !QUEST_ACTIVE_STATES.includes(q.state)) {
     return { ok: false, deferred: false, message: '' };
   }
-  const meeting = QUESTS.hollowLamplighter.meetings[q.progress];
+  const meeting = T(run).quests.hollowLamplighter.meetings[q.progress];
   const fail = () => ({ ok: false, deferred: false, message: meeting.cannot });
   const accept = (deferred, message) => {
     pending.paid = true;
@@ -2295,22 +2441,22 @@ export function payHollowPrice(run) {
     return { ok: true, deferred, message };
   };
   if (q.progress === 0) {
-    q.memory.emberDebt = PROGRESSION.emberglass.hollowLamplighter.emberDebt;
+    q.memory.emberDebt = T(run).progression.emberglass.hollowLamplighter.emberDebt;
     return accept(true, meeting.accepted);
   }
   if (q.progress === 1) {
-    const price = PROGRESSION.emberglass.hollowLamplighter.gold;
+    const price = T(run).progression.emberglass.hollowLamplighter.gold;
     if (run.player.gold < price) return fail();
     run.player.gold -= price;
   } else if (q.progress === 2) {
-    const price = PROGRESSION.emberglass.hollowLamplighter.maxHp;
-    if (run.player.maxHp - price < PROGRESSION.emberglass.hollowLamplighter.minMaxHpAfter) return fail();
+    const price = T(run).progression.emberglass.hollowLamplighter.maxHp;
+    if (run.player.maxHp - price < T(run).progression.emberglass.hollowLamplighter.minMaxHpAfter) return fail();
     run.player.maxHp -= price;
     run.player.hp = Math.min(run.player.hp, run.player.maxHp);
   } else if (q.progress === 3) {
     if (!reverseBoon(run)) return fail();
   } else if (q.progress === 4) {
-    run.player.hp = PROGRESSION.emberglass.hollowLamplighter.finalHp;
+    run.player.hp = T(run).progression.emberglass.hollowLamplighter.finalHp;
   } else return fail();
   advanceQuest(run, 'hollowLamplighter', 1, run.endQueue);
   return accept(false, meeting.paid);

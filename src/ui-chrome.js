@@ -1,3 +1,5 @@
+import { STRUCTURAL_FALLBACK_IDS } from './presentation-catalog.js';
+
 export const UI_CHROME_IDS = [
   'candle-lit', 'candle-spent',
   'facet-empty', 'facet-chipped',
@@ -14,6 +16,12 @@ const FALLBACK = {
   'intent-attack': 'sword', 'intent-block': 'shield', 'intent-buff': 'up',
   'intent-debuff': 'cloud', 'intent-heal': 'plus',
 };
+
+for (const id of Object.values(FALLBACK)) {
+  if (!STRUCTURAL_FALLBACK_IDS.includes(id)) {
+    throw new Error(`ui-chrome FALLBACK id ${id} missing from presentation-catalog`);
+  }
+}
 
 export function uiFallbackName(id) {
   return Object.prototype.hasOwnProperty.call(FALLBACK, id) ? FALLBACK[id] : null;

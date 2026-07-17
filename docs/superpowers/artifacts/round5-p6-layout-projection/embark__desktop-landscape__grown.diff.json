@@ -1,0 +1,53 @@
+{
+  "id": "embark__desktop-landscape__grown",
+  "deltaCount": 6,
+  "expectedCount": 6,
+  "unexpectedCount": 0,
+  "unexpectedPaths": [],
+  "expectedPathsHit": [
+    "embark.vowDial.height",
+    "embark.vowDial.bottom",
+    "embark.aspectCards[0].top",
+    "embark.aspectCards[1].top",
+    "cardface.hasArtTexture",
+    "cardface.rarityAccentDistinct"
+  ],
+  "deltas": [
+    {
+      "path": "embark.vowDial.height",
+      "kind": "box-drift",
+      "live": 59.375023269653326,
+      "golden": 75.10999279166661
+    },
+    {
+      "path": "embark.vowDial.bottom",
+      "kind": "box-drift",
+      "live": 583.2878084182739,
+      "golden": 592.5731427095702
+    },
+    {
+      "path": "embark.aspectCards[0].top",
+      "kind": "box-drift",
+      "live": 252.6783939361572,
+      "golden": 242.65187649823878
+    },
+    {
+      "path": "embark.aspectCards[1].top",
+      "kind": "box-drift",
+      "live": 252.6783939361572,
+      "golden": 242.65187649823878
+    },
+    {
+      "path": "cardface.hasArtTexture",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    },
+    {
+      "path": "cardface.rarityAccentDistinct",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    }
+  ]
+}

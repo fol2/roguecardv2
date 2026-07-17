@@ -1,0 +1,95 @@
+{
+  "id": "dawn__phone-landscape__grown",
+  "deltaCount": 12,
+  "expectedCount": 12,
+  "unexpectedCount": 0,
+  "unexpectedPaths": [],
+  "expectedPathsHit": [
+    "dawn.whisper.left",
+    "dawn.whisper.top",
+    "dawn.whisper.width",
+    "dawn.whisper.right",
+    "dawn.whisper.bottom",
+    "dawn.whisper.cy",
+    "dawn.ceremony.height",
+    "dawn.ceremony.bottom",
+    "dawn.ceremony.cy",
+    "dawn.content.width",
+    "cardface.hasArtTexture",
+    "cardface.rarityAccentDistinct"
+  ],
+  "deltas": [
+    {
+      "path": "dawn.whisper.left",
+      "kind": "box-drift",
+      "live": 171.34374914169314,
+      "golden": 187.66189193725586
+    },
+    {
+      "path": "dawn.whisper.top",
+      "kind": "box-drift",
+      "live": 217.92734689712523,
+      "golden": 230.16023155146127
+    },
+    {
+      "path": "dawn.whisper.width",
+      "kind": "box-drift",
+      "live": 113.4531273841858,
+      "golden": 75.01485290527344
+    },
+    {
+      "path": "dawn.whisper.right",
+      "kind": "box-drift",
+      "live": 284.79687652587893,
+      "golden": 262.6767448425293
+    },
+    {
+      "path": "dawn.whisper.bottom",
+      "kind": "box-drift",
+      "live": 231.42734975814818,
+      "golden": 243.8627263939029
+    },
+    {
+      "path": "dawn.whisper.cy",
+      "kind": "box-drift",
+      "live": 224.6773483276367,
+      "golden": 237.01147897268208
+    },
+    {
+      "path": "dawn.ceremony.height",
+      "kind": "box-drift",
+      "live": 199.40624446868898,
+      "golden": 219.24003821422588
+    },
+    {
+      "path": "dawn.ceremony.bottom",
+      "kind": "box-drift",
+      "live": 316.98984832763676,
+      "golden": 339.1300113346581
+    },
+    {
+      "path": "dawn.ceremony.cy",
+      "kind": "box-drift",
+      "live": 217.28672609329226,
+      "golden": 229.50999222754513
+    },
+    {
+      "path": "dawn.content.width",
+      "kind": "box-drift",
+      "live": 844.0000000000001,
+      "golden": 856.6599678039552
+    },
+    {
+      "path": "cardface.hasArtTexture",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    },
+    {
+      "path": "cardface.rarityAccentDistinct",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    }
+  ]
+}

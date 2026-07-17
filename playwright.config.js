@@ -4,13 +4,28 @@
 // baselines committed only after the §1/§2 fixes land), perf (fps gate),
 // rewards (double-tap guard regression for treasure/events/boss relic).
 // Runs against the dev server (reuses one already on 5174).
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 import { e2eServerSettings } from './playwright-server.js';
 
 const e2eServer = e2eServerSettings(process.env.SPIREBOUND_E2E_PORT);
 
+// `test:e2e:pool` / tools/e2e-shard.mjs set SPIREBOUND_E2E_SUITE=pool: the
+// entire nonvisual kit as one duration-balanced lane. visual/leak/perf keep
+// dedicated jobs (baseline-, isolation- and budget-sensitive) — grep-invert
+// cannot filter by filename, so ignore them here. SPIREBOUND_E2E_SKIP_SLOW=1
+// drops the slow product suites when the changes filter proves the diff
+// cannot affect them (unrelated-e2e-only PRs).
+
+const E2E_POOL_PEEL = /(?:^|\/)(visual|leak|perf)\.spec\.js$/;
+const E2E_SLOW_SPECS = /(?:^|\/)(audio|hollow-transaction|rewards|stage)\.spec\.js$/;
+const e2eSuite = process.env.SPIREBOUND_E2E_SUITE;
+const testIgnore = [/trace-production\.spec\.js/];
+if (e2eSuite === 'pool') testIgnore.push(E2E_POOL_PEEL);
+if (process.env.SPIREBOUND_E2E_SKIP_SLOW === '1') testIgnore.push(E2E_SLOW_SPECS);
+
 export default defineConfig({
   testDir: 'test/e2e',
+  testIgnore,
   fullyParallel: true,
   // every page runs a full three.js scene + bloom; more than two at once
   // starves the GPU/CPU and turns real animation waits into false timeouts
@@ -34,8 +49,10 @@ export default defineConfig({
     },
   },
   expect: {
+    // Per-suite maxDiffPixelRatio lives in test/e2e/visual-policy.js and is
+    // passed explicitly into each toHaveScreenshot call. Do not put a numeric
+    // maxDiffPixelRatio here — test_engine scans for that regression.
     toHaveScreenshot: {
-      maxDiffPixelRatio: 0.01,
       animations: 'disabled',
       caret: 'hide',
     },
@@ -49,12 +66,32 @@ export default defineConfig({
       grep: /Save writes layout to disk/,
       use: { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 },
     },
+    // Mutates src/ui-chrome-layout.js through the real /__bfui-save endpoint.
+    // Not a dependency of desktop/portrait/landscape — nested under test:e2e:disk
+    // with a fresh strict port after bfeditor-disk (never under --no-deps).
+    {
+      name: 'bfuieditor-disk',
+      testMatch: /bfuieditor\.spec\.js/,
+      grep: /Save writes ui-chrome-layout\.js to disk/,
+      use: { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 },
+    },
+    {
+      name: 'content-manager-disk',
+      testMatch: /content-manager\.spec\.js/,
+      grep: /locale vs mechanics/,
+      use: { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 },
+    },
     // the three layout regimes styles.css targets: desktop, ≤740px portrait,
     // ≤480px-height landscape. deviceScaleFactor pinned so baselines are CSS px.
     // desktop is a 16:9 window → the desktop-landscape (1458×820) stage.
     { name: 'desktop', dependencies: ['bfeditor-disk'], use: { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 } },
     { name: 'portrait', dependencies: ['bfeditor-disk'], use: { viewport: { width: 375, height: 812 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } },
     { name: 'landscape', dependencies: ['bfeditor-disk'], use: { viewport: { width: 812, height: 375 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } },
+    // Playwright patched WebKit + device descriptors — not Safari / Simulator.
+    // launchOptions reset: the global args are Chromium GPU flags; WebKit's
+    // MiniBrowser rejects unknown options outright ("Cannot parse arguments").
+    { name: 'iphone-webkit', use: { ...devices['iPhone 17 Pro'], browserName: 'webkit', launchOptions: { args: [] } } },
+    { name: 'ipad-webkit', use: { ...devices['iPad Mini landscape'], browserName: 'webkit', launchOptions: { args: [] } } },
   ],
   webServer: {
     command: e2eServer.command,

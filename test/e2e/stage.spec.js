@@ -9,6 +9,9 @@ const EXPECT_SHAPE = {
   desktop: { shape: 'desktop-landscape', w: 1458, h: 820 },
   portrait: { shape: 'phone-portrait', w: 390, h: 844 },
   landscape: { shape: 'phone-landscape', w: 844, h: 390 },
+  // Playwright WebKit device projects (patched WebKit + descriptors, not Safari).
+  'iphone-webkit': { shape: 'pad-portrait', w: 820, h: 1180 },
+  'ipad-webkit': { shape: 'pad-landscape', w: 1180, h: 820 },
 };
 
 async function combatGeometry(page) {
@@ -113,6 +116,21 @@ async function expectNoOverflow(page, label, explicit = [], safeExplicit = []) {
   expect(bad, `${label}: ${bad.join('; ')}`).toEqual([]);
 }
 
+// The title mounts after an async ignition, so a fixed wait can sample its
+// screenIn enter animation (scale 1.015 → none) mid-flight on a loaded runner,
+// where it transiently overhangs the stage by ~2px. Settle it before measuring.
+// Checked via computed style, not getAnimations(): WPE under-reports running
+// CSS animations there, while computed transform shares the exact pipeline
+// getBoundingClientRect measures, so 'none' here means an untransformed rect.
+async function titleEnterSettled(page) {
+  await page.waitForFunction(() => {
+    const el = document.querySelector('.title-screen');
+    if (!el) return false;
+    const cs = getComputedStyle(el);
+    return cs.transform === 'none' && cs.opacity === '1';
+  });
+}
+
 test('viewport maps to its canonical stage shape', async ({ page }) => {
   const want = EXPECT_SHAPE[test.info().project.name];
   await boot(page);
@@ -131,6 +149,194 @@ test('viewport maps to its canonical stage shape', async ({ page }) => {
   expect(box.h).toBeLessThanOrEqual(box.ih + 0.5);
   expect(box.l).toBeCloseTo((box.iw - box.w) / 2, 0);
   expect(box.t).toBeCloseTo((box.ih - box.h) / 2, 0);
+});
+
+test('P1 shared UI modules preserve exact browser boundaries and live commands', async ({ page }) => {
+  await boot(page, { query: 'trace=1' });
+  expect(await page.evaluate(() => window.__probe.routes())).toEqual([
+    'title', 'embark', 'vigil', 'lamplighter', 'hollow', 'map', 'combat',
+    'reward', 'bossRelic', 'rest', 'treasure', 'shop', 'event', 'end',
+    'gallery', 'audioGallery',
+  ]);
+  const result = await page.evaluate(async () => {
+    const modules = {
+      context: await import('/src/ui/context.js'),
+      policy: await import('/src/ui/policy.js'),
+      format: await import('/src/ui/format.js'),
+      rose: await import('/src/ui/rose.js'),
+      commands: await import('/src/ui/commands.js'),
+    };
+    const boundary = {
+      show: typeof window.spirebound.show,
+      state: typeof window.spirebound.S,
+      trace: typeof window.__probe.behaviourTrace,
+    };
+    const screen = document.getElementById('screen');
+    const stale = () => {};
+    screen.onclick = stale;
+    const beforeUnknown = window.spirebound.S.screen;
+    let unknownError = null;
+    try { window.spirebound.show('missing-route'); } catch (error) { unknownError = error.message; }
+    const unknown = {
+      error: unknownError,
+      screen: window.spirebound.S.screen,
+      sameScreen: window.spirebound.S.screen === beforeUnknown,
+      staleClickPreserved: screen.onclick === stale,
+      traced: window.__probe.behaviourTrace().records.some((entry) =>
+        entry.eventName === 'error.ui' && entry.attributes?.code === 'unknown-route'),
+    };
+    screen.onclick = stale;
+    modules.commands.uiCommands.show('embark');
+    const showCommand = {
+      screen: window.spirebound.S.screen,
+      rendered: !!screen.querySelector('.embark-screen'),
+      staleClickReplaced: screen.onclick !== stale,
+    };
+    window.spirebound.S.run = window.spirebound.E.newRun(7717);
+    window.spirebound.S.cb = null;
+    window.spirebound.S.screen = 'map';
+    modules.commands.uiCommands.renderHud();
+    const hud = document.getElementById('hud');
+    const renderHudCommand = {
+      visible: hud.classList.contains('show'),
+      gold: hud.querySelector('.gold-num')?.textContent,
+      deckCount: hud.querySelector('.deck-count')?.textContent,
+    };
+    modules.commands.uiCommands.show('title');
+    screen.querySelector('[data-a="help"]').click();
+    const overlay = document.getElementById('overlay');
+    const overlayBeforeClose = {
+      open: overlay.classList.contains('open'),
+      hasContent: overlay.childElementCount > 0,
+    };
+    modules.commands.uiCommands.closeOverlay();
+    const closeOverlayCommand = {
+      before: overlayBeforeClose,
+      open: overlay.classList.contains('open'),
+      empty: overlay.innerHTML === '',
+    };
+    modules.commands.uiCommands.startCombat(['sporeling'], 'normal');
+    const live = { screen: window.spirebound.S.screen, enemies: window.spirebound.S.cb.enemies.length };
+    return {
+      boundary,
+      exports: Object.fromEntries(Object.entries(modules).map(([name, mod]) => [name, Object.keys(mod).sort()])),
+      unknown,
+      showCommand,
+      renderHudCommand,
+      closeOverlayCommand,
+      live,
+    };
+  });
+  expect(result.boundary).toEqual({ show: 'function', state: 'object', trace: 'function' });
+  expect(result.exports.context).toEqual([
+    '$', '$$', 'COARSE', 'FINE', 'FORCE_INPUT', 'S', 'el', 'escHtml',
+    'presentationBarrier', 'releaseCardFacesIn', 'screenEl', 'sleep', 'terminalNavigationLocked', 'trace',
+  ].sort());
+  expect(result.exports.policy).toEqual(['REDUCED']);
+  expect(result.exports.format).toEqual(['ROMAN']);
+  expect(result.exports.rose).toEqual([
+    'TITLE_ROSE_PHASES', 'decodeRoseImage', 'getRoseState', 'roseAssets', 'setDisclosedRoseStateIds',
+    'setForceRoseFallback', 'setRoseAssetsReady', 'setRoseDecodeFailed', 'titleRosePhase',
+  ]);
+  expect(result.exports.commands).toEqual(['bindUICommands', 'uiCommands']);
+  expect(result.unknown).toEqual({
+    error: 'Unknown UI route: missing-route',
+    screen: 'title',
+    sameScreen: true,
+    staleClickPreserved: true,
+    traced: true,
+  });
+  expect(result.showCommand).toEqual({ screen: 'embark', rendered: true, staleClickReplaced: true });
+  expect(result.renderHudCommand).toEqual({ visible: true, gold: '99', deckCount: '10' });
+  expect(result.closeOverlayCommand).toEqual({
+    before: { open: true, hasContent: true },
+    open: false,
+    empty: true,
+  });
+  expect(result.live).toEqual({ screen: 'combat', enemies: 1 });
+});
+
+test('asset gallery query boots every category and opens and closes its lightbox', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'developer gallery runs once on desktop');
+  await page.goto('/?gallery=1');
+  await expect(page.locator('.gallery-mode .g-cell').first()).toBeVisible();
+  expect(await page.locator('.gallery-mode .g-cell').count()).toBeGreaterThan(50);
+  await page.locator('.gallery-mode .g-open').first().click();
+  await expect(page.locator('#overlay.open .gallery-lightbox')).toBeVisible();
+  await page.locator('#overlay [data-a="close"]').click();
+  await expect(page.locator('#overlay.open')).toHaveCount(0);
+});
+
+test('pending Lamplighter routes once, owns one cue, and persists Begin before Map', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'Lamplighter transaction runs once on desktop');
+  await page.goto('/?trace=1');
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  await page.evaluate(() => {
+    localStorage.clear();
+    const run = window.spirebound.E.newRun(88771, { lamplighter: true, reveals: ['lamplighter'] });
+    window.spirebound.E.saveRun(run);
+  });
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  const cursor = await page.evaluate(() => window.__probe.behaviourTrace().lastSeq);
+  await page.locator('[data-a="continue"]').click();
+  await expect(page.locator('.lamp-screen')).toBeVisible();
+  await expect.poll(() => page.evaluate((after) => window.__probe.behaviourTrace().records
+    .filter((record) => record.seq > after && record.eventName === 'audio.music-request' &&
+      record.attributes?.id === 'map' && record.attributes?.mode === 'active').length, cursor),
+  { timeout: 20_000 }).toBe(1);
+  expect(await page.evaluate((after) => {
+    const records = window.__probe.behaviourTrace().records.filter((record) => record.seq > after);
+    return {
+      requested: records.filter((record) => record.eventName === 'screen.requested' && record.attributes?.screenId === 'lamplighter').length,
+      entered: records.filter((record) => record.eventName === 'screen.entered' && record.attributes?.screenId === 'lamplighter').length,
+    };
+  }, cursor)).toEqual({ requested: 1, entered: 1 });
+  await page.locator('.lamp-boon').first().click();
+  await page.locator('[data-a="begin"]').click();
+  await expect(page.locator('.map-screen')).toBeVisible();
+  expect(await page.evaluate(() => {
+    const durable = window.spirebound.E.loadRun();
+    return {
+      screen: window.spirebound.S.screen,
+      livePending: !!window.spirebound.S.run.pendingLamplighter,
+      durablePending: !!durable?.pendingLamplighter,
+      boon: durable?.boon ?? null,
+      lampCleared: window.spirebound.S.lamp === null,
+    };
+  })).toEqual({ screen: 'map', livePending: false, durablePending: false, boon: expect.any(String), lampCleared: true });
+});
+
+test('Eighth Omen floor echo survives its delayed real map-selection callback', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'map callback runs once on desktop');
+  await boot(page, { query: 'trace=1&mesh=0' });
+  await page.evaluate(() => {
+    window.spirebound.S.run.omens[window.spirebound.S.run.act] = 'eighthOmen';
+    window.spirebound.show('map');
+  });
+  await page.waitForSelector('.mnode.avail');
+  const beforeFloor = await page.evaluate(() => window.spirebound.S.run.floorsClimbed);
+  // The map's svg.onclick silently swallows clicks while S.busy (queue drain);
+  // on a loaded runner the drain can outlast .mnode.avail appearing. Dispatch
+  // exactly once, in the same synchronous task that observes busy === false —
+  // with a MutationObserver armed before the click so the banner's short
+  // 220ms-to-3.4s lifetime cannot slip between protocol round-trips.
+  await page.waitForFunction(() => {
+    if (window.spirebound.S.busy) return false;
+    const node = document.querySelector('.mnode.avail');
+    if (!node) return false;
+    window.__efeText = null;
+    new MutationObserver((muts, obs) => {
+      const t = document.querySelector('.eighth-floor-echo .efe-text')?.textContent;
+      if (t) { window.__efeText = t; obs.disconnect(); }
+    }).observe(document.body, { childList: true, subtree: true });
+    node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    return true;
+  });
+  await expect.poll(() => page.evaluate(() => window.spirebound.S.run.floorsClimbed))
+    .toBeGreaterThan(beforeFloor);
+  await expect.poll(() => page.evaluate(() => window.__efeText), { timeout: 10_000 })
+    .toMatch(/\/\//);
 });
 
 // Idle rotateX(0)/rotateY(0) under perspective promotes a 3D layer that Chromium
@@ -222,7 +428,12 @@ test('Vigil deed rows release listIn without a sticky filter/transform', async (
     }));
   });
   await page.reload();
-  await page.waitForFunction(() => window.spirebound && window.__probe);
+  // initUI sets __probe before awaiting Pixi, then ends with show('title').
+  // Wait for that terminal title paint so show('vigil') is not overwritten.
+  await page.waitForFunction(() =>
+    window.spirebound?.pixi?.status() === 'ready'
+    && window.spirebound?.S?.screen === 'title'
+    && document.querySelector('.title-screen, [data-a="vigil"]'), null, { timeout: 15_000 });
   await page.evaluate(() => window.spirebound.show('vigil'));
   await page.waitForSelector('.deed-list .deed-row');
   await page.waitForTimeout(700);
@@ -312,6 +523,7 @@ test('title and embark screens fit their stage: no scrollable overflow anywhere'
   });
   await page.reload();
   await page.waitForFunction(() => window.spirebound && window.__probe);
+  await titleEnterSettled(page);
   await expectNoOverflow(page, 'title');
   // title always says Begin the Climb (Begin Anew confirmation lives on Embark)
   await expect(page.locator('[data-a="embark"]')).toHaveText('Begin the Climb');
@@ -337,6 +549,7 @@ test('maximum Emberglass profile and ceremonies fit every stage', async ({ page 
     sp.show('title');
   });
   await stable(page);
+  await titleEnterSettled(page);
   await expectNoOverflow(page, 'title', [
     '.title-screen', '.title-btns', '.title-rose-medallion.ready', '[data-a="vigil"]',
   ], [
@@ -485,6 +698,8 @@ test('fresh profile title has no aspect row; Embark shows zero sections', async 
   await expect(page.locator('.embark-screen .aspect-row')).toHaveCount(0);
   await expect(page.locator('.embark-screen .vow-block')).toHaveCount(0);
   await expect(page.locator('.embark-screen [data-a="begin"]')).toHaveText('Begin the Climb');
+  await page.click('.embark-screen [data-a="back"]');
+  await expect(page.locator('.title-screen')).toBeVisible();
 });
 
 test('seeded veteran Embark shows aspect and vow sections', async ({ page }) => {
@@ -573,3 +788,148 @@ test('window size changes scale, never layout: geometry is identical at two wind
   if (g1.slLedgeTop != null) near(g2.slLedgeTop, g1.slLedgeTop, 'slLedgeTop');
   if (g1.seamY != null) near(g2.seamY, g1.seamY, 'seamY');
 });
+
+const CANONICAL_SHAPES = [
+  'phone-portrait', 'phone-landscape', 'pad-portrait', 'pad-landscape', 'desktop-landscape',
+];
+
+function rectsIntersect(a, b, gap = 0) {
+  return !(a.right + gap <= b.left || b.right + gap <= a.left || a.bottom + gap <= b.top || b.bottom + gap <= a.top);
+}
+
+async function versionChromeGeometry(page, { fiveTap = false } = {}) {
+  return page.evaluate((tap) => {
+    if (tap) {
+      // Tap and measure in one synchronous task: the debug chrome auto-hides
+      // after VERSION_GESTURE.hideMs (3s), and separate protocol round-trips
+      // between tapping and sampling can lose that race on a loaded runner.
+      const target = document.querySelector('[data-version-logo]');
+      for (let i = 0; i < 5; i += 1) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }
+    const stageEl = document.getElementById('stage');
+    const stage = stageEl.getBoundingClientRect();
+    const rootStyle = getComputedStyle(document.documentElement);
+    const stageScale = stage.width / stageEl.offsetWidth;
+    const safePx = (name) => (Number.parseFloat(rootStyle.getPropertyValue(name)) || 0) * stageScale;
+    const safe = {
+      left: stage.left + safePx('--sal'),
+      right: stage.right - safePx('--sar'),
+      top: stage.top + safePx('--sat'),
+      bottom: stage.bottom - safePx('--sab'),
+    };
+    const boxOf = (sel) => {
+      const el = document.querySelector(sel);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      return {
+        left: r.left, right: r.right, top: r.top, bottom: r.bottom,
+        width: r.width, height: r.height,
+        visible: cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0 && !el.hidden,
+      };
+    };
+    return {
+      safe,
+      label: boxOf('[data-version-display]'),
+      debug: boxOf('[data-version-debug]'),
+      btns: boxOf('.title-btns'),
+      stats: boxOf('.title-stats'),
+      rose: boxOf('.title-rose-medallion'),
+      displayText: document.querySelector('[data-version-display]')?.textContent || '',
+      hasDataA: !!document.querySelector('[data-version-display]')?.hasAttribute('data-a'),
+    };
+  }, fiveTap);
+}
+
+test('fresh and grown Title/Embark expose fixed r5 selectors and data states', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'presentation seams run once on desktop');
+  await page.goto('/?trace=1');
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  const fresh = page.locator('.title-screen.r5-title');
+  await expect(fresh).toHaveAttribute('data-r5-profile', 'fresh');
+  await expect(fresh).toHaveAttribute('data-r5-state', /^(igniting|title-ready)$/);
+  await expect(page.locator('.r5-title-parallax[data-asset]')).toHaveCount(3);
+  await expect(page.locator('.r5-title-wordmark')).toHaveCount(1);
+  await expect(page.locator('.r5-title-actions')).toHaveCount(1);
+  await expect(page.locator('.title-rose-medallion')).toHaveCount(0);
+  await page.waitForFunction(() => document.querySelector('.r5-title')?.dataset.r5State === 'title-ready');
+  await page.click('[data-a="embark"]');
+  const embarkFresh = page.locator('.embark-screen.r5-embark');
+  await expect(embarkFresh).toHaveAttribute('data-r5-profile', 'fresh');
+  await expect(page.locator('.r5-begin-rite')).toHaveCount(1);
+  await expect(page.locator('.r5-aspect-card')).toHaveCount(0);
+  await expect(page.locator('.r5-vow-dial')).toHaveCount(0);
+
+  await page.evaluate(() => {
+    localStorage.setItem('spirebound_vigil_v2', JSON.stringify({
+      v: 2,
+      deeds: { runs: 12, wins: 3, slain: 40, shatters: 4, kindles: 2, perfects: 1, smolderKills: 2, unlitVisited: 1, embersSpent: 20, bestVow: 2, bestFloor: 18 },
+      unlocks: ['aspect2'], vowUnlocked: 2, lastFall: null,
+      runsPlayed: 12, quests: {}, shards: ['usurper'], whispers: 2, news: true,
+    }));
+  });
+  await page.reload();
+  await page.waitForFunction(() => window.spirebound && window.__probe);
+  const grown = page.locator('.title-screen.r5-title');
+  await expect(grown).toHaveAttribute('data-r5-profile', 'grown');
+  await expect(page.locator('.title-rose-medallion')).toHaveCount(1);
+  await page.click('[data-a="embark"]');
+  await expect(page.locator('.embark-screen.r5-embark')).toHaveAttribute('data-r5-profile', 'grown');
+  await expect(page.locator('.r5-aspect-card')).toHaveCount(2);
+  await expect(page.locator('.r5-vow-dial')).toHaveCount(1);
+  await expect(page.locator('.r5-begin-rite')).toHaveCount(1);
+});
+
+for (const shape of CANONICAL_SHAPES) {
+  for (const profile of ['fresh', 'grown']) {
+    test(`Title version chrome stays bottom-right inside safe area — ${shape} ${profile}`, async ({ page }) => {
+      test.skip(test.info().project.name !== 'desktop', 'shape sweep forces ?shape= on desktop');
+      const vigil = profile === 'fresh'
+        ? {
+          v: 2, deeds: { runs: 0, wins: 0, slain: 0, shatters: 0, kindles: 0, perfects: 0, smolderKills: 0, unlitVisited: 0, embersSpent: 0, bestVow: 0, bestFloor: 0 },
+          unlocks: [], vowUnlocked: 0, lastFall: null, runsPlayed: 0, quests: {}, shards: [], whispers: 0, news: false,
+        }
+        : {
+          v: 2, deeds: { runs: 8, wins: 2, slain: 30, shatters: 3, kindles: 2, perfects: 1, smolderKills: 1, unlitVisited: 1, embersSpent: 10, bestVow: 1, bestFloor: 12 },
+          unlocks: ['aspect2'], vowUnlocked: 1, lastFall: null, runsPlayed: 8, quests: {}, shards: ['usurper'], whispers: 1, news: true,
+        };
+      await page.addInitScript((value) => {
+        localStorage.removeItem('spirebound_save_v2');
+        localStorage.setItem('spirebound_vigil_v2', JSON.stringify(value));
+      }, vigil);
+      await page.goto(`/?shape=${shape}&trace=1`);
+      await page.waitForFunction(() => window.spirebound && window.__probe);
+      expect(await page.evaluate(() => window.__probe.stage().shape)).toBe(shape);
+      await expect(page.locator('.r5-title')).toHaveAttribute('data-r5-profile', profile);
+      const expectedDisplay = await page.evaluate(async () => {
+        const { getVersionInfo } = await import('/src/version.js');
+        return getVersionInfo().display;
+      });
+      const hidden = await versionChromeGeometry(page);
+      expect(hidden.displayText).toBe(expectedDisplay);
+      expect(hidden.hasDataA).toBe(false);
+      expect(hidden.label.visible).toBe(true);
+      expect(hidden.debug.visible).toBe(false);
+      const inside = (box, safe) => box.left >= safe.left - 1 && box.right <= safe.right + 1
+        && box.top >= safe.top - 1 && box.bottom <= safe.bottom + 1;
+      expect(inside(hidden.label, hidden.safe), 'label inside safe').toBe(true);
+      expect(hidden.label.right).toBeGreaterThan((hidden.safe.left + hidden.safe.right) / 2);
+      expect(hidden.label.bottom).toBeGreaterThan((hidden.safe.top + hidden.safe.bottom) / 2);
+      expect(rectsIntersect(hidden.label, hidden.btns, 8)).toBe(false);
+      expect(rectsIntersect(hidden.label, hidden.stats, 8)).toBe(false);
+      if (hidden.rose?.visible) expect(rectsIntersect(hidden.label, hidden.rose, 24)).toBe(false);
+
+      const shown = await versionChromeGeometry(page, { fiveTap: true });
+      expect(shown.debug.visible).toBe(true);
+      expect(inside(shown.debug, shown.safe), 'debug inside safe').toBe(true);
+      expect(shown.debug.right).toBeGreaterThan((shown.safe.left + shown.safe.right) / 2);
+      expect(shown.debug.bottom).toBeGreaterThan((shown.safe.top + shown.safe.bottom) / 2);
+      expect(rectsIntersect(shown.debug, shown.btns, 8)).toBe(false);
+      expect(rectsIntersect(shown.debug, shown.stats, 8)).toBe(false);
+      if (shown.rose?.visible) expect(rectsIntersect(shown.debug, shown.rose, 24)).toBe(false);
+    });
+  }
+}

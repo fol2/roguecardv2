@@ -1,0 +1,83 @@
+{
+  "sourceSha": "ccbbc2252dd0b5c4563265a82d683a391d022192",
+  "label": "provisional/marketing-only",
+  "shots": [
+    {
+      "id": "title",
+      "seed": 50101,
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "copy": "Brand wordmark + climb CTA",
+      "file": "title.png",
+      "sha256": "ac26da0bec6f42b4211adfb532133790cd8829422396e4f2888ab3f4e16c1b10",
+      "label": "provisional/marketing-only"
+    },
+    {
+      "id": "combat",
+      "seed": 50102,
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "copy": "Hand + enemy readable (no boss override)",
+      "file": "combat.png",
+      "sha256": "3121353216bc6816155b284621c2b05145847fde545eee730a93c2efb21f4912",
+      "label": "provisional/marketing-only"
+    },
+    {
+      "id": "map",
+      "seed": 50103,
+      "shape": "desktop-landscape",
+      "profile": "fresh",
+      "copy": "Path choice visible",
+      "file": "map.png",
+      "sha256": "ace2f4a273aae1f815e43d10889ccdf6c7e3395f45892f53a080a00d1bce52f4",
+      "label": "provisional/marketing-only"
+    },
+    {
+      "id": "rose-window",
+      "seed": 50104,
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "copy": "Rose panes + frame",
+      "file": "rose-window.png",
+      "sha256": "9889ab6dda93cbe483fd2578935adbb8091717547e4d8223ba0c4c5a9577a2f7",
+      "label": "provisional/marketing-only"
+    },
+    {
+      "id": "boss",
+      "seed": 50105,
+      "shape": "desktop-landscape",
+      "profile": "grown",
+      "copy": "Boss plates + HUD clear",
+      "file": "boss.png",
+      "sha256": "47e6f373b28a3c6d37e1544f1f3b8fda2cd0e30f5836d6ee475e7266eef168b3",
+      "label": "provisional/marketing-only"
+    }
+  ],
+  "rawReference": {
+    "file": "raw-reference.webm",
+    "sha256": "f6f8e076c5b1abbbc55b9e119e61d966728e0b2a51cd3c6399d4cffbaf18c210",
+    "label": "provisional/marketing-only"
+  },
+  "derivedPublicAssets": {
+    "public/icon-180.png": {
+      "sha256": "ad4a15738217462f62d3be4ff2cfabc571606ba35935833dc046e9629c06ba62",
+      "source": "docs/store-assets/round5/title.png",
+      "label": "provisional/marketing-only"
+    },
+    "public/icon-512.png": {
+      "sha256": "f7c8b15285b601f441513d3646dd33ce23997fc62586ef3714d654ad974d9c80",
+      "source": "docs/store-assets/round5/title.png",
+      "label": "provisional/marketing-only"
+    },
+    "public/og.png": {
+      "sha256": "ba0869a45e0ce6bba55970aae37a7564d9013a2ebfcecca00532bc3b3596c306",
+      "source": "docs/store-assets/round5/title.png",
+      "label": "provisional/marketing-only"
+    },
+    "public/feature-graphic.png": {
+      "sha256": "939908a1bc97afecf8ab83a428af3941e291c28b8b869ba4b1d42747c8cd84c6",
+      "source": "docs/store-assets/round5/title.png",
+      "label": "provisional/marketing-only"
+    }
+  }
+}

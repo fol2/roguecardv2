@@ -1,0 +1,54 @@
+{
+  "id": "map__desktop-landscape__grown",
+  "projection": {
+    "version": 1,
+    "screen": "map",
+    "shape": "desktop-landscape",
+    "profile": "grown",
+    "stage": {
+      "w": 1458,
+      "h": 820,
+      "shape": "desktop-landscape"
+    },
+    "dawn": {
+      "whisper": null,
+      "ledger": null,
+      "ceremony": null,
+      "content": null
+    },
+    "embark": {
+      "vowDial": null,
+      "aspectCards": []
+    },
+    "scene": {
+      "sceneBgCount": 0,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": null
+    },
+    "title": {
+      "parallaxCount": 0,
+      "parallaxTop": null,
+      "wordmark": null,
+      "wordmarkClipped": null
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": null,
+      "selectionVisible": false
+    },
+    "fall": {
+      "panel": null
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": null,
+      "rarityAccentDistinct": null
+    }
+  }
+}

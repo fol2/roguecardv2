@@ -1,0 +1,93 @@
+{
+  "id": "fall__pad-landscape__grown",
+  "screen": "fall",
+  "shape": "pad-landscape",
+  "profile": "grown",
+  "projection": {
+    "version": 1,
+    "screen": "fall",
+    "shape": "pad-landscape",
+    "profile": "grown",
+    "stage": {
+      "w": 1180,
+      "h": 820,
+      "shape": "pad-landscape"
+    },
+    "dawn": {
+      "whisper": null,
+      "ledger": {
+        "left": 260.5781127929688,
+        "top": 403.0000144958496,
+        "width": 658.8125564575196,
+        "height": 163.99996871948244,
+        "right": 919.3906692504884,
+        "bottom": 566.999983215332,
+        "cx": 589.9843910217286,
+        "cy": 484.99999885559083
+      },
+      "ceremony": null,
+      "content": {
+        "left": -0.01562499999998579,
+        "top": 0,
+        "width": 1179.9999694824219,
+        "height": 820,
+        "right": 1179.9843444824219,
+        "bottom": 820,
+        "cx": 589.9843597412109,
+        "cy": 410
+      }
+    },
+    "embark": {
+      "vowDial": null,
+      "aspectCards": []
+    },
+    "scene": {
+      "sceneBgCount": 0,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": {
+        "left": -0.01562499999998579,
+        "top": 0,
+        "width": 1179.9999694824219,
+        "height": 820,
+        "right": 1179.9843444824219,
+        "bottom": 820,
+        "cx": 589.9843597412109,
+        "cy": 410
+      }
+    },
+    "title": {
+      "parallaxCount": 0,
+      "parallaxTop": null,
+      "wordmark": null,
+      "wordmarkClipped": null
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": null,
+      "selectionVisible": false
+    },
+    "fall": {
+      "panel": {
+        "left": -0.01562499999998579,
+        "top": 0,
+        "width": 1179.9999694824219,
+        "height": 820,
+        "right": 1179.9843444824219,
+        "bottom": 820,
+        "cx": 589.9843597412109,
+        "cy": 410
+      }
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": true,
+      "rarityAccentDistinct": true
+    }
+  }
+}

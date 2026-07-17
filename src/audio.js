@@ -24,6 +24,14 @@ let muted = readMute();
 const buffers = Object.create(null);
 const loading = Object.create(null);
 const loadedSampleRefs = Object.create(null);
+let observationSink = null;
+
+export function setSfxObservationSink(sink) {
+  observationSink = typeof sink === 'function' ? sink : null;
+}
+function observe(id, mode, result) {
+  try { observationSink?.({ id, mode, result }); } catch { /* observation never owns playback */ }
+}
 
 export const SFX_IDS = Object.freeze(SFX_CATALOG.map((row) => row.id));
 
@@ -47,8 +55,22 @@ function applyBusGain(ramp = 0.08) {
 }
 
 export function unlock() {
-  if (!ensureAudio()) return;
-  if (ctx.state === 'suspended') ctx.resume();
+  if (!ensureAudio()) { observe('audio-context', 'active', 'unavailable'); return; }
+  const observeState = () => observe('audio-context', 'active',
+    ctx.state === 'running' ? (muted ? 'muted' : 'playing') : 'unavailable');
+  if (ctx.state === 'suspended') {
+    let resumeResult;
+    try {
+      resumeResult = ctx.resume();
+    } catch {
+      observe('audio-context', 'active', 'unavailable');
+      preloadSfx();
+      return;
+    }
+    Promise.resolve(resumeResult).then(observeState, () => {
+      observe('audio-context', 'active', 'unavailable');
+    });
+  } else observeState();
   preloadSfx();
 }
 
@@ -158,14 +180,23 @@ function playSample(name, { gain = 0.85 } = {}) {
 }
 
 function play(name, fallback, opts) {
-  if (playSample(name, opts)) return;
+  if (playSample(name, opts)) {
+    observe(name, 'active', muted ? 'muted' : 'sample');
+    return;
+  }
+  if (!ensureAudio()) {
+    observe(name, 'active', 'unavailable');
+    return;
+  }
   fallback();
   loadSample(name);
+  observe(name, 'active', muted ? 'muted' : 'synth-fallback');
 }
 
 /** Gallery: play the sample resolved from an (unsaved) selection without touching gameplay cache. */
 export async function previewSfx(id, selection) {
-  if (!ensureAudio() || typeof id !== 'string') return false;
+  if (typeof id !== 'string') return false;
+  if (!ensureAudio()) { observe(id, 'draft', 'unavailable'); return false; }
   const selected = getAudioSource('sfx', id, selection);
   const base = getAudioSource('sfx', id, DEFAULT_AUDIO_SELECTION);
   let buffer = null;
@@ -176,6 +207,7 @@ export async function previewSfx(id, selection) {
   }
   if (!buffer) {
     synth[id]?.();
+    observe(id, 'draft', muted ? 'muted' : synth[id] ? 'synth-fallback' : 'unavailable');
     return false;
   }
   const src = ctx.createBufferSource();
@@ -184,6 +216,7 @@ export async function previewSfx(id, selection) {
   g.gain.value = 0.85;
   src.connect(g).connect(sfxBus);
   src.start();
+  observe(id, 'draft', muted ? 'muted' : 'sample');
   return true;
 }
 

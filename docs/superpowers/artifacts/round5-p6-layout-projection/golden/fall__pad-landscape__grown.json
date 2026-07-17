@@ -1,0 +1,90 @@
+{
+  "id": "fall__pad-landscape__grown",
+  "projection": {
+    "version": 1,
+    "screen": "fall",
+    "shape": "pad-landscape",
+    "profile": "grown",
+    "stage": {
+      "w": 1180,
+      "h": 820,
+      "shape": "pad-landscape"
+    },
+    "dawn": {
+      "whisper": null,
+      "ledger": {
+        "left": 269.9375168994326,
+        "top": 499.00001678466793,
+        "width": 640.1250287621716,
+        "height": 164,
+        "right": 910.0625456616042,
+        "bottom": 663.0000167846679,
+        "cx": 590.0000312805184,
+        "cy": 581.0000167846679
+      },
+      "ceremony": null,
+      "content": {
+        "left": 0,
+        "top": 0,
+        "width": 1180,
+        "height": 819.9999999999999,
+        "right": 1180,
+        "bottom": 819.9999999999999,
+        "cx": 590,
+        "cy": 409.99999999999994
+      }
+    },
+    "embark": {
+      "vowDial": null,
+      "aspectCards": []
+    },
+    "scene": {
+      "sceneBgCount": 0,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": {
+        "left": 0,
+        "top": 0,
+        "width": 1180,
+        "height": 819.9999999999999,
+        "right": 1180,
+        "bottom": 819.9999999999999,
+        "cx": 590,
+        "cy": 409.99999999999994
+      }
+    },
+    "title": {
+      "parallaxCount": 0,
+      "parallaxTop": null,
+      "wordmark": null,
+      "wordmarkClipped": null
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": null,
+      "selectionVisible": false
+    },
+    "fall": {
+      "panel": {
+        "left": 0,
+        "top": 0,
+        "width": 1180,
+        "height": 819.9999999999999,
+        "right": 1180,
+        "bottom": 819.9999999999999,
+        "cx": 590,
+        "cy": 409.99999999999994
+      }
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": null,
+      "rarityAccentDistinct": null
+    }
+  }
+}

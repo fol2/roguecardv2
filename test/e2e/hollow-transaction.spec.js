@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './trace-fixture.js';
 
 async function seedHollow(page, {
   seed, progress, type, paid = false, gold = 99, maxHp = 72, shape = null,
@@ -36,6 +36,40 @@ async function seedHollow(page, {
 
 test.beforeEach(() => {
   test.skip(test.info().project.name !== 'desktop', 'transaction behaviour is shape-independent');
+});
+
+async function persistenceTrace(page, kind) {
+  return page.evaluate((selectedKind) => window.__probe.behaviourTrace().records
+    .filter((record) => record.eventName.startsWith('persistence.') && record.attributes?.kind === selectedKind)
+    .map((record) => [record.eventName, record.phase, record.outcome ?? null]), kind);
+}
+
+test('Hollow payment retry is observed without replaying the price', async ({ page }) => {
+  await seedHollow(page, { seed: 916, progress: 1, type: 'event', gold: 999 });
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    window.__rejectHollowPaymentOnce = true;
+    Storage.prototype.setItem = function setItem(key, value) {
+      if (key === 'spirebound_save_v2' && window.__rejectHollowPaymentOnce) {
+        window.__rejectHollowPaymentOnce = false;
+        throw new Error('injected Hollow payment save failure');
+      }
+      return original.call(this, key, value);
+    };
+  });
+  await page.click('[data-a="hollow-pay"]');
+  await expect(page.locator('.hollow-error')).toContainText('not yet secured');
+  const afterPrice = await page.evaluate(() => window.spirebound.S.run.player.gold);
+  await page.click('[data-a="hollow-pay"]');
+  await expect(page.locator('[data-a="hollow-continue"]')).toBeEnabled();
+  expect(await page.evaluate(() => window.spirebound.S.run.player.gold)).toBe(afterPrice);
+  const paymentTrace = await persistenceTrace(page, 'hollow-payment');
+  expect(paymentTrace).toEqual([
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.blocked', 'point', 'rejected'],
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.recovered', 'point', 'completed'],
+  ]);
 });
 
 test('Hollow actions fit the canonical pad portrait without overlap', async ({ page }) => {
@@ -234,4 +268,11 @@ test('Hollow destination cannot return to the map until marker clear is acknowle
   await page.waitForFunction(() => window.spirebound.S.screen === 'map');
   await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2')).pendingHollowRoute)).toBeNull();
+  const routeTrace = await persistenceTrace(page, 'hollow-route-clear');
+  expect(routeTrace).toEqual([
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.blocked', 'point', 'rejected'],
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.recovered', 'point', 'completed'],
+  ]);
 });

@@ -1,0 +1,20 @@
+{
+  "journey": "targeted-play",
+  "records": [
+    [
+      "input.targeting",
+      "point",
+      "accepted"
+    ],
+    [
+      "input.card-play",
+      "start",
+      null
+    ],
+    [
+      "input.card-play",
+      "end",
+      "completed"
+    ]
+  ]
+}

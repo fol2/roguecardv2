@@ -77,6 +77,17 @@ export async function seed(page, vigil, url = '/') {
   }, vigil);
   await page.reload();
   await page.waitForFunction(() => window.spirebound && window.__probe);
+  // Probe is installed before the terminal boot `show('title')`. Prefer the
+  // traced app.ready marker when the behaviour trace is enabled; otherwise
+  // wait for the title paint itself so mid-boot show(...) callers stay safe.
+  await page.waitForFunction(() => {
+    const records = window.__probe?.behaviourTrace?.()?.records;
+    if (Array.isArray(records) && records.some((record) => record.eventName === 'app.ready')) {
+      return true;
+    }
+    return window.spirebound?.S?.screen === 'title'
+      && !!document.querySelector('.title-screen, .r5-title, [data-a="embark"]');
+  });
 }
 
 export async function waitForDawnComplete(page, timeout = 30_000) {
@@ -84,7 +95,15 @@ export async function waitForDawnComplete(page, timeout = 30_000) {
     const ceremony = document.querySelector('.dawn-ceremony');
     const raw = localStorage.getItem('spirebound_save_v2');
     const pending = raw ? JSON.parse(raw).pendingDawn : null;
-    return ceremony?.classList.contains('complete') && pending == null;
+    const root = document.querySelector('.r5-end, .end-screen');
+    // Queue `.complete` alone is not closed — ledger/close still run and keep
+    // end buttons locked until `dawn-closed` and the ceremony promise settles.
+    const buttons = [...document.querySelectorAll('.end-btns button')];
+    return ceremony?.classList.contains('complete')
+      && pending == null
+      && root?.dataset.r5State === 'dawn-closed'
+      && buttons.length > 0
+      && buttons.every((button) => !button.disabled);
   }, null, { timeout });
 }
 

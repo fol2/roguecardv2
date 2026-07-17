@@ -1,0 +1,31 @@
+name: Setup Playwright Chromium + WebKit
+description: npm ci plus cached Playwright Chromium and WebKit (system deps every run — apt libs live on the VM, not in the cache)
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      with:
+        node-version: 24
+        cache: npm
+    - run: npm ci
+      shell: bash
+    - id: pwver
+      shell: bash
+      run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+    - id: pw-cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.pwver.outputs.version }}-chromium-webkit
+    - name: Install Playwright Chromium + WebKit
+      shell: bash
+      run: |
+        if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
+          # Cached browsers skip the download, but WebKit's shared libraries
+          # (libwoff2dec & co.) are not in the runner image or the cache.
+          npx playwright install-deps chromium webkit
+          npx playwright install chromium webkit
+        else
+          npx playwright install --with-deps chromium webkit
+        fi

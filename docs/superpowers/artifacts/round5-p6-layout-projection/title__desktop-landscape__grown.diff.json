@@ -1,0 +1,53 @@
+{
+  "id": "title__desktop-landscape__grown",
+  "deltaCount": 6,
+  "expectedCount": 6,
+  "unexpectedCount": 0,
+  "unexpectedPaths": [],
+  "expectedPathsHit": [
+    "title.parallaxTop",
+    "title.wordmark.top",
+    "title.wordmark.bottom",
+    "title.wordmark.cy",
+    "cardface.hasArtTexture",
+    "cardface.rarityAccentDistinct"
+  ],
+  "deltas": [
+    {
+      "path": "title.parallaxTop",
+      "kind": "value-drift",
+      "live": -0.009106445312542543,
+      "golden": 10.090004440136664
+    },
+    {
+      "path": "title.wordmark.top",
+      "kind": "box-drift",
+      "live": 258.9440024375915,
+      "golden": 503.30068330795183
+    },
+    {
+      "path": "title.wordmark.bottom",
+      "kind": "box-drift",
+      "live": 394.02215256690977,
+      "golden": 640.4050079518888
+    },
+    {
+      "path": "title.wordmark.cy",
+      "kind": "box-drift",
+      "live": 326.48307750225064,
+      "golden": 571.8528456299204
+    },
+    {
+      "path": "cardface.hasArtTexture",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    },
+    {
+      "path": "cardface.rarityAccentDistinct",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    }
+  ]
+}

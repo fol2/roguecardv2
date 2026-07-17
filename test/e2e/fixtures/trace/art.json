@@ -1,0 +1,15 @@
+{
+  "journey": "art",
+  "records": [
+    [
+      "input.kindle",
+      "start",
+      null
+    ],
+    [
+      "input.kindle",
+      "end",
+      "completed"
+    ]
+  ]
+}

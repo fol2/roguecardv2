@@ -1,0 +1,20 @@
+{
+  "journey": "i18n-copy-invariance",
+  "records": [
+    [
+      "screen.requested",
+      "point",
+      "accepted"
+    ],
+    [
+      "screen.exited",
+      "point",
+      "completed"
+    ],
+    [
+      "screen.entered",
+      "point",
+      "completed"
+    ]
+  ]
+}

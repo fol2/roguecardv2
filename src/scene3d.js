@@ -6,13 +6,13 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { ACTS } from './data.js';
 import { stageW, stageH, stageScale, toStage } from './stage.js';
+import { resolveAtmosphere } from './theme-atmosphere.js';
 
 let renderer, scene, camera, composer, bloom;
 let ptsMain, ptsAccent, nebulae = [], skyGroup;
 let spireMat, beacon, beaconGlow, windowMat, treeMat, groundMat, cloudMats = [];
-let weather, weatherAct = 0, weatherOp = 0.5, lightningV = 0, fgGroup, fgMat, chains = [];
+let weather, weatherMode = 'ash', weatherOp = 0.5, lightningV = 0, fgGroup, fgMat, chains = [];
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let cur = { sky: new THREE.Color(0x0b0e1a), fog: new THREE.Color(0x141a2e), particles: new THREE.Color(0xffa04d), glow: new THREE.Color(0x66ff9e) };
 let tgt = { sky: cur.sky.clone(), fog: cur.fog.clone(), particles: cur.particles.clone(), glow: cur.glow.clone() };
@@ -40,8 +40,11 @@ function radiusAt(y) {
   return Math.pow(1 - t, 1.15) * 6.2 * tier + 0.85;
 }
 // world position of a map node's lantern, hung on (or haloed around) the tower
+// Fixed three-act tower geometry: literal clamp digit is intentional allowlist residue
+// (named max constants must not hide this from the act-coupling sweep).
+const towerAct = (act) => Math.min(Math.max(0, act | 0), 2);
 export function mapNodePos(act, n) {
-  const y = actBaseY(act) + n.row * TOWER.rowH + n.jy * 0.5;
+  const y = actBaseY(towerAct(act)) + n.row * TOWER.rowH + n.jy * 0.5;
   const a = TOWER.azBase + (n.col - 3 + n.jx) * TOWER.colSpread;
   const r = Math.max(radiusAt(y) + 0.5, 3.6);
   return new THREE.Vector3(TOWER.x + Math.cos(a) * r, y, TOWER.z + Math.sin(a) * r);
@@ -58,8 +61,8 @@ const camLookCur = new THREE.Vector3(0, actBaseY(0), -6);
 const _posT = new THREE.Vector3(), _lookT = new THREE.Vector3(), _v = new THREE.Vector3(), _white = new THREE.Color(0xffffff);
 const _sky = new THREE.Color(), _lightC = new THREE.Color(0xbfd4ff);
 
-export function setAltitude(act, row) { altT = actBaseY(act) + Math.max(0, row) * TOWER.rowH; }
-export function enterMapMode(act, curRow) { mode = 'map'; mapAct = act; mapViewRow = Math.max(0, curRow); peek = 0; }
+export function setAltitude(act, row) { altT = actBaseY(towerAct(act)) + Math.max(0, row) * TOWER.rowH; }
+export function enterMapMode(act, curRow) { mode = 'map'; mapAct = towerAct(act); mapViewRow = Math.max(0, curRow); peek = 0; }
 export function exitMapMode() { mode = 'ambient'; }
 export function peekMap(dRows) {
   peek = THREE.MathUtils.clamp(peek + dRows, -mapViewRow - 1, ROWS + 0.5 - mapViewRow);
@@ -279,20 +282,24 @@ export function initScene() {
     mouse.x = (p.x / stageW() - 0.5) * 2;
     mouse.y = (p.y / stageH() - 0.5) * 2;
   });
-  setTheme(0, true);
+  setTheme(null, true);
   requestAnimationFrame(loop);
 }
 
 let bloomBase = 0.85;
-export function setTheme(actIdx, instant = false) {
-  const th = ACTS[Math.min(actIdx, ACTS.length - 1)].theme;
-  tgt.sky.setHex(th.sky);
-  tgt.fog.setHex(th.fog);
-  tgt.particles.setHex(th.particles);
-  tgt.glow.setHex(th.glow);
+/** Apply a resolved theme record (legacyAct.theme + id). Null resets to act1 ash defaults. */
+export function setTheme(theme, instant = false) {
+  const th = theme?.legacyAct?.theme || {
+    sky: 0x0b0e1a, fog: 0x141a2e, particles: 0xffa04d, glow: 0x66ff9e,
+  };
+  tgt.sky.setHex(typeof th.sky === 'number' ? th.sky : 0x0b0e1a);
+  tgt.fog.setHex(typeof th.fog === 'number' ? th.fog : 0x141a2e);
+  tgt.particles.setHex(typeof th.particles === 'number' ? th.particles : 0xffa04d);
+  tgt.glow.setHex(typeof th.glow === 'number' ? th.glow : 0x66ff9e);
   bloomBase = 0.85;
-  weatherAct = Math.min(actIdx, 2);
-  weatherOp = [0.5, 0.42, 0.62][weatherAct];
+  // Prefer theme.atmosphere; vy heuristic only when the field is absent.
+  weatherMode = resolveAtmosphere(theme);
+  weatherOp = weatherMode === 'mire' ? 0.42 : weatherMode === 'ash' ? 0.5 : 0.62;
   if (instant) for (const k of Object.keys(cur)) cur[k].copy(tgt[k]);
 }
 // victory: dawn floods in from behind the Spire — the only daylight in the game
@@ -327,7 +334,7 @@ function frame(t) {
   const time = t / 1000;
   for (const k of Object.keys(cur)) cur[k].lerp(tgt[k], Math.min(1, dt * 1.4));
   // heat lightning on the Obsidian Spire: a silent flash silhouettes the tower
-  if (weatherAct === 2 && !REDUCED && Math.random() < dt / 11) lightningV = 0.7 + Math.random() * 0.5;
+  if (weatherMode === 'astral' && !REDUCED && Math.random() < dt / 11) lightningV = 0.7 + Math.random() * 0.5;
   lightningV *= Math.pow(0.008, dt);
   scene.background = _sky.copy(cur.sky).lerp(_lightC, Math.min(0.6, lightningV * 0.5));
   scene.fog.color.copy(cur.fog).lerp(_lightC, Math.min(0.4, lightningV * 0.3));
@@ -370,16 +377,16 @@ function frame(t) {
   // ---- weather ----------------------------------------------------------
   {
     weather.material.opacity += (weatherOp - weather.material.opacity) * Math.min(1, dt * 1.2);
-    if (weatherAct === 0) weather.material.color.copy(cur.particles).lerp(_white, 0.55);      // pale ash
-    else if (weatherAct === 1) weather.material.color.copy(cur.glow).lerp(_white, 0.25);      // drowned motes
+    if (weatherMode === 'ash') weather.material.color.copy(cur.particles).lerp(_white, 0.55);      // pale ash
+    else if (weatherMode === 'mire') weather.material.color.copy(cur.glow).lerp(_white, 0.25);      // drowned motes
     else weather.material.color.copy(cur.particles);                                          // storm embers
     const pos = weather.geometry.attributes.position;
     const seeds = weather.geometry.userData.seeds;
     for (let i = 0; i < pos.count; i++) {
       let x = pos.getX(i), y = pos.getY(i);
       const s = seeds[i] % 1;
-      if (weatherAct === 0) { y -= dt * (0.45 + s * 0.55); x += Math.sin(time * 0.7 + seeds[i]) * dt * 0.5; }
-      else if (weatherAct === 1) { y -= dt * (0.14 + s * 0.2); x += Math.sin(time * 0.35 + seeds[i]) * dt * 0.9; }
+      if (weatherMode === 'ash') { y -= dt * (0.45 + s * 0.55); x += Math.sin(time * 0.7 + seeds[i]) * dt * 0.5; }
+      else if (weatherMode === 'mire') { y -= dt * (0.14 + s * 0.2); x += Math.sin(time * 0.35 + seeds[i]) * dt * 0.9; }
       else { x -= dt * (3.4 + s * 2.8); y -= dt * (0.5 + s * 0.5); }
       if (y < cy - 14) y += 28;
       if (y > cy + 14) y -= 28;

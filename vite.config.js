@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
-import { readdirSync, writeFileSync, renameSync, readFileSync } from "node:fs";
+import { readdirSync, writeFileSync, renameSync, readFileSync, unlinkSync } from "node:fs";
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { execSync } from "node:child_process";
 
 const BF_SAVE_PORT = 5174;
@@ -263,6 +264,79 @@ function bfSavePlugin() {
           res.end(JSON.stringify({ ok: true, reload: false }));
         } catch (e) {
           res.statusCode = 400;
+          res.end(JSON.stringify({ ok: false, problems: [String(e?.message ?? e)] }));
+        }
+      });
+
+      // ?contentedit=1 → POST /__content-save writes core mechanics + English locale domains
+      server.middlewares.use("/__content-save", async (req, res) => {
+        if (req.method !== "POST") { res.statusCode = 405; return res.end(); }
+        if (!bfSaveOriginOk(req)) {
+          res.statusCode = 403;
+          res.setHeader("content-type", "application/json");
+          return res.end(JSON.stringify({ ok: false, problems: ["forbidden origin"] }));
+        }
+        const body = await readJsonBody(req, res);
+        if (body == null) return;
+        res.setHeader("content-type", "application/json");
+        try {
+          const [
+            contentSerialize,
+            { definePack },
+            {
+              defineContentRegistration, withContentRegistration,
+              compileContentRegistrations, doctorContentRegistrations,
+            },
+            { CONTENT_REGISTRATION_MANIFEST },
+            { createCoreAuthoring },
+            englishCatalogue,
+          ] = await Promise.all([
+            import("./src/dev/content-serialize.js"),
+            import("./src/registry.js"),
+            import("./src/content-registration.js"),
+            import("./src/packs/compiled/development.js"),
+            import("./src/packs/core/index.js"),
+            import("./src/i18n/en/content.js"),
+          ]);
+          const payload = JSON.parse(body);
+          const root = resolve(".");
+          const result = await contentSerialize.runContentSaveTransaction(payload, {
+            root,
+            readFileSync,
+            writeFileSync,
+            renameSync,
+            unlinkSync,
+            importModule: async (filePath) => {
+              const href = `${pathToFileURL(filePath).href}?content-save=${Date.now()}-${Math.random()}`;
+              return import(href);
+            },
+            definePack,
+            defineContentRegistration,
+            withContentRegistration,
+            compileContentRegistrations,
+            doctorContentRegistrations,
+            developmentManifest: CONTENT_REGISTRATION_MANIFEST,
+            createCoreAuthoring,
+            englishCatalogue,
+          });
+          if (!result.ok) {
+            res.statusCode = result.status || 400;
+            return res.end(JSON.stringify({ ok: false, problems: result.problems || ["save failed"] }));
+          }
+          const { DOMAIN_MECHANICS_PATH, DOMAIN_LOCALE_PATH } = contentSerialize;
+          if (result.wrote?.mechanics) {
+            const mechPath = resolve(DOMAIN_MECHANICS_PATH[payload.domain]);
+            const mods = server.moduleGraph.getModulesByFile(mechPath);
+            if (mods) for (const m of mods) server.moduleGraph.invalidateModule(m);
+          }
+          if (result.wrote?.locale) {
+            const locPath = resolve(DOMAIN_LOCALE_PATH[payload.domain]);
+            const mods = server.moduleGraph.getModulesByFile(locPath);
+            if (mods) for (const m of mods) server.moduleGraph.invalidateModule(m);
+          }
+          res.end(JSON.stringify({ ok: true, wrote: result.wrote, reload: false }));
+        } catch (e) {
+          res.statusCode = 500;
           res.end(JSON.stringify({ ok: false, problems: [String(e?.message ?? e)] }));
         }
       });

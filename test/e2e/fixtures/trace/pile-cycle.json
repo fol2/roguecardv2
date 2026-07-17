@@ -1,0 +1,25 @@
+{
+  "journey": "pile-cycle",
+  "records": [
+    [
+      "playback.queue-event",
+      "start",
+      null
+    ],
+    [
+      "presentation.card-flight",
+      "start",
+      null
+    ],
+    [
+      "presentation.card-flight",
+      "end",
+      "settled"
+    ],
+    [
+      "playback.queue-event",
+      "end",
+      "completed"
+    ]
+  ]
+}

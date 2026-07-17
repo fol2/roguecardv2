@@ -1,0 +1,72 @@
+{
+  "id": "lamplighter__phone-landscape__grown",
+  "projection": {
+    "version": 1,
+    "screen": "lamplighter",
+    "shape": "phone-landscape",
+    "profile": "grown",
+    "stage": {
+      "w": 844,
+      "h": 390,
+      "shape": "phone-landscape"
+    },
+    "dawn": {
+      "whisper": null,
+      "ledger": null,
+      "ceremony": null,
+      "content": null
+    },
+    "embark": {
+      "vowDial": null,
+      "aspectCards": []
+    },
+    "scene": {
+      "sceneBgCount": 1,
+      "sceneBgStampedAsPanel": true,
+      "centerPanel": {
+        "left": -6.329987046122551,
+        "top": -2.925000402450532,
+        "width": 856.6599678039552,
+        "height": 395.8499806823745,
+        "right": 850.3299807578326,
+        "bottom": 392.924980279924,
+        "cx": 421.99999685585504,
+        "cy": 194.99998993873672
+      }
+    },
+    "title": {
+      "parallaxCount": 0,
+      "parallaxTop": null,
+      "wordmark": null,
+      "wordmarkClipped": null
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": {
+        "left": -6.329987046122551,
+        "top": -2.925000402450532,
+        "width": 856.6599678039552,
+        "height": 395.8499806823745,
+        "right": 850.3299807578326,
+        "bottom": 392.924980279924,
+        "cx": 421.99999685585504,
+        "cy": 194.99998993873672
+      },
+      "selectionVisible": true
+    },
+    "fall": {
+      "panel": null
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": null,
+      "rarityAccentDistinct": null
+    }
+  }
+}

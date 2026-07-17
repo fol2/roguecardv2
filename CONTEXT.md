@@ -49,13 +49,70 @@ _Avoid_: canonical log strings, screenshot narration
 A small, versioned, immutable presentation fixture published by a replayable UI owner and referenced by a trace span. When its span settles, Content Lab writes it to `replay=`; reload hydrates but does not auto-run the isolated visual preview. It never re-runs engine commands, restores game state, or writes a save.
 _Avoid_: command journal, save snapshot, persistent trace, gameplay replay
 
-**Playwright WebKit Device Emulation**:
-Playwright's patched WebKit browser running with an iPhone or iPad descriptor for viewport, user-agent, and touch emulation. It is not Safari running inside an Apple Simulator.
-_Avoid_: iOS Simulator Safari, physical Mobile Safari
+**UI Orchestrator**:
+`src/ui/index.js` is the sole P1 composition root. It constructs the frozen combat and drain APIs, screen route map, navigator and Probe; binds commands; installs globals/listeners/observation sinks; and owns boot/HMR routing. `src/ui.js` is only the stable `initUI`/`show` re-export.
+_Avoid_: screen-to-index import, second global installer, monolithic UI owner
 
-**Simulator Safari Lane**:
-Actual Safari from an iOS/iPadOS Simulator runtime, automated serially through Apple `safaridriver`; it proves functional compatibility, not physical-device performance or touch feel.
-_Avoid_: Playwright Mobile Safari, hardware performance gate
+**Combat Presentation Owner**:
+`src/ui/combat.js` owns combat assembly, layout, semantic input handlers, renderer synchronisation and the byte-preserved PR17 hand/chrome geometry. Its frozen presentation façade is the only way queue playback can touch combat-owned visual state.
+_Avoid_: queue mutation, screen navigation import, direct drain-state access
+
+**Queue Playback Owner**:
+`src/ui/drain.js` alone consumes and mutates the engine animation queue. It batches draw/reshuffle waves and dispatches engine events through the frozen combat presentation façade without importing combat, screens, navigation or the orchestrator.
+_Avoid_: second queue consumer, direct combat binding mutation, engine-side rendering
+
+**QA Probe**:
+`src/ui/probe.js` returns the read-only `window.__probe` contract installed by the orchestrator. Readers expose stage-pixel geometry, semantic state, trace and frozen module diagnostics; drivers reuse the real handlers and add no test-only game logic.
+_Avoid_: second game state, direct engine mutation driver, Probe-owned global assignment
+
+**Playwright WebKit Device Emulation**:
+The active Round 5 mobile-shaped browser lane: Playwright's patched WebKit browser running with an iPhone or iPad descriptor for viewport, user-agent and touch emulation, combined with per-task WebKit-safe API review. It is not branded Safari, an iOS/iPadOS Simulator, WKWebView, physical Mobile Safari, hardware evidence, packaging proof or a mobile-support claim.
+Package script `test:e2e:webkit` runs `trace`, `stage`, `lab`, `theme-profile` and `production-profile` on projects `iphone-webkit` and `ipad-webkit`. Full-mode CI job `e2e-webkit` installs `chromium webkit` and aggregates into the stable `e2e` check alongside Chromium lanes. Canonical visual snapshots remain Chromium-only (`desktop` / `portrait` / `landscape`). Linux baseline capture writes `baseline-manifest.json` (schema version, `GITHUB_SHA`, per-file bytes + SHA-256); install via `tools/install-baseline-artifact.mjs` after `tools/run-baseline-workflow.mjs` dispatch/poll.
+_Avoid_: Mobile Safari test, Simulator proof, WKWebView proof, physical-device gate
+
+**Pixi UI Lifecycle**:
+`src/ui/pixi-app.js` owns the sole production `#uigl` Application. States are idle → ready → (lost → rebuilding → ready) | failed. Context recovery emits `renderer.context-recovery` on the behaviour trace; VFX shake is mirrored onto the world root and observed as `presentation.shake-sync`. Freeze pins an immutable tick/snapshot for deterministic screenshots. Live WebGL owners at steady state remain exactly `#bg3d`, `#mesh`, `#uigl`; `#vfx` stays 2D.
+_Avoid_: second Pixi Application, WebGL VFX, tuning visual diff ratios to hide chrome drift
+
+**Combat Stage Router / Probe v2**:
+`src/ui/pointer.js` is the sole stage combat input router. `window.__probe.ui()` is renderer-neutral (version 2) with separate `queueIdle()` / `settle()`. `loseRendererContextForTest()` drives the lose→rebuild recovery seam; `freeze({atTick})` awaits the presentation barrier then freezes DOM/scene/VFX/Pixi together.
+_Avoid_: `#combat-hit-proxies`, Probe-owned game logic, CSS-only freeze as canvas proof
+
+**P4 browser gates**:
+Cumulative P4 evidence includes frozen Task 6 trace fixtures (comparison-only), Pixi recovery/shake/contrast, Chromium + Playwright WebKit `production-profile` fresh/veteran journeys, portrait/LITE and desktop/Full perf with `PERF_WARNING` on valid target misses, gzip bundle budget, and Darwin/Linux visual baselines under the frozen `VISUAL_DIFF_RATIOS` (all `0.01`).
+_Avoid_: inflating `maxDiffPixelRatio`, treating `PERF_WARNING` as a hard fail, actual-Safari claims
+
+**P5 combat gates**:
+Combat DOM is the P5 allowed-list (stage plates, combatants + aim/mesh overlays, `#uigl`, `#vfx`, tooltip/pop/toast mounts, empty structural hosts). `test:e2e:leak` owns host-relative card-face cache/texture counts and Chromium CDP heap growth; WebKit retains cache/count only. Combat visuals use suite key `p5Cards` at fixed `0.01`. Entry gzip budget rebaselined to `507904` via the frozen Task 21 formula `ceil(measured*1.10/1024)*1024` after card-face/hand/ceremony growth.
+_Avoid_: `?uigl=0`, silent DOM ceremony fallbacks, raising visual tolerance, inventing a lower bundle max that fails measured entry gzip
+
+**Strict E2E Port Wrapper**:
+Every Playwright-backed package script and workflow `run:` invokes `node tools/run-with-strict-e2e-port.mjs -- …` in the same step. The wrapper allocates a non-5174 port, sets `SPIREBOUND_E2E_PORT`, and requires `e2eServerSettings` loopback origin with `reuseExistingServer:false`.
+_Avoid_: bare `npm run test:e2e*` in CI, relying on a reused 5174 server
+
+**Deferred Mobile-Migration Tooling**:
+The non-executable future design at `docs/superpowers/specs/2026-07-11-mobile-migration-simulator-tooling-design.md`. Round 5 has no actual Safari/iOS Simulator lane, self-hosted Safari runner, exit-75 path or actual-Safari workflow; future work requires explicit owner activation, fresh drift audit, a separate implementation plan and proved tool maturity before any compatibility matrix.
+_Avoid_: active Round 5 gate, reviving retired Tasks 3–4, treating Playwright artefacts as Safari evidence
+
+### Round 5 phase status
+
+**P3 (Lab / doctor / Manager / CI WebKit)**: COMPLETE as of Task 20.
+
+**P4 (Pixi chrome)**: COMPLETE as of Task 25 (`Decision: GO TO P5`).
+
+**P5 (cards / ceremonies / leak)**: COMPLETE as of Task 30.
+
+**P6 (presentation / FE stylesheet / owner gate)**: COMPLETE as of Task 37 —
+owner PASS 2026-07-15, corrections + baselines + sheets re-promoted, and
+`Decision: GO TO P7` recorded 2026-07-16
+(`docs/superpowers/reports/2026-07-10-round5-p6-owner-gate.md`). CI e2e runs
+as duration-balanced pool shards
+(`docs/superpowers/specs/2026-07-16-e2e-pool-shards-design.md`).
+
+**P7 (ship-front) / Full-Round**: COMPLETE as of Task 40 — FE package merged,
+store kit + public icons, `dist/` refreshed, Darwin/Linux title baselines, and
+Full-Round report at
+`docs/superpowers/reports/2026-07-10-round5-full-round-gate.md` (PR #27).
 
 ### Audio
 
@@ -112,8 +169,8 @@ Act 1/2 boss-victory transitions and the final victory end screen play the victo
 _Avoid_: victory sting after every combat
 
 **Music Module**:
-`src/music.js` owns the Music Registry and playback (`play` / `stop` / `warm` / bus controls). `src/audio.js` owns SFX and the shared AudioContext unlock.
-_Avoid_: stuffing BGM into audio.js, splitting music into many tiny files
+`src/music.js` owns the Music Registry and playback (`play` / `stop` / `warm` / bus controls). `src/audio.js` owns SFX and the shared AudioContext unlock. Node-pure cue resolution lives in `src/music-resolve.js` (quest/Eighth/theme precedence, screen overrides, Dawn ceremony cues); it imports no audio, trace, DOM or stage module and sits below browser-only `music.js` in the dependency graph.
+_Avoid_: stuffing BGM into audio.js, splitting music into many tiny files, importing music-resolve from engine for side effects
 
 **Cue Id**:
 camelCase Music Cue identity used at call sites (`act1Combat`, `safeNodes`). Display titles stay on the asset / ledger only.
@@ -138,3 +195,31 @@ _Avoid_: both buses at 0.5 as the designed default
 **Audio Panel**:
 A small settings panel with Music and SFX rows (mute toggle + volume slider each). Opened from title and the in-run hamburger; replaces the single Mute Sound control.
 _Avoid_: inline four-control sprawl on the title screen
+
+### Content registry (P2)
+
+**Content Context**:
+A frozen, versioned assembly of pack mechanics plus joined locale fragments (`CORE_CONTENT` for production). Engine and UI read tables from the context; packs never own English display strings.
+_Avoid_: mutable global content registry, locale fields inside mechanics packs
+
+**Content Doctor**:
+`doctorContent` / `doctorContentRegistrations` validate reference completeness (VFX, character kinds, music, tokens, optional filesystem `assetManifest`) and locale coverage. Physical raster inventory is doctor/test-only; production boot tolerates missing rasters via SVG/`assetUrl` fallback.
+_Avoid_: independent id enums in UI modules, treating assetManifest as a runtime boot requirement
+
+**Pack / locale edit reload**:
+`src/data.js`, `src/registry.js`, `src/packs/core/**`, `src/i18n/en/**` and `_sample/locale-en.js` deliberately own no Vite HMR accept handlers. Pack or locale edits fall through to a full-page reload; no live-run or exported-object identity is promised across those edits.
+_Avoid_: soft-apply HMR for content tables, promising object identity after a pack edit
+
+## Module dependency notes (P2)
+
+```
+content-protocol.js ← four immutable protocol exports
+content-resources.js / presentation-catalog.js / ui/tokens.js ← static catalogues
+registry.js ← schemas, merge, context, doctor (Node-pure)
+content-registration.js ← paired registration compile/doctor
+packs/compiled/{production,development}.js ← generated manifests
+content.js ← CORE_CONTENT assembler over production manifest
+data.js ← 28 content-view aliases + 4 protocol re-exports
+music-resolve.js ← Node-pure cue resolve (below browser-only music.js)
+music.js ← Music Cue playback; imports audio.js + music-resolve (browser-only)
+```

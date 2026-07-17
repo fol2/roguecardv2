@@ -1,8 +1,14 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './trace-fixture.js';
 import {
   freshLedger, mixedLedger, completeLedger, seed, QIDS, stagePendingRunEnd,
   PERSISTED_EIGHTH_TEXT, PERSISTED_SHADE_TEXT, waitForDawnComplete,
 } from './emberglass-fixtures.js';
+
+async function persistenceTrace(page, kind) {
+  return page.evaluate((selectedKind) => window.__probe.behaviourTrace().records
+    .filter((record) => record.eventName.startsWith('persistence.') && record.attributes?.kind === selectedKind)
+    .map((record) => [record.eventName, record.phase, record.outcome ?? null]), kind);
+}
 
 test.describe('desktop Emberglass behaviour', () => {
   test.beforeEach(async ({ page }) => {
@@ -24,14 +30,64 @@ test('one shard adds a title medallion that opens the Rose', { tag: '@smoke' }, 
   const v = mixedLedger();
   await seed(page, v);
   const medallion = page.locator('.title-rose-medallion[data-a="rose"]');
+  // Asset decode is async but always settles (load/error → decode → ready or
+  // inert). Wait for it to leave 'loading' instead of betting a fixed budget —
+  // 8 preload PNGs through a cold Vite server can exceed any tight window on a
+  // loaded runner; a wrong terminal state still fails the assert immediately.
+  await page.waitForFunction(() => {
+    const m = document.querySelector('.title-rose-medallion[data-a="rose"]');
+    return m && m.dataset.r5State !== 'title-rose-loading';
+  });
+  await expect(medallion).toHaveAttribute('data-r5-state', 'title-rose-ready');
   await expect(medallion).toHaveClass(/ready/);
+  await expect(medallion).toBeEnabled();
   await page.evaluate(() => { window.__probe.forceRoseFallback(true); });
-  await expect(medallion).toHaveCount(0);
+  const fallback = page.locator('.title-rose-medallion.title-rose-fallback[data-a="rose"]');
+  await expect(fallback).toHaveCount(1);
+  await expect(fallback).toHaveAttribute('aria-label', /.+/);
+  await expect(fallback).toHaveAttribute('data-r5-state', 'title-rose-ready');
   await page.evaluate(() => { window.__probe.forceRoseFallback(false); });
+  await page.waitForFunction(() => {
+    const m = document.querySelector('.title-rose-medallion[data-a="rose"]');
+    return m && m.dataset.r5State !== 'title-rose-loading';
+  });
+  await expect(medallion).toHaveAttribute('data-r5-state', 'title-rose-ready');
   await expect(medallion).toHaveClass(/ready/);
   await page.click('[data-a="rose"]');
   await expect(page.locator('[data-a="tab-rose"]')).toHaveClass(/on/);
   await expect(page.locator('.rose-window.ready')).toHaveCount(1);
+});
+
+test('Title Rose exposes loading then ready, and keyboard focus when ready', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'Title Rose phase coverage runs once on desktop');
+  const v = mixedLedger();
+  await page.addInitScript(() => {
+    const decode = HTMLImageElement.prototype.decode;
+    HTMLImageElement.prototype.decode = function decodeRoseAssetSlow() {
+      if (this.src.includes('emberglass-mural')) {
+        return new Promise((resolve, reject) => {
+          this.__roseResolve = resolve;
+          this.__roseReject = reject;
+          // leave pending until probe advances — starts as loading
+        });
+      }
+      return decode.call(this);
+    };
+  });
+  await seed(page, v);
+  const medallion = page.locator('.title-rose-medallion[data-a="rose"]');
+  await expect(medallion).toHaveAttribute('data-r5-state', 'title-rose-loading');
+  await expect(medallion).toBeDisabled();
+  await page.evaluate(() => {
+    for (const image of document.querySelectorAll('.title-rose-preload img')) {
+      if (typeof image.__roseResolve === 'function') image.__roseResolve();
+    }
+  });
+  // Decode→ready handoff can sit past the default 5s expect on CI Linux.
+  await expect(medallion).toHaveAttribute('data-r5-state', 'title-rose-ready', { timeout: 15_000 });
+  await expect(medallion).toHaveClass(/ready/);
+  await medallion.focus();
+  await expect(medallion).toBeFocused();
 });
 
 test('Rose panes disclose only their current state', async ({ page }) => {
@@ -50,6 +106,7 @@ test('Rose panes disclose only their current state', async ({ page }) => {
   await expect(page.locator('.whisper-row')).toHaveCount(v.whispers);
   await page.click('[data-a="back"]');
   const medallion = page.locator('.title-rose-medallion');
+  await expect(medallion).toHaveAttribute('data-r5-state', 'title-rose-ready', { timeout: 15_000 });
   await expect(medallion).toHaveClass(/ready/);
   await expect(medallion).toBeEnabled();
   const pane = medallion.locator('.title-rose-pane');
@@ -106,10 +163,23 @@ test('title Rose stays inert when any asset fails to decode', async ({ page }) =
   const medallion = page.locator('.title-rose-medallion');
   await expect(medallion).toHaveCount(1);
   await expect(medallion).not.toHaveClass(/ready/);
+  await expect(medallion).toHaveAttribute('data-r5-state', 'title-rose-inert');
   await expect(medallion).toBeDisabled();
-  await expect(medallion).toBeHidden();
+  // FE contract: inert remains visible at reduced opacity, but non-interactive.
+  await expect(medallion).toBeVisible();
   await medallion.evaluate((node) => node.click());
   expect(await page.evaluate(() => window.__probe.state().screen)).toBe('title');
+});
+
+test('Title Rose REDUCED terminal is ready without a loading hold', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'REDUCED Rose terminal runs once on desktop');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await seed(page, mixedLedger());
+  const medallion = page.locator('.title-rose-medallion[data-a="rose"]');
+  await expect(medallion).toHaveClass(/ready/);
+  await expect(medallion).toHaveAttribute('data-r5-state', 'title-rose-ready');
+  await expect(page.locator('.r5-title')).toHaveAttribute('data-motion', 'reduced');
+  await expect(page.locator('.r5-title')).toHaveAttribute('data-r5-state', 'title-ready');
 });
 
 test('opening Vigil clears only the news pulse', async ({ page }) => {
@@ -182,6 +252,7 @@ test('dawn ceremony drains in canonical order and signals completion', async ({ 
   }, { questIds: QIDS });
 
   await waitForDawnComplete(page);
+  await expect(page.locator('.r5-end.r5-end--victory, .end-screen')).toHaveCount(1);
   await expect(page.locator('.dawn-event')).toHaveCount(5);
   await expect(page.locator('.dawn-event').evaluateAll((nodes) => nodes.map((node) => node.dataset.event)))
     .resolves.toEqual(['whisper', 'questReveal', 'questProgress', 'shardGrant', 'act4Reveal']);
@@ -280,10 +351,20 @@ test('run-end persistence failure owns input until finalisation retries', async 
     };
   });
   await page.reload();
+  // `boot()` is fire-and-forget in main.js, so reload's load can resolve before
+  // fonts/pixi finish and show('title') opens the run-end persistence plate.
+  // CI after a heavy dawn test routinely exceeds the default 5s expect window.
+  await page.waitForFunction(() => {
+    const records = window.__probe?.behaviourTrace?.()?.records;
+    if (Array.isArray(records) && records.some((record) => record.eventName === 'app.ready')) {
+      return true;
+    }
+    return !!document.querySelector('#overlay.open [data-a="retry-end"]');
+  });
 
-  await expect(page.locator('.ov-title')).toHaveText('The Vigil Could Not Hold');
+  await expect(page.locator('.ov-title')).toHaveText('The Vigil Could Not Hold', { timeout: 15_000 });
   await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
-  await expect(page.locator('[data-a="retry-end"]')).toBeFocused();
+  await expect(page.locator('[data-a="retry-end"]')).toBeFocused({ timeout: 10_000 });
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2'))?.pendingRunEnd))
     .toEqual({ outcome: 'death' });
 
@@ -292,33 +373,72 @@ test('run-end persistence failure owns input until finalisation retries', async 
   await page.waitForFunction(() => window.spirebound?.S.screen === 'end');
   await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
   expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBeNull();
+  const runEndTrace = await persistenceTrace(page, 'run-end');
+  expect(runEndTrace).toEqual([
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.blocked', 'point', 'rejected'],
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.recovered', 'point', 'completed'],
+  ]);
 });
 
 test('normal-motion reload resumes only unacknowledged dawn panels', async ({ page }) => {
   test.skip(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches),
     'the checkpoint timing contract is specifically normal motion');
   const staged = await stagePendingRunEnd(page, 'win');
-  // Capture the cursor===2 checkpoint inside waitForFunction so Playwright
-  // round-trips cannot miss the ~550ms normal-motion panel window.
+  // Capture, pin, freeze durable save mutations, and reload in one page-side
+  // poller. A Playwright round-trip after cursor===2 lets the in-flight 550ms
+  // panel acknowledge and overwrite a localStorage pin before navigation lands.
   await page.reload();
-  await page.waitForFunction(() => {
-    if (!(window.spirebound && window.__probe?.state().screen === 'end')) return false;
-    const run = JSON.parse(localStorage.getItem('spirebound_save_v2') || 'null');
-    const pending = run?.pendingDawn;
-    if (!pending || pending.cursor !== 2 || pending.cursor >= pending.events.length) return false;
-    if (!sessionStorage.getItem('spirebound_dawn_checkpoint')) {
-      sessionStorage.setItem('spirebound_dawn_checkpoint', JSON.stringify({
-        cursor: pending.cursor,
-        acknowledged: pending.events.slice(0, pending.cursor),
-        remaining: pending.events.slice(pending.cursor),
-        vigilRaw: localStorage.getItem('spirebound_vigil_v2'),
-        statsRaw: localStorage.getItem('spirebound_stats_v1'),
-      }));
-    }
-    return true;
-  });
   const reloaded = page.waitForEvent('load');
-  await page.evaluate(() => location.reload());
+  await page.evaluate(() => new Promise((resolve, reject) => {
+    const started = Date.now();
+    const tick = () => {
+      if (Date.now() - started > 30_000) {
+        reject(new Error('missed the normal-motion cursor===2 dawn window'));
+        return;
+      }
+      if (!(window.spirebound && window.__probe?.state().screen === 'end')) {
+        setTimeout(tick, 10);
+        return;
+      }
+      const run = JSON.parse(localStorage.getItem('spirebound_save_v2') || 'null');
+      const pending = run?.pendingDawn;
+      if (!pending || pending.cursor !== 2 || pending.cursor >= pending.events.length) {
+        setTimeout(tick, 10);
+        return;
+      }
+      if (!sessionStorage.getItem('spirebound_dawn_checkpoint')) {
+        sessionStorage.setItem('spirebound_dawn_checkpoint', JSON.stringify({
+          cursor: pending.cursor,
+          acknowledged: pending.events.slice(0, pending.cursor),
+          remaining: pending.events.slice(pending.cursor),
+          vigilRaw: localStorage.getItem('spirebound_vigil_v2'),
+          statsRaw: localStorage.getItem('spirebound_stats_v1'),
+        }));
+      }
+      // Pin cursor===2 and freeze further save-key mutations. Patching E.saveRun is
+      // useless here — advancePendingDawn closes over the module-local saveRun.
+      pending.cursor = 2;
+      if (window.spirebound.S.run?.pendingDawn) {
+        window.spirebound.S.run.pendingDawn.cursor = 2;
+      }
+      const setItem = Storage.prototype.setItem;
+      const removeItem = Storage.prototype.removeItem;
+      setItem.call(localStorage, 'spirebound_save_v2', JSON.stringify(run));
+      Storage.prototype.setItem = function freezeDawnSave(key, value) {
+        if (key === 'spirebound_save_v2') return;
+        return setItem.call(this, key, value);
+      };
+      Storage.prototype.removeItem = function freezeDawnClear(key) {
+        if (key === 'spirebound_save_v2') return;
+        return removeItem.call(this, key);
+      };
+      location.reload();
+      resolve();
+    };
+    tick();
+  }));
   await reloaded;
   const checkpoint = await page.evaluate(() =>
     JSON.parse(sessionStorage.getItem('spirebound_dawn_checkpoint')));
@@ -348,7 +468,6 @@ test('normal-motion reload resumes only unacknowledged dawn panels', async ({ pa
   expect(completed.statsRaw).toBe(checkpoint.statsRaw);
   expect(completed.save).toBeNull();
   expect(JSON.parse(completed.statsRaw)).toMatchObject({ lastRunId: staged.runId });
-
   await page.reload();
   await page.waitForFunction(() => window.spirebound && window.__probe?.state().screen === 'title');
   await expect(page.locator('.dawn-event')).toHaveCount(0);
@@ -373,10 +492,12 @@ test('a rejected dawn cursor save stays locked and retries the same panel', asyn
     sp.show('end', { won: true });
   });
 
-  await expect(page.locator('.ov-title')).toHaveText('The Dawn Could Not Hold');
+  await expect(page.locator('#dawn-save-failure .ov-title')).toHaveText('The Dawn Could Not Hold', {
+    timeout: 30_000,
+  });
   await expect(page.locator('#overlay .ov-sub')).toContainText('This panel was shown');
   await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
-  await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused();
+  await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused({ timeout: 10_000 });
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2')).pendingDawn.cursor)).toBe(0);
   expect(await page.locator('.end-btns button').evaluateAll((buttons) => buttons.map((button) => button.disabled)))
     .toEqual([true, true]);
@@ -387,6 +508,13 @@ test('a rejected dawn cursor save stays locked and retries the same panel', asyn
   await expect(page.locator('[data-event="eighthResolved"]')).toContainText('CURSOR FAILURE COPY');
   expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBeNull();
   await page.evaluate(() => { Storage.prototype.setItem = window.__dawnSetItem; });
+  const cursorTrace = await persistenceTrace(page, 'dawn-cursor');
+  expect(cursorTrace).toEqual([
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.blocked', 'point', 'rejected'],
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.recovered', 'point', 'completed'],
+  ]);
 });
 
 test('a rejected final dawn clear stays locked and retryable', async ({ page }) => {
@@ -408,10 +536,12 @@ test('a rejected final dawn clear stays locked and retryable', async ({ page }) 
     sp.show('end', { won: true });
   });
 
-  await expect(page.locator('.ov-title')).toHaveText('The Dawn Could Not Hold');
+  await expect(page.locator('#dawn-save-failure .ov-title')).toHaveText('The Dawn Could Not Hold', {
+    timeout: 30_000,
+  });
   await expect(page.locator('#overlay .ov-sub')).toContainText('Every panel has been seen');
   await expect(page.locator('#shake')).toHaveJSProperty('inert', true);
-  await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused();
+  await expect(page.locator('[data-a="retry-dawn"]')).toBeFocused({ timeout: 10_000 });
   const pending = await page.evaluate(() => JSON.parse(localStorage.getItem('spirebound_save_v2')).pendingDawn);
   expect(pending).toEqual({ events: [], cursor: 0, newUnlocks: [] });
   expect(await page.locator('.end-btns button').evaluateAll((buttons) => buttons.map((button) => button.disabled)))
@@ -422,6 +552,13 @@ test('a rejected final dawn clear stays locked and retryable', async ({ page }) 
   await expect(page.locator('#shake')).toHaveJSProperty('inert', false);
   expect(await page.evaluate(() => localStorage.getItem('spirebound_save_v2'))).toBeNull();
   await page.evaluate(() => { Storage.prototype.removeItem = window.__dawnRemoveItem; });
+  const clearTrace = await persistenceTrace(page, 'dawn-clear');
+  expect(clearTrace).toEqual([
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.blocked', 'point', 'rejected'],
+    ['persistence.attempt', 'point', 'accepted'],
+    ['persistence.recovered', 'point', 'completed'],
+  ]);
 });
 
 for (const outcome of ['death', 'abandon']) {

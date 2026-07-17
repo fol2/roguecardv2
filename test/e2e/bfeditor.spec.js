@@ -35,7 +35,23 @@ async function openBfEditor(page, params = {}) {
     mesh: '0',
     ...params,
   });
-  await page.goto(`/?${query.toString()}`);
+  // Editor immediately rewrites the query (bfa/bfh/bft); that second navigation
+  // aborts Playwright's goto wait even at domcontentloaded — commit + settle.
+  // After /__bf-save Vite can also restart mid-goto (net::ERR_ABORTED).
+  const navAbort = /interrupted by another navigation|ERR_ABORTED|net::ERR_/i;
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await page.goto(`/?${query.toString()}`, { waitUntil: 'commit' });
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+      if (!navAbort.test(String(error?.message || error))) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  if (lastError && !navAbort.test(String(lastError?.message || lastError))) throw lastError;
   await page.waitForFunction(() => Boolean(
     typeof window.__bfEditor?.resolved === 'function'
     && typeof window.__bfEditor?.working === 'function'
@@ -45,7 +61,7 @@ async function openBfEditor(page, params = {}) {
     && document.querySelector('#bf-toolbar')
     && document.querySelector('#bf-panel')
     && document.querySelector('.bf-box[data-bf="hero"]')
-  ));
+  ), null, { timeout: 30_000 });
 }
 
 async function waitForEditorOverlayStable(page) {
@@ -210,12 +226,18 @@ test('Save POSTs the edited layout to /__bf-save', async ({ page }) => {
 });
 
 test('clearing a slot override restores the base formation intact', async ({ page }) => {
-  await openBfEditor(page);
-  await page.locator('.bf-box[data-bf="enemy-0"]').click();
+  test.setTimeout(120_000);
+  // Pin shape + 2-foe formation so desktop-landscape slots[2] override is in scope.
+  await openBfEditor(page, { shape: 'desktop-landscape', bft: 'duskfang,sporeling' });
   const panel = page.locator('#bf-panel');
+  // Sidebar select is more reliable than overlay hit-testing under CI load.
+  await panel.locator('[data-select="enemy-0"]').click();
+  await expect(panel.locator('input[data-path="x"]')).toBeVisible({ timeout: 15_000 });
   // the layout file ships a desktop-landscape slots override: clear it first
   // so "pre-edit" is the base formation, then exercise edit → clear
-  await panel.locator('button[data-clear="0"]').click();
+  const clear0 = panel.locator('button[data-clear="0"]');
+  await expect(clear0).toBeVisible({ timeout: 15_000 });
+  await clear0.click();
   const preEdit = await page.evaluate(() => window.__bfEditor.resolved().slots[2][0].x);
   const input = panel.locator('input[data-path="x"]');
   await input.fill(String(preEdit + 37));

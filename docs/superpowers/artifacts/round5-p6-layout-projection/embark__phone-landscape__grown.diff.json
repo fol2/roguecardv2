@@ -1,0 +1,158 @@
+{
+  "id": "embark__phone-landscape__grown",
+  "deltaCount": 21,
+  "expectedCount": 21,
+  "unexpectedCount": 0,
+  "unexpectedPaths": [],
+  "expectedPathsHit": [
+    "embark.vowDial.top",
+    "embark.vowDial.bottom",
+    "embark.vowDial.cy",
+    "embark.aspectCards[0].left",
+    "embark.aspectCards[0].top",
+    "embark.aspectCards[0].width",
+    "embark.aspectCards[0].height",
+    "embark.aspectCards[0].right",
+    "embark.aspectCards[0].bottom",
+    "embark.aspectCards[0].cx",
+    "embark.aspectCards[0].cy",
+    "embark.aspectCards[1].left",
+    "embark.aspectCards[1].top",
+    "embark.aspectCards[1].width",
+    "embark.aspectCards[1].height",
+    "embark.aspectCards[1].right",
+    "embark.aspectCards[1].bottom",
+    "embark.aspectCards[1].cx",
+    "embark.aspectCards[1].cy",
+    "cardface.hasArtTexture",
+    "cardface.rarityAccentDistinct"
+  ],
+  "deltas": [
+    {
+      "path": "embark.vowDial.top",
+      "kind": "box-drift",
+      "live": 281.1773826599121,
+      "golden": 267.0808622182743
+    },
+    {
+      "path": "embark.vowDial.bottom",
+      "kind": "box-drift",
+      "live": 325.34922943115237,
+      "golden": 307.8552585631154
+    },
+    {
+      "path": "embark.vowDial.cy",
+      "kind": "box-drift",
+      "live": 303.2633060455322,
+      "golden": 287.46806039069486
+    },
+    {
+      "path": "embark.aspectCards[0].left",
+      "kind": "box-drift",
+      "live": 187.00000162124635,
+      "golden": 160.1300075531006
+    },
+    {
+      "path": "embark.aspectCards[0].top",
+      "kind": "box-drift",
+      "live": 122.61483955383301,
+      "golden": 148.11968455720947
+    },
+    {
+      "path": "embark.aspectCards[0].width",
+      "kind": "box-drift",
+      "live": 470.0000370025635,
+      "golden": 255.78003005981446
+    },
+    {
+      "path": "embark.aspectCards[0].height",
+      "kind": "box-drift",
+      "live": 68.28125133514405,
+      "golden": 104.75115245321462
+    },
+    {
+      "path": "embark.aspectCards[0].right",
+      "kind": "box-drift",
+      "live": 657.0000386238098,
+      "golden": 415.91003761291506
+    },
+    {
+      "path": "embark.aspectCards[0].bottom",
+      "kind": "box-drift",
+      "live": 190.89609088897706,
+      "golden": 252.87083701042408
+    },
+    {
+      "path": "embark.aspectCards[0].cx",
+      "kind": "box-drift",
+      "live": 422.0000201225281,
+      "golden": 288.02002258300786
+    },
+    {
+      "path": "embark.aspectCards[0].cy",
+      "kind": "box-drift",
+      "live": 156.75546522140502,
+      "golden": 200.49526078381678
+    },
+    {
+      "path": "embark.aspectCards[1].left",
+      "kind": "box-drift",
+      "live": 187.00000162124635,
+      "golden": 428.09000263214114
+    },
+    {
+      "path": "embark.aspectCards[1].top",
+      "kind": "box-drift",
+      "live": 200.89610195159912,
+      "golden": 148.11968455720947
+    },
+    {
+      "path": "embark.aspectCards[1].width",
+      "kind": "box-drift",
+      "live": 470.0000370025635,
+      "golden": 255.77998981475832
+    },
+    {
+      "path": "embark.aspectCards[1].height",
+      "kind": "box-drift",
+      "live": 68.28125133514405,
+      "golden": 104.75115245321462
+    },
+    {
+      "path": "embark.aspectCards[1].right",
+      "kind": "box-drift",
+      "live": 657.0000386238098,
+      "golden": 683.8699924468995
+    },
+    {
+      "path": "embark.aspectCards[1].bottom",
+      "kind": "box-drift",
+      "live": 269.17735328674314,
+      "golden": 252.87083701042408
+    },
+    {
+      "path": "embark.aspectCards[1].cx",
+      "kind": "box-drift",
+      "live": 422.0000201225281,
+      "golden": 555.9799975395204
+    },
+    {
+      "path": "embark.aspectCards[1].cy",
+      "kind": "box-drift",
+      "live": 235.03672761917113,
+      "golden": 200.49526078381678
+    },
+    {
+      "path": "cardface.hasArtTexture",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    },
+    {
+      "path": "cardface.rarityAccentDistinct",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    }
+  ]
+}

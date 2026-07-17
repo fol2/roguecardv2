@@ -1,0 +1,85 @@
+{
+  "id": "embark__pad-landscape__grown",
+  "projection": {
+    "version": 1,
+    "screen": "embark",
+    "shape": "pad-landscape",
+    "profile": "grown",
+    "stage": {
+      "w": 1180,
+      "h": 820,
+      "shape": "pad-landscape"
+    },
+    "dawn": {
+      "whisper": null,
+      "ledger": null,
+      "ceremony": null,
+      "content": null
+    },
+    "embark": {
+      "vowDial": {
+        "left": 481.39504113653254,
+        "top": 517.4631546020507,
+        "width": 217.2100428490084,
+        "height": 75.10996551513671,
+        "right": 698.6050839855409,
+        "bottom": 592.5731201171875,
+        "cx": 590.0000625610368,
+        "cy": 555.0181373596191,
+        "aspectRatio": 2.8918937901154362
+      },
+      "aspectCards": [
+        {
+          "left": 346.40005397214867,
+          "top": 242.65187416076657,
+          "width": 235.47996138181423,
+          "height": 256.5412685394287,
+          "right": 581.8800153539629,
+          "bottom": 499.19314270019527,
+          "cx": 464.14003466305576,
+          "cy": 370.9225084304809
+        },
+        {
+          "left": 598.1200472070739,
+          "top": 242.65187416076657,
+          "width": 235.4800552233694,
+          "height": 256.5412685394287,
+          "right": 833.6001024304433,
+          "bottom": 499.19314270019527,
+          "cx": 715.8600748187586,
+          "cy": 370.9225084304809
+        }
+      ]
+    },
+    "scene": {
+      "sceneBgCount": 0,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": null
+    },
+    "title": {
+      "parallaxCount": 0,
+      "parallaxTop": null,
+      "wordmark": null,
+      "wordmarkClipped": null
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": null,
+      "selectionVisible": false
+    },
+    "fall": {
+      "panel": null
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": null,
+      "rarityAccentDistinct": null
+    }
+  }
+}

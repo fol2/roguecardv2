@@ -1,0 +1,66 @@
+{
+  "id": "title__phone-landscape__grown",
+  "screen": "title",
+  "shape": "phone-landscape",
+  "profile": "grown",
+  "projection": {
+    "version": 1,
+    "screen": "title",
+    "shape": "phone-landscape",
+    "profile": "grown",
+    "stage": {
+      "w": 844,
+      "h": 390,
+      "shape": "phone-landscape"
+    },
+    "dawn": {
+      "whisper": null,
+      "ledger": null,
+      "ceremony": null,
+      "content": null
+    },
+    "embark": {
+      "vowDial": null,
+      "aspectCards": []
+    },
+    "scene": {
+      "sceneBgCount": 0,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": null
+    },
+    "title": {
+      "parallaxCount": 3,
+      "parallaxTop": -0.010156250000015278,
+      "wordmark": {
+        "left": 307.00001363754274,
+        "top": 135.1148533821106,
+        "width": 229.99999284744266,
+        "height": 59.73436851501465,
+        "right": 537.0000064849854,
+        "bottom": 194.84922189712523,
+        "cx": 422.00001006126405,
+        "cy": 164.98203763961791
+      },
+      "wordmarkClipped": false
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": null,
+      "selectionVisible": false
+    },
+    "fall": {
+      "panel": null
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": true,
+      "rarityAccentDistinct": true
+    }
+  }
+}

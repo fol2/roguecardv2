@@ -10,6 +10,17 @@ Quick map for agents and humans. Operational truth for running the game lives in
 | [`../AGENTS.md`](../AGENTS.md) | Agent conventions: module graph, fixed stage, engine purity, commands |
 | [`../CONTEXT-MAP.md`](../CONTEXT-MAP.md) | Ubiquitous language for the Climb and Vigil contexts |
 
+### Round 5 P1 UI runtime — complete
+
+`src/ui.js` is the stable two-export entry. `src/ui/index.js` is the sole
+composition root; it wires the leaf screens and navigator to the frozen combat
+API (`src/ui/combat.js`), the sole queue consumer (`src/ui/drain.js`) and the
+read-only QA contract (`src/ui/probe.js`). Engine queue mutation remains in
+drain; combat layout/input/synchronisation remains in combat; only index installs
+`window.spirebound`, `window.__probe`, global listeners and observation sinks.
+The semantic behaviour trace and presentation barrier remain renderer-neutral
+contracts shared by Playwright regression journeys.
+
 ## Rendering
 
 | Doc | Status |
@@ -20,8 +31,17 @@ Quick map for agents and humans. Operational truth for running the game lives in
 
 | Doc | Status |
 |---|---|
-| [`superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md`](superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md) | **Golden design** — PE-led commercial-grade production engineering with a small, isolated FE presentation lane; content registries, Semantic UI Behaviour Trace, Pixi combat UI, screen hardening, and ship-front. Progressive Delivery Phase 2 must merge before runtime execution |
-| [`research/2026-07-10-ui-behaviour-trace-ios-simulator.md`](research/2026-07-10-ui-behaviour-trace-ios-simulator.md) | Primary-source research: structured AI-readable behaviour traces, Playwright/WebDriver consumption, Simulator evidence limits, and the owner decision to defer physical-device proof |
+| [`superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md`](superpowers/specs/2026-07-09-canvas-ui-shipfront-design.md) | **Golden design** — PE-led commercial-grade production engineering with a small, isolated FE presentation lane; execution begins at P1 after loaded-predecessor/drift validation and proceeds through cumulative Playwright Chromium/WebKit browser gates |
+| [`superpowers/plans/2026-07-10-round5-production-engineering.md`](superpowers/plans/2026-07-10-round5-production-engineering.md) | **Executor** — P1–P7 COMPLETE (Task 40 Full-Round gate, 2026-07-17); PR #27 |
+| [`superpowers/reports/2026-07-10-round5-full-round-gate.md`](superpowers/reports/2026-07-10-round5-full-round-gate.md) | **Full-Round gate** — closure evidence, CI tip, deferred mobile claims |
+| [`superpowers/reports/2026-07-10-round5-p7-handoff.md`](superpowers/reports/2026-07-10-round5-p7-handoff.md) | **P7 hand-off** — FE merge hashes, capture source SHA, provisional store kit + public icons |
+| [`store-shot-list.md`](store-shot-list.md) | Exact five store-kit shot ids / seeds / profiles |
+| [`store-listing-content.md`](store-listing-content.md) | Provisional store listing copy + age-rating / privacy checklist |
+| [`store-assets/round5/`](store-assets/round5/) | Provisional marketing captures + `manifest.json` |
+| [`superpowers/reports/2026-07-10-round5-p2-registry-evidence.md`](superpowers/reports/2026-07-10-round5-p2-registry-evidence.md) | **P2 evidence** — three-leg equality, 100% core doctor, freeze/no-accessor, sample isolation, Music contract, theme-profile Chromium results; WebKit theme rerun owned by Task 20 (`test:e2e:webkit`) |
+| [`superpowers/reports/2026-07-12-round5-task10-handover.md`](superpowers/reports/2026-07-12-round5-task10-handover.md) | **Task 10 handover** — oracle provenance and gates; historical start procedure for Task 11 |
+| [`superpowers/specs/2026-07-11-mobile-migration-simulator-tooling-design.md`](superpowers/specs/2026-07-11-mobile-migration-simulator-tooling-design.md) | **Deferred / non-executable** — future actual Safari/iOS Simulator automation design; requires explicit owner activation, fresh drift audit, a separate tool plan and tool-maturity proof |
+| [`research/2026-07-10-ui-behaviour-trace-ios-simulator.md`](research/2026-07-10-ui-behaviour-trace-ios-simulator.md) | **Historical / superseded for Round 5 execution** — primary-source evidence boundaries and semantic-trace research; dated toolchain snapshot is non-current and any future mobile use flows through the deferred design |
 
 ## Active implementation specs
 
@@ -32,8 +52,11 @@ Quick map for agents and humans. Operational truth for running the game lives in
 | [`superpowers/specs/2026-07-11-app-versioning-design.md`](superpowers/specs/2026-07-11-app-versioning-design.md) | **Current** — package.json-sourced app version, title-screen label, release build convention |
 | [`superpowers/plans/2026-07-11-app-versioning.md`](superpowers/plans/2026-07-11-app-versioning.md) | Executor plan — Vite define, title UI, `npm run release` |
 | [`app-versioning.md`](app-versioning.md) | Operator note — display rules, bump policy, release flow |
+| [`superpowers/specs/2026-07-16-e2e-pool-shards-design.md`](superpowers/specs/2026-07-16-e2e-pool-shards-design.md) | **Current** — duration-balanced e2e pool shards (`tools/e2e-shard.mjs`); supersedes the per-suite peel topology |
 | [`superpowers/specs/2026-07-10-e2e-ci-feedback-design.md`](superpowers/specs/2026-07-10-e2e-ci-feedback-design.md) | **Current** — owner-approved Draft fast feedback and Ready/full parallel Playwright gate |
 | [`superpowers/plans/2026-07-10-e2e-ci-feedback.md`](superpowers/plans/2026-07-10-e2e-ci-feedback.md) | Executor plan — CI contract, smoke tags, shardable random coverage, and parallel GitHub gate |
+| [`superpowers/specs/2026-07-12-p2-base-ci-standing-design.md`](superpowers/specs/2026-07-12-p2-base-ci-standing-design.md) | **Current** — owner-approved CI-backed Round 5 `p2-base` standing (<10 min, no fidelity loss) |
+| [`superpowers/plans/2026-07-12-p2-base-ci-standing.md`](superpowers/plans/2026-07-12-p2-base-ci-standing.md) | Executor plan — CI mode/aggregators, wait-github-check, standing profile flip |
 | [`superpowers/plans/2026-07-10-versioned-audio-packs.md`](superpowers/plans/2026-07-10-versioned-audio-packs.md) | **Current** — versioned Music/SFX selection, individual overrides, backend/runtime boundary |
 | [`superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md`](superpowers/specs/2026-07-09-entrance-progressive-delivery-design.md) | **Complete** — progressive delivery and entrances shipped in Phase 1; Emberglass chain shipped in Phase 2 |
 | [`superpowers/plans/2026-07-09-entrance-progressive-delivery-phase1.md`](superpowers/plans/2026-07-09-entrance-progressive-delivery-phase1.md) | Executor plan, Phase 1 (delivery engine + entrances — **shipped**) |
@@ -48,9 +71,14 @@ Quick map for agents and humans. Operational truth for running the game lives in
 
 ## Visual QA kit
 
-- Config: [`../playwright.config.js`](../playwright.config.js) with strict-port resolution in [`../playwright-server.js`](../playwright-server.js) — desktop 1600×900, portrait 375×812, landscape 812×375; dev server **5174** by default. Set `SPIREBOUND_E2E_PORT=<free-port>` for an isolated launch that refuses to reuse an existing server.
-- Suites: [`../test/e2e/`](../test/e2e/) — config/runner contracts, battlefield-editor disk writes, stage and combat geometry, battle/reward flows, Emberglass progression and persistence transactions, Hollow routing, versioned audio selection, visual baselines, random-agent coverage, and performance.
-- In-page API: `window.__probe` in `src/ui.js` — geometry in **stage px**
+- Config: [`../playwright.config.js`](../playwright.config.js) with strict-port resolution in [`../playwright-server.js`](../playwright-server.js) — desktop 1600×900, portrait 375×812, landscape 812×375; WebKit device projects `iphone-webkit` / `ipad-webkit` (Playwright patched WebKit + descriptors, **not** Safari or Simulator); dev server **5174** by default. Every browser package script and workflow run goes through [`../tools/run-with-strict-e2e-port.mjs`](../tools/run-with-strict-e2e-port.mjs) (`SPIREBOUND_E2E_PORT=<free-port>`, `reuseExistingServer:false`).
+- Suites: [`../test/e2e/`](../test/e2e/) — config/runner contracts, battlefield-editor disk writes, stage and combat geometry, battle/reward flows, Emberglass progression and persistence transactions, Hollow routing, versioned audio selection, visual baselines, random-agent coverage, Lab/theme-profile journeys, and performance.
+- Lanes: Chromium (`desktop` / `portrait` / `landscape`, including canonical visual snapshots) and Playwright WebKit (`npm run test:e2e:webkit` → `iphone-webkit` + `ipad-webkit`, including `production-profile`). P5 adds `npm run test:e2e:leak` (single-worker Chromium + WebKit cache/count; Chromium CDP heap). Entry gzip budget is `507904` after the Task 21 formula rebaseline (`ceil(measured*1.10/1024)*1024`) for card-face/hand/ceremony growth. Visual tolerance is the frozen per-suite map in [`../test/e2e/visual-policy.js`](../test/e2e/visual-policy.js) (all ratios `0.01`; combat uses `p5Cards`); Linux baseline capture emits `baseline-manifest.json` via [`../tools/write-baseline-manifest.mjs`](../tools/write-baseline-manifest.mjs), dispatched/polled by [`../tools/run-baseline-workflow.mjs`](../tools/run-baseline-workflow.mjs) and installed by [`../tools/install-baseline-artifact.mjs`](../tools/install-baseline-artifact.mjs). Cumulative standing profiles live in [`../tools/run-round5-standing-gates.mjs`](../tools/run-round5-standing-gates.mjs); Round 5 has no self-hosted Safari/Simulator runner, exit-75 path, or actual-Safari workflow.
+- In-page API: `window.__probe`, assembled by [`../src/ui/probe.js`](../src/ui/probe.js) and installed by [`../src/ui/index.js`](../src/ui/index.js) — geometry in **stage px**; failure artefacts include non-empty NDJSON and timestamped text projections.
+
+### Round 5 P3 — complete
+
+P3 Lab, content doctor, optional Content Manager, production-surface verifier, and the Linux CI WebKit lane (`e2e-webkit` on full mode) are in tree. Playwright WebKit device emulation is the mobile-shaped browser gate; it is not branded Safari, iOS Simulator, WKWebView, or a mobile-support claim.
 
 ## Fixed virtual stage (summary)
 

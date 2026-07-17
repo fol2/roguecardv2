@@ -1,0 +1,2921 @@
+// SPIREBOUND combat presentation owner.
+// Browser-only: the pure engine remains independent of this module.
+import * as E from '../engine.js';
+import {
+  assetUrl, crackSvg, enemySvg, hasIcon, iconSvg, potionSvg, uiIcon, uiIconUrl,
+} from '../art.js';
+import {
+  drawBatchSchedule, flightSchedule, pileFanAngleDeg, pileFanLayers,
+  pileMasterId, pileTier, CEREMONY_BUDGET_MS,
+} from '../pile-chrome.js';
+import {
+  energySlotStates, intentUiIds,
+} from '../ui-chrome.js';
+import * as V from '../vfx.js';
+import { sfx, unlock } from '../audio.js';
+import * as music from '../music.js';
+import {
+  clearOverlay, exitMapMode, freezeScene,
+} from '../scene3d.js';
+import {
+  meshAim, meshAimClear, meshBind, meshClear, meshCrack, meshDeath,
+  meshEnabled, meshFlash, meshLift, meshRelease, meshWard,
+} from '../mesh.js';
+import { charAim, charCssFloat, charShadowLive } from '../char-meta.js';
+import {
+  $, $$, COARSE, FINE, S, el, presentationBarrier, screenEl, sleep, trace,
+} from './context.js';
+import { contentViewFor, themeForRun } from './content.js';
+import { REDUCED } from './policy.js';
+import { getRoseState } from './rose.js';
+import {
+  aimRing, combatantView, heroArt, hudRelic, omenMark, rasterOr,
+} from './assets.js';
+import {
+  stageEl, stageH, stageInfo, stageRect, stageW, toStage,
+} from '../stage.js';
+import {
+  bfActor, bfEnemyFootY, bfEnemyFrame, bfEnemyZOrder, bfHeroY, bfResolve,
+  bfSlots,
+} from '../battlefield.js';
+import { relicBarLayout, uicResolve } from '../uic.js';
+import { createCombatPointerRouter } from './pointer.js';
+import {
+  CARD_FACE_HEIGHT, CARD_FACE_WIDTH,
+} from './cardface-layout.js';
+import {
+  handSeatCenter as pureHandSeatCenter, handZoneWidth as pureHandZoneWidth,
+} from './hand-layout.js';
+import { resolveCombatPlates } from './shipfront-assets.js';
+
+const runCatalogues = () => contentViewFor(S.run);
+const stageAssetAvailable = (id) => !!assetUrl('stage', id);
+
+/**
+ * Construct the combat presentation owner. Cross-owner operations are injected
+ * so combat never imports drain, screen, navigation or index modules.
+ */
+export function createCombat({
+  tr,
+  cardEl,
+  overlay,
+  drain,
+  late,
+}) {
+  if (typeof tr !== 'function' || typeof cardEl !== 'function') {
+    throw new TypeError('createCombat requires tr and cardEl functions');
+  }
+  if (!overlay || typeof drain !== 'function' || !late) {
+    throw new TypeError('createCombat requires overlay, drain and late dependencies');
+  }
+  const {
+    openMenu,
+    potionMenu,
+    requireRunSave,
+    showCardGrid,
+    usePotionOn,
+  } = overlay;
+  const show = (...args) => late.show(...args);
+  const transition = (...args) => late.transition(...args);
+  // Pixi combat renderer is installed on `late` after initUI boots the layer.
+  const glMount = (...args) => late.combatGlMount?.(...args);
+  const glSync = (...args) => late.combatGlSync?.(...args);
+  const glActive = () => late.combatGlActive?.() ?? false;
+  const glRenderer = () => late.getCombatRenderer?.() ?? null;
+  const tipBridge = () => late.tipBridge || null;
+  // Task 23 — sole stage router owns combat input; #uigl stays inert.
+  let pointerRouter = null;
+  const openHudDeck = () => {
+    sfx.click();
+    showCardGrid(tr('ui.hud.deckTitle'), S.run.player.deck, {
+      sub: tr('ui.hud.deckCount', { n: S.run.player.deck.length }),
+    });
+  };
+  const openHudMenu = (e) => {
+    sfx.click();
+    openMenu(e?.clientX ?? 0, e?.clientY ?? 0);
+  };
+
+  function buildBottomChromeModel(cb) {
+    const energy = cb.player.energy ?? 0;
+    const energyMax = cb.player.energyMax ?? 0;
+    const drawN = Math.max(0, cb.draw.length - (pileVisualHold.draw || 0));
+    const discardN = Math.max(0, cb.discard.length - (pileVisualHold.discard || 0));
+    const ashesN = Math.max(0, cb.exhaust.length - (pileVisualHold.ashes || 0));
+    const ov = pileVisualOverride || null;
+    const finalDraw = ov?.draw != null ? ov.draw : drawN;
+    const finalDiscard = ov?.discard != null ? ov.discard : discardN;
+    return {
+      energy,
+      energyMax,
+      candles: energySlotStates(energy, energyMax),
+      embers: cb.embers ?? 0,
+      emberCap: cb.emberCap ?? 9,
+      lanternReady: S.run ? !!E.canUseArt(S.run, cb) : false,
+      lanternArtSpent: cb.artUsedTurn === cb.turn && !cb.over,
+      endTurnEnabled: energy === 0 && !cb.over && !S.busy,
+      endTurnLabel: tr('ui.combat.end'),
+      piles: {
+        draw: { count: finalDraw },
+        discard: { count: finalDiscard },
+        ashes: { count: ashesN },
+      },
+    };
+  }
+  function statusEntries(statuses) {
+    return Object.entries(statuses || {})
+      .filter(([, n]) => n)
+      .map(([id, n]) => ({ id, n: Number(n) || 0 }));
+  }
+  function buildHudModel() {
+    if (!S.run) return null;
+    const p = S.run.player;
+    const hp = S.cb && !S.cb.over ? S.cb.player.hp : p.hp;
+    const theme = themeForRun(S.run);
+    const cats = runCatalogues();
+    const omenId = S.run.omens?.[S.run.act] ?? null;
+    const omen = omenId ? cats.omens[omenId] : null;
+    const potionsEnabled = !!E.runRevealed(S.run, 'phials');
+    return {
+      hp,
+      maxHp: p.maxHp,
+      gold: p.gold,
+      deckCount: p.deck.length,
+      floor: S.run.floorsClimbed,
+      act: (S.run.act ?? 0) + 1,
+      actName: theme?.name ?? '',
+      bossName: theme?.bossName ?? '',
+      potionsEnabled,
+      potions: potionsEnabled
+        ? (p.potions || []).map((id, slot) => ({
+          slot,
+          id: id || null,
+          name: id ? cats.potions[id]?.name ?? id : null,
+          tone: id ? cats.potions[id]?.tone ?? null : null,
+        }))
+        : [],
+      relics: (p.relics || []).map((id) => ({
+        id,
+        name: cats.relics[id]?.name ?? id,
+        tone: cats.relics[id]?.tone ?? null,
+        rarity: cats.relics[id]?.rarity ?? null,
+      })),
+      omen: omen ? {
+        id: omenId,
+        name: omen.name,
+        tone: omen.tone ?? null,
+        text: omen.text ?? '',
+      } : null,
+    };
+  }
+  function buildPlatesModel(cb) {
+    const cats = runCatalogues();
+    const afx = cb.affix ? cats.affixes[cb.affix] : null;
+    return {
+      hero: {
+        hp: cb.player.hp,
+        maxHp: cb.player.maxHp,
+        ward: cb.player.block,
+        statuses: statusEntries(cb.player.statuses),
+      },
+      enemies: cb.enemies.map((en, index) => {
+        const alive = en.hp > 0;
+        const staggered = alive && !!en.flags?.staggered;
+        let intent = null;
+        if (alive && !staggered && en.moveKey) {
+          const mv = E.enemyMove(en);
+          const preview = E.previewEnemyDmg(S.run, cb, en);
+          intent = {
+            kind: mv.intent,
+            name: mv.name,
+            icons: intentUiIds(mv.intent),
+            dmg: preview?.dmg ?? null,
+            times: preview?.times ?? 1,
+            text: mv.intent.startsWith('attack')
+              ? (preview?.times > 1 ? `${preview.dmg}×${preview.times}` : `${preview.dmg}`)
+              : '',
+          };
+        } else if (staggered) {
+          const staggeredLabel = tr('ui.combat.staggered');
+          intent = { kind: 'staggered', name: staggeredLabel, icons: [], dmg: null, times: 1, text: staggeredLabel };
+        }
+        return {
+          index,
+          name: en.name,
+          affix: afx ? { id: cb.affix, name: afx.name, tone: afx.tone ?? null } : null,
+          hp: en.hp,
+          maxHp: en.maxHp,
+          ward: en.block,
+          chips: en.chips ?? 0,
+          facetMax: en.facetMax ?? 0,
+          alive,
+          staggered,
+          statuses: statusEntries(en.statuses),
+          intent,
+        };
+      }),
+    };
+  }
+  function buildHandModel() {
+    const cb = S.cb;
+    if (!cb) {
+      return {
+        cards: [],
+        hoveredUid: null,
+        targetingUid: null,
+        selectedUid: null,
+        selectedEnemyIndex: null,
+        draggingUid: null,
+        drag: null,
+        busy: !!S.busy,
+        face: { w: CARD_FACE_WIDTH, h: CARD_FACE_HEIGHT },
+        zone: null,
+      };
+    }
+    const sz = handFaceSize();
+    const inset = handCardBottomInset();
+    const zone = S.ce?.hand ? stageRect(S.ce.hand) : null;
+    const zoneCenterX = zone && zone.width > 2 ? zone.left + zone.width / 2 : stageW() / 2;
+    const baseBottom = zone && zone.height > 2
+      ? zone.bottom - inset
+      : stageH() - inset;
+    const cards = cb.hand.map((inst) => {
+      const d = E.cardData(inst, S.run);
+      const playable = !d.unplayable && (E.effCost(S.run, cb, inst) ?? 99) <= cb.player.energy;
+      const uid = String(inst.uid);
+      const plan = drawRevealPlan.get(uid);
+      const queuedDraw = !REDUCED && cb.queue.some((e) => e.t === 'draw' && String(e.uid) === uid);
+      const pending = plan != null
+        ? !plan.revealed
+        : queuedDraw;
+      return {
+        uid: inst.uid,
+        id: inst.id,
+        upgraded: !!inst.up,
+        name: d.name,
+        text: d.text,
+        cost: d.cost,
+        rarity: d.rarity,
+        type: d.type,
+        up: d.up,
+        effectiveCost: E.effCost(S.run, cb, inst),
+        effectiveText: d.text,
+        playable,
+        pending,
+        tip: { title: d.name, body: d.text },
+      };
+    });
+    let drag = null;
+    if (S.drag?.live && S.drag.free) {
+      drag = {
+        x: S.drag.pixiX ?? null,
+        y: S.drag.pixiY ?? null,
+        rot: 0,
+        scale: 1.12,
+        bounds: S.drag.seatBounds || null,
+      };
+    }
+    return {
+      cards,
+      hoveredUid: S.hoveredCard,
+      targetingUid: S.targeting?.kind === 'card' ? S.targeting.uid : null,
+      selectedUid: S.selectedCardUid,
+      selectedEnemyIndex: S.selectedEnemyIndex,
+      draggingUid: S.drag?.live ? S.drag.uid : null,
+      drag,
+      busy: !!S.busy,
+      face: { w: sz.w, h: sz.h },
+      zone: {
+        left: zone?.left ?? null,
+        top: zone?.top ?? null,
+        width: zone?.width ?? null,
+        height: zone?.height ?? null,
+        bottom: zone?.bottom ?? null,
+        centerX: zoneCenterX,
+        baseBottom,
+        cardInset: inset,
+      },
+    };
+  }
+
+  function buildAimModel() {
+    if (!S.targeting || !aimMove._last) return null;
+    let from;
+    if (S.targeting.kind === 'card') {
+      const seat = handCardSeatBounds(S.targeting.uid);
+      from = seat
+        ? { x: seat.left + seat.width / 2, y: seat.top + seat.height / 2 }
+        : { x: stageW() / 2, y: stageH() - 200 };
+    } else {
+      from = { x: stageW() / 2, y: 60 };
+    }
+    const last = aimMove._last;
+    const to = last.synthetic
+      ? { x: last.clientX, y: last.clientY }
+      : toStage(last.clientX, last.clientY);
+    return { from, to };
+  }
+
+  function buildPresentationModel(phase) {
+    const cb = S.cb;
+    if (!cb) {
+      return {
+        version: 2,
+        phase,
+        stage: { shape: stageInfo().shape },
+        hero: null,
+        enemies: [],
+        embers: 0,
+        turn: 0,
+      };
+    }
+    return {
+      version: 2,
+      phase,
+      stage: { shape: stageInfo().shape },
+      hero: {
+        hp: cb.player.hp,
+        maxHp: cb.player.maxHp,
+        ward: cb.player.block,
+        energy: cb.player.energy,
+        energyMax: cb.player.energyMax,
+      },
+      enemies: cb.enemies.map((enemy, idx) => ({
+        index: idx,
+        key: enemy.key,
+        variantId: enemy.variantId || 'base',
+        hp: enemy.hp,
+        maxHp: enemy.maxHp,
+        ward: enemy.block,
+        chips: enemy.chips,
+        facetMax: enemy.facetMax,
+      })),
+      hand: buildHandModel(),
+      aim: buildAimModel(),
+      piles: {
+        draw: cb.draw.length,
+        discard: cb.discard.length,
+        ashes: cb.exhaust.length,
+      },
+      embers: cb.embers ?? 0,
+      turn: cb.turn ?? 0,
+      // Task 22b-1 — bottom interactive chrome (energy/candles/lantern/end-turn/piles).
+      bottomChrome: buildBottomChromeModel(cb),
+      // Task 22b-2 — HUD + under-own-foe / hero plate chrome.
+      hud: buildHudModel(),
+      plates: buildPlatesModel(cb),
+    };
+  }
+
+function syncWardMesh(el, on, grow = false) {
+  if (!el) return;
+  const sprite = el.classList?.contains('hero-sprite') || el.classList?.contains('enemy-sprite')
+    ? el
+    : ($('.hero-sprite, .enemy-sprite', el) || el);
+  meshWard(sprite, !!on, { grow });
+}
+
+function semanticUiCheckpoint() {
+  const cb = S.cb;
+  const rose = getRoseState();
+  return {
+    screen: S.screen,
+    busy: S.busy,
+    queueDepth: cb?.queue?.length || 0,
+    player: cb ? {
+      hp: cb.player.hp, ward: cb.player.block, energy: cb.player.energy,
+    } : null,
+    embers: cb?.embers ?? null,
+    enemies: cb ? cb.enemies.map((enemy) => ({
+      key: enemy.key, variantId: enemy.variantId || 'base', hp: enemy.hp, ward: enemy.block,
+    })) : [],
+    hand: cb ? cb.hand.map((card) => ({ id: card.id, count: 1 })) : [],
+    rose,
+  };
+}
+// ------------------------------------------------------------ HUD
+// the light economy: your HP is your lantern — stage plates darken as you
+// bleed (foes / UI stay lit). Combat paints via .stage-dim under the battlefield.
+function updateLantern() {
+  const L = $('#lantern');
+  const dim = S.screen === 'combat' ? $('.combat-screen .stage-dim') : null;
+  if (!S.run || S.screen === 'title' || S.screen === 'end' || S.screen === 'lamplighter') {
+    L.style.setProperty('--la', 0);
+    L.classList.remove('gutter', 'snuff');
+    if (dim) { dim.style.setProperty('--la', 0); dim.classList.remove('gutter'); }
+    return;
+  }
+  const p = S.run.player;
+  const hp = S.cb && !S.cb.over ? S.cb.player.hp : p.hp;
+  const t = Math.max(0, Math.min(1, (0.68 - hp / p.maxHp) / 0.53));
+  const la = (t * 0.82).toFixed(3);
+  const lr = `${Math.round(1500 - t * 1000)}px`;
+  let x = '50%', y = '55%';
+  if (S.screen === 'combat' && S.ce?.hero) {
+    const c = V.centerOf(S.ce.hero);
+    x = `${Math.round(c.x)}px`;
+    y = `${Math.round(c.y)}px`;
+  }
+  // keep vars on #lantern for defeat snuff; paint lives on .stage-dim in combat
+  L.style.setProperty('--la', la);
+  L.style.setProperty('--lr', lr);
+  L.style.setProperty('--lx', x);
+  L.style.setProperty('--ly', y);
+  L.classList.toggle('gutter', t > 0.55 && !L.classList.contains('snuff'));
+  if (dim) {
+    dim.style.setProperty('--la', la);
+    dim.style.setProperty('--lr', lr);
+    dim.style.setProperty('--lx', x);
+    dim.style.setProperty('--ly', y);
+    dim.classList.toggle('gutter', t > 0.55);
+  }
+}
+function renderHud() {
+  updateLantern();
+  const hud = $('#hud');
+  if (!S.run || S.screen === 'title' || S.screen === 'embark' || S.screen === 'vigil' || S.screen === 'end' || S.screen === 'lamplighter') {
+    hud.classList.remove('show', 'pixi-hud-chrome');
+    document.body.classList.remove('low-hp');
+    return;
+  }
+  hud.classList.add('show');
+  const pixiHud = glActive() && S.screen === 'combat';
+  hud.classList.toggle('pixi-hud-chrome', pixiHud);
+  const p = S.run.player;
+  const hp = S.cb && !S.cb.over ? S.cb.player.hp : p.hp;
+  document.body.classList.toggle('low-hp', hp / p.maxHp <= 0.3);
+  const theme = themeForRun(S.run);
+  const act = theme;
+  hud.innerHTML = `<div class="hud-bar">
+      <div class="hud-hp-wrap">
+        <div class="hud-stat">${uiIcon('heart', 14)} <span class="hp-num">${hp} / ${p.maxHp}</span></div>
+        <div class="hud-hpbar"><div style="width:${(100 * hp) / p.maxHp}%"></div></div>
+      </div>
+      <div class="hud-stat">${uiIcon('coin', 14)} <span class="gold-num">${p.gold}</span></div>
+      <div class="hud-mid"><b>${act.name.toUpperCase()}</b> &nbsp;·&nbsp; Act ${S.run.act + 1} &nbsp;·&nbsp; Floor ${S.run.floorsClimbed} &nbsp;·&nbsp; ${act.bossName}</div>
+      <div class="hud-right">
+        ${E.runRevealed(S.run, 'phials') ? p.potions.map((id, i) => `<button class="potion-slot ${id ? 'full' : ''}" data-slot="${i}">${id ? rasterOr('potions', id, potionSvg(runCatalogues().potions[id].tone)) : ''}</button>`).join('') : ''}
+        <button class="icon-btn deck-btn" data-act="deck" aria-label="${tr('ui.hud.deckAria')}">${uiIcon('deck', 32)}<span class="deck-count">${p.deck.length}</span></button>
+        <button class="icon-btn" data-act="menu" aria-label="${tr('ui.hud.menuAria')}">${uiIcon('menu', 19)}</button>
+      </div>
+    </div>
+    <div id="omen-slot"></div>
+    <div id="relicbar"></div>`;
+  // omen + relics are independent UIC widgets (not scaled with .hud-bar)
+  const omenSlot = $('#omen-slot', hud);
+  const bar = $('#relicbar', hud);
+  const omenId = S.run.omens?.[S.run.act];
+  const omen = runCatalogues().omens[omenId];
+  if (omen) {
+    const oc = el('div', 'relic-chip omen-chip', omenMark(omenId, 'hud-omen-art', 'hud-omen-fallback', 24));
+    oc.style.setProperty('--tone', omen.tone);
+    oc._tip = { title: tr('ui.hud.omenTitle', { name: omen.name }), body: omen.text, sub: tr('ui.hud.omenSub', { act: S.run.act + 1 }) };
+    omenSlot.appendChild(oc);
+  }
+  for (const rid of p.relics) {
+    const r = runCatalogues().relics[rid];
+    const chip = el('div', 'hud-relic', hudRelic(rid));
+    chip.style.setProperty('--tone', r.tone);
+    chip.dataset.relic = rid;
+    chip._tip = { title: r.name, body: r.text, sub: r.rarity };
+    bar.appendChild(chip);
+  }
+  p.potions.forEach((id, i) => {
+    if (!id) return;
+    const slot = $(`.potion-slot[data-slot="${i}"]`, hud);
+    if (!slot) return;
+    slot._tip = { title: runCatalogues().potions[id].name, body: runCatalogues().potions[id].text, sub: tr('ui.hud.potionTip') };
+  });
+  $('[data-act="deck"]', hud).onclick = () => { sfx.click(); showCardGrid(tr('ui.hud.deckTitle'), S.run.player.deck, { sub: tr('ui.hud.deckCount', { n: S.run.player.deck.length }) }); };
+  $('[data-act="menu"]', hud).onclick = (e) => { sfx.click(); openMenu(e.clientX, e.clientY); };
+  $$('.potion-slot.full', hud).forEach((slot) => (slot.onclick = (e) => potionMenu(+slot.dataset.slot, e)));
+  applyUiChromeLayout();
+}
+function startCombatUI(enemyIds, kind) {
+  exitMapMode(); // combat can start without going through show()
+  clearOverlay();
+  $('#tooltip').style.display = 'none';
+  if (S.screen !== 'combat') transition('wipe');
+  S.cb = E.startCombat(S.run, enemyIds, kind);
+  S.screen = 'combat';
+  const theme = themeForRun(S.run);
+  music.playForCombat(kind, theme?.music, {
+    questId: S.run.pendingQuestId,
+    omenId: S.run.omens?.[S.run.act] ?? null,
+  });
+  V.setWeather(theme?.weather, { boss: kind === 'boss' });
+  renderCombat();
+  renderHud();
+  glMount(buildPresentationModel('mount'));
+  drain().then(afterAction);
+}
+function renderCombat() {
+  const cb = S.cb;
+  const sc = screenEl();
+  sc.onclick = null;
+  const theme = themeForRun(S.run);
+  const glow = theme?.legacyAct?.theme?.glow ?? 0x66ff9e;
+  const ledge = `#${glow.toString(16).padStart(6, '0')}`;
+  const bossId = cb.kind === 'boss'
+    ? (cb.enemies.find((en) => (en.def || runCatalogues().enemies[en.key])?.boss)?.key
+      || cb.enemies[0]?.key
+      || null)
+    : null;
+  const plates = resolveCombatPlates(theme, { kind: cb.kind, bossId }, stageAssetAvailable);
+  const pixiActive = glActive();
+  const combatScreenClass = `combat-screen screen-enter intro${pixiActive ? ' pixi-bottom-chrome pixi-plate-chrome' : ''}`;
+  sc.innerHTML = `<div class="${combatScreenClass}" style="--ledge:${ledge}" data-plate-boss="${bossId || ''}">
+    ${['backdrop', 'mid', 'ledge'].map((l) => {
+      const u = assetUrl('stage', plates[l]);
+      return u
+        ? `<img class="sl sl-${l}" data-plate-id="${plates[l]}" src="${u}" alt="" aria-hidden="true">`
+        : '';
+    }).join('')}
+    <div class="stage-dim" aria-hidden="true"></div>
+    <div class="stage-ledge"></div>
+    <div class="stage-breath b1"></div><div class="stage-breath b2"></div>
+    <div class="cast-shadow-layer" aria-hidden="true"></div>
+    <div class="battlefield">
+      <div class="player-zone">
+        <div class="top-chrome">
+          <div class="status-row p-status"></div>
+        </div>
+        <div class="hero-wrap">
+          ${heroArt(S.run.aspect)}
+        </div>
+        <div class="cplate">
+          <div class="hpbar-wrap"><span class="block-chip zero p-block"><span class="ic">${uiIcon('ward', 28)}</span> 0</span><div class="hp-vial"><div class="hpbar"><div class="ghost"></div><div class="fill"></div></div></div><span class="hp-label p-hp"></span></div>
+        </div>
+      </div>
+      <div class="enemy-zone"></div>
+    </div>
+    <div class="energy-orb" aria-label="${tr('ui.combat.energyAria')}"><div class="num">0</div><div class="candles"></div></div>
+    <button class="lantern-btn"><span class="lb-ic"></span><span class="lb-count">0</span><div class="lb-pips"></div></button>
+    <button class="end-turn" type="button"><span class="et-ic">${uiIcon('end-turn', 120)}</span><span class="et-lbl">${tr('ui.combat.end')}</span></button>
+    <button class="pile-btn pile-draw" type="button" aria-label="${tr('ui.combat.drawPileAria')}">
+      <span class="pile-stack" data-pile="draw" data-count="-1" data-tier="-1"></span>
+      <span class="cnt">0</span>
+      <span class="lbl">${tr('ui.combat.draw')}</span>
+    </button>
+    <button class="pile-btn pile-discard" type="button" aria-label="${tr('ui.combat.discardPileAria')}">
+      <span class="pile-stack" data-pile="discard" data-count="-1" data-tier="-1"></span>
+      <span class="cnt">0</span>
+      <span class="lbl">${tr('ui.combat.discard')}</span>
+    </button>
+    <button class="pile-btn pile-exhaust" type="button" aria-label="${tr('ui.combat.ashesPileAria')}">
+      <span class="pile-stack" data-pile="ashes" data-count="-1" data-tier="-1"></span>
+      <span class="cnt">0</span>
+      <span class="lbl">${tr('ui.combat.ashes')}</span>
+    </button>
+    <div class="hand-zone"></div>
+  </div>`;
+  const zone = $('.enemy-zone', sc);
+  const ce = { enemies: [], root: $('.combat-screen', sc) };
+  const afx = cb.affix ? runCatalogues().affixes[cb.affix] : null;
+  const L = bfResolve(stageInfo().shape, S.run.act);
+  const slots = bfSlots(L, cb.enemies.length);
+  cb.enemies.forEach((en, i) => {
+    const d = en.def || runCatalogues().enemies[en.key];
+    const view = combatantView(en);
+    const { size } = bfEnemyFrame(L, view.layoutKey,
+      d.boss ? 'boss' : d.elite ? 'elite' : 'normal', slots[i], stageW(), stageH(), view.scale);
+    const artUrl = assetUrl(view.artCategory, view.artId);
+    const box = el('div', `enemy${d.elite ? ' elite-e' : ''}${d.boss ? ' boss-e' : ''}${afx ? ' affixed' : ''}`);
+    if (afx) box.style.setProperty('--affix-tone', afx.tone);
+    box.dataset.idx = i;
+    box.dataset.baseId = en.key;
+    if (en.variantId) box.dataset.variantId = en.variantId;
+    box.dataset.artId = view.artId;
+    if (view.tint) {
+      box.style.setProperty('--variant-hue', view.tint.hue + 'deg');
+      box.style.setProperty('--variant-sat', String(view.tint.saturation));
+      box.style.setProperty('--variant-bright', String(view.tint.brightness));
+    }
+    box.style.animationDelay = `${160 + i * 130}ms`;
+    box.innerHTML = `<div class="top-chrome">
+        <div class="intent"></div>
+        <div class="status-row"></div>
+      </div>
+      <div class="enemy-art" style="width:${size}px;height:${size}px"><div class="enemy-sprite">${aimRing(artUrl, 'atk')}${rasterOr(view.artCategory, view.artId, enemySvg({ ...d.art, kind: view.kind, hue: view.hue }))}<div class="vessel-fire"></div>${artUrl ? '<svg class="cracks-overlay" viewBox="0 0 200 200"><g class="cracks"></g></svg>' : ''}</div><div class="dmg-preview"></div></div>
+      <div class="cplate">
+        <div class="name">${afx ? `<span class="affix-name" style="color:${afx.tone}">${afx.name.toUpperCase()}</span> ` : ''}${en.name.toUpperCase()}</div>
+        <div class="hpbar-wrap"><span class="block-chip zero"><span class="ic">${uiIcon('ward', 28)}</span> 0</span><div class="hp-vial"><div class="hpbar"><div class="ghost"></div><div class="fill"></div><div class="pv"></div></div></div><span class="hp-label"></span></div>
+        <div class="facet-row"></div>
+      </div>`;
+    zone.appendChild(box);
+    ce.enemies.push({
+      root: box, art: $('.enemy-art', box), intent: $('.intent', box),
+      topChrome: $('.top-chrome', box), cplate: $('.cplate', box),
+      fill: $('.fill', box), ghost: $('.ghost', box), hp: $('.hp-label', box),
+      block: $('.block-chip', box), statuses: $('.status-row', box),
+      pv: $('.pv', box), prev: $('.dmg-preview', box), facets: $('.facet-row', box),
+    });
+    ce.enemies[i].facets._tip = {
+      title: tr('ui.combat.facetsTitle'),
+      body: tr('ui.combat.facetsBody'),
+    };
+    if (afx) $('.name', box)._tip = { title: tr('ui.combat.affixTitle', { name: afx.name }), body: afx.text };
+    // Task 23 — enemy activation goes through the stage pointer router.
+  });
+  ce.pHp = $('.p-hp', sc); ce.pFill = $('.player-zone .fill', sc); ce.pGhost = $('.player-zone .ghost', sc);
+  ce.pBlock = $('.p-block', sc); ce.pStatus = $('.p-status', sc); ce.hero = $('.hero-wrap', sc);
+  ce.playerZone = $('.player-zone', sc);
+  ce.pTopChrome = $('.player-zone .top-chrome', sc);
+  ce.pCplate = $('.player-zone .cplate', sc);
+  ce.energy = $('.energy-orb', sc); ce.endTurn = $('.end-turn', sc); ce.hand = $('.hand-zone', sc);
+  ce.draw = $('.pile-draw', sc); ce.discard = $('.pile-discard', sc); ce.exhaust = $('.pile-exhaust', sc);
+  ce.lantern = $('.lantern-btn', sc);
+  const artId = S.run.art;
+  const art = runCatalogues().arts[artId];
+  /* primary face = Lantern Art raster (or SVG fallback); cost lives in the tip */
+  {
+    const artU = artId ? assetUrl('arts', artId) : null;
+    const face = artU
+      ? `<img class="ui-icon" src="${artU}" width="64" height="64" alt="" draggable="false">`
+      : (artId && hasIcon(`art-${artId}`) ? iconSvg(`art-${artId}`, 64) : uiIcon('lantern', 64));
+    $('.lb-ic', ce.lantern).innerHTML = face;
+    if (art) ce.lantern.style.color = art.tone;
+  }
+  ce.lantern._tip = {
+    title: art ? tr('ui.combat.lanternTitleArt', { name: art.name }) : tr('ui.combat.lanternTitle'),
+    body: `${art ? tr('ui.combat.lanternBodyLead', { cost: art.cost, text: art.text }) : ''}${tr('ui.combat.lanternBody')}`,
+    sub: tr('ui.combat.lanternSub'),
+  };
+  const lanternActivate = async () => {
+    if (S.busy || !S.cb || S.cb.over) return;
+    unlock();
+    if (!await useLanternArt()) {
+      ce.lantern.classList.add('nope');
+      setTimeout(() => ce.lantern.classList.remove('nope'), 350);
+      sfx.debuff();
+    }
+  };
+  S.ce = ce;
+  applyBattlefieldLayout(L);
+  rigCombatants();
+  scheduleMeshBind();
+  // drop the intro class once entrances finish so intro animations don't retrigger
+  const introRoot = ce.root;
+  setTimeout(() => {
+    if (S.screen !== 'combat' || S.ce !== ce || ce.root !== introRoot || !introRoot.isConnected) return;
+    introRoot.classList.remove('intro');
+    scheduleChromeClamp();
+  }, 1300);
+  const openDrawPile = () => { sfx.click(); showCardGrid(tr('ui.combat.drawPileTitle'), cb.draw, { sub: tr('ui.combat.drawPileSub'), inCombat: true }); };
+  const openDiscardPile = () => { sfx.click(); showCardGrid(tr('ui.combat.discardPileTitle'), cb.discard, { inCombat: true }); };
+  const openAshesPile = () => { sfx.click(); showCardGrid(tr('ui.combat.ashesTitle'), cb.exhaust, { sub: tr('ui.combat.ashesSub'), inCombat: true }); };
+  // Task 29 — stage router is the sole chrome input owner; no !glActive() DOM onclick escape.
+  installCombatPointerRouter({
+    lanternActivate,
+    openDrawPile,
+    openDiscardPile,
+    openAshesPile,
+  });
+  // startCombat already queued opening draws — hide seats + restore pile chrome first
+  armQueuedDrawPending(cb);
+  syncCombat();
+  syncHand();
+}
+const enemyCenter = (i) => V.centerOf(S.ce.enemies[i].art);
+const heroCenter = () => V.centerOf(S.ce.hero);
+
+// battlefield geometry comes from src/battlefield-layout.js (edit with
+// ?bfedit=1 on the dev server); this applies the resolved layout to the DOM
+function applyBattlefieldLayout(resolved) {
+  const cb = S.cb, ce = S.ce;
+  if (!cb || !ce || S.screen !== 'combat') return;
+  const L = resolved ?? bfResolve(stageInfo().shape, S.run.act);
+  ce.root.style.setProperty('--ground-y', `${L.groundY}px`);
+  ce.root.style.setProperty('--ledge-lip', `${L.ledgeLip}px`);
+  for (const name of ['backdrop', 'mid', 'ledge']) {
+    const img = ce.root.querySelector(`.sl-${name}`);
+    if (!img) continue;
+    const p = L.layers[name];
+    img.style.height = `${p.h}px`;
+    img.style.left = p.x ? `calc(50% + ${p.x}px)` : '';
+    img.style.bottom = name === 'ledge'
+      ? `${Math.max(0, L.groundY + L.ledgeLip - p.h + p.y)}px`
+      : `${p.y}px`;
+    img.style.opacity = p.opacity;
+    img.style.scale = p.zoom === 1 ? '' : String(p.zoom);
+    img.style.objectPosition = `${p.posX}% ${p.posY}%`;
+    img.style.setProperty('--amp', `${p.drift}px`); // idle parallax amplitude (0 = still)
+  }
+  const hero = bfActor('heroes', runCatalogues().aspects[S.run.aspect].id);
+  const hw = Math.round(L.hero.w * hero.scale), hh = Math.round(L.hero.h * hero.scale);
+  const pz = ce.root.querySelector('.player-zone');
+  pz.style.width = `${hw}px`;
+  pz.style.height = `${hh}px`;
+  pz.style.left = `${Math.round(L.hero.x - hw / 2)}px`;
+  pz.style.bottom = `${bfHeroY(L) + hero.footY}px`; // layout y + art feet offset
+  const slots = bfSlots(L, cb.enemies.length);
+  const keys = cb.enemies.map((en) => combatantView(en).layoutKey);
+  const zOrder = bfEnemyZOrder(slots, keys);
+  cb.enemies.forEach((en, i) => {
+    const d = en.def || runCatalogues().enemies[en.key];
+    const view = combatantView(en);
+    const tier = d.boss ? 'boss' : d.elite ? 'elite' : 'normal';
+    const frame = bfEnemyFrame(L, view.layoutKey, tier, slots[i], stageW(), stageH(), view.scale);
+    const { size } = frame;
+    const box = ce.enemies[i].root;
+    box.style.left = `${frame.left}px`;
+    box.style.bottom = `${frame.bottom}px`;
+    box.style.width = box.style.height = `${size}px`;
+    box.style.zIndex = String(zOrder[i]);
+    ce.enemies[i].art.style.width = ce.enemies[i].art.style.height = `${size}px`;
+  });
+  clampCombatChrome();
+  applyUiChromeLayout();
+}
+
+/** Apply resolved UIC (stage px, safe-area baked) to combat chrome nodes. */
+function applyUiChromeLayout() {
+  const L = uicResolve(stageInfo().shape);
+  const hud = $('#hud .hud-bar');
+  if (hud && L.hud) {
+    hud.style.height = `${L.hud.height}px`;
+    hud.style.transformOrigin = 'top center';
+    hud.style.transform = L.hud.scale === 1 ? '' : `scale(${L.hud.scale})`;
+  }
+  const placeTop = (el, w) => {
+    if (!el || !w) return;
+    if (w.left !== undefined) { el.style.left = `${w.left}px`; el.style.right = ''; }
+    else if (w.right !== undefined) { el.style.right = `${w.right}px`; el.style.left = ''; }
+    if (w.top !== undefined) el.style.top = `${w.top}px`;
+    const s = w.scale ?? 1;
+    el.style.transformOrigin = w.left !== undefined ? 'top left' : 'top right';
+    el.style.transform = s === 1 ? '' : `scale(${s})`;
+  };
+  const omenEl = $('#omen-slot');
+  const relicEl = $('#relicbar');
+  const hasOmen = !!(omenEl && omenEl.childElementCount);
+  placeTop(omenEl, L.omen);
+  placeTop(relicEl, relicBarLayout(L, hasOmen));
+  if (!S.ce || S.screen !== 'combat') return;
+  const place = (el, w) => {
+    if (!el || !w) return;
+    if (w.left !== undefined) { el.style.left = `${w.left}px`; el.style.right = ''; }
+    else if (w.right !== undefined) { el.style.right = `${w.right}px`; el.style.left = ''; }
+    if (w.bottom !== undefined) el.style.bottom = `${w.bottom}px`;
+    if (w.w !== undefined) el.style.width = `${w.w}px`;
+    if (w.h !== undefined) el.style.height = `${w.h}px`;
+  };
+  place(S.ce.energy, L.energy);
+  place(S.ce.lantern, L.lantern);
+  place(S.ce.endTurn, L.endTurn);
+  place(S.ce.draw, L.draw);
+  place(S.ce.discard, L.discard);
+  place(S.ce.exhaust, L.ashes);
+  if (S.ce.hand && L.hand) applyHandZoneLayout(L.hand);
+  glSync(buildPresentationModel('apply-ui-chrome'));
+}
+
+/** Hand left/right = offset from stage-centred fan box (0 = centred). Width hugs cards. */
+function handZoneWidth(n, stageW, cardW) {
+  return pureHandZoneWidth(n, stageW, cardW);
+}
+
+function handZoneLeftEdge(h, width, stageW) {
+  const center = (stageW - width) / 2;
+  if (h.left !== undefined) return Math.round(center + h.left);
+  return Math.round(center - (h.right ?? 0));
+}
+
+function applyHandZoneLayout(h) {
+  const zone = S.ce?.hand;
+  if (!zone || !h) return;
+  const stg = stageInfo();
+  zone.style.setProperty('--hand-scale', String(h.scale ?? 1));
+  const visible = S.cb?.hand
+    ? S.cb.hand.filter((c) => {
+      const plan = drawRevealPlan.get(String(c.uid));
+      return !(plan && !plan.revealed);
+    }).length
+    : 0;
+  const n = visible || 5;
+  const cardW = handFaceSize().w;
+  const width = handZoneWidth(n, stg.w, cardW);
+  const left = handZoneLeftEdge(h, width, stg.w);
+  zone.style.width = `${width}px`;
+  zone.style.left = `${left}px`;
+  zone.style.right = 'auto';
+  zone.style.marginLeft = '0';
+  if (h.bottom !== undefined) zone.style.bottom = `${h.bottom}px`;
+}
+
+/** Resting hand-fan top (stage Y). Static on purpose: live card tops jump when
+ *  a pane lifts on hover or flies toward cast, and that used to yank foe/hero
+ *  HP plates up and down. Slack lets chrome sit ~50px into the upper hand band
+ *  — resting cards leave empty stage there. */
+function handChromeCeiling() {
+  const hand = S.ce?.hand;
+  const sz = handFaceSize();
+  const inset = handCardBottomInset();
+  const slack = 50;
+  if (hand) {
+    const zr = stageRect(hand);
+    if (zr.height > 2) return zr.bottom - inset - sz.h + slack;
+  }
+  return stageH() - inset - sz.h + slack;
+}
+
+/**
+ * Keep combat chrome on-stage: tall sprites push top chrome down into the art;
+ * bottom plate (name/HP/facets) stays above a fixed resting-hand floor.
+ * Top clearance sits under the HUD menu bar (not the stage edge).
+ */
+function clampCombatChrome() {
+  const ce = S.ce;
+  if (!ce || S.screen !== 'combat') return;
+  const hudBar = $('#hud.show .hud-bar') || $('#hud .hud-bar');
+  const hudBottom = hudBar ? stageRect(hudBar).bottom : 0;
+  const marginTop = Math.max(6, Math.round(hudBottom) + 4);
+  const maxBottom = handChromeCeiling() - 4;
+  const minLeft = 6;
+  const maxRight = stageW() - 6;
+  const clampHorizontal = (el) => {
+    if (!el) return;
+    el.style.setProperty('--chrome-dx', '0px');
+    const r = stageRect(el);
+    if (r.width <= 1) return;
+    const dx = r.left < minLeft ? minLeft - r.left : r.right > maxRight ? maxRight - r.right : 0;
+    if (dx) el.style.setProperty('--chrome-dx', `${Math.round(dx)}px`);
+  };
+  const clampOne = (topEl, plateEl) => {
+    if (topEl) {
+      topEl.style.setProperty('--chrome-dy', '0px');
+      const r = stageRect(topEl);
+      if (r.height > 1 && r.top < marginTop) {
+        topEl.style.setProperty('--chrome-dy', `${Math.round(marginTop - r.top)}px`);
+      }
+      clampHorizontal(topEl);
+    }
+    if (plateEl) {
+      plateEl.style.setProperty('--chrome-dy', '0px');
+      const r = stageRect(plateEl);
+      if (r.height > 1 && r.bottom > maxBottom) {
+        plateEl.style.setProperty('--chrome-dy', `${Math.round(maxBottom - r.bottom)}px`);
+      }
+      clampHorizontal(plateEl);
+    }
+  };
+  for (const x of ce.enemies) clampOne(x.topChrome, x.cplate);
+  clampOne(ce.pTopChrome, ce.pCplate);
+
+  // Cramped formations can put independently edge-clamped chrome on top of
+  // one another. Keep authored actors in place and separate enemy chrome in
+  // DOM order with minimal displacement from each plate's natural (under-foe)
+  // left — only shift the whole row to clear the hero / stage edges. Never
+  // slam the row to the right margin: that detaches HP bars from foes on
+  // wide stages. Dead members stay in each set so killing one cannot move
+  // survivors. Top and bottom chrome are independent rows.
+  const gap = 6;
+  const bottomVisible =
+    '.name,.hpbar-wrap,.block-chip,.block-chip .ic,.block-chip .ui-icon,' +
+    '.block-chip .gicon,.hp-vial,.hp-label,.facet-row';
+  const topVisible =
+    '.intent,.intent .ic,.intent .ui-icon,.intent .gicon,.intent .num,' +
+    '.status-row,.schip,.schip-art,.schip .n';
+  const visibleRect = (root, selector, remember = false) => {
+    const anchor = stageRect(root);
+    const nodes = [root, ...root.querySelectorAll(selector)];
+    const rs = nodes.map((node) => stageRect(node)).filter((r) => r.width > 0 && r.height > 0);
+    if (!rs.length) {
+      const saved = remember && root._combatChromeVisibleBox;
+      if (!saved) return anchor;
+      const centre = (anchor.left + anchor.right) / 2;
+      return {
+        left: centre + saved.left,
+        right: centre + saved.right,
+        top: anchor.bottom + saved.top,
+        bottom: anchor.bottom + saved.bottom,
+        width: saved.right - saved.left,
+        height: saved.bottom - saved.top,
+      };
+    }
+    const rect = {
+      left: Math.min(...rs.map((r) => r.left)),
+      right: Math.max(...rs.map((r) => r.right)),
+      top: Math.min(...rs.map((r) => r.top)),
+      bottom: Math.max(...rs.map((r) => r.bottom)),
+      width: Math.max(...rs.map((r) => r.right)) - Math.min(...rs.map((r) => r.left)),
+      height: Math.max(...rs.map((r) => r.bottom)) - Math.min(...rs.map((r) => r.top)),
+    };
+    if (remember) {
+      const centre = (anchor.left + anchor.right) / 2;
+      root._combatChromeVisibleBox = {
+        left: rect.left - centre,
+        right: rect.right - centre,
+        top: rect.top - anchor.bottom,
+        bottom: rect.bottom - anchor.bottom,
+      };
+    }
+    return rect;
+  };
+  const overlaps2D = (a, b) => a.left < b.right && b.left < a.right &&
+    a.top < b.bottom && b.top < a.bottom;
+  const overlapsVertically = (a, b) => a.top < b.bottom && b.top < a.bottom;
+  const pack = (elements, selector, heroEl, remember = false) => {
+    const rects = elements.map((el) => visibleRect(el, selector, remember));
+    const heroRect = heroEl ? visibleRect(heroEl, selector) : null;
+    const hasCollision = rects.some((r, i) =>
+      rects.slice(i + 1).some((other) => overlaps2D(r, other)));
+    const hitsHero = heroRect && rects.some((r) => overlaps2D(heroRect, r));
+    if (!elements.length || (!hasCollision && !hitsHero)) return;
+    const packedWidth = rects.reduce((sum, r) => sum + r.width, 0) + gap * (rects.length - 1);
+    const heroSharesRows = heroRect && rects.some((r) => overlapsVertically(heroRect, r));
+    const packedMinLeft = heroSharesRows ? Math.max(minLeft, heroRect.right + gap) : minLeft;
+    if (packedMinLeft + packedWidth > maxRight) return; // cannot resolve without overlap
+    // Separate L→R from natural lefts (already edge-clamped), then slide the
+    // whole row only as far as needed to clear hero / right margin.
+    const targets = [];
+    let cursor = -Infinity;
+    for (let i = 0; i < rects.length; i++) {
+      const left = Math.max(rects[i].left, cursor);
+      targets.push(left);
+      cursor = left + rects[i].width + gap;
+    }
+    if (targets[0] < packedMinLeft) {
+      const shift = packedMinLeft - targets[0];
+      for (let i = 0; i < targets.length; i++) targets[i] += shift;
+    }
+    const overflow = targets[targets.length - 1] + rects[rects.length - 1].width - maxRight;
+    if (overflow > 0) {
+      for (let i = 0; i < targets.length; i++) targets[i] -= overflow;
+    }
+    if (targets[0] < packedMinLeft) return; // still cannot fit after right pull-back
+    elements.forEach((el, i) => {
+      const currentDx = Number.parseFloat(el.style.getPropertyValue('--chrome-dx')) || 0;
+      el.style.setProperty('--chrome-dx', `${Math.round(currentDx + targets[i] - rects[i].left)}px`);
+    });
+  };
+  pack(ce.enemies.map((x) => x.cplate).filter(Boolean), bottomVisible, ce.pCplate);
+  pack(ce.enemies.map((x) => x.topChrome).filter(Boolean), topVisible, ce.pTopChrome, true);
+}
+
+let chromeClampRaf = 0;
+function scheduleChromeClamp() {
+  if (chromeClampRaf) return;
+  chromeClampRaf = requestAnimationFrame(() => {
+    chromeClampRaf = 0;
+    clampCombatChrome();
+    // Task 22b-2: plate Pixi paint mirrors packer-adjusted DOM anchors.
+      if (glActive() && S.screen === 'combat' && S.cb) {
+        glSync(buildPresentationModel('chrome-clamp'));
+      }
+  });
+}
+
+function refitCombat() {
+  applyBattlefieldLayout();
+  layoutHand();
+  scheduleChromeClamp();
+  scheduleMeshBind();
+  glSync(buildPresentationModel('refit'));
+}
+function statusChips(container, statuses, isPlayer) {
+  container.innerHTML = '';
+  for (const [id, n] of Object.entries(statuses)) {
+    if (!n) continue;
+    const info = runCatalogues().statuses[id] || { name: id, icon: '?', kind: 'buff', desc: '' };
+    const kind = id === 'str' && n < 0 ? 'debuff' : info.kind;
+    const u = assetUrl('statuses', id);
+    const art = u
+      ? `<img class="schip-art" src="${u}" alt="">`
+      : (hasIcon(`st-${id}`) ? iconSvg(`st-${id}`, 32) : info.icon);
+    const count = Math.abs(n) >= 2 ? `<span class="n">${n}</span>` : '';
+    const chip = el('span', `schip ${kind}`, `${art}${count}`);
+    chip._tip = { title: info.name, body: info.desc.replace(/\bN\b/g, Math.abs(n)), sub: kind === 'debuff' ? tr('ui.combat.debuff') : tr('ui.combat.buff') };
+    container.appendChild(chip);
+  }
+}
+function intentFor(e) {
+  const cb = S.cb;
+  const mv = E.enemyMove(e);
+  const p = E.previewEnemyDmg(S.run, cb, e);
+  const ids = intentUiIds(mv.intent);
+  let icon = ids.map((id, i) => uiIcon(id, i === 0 ? 38 : 28)).join('');
+  let txt = '';
+  if (mv.intent.startsWith('attack')) {
+    txt = p.times > 1 ? `${p.dmg}×${p.times}` : `${p.dmg}`;
+  }
+  const tipBits = [];
+  if (p) tipBits.push(`attack for <b>${p.dmg}${p.times > 1 ? `×${p.times}` : ''}</b>`);
+  if (mv.block) tipBits.push('gain Ward');
+  if (mv.heal) tipBits.push('heal itself');
+  if (mv.fx?.some((f) => f.who === 'player')) tipBits.push('afflict you');
+  if (mv.fx?.some((f) => f.who !== 'player')) tipBits.push('empower');
+  if (mv.addCards) tipBits.push(`add ${mv.addCards.n} ${runCatalogues().cards[mv.addCards.id].name}s to your discard`);
+  return { icon, txt, tip: { title: mv.name, body: `Intends to ${tipBits.join(', ') || 'act'}.` } };
+}
+// the facet gauge: glass chip rasters (CSS diamond fallback); text once boss glass past a row
+function facetPips(en, ghost = 0) {
+  // Display mapping is swapped vs asset filenames: empty/intact → facet-chipped PNG,
+  // filled/chipped → facet-empty PNG. CSS .filled red outline stays on game state.
+  if (en.facetMax > 8) {
+    return `<span class="pipnum">${uiIcon('facet-empty', 11)} ${en.chips}${ghost ? `<i>+${ghost}</i>` : ''}/${en.facetMax}</span>`;
+  }
+  const emptyU = uiIconUrl('facet-chipped');
+  const chipU = uiIconUrl('facet-empty');
+  let h = '';
+  for (let i = 0; i < en.facetMax; i++) {
+    const filled = i < en.chips;
+    const will = !filled && i < en.chips + ghost;
+    const cls = `pip${filled ? ' filled' : ''}${will ? ' willchip' : ''}`;
+    if (emptyU || chipU) {
+      const src = filled || will ? (chipU || emptyU) : (emptyU || chipU);
+      h += `<span class="${cls}"><img class="ui-icon facet-img" src="${src}" alt="" draggable="false"></span>`;
+    } else {
+      h += `<span class="${cls}"></span>`;
+    }
+  }
+  return h;
+}
+function syncCombat() {
+  const cb = S.cb, ce = S.ce;
+  if (!ce) return;
+  cb.enemies.forEach((en, i) => {
+    const x = ce.enemies[i];
+    const pct = `${(100 * Math.max(0, en.hp)) / en.maxHp}%`;
+    x.fill.style.width = pct;
+    x.ghost.style.width = pct;
+    x.hp.textContent = `${Math.max(0, en.hp)}/${en.maxHp}`;
+    x.block.classList.toggle('zero', en.block <= 0);
+    x.block.innerHTML = `<span class="ic">${uiIcon('ward', 28)}</span> ${en.block}`;
+    x.art.classList.toggle('warded', en.block > 0);
+    // Ward ON is owned by blockGain (animated grow). syncCombat only fades when block hits 0 —
+    // otherwise an earlier sync in the same drain wave snaps the shell on before blockGain runs.
+    if (en.block <= 0) syncWardMesh(x.art, false);
+    x.root.classList.toggle('lowhp', en.hp > 0 && en.hp / en.maxHp <= 0.3);
+    statusChips(x.statuses, en.statuses, false);
+    if (en.hp > 0) x.facets.innerHTML = facetPips(en);
+    else x.facets.innerHTML = '';
+    // the death rite (case 'die') owns the alive→dying→gone exit; only re-assert
+    // the hidden corpse here once that rite has finished, so a sync fired by the
+    // killing hit can't blank the body out before it staggers and shatters
+    if (en.hp <= 0 && x.reaped) x.root.classList.add('gone');
+    if (en.hp > 0 && en.flags.staggered) {
+      x.intent.className = 'intent i-staggered';
+      x.intent.innerHTML = `<span class="ic">${iconSvg('stagger', 38)}</span><span class="num">${tr('ui.combat.staggered')}</span>`;
+      x.intent._tip = { title: tr('ui.combat.staggeredTipTitle'), body: tr('ui.combat.staggeredTipBody') };
+    } else if (en.hp > 0 && en.moveKey) {
+      const it = intentFor(en);
+      x.intent.className = `intent i-${E.enemyMove(en).intent}`;
+      x.intent.innerHTML = it.txt
+        ? `<span class="ic">${it.icon}</span><span class="num">${it.txt}</span>`
+        : `<span class="ic">${it.icon}</span>`;
+      x.intent._tip = it.tip;
+    } else x.intent.innerHTML = '';
+  });
+  // the lantern: ember count + a ring of sparks; glows when its Art can answer
+  if (ce.lantern) {
+    $('.lb-count', ce.lantern).textContent = cb.embers;
+    /* ember pips arc around the arts face via --a */
+    $('.lb-pips', ce.lantern).innerHTML = Array.from({ length: cb.emberCap }, (_, i) =>
+      `<span class="lbp${i < cb.embers ? ' lit' : ''}" style="--a:${Math.round((i / (cb.emberCap - 1)) * 280 - 140)}deg"></span>`).join('');
+    ce.lantern.classList.toggle('unlit', cb.embers === 0);
+    ce.lantern.classList.toggle('ready', E.canUseArt(S.run, cb));
+    ce.lantern.classList.toggle('art-spent', cb.artUsedTurn === cb.turn && !cb.over);
+  }
+  const P = cb.player;
+  const pct = `${(100 * Math.max(0, P.hp)) / P.maxHp}%`;
+  ce.pFill.style.width = pct;
+  ce.pGhost.style.width = pct;
+  ce.pHp.textContent = `${Math.max(0, P.hp)}/${P.maxHp}`;
+  ce.pBlock.classList.toggle('zero', P.block <= 0);
+  ce.pBlock.innerHTML = `<span class="ic">${uiIcon('ward', 28)}</span> ${P.block}`;
+  ce.hero.classList.toggle('warded', P.block > 0);
+  // Ward ON is owned by blockGain (animated grow). syncCombat only fades when block hits 0.
+  if (P.block <= 0) syncWardMesh(ce.hero, false);
+  ce.hero.classList.toggle('lowhp', P.hp / P.maxHp <= 0.3);
+  statusChips(ce.pStatus, P.statuses, true);
+  $('.num', ce.energy).textContent = P.energy;
+  ce.energy.classList.toggle('spent', P.energy === 0);
+  // candles out → End beckons (same ready language as the lantern Art)
+  ce.endTurn.classList.toggle('ready', P.energy === 0 && !cb.over && !S.busy);
+  const cd = $('.candles', ce.energy);
+  const states = energySlotStates(P.energy, P.energyMax);
+  const litUrl = uiIconUrl('candle-lit');
+  const spentUrl = uiIconUrl('candle-spent');
+  const same = cd.children.length === states.length
+    && [...cd.children].every((el, i) => el.dataset.state === states[i]);
+  if (!same) {
+    cd.innerHTML = states.map((st) => {
+      const url = st === 'lit' ? litUrl : spentUrl;
+      const litCls = st === 'lit' ? ' lit' : '';
+      if (url) {
+        return `<span class="candle is-${st}${litCls}" data-state="${st}"><img class="ui-icon candle-img" src="${url}" alt="" draggable="false"></span>`;
+      }
+      return `<span class="candle${litCls} is-${st}" data-state="${st}"></span>`;
+    }).join('');
+  } else {
+    [...cd.children].forEach((c, i) => {
+      const st = states[i];
+      c.dataset.state = st;
+      c.classList.toggle('lit', st === 'lit');
+      c.classList.toggle('is-lit', st === 'lit');
+      c.classList.toggle('is-spent', st === 'spent');
+      const img = c.querySelector('.candle-img');
+      if (img) {
+        const url = st === 'lit' ? litUrl : spentUrl;
+        if (url && img.getAttribute('src') !== url) img.setAttribute('src', url);
+      }
+    });
+  }
+  syncPileWidgets(cb);
+  scheduleChromeClamp();
+  glSync(buildPresentationModel('sync-combat'));
+}
+function syncPileWidgets(cb) {
+  const ce = S.ce;
+  if (!ce) return;
+  const ov = pileVisualOverride || {};
+  const map = [
+    [ce.draw, 'draw', ov.draw != null ? ov.draw : Math.max(0, cb.draw.length - (pileVisualHold.draw || 0))],
+    [ce.discard, 'discard', ov.discard != null ? ov.discard : Math.max(0, cb.discard.length - (pileVisualHold.discard || 0))],
+    [ce.exhaust, 'ashes', Math.max(0, cb.exhaust.length - (pileVisualHold.ashes || 0))],
+  ];
+  for (const [btn, pile, n] of map) {
+    if (!btn) continue;
+    const tier = pileTier(n);
+    const layers = pileFanLayers(n);
+    const stack = btn.querySelector('.pile-stack');
+    btn.classList.toggle('is-empty', n === 0);
+    $('.cnt', btn).textContent = n;
+    if (!stack) continue;
+    if (Number(stack.dataset.count) === n) continue;
+    stack.dataset.count = String(n);
+    stack.dataset.tier = String(tier);
+    const url = assetUrl('piles', pileMasterId(pile));
+    stack.replaceChildren();
+    stack.classList.toggle('is-empty', layers === 0);
+    if (!url) {
+      // glass label+count stay usable when a master PNG is missing
+      stack.classList.add('pile-stack-fallback');
+      continue;
+    }
+    stack.classList.remove('pile-stack-fallback');
+    // Flat fan: prefer 5°/card, average down so whole span ≤30°; count is SoT.
+    for (let i = 0; i < layers; i++) {
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = '';
+      img.className = 'pile-layer';
+      img.style.setProperty('--rot', `${pileFanAngleDeg(i, layers)}deg`);
+      stack.appendChild(img);
+    }
+  }
+}
+
+/** Cards already in engine piles but still in flight — hide until ceremony lands. */
+const pileVisualHold = { draw: 0, discard: 0, ashes: 0 };
+/** Mid-wave chrome override (draw/discard) while engine is already at post-draw state. */
+let pileVisualOverride = null;
+function holdPileVisual(pile, n = 1) {
+  if (!pileVisualHold[pile]) pileVisualHold[pile] = 0;
+  pileVisualHold[pile] += Math.max(0, n | 0);
+}
+function releasePileVisual(pile, n = 1) {
+  pileVisualHold[pile] = Math.max(0, (pileVisualHold[pile] || 0) - Math.max(0, n | 0));
+}
+/** Engine already queued destination events; hold those piles through mid-play syncs. */
+function holdPendingPileArrivals(cb, uid) {
+  for (const e of cb.queue) {
+    if (e.uid == null || String(e.uid) !== String(uid)) continue;
+    if (e.t === 'toDiscard') holdPileVisual('discard', 1);
+    if (e.t === 'exhaust') holdPileVisual('ashes', 1);
+  }
+}
+/** uid → ms from batch start when that hand seat should appear (matches flyer land). */
+const drawRevealPlan = new Map();
+
+/** Peek draw/reshuffle segments without consuming the queue (combat-enter paint). */
+function peekDrawWaveSegments(queue) {
+  const segments = [];
+  let i = 0;
+  while (i < queue.length && (queue[i].t === 'draw' || queue[i].t === 'reshuffle')) {
+    if (queue[i].t === 'reshuffle') {
+      segments.push({ t: 'reshuffle', ev: queue[i] });
+      i++;
+    } else {
+      const draws = [];
+      while (i < queue.length && queue[i].t === 'draw') draws.push(queue[i++]);
+      segments.push({ t: 'draws', draws });
+    }
+  }
+  return segments;
+}
+
+/** Before first drain: hide hand seats + restore pile chrome for queued opening draws. */
+function armQueuedDrawPending(cb) {
+  if (REDUCED || !cb?.queue?.length) return;
+  const segments = peekDrawWaveSegments(cb.queue);
+  if (!segments.length) return;
+  const reshuffle = segments.find((s) => s.t === 'reshuffle');
+  const firstSegDraws = segments[0]?.t === 'draws' ? segments[0].draws.length : 0;
+  pileVisualOverride = {
+    draw: segments[0]?.t === 'draws'
+      ? (reshuffle ? firstSegDraws : cb.draw.length + firstSegDraws)
+      : 0,
+    discard: reshuffle ? (reshuffle.ev.n || 0) : 0,
+  };
+  let seq = 0;
+  for (const seg of segments) {
+    if (seg.t !== 'draws') continue;
+    for (const ev of seg.draws) {
+      const uid = String(ev.uid);
+      if (!drawRevealPlan.has(uid)) drawRevealPlan.set(uid, { landAt: null, seq: seq++ });
+    }
+  }
+}
+
+function pendingPileCeremonyUids(cb) {
+  const keep = new Set();
+  for (const ev of cb.queue) {
+    if ((ev.t === 'toDiscard' || ev.t === 'exhaust' || ev.t === 'powerConsumed') && ev.uid != null) {
+      keep.add(String(ev.uid));
+    }
+  }
+  return keep;
+}
+function scheduleHandReveal(uidOrNode, landAt) {
+  const uid = typeof uidOrNode === 'object' && uidOrNode?.dataset?.uid != null
+    ? String(uidOrNode.dataset.uid)
+    : String(uidOrNode);
+  setTimeout(() => {
+    if (!S.cb?.hand.some((c) => String(c.uid) === uid)) return;
+    const plan = drawRevealPlan.get(uid) || {};
+    plan.revealed = true;
+    drawRevealPlan.set(uid, plan);
+    layoutHand();
+    setTimeout(() => {
+      drawRevealPlan.delete(uid);
+      layoutHand();
+    }, 240);
+  }, landAt);
+}
+/** Task 26 — revoke composer object URLs / drop cache refs before discarding a face host. */
+function releaseCardFace(node) {
+  if (!node || typeof node._cardFaceRelease !== 'function') return;
+  try { node._cardFaceRelease(); } catch { /* ignore */ }
+  node._cardFaceRelease = null;
+}
+
+function handCardSeatBounds(uid) {
+  const readUI = glRenderer()?.readUI?.();
+  const painted = readUI?.hand?.seats?.find((s) => String(s.uid) === String(uid));
+  if (painted?.seatBounds) return painted.seatBounds;
+  // Pure fallback before first paint.
+  const cb = S.cb;
+  if (!cb) return null;
+  const fan = cb.hand.filter((c) => {
+    const plan = drawRevealPlan.get(String(c.uid));
+    return !(plan && !plan.revealed);
+  });
+  const idx = fan.findIndex((c) => String(c.uid) === String(uid));
+  if (idx < 0) return null;
+  const sz = handFaceSize();
+  const inset = handCardBottomInset();
+  const zone = S.ce?.hand ? stageRect(S.ce.hand) : null;
+  const zoneCenterX = zone && zone.width > 2 ? zone.left + zone.width / 2 : stageW() / 2;
+  const baseBottom = zone && zone.height > 2 ? zone.bottom - inset : stageH() - inset;
+  const computed = pureHandSeatCenter(idx, fan.length, {
+    stageW: stageW(), cardW: sz.w, cardH: sz.h, zoneCenterX, baseBottom,
+  });
+  return {
+    left: computed.left, top: computed.top, right: computed.right, bottom: computed.bottom,
+    width: computed.width, height: computed.height,
+  };
+}
+
+function syncHand() {
+  const cb = S.cb, ce = S.ce;
+  if (!ce) return;
+  // Task 27 — DOM hand cards are gone; Pixi owns seats via presentation sync.
+  // Keep the structural `.hand-zone` host empty.
+  if (ce.hand) {
+    for (const node of [...ce.hand.querySelectorAll('.card')]) {
+      releaseCardFace(node);
+      node.remove();
+    }
+  }
+  // Arm pending draw seats from the reveal plan / queue.
+  for (const inst of cb.hand) {
+    const uid = String(inst.uid);
+    const plan = drawRevealPlan.get(uid);
+    const queuedDraw = cb.queue.some((e) => e.t === 'draw' && String(e.uid) === uid);
+    if (!REDUCED && (plan != null || queuedDraw)) {
+      if (plan == null) drawRevealPlan.set(uid, { landAt: null, seq: 0, revealed: false });
+      else if (plan.landAt != null && !plan.armed) {
+        plan.armed = true;
+        drawRevealPlan.set(uid, plan);
+        scheduleHandReveal(uid, typeof plan.landAt === 'number' ? plan.landAt : 0);
+      }
+    }
+  }
+  layoutHand();
+}
+function layoutHand() {
+  const cb = S.cb, ce = S.ce;
+  if (!ce) return;
+  const Lh = uicResolve(stageInfo().shape).hand;
+  if (Lh) applyHandZoneLayout(Lh);
+  updatePreviews();
+  scheduleChromeClamp();
+  glSync(buildPresentationModel('layout-hand'));
+}
+// ---- Task 23: stage pointer router owns drag-to-play / chrome / enemies ----
+let dragConsumedAt = 0;
+
+function cardSeatBounds(el) {
+  if (!el) return null;
+  const r = stageRect(el);
+  return {
+    left: r.left, top: r.top, right: r.right, bottom: r.bottom,
+    width: r.width, height: r.height,
+  };
+}
+
+function overLanternAt(clientX, clientY) {
+  const pt = toStage(clientX, clientY);
+  const hit = glRenderer()?.hitTest?.(pt.x, pt.y);
+  if (hit && (hit.kind === 'lantern' || hit.type === 'lantern')) return true;
+  return !!underPointer(clientX, clientY)?.closest('.lantern-btn');
+}
+
+function installCombatPointerRouter({
+  lanternActivate, openDrawPile, openDiscardPile, openAshesPile,
+} = {}) {
+  if (pointerRouter) {
+    try { pointerRouter.destroy(); } catch { /* prior router already gone */ }
+    pointerRouter = null;
+  }
+  const targetRegions = () => {
+    if (!S.ce || !S.cb) return { enemies: [], hero: null };
+    const enemies = S.cb.enemies.map((en, index) => {
+      if (en.hp <= 0) return null;
+      const art = S.ce.enemies[index]?.art;
+      if (!art) return null;
+      return { index, bounds: cardSeatBounds(art) };
+    }).filter(Boolean);
+    return {
+      enemies,
+      hero: S.ce.hero ? { bounds: cardSeatBounds(S.ce.hero) } : null,
+    };
+  };
+  const actions = {
+    tapBackground() {
+      if (S.targeting) clearTargeting();
+      else if (S.hoveredCard != null) { S.hoveredCard = null; layoutHand(); }
+    },
+    cardHover(uid) {
+      if (!FINE) return;
+      if (uid == null) {
+        if (S.hoveredCard != null) { S.hoveredCard = null; layoutHand(); }
+        return;
+      }
+      if (S.hoveredCard !== uid) {
+        S.hoveredCard = uid;
+        sfx.hover();
+        layoutHand();
+      }
+    },
+    clickCard(uid) { onCardClick(uid); },
+    beginCardDrag(st) {
+      const bounds = handCardSeatBounds(st.uid) || st.seatBounds;
+      if (!bounds) return false;
+      st.seatBounds = bounds;
+      S.drag = st;
+      const ok = beginCardDrag(st);
+      st.cardId = S.cb?.hand?.find((x) => x.uid === st.uid)?.id;
+      return ok !== false && !!st.live;
+    },
+    moveCardDrag(st, e) {
+      if (!st.live) return;
+      if (st.free) {
+        const p = toStage(e.clientX, e.clientY);
+        st.pixiX = p.x;
+        st.pixiY = p.y;
+        const overL = overLanternAt(e.clientX, e.clientY);
+        st.willBurn = overL;
+        st.willCast = !st.kindleOnly && !overL && p.y < castLine();
+        layoutHand();
+      } else {
+        aimMove(e);
+        hoverEnemyAt(e.clientX, e.clientY);
+      }
+    },
+    cancelCardDrag(st) {
+      S.drag = null;
+      dragConsumedAt = performance.now();
+      S.ce?.lantern?.classList.remove('kindle-target');
+      clearTargeting();
+      S.hoveredCard = null;
+      if (chromeClampRaf) { cancelAnimationFrame(chromeClampRaf); chromeClampRaf = 0; }
+      layoutHand();
+      clampCombatChrome();
+    },
+    cancelCardPress() { /* press without drag — nothing to restore */ },
+    finishCardDrag(st, e) {
+      const uid = st.uid;
+      captureCardAnchor(uid, null, { fromDrag: true, bounds: st.seatBounds });
+      S.drag = null;
+      dragConsumedAt = performance.now();
+      S.ce?.lantern?.classList.remove('kindle-target');
+      if (overLanternAt(e.clientX, e.clientY)) {
+        const inst = S.cb.hand.find((x) => x.uid === uid);
+        if (inst && E.canKindle(S.run, S.cb, inst)) {
+          clearTargeting(); doKindle(uid);
+          return { reason: 'kindled' };
+        }
+        clearTargeting(); layoutHand();
+        return { cancelled: true, reason: 'invalid-lantern-drop' };
+      }
+      if (st.kindleOnly) {
+        S.hoveredCard = null; layoutHand();
+        return { cancelled: true, reason: 'kindle-only-drop' };
+      }
+      if (st.free) {
+        if (toStage(e.clientX, e.clientY).y < castLine()) {
+          doPlay(uid, null);
+          return { reason: 'card-play' };
+        }
+        S.hoveredCard = null; layoutHand();
+        return { cancelled: true, reason: 'below-cast-line' };
+      }
+      const stagePt = toStage(e.clientX, e.clientY);
+      const regions = targetRegions().enemies || [];
+      let idx = -1;
+      for (const entry of regions) {
+        const b = entry.bounds;
+        if (!b) continue;
+        if (stagePt.x >= b.left && stagePt.x <= b.right && stagePt.y >= b.top && stagePt.y <= b.bottom) {
+          idx = entry.index;
+          break;
+        }
+      }
+      if (idx < 0) {
+        const en = document.elementFromPoint(e.clientX, e.clientY)?.closest('.enemy');
+        idx = en ? +en.dataset.idx : -1;
+      }
+      const living = S.cb.enemies.filter((x) => x.hp > 0);
+      if (idx >= 0 && S.cb.enemies[idx].hp > 0) {
+        doPlay(uid, idx);
+        return { reason: 'card-play' };
+      }
+      if (living.length === 1 && stagePt.y < castLine()) {
+        doPlay(uid, living[0].idx);
+        return { reason: 'card-play' };
+      }
+      clearTargeting(); layoutHand();
+      return { cancelled: true, reason: 'invalid-target' };
+    },
+    lantern: () => lanternActivate?.(),
+    endTurn: () => onEndTurn(),
+    openPile: (name) => {
+      if (name === 'draw') openDrawPile?.();
+      else if (name === 'discard') openDiscardPile?.();
+      else if (name === 'ashes') openAshesPile?.();
+    },
+    openDeck: () => openHudDeck(),
+    openMenu: (e) => openHudMenu(e),
+    potion: (slot, e) => {
+      const node = $(`.potion-slot[data-slot="${slot}"]`);
+      if (!node?.classList.contains('full')) return;
+      potionMenu(slot, e);
+    },
+    enemyClick: (index) => onEnemyClick(index),
+    enemyHover: (index, on) => {
+      const box = S.ce?.enemies?.[index]?.root;
+      if (!box) return;
+      if (on && S.targeting) {
+        box.classList.add('target-hover');
+        updatePreviews();
+      } else {
+        box.classList.remove('target-hover');
+        updatePreviews();
+      }
+    },
+    aimMove: (e) => aimMove(e),
+  };
+  pointerRouter = createCombatPointerRouter({
+    stage: () => stageEl(),
+    toStage,
+    renderer: glRenderer(),
+    targetRegions,
+    actions,
+    tooltip: tipBridge(),
+    trace,
+  });
+  pointerRouter.enable();
+  if (S.ce) S.ce.pointerRouter = pointerRouter;
+}
+
+const castLine = () => (S.ce?.hand ? stageRect(S.ce.hand).top - 24 : stageH() - 260); // stage px
+// what's under the finger, looking through the card being dragged
+const underPointer = (x, y) => document.elementsFromPoint(x, y).find((el) => !el.closest('.card'));
+function beginCardDrag(st) {
+  const cb = S.cb;
+  const inst = cb.hand.find((x) => x.uid === st.uid);
+  if (!inst) { S.drag = null; return false; }
+  const d = E.cardData(inst, S.run);
+  if (d.unplayable || E.effCost(S.run, cb, inst) > cb.player.energy) {
+    // unplayable panes can still be fuel: the drag lives, but only the lantern will take it
+    if (E.canKindle(S.run, cb, inst)) {
+      st.live = true;
+      st.free = true;
+      st.kindleOnly = true;
+      S.hoveredCard = null;
+      sfx.hover();
+      S.ce?.lantern?.classList.add('kindle-target');
+      layoutHand();
+      return true;
+    }
+    S.drag = null;
+    sfx.debuff();
+    return false;
+  }
+  st.live = true;
+  S.hoveredCard = null;
+  sfx.hover();
+  if (E.canKindle(S.run, cb, inst)) S.ce?.lantern?.classList.add('kindle-target');
+  if (d.target === 'enemy') setTargeting({ kind: 'card', uid: st.uid });
+  else {
+    st.free = true;
+    clearTargeting();
+  }
+  layoutHand();
+  return true;
+}
+async function doKindle(uid) {
+  const kindleSpan = trace.begin('input.kindle', { attributes: { action: 'card-kindle' } });
+  try {
+    S.hoveredCard = null;
+    if (!E.kindleFromHand(S.run, S.cb, uid)) {
+      kindleSpan.finish('skipped', { reason: 'engine-rejected' });
+      layoutHand();
+      return false;
+    }
+    await drain();
+    afterAction();
+    kindleSpan.finish('completed');
+    return true;
+  } catch (error) {
+    kindleSpan.finish('failed', { reason: 'handler-error' });
+    throw error;
+  }
+}
+async function useLanternArt() {
+  const artSpan = trace.begin('input.kindle', { attributes: { action: 'lantern-art' } });
+  try {
+    if (!E.canUseArt(S.run, S.cb)) {
+      artSpan.finish('skipped', { reason: 'not-ready' });
+      return false;
+    }
+    clearTargeting();
+    if (!E.useArt(S.run, S.cb)) {
+      artSpan.finish('skipped', { reason: 'engine-rejected' });
+      return false;
+    }
+    await drain();
+    afterAction();
+    artSpan.finish('completed');
+    return true;
+  } catch (error) {
+    artSpan.finish('failed', { reason: 'handler-error' });
+    throw error;
+  }
+}
+function hoverEnemyAt(x, y) {
+  const en = document.elementFromPoint(x, y)?.closest('.enemy');
+  S.ce?.enemies.forEach((it) => it.root.classList.toggle('target-hover', it.root === en && it.root.classList.contains('targetable')));
+  updatePreviews();
+}
+
+// the consequence, spelled out: while a card is armed or inspected, each foe
+// shows exactly what it would lose — block-eaten, vulnerability-multiplied —
+// with a ghost segment on its bar and a death-mark when the number is lethal.
+// Aim silhouette: allEnemies → every living foe; single-target → sole living
+// foe, or the hovered valid target while aiming/dragging; never paint every
+// foe for a single-target card just because it was hovered.
+function updatePreviews() {
+  const ce = S.ce, cb = S.cb;
+  if (!ce || !cb) return;
+  let inst = null;
+  if (S.targeting?.kind === 'card') inst = cb.hand.find((c) => c.uid === S.targeting.uid);
+  else if (S.drag?.live) inst = cb.hand.find((c) => c.uid === S.drag.uid);
+  else if (S.hoveredCard != null && !S.busy) inst = cb.hand.find((c) => c.uid === S.hoveredCard);
+  const d = inst ? E.cardData(inst, S.run) : null;
+  const aiming = S.targeting?.kind === 'card' || (S.drag?.live && !S.drag.free);
+  const living = cb.enemies.filter((e) => e.hp > 0).length;
+  const inspect = !!(inst && !cb.over && !d.unplayable && !aiming);
+  meshAimClear();
+  const heroOn = inspect && d.target === 'self';
+  ce.hero?.classList.toggle('aim-target', heroOn);
+  if (heroOn) {
+    const sprite = $('.hero-sprite', ce.hero) || ce.hero;
+    const heroId = runCatalogues().aspects[S.run.aspect].id;
+    if (meshAim(sprite, true, charAim(heroId))) ce.hero.classList.add('aim-mesh');
+    else ce.hero.classList.remove('aim-mesh');
+  } else ce.hero?.classList.remove('aim-mesh');
+  cb.enemies.forEach((en, i) => {
+    const x = ce.enemies[i];
+    let pv = null, dim = false;
+    if (inst && !cb.over && en.hp > 0 && !d.unplayable) {
+      if (d.target === 'allEnemies') pv = E.previewPlay(S.run, cb, inst, i);
+      else if (d.target === 'enemy' && (aiming || living === 1)) {
+        pv = E.previewPlay(S.run, cb, inst, i);
+        dim = aiming && living > 1 && !x.root.classList.contains('target-hover');
+      }
+    }
+    const hovered = x.root.classList.contains('target-hover');
+    const aimAll = d?.target === 'allEnemies' && (inspect || (S.drag?.live && S.drag.free));
+    const aimOne = d?.target === 'enemy' && (living === 1 || (aiming && hovered));
+    const aim = !!(inst && !cb.over && !d.unplayable && en.hp > 0 && (aimAll || aimOne));
+    x.root.classList.toggle('aim-target', aim);
+    if (aim) {
+      const sprite = $('.enemy-sprite', x.art) || x.art;
+      if (meshAim(sprite, true, charAim(combatantView(en).layoutKey))) x.root.classList.add('aim-mesh');
+      else x.root.classList.remove('aim-mesh');
+    } else x.root.classList.remove('aim-mesh');
+    if (pv && (pv.total > 0 || pv.chips > 0)) {
+      // bar ghost + facet pips spell out the consequence; the art-overlay number is redundant
+      x.prev.classList.remove('show', 'lethal', 'dim');
+      x.prev.innerHTML = '';
+      x.root.classList.toggle('marked', pv.lethal && !dim);
+      const lossFrac = Math.min(en.hp, pv.loss) / en.maxHp;
+      x.pv.style.left = `${(Math.max(0, en.hp - pv.loss) / en.maxHp) * 100}%`;
+      x.pv.style.width = `${lossFrac * 100}%`;
+      x.pv.classList.toggle('show', pv.loss > 0);
+      x.facets.innerHTML = facetPips(en, dim ? 0 : pv.chips);
+      x.facets.classList.toggle('willshatter', pv.willShatter && !dim);
+    } else {
+      x.prev.classList.remove('show', 'lethal', 'dim');
+      x.root.classList.remove('marked');
+      x.pv.classList.remove('show');
+      if (en.hp > 0) x.facets.innerHTML = facetPips(en);
+      x.facets.classList.remove('willshatter');
+    }
+  });
+}
+
+function onCardClick(uid) {
+  if (S.busy || !S.cb || S.cb.over) return;
+  if (performance.now() - dragConsumedAt < 350) return; // that click was the tail of a drag
+  const cb = S.cb;
+  const inst = cb.hand.find((c) => c.uid === uid);
+  if (!inst) return;
+  // phones: the first tap lifts the pane so you can read it, the second commits
+  if (COARSE && S.hoveredCard !== uid && !(S.targeting?.kind === 'card' && S.targeting.uid === uid)) {
+    S.hoveredCard = uid;
+    sfx.hover();
+    layoutHand();
+    return;
+  }
+  const d = E.cardData(inst, S.run);
+  const cost = E.effCost(S.run, cb, inst);
+  if (d.unplayable || cost > cb.player.energy) {
+    sfx.debuff();
+    trace.emit('input.card', { outcome: 'rejected', attributes: { reason: 'unplayable', uid } });
+    return;
+  }
+  if (S.targeting?.kind === 'card' && S.targeting.uid === uid) return clearTargeting();
+  if (d.target === 'enemy') {
+    const living = cb.enemies.filter((x) => x.hp > 0);
+    if (living.length === 1) return void doPlay(uid, living[0].idx);
+    setTargeting({ kind: 'card', uid });
+  } else doPlay(uid, null);
+}
+function onEnemyClick(idx) {
+  if (!S.targeting || S.busy) return;
+  const e = S.cb.enemies[idx];
+  if (!e || e.hp <= 0) return;
+  const t = S.targeting;
+  if (t.kind === 'card') doPlay(t.uid, idx);
+  else if (t.kind === 'potion') usePotionOn(t.slot, idx);
+}
+function setTargeting(t) {
+  trace.emit('input.targeting', { outcome: 'accepted', attributes: { kind: t.kind } });
+  S.targeting = t;
+  if (t?.kind === 'card') {
+    S.selectedCardUid = t.uid;
+    const living = S.cb.enemies.map((e, i) => (e.hp > 0 ? i : -1)).filter((i) => i >= 0);
+    S.selectedEnemyIndex = living.length ? living[0] : null;
+  }
+  S.ce.root.classList.add('targeting');
+  S.cb.enemies.forEach((e, i) => S.ce.enemies[i].root.classList.toggle('targetable', e.hp > 0));
+  layoutHand();
+  // Task 23 — aiming follows the stage router pointermove exclusively.
+  if (aimMove._last) aimMove(aimMove._last);
+  else {
+    // touch has no cursor between taps: open the arc onto the nearest foe
+    const living = S.cb.enemies.findIndex((x) => x.hp > 0);
+    if (living >= 0) { const c = enemyCenter(living); aimMove({ clientX: c.x, clientY: c.y, synthetic: true }); }
+  }
+}
+
+function visibleHandUids() {
+  if (!S.cb) return [];
+  return S.cb.hand
+    .filter((c) => {
+      const plan = drawRevealPlan.get(String(c.uid));
+      return !(plan && !plan.revealed);
+    })
+    .map((c) => c.uid);
+}
+
+function livingEnemyIndexes() {
+  if (!S.cb) return [];
+  return S.cb.enemies.map((e, i) => (e.hp > 0 ? i : -1)).filter((i) => i >= 0);
+}
+
+/**
+ * Task 27 keyboard grammar. Returns true when the key was handled.
+ * Emits accepted/rejected reason codes on the behaviour trace.
+ */
+function handleCombatKey(event) {
+  if (S.screen !== 'combat' || !S.cb || S.cb.over) return false;
+  const tag = (event.target?.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || event.target?.isContentEditable) return false;
+  if ($('#overlay')?.classList.contains('open')) return false;
+  if (event.target?.closest?.('.modal, #pop-menu')) return false;
+
+  const key = event.key;
+  const KEY_TOKENS = {
+    ' ': 'space',
+    Spacebar: 'space',
+    ArrowLeft: 'arrow-left',
+    ArrowRight: 'arrow-right',
+    ArrowUp: 'arrow-up',
+    ArrowDown: 'arrow-down',
+    Enter: 'enter',
+    Escape: 'escape',
+  };
+  const keyToken = KEY_TOKENS[key]
+    || (key.length === 1 && /^[A-Za-z0-9]$/.test(key) ? key.toLowerCase() : null)
+    || (/^[a-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(key) ? key : 'key:other');
+  const emit = (outcome, reason, extra = {}) => {
+    trace.emit('input.keyboard', {
+      outcome,
+      attributes: { key: keyToken, reason, ...extra },
+    });
+  };
+
+  if (key === 'Escape') {
+    if (S.targeting) {
+      event.preventDefault();
+      clearTargeting();
+      emit('accepted', 'cancel-targeting');
+      return true;
+    }
+    return false;
+  }
+
+  if ((key === 'e' || key === 'E') && !S.busy) {
+    event.preventDefault();
+    onEndTurn();
+    emit('accepted', 'end-turn');
+    return true;
+  }
+  if ((key === 'a' || key === 'A') && !S.busy) {
+    event.preventDefault();
+    useLanternArt();
+    emit('accepted', 'lantern-art');
+    return true;
+  }
+
+  if (S.busy) {
+    emit('rejected', 'busy');
+    return false;
+  }
+
+  const hand = visibleHandUids();
+  const targetingMulti = S.targeting?.kind === 'card'
+    && livingEnemyIndexes().length > 1;
+
+  if (targetingMulti && (key === 'ArrowUp' || key === 'ArrowDown')) {
+    event.preventDefault();
+    const living = livingEnemyIndexes();
+    let idx = living.indexOf(S.selectedEnemyIndex);
+    if (idx < 0) idx = 0;
+    idx = key === 'ArrowUp'
+      ? (idx - 1 + living.length) % living.length
+      : (idx + 1) % living.length;
+    S.selectedEnemyIndex = living[idx];
+    const c = enemyCenter(S.selectedEnemyIndex);
+    aimMove({ clientX: c.x, clientY: c.y, synthetic: true });
+    S.ce.enemies.forEach((box, i) => {
+      box.root.classList.toggle('target-hover', i === S.selectedEnemyIndex);
+    });
+    updatePreviews();
+    layoutHand();
+    emit('accepted', 'cycle-enemy', { index: S.selectedEnemyIndex });
+    return true;
+  }
+
+  if (targetingMulti && (key === 'Enter' || key === ' ')) {
+    event.preventDefault();
+    const idx = S.selectedEnemyIndex;
+    if (idx == null || !S.cb.enemies[idx] || S.cb.enemies[idx].hp <= 0) {
+      emit('rejected', 'no-enemy');
+      return true;
+    }
+    doPlay(S.targeting.uid, idx);
+    emit('accepted', 'commit-target', { index: idx });
+    return true;
+  }
+
+  if (key === 'ArrowLeft' || key === 'ArrowRight') {
+    if (!hand.length) {
+      emit('rejected', 'empty-hand');
+      return true;
+    }
+    event.preventDefault();
+    let idx = hand.findIndex((uid) => uid === S.selectedCardUid);
+    if (idx < 0) idx = 0;
+    else {
+      idx = key === 'ArrowLeft'
+        ? (idx - 1 + hand.length) % hand.length
+        : (idx + 1) % hand.length;
+    }
+    S.selectedCardUid = hand[idx];
+    S.hoveredCard = S.selectedCardUid;
+    layoutHand();
+    emit('accepted', 'cycle-hand', { uid: S.selectedCardUid });
+    return true;
+  }
+
+  if (key === 'Enter' || key === ' ') {
+    if (S.targeting?.kind === 'card' && livingEnemyIndexes().length <= 1) {
+      event.preventDefault();
+      const living = livingEnemyIndexes();
+      if (!living.length) {
+        emit('rejected', 'no-enemy');
+        return true;
+      }
+      doPlay(S.targeting.uid, living[0]);
+      emit('accepted', 'commit-single-target');
+      return true;
+    }
+    if (S.selectedCardUid == null && hand.length) S.selectedCardUid = hand[0];
+    if (S.selectedCardUid == null) {
+      emit('rejected', 'no-selection');
+      return true;
+    }
+    event.preventDefault();
+    onCardClick(S.selectedCardUid);
+    emit('accepted', 'activate-card', { uid: S.selectedCardUid });
+    return true;
+  }
+
+  return false;
+}
+function clearTargeting() {
+  const previousTargeting = S.targeting;
+  S.targeting = null;
+  S.selectedEnemyIndex = null;
+  if (previousTargeting) trace.emit('input.targeting', {
+    outcome: 'cancelled', attributes: { kind: previousTargeting.kind },
+  });
+  const aimHost = $('#aim');
+  if (aimHost) aimHost.innerHTML = '';
+  meshAimClear();
+  if (S.ce) {
+    S.ce.root.classList.remove('targeting');
+    S.ce.enemies.forEach((x) => x.root.classList.remove('targetable', 'target-hover', 'aim-target', 'aim-mesh'));
+    S.ce.hero?.classList.remove('aim-target', 'aim-mesh');
+    layoutHand();
+  }
+  updateLantern(); // hand the light back to the lantern
+}
+function aimMove(e) {
+  if (!e) return;
+  if (!e.synthetic) aimMove._last = e;
+  if (!S.targeting) return;
+  // Task 27 — arc paints in Pixi; `#aim` stays an empty structural host.
+  const aimHost = $('#aim');
+  if (aimHost && aimHost.childNodes.length) aimHost.innerHTML = '';
+  glSync(buildPresentationModel('aim-move'));
+  // the lantern leans toward where you mean to strike: intent illuminates
+  // Synthetic keyboard aim uses the event itself; live pointer keeps _last.
+  const last = e.synthetic ? e : (aimMove._last || e);
+  const { x: mx, y: my } = last.synthetic
+    ? { x: last.clientX, y: last.clientY }
+    : toStage(last.clientX, last.clientY);
+  if (S.ce?.hero) {
+    const h = V.centerOf(S.ce.hero);
+    const lx = `${Math.round(h.x + (mx - h.x) * 0.3)}px`;
+    const ly = `${Math.round(h.y + (my - h.y) * 0.3)}px`;
+    const L = $('#lantern');
+    L.style.setProperty('--lx', lx);
+    L.style.setProperty('--ly', ly);
+    const dim = $('.combat-screen .stage-dim');
+    if (dim) {
+      dim.style.setProperty('--lx', lx);
+      dim.style.setProperty('--ly', ly);
+    }
+  }
+}
+async function doPlay(uid, targetIdx) {
+  const inst = S.cb?.hand.find((card) => card.uid === uid);
+  const playSpan = trace.begin('input.card-play', {
+    attributes: { cardId: inst?.id || 'unknown', targetKind: targetIdx == null ? 'none' : 'enemy' },
+  });
+  let playSpanOpen = true;
+  try {
+    // Prefer drag-captured seat; else freeze current hand seat before clearTargeting reflows
+    if (!cardFlightAnchor.has(String(uid))) {
+      captureCardAnchor(uid, null, { bounds: handCardSeatBounds(uid) });
+    }
+    clearTargeting();
+    S.hoveredCard = null;
+    if (!E.playCard(S.run, S.cb, uid, targetIdx)) {
+      playSpan.finish('skipped', { reason: 'engine-rejected' });
+      playSpanOpen = false;
+      return false;
+    }
+    playSpan.finish('completed');
+    playSpanOpen = false;
+    await drain(targetIdx);
+    afterAction();
+    return true;
+  } catch (error) {
+    if (playSpanOpen) playSpan.finish('failed', { reason: 'handler-error' });
+    throw error;
+  }
+}
+async function onEndTurn() {
+  if (S.busy || !S.cb || S.cb.over) return;
+  const turnSpan = trace.begin('input.end-turn');
+  try {
+    clearTargeting();
+    sfx.click();
+    E.endTurn(S.run, S.cb);
+    await drain();
+    afterAction();
+    turnSpan.finish('completed');
+  } catch (error) {
+    turnSpan.finish('failed', { reason: 'handler-error' });
+    throw error;
+  }
+}
+function pixiPresentation() {
+  if (S.screen !== 'combat') return null;
+  return glRenderer()?.presentation || null;
+}
+
+/** Combat must never silently fall back to DOM `#floaties` / `.turn-banner`. */
+function rejectCombatDomCeremony(name, reason = 'pixi-presentation-missing') {
+  const span = trace.begin(name, { attributes: { reason } });
+  span.finish('failed', { reason });
+  return { outcome: 'rejected', reason };
+}
+
+function banner(text, opts = {}) {
+  const pixi = pixiPresentation();
+  if (pixi?.banner) {
+    const kind = opts.kind
+      || (/enemy turn/i.test(String(text)) ? 'turn'
+        : /your turn/i.test(String(text)) ? 'turn'
+          : /shatter/i.test(String(text)) ? 'guard-shattered'
+            : opts.boss ? 'boss' : 'turn');
+    return pixi.banner(text, {
+      kind,
+      stageW: stageW(),
+      stageH: stageH(),
+      ...opts,
+    });
+  }
+  if (S.screen === 'combat') {
+    return rejectCombatDomCeremony('presentation.banner');
+  }
+  const token = presentationBarrier.begin('banner');
+  const span = trace.begin('presentation.banner', {
+    attributes: opts.kind ? { kind: opts.kind } : undefined,
+  });
+  const b = el('div', 'turn-banner', text);
+  screenEl().appendChild(b);
+  setTimeout(() => {
+    try {
+      b.remove();
+      span.finish('settled');
+    } catch (error) {
+      span.finish('failed', { reason: 'presentation-error' });
+      throw error;
+    } finally {
+      token.finish();
+    }
+  }, 1150);
+}
+
+// ceremony: things travel — coins to the purse, relics to the bar, card-backs
+// from the discard to the draw pile. One arc-flight helper for all of it.
+function flyTo(x0, y0, x1, y1, opts = {}) {
+  const pixi = pixiPresentation();
+  if (pixi?.flyTo) {
+    return pixi.flyTo(x0, y0, x1, y1, opts);
+  }
+  if (S.screen === 'combat') {
+    opts.done?.();
+    return rejectCombatDomCeremony('presentation.mote-flight');
+  }
+  const { n = 6, color = '#ffe9ac', size = 8, dur = 640, glyph = '', cls = 'flymote', done = null } = opts;
+  const layer = $('#floaties');
+  if (n <= 0) { done?.(); return; }
+  const barrierToken = presentationBarrier.begin('mote-flight');
+  let remaining = n;
+  let cancelled = false;
+  let aborted = false;
+  const created = [];
+  const animations = [];
+  const settleOne = (wasCancelled = false) => {
+    cancelled ||= wasCancelled;
+    remaining -= 1;
+    if (remaining > 0) return;
+    if (cancelled) barrierToken.cancel();
+    else barrierToken.finish();
+    done?.();
+  };
+  try {
+    for (let i = 0; i < n; i++) {
+      const m = el('div', cls, glyph);
+      created.push(m);
+      m.style.left = `${x0}px`;
+      m.style.top = `${y0}px`;
+      if (!glyph) {
+        m.style.width = `${size}px`;
+        m.style.height = `${size}px`;
+        m.style.background = `radial-gradient(circle at 35% 30%, #fff, ${color} 55%, transparent 85%)`;
+      } else m.style.color = color;
+      layer.appendChild(m);
+      const mx = (x0 + x1) / 2 + (Math.random() - 0.5) * 140;
+      const my = Math.min(y0, y1) - 50 - Math.random() * 80;
+      const anim = m.animate(
+        [
+          { transform: 'translate(-50%,-50%) scale(0.5)', opacity: 0 },
+          { transform: `translate(calc(-50% + ${mx - x0}px), calc(-50% + ${my - y0}px)) scale(1.05)`, opacity: 1, offset: 0.45 },
+          { transform: `translate(calc(-50% + ${x1 - x0}px), calc(-50% + ${y1 - y0}px)) scale(0.55)`, opacity: 0.95 },
+        ],
+        { duration: dur, delay: i * 46, easing: 'cubic-bezier(.32,.05,.35,1)' }
+      );
+      animations.push(anim);
+      let settled = false;
+      const settle = (wasCancelled) => {
+        if (settled) return;
+        settled = true;
+        m.remove();
+        if (!aborted) settleOne(wasCancelled);
+      };
+      anim.onfinish = () => settle(false);
+      anim.oncancel = () => settle(true);
+    }
+  } catch (error) {
+    aborted = true;
+    for (const animation of animations) {
+      try { animation.cancel(); } catch { /* setup already failed */ }
+    }
+    for (const mote of created) mote.remove();
+    barrierToken.cancel();
+    throw error;
+  }
+}
+
+function floatText(x, y, text, cls = '', opts = {}) {
+  const pixi = pixiPresentation();
+  if (pixi?.floatText) {
+    return pixi.floatText(x, y, text, cls, opts);
+  }
+  if (S.screen === 'combat') {
+    return rejectCombatDomCeremony('presentation.floater');
+  }
+  return V.floatText(x, y, text, cls, opts);
+}
+
+function shatterVessel(el, opts = {}) {
+  const pixi = pixiPresentation();
+  if (pixi?.shatter) {
+    return pixi.shatter(el, opts);
+  }
+  if (S.screen === 'combat') {
+    return rejectCombatDomCeremony('presentation.shatter');
+  }
+  return V.shatter(el, opts);
+}
+
+function artCast(opts = {}) {
+  const pixi = pixiPresentation();
+  if (pixi?.artCast) {
+    return pixi.artCast(opts);
+  }
+  if (S.screen === 'combat') {
+    return Promise.resolve(rejectCombatDomCeremony('presentation.art-cast'));
+  }
+  return Promise.resolve({ outcome: 'skipped', reason: 'not-combat' });
+}
+
+function bumpPile(btn) {
+  if (!btn || REDUCED) return;
+  btn.classList.remove('pile-bump');
+  void btn.offsetWidth;
+  btn.classList.add('pile-bump');
+}
+
+/** Last on-stage card rects for toDiscard (captured at play before lift/remove). */
+const cardFlightAnchor = new Map();
+function captureCardAnchor(uid, cardEl, meta = {}) {
+  if (uid == null) return;
+  let r = null;
+  if (meta.bounds && meta.bounds.width >= 2) {
+    r = meta.bounds;
+  } else if (cardEl) {
+    r = stageRect(cardEl);
+  } else {
+    r = handCardSeatBounds(uid);
+  }
+  if (!r || r.width < 2) return;
+  cardFlightAnchor.set(String(uid), {
+    x: (r.left ?? 0) + (r.width ?? 0) / 2,
+    y: (r.top ?? 0) + (r.height ?? 0) / 2,
+    w: r.width,
+    h: r.height,
+    fromDrag: !!meta.fromDrag,
+  });
+}
+function peekCardAnchor(uid) {
+  return cardFlightAnchor.get(String(uid)) || null;
+}
+function takeCardAnchor(uid) {
+  const k = String(uid);
+  const a = cardFlightAnchor.get(k);
+  cardFlightAnchor.delete(k);
+  return a || null;
+}
+
+/** Visible pile face size (matches .pile-layer / stack). */
+function pileFaceSize(pileBtn) {
+  const layer = pileBtn?.querySelector('.pile-layer');
+  if (layer) {
+    const r = stageRect(layer);
+    if (r.width > 2 && r.height > 2) return { w: r.width, h: r.height };
+  }
+  const stack = pileBtn?.querySelector('.pile-stack');
+  if (stack) {
+    const r = stageRect(stack);
+    if (r.width > 2) return { w: r.width, h: r.width * (148 / 96) };
+  }
+  return { w: 96, h: 130 };
+}
+
+function handScale() {
+  const raw = S.ce?.hand ? getComputedStyle(S.ce.hand).getPropertyValue('--hand-scale') : '';
+  const s = parseFloat(raw);
+  return Number.isFinite(s) && s > 0 ? s : 1;
+}
+
+function handFaceSize() {
+  // Resting hand size — never sample lifted/armed/dragging geometry.
+  const scale = handScale();
+  const zone = S.ce?.hand;
+  if (zone) {
+    const cwRaw = getComputedStyle(zone).getPropertyValue('--cw')
+      || getComputedStyle(document.documentElement).getPropertyValue('--cw');
+    const cw = parseFloat(cwRaw);
+    if (cw > 2) {
+      const w = cw * scale;
+      return { w, h: Math.round(w * 1.42) };
+    }
+  }
+  const w = CARD_FACE_WIDTH * scale;
+  return { w, h: Math.round(w * (CARD_FACE_HEIGHT / CARD_FACE_WIDTH)) };
+}
+
+/** CSS `bottom` inset of a hand card (shape breakpoints change it). */
+function handCardBottomInset() {
+  const zone = S.ce?.hand;
+  if (zone) {
+    const raw = getComputedStyle(zone).getPropertyValue('--hand-card-bottom');
+    const b = parseFloat(raw);
+    if (Number.isFinite(b)) return b;
+  }
+  const shape = stageInfo().shape;
+  if (shape === 'phone-portrait' || shape === 'pad-portrait') return 46;
+  if (shape === 'phone-landscape') return 0;
+  return 8;
+}
+
+/** Stage centre of a resting (non-hovered) hand-fan seat — matches pure hand-layout. */
+function handSeatCenter(fanIndex, fanCount) {
+  const n = Math.max(1, fanCount | 0);
+  const i = Math.max(0, Math.min(n - 1, fanIndex | 0));
+  const sz = handFaceSize();
+  const inset = handCardBottomInset();
+  let baseBottom = stageH() - inset;
+  let cx = stageW() / 2;
+  const zone = S.ce?.hand;
+  if (zone) {
+    const zr = stageRect(zone);
+    if (zr.height > 2) baseBottom = zr.bottom - inset;
+    if (zr.width > 2) cx = zr.left + zr.width / 2;
+  }
+  const seat = pureHandSeatCenter(i, n, {
+    stageW: stageW(), cardW: sz.w, cardH: sz.h, zoneCenterX: cx, baseBottom,
+  });
+  return { x: seat.x, y: seat.y };
+}
+
+function resolveFlightSize(spec, { pileBtn, src, fallback } = {}) {
+  if (spec && typeof spec === 'object' && spec.w) return { w: spec.w, h: spec.h };
+  if (spec === 'hand') return handFaceSize();
+  if (spec === 'src' && src?.w) return { w: src.w, h: src.h };
+  if (spec === 'src' && src?.el) {
+    const r = stageRect(src.el);
+    if (r.width > 2) return { w: r.width, h: r.height };
+  }
+  if (spec === 'pile' || spec == null) return pileFaceSize(pileBtn);
+  return fallback || pileFaceSize(pileBtn);
+}
+
+/**
+ * Pile-ceremony flights. Default face size = current pile card size.
+ * opts.fromSize / toSize: {w,h} | 'pile' | 'hand' | 'src'  (omit toSize → same as from)
+ * opts.face: 'card' = real card face (src.inst or opts.cardInst); 'back' = sealed back; else pile art
+ * opts.cardInst: fallback card instance when face === 'card'
+ * opts.pileArt: draw|discard|ashes master when using pile face (reshuffle only)
+ * opts.sizePile: pile button used when resolving 'pile' sizes (defaults to toEl)
+ */
+function flyCardBacks(fromList, toEl, budgetMs, opts = {}) {
+  const pixi = pixiPresentation();
+  if (pixi?.flyCardBacks) {
+    const dest = toEl && typeof toEl === 'object' && 'x' in toEl
+      ? toEl
+      : V.centerOf(toEl);
+    const ceremony = opts.ceremony
+      || (toEl?.classList?.contains('pile-draw') && opts.face === 'back' && 'reshuffle')
+      || (toEl?.classList?.contains('pile-discard') && 'discard')
+      || (toEl?.classList?.contains('pile-exhaust') && 'exhaust')
+      || 'discard';
+    const uids = opts.uids || fromList.map((s) => s.uid ?? s.inst?.uid).filter((u) => u != null);
+    return pixi.flyCardBacks(fromList, dest, {
+      ...opts,
+      ceremony,
+      budgetMs: budgetMs ?? opts.budgetMs,
+      uids,
+      schedule: opts.schedule || flightSchedule(
+        fromList.length,
+        budgetMs ?? CEREMONY_BUDGET_MS[ceremony] ?? 440,
+        { ceremony },
+      ),
+      policy: REDUCED ? { motion: 'reduced' } : undefined,
+    });
+  }
+  if (S.screen === 'combat') {
+    return Promise.resolve(rejectCombatDomCeremony('presentation.card-flight'));
+  }
+  const layer = $('#floaties');
+  const dest = V.centerOf(toEl);
+  const n = fromList.length;
+  const { stagger, flightDur, awaitMs } = opts.schedule || flightSchedule(n, budgetMs);
+  if (REDUCED || n === 0) return Promise.resolve(0);
+  const token = presentationBarrier.begin('card-flight');
+  const sampleInst = fromList.find((src) => src?.inst)?.inst || opts.cardInst || null;
+  const destName = (toEl?.classList?.contains('pile-discard') && 'discard')
+    || (toEl?.classList?.contains('pile-draw') && 'draw')
+    || (toEl?.classList?.contains('pile-exhaust') && 'exhaust')
+    || 'pile';
+  const replay = sampleInst ? {
+    v: 1,
+    kind: 'card-flight',
+    subject: {
+      kind: 'card',
+      contentId: sampleInst.id,
+      upgraded: !!sampleInst.up,
+    },
+    parameters: {
+      destination: destName,
+      motion: REDUCED ? 'reduced' : 'full',
+      count: n,
+    },
+    endState: { destination: destName, visible: false },
+  } : undefined;
+  const span = trace.begin('presentation.card-flight', {
+    attributes: { count: n },
+    ...(replay ? { replay } : {}),
+  });
+  const sizePile = opts.sizePile || toEl;
+  const artUrl = (opts.face === 'back' || opts.face === 'card')
+    ? null
+    : assetUrl('piles', pileMasterId(opts.pileArt || 'draw'));
+  const completions = [];
+  const created = [];
+  let cancelled = false;
+  try {
+    fromList.forEach((src, i) => {
+    const origin = src.el
+      ? (() => { const r = stageRect(src.el); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }; })()
+      : src;
+    const land = src.dest || dest;
+    const fromSize = resolveFlightSize(opts.fromSize || 'pile', { pileBtn: sizePile, src: origin });
+    const toSize = opts.toSize == null
+      ? fromSize
+      : resolveFlightSize(opts.toSize, { pileBtn: sizePile, src: origin, fallback: fromSize });
+    const endScale = fromSize.w > 0 ? toSize.w / fromSize.w : 1;
+    const inst = src.inst || opts.cardInst;
+    let m;
+    let startScale = 1;
+    let landScale = endScale;
+    if (opts.face === 'card' && inst) {
+      // Always layout at hand --cw so fonts/cost match a real card; size via transform only
+      const hand = handFaceSize();
+      const layoutW = hand.w;
+      const layoutH = hand.h;
+      startScale = layoutW > 0 ? fromSize.w / layoutW : 1;
+      landScale = layoutW > 0 ? toSize.w / layoutW : endScale;
+      m = cardEl(inst, { inCombat: true, size: layoutW });
+      m.classList.add('flycard-face');
+      Object.assign(m.style, {
+        position: 'absolute', left: `${origin.x}px`, top: `${origin.y}px`,
+        width: `${layoutW}px`, height: `${layoutH}px`, margin: 0,
+        transform: `translate(-50%,-50%) scale(${startScale})`, zIndex: 58 + i, pointerEvents: 'none',
+      });
+    } else {
+      m = el('div', artUrl ? 'flycard flycard-pile' : 'flycard flycard-back');
+      m.style.left = `${origin.x}px`;
+      m.style.top = `${origin.y}px`;
+      m.style.width = `${fromSize.w}px`;
+      m.style.height = `${fromSize.h}px`;
+      m.style.zIndex = String(58 + i);
+      if (artUrl) m.style.backgroundImage = `url(${artUrl})`;
+    }
+    layer.appendChild(m);
+    created.push(m);
+    const smooth = opts.arc === 'smooth';
+    const easing = opts.easing || (smooth ? 'cubic-bezier(.22,.7,.28,1)' : 'cubic-bezier(.32,.05,.35,1)');
+    // Smooth arc: short lift toward discard, little jitter. Default: loftier random mid.
+    const mx = smooth
+      ? origin.x + (land.x - origin.x) * 0.42 + (Math.random() - 0.5) * 18
+      : (origin.x + land.x) / 2 + (Math.random() - 0.5) * 80;
+    const my = smooth
+      ? Math.min(origin.y, land.y) - 18 - Math.random() * 16
+      : Math.min(origin.y, land.y) - 40 - Math.random() * 50;
+    const dx1 = mx - origin.x, dy1 = my - origin.y;
+    const dx2 = land.x - origin.x, dy2 = land.y - origin.y;
+    const midScale = startScale + (landScale - startScale) * (smooth ? 0.55 : 0.45);
+    const keyframes = smooth
+      ? [
+        { transform: `translate(-50%,-50%) scale(${startScale})`, opacity: 1, offset: 0 },
+        { transform: `translate(calc(-50% + ${dx1 * 0.55}px), calc(-50% + ${dy1 * 0.55}px)) scale(${startScale + (midScale - startScale) * 0.5})`, opacity: 1, offset: 0.35 },
+        { transform: `translate(calc(-50% + ${dx1}px), calc(-50% + ${dy1}px)) scale(${midScale})`, opacity: 0.98, offset: 0.62 },
+        { transform: `translate(calc(-50% + ${dx2}px), calc(-50% + ${dy2}px)) scale(${landScale})`, opacity: 0.92, offset: 1 },
+      ]
+      : [
+        { transform: `translate(-50%,-50%) scale(${startScale})`, opacity: 0.95 },
+        { transform: `translate(calc(-50% + ${dx1}px), calc(-50% + ${dy1}px)) scale(${midScale})`, opacity: 1, offset: 0.45 },
+        { transform: `translate(calc(-50% + ${dx2}px), calc(-50% + ${dy2}px)) scale(${landScale})`, opacity: 0.9 },
+      ];
+    const animation = m.animate(keyframes, {
+      duration: flightDur, delay: i * stagger, easing, fill: 'forwards',
+    });
+      completions.push(animation.finished
+        .catch(() => { cancelled = true; })
+        .finally(() => {
+          // Task 26 — flycard face owns its export; revoke on teardown.
+          releaseCardFace(m);
+          m.remove();
+        }));
+    });
+  } catch (error) {
+    for (const card of created) {
+      releaseCardFace(card);
+      card.remove();
+    }
+    span.finish('failed', { reason: 'animation-error' });
+    token.cancel();
+    throw error;
+  }
+  return Promise.all(completions).then(() => {
+    if (cancelled) {
+      span.finish('cancelled', { reason: 'animation-cancelled' });
+      token.cancel();
+    } else {
+      span.finish('settled');
+      token.finish();
+    }
+    return awaitMs;
+  }, (error) => {
+    span.finish('failed', { reason: 'animation-error' });
+    token.cancel();
+    throw error;
+  });
+}
+
+/** Resolve a card instance already moved into a pile (engine mutates before drain). */
+function pileCardByUid(pile, uid) {
+  return (pile || []).find((c) => String(c.uid) === String(uid)) || null;
+}
+
+// --------- the living-glass rig: one rAF drives eyes, inner fire and light pools
+// count a number element up/down to a target (ease-out cubic), with a set-pulse
+function tweenNum(node, from, to, ms = 640) {
+  from = Math.round(from); to = Math.round(to);
+  if (REDUCED || from === to) { node.textContent = to; return; }
+  const t0 = performance.now();
+  const step = (now) => {
+    const p = Math.min(1, (now - t0) / ms);
+    const e = 1 - Math.pow(1 - p, 3);
+    node.textContent = Math.round(from + (to - from) * e);
+    if (p < 1) requestAnimationFrame(step);
+    else { node.textContent = to; node.classList.remove('tick'); void node.offsetWidth; node.classList.add('tick'); }
+  };
+  requestAnimationFrame(step);
+}
+function spriteLiftPx(el) {
+  const m = getComputedStyle(el).transform;
+  if (!m || m === 'none') return 0;
+  const a = m.match(/matrix(?:3d)?\(([^)]+)\)/);
+  if (!a) return 0;
+  const v = a[1].split(',').map((s) => parseFloat(s.trim()));
+  const ty = v.length === 16 ? v[13] : v[5];
+  return Math.max(0, -ty);
+}
+function castShadowEl(url, svg) {
+  const sh = el('div', 'cast-shadow');
+  if (url) {
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = '';
+    img.setAttribute('aria-hidden', 'true');
+    sh.appendChild(img);
+  } else if (svg) {
+    const clone = svg.cloneNode(true);
+    clone.setAttribute('aria-hidden', 'true');
+    sh.appendChild(clone);
+  } else sh.classList.add('cast-shadow-blob');
+  return sh;
+}
+/** Pin shadow box to the art rect in stage px (layer is under #mesh). */
+function layoutCastShadow(it) {
+  if (!it.shadow || !it.art) return;
+  const r = stageRect(it.art);
+  it.shadow.style.left = `${r.left}px`;
+  it.shadow.style.top = `${r.top}px`;
+  it.shadow.style.width = `${r.width}px`;
+  it.shadow.style.height = `${r.height}px`;
+}
+function syncCastShadow(it, lift) {
+  if (!it.shadow || !it.shadowId) return;
+  layoutCastShadow(it);
+  const c = charShadowLive(it.shadowId);
+  const max = it.shadowMax || 16;
+  const t = Math.min(1, lift / max);
+  const sx = c.sx * (1 - t * 0.26);
+  const sy = c.sy * (1 - t * 0.5);
+  const o = c.opacity * (1 - t * 0.55);
+  const blur = c.blur + t * 2.8;
+  const skew = c.skew * (1 - t * 0.35);
+  const dx = c.dx + c.skew * 0.35 * (1 - t * 0.5);
+  // layout footX/footY move the art box (upstream); shadow tracks the art rect
+  // each frame. dy/dx are shadow-only fine-tunes — do NOT re-add foot*.
+  const dy = c.dy;
+  it.shadow.style.setProperty('--foot-ox', `${c.ox}%`);
+  it.shadow.style.setProperty('--foot-oy', `${c.oy}%`);
+  it.shadow.style.setProperty('--sh-sx', sx.toFixed(3));
+  it.shadow.style.setProperty('--sh-sy', sy.toFixed(3));
+  it.shadow.style.setProperty('--sh-o', o.toFixed(3));
+  it.shadow.style.setProperty('--sh-blur', `${blur.toFixed(1)}px`);
+  it.shadow.style.setProperty('--sh-skew', `${skew.toFixed(2)}deg`);
+  it.shadow.style.setProperty('--sh-x', `${dx.toFixed(1)}px`);
+  it.shadow.style.setProperty('--sh-y', `${dy}px`);
+}
+function rigCombatants() {
+  const ce = S.ce, cb = S.cb;
+  ce.rig = [];
+  const layer = $('.cast-shadow-layer', ce.root);
+  if (layer) layer.innerHTML = '';
+  const add = (root, art, glow, isHero, idx, kind, hue = 0, artUrl = '', shadowId = '', footY = 0) => {
+    const svg = $('svg', art);
+    const sprite = $('.enemy-sprite', art) || art;
+    const raster = $('.raster-art', sprite);
+    if (!svg && !raster) return;
+    const seed = Math.random() * 100;
+    if (svg) {
+      const br = $('.breathe', svg);
+      if (br) {
+        br.style.animationDuration = `${(2.5 + (seed % 1.9)).toFixed(2)}s`;
+        br.style.animationDelay = `${(-(seed % 3.1)).toFixed(2)}s`;
+        br.style.setProperty('--brY', (1.022 + (seed % 0.024)).toFixed(3));
+        br.style.setProperty('--sw', `${(((seed * 7) % 1.7) - 0.85).toFixed(2)}deg`);
+      }
+      $$('.hover-float', svg).forEach((h) => (h.style.animationDelay = `${(-(seed % 2.7)).toFixed(2)}s`));
+    } else if (kind) {
+      sprite.classList.add(`idle-${kind}`);
+      sprite.style.animationDelay = `${(-(seed % 2.8)).toFixed(2)}s`;
+      const cssF = shadowId ? charCssFloat(shadowId) : null;
+      if (cssF != null) sprite.style.setProperty('--float-y', `${cssF}px`);
+      if (kind === 'wisp' || kind === 'plant') {
+        const motes = el('div', 'idle-motes');
+        motes.style.setProperty('--mote', `hsla(${hue},85%,62%,0.6)`);
+        sprite.appendChild(motes);
+      }
+    }
+    // under #mesh (z6), not inside .battlefield (z7) — otherwise the puddle covers the warp body
+    const shadow = castShadowEl(artUrl || raster?.src || '', svg);
+    (layer || art).appendChild(shadow);
+    // lightpool oval retired — cast-shadow owns the ground contact read
+    void glow;
+    const floatKinds = { wisp: 20, eye: 20, siren: 14, shade: 14, plant: 10, slime: 6 };
+    const rig = {
+      root, art, sprite, svg, eyes: svg ? $$('.eye', svg) : [], fire: svg ? $('.innerfire', svg) : null,
+      pool: null, shadow, shadowId, footY, shadowMax: floatKinds[kind] || 12, seed, isHero, idx, dx: 0, dy: 0,
+    };
+    ce.rig.push(rig);
+    syncCastShadow(rig, 0);
+  };
+  const L = bfResolve(stageInfo().shape, S.run.act);
+  const slots = bfSlots(L, cb.enemies.length);
+  cb.enemies.forEach((en, i) => {
+    const view = combatantView(en);
+    add(ce.enemies[i].root, ce.enemies[i].art, `hsla(${view.hue},90%,66%,.72)`, false, i, view.kind, view.hue,
+      assetUrl(view.artCategory, view.artId), view.layoutKey, bfEnemyFootY(slots[i], view.layoutKey));
+  });
+  const heroId = runCatalogues().aspects[S.run.aspect].id;
+  add(ce.hero, ce.hero, 'rgba(127,212,255,.62)', true, 0, 'humanoid', 0, assetUrl('heroes', heroId), heroId, bfActor('heroes', heroId).footY);
+}
+function meshBindCombatants() {
+  if (!meshEnabled()) return;
+  const ce = S.ce, cb = S.cb;
+  if (!ce || !cb) return;
+  const entries = [];
+  const heroUrl = assetUrl('heroes', runCatalogues().aspects[S.run.aspect].id);
+  // bind the sprite, not .hero-wrap: the raster must be a DIRECT child of the
+  // mesh-live element or it stays visible under the warp copy (double vision),
+  // and the wrap's rect includes the name label which would stretch the plane
+  const heroSprite = ce.hero && ($('.hero-sprite', ce.hero) || ce.hero);
+  if (heroUrl && heroSprite) entries.push({ el: heroSprite, url: heroUrl, kind: 'humanoid', id: runCatalogues().aspects[S.run.aspect].id });
+  cb.enemies.forEach((en, i) => {
+    const view = combatantView(en);
+    const url = assetUrl(view.artCategory, view.artId);
+    const art = ce.enemies[i]?.art;
+    const sprite = art && ($('.enemy-sprite', art) || art);
+    if (url && sprite) entries.push({
+      el: sprite, url, kind: view.kind, id: view.layoutKey,
+      variantId: en.variantId, tint: view.tint,
+    });
+  });
+  meshBind(entries);
+  // combat-start relics (e.g. basaltIdol) add block without blockGain — restore shell after bind
+  if (cb.player.block > 0 && heroSprite) syncWardMesh(heroSprite, true, true);
+  cb.enemies.forEach((en, i) => {
+    if (en.block <= 0) return;
+    const art = ce.enemies[i]?.art;
+    const sprite = art && ($('.enemy-sprite', art) || art);
+    if (sprite) syncWardMesh(sprite, true, true);
+  });
+}
+function scheduleMeshBind() {
+  requestAnimationFrame(() => requestAnimationFrame(meshBindCombatants));
+}
+function meshBindTitle() {
+  meshClear(); // title stays static raster — #mesh sits above #screen, so warp planes cover the logo
+}
+let uiFrozen = false; // test-harness freeze: stops the rig loop (one-way per page)
+function rigTick(t) {
+  if (uiFrozen) return;
+  requestAnimationFrame(rigTick);
+  const ce = S.ce, cb = S.cb;
+  if (REDUCED || !cb || S.screen !== 'combat' || !ce?.rig) return;
+  // where the hero's gaze goes: your aim while targeting, else the nearest foe
+  let heroTgt = null;
+  const living = cb.enemies.findIndex((e) => e.hp > 0);
+  if (S.targeting && aimMove._last) heroTgt = toStage(aimMove._last.clientX, aimMove._last.clientY);
+  else if (living >= 0) heroTgt = enemyCenter(living);
+  const hc = heroCenter();
+  for (const it of ce.rig) {
+    const unit = it.isHero ? cb.player : cb.enemies[it.idx];
+    if (!it.isHero && unit.hp <= 0) {
+      if (it.pool) it.pool.style.opacity = 0;
+      if (it.shadow) it.shadow.style.opacity = 0;
+      continue;
+    }
+    let lift = spriteLiftPx(it.sprite);
+    if (it.sprite.classList.contains('mesh-live')) lift += meshLift(it.sprite);
+    syncCastShadow(it, lift);
+    const tgt = it.isHero ? heroTgt : hc;
+    if (tgt && it.eyes.length) {
+      const c = V.centerOf(it.art);
+      const a = Math.atan2(tgt.y - c.y, tgt.x - c.x);
+      it.dx += (Math.cos(a) * 2.4 - it.dx) * 0.08;
+      it.dy += (Math.sin(a) * 1.6 - it.dy) * 0.08;
+      const tr = `translate(${it.dx.toFixed(2)}px,${it.dy.toFixed(2)}px)`;
+      for (const e of it.eyes) e.style.transform = tr;
+    }
+    // inner fire: flares on the windup, blazes with Strength, gutters as HP falls
+    const hpFrac = Math.max(0, unit.hp) / unit.maxHp;
+    let f = 0.45 + 0.55 * hpFrac;
+    if (it.root.dataset.choreo === 'attack') f += 1.1;
+    if ((unit.statuses?.str || 0) > 0) f += 0.3;
+    const flick = 0.86 + 0.14 * Math.sin(t * 0.006 + it.seed) * Math.sin(t * 0.0021 + it.seed * 3);
+    if (it.fire) it.fire.style.opacity = Math.min(0.55, (0.05 + 0.13 * f) * flick).toFixed(3);
+    if (it.pool) it.pool.style.opacity = Math.min(0.85, (0.3 + 0.4 * f) * flick).toFixed(3);
+  }
+}
+
+// --------- the playback loop: engine queue -> animations
+const HEAVY_KINDS = new Set(['golem', 'treeboss', 'leviathan', 'crab']);
+const FLOATY_KINDS = new Set(['wisp', 'shade', 'siren', 'eye', 'cultist']);
+function choreoAttack(el, dir = 1, kind = 'humanoid') {
+  if (REDUCED || !el) return Promise.resolve();
+  const heavy = HEAVY_KINDS.has(kind), floaty = FLOATY_KINDS.has(kind);
+  const kf = heavy ? [
+    { transform: 'translateX(0) scale(1,1)' },
+    { transform: 'translateX(0) scale(1.08,0.86)', offset: 0.35 },
+    { transform: 'translateX(0) scale(1,1)' },
+  ] : floaty ? [
+    { transform: 'translateX(0) translateY(0) scale(1,1)' },
+    { transform: `translateX(${6 * dir}px) translateY(-5px) scale(0.98,1.02)`, offset: 0.4 },
+    { transform: `translateX(${10 * dir}px) translateY(-2px) scale(1,1)`, offset: 0.7 },
+    { transform: 'translateX(0) translateY(0) scale(1,1)' },
+  ] : [
+    { transform: 'translateX(0) scale(1,1)' },
+    { transform: `translateX(${-8 * dir}px) scale(0.97,1.02)`, offset: 0.3 },
+    { transform: `translateX(${34 * dir}px) scale(1.02,0.99)`, offset: 0.62 },
+    { transform: 'translateX(0) scale(1,1)' },
+  ];
+  el.dataset.choreo = 'attack';
+  return el.animate(kf, { duration: heavy ? 420 : floaty ? 380 : 330, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }).finished
+    .finally(() => { delete el.dataset.choreo; })
+    .catch(() => {});
+}
+function choreoHit(el, dir = 1) {
+  if (REDUCED || !el) return;
+  meshFlash(el);
+  el.animate(
+    [
+      { transform: 'translateX(0) scale(1,1)', filter: 'brightness(1)' },
+      { transform: `translateX(${9 * dir}px) scale(0.97,1.03)`, filter: 'brightness(1.9)', offset: 0.25 },
+      { transform: 'translateX(0) scale(1,1)', filter: 'brightness(1)' },
+    ],
+    { duration: 300, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+  );
+}
+function choreoStagger(el) {
+  if (REDUCED || !el) return Promise.resolve();
+  return el.animate(
+    [
+      { transform: 'translateY(0) rotate(0deg)', filter: 'brightness(1)' },
+      { transform: 'translateY(5px) rotate(-2.5deg)', filter: 'brightness(0.6)' },
+    ],
+    { duration: 360, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
+  ).finished.catch(() => {});
+}
+// glass damage language: every landed hit scores a crack into the body
+// TEMP (2026-07-07): combat cracks off while glass tuning continues — death
+// rite still cracks via igniteVessel → meshCrack (not this helper).
+const COMBAT_CRACKS = false;
+function addCrack(artEl, big) {
+  if (!COMBAT_CRACKS) return;
+  if (meshEnabled() && meshCrack(artEl)) return; // glass refracts through the fracture (warp on)
+  const layer = artEl && $('.cracks', artEl); // drawn fallback when the warp layer is off
+  if (layer && layer.children.length < 8) layer.insertAdjacentHTML('beforeend', crackSvg(big));
+}
+// death rite: the fire inside wells up through every fracture — one last web of
+// cracks races the glass, the seams blaze warm, then the vessel gives (V.shatter)
+function igniteVessel(x, dur = 200) {
+  // warp on: the vessel fails through its own glass fractures — the fire BUILDS
+  // (eased 0→1 over the held beat, not a snap) while one last web races the body;
+  // the warp holds the beat, then shatter releases it
+  if (meshEnabled() && meshDeath(x.root, 0)) {
+    for (let k = 0; k < 3; k++) meshCrack(x.art);
+    const t0 = performance.now();
+    const step = () => {
+      const t = Math.min(1, (performance.now() - t0) / dur);
+      const e = t * t * (3 - 2 * t); // smoothstep: slow warm-up, fast blaze
+      if (!meshDeath(x.root, e)) return; // plane already handed off — stop quietly
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+    return;
+  }
+  // warp off: drawn fallback — fire wells up through the DOM cracks, then the glass gives
+  meshRelease(x.root);
+  const layer = x.art && $('.cracks', x.art);
+  if (layer) {
+    layer.insertAdjacentHTML('beforeend', crackSvg(true));
+    if (layer.children.length < 9) layer.insertAdjacentHTML('beforeend', crackSvg(true));
+  }
+  x.root.classList.add('igniting');
+}
+function afterAction() {
+  const cb = S.cb;
+  if (!cb || !cb.over) return;
+  if (cb.result === 'win') victoryFlow();
+  else defeatFlow();
+}
+function victoryFlow() {
+  transition('victory-out');
+  // Task 26 — any seats still holding exports (perfect banner race, etc.) release before teardown.
+  if (S.ce?.hand) $$('.card', S.ce.hand).forEach(releaseCardFace);
+  const run = S.run, kind = S.cb.kind, affix = S.cb.affix;
+  if (E.isEphemeralRun(run)) {
+    late.journalRunEnd(run, 'win');
+    return;
+  }
+  const skipOrdinaryRewards = E.shadeVictorySkipsRewards(run);
+  if (kind === 'boss' && E.isFinalTheme(run)) {
+    late.journalRunEnd(run, 'win');
+    return;
+  }
+  if (skipOrdinaryRewards) {
+    E.clearPendingEncounter(run);
+    const continueShadeVictory = () => {
+      S.cb = null;
+      show('map');
+    };
+    if (!requireRunSave(run, continueShadeVictory)) return;
+    continueShadeVictory();
+    return;
+  }
+
+  const rewards = E.genCombatRewards(run, kind, affix);
+  E.setPendingReward(run, kind, rewards, S.lastPerfect);
+  E.clearPendingEncounter(run);
+  const continueVictory = () => {
+    S.cb = null;
+    // Act 1/2 boss kill ceremony — same victory cue as final dawn; holds until map.
+    if (kind === 'boss') music.play('victory');
+    show('reward');
+  };
+  if (!requireRunSave(run, continueVictory)) return;
+  continueVictory();
+}
+function defeatFlow() {
+  transition('defeat');
+  // Task 26 — defeat leaves the hand in place; revoke before the screen is replaced.
+  if (S.ce?.hand) $$('.card', S.ce.hand).forEach(releaseCardFace);
+  const run = S.run;
+  const node = run.map.nodes.find((candidate) => candidate.id === run.nodeId);
+  const fallRow = node ? node.row : Math.max(1, run.floorsClimbed - 1);
+  E.markShadeFall(run, run.act, fallRow);
+  late.journalRunEnd(run, 'death');
+}
+
+function hasPileVisualOverride() {
+  return pileVisualOverride !== null;
+}
+function readPileVisualOverride(pile) {
+  return pileVisualOverride === null ? undefined : pileVisualOverride[pile];
+}
+function setPileVisualOverride(pile, value) {
+  if (pile !== 'draw' && pile !== 'discard') {
+    throw new TypeError(`unknown pile visual override: ${pile}`);
+  }
+  if (pileVisualOverride === null) pileVisualOverride = { draw: 0, discard: 0 };
+  pileVisualOverride[pile] = value;
+  return value;
+}
+function replacePileVisualOverride(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError('pile visual override must be a record');
+  }
+  const draw = Number(value.draw);
+  const discard = Number(value.discard);
+  if (!Number.isFinite(draw) || !Number.isFinite(discard)) {
+    throw new TypeError('pile visual override values must be finite');
+  }
+  pileVisualOverride = { draw, discard };
+  return { ...pileVisualOverride };
+}
+function clearPileVisualOverride() {
+  pileVisualOverride = null;
+}
+function clearDrawRevealPlan() {
+  drawRevealPlan.clear();
+}
+function setDrawRevealPlan(uid, value) {
+  drawRevealPlan.set(String(uid), value);
+  return value;
+}
+function deleteDrawRevealPlan(uid) {
+  return drawRevealPlan.delete(String(uid));
+}
+function setCardFlightAnchor(uid, anchor) {
+  if (!anchor || typeof anchor !== 'object' || Array.isArray(anchor)) {
+    throw new TypeError('card flight anchor must be a record');
+  }
+  const copy = { ...anchor };
+  cardFlightAnchor.set(String(uid), copy);
+  return copy;
+}
+
+function freeze(options = {}) {
+  const keepBg3d = !!(options && options.keepBg3d);
+  const keepCombat = !!(options && options.keepCombat);
+  if (keepBg3d) document.documentElement.setAttribute('data-freeze-keep-bg3d', '');
+  else document.documentElement.removeAttribute('data-freeze-keep-bg3d');
+  if (keepCombat) document.documentElement.setAttribute('data-freeze-keep-combat', '');
+  else document.documentElement.removeAttribute('data-freeze-keep-combat');
+  document.documentElement.classList.add('freeze');
+  uiFrozen = true;
+  V.freezeVfx();
+  freezeScene();
+}
+
+function pointerState() {
+  return pointerRouter?.state?.() || null;
+}
+
+async function freezeForProbe(options = {}) {
+  // Wait for engine queue + presentation barrier, then freeze DOM/scene/VFX
+  // and delegate the Pixi tick freeze to the combat renderer.
+  const done = () => !S.busy
+    && (!S.cb || S.cb.queue.length === 0)
+    && presentationBarrier.activeCount() === 0;
+  await new Promise((resolve) => {
+    const check = () => (done() ? resolve(true) : setTimeout(check, 16));
+    check();
+  });
+  freeze(options);
+  const renderer = glRenderer();
+  if (renderer && typeof renderer.freezeForTest === 'function') {
+    return renderer.freezeForTest(options);
+  }
+  return {
+    frozen: true,
+    cssOnly: true,
+    keepBg3d: !!options.keepBg3d,
+    keepCombat: !!options.keepCombat,
+  };
+}
+
+function startRig() {
+  requestAnimationFrame(rigTick);
+}
+
+const drainHandlers = Object.freeze({
+  addCrack,
+  artCast,
+  banner,
+  bumpPile,
+  captureCardAnchor,
+  choreoAttack,
+  choreoHit,
+  choreoStagger,
+  clearPileVisualOverride,
+  enemyCenter,
+  flyCardBacks,
+  flyTo,
+  floatText,
+  shatter: shatterVessel,
+  handFaceSize,
+  handSeatCenter,
+  heroCenter,
+  holdPendingPileArrivals,
+  holdPileVisual,
+  igniteVessel,
+  layoutHand,
+  peekCardAnchor,
+  pileCardByUid,
+  pileFaceSize,
+  releasePileVisual,
+  renderHud,
+  scheduleHandReveal,
+  semanticUiCheckpoint,
+  syncCombat,
+  syncHand,
+  syncPileWidgets,
+  syncWardMesh,
+  takeCardAnchor,
+  hasPileVisualOverride,
+  readPileVisualOverride,
+  setPileVisualOverride,
+  replacePileVisualOverride,
+  clearDrawRevealPlan,
+  setDrawRevealPlan,
+  deleteDrawRevealPlan,
+  setCardFlightAnchor,
+});
+
+return Object.freeze({
+  startCombatUI,
+  renderCombat,
+  refitCombat,
+  renderHud,
+  meshBindTitle,
+  syncCombat,
+  syncHand,
+  setTargeting,
+  clearTargeting,
+  doPlay,
+  onEndTurn,
+  useLanternArt,
+  afterAction,
+  banner,
+  flyTo,
+  tweenNum,
+  freeze,
+  freezeForProbe,
+  pointerState,
+  handleCombatKey,
+  startRig,
+  drainHandlers,
+});
+}

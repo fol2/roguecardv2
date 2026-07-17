@@ -1,0 +1,88 @@
+{
+  "id": "embark__desktop-landscape__grown",
+  "screen": "embark",
+  "shape": "desktop-landscape",
+  "profile": "grown",
+  "projection": {
+    "version": 1,
+    "screen": "embark",
+    "shape": "desktop-landscape",
+    "profile": "grown",
+    "stage": {
+      "w": 1458,
+      "h": 820,
+      "shape": "desktop-landscape"
+    },
+    "dawn": {
+      "whisper": null,
+      "ledger": null,
+      "ceremony": null,
+      "content": null
+    },
+    "embark": {
+      "vowDial": {
+        "left": 622.0000116348267,
+        "top": 523.9127851486206,
+        "width": 213.9999767303467,
+        "height": 59.375023269653326,
+        "right": 835.9999883651734,
+        "bottom": 583.2878084182739,
+        "cx": 729,
+        "cy": 553.6002967834473,
+        "aspectRatio": 3.6042087218805765
+      },
+      "aspectCards": [
+        {
+          "left": 489.0000040054322,
+          "top": 252.6783939361572,
+          "width": 232.00000076293946,
+          "height": 251.2343683719635,
+          "right": 721.0000047683716,
+          "bottom": 503.9127623081207,
+          "cx": 605.0000043869019,
+          "cy": 378.295578122139
+        },
+        {
+          "left": 736.9999952316284,
+          "top": 252.6783939361572,
+          "width": 232.00000076293946,
+          "height": 251.2343683719635,
+          "right": 968.9999959945678,
+          "bottom": 503.9127623081207,
+          "cx": 852.9999956130981,
+          "cy": 378.295578122139
+        }
+      ]
+    },
+    "scene": {
+      "sceneBgCount": 0,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": null
+    },
+    "title": {
+      "parallaxCount": 0,
+      "parallaxTop": null,
+      "wordmark": null,
+      "wordmarkClipped": null
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": null,
+      "selectionVisible": false
+    },
+    "fall": {
+      "panel": null
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": true,
+      "rarityAccentDistinct": true
+    }
+  }
+}

@@ -1,7 +1,11 @@
 // Engine self-check: unit math + asset manifest + monte-carlo random-agent full runs.
 import assert from 'node:assert';
-import { readFileSync, readdirSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync, cpSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { inflateSync } from 'node:zlib';
 import { createServer as createViteServer } from 'vite';
 import {
@@ -9,7 +13,7 @@ import {
   rollEncounter, rollEvent, applyEventOps, applyNodeEventChoice, finalizeNodeEventChoice, claimTreasure, claimBossRelic, nodeRewardClaimed, nodeEventInFlight, saveRun, loadRun, genCombatRewards, genShop, buyQuestItem, gainRelic, randomRelic,
   rollBossRelics, addCardToDeck, removableCards, removeCardFromDeck, upgradeCardInDeck, gainPotion, usePotion,
   MAP_ROWS, runRng, healPlayer, previewPlay, visitNode, claimMonument, grantBequest, markShadeFall, resolveCombatant, cardPool, relicPool,
-  gainEmbers, kindleFromHand, canUseArt, useArt, rollOmen, restHealFrac, effCost,
+  gainEmbers, kindleFromHand, canKindle, canPlay, canUseArt, useArt, rollOmen, restHealFrac, effCost,
   previewBlock, previewEnemyDmg, rollCardReward, vowMods, runRevealed,
   revealQuest, advanceQuest, setPendingEncounter, clearPendingEncounter,
   setPendingReward, takePendingReward, clearPendingReward, pendingRewardHasUntaken, hasPendingBossRelic, recordRunEnd, commitRunStats,
@@ -18,15 +22,19 @@ import {
   shopSessionKey, shopStockForSession,
   finaliseTerminalOutbox, journalTerminalOutcome, savedRunRequiresFinalisation,
   SHADE_DUEL_TX, shadeVictorySkipsRewards, shadeLossBequestState,
+  contentIdFor, isEphemeralRun, themeCount, isFinalTheme, _normaliseRunSnapshotForTest,
 } from '../src/engine.js';
 import * as EngineApi from '../src/engine.js';
-import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS, ACTS, PLAYER } from '../src/data.js';
+import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS, ACTS, ENCOUNTERS, REWARD_GOLD, PLAYER } from '../src/data.js';
 import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, commitPendingRunEnd, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFrame, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
 import { uicResolve, _setUIC, uicRaw, relicBarLayout } from '../src/uic.js';
 import { serializeUIC, validateUIC } from '../src/dev/bfui-serialize.js';
-import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, drawBatchSchedule, PILE_IDS, PILE_FAN_DEG, PILE_FAN_MAX_DEG, PILE_FAN_MAX_LAYERS } from '../src/pile-chrome.js';
+import { pileTier, pileFanLayers, pileFanAngleDeg, flightSchedule, drawBatchSchedule, PILE_IDS, PILE_FAN_DEG, PILE_FAN_MAX_DEG, PILE_FAN_MAX_LAYERS, CEREMONY_BUDGET_MS } from '../src/pile-chrome.js';
+import {
+  PRESENTATION_OWNERS, buildOwnerIndex, ownerFor, overlappingQuestEventTypes,
+} from '../src/ui/presentation-owners.js';
 import {
   UI_CHROME_IDS, uiFallbackName, energySlotStates, intentUiIds, nodeGlyphId,
 } from '../src/ui-chrome.js';
@@ -37,9 +45,279 @@ import { createChoiceLatch } from '../src/choice-latch.js';
 import { formatVersionDisplay } from '../src/version.js';
 import { MUSIC_CATALOG } from '../src/audio-catalog.js';
 import {
-  resolveCombatCue, resolveScreenCue, dawnEventCue, SCREEN_CUES,
+  resolveCombatCue, resolveScreenCue, dawnEventCue, SCREEN_CUES, QUEST_COMBAT_CUES,
 } from '../src/music-resolve.js';
 import { t, getLocale, setLocale, getContent } from '../src/i18n/index.js';
+import {
+  createBehaviourTrace, FORBIDDEN_TRACE_KEYS, TRACE_END_OUTCOMES,
+  TRACE_POINT_OUTCOMES, TRACE_VERSION,
+} from '../src/ui/behaviour-trace.js';
+import { createPresentationBarrier } from '../src/ui/presentation-barrier.js';
+import * as RunEffectsModule from '../src/ui/run-effects.js';
+const FormatModule = await import('../src/ui/format.js');
+const CommandsModule = await import('../src/ui/commands.js');
+import {
+  allocateStrictE2EPort, runWithStrictE2EPort,
+} from '../tools/run-with-strict-e2e-port.mjs';
+import {
+  STANDING_GATE_PROFILES, runStandingGates,
+} from '../tools/run-round5-standing-gates.mjs';
+import {
+  CONTENT_EXPORT_NAMES, PROTOCOL_EXPORT_NAMES, canonicalise, canonicalJson,
+  assertCaptureWorktreeIdentity, captureContentOracle, captureLiveContentOracle,
+  descriptorInventory, inspectExactSourceRoot, inspectSourceRoot,
+} from '../tools/capture-content-oracle.mjs';
+import {
+  CONTENT_SCHEMAS, MERGE_POLICIES, PROGRESSION_MERGE_POLICIES,
+  createContentContext, createContentRegistry, definePack, doctorContent,
+  formatContentReport, isFinalTheme as registryIsFinalTheme, joinLocaleContent, themeById, themeForAct,
+} from '../src/registry.js';
+import {
+  compileContentRegistrations, defineContentRegistration,
+  doctorContentRegistrations, withContentRegistration,
+} from '../src/content-registration.js';
+import { STATIC_REFERENCE_CATALOGUES } from '../src/content-resources.js';
+import {
+  discoverContentRegistrations, renderContentRegistrationManifest,
+  compileRegistrationFiles,
+} from '../tools/compile-content-registrations.mjs';
+import { CORE_CONTENT, _CORE_CONTENT_PROVENANCE } from '../src/content.js';
+import { createCoreAuthoring } from '../src/packs/core/index.js';
+import * as englishContent from '../src/i18n/en/content.js';
+import { resolveAtmosphere } from '../src/theme-atmosphere.js';
+import { createDevRegistry } from '../src/packs/dev.js';
+import {
+  SAMPLE_PACK, SAMPLE_LOCALE_EN, sampleCard, sampleEnemy, sampleTheme,
+} from '../src/packs/_sample/index.js';
+import {
+  CORE_CONTENT as UI_CORE_CONTENT,
+  bindRunContent, contentViewFor, themeForRun,
+} from '../src/ui/content.js';
+import {
+  encodeLabScenario, decodeLabScenario, validateLabScenario,
+  encodeReplayDescriptor, decodeReplayDescriptor, normalizeReplayDescriptor,
+} from '../src/dev/lab-scenario.js';
+import {
+  FORBIDDEN_PRODUCTION_MARKERS, scanProductionSurface,
+} from '../tools/verify-production-surface.mjs';
+import { CHAR_META } from '../src/char-meta.js';
+import {
+  CHARACTER_KIND_IDS, STRUCTURAL_FALLBACK_IDS, VFX_IDS,
+} from '../src/presentation-catalog.js';
+import { SFX_CATALOG } from '../src/audio-catalog.js';
+import { UI_TOKEN_IDS } from '../src/ui/tokens.js';
+import {
+  QUEST_STATES, QUEST_ACTIVE_STATES, TERMINAL_OUTCOMES, RUN_ID_RE,
+} from '../src/content-protocol.js';
+
+function makeTunedContent(overrides = {}, id = 'tuned', mutateAuthoring = null) {
+  const authoring = createCoreAuthoring(overrides);
+  if (typeof mutateAuthoring === 'function') mutateAuthoring(authoring);
+  const pack = definePack({ id, ...authoring });
+  return createContentContext([pack], {
+    id,
+    resources: STATIC_REFERENCE_CATALOGUES,
+    localeContent: englishContent,
+    localeToken: 'en',
+  });
+}
+
+{
+  const oracle = JSON.parse(readFileSync(new URL('./fixtures/round5-content-oracle-v1.json', import.meta.url), 'utf8'));
+  assert.equal(oracle.version, 1);
+  assert.equal(oracle.contentExports.length, 28);
+  assert.deepEqual(oracle.contentExports.map((row) => row.name), CONTENT_EXPORT_NAMES);
+  assert.equal(PROTOCOL_EXPORT_NAMES.length, 4);
+  assert.deepEqual(Object.keys(oracle.protocolExports), [
+    'QUEST_STATES', 'QUEST_ACTIVE_STATES', 'TERMINAL_OUTCOMES', 'RUN_ID_RE',
+  ]);
+  assert.deepEqual(oracle.protocolExports.QUEST_STATES, ['dormant', 'armed', 'revealed', 'complete']);
+  assert.deepEqual(oracle.protocolExports.QUEST_ACTIVE_STATES, ['armed', 'revealed']);
+  assert.deepEqual(oracle.protocolExports.TERMINAL_OUTCOMES, ['win', 'death', 'abandon']);
+  const runIdPattern = new RegExp(
+    oracle.protocolExports.RUN_ID_RE.source, oracle.protocolExports.RUN_ID_RE.flags,
+  );
+  for (const id of ['run-alpha-1', 'legacy-abc-def', 'run-a-b-c-d']) assert.match(id, runIdPattern);
+  for (const id of ['run-a', '__proto__', 'run-a-b-c-d-e', 'RUN-a-b']) assert.doesNotMatch(id, runIdPattern);
+  assert.equal(oracle.enemyAi.length, Object.values(ENEMIES).filter((e) => e.ai).length);
+  assert.equal(oracle.shadeAi.length, Object.values(SHADE_KITS).filter((e) => e.ai).length);
+  assert.equal(oracle.enemyAi.length + oracle.shadeAi.length, 29);
+  assert.ok([...oracle.enemyAi, ...oracle.shadeAi].every((row) => row.arity === 1));
+  assert.deepEqual(oracle.i18n.apis, [
+    'getContent', 'getLocale', 'hydrateContent', 'lookup',
+    'registerLocale', 'setLocale', 't',
+  ]);
+  assert.equal(oracle.i18n.defaultLocale, 'en');
+  assert.equal(Object.keys(oracle.i18n.domains).length, 18);
+  assert.equal(oracle.i18n.uiLeafCount, 278);
+  assert.match(oracle.i18n.catalogueSha256, /^[a-f0-9]{64}$/);
+  assert.ok(oracle.i18n.hydratedAliases.some((paths) =>
+    paths.includes('ASPECTS.0') && paths.includes('PLAYER')));
+  assert.match(oracle.rawMechanics.sha256, /^[a-f0-9]{64}$/);
+  assert.match(oracle.rawMechanics.descriptorSha256, /^[a-f0-9]{64}$/);
+  assert.equal(oracle.rawMechanics.value.CARDS.strike.name, undefined);
+  assert.equal(oracle.rawMechanics.value.CARDS.strike.type, CARDS.strike.type);
+  assert.ok(oracle.rawMechanics.mechanicsPaths.includes('CARDS.strike.type'));
+  assert.ok(oracle.rawMechanics.localeOwnedPaths.includes('CARDS.strike.name'));
+  assert.ok(oracle.rawMechanics.localeOwnedPaths.includes('ACTS.0.bossName'));
+  assert.ok(oracle.rawMechanics.localeOwnedPaths.includes('ASPECTS.0.blurb'));
+  assert.ok(oracle.rawMechanics.mechanicsPaths.every((path) => !/^(?:src|test)\//.test(path)));
+  assert.ok(oracle.rawMechanics.localeOwnedPaths.every((path) => !/^(?:src|test)\//.test(path)));
+  assert.deepEqual(oracle.descriptors.accessors, [{
+    path: 'QUESTS.hollowLamplighter.target', value: QUESTS.hollowLamplighter.target,
+  }]);
+  assert.match(oracle.monteCarlo.sha256, /^[a-f0-9]{64}$/);
+  assert.deepEqual(oracle.monteCarlo.seeds, [2026071000, 2026071299]);
+  assert.equal(oracle.monteCarlo.count, 300);
+  assert.equal(oracle.monteCarlo.records.length, 300);
+  assert.ok(oracle.monteCarlo.records.every((row) =>
+    canonicalJson(Object.keys(row).sort()) === canonicalJson([
+      'act', 'deckIds', 'engineRngState', 'floor', 'hp', 'outcome', 'relicIds',
+    ])));
+  assert.deepEqual(oracle.sovereignSequence.map((row) => row.returned), [
+    'ascend', 'starfall', 'ruin', 'annihilation',
+  ]);
+  assert.equal(oracle.sovereignSequence[0].self.moveKey, null,
+    'Sovereign post-call snapshot precedes harness progression');
+  assert.ok(oracle.sovereignSequence.every((row) =>
+    row.progression.moveKey === row.returned
+    && row.progression.lastMoves.at(-1) === row.returned),
+  'Sovereign harness progression is recorded separately');
+  assert.equal(oracle.provenance.sourceSha,
+    '9c4f7e5624b1c7eae8eb6fd3e7c27ff5ec0df5f8');
+  assert.match(oracle.provenance.sourceTree, /^[a-f0-9]{40}$/);
+  assert.match(oracle.provenance.captureParentHead, /^[a-f0-9]{40}$/);
+  assert.match(oracle.provenance.captureParentTree, /^[a-f0-9]{40}$/);
+  assert.match(oracle.provenance.captureInputs.toolSha256, /^[a-f0-9]{64}$/);
+  assert.match(oracle.provenance.captureInputs.testSha256, /^[a-f0-9]{64}$/);
+  assert.notEqual(oracle.provenance.captureParentHead, oracle.provenance.sourceSha);
+  assert.deepEqual(oracle.provenance.sourceModules, {
+    data: 'src/data.js', engine: 'src/engine.js', i18n: 'src/i18n/index.js',
+  });
+  assert.deepEqual(oracle.provenance.pr17, {
+    base: 'b285b815509d5c700b2b76847302c01bc595db47',
+    head: '5cd1c555219a18e25b8ffa11646e7899d6764fd2',
+    merge: '40eb3576870f2a94b50e1a616ec40d4c37075018',
+  });
+  assert.deepEqual(oracle.provenance.pr17Paths, [
+    'src/battlefield-layout.js', 'src/styles.css', 'src/ui.js',
+    'test/e2e/geometry.spec.js',
+    'test/e2e/visual.spec.js-snapshots/combat-act1-landscape-linux.png',
+    'test/e2e/visual.spec.js-snapshots/combat-act2-landscape-linux.png',
+    'test/e2e/visual.spec.js-snapshots/combat-act2-portrait-linux.png',
+  ]);
+  assert.deepEqual(oracle.provenance.pr21, {
+    base: '40eb3576870f2a94b50e1a616ec40d4c37075018',
+    head: 'c42279609f2379cd6be6ba695205a131f029de28',
+    merge: '45677c1a676d19b1590192a4dbaf8425801dc97e',
+  });
+  assert.deepEqual(oracle.provenance.pr22, {
+    base: '45677c1a676d19b1590192a4dbaf8425801dc97e',
+    head: 'fe330a077ba847900f08be0121b65081b84e21ae',
+    merge: '9c4f7e5624b1c7eae8eb6fd3e7c27ff5ec0df5f8',
+  });
+  for (const row of [...oracle.enemyAi, ...oracle.shadeAi]) {
+    assert.match(row.functionSha256, /^[a-f0-9]{64}$/);
+    const lastHistory = new Set(row.cases.map((entry) => entry.last).filter(Boolean));
+    const prevHistory = new Set(row.cases.map((entry) => entry.prev).filter(Boolean));
+    assert.deepEqual([...lastHistory].sort(), [...row.moveKeys].sort(), `${row.id}: complete last keys`);
+    assert.deepEqual([...prevHistory].sort(), [...row.moveKeys].sort(), `${row.id}: complete prev keys`);
+    assert.ok(row.cases.every((entry) => row.moveKeys.includes(entry.returned)), `${row.id}: legal returns`);
+    assert.ok(row.cases.every((entry) => entry.self.moveKey === null),
+      `${row.id}: snapshots precede harness intent progression`);
+    assert.equal(row.cases.length, 5 * (row.moveKeys.length + 1) ** 2 * 3 * 2,
+      `${row.id}: full Cartesian schedule`);
+  }
+  const rngCase = oracle.enemyAi.flatMap((row) => row.cases)
+    .find((entry) => entry.rng.calls > 0);
+  assert.ok(rngCase, 'AI oracle includes a production-RNG consumer');
+  const expectedRng = EngineApi.makeRng(rngCase.seed);
+  for (let call = 0; call < rngCase.rng.calls; call++) expectedRng();
+  assert.equal(rngCase.rng.state, expectedRng.getState(), 'AI oracle records production Mulberry32 state');
+}
+
+// Task 12A Step 1: live monolith still matches the frozen oracle legs.
+{
+  const expected = JSON.parse(readFileSync(new URL('./fixtures/round5-content-oracle-v1.json', import.meta.url), 'utf8'));
+  const actual = await captureLiveContentOracle();
+  assert.deepEqual(actual.contentExports, expected.contentExports);
+  assert.deepEqual(actual.protocolExports, expected.protocolExports);
+  assert.deepEqual(actual.enemyAi, expected.enemyAi);
+  assert.deepEqual(actual.shadeAi, expected.shadeAi);
+  assert.deepEqual(actual.rawMechanics, expected.rawMechanics);
+  assert.deepEqual(actual.i18n, expected.i18n);
+  assert.equal(actual.monteCarlo.sha256, expected.monteCarlo.sha256);
+}
+
+// Oracle helpers are import-safe, deterministic and source-root selected.
+{
+  assert.equal(canonicalJson({ z: 1, fn() {}, a: [2, 1] }), '{"a":[2,1],"z":1}');
+  for (const value of [NaN, Infinity, Symbol('x'), 1n]) {
+    assert.throws(() => canonicalise(value), /non-finite|unsupported/);
+  }
+  const cycle = {};
+  cycle.self = cycle;
+  assert.throws(() => canonicalise(cycle), /cyclic/);
+  let unexpectedGetterCalls = 0;
+  const unexpected = {};
+  Object.defineProperty(unexpected, 'trap', {
+    enumerable: true,
+    get() { unexpectedGetterCalls++; return 1; },
+  });
+  assert.deepEqual(descriptorInventory({ ROOT: unexpected }).accessors, [{ path: 'ROOT.trap' }]);
+  assert.equal(unexpectedGetterCalls, 0, 'descriptor inventory never executes an unapproved getter');
+
+  const roots = [];
+  const makeRoot = (marker, dataSource = null) => {
+    const root = mkdtempSync(join(tmpdir(), `spirebound-oracle-${marker}-`));
+    roots.push(root);
+    mkdirSync(join(root, 'src/i18n/en'), { recursive: true });
+    writeFileSync(join(root, 'src/data.js'), dataSource
+      || `export const PLAYER = { id: ${JSON.stringify(marker)} };\n`);
+    writeFileSync(join(root, 'src/engine.js'), `export const marker = ${JSON.stringify(marker)};\n`);
+    writeFileSync(join(root, 'src/i18n/index.js'), [
+      `const content = { marker: ${JSON.stringify(marker)} };`,
+      `export const getLocale = () => ${JSON.stringify(`locale-${marker}`)};`,
+      'export const getContent = () => content;',
+    ].join('\n'));
+    writeFileSync(join(root, 'src/i18n/en/content.js'), `export const marker = ${JSON.stringify(marker)};\n`);
+    writeFileSync(join(root, 'src/i18n/en/ui.js'), `export const ui = { marker: ${JSON.stringify(marker)} };\n`);
+    return root;
+  };
+  try {
+    const falseCaptureRoot = mkdtempSync(join(tmpdir(), 'spirebound-oracle-false-capture-'));
+    roots.push(falseCaptureRoot);
+    mkdirSync(join(falseCaptureRoot, 'tools'), { recursive: true });
+    writeFileSync(join(falseCaptureRoot, 'tools/capture-content-oracle.mjs'), '// not the executing tool\n');
+    assert.throws(() => assertCaptureWorktreeIdentity(falseCaptureRoot),
+      /captureWorktree does not contain the executing oracle tool/);
+    const aliasParent = mkdtempSync(join(tmpdir(), 'spirebound-oracle-alias-parent-'));
+    roots.push(aliasParent);
+    const actualCaptureRoot = fileURLToPath(new URL('..', import.meta.url));
+    const captureAlias = join(aliasParent, 'capture-alias');
+    symlinkSync(actualCaptureRoot, captureAlias, 'dir');
+    await assert.rejects(captureContentOracle({
+      sourceWorktree: actualCaptureRoot,
+      captureWorktree: captureAlias,
+    }), /source and capture worktrees must be distinct/);
+    const first = await inspectSourceRoot(makeRoot('first'));
+    const second = await inspectSourceRoot(makeRoot('second'));
+    assert.equal(first.data.PLAYER.id, 'first');
+    assert.equal(first.i18n.defaultLocale, 'locale-first');
+    assert.equal(first.i18n.ui.marker, 'first');
+    assert.equal(second.data.PLAYER.id, 'second');
+    assert.equal(second.i18n.defaultLocale, 'locale-second');
+    assert.equal(second.i18n.ui.marker, 'second');
+    assert.notEqual(first.dataSha256, second.dataSha256);
+    assert.notEqual(first.i18nSha256, second.i18nSha256);
+    const completeExports = [...CONTENT_EXPORT_NAMES, ...PROTOCOL_EXPORT_NAMES]
+      .map((name) => `export const ${name} = {};`).join('\n');
+    const extraRoot = makeRoot('extra', `${completeExports}\nexport const EXTRA = {};\n`);
+    await assert.rejects(inspectExactSourceRoot(extraRoot), /undeclared: EXTRA/);
+  } finally {
+    for (const root of roots) rmSync(root, { recursive: true, force: true });
+  }
+}
 
 function freshCombat(enemyIds = ['sporeling']) {
   const run = newRun(12345);
@@ -48,6 +326,1244 @@ function freshCombat(enemyIds = ['sporeling']) {
 }
 function forceHand(run, cb, ids) {
   cb.hand = ids.map((id) => makeCard(run, id));
+}
+
+// ---- Round 5 P1 shared UI module boundaries -------------------------------
+{
+  assert.deepEqual(Object.keys(FormatModule), ['ROMAN'], 'format exposes only ROMAN');
+  assert.deepEqual(Object.keys(CommandsModule), ['bindUICommands', 'uiCommands'],
+    'commands exposes only the binder and frozen facade');
+  assert.deepEqual(FormatModule.ROMAN, ['0', 'I', 'II', 'III', 'IV', 'V']);
+  assert.equal(Object.isFrozen(FormatModule.ROMAN), true, 'ROMAN is immutable');
+  assert.equal(Object.isFrozen(CommandsModule.uiCommands), true, 'command facade is immutable');
+
+  const exportNames = (source) => {
+    const names = new Set();
+    for (const match of source.matchAll(/\bexport\s+(?:async\s+)?(?:const|let|function|class)\s+([\w$]+)/g)) names.add(match[1]);
+    for (const match of source.matchAll(/\bexport\s*\{([^}]+)\}/g)) {
+      for (const entry of match[1].split(',')) {
+        const name = entry.trim().split(/\s+as\s+/).at(-1);
+        if (name) names.add(name);
+      }
+    }
+    return [...names].sort();
+  };
+  const sourceOf = (name) => readFileSync(new URL(`../src/ui/${name}.js`, import.meta.url), 'utf8');
+  assert.deepEqual(exportNames(sourceOf('context')), [
+    '$', '$$', 'COARSE', 'FINE', 'FORCE_INPUT', 'S', 'el', 'escHtml',
+    'presentationBarrier', 'releaseCardFacesIn', 'screenEl', 'sleep', 'terminalNavigationLocked', 'trace',
+  ].sort(), 'context exact browser-owned export surface');
+  assert.deepEqual(exportNames(sourceOf('policy')), ['REDUCED'],
+    'policy exact browser-owned export surface');
+  assert.deepEqual(exportNames(sourceOf('rose')), [
+    'TITLE_ROSE_PHASES', 'decodeRoseImage', 'getRoseState', 'roseAssets', 'setDisclosedRoseStateIds',
+    'setForceRoseFallback', 'setRoseAssetsReady', 'setRoseDecodeFailed', 'titleRosePhase',
+  ].sort(), 'rose exact browser-owned export surface');
+  assert.deepEqual(exportNames(sourceOf('assets')), [
+    'aimRing', 'combatantView', 'heroArt', 'hudRelic', 'metaBg', 'omenIconName',
+    'omenMark', 'rasterOr', 'relicArt', 'sceneBg', 'warmAssets',
+  ], 'assets exports only consumers used outside its owner');
+  assert.deepEqual(exportNames(sourceOf('tooltip')), ['createTooltip']);
+  assert.deepEqual(exportNames(sourceOf('overlay')), ['createOverlay']);
+  assert.deepEqual(exportNames(sourceOf('navigation')), ['createNavigator']);
+  const screenFactories = {
+    title: ['createTitleScreen', ['renderTitle']],
+    embark: ['createEmbarkScreen', ['renderEmbark']],
+    vigil: ['createVigilScreen', ['renderVigil']],
+    run: ['createRunScreen', ['resumePendingHollowRoute', 'startRun']],
+    lamplighter: ['createLamplighterScreen', ['renderLamplighter', 'renderHollow']],
+    map: ['createMapScreen', ['renderMap', 'routeVisitedNode', 'claimMonumentNode']],
+    reward: ['createRewardScreen', ['renderReward', 'renderBossRelic', 'omenBanner']],
+    rest: ['createRestScreen', ['renderRest', 'renderTreasure']],
+    shop: ['createShopScreen', ['renderShop']],
+    event: ['createEventScreen', ['renderEvent']],
+    end: ['createEndScreen', ['journalRunEnd', 'finalisePendingRunEnd', 'renderEnd']],
+    gallery: ['createGalleryScreen', ['renderGallery']],
+    'audio-gallery': ['createAudioGalleryScreen', ['renderAudioGallery']],
+  };
+  for (const [name, [factory, surface]] of Object.entries(screenFactories)) {
+    const source = sourceOf(`screens/${name}`);
+    assert.deepEqual(exportNames(source), [factory], `${name} screen exposes only its factory`);
+    const returned = source.match(/return\s+Object\.freeze\(\{\s*([^}]+?)\s*\}\);/)?.[1]
+      .split(',').map((entry) => entry.trim()).filter(Boolean);
+    assert.deepEqual(returned, surface, `${name} screen returns its exact frozen surface`);
+  }
+
+  const uiSource = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
+  assert.equal(uiSource.trim(), "export { initUI, show } from './ui/index.js';",
+    'src/ui.js stays a thin re-export');
+  assert.ok(uiSource.split('\n').length <= 5, 'src/ui.js stays within five lines');
+  const overlaySource = sourceOf('overlay');
+  const navigationSource = sourceOf('navigation');
+  assert.doesNotMatch(uiSource, /\b(?:function|const|let)\s+(?:openPersistenceDialog|persistenceDialogTransaction|wipe|transitionSeq)\b/,
+    'shared overlay and navigation owners have no duplicate monolith bindings');
+  assert.match(overlaySource, /import\s*\{\s*createChoiceLatch\s*\}/,
+    'overlay retains the one-shot choice guard owner');
+  assert.match(navigationSource, /function\s+wipe\s*\(/);
+  assert.match(navigationSource, /let\s+transitionSeq\s*=\s*0/);
+  assert.match(navigationSource, /const\s+routeMap\s*=\s*new Map\(routes\)/,
+    'navigator owns a private route Map copy');
+  assert.match(navigationSource, /const\s+routeKeys\s*=\s*Object\.freeze\(\[\.\.\.routeMap\.keys\(\)\]\)/,
+    'navigator freezes the ordered route-key snapshot');
+  const combatSource = sourceOf('combat');
+  const markerStart = combatSource.indexOf('/** Resting hand-fan top');
+  const markerEndText = 'let chromeClampRaf = 0;';
+  const markerEnd = combatSource.indexOf(markerEndText, markerStart) + markerEndText.length + 1;
+  assert.ok(markerStart >= 0 && markerEnd > markerStart, 'PR17 geometry marker boundary remains in combat.js');
+  assert.equal(
+    createHash('sha256').update(combatSource.slice(markerStart, markerEnd)).digest('hex'),
+    'e534720a00981eebe19e7e601b3c4e17d9b05f0d685e996f92360df2ac08766a',
+    'PR17 hand/chrome geometry block remains byte-identical',
+  );
+}
+
+// Freeze the predecessor locale-key multiset and lazy keyword decoration.
+{
+  const expectedTrKeys = [
+    'ui.brand.tagline', 'ui.brand.title', 'ui.brand.title', 'ui.combat.affixTitle', 'ui.combat.ashes', 'ui.combat.ashesPileAria',
+    'ui.combat.ashesSub', 'ui.combat.ashesTitle', 'ui.combat.buff', 'ui.combat.debuff', 'ui.combat.discard', 'ui.combat.discardPileAria',
+    'ui.combat.discardPileTitle', 'ui.combat.draw', 'ui.combat.drawPileAria', 'ui.combat.drawPileSub', 'ui.combat.drawPileTitle', 'ui.combat.end',
+    'ui.combat.end', 'ui.combat.enemyTurn', 'ui.combat.energyAria', 'ui.combat.facetsBody', 'ui.combat.facetsTitle', 'ui.combat.glassHolds',
+    'ui.combat.guardShattered', 'ui.combat.guardShattered', 'ui.combat.lanternBody', 'ui.combat.lanternBodyLead', 'ui.combat.lanternSub', 'ui.combat.lanternTitle',
+    'ui.combat.lanternTitleArt', 'ui.combat.monumentGift', 'ui.combat.perfectBanner', 'ui.combat.reshuffle', 'ui.combat.shatter', 'ui.combat.staggered',
+    'ui.combat.staggered', 'ui.combat.staggered', 'ui.combat.staggeredTipBody', 'ui.combat.staggeredTipTitle', 'ui.combat.stoneRemembers', 'ui.combat.yourTurn',
+    'ui.common.cancel', 'ui.common.cancel', 'ui.common.continue', 'ui.common.continue', 'ui.common.continue', 'ui.common.continue',
+    'ui.common.retry', 'ui.common.retry', 'ui.common.skip', 'ui.dawn.act4RevealCopy', 'ui.dawn.eighthResolvedKicker', 'ui.dawn.pageKicker',
+    'ui.dawn.questCompleteKicker', 'ui.dawn.questProgressKicker', 'ui.dawn.questRevealKicker', 'ui.dawn.questUnlockKicker', 'ui.dawn.reloadSaved', 'ui.dawn.saveFailedClear',
+    'ui.dawn.saveFailedCursor', 'ui.dawn.saveFailedTitle', 'ui.dawn.shadeResolvedKicker', 'ui.dawn.shardGrantCopy', 'ui.dawn.whisperKicker', 'ui.dawn.witchlightCopy',
+    'ui.dawn.witchlightLens', 'ui.embark.aspectLabel', 'ui.embark.noVows', 'ui.embark.subChoose', 'ui.embark.subWait', 'ui.embark.title',
+    'ui.embark.warnSaved', 'ui.end.ascended', 'ui.end.ascendedSub', 'ui.end.bequestDone', 'ui.end.bequestNote.card', 'ui.end.bequestNote.gold',
+    'ui.end.bequestNote.goldCache', 'ui.end.bequestNote.relic', 'ui.end.bequestTitle', 'ui.end.bequestUnpaid', 'ui.end.cardsPlayed', 'ui.end.deckSize',
+    'ui.end.dmgDealt', 'ui.end.dmgTaken', 'ui.end.elitesBosses', 'ui.end.fallen', 'ui.end.fallenSub', 'ui.end.finalDeckTitle',
+    'ui.end.floors', 'ui.end.returnVigil', 'ui.end.runTime', 'ui.end.slain', 'ui.end.unlock.ashwarden', 'ui.end.unlock.aspect',
+    'ui.end.unlock.card', 'ui.end.unlock.header', 'ui.end.unlock.relic', 'ui.end.viewDeck', 'ui.event.chooseCardSub', 'ui.event.chooseCardTitle',
+    'ui.event.duplicateSub', 'ui.event.duplicateTitle', 'ui.event.removeSub', 'ui.event.removeTitle', 'ui.event.upgradeSub', 'ui.event.upgradeTitle',
+    'ui.help.climbBody', 'ui.help.climbTitle', 'ui.help.combatBody', 'ui.help.combatTitle', 'ui.help.firesBody', 'ui.help.firesTitle',
+    'ui.help.glassBody', 'ui.help.glassTitle', 'ui.help.lanternBody', 'ui.help.lanternTitle', 'ui.help.title', 'ui.help.vigilBody',
+    'ui.help.vigilTitle', 'ui.help.wardBody', 'ui.help.wardTitle', 'ui.hollow.kicker', 'ui.hollow.payPrice', 'ui.hollow.pricePaid',
+    'ui.hollow.pricePaid', 'ui.hollow.returnLater', 'ui.hollow.routeFailed', 'ui.hollow.routeSaveFailed', 'ui.hollow.saveFailed', 'ui.hollow.title',
+    'ui.hud.deckAria', 'ui.hud.deckCount', 'ui.hud.deckCount', 'ui.hud.deckTitle', 'ui.hud.deckTitle', 'ui.hud.menuAria',
+    'ui.hud.omenSub', 'ui.hud.omenTitle', 'ui.hud.potionTip', 'ui.hud.tossPotion', 'ui.hud.usePotion', 'ui.keywords.chip',
+    'ui.keywords.cinder', 'ui.keywords.ember', 'ui.keywords.ember', 'ui.keywords.energy', 'ui.keywords.facetDesc', 'ui.keywords.hex',
+    'ui.keywords.kindle', 'ui.keywords.shard', 'ui.keywords.staggered', 'ui.keywords.unplayable', 'ui.keywords.ward', 'ui.lamp.artHint',
+    'ui.lamp.artLabel', 'ui.lamp.boonLabel', 'ui.lamp.sub', 'ui.lamp.title', 'ui.map.click', 'ui.map.drag',
+    'ui.map.hint.boss', 'ui.map.hint.elite', 'ui.map.hint.event', 'ui.map.hint.monster', 'ui.map.hint.rest', 'ui.map.hint.shop',
+    'ui.map.hint.treasure', 'ui.map.node.elite', 'ui.map.node.event', 'ui.map.node.monster', 'ui.map.node.rest', 'ui.map.node.shop',
+    'ui.map.node.treasure', 'ui.map.scroll', 'ui.map.sealedDoor.aria', 'ui.map.sealedDoor.inscription', 'ui.map.sealedDoor.label', 'ui.map.sealedDoor.return',
+    'ui.map.sealedDoor.sub', 'ui.map.sealedDoor.title', 'ui.map.survey', 'ui.map.tap', 'ui.map.travelHere', 'ui.map.unlitBody',
+    'ui.map.unlitTitle', 'ui.map.witchlightBody', 'ui.map.witchlightTitle', 'ui.menu.abandon', 'ui.menu.abandonConfirmBody', 'ui.menu.abandonConfirmTitle',
+    'ui.menu.abandonRun', 'ui.menu.back', 'ui.menu.beginAnew', 'ui.menu.beginAnew', 'ui.menu.beginAnewBody', 'ui.menu.beginAnewTitle',
+    'ui.menu.beginClimb', 'ui.menu.beginClimb', 'ui.menu.chooseBoon', 'ui.menu.close', 'ui.menu.close', 'ui.menu.continueClimb',
+    'ui.menu.fightOn', 'ui.menu.howToPlay', 'ui.menu.howToPlay', 'ui.menu.keepClimbing', 'ui.menu.keepClimbing', 'ui.menu.lightTheWay',
+    'ui.menu.mute', 'ui.menu.mute', 'ui.menu.return', 'ui.menu.settings', 'ui.menu.settings', 'ui.menu.theVigil',
+    'ui.menu.theVigil', 'ui.menu.unmute', 'ui.menu.unmute', 'ui.persistence.hollowRouteBody', 'ui.persistence.reloadClimb', 'ui.persistence.reloadClimb',
+    'ui.persistence.reloadDestination', 'ui.persistence.reloadDuel', 'ui.persistence.reloadFinalisation', 'ui.persistence.retryFinalisation', 'ui.persistence.retrySave', 'ui.persistence.retrySave',
+    'ui.persistence.retrySave', 'ui.persistence.retrySave', 'ui.persistence.runSaveBody', 'ui.persistence.runSaveRetryFail', 'ui.persistence.saveFailedTitle', 'ui.persistence.saveFailedTitle',
+    'ui.persistence.stoneBody', 'ui.persistence.stoneTitle', 'ui.persistence.vigilBody', 'ui.persistence.vigilTitle', 'ui.rest.healedFloat', 'ui.rest.restBtn',
+    'ui.rest.restHeal', 'ui.rest.smithBtn', 'ui.rest.smithSub', 'ui.rest.sub', 'ui.rest.title', 'ui.rest.upgradeSub',
+    'ui.rest.upgradeTitle', 'ui.rest.upgradedSub', 'ui.rest.upgradedTitle', 'ui.reward.addCardRow', 'ui.reward.bossRelicSub', 'ui.reward.bossRelicTitle',
+    'ui.reward.bossVanquished', 'ui.reward.cardAdded', 'ui.reward.chooseCardSub', 'ui.reward.chooseCardTitle', 'ui.reward.eliteSlain', 'ui.reward.goldRow',
+    'ui.reward.leaveConfirmBody', 'ui.reward.leaveConfirmNo', 'ui.reward.leaveConfirmTitle', 'ui.reward.leaveConfirmYes', 'ui.reward.perfectSeal', 'ui.reward.potionSlotsFull',
+    'ui.reward.takeNone', 'ui.reward.victory', 'ui.rose.dormantPane', 'ui.rose.finalWhisper', 'ui.rose.openLabel', 'ui.rose.paneDark',
+    'ui.rose.selectedPane', 'ui.rose.shardRecovered', 'ui.rose.shardRecoveredShort', 'ui.rose.shardRecoveredShort', 'ui.rose.unknownPane', 'ui.rose.whisperLogTitle',
+    'ui.settings.debugLabel', 'ui.settings.eraseEverything', 'ui.settings.music', 'ui.settings.resetConfirmBody', 'ui.settings.resetConfirmTitle', 'ui.settings.resetSave',
+    'ui.settings.resetWarn', 'ui.settings.sfx', 'ui.settings.title', 'ui.shop.cardRemoval.desc', 'ui.shop.cardRemoval.pickSub', 'ui.shop.cardRemoval.pickTitle',
+    'ui.shop.cardRemoval.title', 'ui.shop.greeting', 'ui.shop.leave', 'ui.shop.potionSlotsFull', 'ui.shop.title', 'ui.treasure.coinsOnly',
+    'ui.treasure.empty', 'ui.treasure.empty', 'ui.treasure.openBtn', 'ui.treasure.relicClaim', 'ui.treasure.sub', 'ui.treasure.title',
+    'ui.vigil.deeds', 'ui.vigil.roseWindow',
+  ];
+  const readJsRecursively = (directory) => readdirSync(directory, { withFileTypes: true })
+    .flatMap((entry) => entry.isDirectory()
+      ? readJsRecursively(new URL(`${entry.name}/`, directory))
+      : entry.name.endsWith('.js') ? [readFileSync(new URL(entry.name, directory), 'utf8')] : []);
+  const uiSources = [
+    readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8'),
+    ...readJsRecursively(new URL('../src/ui/', import.meta.url)),
+  ].join('\n');
+  const actualTrKeys = [...uiSources.matchAll(/\btr\(\s*(['"])([^'"\n]+)\1/g)].map((match) => match[2]);
+  assert.deepEqual(actualTrKeys.sort(), [...expectedTrKeys].sort(),
+    'P1 extraction preserves the post-PR22 tr(...) locale-key multiset');
+  assert.match(uiSources, /(?:const|function)\s+FACET_DESC\b[\s\S]*?=>\s*tr\(/,
+    'FACET_DESC remains a lazy locale factory');
+  assert.match(uiSources, /(?:const|function)\s+KEYWORDS\b[\s\S]*?=>\s*\(\{/, 'KEYWORDS remains a lazy factory');
+  // Task 26 — default cardEl uses composer export; shop opts into live DOM
+  // faces (domFace) so contact-compare matches golden public-preview art/rim.
+  // Keyword spans still come from fmtText for tip bodies (+ live .kw on domFace).
+  assert.match(uiSources, /function fmtText\b[\s\S]{0,2500}class="kw"/,
+    'fmtText still wraps keyword spans for tip bodies');
+  assert.match(uiSources, /composer\.exportImage|exportImage\(/,
+    'cardEl consumes the single composer exportImage path');
+  assert.match(uiSources, /domFace[\s\S]{0,1200}card-art|if\s*\(\s*domFace\s*\)/,
+    'live DOM card-art bake is gated behind domFace (shop golden parity)');
+  const combatSource = readFileSync(new URL('../src/ui/combat.js', import.meta.url), 'utf8');
+  const drainSource = readFileSync(new URL('../src/ui/drain.js', import.meta.url), 'utf8');
+  assert.match(combatSource, /function syncHand\([\s\S]*?releaseCardFace/,
+    'syncHand clears leftover DOM seats and releases card-face exports');
+  assert.match(combatSource, /hand-layout|pureHandSeatCenter|layoutHandSeats|handSeatCenter as pureHandSeatCenter/,
+    'Task 27 combat hand seats use pure hand-layout');
+  assert.match(combatSource, /function handleCombatKey\(/,
+    'Task 27 keyboard grammar lives on the combat owner');
+  assert.doesNotMatch(combatSource, /const domHandAdapter/,
+    'Task 27 removes the P4 domHandAdapter');
+  assert.doesNotMatch(combatSource, /domHandAdapter\s*:/,
+    'Task 27 drops the null domHandAdapter residual from the router wiring');
+  const pointerSource = readFileSync(new URL('../src/ui/pointer.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(pointerSource, /domHandAdapter/,
+    'Task 27 pointer router no longer accepts a DOM hand adapter');
+  const combatGlSource = readFileSync(new URL('../src/ui/combat-gl.js', import.meta.url), 'utf8');
+  assert.match(combatGlSource, /ensureHandFace|faceCacheKeyFor/,
+    'Task 27 paintHand reuses card faces by cache key');
+  assert.match(combatGlSource, /handReady = painted === model\.cards\.length/,
+    'Task 27 handReady is strict seat membership, not painted >= 0');
+  assert.doesNotMatch(combatGlSource, /handReady = painted >= 0/,
+    'Task 27 removes the always-true handReady assignment');
+  const probeHandSource = readFileSync(new URL('../src/ui/probe.js', import.meta.url), 'utf8');
+  assert.match(probeHandSource, /combatReady \? painted === cb\.hand\.length/,
+    'Task 27 probe requires painted === hand.length when combat ready');
+  assert.match(combatSource, /function flyCardBacks\([\s\S]*?pixiPresentation/,
+    'flyCardBacks routes combat ceremonies to Pixi presentation');
+  assert.match(drainSource, /ceremony:\s*'discardHand'/,
+    'drain discardHand owns Pixi ceremony spans');
+  assert.match(drainSource, /presentation\.floatText/,
+    'drain combat floaters route through presentation.floatText');
+  assert.doesNotMatch(drainSource, /#floaties|getElementById\('floaties'\)/,
+    'drain leaves no combat DOM #floaties owners after Task 28');
+  assert.doesNotMatch(drainSource, /turn-banner|perfect-banner|variant-dialogue/,
+    'drain leaves no DOM combat banner class owners after Task 28 fixes');
+  assert.match(drainSource, /presentation\.artCast/,
+    'drain lantern art cast routes through presentation.artCast');
+  assert.doesNotMatch(drainSource, /classList\.add\(['"]art-cast|el\(\s*['"]img['"].*art-cast|['"]art-cast['"]/,
+    'drain leaves no DOM img.art-cast for lantern art');
+  const presentationSource = readFileSync(
+    new URL('../src/ui/combat-presentation.js', import.meta.url), 'utf8',
+  );
+  assert.match(presentationSource, /async function artCast/,
+    'combat-presentation owns the Pixi artCast ceremony');
+  assert.match(presentationSource, /presentation\.art-cast/,
+    'artCast publishes presentation.art-cast spans');
+  const stylesSource = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  assert.doesNotMatch(stylesSource, /\.art-cast\s*\{/,
+    'dead .art-cast CSS removed after Pixi migration');
+  const navSource = readFileSync(new URL('../src/ui/navigation.js', import.meta.url), 'utf8');
+  const contextSource = readFileSync(new URL('../src/ui/context.js', import.meta.url), 'utf8');
+  assert.match(contextSource, /function releaseCardFacesIn\(/,
+    'shared helper walks data-card-face-key / _cardFaceRelease hosts');
+  assert.match(navSource, /releaseCardFacesIn\(screen\)/,
+    'show() revokes card-face object URLs before #screen replace');
+  const overlaySource = readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8');
+  assert.match(overlaySource, /releaseCardFacesIn\(overlay\)/,
+    'overlay close reuses the shared card-face release helper');
+}
+
+// ---- Round 5 normal Phase 2 transaction seam ------------------------------
+{
+  assert.deepEqual(Object.keys(RunEffectsModule), ['createRunEffects'],
+    'run-effects exposes only its dependency-injected factory');
+  const calls = [];
+  const engine = {
+    saveRun(run) { calls.push(['saveRun', run.runId]); return true; },
+    buyQuestItem(run, itemId) { calls.push(['buyQuestItem', run.runId, itemId]); return { ok: true, reason: null }; },
+    payHollowPrice(run) { calls.push(['payHollowPrice', run.runId]); return { ok: true, deferred: false, message: 'paid' }; },
+    stageHollowExit(run) { calls.push(['stageHollowExit', run.runId]); return { kind: 'destination', nodeId: 'n1', type: 'shop', eventId: null }; },
+    completePendingHollowRoute(run) { calls.push(['completePendingHollowRoute', run.runId]); return true; },
+    beginShadeDuel(run, clear) { calls.push(['beginShadeDuel', run.runId]); return { status: clear() ? 'ready' : 'retry' }; },
+    resumeShadeDuel(run, clear) { calls.push(['resumeShadeDuel', run.runId]); return { status: clear() ? 'ready' : 'retry' }; },
+    journalTerminalOutcome(run, outcome) {
+      calls.push(['journalTerminalOutcome', run.runId, outcome]);
+      run.pendingRunEnd = { outcome };
+      return run.pendingRunEnd;
+    },
+    stagePendingDawn(run, events, newUnlocks) {
+      calls.push(['stagePendingDawn', run.runId, events.map((event) => event.t), [...newUnlocks]]);
+      run.pendingRunEnd = null;
+      run.pendingDawn = { events, cursor: 0, newUnlocks };
+      return true;
+    },
+    recordRunEnd(run, won) { calls.push(['recordRunEnd', run.runId, won]); return true; },
+    finaliseTerminalOutbox(run, persist, blocked, finalised) {
+      calls.push(['finaliseTerminalOutbox', run.runId]);
+      const result = persist();
+      if (result?.accepted !== true) { blocked(); return false; }
+      finalised(result);
+      return true;
+    },
+    advancePendingDawn(run, nextCursor) { calls.push(['advancePendingDawn', run.runId, nextCursor]); return true; },
+    completePendingDawn(run) { calls.push(['completePendingDawn', run.runId]); return true; },
+  };
+  const vigil = {
+    syncVigil() { calls.push(['syncVigil']); return { shards: [] }; },
+    setBequest(act, row, bequest) { calls.push(['setBequest', act, row, bequest]); return true; },
+    clearBequest() { calls.push(['clearBequest']); return true; },
+    clearNews() { calls.push(['clearNews']); return { news: false }; },
+    clearVigil() { calls.push(['clearVigil']); return true; },
+    commitPendingRunEnd(run, acknowledge) {
+      calls.push(['commitPendingRunEnd', run.runId]);
+      run.runEndResult = { whisper: 'The glass remembers.', newShards: ['hollowLamplighter'], vigil: { shards: ['hollowLamplighter'] } };
+      run.vigilResult = { newUnlocks: ['aspect2'] };
+      return {
+        accepted: acknowledge(run), outcome: run.pendingRunEnd?.outcome || 'win',
+        newUnlocks: ['aspect2'], ledger: run.runEndResult,
+      };
+    },
+  };
+  const effects = RunEffectsModule.createRunEffects({ engine, vigil });
+  assert.deepEqual(Object.keys(effects), [
+    'advanceDawn', 'beginShadeDuel', 'buildDawnQueue', 'buyQuestItem',
+    'clearBequest', 'clearNews', 'clearVigil', 'completeDawn', 'completeHollowRoute', 'finaliseRunEnd',
+    'journalRunEnd', 'payHollowPrice', 'resumeShadeDuel', 'saveRun',
+    'setBequest', 'stageHollowExit', 'syncVigil',
+  ], 'the normal effects adapter has one frozen caller-facing surface');
+  assert.equal(Object.isFrozen(effects), true);
+
+  const run = { runId: 'run-effects', endQueue: [{ t: 'questComplete', id: 'hollowLamplighter' }], shards: [] };
+  assert.equal(effects.saveRun(run), true, 'initial and ordinary saves preserve their boolean result');
+  assert.deepEqual(effects.buyQuestItem(run, 'flamelessLantern'), { ok: true, reason: null });
+  assert.deepEqual(effects.payHollowPrice(run), { ok: true, deferred: false, message: 'paid' });
+  assert.deepEqual(effects.stageHollowExit(run), { kind: 'destination', nodeId: 'n1', type: 'shop', eventId: null });
+  assert.equal(effects.completeHollowRoute(run), true);
+  assert.deepEqual(effects.beginShadeDuel(run), { status: 'ready' });
+  let shadeAcknowledgements = 0;
+  assert.deepEqual(effects.resumeShadeDuel(run, (action) => {
+    shadeAcknowledgements++;
+    return action();
+  }), { status: 'ready' });
+  assert.equal(shadeAcknowledgements, 1,
+    'Shade recovery keeps caller-supplied persistence observation around the bequest acknowledgement');
+  assert.equal(effects.setBequest(run, 2, 7, { kind: 'gold', amount: 50 }), true);
+  assert.equal(effects.clearBequest(run), true);
+  assert.deepEqual(effects.clearNews(), { news: false });
+  assert.equal(effects.clearVigil(), true);
+  assert.deepEqual(effects.syncVigil(), { shards: [] });
+
+  assert.deepEqual(effects.journalRunEnd(run, 'win'), { outcome: 'win' });
+  assert.equal(effects.saveRun(run), true);
+  let blocked = 0;
+  let completed = null;
+  const finalised = effects.finaliseRunEnd(run, {
+    revealThreshold: 1,
+    persist: (action) => { calls.push(['persist']); return action(); },
+    onPersistenceFailure: () => { blocked++; },
+    onFinalised: (result) => { calls.push(['onFinalised']); completed = result; },
+  });
+  assert.equal(finalised, true);
+  assert.equal(blocked, 0);
+  assert.equal(completed.outcome, 'win');
+  assert.deepEqual(completed.newUnlocks, ['aspect2']);
+  assert.equal(run.pendingRunEnd, null);
+  assert.deepEqual(run.pendingDawn.events.map((event) => event.t), [
+    'whisper', 'shardGrant', 'act4Reveal',
+  ], 'Dawn construction removes the superseded completion and preserves canonical order');
+  assert.deepEqual(calls.slice(calls.findIndex(([name]) => name === 'journalTerminalOutcome')), [
+    ['journalTerminalOutcome', 'run-effects', 'win'],
+    ['saveRun', 'run-effects'],
+    ['finaliseTerminalOutbox', 'run-effects'],
+    ['persist'],
+    ['commitPendingRunEnd', 'run-effects'],
+    ['stagePendingDawn', 'run-effects', ['whisper', 'shardGrant', 'act4Reveal'], ['aspect2']],
+    ['onFinalised'],
+  ], 'terminal journalling, finalisation, durable commit and Dawn staging have one order');
+
+  const queueSource = [{ t: 'pageRead', index: 1, text: 'page' }];
+  const queueRun = { endQueue: queueSource, shards: ['a'] };
+  const queueLedger = { newShards: ['b'], vigil: { shards: ['a', 'b'] } };
+  const queue = effects.buildDawnQueue(queueRun, queueLedger, 2);
+  queueSource[0].index = 9;
+  queueLedger.newShards.push('c');
+  assert.deepEqual(queue, [
+    { t: 'pageRead', index: 1, text: 'page' },
+    { t: 'shardGrant', id: 'b' },
+    { t: 'act4Reveal' },
+  ], 'Dawn queue snapshots source events and shard ids');
+  assert.equal(effects.advanceDawn(run, 1), true);
+  assert.equal(effects.completeDawn(run), true);
+
+  let retryBlocked = 0;
+  const retryRun = { runId: 'run-retry', pendingRunEnd: { outcome: 'death' } };
+  assert.equal(effects.finaliseRunEnd(retryRun, {
+    revealThreshold: 1,
+    persist: () => ({ accepted: false }),
+    onPersistenceFailure: () => { retryBlocked++; },
+    onFinalised: () => assert.fail('a rejected commit must not continue'),
+  }), false);
+  assert.equal(retryBlocked, 1, 'rejected finalisation retains the caller-owned retry path');
+
+  const runEffectsSource = readFileSync(new URL('../src/ui/run-effects.js', import.meta.url), 'utf8');
+  const uiSource = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
+  const combatSource = readFileSync(new URL('../src/ui/combat.js', import.meta.url), 'utf8');
+  const overlaySource = readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8');
+  const screenSources = readdirSync(new URL('../src/ui/screens/', import.meta.url))
+    .filter((name) => name.endsWith('.js'))
+    .map((name) => readFileSync(new URL(`../src/ui/screens/${name}`, import.meta.url), 'utf8'))
+    .join('\n');
+  const readUiOwners = (directory, prefix = '') => readdirSync(directory, { withFileTypes: true })
+    .flatMap((entry) => entry.isDirectory()
+      ? readUiOwners(new URL(`${entry.name}/`, directory), `${prefix}${entry.name}/`)
+      : entry.name.endsWith('.js')
+        ? [[`${prefix}${entry.name}`, readFileSync(new URL(entry.name, directory), 'utf8')]]
+        : []);
+  const uiOwnerEntries = readUiOwners(new URL('../src/ui/', import.meta.url))
+    .filter(([name]) => name !== 'run-effects.js');
+  const uiOwnersSource = `${uiSource}\n${uiOwnerEntries.map(([, source]) => source).join('\n')}`;
+  const uiWithoutOverlay = `${uiSource}\n${uiOwnerEntries
+    .filter(([name]) => name !== 'overlay.js')
+    .map(([, source]) => source).join('\n')}`;
+  const endSource = readFileSync(new URL('../src/ui/screens/end.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(runEffectsSource, /\b(?:window|document|location|HTMLElement|requestAnimationFrame)\b/,
+    'run-effects stays DOM-free and Node-runnable');
+  for (const owner of [
+    'saveRun', 'buyQuestItem', 'payHollowPrice', 'stageHollowExit', 'completePendingHollowRoute',
+    'beginShadeDuel', 'resumeShadeDuel', 'journalTerminalOutcome',
+    'finaliseTerminalOutbox', 'stagePendingDawn', 'advancePendingDawn',
+    'completePendingDawn',
+  ]) {
+    assert.doesNotMatch(uiOwnersSource, new RegExp(`\\bE\\.${owner}\\s*\\(`), `${owner} has one owner in run-effects`);
+    assert.equal((runEffectsSource.match(new RegExp(`\\bengine\\.${owner}\\s*\\(`, 'g')) || []).length, 1,
+      `${owner} has exactly one engine delegation in run-effects`);
+  }
+  for (const owner of ['syncVigil', 'commitPendingRunEnd', 'setBequest', 'clearBequest', 'clearNews', 'clearVigil']) {
+    const bareOwnerPattern = new RegExp(`(?<![.\\w])${owner}\\s*\\(`);
+    const vigilNamespacePattern = new RegExp(`\\bVigil\\.${owner}\\s*\\(`);
+    assert.match(`Vigil.${owner}()`, vigilNamespacePattern,
+      `${owner} guard recognises a forbidden Vigil namespace call`);
+    assert.doesNotMatch(uiOwnersSource, bareOwnerPattern, `${owner} has no bare UI owner`);
+    assert.doesNotMatch(uiOwnersSource, vigilNamespacePattern, `${owner} has no Vigil namespace UI owner`);
+    assert.equal((runEffectsSource.match(new RegExp(`\\bvigil\\.${owner}\\s*\\(`, 'g')) || []).length, 1,
+      `${owner} has exactly one Vigil delegation in run-effects`);
+  }
+  assert.match(endSource, /runEffects\.finaliseRunEnd\s*\(/,
+    'the extracted end-screen owner delegates mutation');
+  assert.doesNotMatch(uiOwnersSource, /function\s+dawnQueue\s*\(/,
+    'Dawn queue construction has no duplicate UI owner');
+  assert.doesNotMatch(uiWithoutOverlay, /function\s+openPersistenceDialog\s*\(/,
+    'retry UI has no duplicate screen or orchestrator owner');
+  assert.match(overlaySource, /function\s+openPersistenceDialog\s*\(/,
+    'retry UI is physically owned by overlay');
+  assert.match(overlaySource, /let\s+persistenceDialogTransaction\s*=\s*null/,
+    'overlay alone owns the persistence dialog transaction');
+  assert.match(endSource, /function\s+(?:renderEnd|finalisePendingRunEnd)\s*\(/,
+    'end-screen presentation is physically owned by its leaf module');
+  assert.match(combatSource, /function\s+(?:startCombatUI|renderCombat)\s*\(/,
+    'combat is physically owned by its extracted module');
+  assert.doesNotMatch(uiSource, /function\s+(?:startCombatUI|renderCombat)\s*\(/,
+    'the thin public UI entry retains no combat implementation');
+}
+
+// ---- Round 5 always-on presentation barrier -------------------------------
+{
+  const barrier = createPresentationBarrier({ strict: true });
+  const order = [];
+  const outer = barrier.begin('outer');
+  const inner = barrier.begin('inner');
+  assert.equal(barrier.activeCount(), 2, 'presentation barrier: nested tokens count');
+  const idle = barrier.whenIdle().then(() => order.push('idle'));
+  outer.finish();
+  await Promise.resolve();
+  assert.deepEqual(order, [], 'presentation barrier: nested work keeps whenIdle pending');
+  inner.cancel();
+  await idle;
+  assert.deepEqual(order, ['idle'], 'presentation barrier: whenIdle resolves after final token');
+  assert.equal(barrier.assertIdle(), true, 'presentation barrier: idle assertion');
+  assert.throws(() => inner.finish(), /already finished/, 'presentation barrier: strict double finish');
+
+  const runtime = createPresentationBarrier();
+  const token = runtime.begin('runtime');
+  assert.equal(token.finish(), true);
+  assert.equal(token.finish(), false, 'presentation barrier: runtime double finish is idempotent');
+  const destroyed = runtime.begin('destroyed');
+  runtime.destroy();
+  assert.equal(runtime.activeCount(), 0, 'presentation barrier: destroy cancels owned tokens');
+  assert.equal(destroyed.finish(), false, 'presentation barrier: destroyed token fails open');
+  assert.throws(() => runtime.begin('late'), /destroyed/, 'presentation barrier: begin after destroy rejected');
+}
+
+// ---- Round 5 semantic UI behaviour trace and standing gates ----------------
+{
+  assert.equal(TRACE_VERSION, 1);
+  assert.deepEqual([...TRACE_END_OUTCOMES], [
+    'completed', 'settled', 'cancelled', 'skipped', 'failed',
+  ]);
+  assert.deepEqual([...TRACE_POINT_OUTCOMES], [
+    'accepted', 'rejected', 'completed', 'cancelled', 'failed',
+  ]);
+  assert.equal(Object.isFrozen(FORBIDDEN_TRACE_KEYS), true);
+  assert.deepEqual([...FORBIDDEN_TRACE_KEYS], [
+    'text', 'copy', 'html', 'label', 'run', 'cb', 'save', 'snapshot',
+    'dom', 'pixi', 'pointerX', 'pointerY', 'frame', 'tick',
+  ]);
+  for (const [set, member, invented] of [
+    [FORBIDDEN_TRACE_KEYS, 'html', 'invented-private-field'],
+    [TRACE_END_OUTCOMES, 'settled', 'invented-end'],
+    [TRACE_POINT_OUTCOMES, 'accepted', 'invented-point'],
+  ]) {
+    assert.throws(() => set.add(invented), /immutable/i);
+    assert.throws(() => set.delete(member), /immutable/i);
+    assert.throws(() => set.clear(), /immutable/i);
+    assert.equal(set.has(member), true);
+    assert.equal(set.has(invented), false);
+    const owners = [];
+    set.forEach((_value, _key, owner) => owners.push(owner));
+    assert.ok(owners.length > 0);
+    assert.ok(owners.every((owner) => owner === set), 'forEach exposes only the read-only facade');
+    assert.equal(set.valueOf(), set, 'valueOf cannot expose mutable backing storage');
+    assert.throws(() => Set.prototype.add.call(set, invented), TypeError);
+    assert.throws(() => Set.prototype.delete.call(set, member), TypeError);
+    assert.throws(() => Set.prototype.clear.call(set), TypeError);
+    assert.equal(set.has(member), true);
+    assert.equal(set.has(invented), false);
+  }
+  assert.equal(TRACE_END_OUTCOMES.size, 5);
+  assert.deepEqual([...TRACE_END_OUTCOMES.keys()], [...TRACE_END_OUTCOMES]);
+  assert.deepEqual([...TRACE_END_OUTCOMES.values()], [...TRACE_END_OUTCOMES]);
+  assert.deepEqual([...TRACE_END_OUTCOMES.entries()], [...TRACE_END_OUTCOMES].map((value) => [value, value]));
+  assert.equal(Object.prototype.toString.call(TRACE_END_OUTCOMES), '[object Set]');
+
+  let now = 10;
+  const trace = createBehaviourTrace({
+    enabled: true, strict: true, capacity: 8, segment: 'page-a', now: () => now++,
+    policy: () => ({ screen: 'combat', renderer: 'dom', motion: 'full', tier: 'full' }),
+  });
+  const input = trace.emit('input.card-drag', {
+    phase: 'point', outcome: 'accepted', attributes: { uid: 7 },
+  });
+  const span = trace.begin('presentation.card-flight', {
+    causeSeq: input.seq, correlationId: 'play-7', attributes: { uid: 7 },
+  });
+  span.finish('settled', { checkpoint: { queueDepth: 0 } });
+  assert.deepEqual(trace.read({ format: 'contract' }).records.map((r) =>
+    [r.seq, r.eventName, r.phase, r.outcome ?? null]), [
+    [1, 'input.card-drag', 'point', 'accepted'],
+    [2, 'presentation.card-flight', 'start', null],
+    [3, 'presentation.card-flight', 'end', 'settled'],
+  ]);
+  const reset = trace.read({ after: { segment: 'page-old', seq: 99 }, format: 'records' });
+  assert.equal(reset.reset, true);
+  assert.equal(reset.records[0].seq, 1);
+  assert.deepEqual(trace.assertIntegrity(), { ok: true, errors: [] });
+  assert.throws(() => span.finish('settled'), /already finished/);
+}
+{
+  const trace = createBehaviourTrace({ enabled: true, strict: true, segment: 'validation', now: () => 1 });
+  const cycle = {};
+  cycle.self = cycle;
+  const malformed = [
+    [{ attributes: { fn: () => {} } }, /function|JSON-safe/],
+    [{ attributes: { cycle } }, /cycle|cyclic/],
+    [{ attributes: { amount: Infinity } }, /finite/],
+    [{ attributes: { semanticId: 'x'.repeat(129) } }, /128 bytes/],
+    [{ attributes: { nested: { html: '<b>no</b>' } } }, /forbidden.*html/i],
+    [{ attributes: { clientX: 12, clientY: 15 } }, /pointer/i],
+    [{ attributes: { nested: { x: 12 } } }, /pointer/i],
+    [{ attributes: { pointerType: 'touch' } }, /pointer/i],
+    [{ attributes: { pressure: 0.5 } }, /pointer/i],
+    [{ attributes: { tiltX: 12, tiltY: 15, twist: 2 } }, /pointer/i],
+    [{ attributes: { altitudeAngle: 0.2, azimuthAngle: 0.4, persistentDeviceId: 9 } }, /pointer/i],
+    [{ attributes: { altKey: false, ctrlKey: false, shiftKey: false, metaKey: false } }, /pointer/i],
+    [{ attributes: { width: 20, height: 30, isPrimary: true, buttons: 1 } }, /pointer/i],
+    [{ attributes: { seed: 1, act: 2, hp: 30, deck: ['strike'] } }, /save-shaped/i],
+  ];
+  for (const [details, pattern] of malformed) {
+    assert.throws(() => trace.emit('input.invalid', { phase: 'point', ...details }), pattern);
+  }
+  for (const key of ['__proto__', 'Prototype', 'CONSTRUCTOR', '__pro-to__', 'pro.to.type', 'con struc-tor']) {
+    const polluted = JSON.parse(`{"${key}":{"polluted":true}}`);
+    assert.throws(() => trace.emit('input.invalid', { attributes: polluted }), /meta|prototype|forbidden/i);
+  }
+  for (const key of ['HtMl', 'html.', 'NAME', 'Value', 'Title', 'Description', 'Body', 'Message', 'Content', 'Tooltip', 'ariaLabel', 'ARIA-LABEL', 'aria label']) {
+    assert.throws(() => trace.emit('input.invalid', {
+      attributes: { [key]: 'edge' },
+    }), /forbidden|privacy/i);
+  }
+  assert.throws(() => trace.emit('input.invalid', { attributes: { semanticId: 'Edge' } }), /lower-case-initial semantic token/i);
+  assert.throws(() => trace.emit('input.invalid', { checkpoint: { state: 'Edge' } }), /lower-case-initial semantic token/i);
+  assert.throws(() => trace.begin('presentation.invalid', {
+    replay: { v: 1, presentationId: 'flight', fixtureId: 'card-7', params: { state: 'Edge' } },
+  }), /lower-case-initial semantic token/i);
+  assert.throws(() => trace.emit('', { attributes: { id: 'edge' } }), /non-empty|stable semantic token/i);
+  assert.throws(() => trace.emit('input.invalid', { reason: '' }), /non-empty|stable semantic token/i);
+  assert.throws(() => trace.emit('input.invalid', { correlationId: '' }), /non-empty|stable semantic token/i);
+  assert.throws(() => trace.emit('input.invalid', { attributes: { id: '' } }), /non-empty|lower-case-initial semantic token/i);
+  assert.throws(() => createBehaviourTrace({ enabled: true, strict: true, segment: '' }), /non-empty|stable semantic token/i);
+  const emptyPolicy = createBehaviourTrace({
+    enabled: true, strict: true, segment: 'empty-policy', now: () => 1,
+    policy: () => ({ screen: '' }),
+  });
+  assert.throws(() => emptyPolicy.emit('checkpoint.policy'), /non-empty|stable semantic token/i);
+  const safePayload = trace.emit('checkpoint.safe-payload', {
+    attributes: {
+      semanticId: 'unreadablePage',
+      localeKey: 'ui.menu.beginClimb',
+      actionId: 'beginClimb',
+    },
+  });
+  assert.equal(Object.getPrototypeOf(safePayload.attributes), null);
+  assert.equal(Object.hasOwn(safePayload.attributes, 'polluted'), false);
+  assert.deepEqual(Object.keys(safePayload.attributes), ['semanticId', 'localeKey', 'actionId']);
+  assert.deepEqual({ ...safePayload.attributes }, {
+    semanticId: 'unreadablePage', localeKey: 'ui.menu.beginClimb', actionId: 'beginClimb',
+  });
+  assert.doesNotThrow(() => trace.emit('checkpoint.semantic-layout', {
+    attributes: {
+      type: 'damage', target: 'enemy-1', width: 2, height: 3,
+      detail: 'compact', view: 'combat',
+    },
+  }));
+  assert.throws(() => trace.emit('input.invalid', { phase: 'end' }), /point/);
+  assert.throws(() => trace.emit('input.invalid', { outcome: 'settled' }), /point outcome/);
+  assert.throws(() => trace.begin('presentation.invalid', { outcome: 'settled' }), /start|outcome/);
+  assert.throws(() => trace.begin('presentation.invalid', {
+    replay: { v: 1, presentationId: 'flight', fixtureId: 'card-7', unexpected: true },
+  }), /Replay Descriptor.*unexpected/i);
+  assert.throws(() => trace.begin('presentation.invalid', {
+    attributes: { replay: { v: 1, presentationId: 'flight', fixtureId: 'card-7' } },
+  }), /Replay Descriptor.*top-level/i);
+  const replaySpan = trace.begin('presentation.valid', {
+    replay: {
+      v: 1, presentationId: 'card-flight', fixtureId: 'card-7', locale: 'en-GB',
+      params: { cardId: 'strike', upgraded: false, count: 1 },
+    },
+  });
+  replaySpan.finish('settled');
+  assert.equal(trace.read({ format: 'records' }).records.at(-2).replay.presentationId, 'card-flight');
+
+  const replay = (params) => trace.begin('presentation.bounded', {
+    replay: { v: 1, presentationId: 'bounded', fixtureId: 'fixture', params },
+  });
+  let tooDeep = { value: 1 };
+  for (let index = 0; index < 7; index += 1) tooDeep = { nested: tooDeep };
+  assert.throws(() => replay(tooDeep), /Replay Descriptor.*depth/i);
+  assert.throws(() => replay(Object.fromEntries(
+    Array.from({ length: 33 }, (_, index) => [`key${index}`, index]),
+  )), /Replay Descriptor.*key/i);
+  assert.throws(() => replay(Array.from({ length: 33 }, (_, index) => index)), /Replay Descriptor.*array/i);
+  const guardedOversizedArray = Array(33);
+  Object.defineProperty(guardedOversizedArray, 0, {
+    enumerable: true,
+    get() { throw new Error('Replay Descriptor copied before checking its array bound'); },
+  });
+  assert.throws(() => replay(guardedOversizedArray), /Replay Descriptor.*array limit/i);
+  assert.throws(() => replay(Array.from({ length: 32 }, () => ({ a: 1, b: 2 }))), /Replay Descriptor.*node/i);
+  assert.throws(() => replay(Array.from({ length: 32 }, (_, index) => `v${index}${'x'.repeat(124)}`)), /Replay Descriptor.*serialised bytes/i);
+}
+{
+  let identityCalls = 0;
+  const trace = createBehaviourTrace({
+    enabled: true,
+    strict: true,
+    segment: 'resettable',
+    now: () => 1,
+    identity: () => {
+      identityCalls += 1;
+      return { appVersion: '0.5.0' };
+    },
+  });
+  trace.emit('checkpoint.before-reset');
+  const oldCursor = trace.read({ format: 'records' }).cursor;
+  trace.reset();
+  trace.emit('checkpoint.after-reset');
+  const resetRead = trace.read({ after: oldCursor, format: 'records' });
+  assert.equal(resetRead.reset, true);
+  assert.notEqual(resetRead.segment, oldCursor.segment);
+  assert.equal(resetRead.records[0].seq, 1);
+  assert.equal(resetRead.records[0].eventName, 'checkpoint.after-reset');
+  assert.equal(identityCalls, 2, 'identity is injected exactly once for each segment generation');
+}
+{
+  let now = 100;
+  const trace = createBehaviourTrace({
+    enabled: true,
+    strict: true,
+    capacity: 3,
+    segment: 'overflow',
+    now: () => now++,
+  });
+  for (let index = 0; index < 5; index += 1) {
+    trace.emit('checkpoint.counter', { attributes: { index } });
+  }
+  const read = trace.read({ format: 'records' });
+  assert.ok(read.dropped > 0);
+  assert.ok(read.records.length <= 3);
+  assert.equal(read.records.filter((record) => record.eventName === 'error.trace-overflow').length, 1);
+  assert.equal(read.records.find((record) => record.eventName === 'error.trace-overflow').attributes.dropped, read.dropped);
+  assert.equal(trace.assertIntegrity().ok, false);
+}
+{
+  let now = 1;
+  const trace = createBehaviourTrace({
+    enabled: true, strict: true, capacity: 1, segment: 'capacity-one', now: () => now++,
+  });
+  trace.emit('checkpoint.first');
+  const oldCursor = trace.read({ format: 'records' }).cursor;
+  trace.emit('checkpoint.second');
+  const reset = trace.read({ after: oldCursor, format: 'records' });
+  assert.equal(reset.reset, true);
+  assert.equal(reset.records.length, 1);
+  assert.equal(reset.records[0].eventName, 'error.trace-overflow');
+  assert.equal(reset.firstSeq, reset.lastSeq);
+  assert.equal(reset.cursor.seq, reset.lastSeq);
+  assert.equal(reset.dropped, 2);
+  assert.equal(reset.records[0].attributes.dropped, 2);
+  const caughtUp = trace.read({ after: reset.cursor, format: 'records' });
+  assert.equal(caughtUp.reset, false);
+  assert.deepEqual(caughtUp.records, []);
+}
+{
+  const trace = createBehaviourTrace({ enabled: true, strict: true, segment: 'orphan', now: () => 1 });
+  const span = trace.begin('presentation.orphan');
+  assert.deepEqual(trace.activeSpans(), [{ seq: 1, eventName: 'presentation.orphan', correlationId: null }]);
+  assert.equal(trace.assertIntegrity().ok, false);
+  span.finish('cancelled');
+  assert.deepEqual(trace.activeSpans(), []);
+  assert.equal(trace.assertIntegrity().ok, true);
+}
+{
+  const trace = createBehaviourTrace({ enabled: false, strict: true, segment: 'disabled' });
+  assert.equal(trace.enabled, false);
+  assert.equal(trace.emit('input.noop'), null);
+  assert.equal(trace.begin('presentation.noop').finish('settled'), null);
+  assert.deepEqual(trace.activeSpans(), []);
+  const read = trace.read({ format: 'records' });
+  assert.equal(Object.isFrozen(read), true);
+  assert.deepEqual(read, {
+    v: 1,
+    enabled: false,
+    format: 'records',
+    segment: 'disabled',
+    firstSeq: 0,
+    lastSeq: 0,
+    dropped: 0,
+    reset: false,
+    header: {
+      v: 1, enabled: false, segment: 'disabled', firstSeq: 0, lastSeq: 0,
+      dropped: 0, reset: false, identity: {},
+    },
+    cursor: { segment: 'disabled', seq: 0 },
+    records: [],
+    text: null,
+    ndjson: null,
+  });
+}
+{
+  let now = 20;
+  const trace = createBehaviourTrace({
+    enabled: true,
+    strict: true,
+    segment: 'projection',
+    now: () => now += 1.25,
+    identity: () => ({ appVersion: '0.5.0', buildKind: 'dev', gitSha: 'abc1234', locale: 'en-GB' }),
+    policy: () => ({ screen: 'combat', renderer: 'dom', motion: 'reduced', tier: 'lite' }),
+  });
+  const point = trace.emit('input.card-drag', {
+    outcome: 'cancelled', reason: 'pointercancel', correlationId: 'drag-1',
+    attributes: { uid: 7, stable: true },
+  });
+  trace.emit('checkpoint.queue', { outcome: 'completed', causeSeq: point.seq, attributes: { depth: 0 } });
+
+  const initial = trace.read({ format: 'contract' });
+  assert.equal(initial.reset, false);
+  assert.equal(initial.header.identity.gitSha, undefined);
+  assert.equal(JSON.stringify(initial).includes('atMs'), false);
+  assert.equal(JSON.stringify(initial).includes('abc1234'), false);
+  assert.equal(Object.isFrozen(initial.records[0]), true);
+
+  const incremental = trace.read({ after: { segment: 'projection', seq: 1 }, format: 'records' });
+  assert.equal(incremental.reset, false);
+  assert.equal(incremental.header, null);
+  assert.deepEqual(incremental.records.map((record) => record.seq), [2]);
+  const caughtUp = trace.read({ after: incremental.cursor, format: 'text' });
+  assert.equal(caughtUp.header, null);
+  assert.equal(caughtUp.text, '');
+
+  const foreign = trace.read({ after: { segment: 'other-page', seq: 1 }, format: 'text' });
+  assert.equal(foreign.reset, true);
+  assert.ok(foreign.text.startsWith('# trace '));
+  const textLines = foreign.text.split('\n');
+  assert.equal(textLines.length, 3);
+  assert.match(textLines[1], /^\+000000\.0ms \[projection:1\] input\.card-drag phase=point outcome=cancelled screen=combat renderer=dom reason=pointercancel cause=- correlation=drag-1 attrs=\{"stable":true,"uid":7\}$/);
+  assert.match(textLines[2], /\[projection:2\].*reason=- cause=1 correlation=- attrs=\{"depth":0\}$/);
+
+  const ndjson = trace.read({ after: { segment: 'stale', seq: 999 }, format: 'ndjson' });
+  assert.equal(ndjson.records.length, 0);
+  assert.equal(ndjson.text, null);
+  const rows = ndjson.ndjson.split('\n').map((line) => JSON.parse(line));
+  assert.equal(rows[0].kind, 'trace-header');
+  assert.deepEqual(rows.slice(1).map((row) => row.seq), [1, 2]);
+  assert.equal(rows[0].identity.gitSha, 'abc1234');
+
+  assert.throws(() => createBehaviourTrace({ enabled: true, strict: true, identity: () => ({ appVersion: 'v0.5' }) }), /appVersion/);
+  assert.throws(() => createBehaviourTrace({ enabled: true, strict: true, identity: () => ({ buildKind: 'beta' }) }), /buildKind/);
+  assert.throws(() => createBehaviourTrace({ enabled: true, strict: true, identity: () => ({ gitSha: 'long-and-invalid' }) }), /gitSha/);
+  assert.throws(() => createBehaviourTrace({ enabled: true, strict: true, identity: () => ({ locale: '<script>' }) }), /locale/);
+}
+{
+  let now = 1;
+  const trace = createBehaviourTrace({ enabled: true, strict: false, segment: 'runtime', now: () => now++ });
+  assert.equal(trace.emit('input.bad', { attributes: { html: '<b>bad</b>' } }), null);
+  const span = trace.begin('presentation.good');
+  assert.equal(span.finish('not-an-outcome'), null);
+  assert.equal(span.finish('settled'), null);
+  const errors = trace.read({ format: 'records' }).records.filter((record) => record.eventName === 'error.trace-integrity');
+  assert.equal(errors.length, 3);
+  assert.equal(trace.assertIntegrity().ok, false);
+}
+{
+  let nowCalls = 0;
+  const brokenNow = createBehaviourTrace({
+    enabled: true,
+    strict: false,
+    capacity: 1,
+    segment: 'broken-now',
+    now: () => {
+      nowCalls += 1;
+      throw new Error('clock unavailable');
+    },
+  });
+  assert.doesNotThrow(() => brokenNow.emit('checkpoint.clock'));
+  assert.equal(nowCalls, 1, 'integrity fallback never retries a broken clock');
+  assert.doesNotThrow(() => brokenNow.emit('checkpoint.clock'));
+  assert.equal(nowCalls, 2);
+  const overflow = brokenNow.read({ format: 'records' });
+  assert.ok(overflow.records.length <= 1);
+  assert.equal(overflow.records.filter((record) => record.eventName === 'error.trace-overflow').length, 1);
+
+  let policyCalls = 0;
+  const brokenPolicy = createBehaviourTrace({
+    enabled: true,
+    strict: false,
+    segment: 'broken-policy',
+    now: () => 1,
+    policy: () => {
+      policyCalls += 1;
+      throw new Error('policy unavailable');
+    },
+  });
+  assert.doesNotThrow(() => brokenPolicy.emit('checkpoint.policy'));
+  assert.equal(policyCalls, 1, 'integrity fallback never retries a broken policy');
+  assert.equal(brokenPolicy.read({ format: 'records' }).records[0].eventName, 'error.trace-integrity');
+
+  let brokenIdentity;
+  assert.doesNotThrow(() => {
+    brokenIdentity = createBehaviourTrace({
+      enabled: true,
+      strict: false,
+      segment: 'broken-identity',
+      identity: () => { throw new Error('identity unavailable'); },
+    });
+  });
+  assert.equal(brokenIdentity.read({ format: 'records' }).records[0].eventName, 'error.trace-integrity');
+  assert.doesNotThrow(() => createBehaviourTrace({
+    enabled: true,
+    strict: false,
+    segment: 'malformed-identity',
+    identity: () => ({ buildKind: 'preview' }),
+  }));
+  let malformedDependencies;
+  assert.doesNotThrow(() => {
+    malformedDependencies = createBehaviourTrace({
+      enabled: true,
+      strict: false,
+      segment: 'malformed-dependencies',
+      now: null,
+      policy: 'not-a-function',
+      identity: 7,
+    });
+  });
+  assert.equal(
+    malformedDependencies.read({ format: 'records' }).records
+      .filter((record) => record.eventName === 'error.trace-integrity').length,
+    3,
+  );
+}
+{
+  const malformed = createBehaviourTrace({
+    enabled: true, strict: false, capacity: 4, segment: 'bounded-diagnostics', now: () => 1,
+  });
+  for (let index = 0; index < 10_000; index += 1) {
+    malformed.emit('checkpoint.invalid', { attributes: { title: 'edge' } });
+  }
+  assert.ok(malformed.read({ format: 'records' }).records.length <= 4);
+  const malformedIntegrity = malformed.assertIntegrity();
+  assert.match(malformedIntegrity.errors.join('\n'), /dropped 9996 integrity diagnostic/i);
+  assert.ok(malformedIntegrity.errors.length <= 6);
+
+  const spans = createBehaviourTrace({
+    enabled: true, strict: false, capacity: 3, segment: 'bounded-spans', now: () => 1,
+  });
+  for (let index = 0; index < 10_000; index += 1) spans.begin('presentation.open');
+  assert.equal(spans.activeSpans().length, 3);
+  const spanIntegrity = spans.assertIntegrity();
+  assert.match(spanIntegrity.errors.join('\n'), /dropped 9994 integrity diagnostic/i);
+  assert.ok(spanIntegrity.errors.length <= 8);
+
+  const strictSpans = createBehaviourTrace({
+    enabled: true, strict: true, capacity: 2, segment: 'strict-span-cap', now: () => 1,
+  });
+  strictSpans.begin('presentation.first');
+  strictSpans.begin('presentation.second');
+  const beforeRejectedSpan = strictSpans.read({ format: 'records' }).lastSeq;
+  assert.throws(() => strictSpans.begin('presentation.third'), /active span capacity/i);
+  assert.equal(strictSpans.activeSpans().length, 2);
+  assert.equal(strictSpans.read({ format: 'records' }).lastSeq, beforeRejectedSpan);
+}
+{
+  const importProbe = spawnSync(process.execPath, ['--input-type=commonjs', '--eval', `
+    const childProcess = require('node:child_process');
+    const net = require('node:net');
+    const { syncBuiltinESMExports } = require('node:module');
+    childProcess.spawnSync = () => { throw new Error('spawn during import'); };
+    net.createServer = () => { throw new Error('allocation during import'); };
+    syncBuiltinESMExports();
+    (async () => {
+      await import(${JSON.stringify(new URL('../tools/run-with-strict-e2e-port.mjs', import.meta.url).href)});
+      await import(${JSON.stringify(new URL('../tools/run-round5-standing-gates.mjs', import.meta.url).href)});
+      process.stdout.write('import-only');
+    })().catch((error) => { console.error(error); process.exitCode = 1; });
+  `], { encoding: 'utf8' });
+  assert.equal(importProbe.status, 0, importProbe.stderr);
+  assert.equal(importProbe.stdout, 'import-only');
+
+  let allocationCalls = 0;
+  let spawnCalls = 0;
+  assert.equal(typeof allocateStrictE2EPort, 'function');
+  assert.equal(allocationCalls, 0, 'strict-port import performs no allocation');
+  assert.equal(spawnCalls, 0, 'strict-port import performs no spawn');
+  await assert.rejects(
+    runWithStrictE2EPort({ argv: [], allocatePort: async () => { allocationCalls += 1; return 60001; } }),
+    /non-empty argv/,
+  );
+  assert.equal(allocationCalls, 0, 'invalid argv is rejected before allocation');
+  await assert.rejects(
+    runWithStrictE2EPort({ argv: ['npm', 'test'], allocatePort: async () => 5174 }),
+    /5174/,
+  );
+  const calls = [];
+  const result = await runWithStrictE2EPort({
+    argv: ['npm', 'run', 'test:e2e:pool'],
+    env: { HOME: '/tmp/home', SPIREBOUND_E2E_PORT: '49999' },
+    allocatePort: async () => 60002,
+    spawn: (command, args, options) => {
+      spawnCalls += 1;
+      calls.push({ command, args, options });
+      return { status: 0, signal: null };
+    },
+  });
+  assert.equal(result.port, 60002);
+  assert.deepEqual(calls[0].command, 'npm');
+  assert.deepEqual(calls[0].args, ['run', 'test:e2e:pool']);
+  assert.equal(calls[0].options.shell, false);
+  assert.equal(calls[0].options.stdio, 'inherit');
+  assert.equal(calls[0].options.env.HOME, '/tmp/home');
+  assert.equal(calls[0].options.env.SPIREBOUND_E2E_PORT, '60002');
+
+  const fakeServer = {
+    unref() {},
+    once() {},
+    listen(_options, listener) { listener(); },
+    address() { return { port: 5174 }; },
+    close(listener) { listener(); },
+  };
+  await assert.rejects(
+    allocateStrictE2EPort({ createServer: () => fakeServer }),
+    /5174/,
+  );
+}
+{
+  const commands = {
+    'p1-node': [
+      ['npm', 'run', 'test:ci'],
+      ['npm', 'test'],
+    ],
+    'p1-dom': [
+      ['npm', 'run', 'test:ci'],
+      ['npm', 'test'],
+      ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'],
+      ['npm', 'run', 'test:e2e:trace-production'],
+    ],
+    'p1-complete': [['npm', 'run', 'test:ci'], ['npm', 'test'], ['npx', 'playwright', 'test', 'trace', 'battle', 'audio', '--project=desktop', '--workers=1'], ['npm', 'run', 'test:e2e:trace-production'], ['npm', 'run', 'test:e2e:nonvisual']],
+    'p2-base': [['npm', 'run', 'test:ci'], ['npm', 'test'], ['node', 'tools/wait-github-check.mjs', '--check', 'p2-base', '--timeout-ms', '600000']],
+    p2: [['npm', 'run', 'test:ci'], ['npm', 'test'], ['node', 'tools/wait-github-check.mjs', '--check', 'p2-base', '--timeout-ms', '600000'], ['npm', 'run', 'test:content-registrations'], ['npm', 'run', 'test:act-coupling']],
+    p3: [['npm', 'run', 'test:ci'], ['npm', 'test'], ['node', 'tools/wait-github-check.mjs', '--check', 'p2-base', '--timeout-ms', '600000'], ['npm', 'run', 'test:content-registrations'], ['npm', 'run', 'test:act-coupling'], ['node', 'tools/verify-production-surface.mjs'], ['npm', 'run', 'test:e2e:content-disk']],
+    p4: [['npm', 'run', 'test:ci'], ['npm', 'test'], ['node', 'tools/wait-github-check.mjs', '--check', 'p2-base', '--timeout-ms', '600000'], ['npm', 'run', 'test:content-registrations'], ['npm', 'run', 'test:act-coupling'], ['node', 'tools/verify-production-surface.mjs'], ['npm', 'run', 'test:e2e:content-disk'], ['npm', 'run', 'test:e2e:webkit'], ['npm', 'run', 'test:e2e:perf'], ['node', 'tools/check-bundle-budget.mjs']],
+    p5: [['npm', 'run', 'test:ci'], ['npm', 'test'], ['node', 'tools/wait-github-check.mjs', '--check', 'p2-base', '--timeout-ms', '600000'], ['npm', 'run', 'test:content-registrations'], ['npm', 'run', 'test:act-coupling'], ['node', 'tools/verify-production-surface.mjs'], ['npm', 'run', 'test:e2e:content-disk'], ['npm', 'run', 'test:e2e:webkit'], ['npm', 'run', 'test:e2e:perf'], ['node', 'tools/check-bundle-budget.mjs'], ['npm', 'run', 'test:e2e:leak']],
+    p6: [['npm', 'run', 'test:ci'], ['npm', 'test'], ['node', 'tools/wait-github-check.mjs', '--check', 'p2-base', '--timeout-ms', '600000'], ['npm', 'run', 'test:content-registrations'], ['npm', 'run', 'test:act-coupling'], ['node', 'tools/verify-production-surface.mjs'], ['npm', 'run', 'test:e2e:content-disk'], ['npm', 'run', 'test:e2e:webkit'], ['npm', 'run', 'test:e2e:perf'], ['node', 'tools/check-bundle-budget.mjs'], ['npm', 'run', 'test:e2e:leak'], ['npx', 'playwright', 'test', 'p6-screens', 'end-ceremony', 'contrast', 'stage', 'trace', '--project=desktop', '--project=portrait', '--project=landscape', '--workers=1', '--no-deps']],
+    full: [['npm', 'run', 'test:ci'], ['npm', 'test'], ['node', 'tools/wait-github-check.mjs', '--check', 'p2-base', '--timeout-ms', '600000'], ['npm', 'run', 'test:content-registrations'], ['npm', 'run', 'test:act-coupling'], ['node', 'tools/verify-production-surface.mjs'], ['npm', 'run', 'test:e2e:content-disk'], ['npm', 'run', 'test:e2e:webkit'], ['npm', 'run', 'test:e2e:perf'], ['node', 'tools/check-bundle-budget.mjs'], ['npm', 'run', 'test:e2e:leak'], ['npx', 'playwright', 'test', 'p6-screens', 'end-ceremony', 'contrast', 'stage', 'trace', '--project=desktop', '--project=portrait', '--project=landscape', '--workers=1', '--no-deps'], ['npm', 'run', 'test:e2e:visual']],
+  };
+  assert.equal(Object.isFrozen(STANDING_GATE_PROFILES), true);
+  for (const [profile, expected] of Object.entries(commands)) {
+    assert.deepEqual(STANDING_GATE_PROFILES[profile].map((row) => row.argv), expected, `standing gates: ${profile} literal cumulative commands`);
+    assert.equal(Object.isFrozen(STANDING_GATE_PROFILES[profile]), true);
+  }
+  const optionalRows = Object.values(STANDING_GATE_PROFILES).flat().filter((row) => row.optional);
+  assert.ok(optionalRows.length > 0);
+  assert.ok(optionalRows.every((row) => row.argv.join(' ') === 'npm run test:e2e:content-disk'));
+
+  let nextPort = 61000;
+  const spawned = [];
+  const recorded = [];
+  const result = await runStandingGates({
+    profile: 'p1-dom',
+    allocatePort: async () => ++nextPort,
+    spawn: (command, args, options) => {
+      spawned.push({ command, args, options });
+      return { status: 0, signal: null };
+    },
+    record: (row) => recorded.push(row),
+  });
+  assert.equal(result.status, 0);
+  assert.deepEqual(spawned.map((call) => [call.command, ...call.args]), commands['p1-dom']);
+  assert.deepEqual(spawned.filter((call) => call.options.env.SPIREBOUND_E2E_PORT).map((call) => Number(call.options.env.SPIREBOUND_E2E_PORT)), [61001, 61002]);
+  assert.ok(spawned.every((call) => call.options.shell === false));
+  assert.deepEqual(recorded.map((row) => row.status), [0, 0, 0, 0]);
+
+  const p2BaseSpawned = [];
+  const p2BaseResult = await runStandingGates({
+    profile: 'p2-base',
+    allocatePort: async () => { throw new Error('p2-base profile allocated a port'); },
+    spawn: (executable, args, options) => {
+      p2BaseSpawned.push({ argv: [executable, ...args], options });
+      return { status: 0, signal: null };
+    },
+    record: () => {},
+  });
+  assert.equal(p2BaseResult.status, 0);
+  assert.deepEqual(p2BaseSpawned.map((call) => call.argv), commands['p2-base']);
+  assert.equal(p2BaseSpawned[0].options.timeout, undefined);
+  assert.equal(p2BaseSpawned[1].options.timeout, undefined);
+  assert.equal(p2BaseSpawned[2].options.timeout, 600000);
+
+  let fullPort = 62000;
+  const fullSpawned = [];
+  const fullResult = await runStandingGates({
+    profile: 'full',
+    allocatePort: async () => ++fullPort,
+    isOptionalAvailable: () => false,
+    spawn: (executable, args, options) => {
+      fullSpawned.push({ executable, args, options });
+      return { status: 0, signal: null };
+    },
+    record: () => {},
+  });
+  assert.equal(fullResult.status, 0);
+  assert.deepEqual(
+    fullSpawned.map(({ executable, args }) => [executable, ...args]),
+    commands.full.filter((argv) => argv.join(' ') !== 'npm run test:e2e:content-disk'),
+  );
+  const fullPorts = fullSpawned
+    .map((call) => Number(call.options.env.SPIREBOUND_E2E_PORT))
+    .filter(Number.isInteger);
+  assert.equal(fullPorts.length, 5);
+  assert.equal(new Set(fullPorts).size, fullPorts.length);
+  assert.ok(fullPorts.every((port) => port !== 5174));
+
+  let fullPresentPort = 63000;
+  const fullPresentSpawned = [];
+  const fullPresentResult = await runStandingGates({
+    profile: 'full',
+    allocatePort: async () => ++fullPresentPort,
+    isOptionalAvailable: () => true,
+    spawn: (executable, args, options) => {
+      fullPresentSpawned.push({ executable, args, options });
+      return { status: 0, signal: null };
+    },
+    record: () => {},
+  });
+  assert.equal(fullPresentResult.status, 0);
+  assert.deepEqual(
+    fullPresentSpawned.map(({ executable, args }) => [executable, ...args]),
+    commands.full,
+  );
+  const fullPresentPorts = fullPresentSpawned
+    .map((call) => Number(call.options.env.SPIREBOUND_E2E_PORT))
+    .filter(Number.isInteger);
+  assert.equal(fullPresentPorts.length, 6);
+  assert.equal(new Set(fullPresentPorts).size, fullPresentPorts.length);
+  assert.ok(fullPresentPorts.every((port) => port !== 5174));
+
+  let failures = 0;
+  const failFast = await runStandingGates({
+    profile: 'p1-node',
+    spawn: () => ({ status: ++failures === 1 ? 7 : 0, signal: null }),
+    allocatePort: async () => { throw new Error('Node-only profile allocated a port'); },
+    record: () => {},
+  });
+  assert.equal(failFast.status, 7);
+  assert.equal(failures, 1);
+  await assert.rejects(runStandingGates({ profile: 'not-a-profile' }), /Unknown standing-gate profile/);
+}
+{
+  const { runCommand, waitGithubCheck } = await import('../tools/wait-github-check.mjs');
+  const cleanRepo = Object.freeze({
+    getGitStatusPorcelain: () => '',
+    getHeadSha: () => 'abc123',
+    getUpstreamSha: () => 'abc123',
+  });
+  const ghVersionOk = { code: 0, stdout: 'gh version 2.0.0', stderr: '' };
+  const killedCommand = await runCommand([
+    process.execPath, '--eval', 'setInterval(() => {}, 1000)',
+  ], { timeoutMs: 20 });
+  assert.equal(killedCommand.code, 124);
+  assert.equal(killedCommand.timedOut, true);
+  assert.match(killedCommand.stderr, /command timed out after 20 ms/);
+  await assert.rejects(
+    () => waitGithubCheck({
+      checkName: 'p2-base',
+      getGitStatusPorcelain: () => ' M src/x.js',
+      getHeadSha: () => 'abc',
+      getUpstreamSha: () => 'abc',
+      runCommand: async () => ({ code: 0, stdout: '', stderr: '' }),
+    }),
+    /dirty working tree/i,
+  );
+  await assert.rejects(
+    () => waitGithubCheck({
+      checkName: 'p2-base',
+      getGitStatusPorcelain: () => '',
+      getHeadSha: () => 'abc',
+      getUpstreamSha: () => 'def',
+      runCommand: async () => ({ code: 0, stdout: '', stderr: '' }),
+    }),
+    /not pushed|upstream/i,
+  );
+  await assert.rejects(
+    () => waitGithubCheck({
+      checkName: 'p2-base',
+      ...cleanRepo,
+      runCommand: async (argv) => {
+        if (argv[0] === 'gh' && argv[1] === '--version') return { code: 127, stdout: '', stderr: 'gh: command not found' };
+        return { code: 0, stdout: '', stderr: '' };
+      },
+    }),
+    /gh CLI is required.*command not found/i,
+  );
+  await assert.rejects(
+    () => waitGithubCheck({
+      checkName: 'p2-base',
+      ...cleanRepo,
+      runCommand: async (argv) => {
+        if (argv[0] === 'gh' && argv[1] === '--version') return ghVersionOk;
+        if (argv[0] === 'gh' && argv[1] === 'api') return { code: 1, stdout: '[]', stderr: '' };
+        return { code: 0, stdout: '', stderr: '' };
+      },
+    }),
+    /gh check-runs failed with exit code 1/i,
+  );
+  const failed = await waitGithubCheck({
+    checkName: 'p2-base',
+    timeoutMs: 1000,
+    pollMs: 10,
+    ...cleanRepo,
+    runCommand: async (argv) => {
+      if (argv[0] === 'gh' && argv[1] === '--version') return ghVersionOk;
+      if (argv[0] === 'gh' && argv[1] === 'api') {
+        return {
+          code: 0,
+          stdout: JSON.stringify({
+            check_runs: [{
+              name: 'p2-base',
+              status: 'completed',
+              conclusion: 'failure',
+              html_url: 'https://example/fail',
+            }],
+          }),
+          stderr: '',
+        };
+      }
+      return { code: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.equal(failed.status, 1);
+  assert.equal(failed.url, 'https://example/fail');
+  const waitForCheckRow = (row) => waitGithubCheck({
+    checkName: 'p2-base',
+    timeoutMs: 1000,
+    pollMs: 10,
+    ...cleanRepo,
+    runCommand: async (argv) => {
+      if (argv[0] === 'gh' && argv[1] === '--version') return ghVersionOk;
+      if (argv[0] === 'gh' && argv[1] === 'api') {
+        return {
+          code: 0,
+          stdout: JSON.stringify({ check_runs: [{ name: 'p2-base', html_url: 'https://example/non-success', ...row }] }),
+          stderr: '',
+        };
+      }
+      return { code: 0, stdout: '', stderr: '' };
+    },
+  });
+  for (const row of [
+    { status: 'completed', conclusion: 'skipped' },
+    { status: 'completed', conclusion: 'neutral' },
+    { state: 'SKIPPED' },
+    { state: 'SUCCESS', conclusion: 'neutral' },
+  ]) {
+    const nonSuccess = await waitForCheckRow(row);
+    assert.equal(nonSuccess.status, 1);
+    assert.equal(nonSuccess.url, 'https://example/non-success');
+  }
+  let clock = 0;
+  const slept = [];
+  const timedOut = await waitGithubCheck({
+    checkName: 'p2-base',
+    timeoutMs: 25,
+    pollMs: 10,
+    now: () => clock,
+    sleep: async (ms) => { slept.push(ms); clock += ms; },
+    ...cleanRepo,
+    runCommand: async (argv) => {
+      if (argv[0] === 'gh' && argv[1] === '--version') return ghVersionOk;
+      if (argv[0] === 'gh' && argv[1] === 'api') return { code: 0, stdout: JSON.stringify({ check_runs: [] }), stderr: '' };
+      return { code: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.equal(timedOut.status, 1);
+  assert.deepEqual(slept, [10, 10, 5]);
+  const hungStarted = Date.now();
+  const hung = await waitGithubCheck({
+    checkName: 'p2-base',
+    timeoutMs: 20,
+    pollMs: 1,
+    ...cleanRepo,
+    runCommand: async (argv) => {
+      if (argv[0] === 'gh' && argv[1] === '--version') return ghVersionOk;
+      if (argv[0] === 'gh' && argv[1] === 'api') return new Promise(() => {});
+      return { code: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.equal(hung.status, 1);
+  assert.ok(Date.now() - hungStarted < 500, 'hung gh command is bounded by the wait timeout');
+  const apiCalls = [];
+  const ok = await waitGithubCheck({
+    checkName: 'p2-base',
+    timeoutMs: 1000,
+    pollMs: 10,
+    now: (() => { let t = 0; return () => { t += 5; return t; }; })(),
+    sleep: async () => {},
+    ...cleanRepo,
+    runCommand: async (argv) => {
+      if (argv[0] === 'gh' && argv[1] === '--version') return ghVersionOk;
+      if (argv[0] === 'gh' && argv[1] === 'api') {
+        apiCalls.push(argv);
+        return {
+          code: 0,
+          stdout: JSON.stringify({
+            check_runs: [{
+              name: 'p2-base',
+              status: 'completed',
+              conclusion: 'success',
+              html_url: 'https://example/run',
+            }],
+          }),
+          stderr: '',
+        };
+      }
+      return { code: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.equal(ok.status, 0);
+  assert.equal(ok.url, 'https://example/run');
+  assert.equal(apiCalls.length, 1);
+  assert.deepEqual(apiCalls[0].slice(0, 4), ['gh', 'api', '--method', 'GET']);
+  assert.match(apiCalls[0][4], /repos\/\{owner\}\/\{repo\}\/commits\/abc123\/check-runs\?per_page=100/);
+  assert.equal(apiCalls[0].includes('checks'), false);
 }
 
 // ---- unit checks -----------------------------------------------------------
@@ -190,17 +1706,20 @@ function forceHand(run, cb, ids) {
     assert.ok(item.prompt_influence >= 0 && item.prompt_influence <= 1, `audio packs: ${id} records prompt influence`);
   }
   assert.ok(MUSIC_CATALOG.every((row) => row.wired), 'audio catalog: every Music Cue is wired');
-  assert.equal(resolveCombatCue('monster', 0), 'act1Combat');
-  assert.equal(resolveCombatCue('elite', 1), 'elite');
-  assert.equal(resolveCombatCue('boss', 2), 'act3Boss');
-  assert.equal(resolveCombatCue('monster', 0, { questId: 'paleOnes' }), 'paleOnes');
-  assert.equal(resolveCombatCue('monster', 1, { questId: 'ownShade' }), 'shadeDuel');
-  assert.equal(resolveCombatCue('boss', 2, { questId: 'usurper' }), 'usurper');
-  assert.equal(resolveCombatCue('elite', 0, { omenId: 'eighthOmen' }), 'eighthOmen');
-  assert.equal(resolveCombatCue('boss', 0, { omenId: 'eighthOmen' }), 'act1Boss', 'Eighth Omen does not steal boss cues');
-  assert.equal(resolveCombatCue('monster', 0, { questId: 'paleOnes', omenId: 'eighthOmen' }), 'paleOnes');
+  const sampleMusic = { combat: 'paleOnes', boss: 'usurper' };
+  assert.equal(resolveCombatCue('monster', sampleMusic), 'paleOnes');
+  assert.equal(resolveCombatCue('elite', sampleMusic), 'elite');
+  assert.equal(resolveCombatCue('boss', sampleMusic), 'usurper');
+  assert.equal(resolveCombatCue('monster', { combat: 'act1Combat', boss: 'act1Boss' }, { questId: 'paleOnes' }), 'paleOnes');
+  assert.equal(resolveCombatCue('monster', { combat: 'act2Combat', boss: 'act2Boss' }, { questId: 'ownShade' }), 'shadeDuel');
+  assert.equal(resolveCombatCue('boss', { combat: 'act3Combat', boss: 'act3Boss' }, { questId: 'usurper' }), 'usurper');
+  assert.equal(resolveCombatCue('elite', sampleMusic, { omenId: 'eighthOmen' }), 'eighthOmen');
+  assert.equal(resolveCombatCue('boss', { combat: 'act1Combat', boss: 'act1Boss' }, { omenId: 'eighthOmen' }), 'act1Boss', 'Eighth Omen does not steal boss cues');
+  assert.equal(resolveCombatCue('monster', sampleMusic, { questId: 'paleOnes', omenId: 'eighthOmen' }), 'paleOnes');
   assert.equal(resolveScreenCue('hollow'), 'hollowLamplighter');
   assert.equal(resolveScreenCue('map', 'eighthOmen'), 'eighthOmen');
+  assert.equal(resolveScreenCue('reward'), null, 'reward holds the cue selected before navigation');
+  assert.equal(resolveScreenCue('bossRelic'), null, 'boss relic holds the cue selected before navigation');
   assert.equal(SCREEN_CUES.lamplighter, 'map');
   assert.equal(dawnEventCue({ t: 'pageRead' }), 'unreadablePage');
   assert.equal(dawnEventCue({ t: 'act4Reveal' }), 'sealedDoor');
@@ -2320,146 +3839,198 @@ function forceHand(run, cb, ids) {
   _setStore(null);
 }
 {
-  // Emberglass scheduler/save bounds derive from authored tunables rather
-  // than retaining the launch values 2, 3, and 5 in parallel.
-  const oldGuaranteeRuns = PROGRESSION.emberglass.eighthOmen.guaranteeRuns;
-  const oldEmberDebt = PROGRESSION.emberglass.hollowLamplighter.emberDebt;
-  const oldPageTarget = QUESTS.unreadablePage.target;
-  const oldHiddenPerRun = PROGRESSION.emberglass.paleOnes.hiddenPerRun;
-  const oldMarkedAct1 = PROGRESSION.emberglass.paleOnes.markedAct1;
-  const oldMaxMeetings = PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun;
+  // Task 12B: simultaneous frozen core + tuned contexts (no global PROGRESSION mutation).
+  const core = CORE_CONTENT;
+  const tuned = makeTunedContent({
+    progression: { features: { emberglass: {
+      eighthOmen: { guaranteeRuns: 4, saveDueInMax: 4 },
+      paleOnes: { hiddenPerRun: 2, markedAct1: 2 },
+      hollowLamplighter: { maxMeetingsPerRun: 2, emberDebt: 4, saveEmberDebtMax: 4 },
+      unreadablePage: { completeAt: 6 },
+    } } },
+  }, 'tuned-context');
+  assert.equal(Object.isFrozen(core), true, 'core context is frozen');
+  assert.equal(Object.isFrozen(tuned), true, 'tuned context is frozen');
+  assert.throws(() => { core.progression.emberglass.eighthOmen.guaranteeRuns = 99; }, TypeError,
+    'core context nested writes throw');
+  assert.throws(() => { tuned.progression.emberglass.paleOnes.hiddenPerRun = 99; }, TypeError,
+    'tuned context nested writes throw');
+  assert.notEqual(tuned.progression.emberglass.eighthOmen.guaranteeRuns,
+    core.progression.emberglass.eighthOmen.guaranteeRuns,
+    'tuned context does not observe core progression');
+  assert.equal(tuned.quests.hollowLamplighter.target, core.quests.hollowLamplighter.target,
+    'Hollow target re-derived from tuned progression completeAt unless overridden');
+  assert.equal(tuned.quests.unreadablePage.target, 6);
+  assert.equal(tuned.variants.paleDuskfang.statMods,
+    tuned.progression.emberglass.variantStats.pale,
+    'tuned variant stat aliases re-derived from the clone');
+
+  EngineApi._setQuestRng(() => 0.99);
+  const questSet = (activeId, memory = {}) => Object.fromEntries(QUEST_IDS.map((id) => [id, {
+    state: id === activeId ? 'revealed' : 'dormant', progress: 0,
+    memory: id === activeId ? { ...memory } : {},
+  }]));
+  const eighthQuests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
+    state: id === 'eighthOmen' ? 'armed' : 'dormant', progress: 0,
+    memory: id === 'eighthOmen' ? { dueIn: 4 } : {},
+  }]));
+  const missed = newRun(466, { ephemeral: true, content: tuned, quests: eighthQuests, reveals: [] });
+  assert.equal(contentIdFor(missed), 'tuned-context');
+  assert.equal(isEphemeralRun(missed), true);
+  assert.deepEqual(missed.questScratch.eighthOmen, { active: false });
+  assert.equal(missed.quests.eighthOmen.memory.dueIn, 3,
+    'a configured four-run guarantee decrements instead of assuming two');
+  eighthQuests.eighthOmen.memory.dueIn = 1;
+  const forced = newRun(467, { ephemeral: true, content: tuned, quests: eighthQuests, reveals: [] });
+  assert.deepEqual(forced.questScratch.eighthOmen, { active: true },
+    'the final configured guarantee run remains forced');
+
+  const hidden = newRun(468, { ephemeral: true, content: tuned, quests: questSet('paleOnes'), reveals: [] });
+  assert.equal(hidden.questScratch.paleOnes.hiddenRemaining, 2);
+  assert.equal(rollEncounter(hidden, 'monster', 1)[0], 'paleDuskfang');
+  assert.equal(rollEncounter(hidden, 'monster', 2)[0], 'paleDuskfang');
+  assert.ok(!rollEncounter(hidden, 'monster', 3)[0].startsWith('pale'),
+    'hiddenPerRun controls the exact unmarked encounter count');
+
+  const marked = newRun(469, {
+    ephemeral: true, content: tuned,
+    quests: questSet('paleOnes'), unlocks: ['insight:witchlightLens'], reveals: [],
+  });
+  const actOneCandidates = marked.map.nodes.filter((node) => node.row === 0 && node.type === 'monster');
+  assert.equal(actOneCandidates.filter((node) => node.questMarked).length,
+    Math.min(2, actOneCandidates.length), 'markedAct1 controls distinct marked nodes');
+
+  const hollow = newRun(470, {
+    ephemeral: true, content: tuned,
+    quests: questSet('hollowLamplighter', {
+      eligibleMisses: tuned.progression.emberglass.hollowLamplighter.pityEligibleRuns - 1,
+    }),
+    reveals: [],
+  });
+  const meetingNodes = hollow.map.nodes.slice(0, 3);
+  meetingNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
+  assert.equal(visitNode(hollow, meetingNodes[0]).hollow, true);
+  hollow.pendingHollow = null;
+  assert.equal(visitNode(hollow, meetingNodes[1]).hollow, true);
+  hollow.pendingHollow = null;
+  assert.equal(visitNode(hollow, meetingNodes[2]).hollow, undefined,
+    'maxMeetingsPerRun caps later eligible nodes');
+  assert.equal(hollow.questScratch.hollowLamplighter.meetings, 2);
+
+  const debtHollow = newRun(473, {
+    ephemeral: true, content: tuned,
+    quests: questSet('hollowLamplighter', {
+      eligibleMisses: tuned.progression.emberglass.hollowLamplighter.pityEligibleRuns - 1,
+    }),
+    reveals: [],
+  });
+  const debtNodes = debtHollow.map.nodes.slice(0, 2);
+  debtNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
+  assert.equal(visitNode(debtHollow, debtNodes[0]).hollow, true);
+  assert.equal(payHollowPrice(debtHollow).deferred, true);
+  const debtCombat = startCombat(debtHollow, ['sporeling']);
+  gainEmbers(debtHollow, debtCombat, tuned.progression.emberglass.hollowLamplighter.emberDebt - 1);
+  assert.equal(debtHollow.quests.hollowLamplighter.memory.emberDebt, 1);
+  debtHollow.pendingHollow = null;
+  assert.equal(visitNode(debtHollow, debtNodes[1]).hollow, undefined,
+    'an outstanding deferred ember price blocks a repeated meeting');
+  assert.equal(debtHollow.quests.hollowLamplighter.memory.emberDebt, 1,
+    'a later unlit node cannot reset an outstanding ember debt');
+  assert.equal(debtHollow.questScratch.hollowLamplighter.meetings, 1);
+
+  const completeHollow = newRun(474, {
+    ephemeral: true, content: tuned,
+    quests: Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: id === 'hollowLamplighter' ? 'revealed' : 'dormant',
+      progress: id === 'hollowLamplighter' ? tuned.quests.hollowLamplighter.target - 1 : 0,
+      memory: id === 'hollowLamplighter'
+        ? { eligibleMisses: tuned.progression.emberglass.hollowLamplighter.pityEligibleRuns - 1 }
+        : {},
+    }])),
+    reveals: [],
+  });
+  const completeNodes = completeHollow.map.nodes.slice(0, 2);
+  completeNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
+  assert.equal(visitNode(completeHollow, completeNodes[0]).hollow, true);
+  assert.equal(payHollowPrice(completeHollow).ok, true);
+  assert.equal(completeHollow.quests.hollowLamplighter.state, 'complete');
+  completeHollow.pendingHollow = null;
+  assert.equal(visitNode(completeHollow, completeNodes[1]).hollow, undefined,
+    'a completed Hollow Trail cannot open another meeting');
+  assert.equal(completeHollow.questScratch.hollowLamplighter.meetings, 1);
+
+  const shadeTierIds = Object.keys(tuned.variants)
+    .filter((id) => /^ownShade[1-9]\d*$/.test(id))
+    .sort((a, b) => Number(a.slice('ownShade'.length)) - Number(b.slice('ownShade'.length)));
+  assert.equal(tuned.progression.emberglass.ownShade.tiers.length, tuned.quests.ownShade.target,
+    'each fixed Shade stage has one authored stat tier');
+  assert.deepEqual(shadeTierIds,
+    tuned.progression.emberglass.ownShade.tiers.map((_, index) => `ownShade${index + 1}`),
+    'each fixed Shade stage has one contiguous combat variant');
+  assert.equal(tuned.quests.hollowLamplighter.meetings.length, tuned.quests.hollowLamplighter.target,
+    'each configured Hollow completion step has one authored price conversation');
+
+  // Core run must not observe tuned progression / encounters / cards.
+  const coreRun = newRun(480);
+  assert.equal(contentIdFor(coreRun), 'core');
+  assert.equal(isEphemeralRun(coreRun), false);
+  assert.equal(themeCount(coreRun), 3);
+  assert.equal(isFinalTheme({ ...coreRun, act: 2 }), true);
+  assert.equal(cardData(makeCard(coreRun, 'strike'), coreRun).name, cardData(makeCard(missed, 'strike'), missed).name);
+  const corePale = newRun(482, { quests: questSet('paleOnes'), reveals: [] });
+  assert.equal(corePale.questScratch.paleOnes.hiddenRemaining, 1);
+  assert.notEqual(hidden.questScratch.paleOnes.hiddenRemaining, corePale.questScratch.paleOnes.hiddenRemaining);
+
+  assert.throws(() => newRun(1, { ephemeral: true, content: tuned, art: 'not-a-real-art' }), /unknown art/);
+  assert.throws(() => newRun(1, { ephemeral: true, content: { id: 'raw' } }), /frozen|missing domain/i);
+  assert.throws(() => newRun(1, { ephemeral: true, content: tuned, boon: 'not-a-real-boon' }), /unknown boon/);
+
   const previousLocalStorage = globalThis.localStorage;
   const mem = new Map();
   try {
-    assert.ok(PROGRESSION.emberglass.eighthOmen.saveDueInMax >= oldGuaranteeRuns,
-      'the Eighth save ceiling covers the shipped guarantee');
-    assert.ok(PROGRESSION.emberglass.hollowLamplighter.saveEmberDebtMax >= oldEmberDebt,
-      'the Hollow save ceiling covers the shipped deferred price');
-    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = 4;
-    EngineApi._setQuestRng(() => 0.99);
-    const eighthQuests = Object.fromEntries(QUEST_IDS.map((id) => [id, {
-      state: id === 'eighthOmen' ? 'armed' : 'dormant', progress: 0,
-      memory: id === 'eighthOmen' ? { dueIn: 4 } : {},
-    }]));
-    const missed = newRun(466, { quests: eighthQuests, reveals: [] });
-    assert.deepEqual(missed.questScratch.eighthOmen, { active: false });
-    assert.equal(missed.quests.eighthOmen.memory.dueIn, 3,
-      'a configured four-run guarantee decrements instead of assuming two');
-    eighthQuests.eighthOmen.memory.dueIn = 1;
-    const forced = newRun(467, { quests: eighthQuests, reveals: [] });
-    assert.deepEqual(forced.questScratch.eighthOmen, { active: true },
-      'the final configured guarantee run remains forced');
-
-    const questSet = (activeId, memory = {}) => Object.fromEntries(QUEST_IDS.map((id) => [id, {
-      state: id === activeId ? 'revealed' : 'dormant', progress: 0,
-      memory: id === activeId ? { ...memory } : {},
-    }]));
-    PROGRESSION.emberglass.paleOnes.hiddenPerRun = 2;
-    const hidden = newRun(468, { quests: questSet('paleOnes'), reveals: [] });
-    assert.equal(hidden.questScratch.paleOnes.hiddenRemaining, 2);
-    assert.equal(rollEncounter(hidden, 'monster', 1)[0], 'paleDuskfang');
-    assert.equal(rollEncounter(hidden, 'monster', 2)[0], 'paleDuskfang');
-    assert.ok(!rollEncounter(hidden, 'monster', 3)[0].startsWith('pale'),
-      'hiddenPerRun controls the exact unmarked encounter count');
-
-    PROGRESSION.emberglass.paleOnes.markedAct1 = 2;
-    const marked = newRun(469, {
-      quests: questSet('paleOnes'), unlocks: ['insight:witchlightLens'], reveals: [],
-    });
-    const actOneCandidates = marked.map.nodes.filter((node) => node.row === 0 && node.type === 'monster');
-    assert.equal(actOneCandidates.filter((node) => node.questMarked).length,
-      Math.min(2, actOneCandidates.length), 'markedAct1 controls distinct marked nodes');
-
-    PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun = 2;
-    const hollow = newRun(470, {
-      quests: questSet('hollowLamplighter', {
-        eligibleMisses: PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1,
-      }),
-      reveals: [],
-    });
-    const meetingNodes = hollow.map.nodes.slice(0, 3);
-    meetingNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
-    assert.equal(visitNode(hollow, meetingNodes[0]).hollow, true);
-    hollow.pendingHollow = null;
-    assert.equal(visitNode(hollow, meetingNodes[1]).hollow, true);
-    hollow.pendingHollow = null;
-    assert.equal(visitNode(hollow, meetingNodes[2]).hollow, undefined,
-      'maxMeetingsPerRun caps later eligible nodes');
-    assert.equal(hollow.questScratch.hollowLamplighter.meetings, 2);
-
-    const debtHollow = newRun(473, {
-      quests: questSet('hollowLamplighter', {
-        eligibleMisses: PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1,
-      }),
-      reveals: [],
-    });
-    const debtNodes = debtHollow.map.nodes.slice(0, 2);
-    debtNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
-    assert.equal(visitNode(debtHollow, debtNodes[0]).hollow, true);
-    assert.equal(payHollowPrice(debtHollow).deferred, true);
-    const debtCombat = startCombat(debtHollow, ['sporeling']);
-    gainEmbers(debtHollow, debtCombat, PROGRESSION.emberglass.hollowLamplighter.emberDebt - 1);
-    assert.equal(debtHollow.quests.hollowLamplighter.memory.emberDebt, 1);
-    debtHollow.pendingHollow = null;
-    assert.equal(visitNode(debtHollow, debtNodes[1]).hollow, undefined,
-      'an outstanding deferred ember price blocks a repeated meeting');
-    assert.equal(debtHollow.quests.hollowLamplighter.memory.emberDebt, 1,
-      'a later unlit node cannot reset an outstanding ember debt');
-    assert.equal(debtHollow.questScratch.hollowLamplighter.meetings, 1);
-
-    const completeHollow = newRun(474, {
-      quests: Object.fromEntries(QUEST_IDS.map((id) => [id, {
-        state: id === 'hollowLamplighter' ? 'revealed' : 'dormant',
-        progress: id === 'hollowLamplighter' ? QUESTS.hollowLamplighter.target - 1 : 0,
-        memory: id === 'hollowLamplighter'
-          ? { eligibleMisses: PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1 }
-          : {},
-      }])),
-      reveals: [],
-    });
-    const completeNodes = completeHollow.map.nodes.slice(0, 2);
-    completeNodes.forEach((node) => { node.unlit = true; node.bounty = 0; });
-    assert.equal(visitNode(completeHollow, completeNodes[0]).hollow, true);
-    assert.equal(payHollowPrice(completeHollow).ok, true);
-    assert.equal(completeHollow.quests.hollowLamplighter.state, 'complete');
-    completeHollow.pendingHollow = null;
-    assert.equal(visitNode(completeHollow, completeNodes[1]).hollow, undefined,
-      'a completed Hollow Trail cannot open another meeting');
-    assert.equal(completeHollow.questScratch.hollowLamplighter.meetings, 1);
-
-    const shadeTierIds = Object.keys(VARIANTS)
-      .filter((id) => /^ownShade[1-9]\d*$/.test(id))
-      .sort((a, b) => Number(a.slice('ownShade'.length)) - Number(b.slice('ownShade'.length)));
-    assert.equal(PROGRESSION.emberglass.ownShade.tiers.length, QUESTS.ownShade.target,
-      'each fixed Shade stage has one authored stat tier');
-    assert.deepEqual(shadeTierIds,
-      PROGRESSION.emberglass.ownShade.tiers.map((_, index) => `ownShade${index + 1}`),
-      'each fixed Shade stage has one contiguous combat variant');
-    assert.equal(QUESTS.hollowLamplighter.meetings.length, QUESTS.hollowLamplighter.target,
-      'each configured Hollow completion step has one authored price conversation');
-
-    PROGRESSION.emberglass.hollowLamplighter.emberDebt = 4;
-    QUESTS.unreadablePage.target = 6;
     globalThis.localStorage = {
       getItem: (key) => mem.get(key) ?? null,
       setItem: (key, value) => mem.set(key, value),
       removeItem: (key) => mem.delete(key),
     };
 
+    const ephemeral = newRun(481, { ephemeral: true, content: tuned });
+    assert.equal(saveRun(ephemeral), true, 'ephemeral saveRun returns predecessor success');
+    assert.equal(mem.size, 0, 'ephemeral saveRun does not touch storage');
+    assert.equal(commitRunStats(ephemeral, true), true);
+    assert.equal(mem.size, 0, 'ephemeral commitRunStats does not touch storage');
+    assert.equal(recordRunEnd(ephemeral, false), true);
+    assert.equal(mem.size, 0, 'ephemeral recordRunEnd does not touch storage');
+
+    const high = makeTunedContent({
+      progression: { features: { emberglass: {
+        paleOnes: { hiddenPerRun: 2 },
+        eighthOmen: { guaranteeRuns: 4, saveDueInMax: 4 },
+        hollowLamplighter: { emberDebt: 4, saveEmberDebtMax: 4, maxMeetingsPerRun: 2 },
+        unreadablePage: { completeAt: 6 },
+      } } },
+    }, 'tuned-high');
+    const low = makeTunedContent({
+      progression: { features: { emberglass: {
+        paleOnes: { hiddenPerRun: 1 },
+        eighthOmen: { guaranteeRuns: 1, saveDueInMax: 2 },
+        hollowLamplighter: { emberDebt: 2, saveEmberDebtMax: 3, maxMeetingsPerRun: 1 },
+      } } },
+    }, 'tuned-low');
+
     const historicalQuests = questSet('paleOnes');
     historicalQuests.hollowLamplighter = {
       state: 'revealed', progress: 1, memory: { eligibleMisses: 0 },
     };
-    const historical = newRun(471, { quests: historicalQuests, reveals: [] });
+    const historical = newRun(471, { content: high, quests: historicalQuests, reveals: [] });
     historical.questScratch.hollowLamplighter = {
       due: true, met: true, meetings: 2, debtActive: false,
     };
     assert.equal(saveRun(historical), true);
     const durableHistorical = JSON.parse(mem.get('spirebound_save_v2'));
-    PROGRESSION.emberglass.paleOnes.hiddenPerRun = 1;
-    PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun = 1;
-    const historicalReload = loadRun();
+    const historicalReload = _normaliseRunSnapshotForTest(durableHistorical, low);
     assert.ok(historicalReload, 'lower tuning does not invalidate historical scheduler counters');
+    assert.equal(contentIdFor(historicalReload), 'tuned-low');
     assert.equal(historicalReload.questScratch.paleOnes.hiddenRemaining, 2);
     assert.equal(historicalReload.questScratch.hollowLamplighter.meetings, 2);
     assert.equal(rollEncounter(historicalReload, 'monster', 1)[0], 'paleDuskfang');
@@ -2468,36 +4039,31 @@ function forceHand(run, cb, ids) {
 
     const inconsistentPale = structuredClone(durableHistorical);
     inconsistentPale.questScratch.paleOnes.hiddenDue = false;
-    mem.set('spirebound_save_v2', JSON.stringify(inconsistentPale));
-    assert.equal(loadRun(), null, 'redundant Pale scheduler fields must agree');
+    assert.equal(_normaliseRunSnapshotForTest(inconsistentPale, low), null,
+      'redundant Pale scheduler fields must agree');
     const inconsistentHollow = structuredClone(durableHistorical);
     inconsistentHollow.questScratch.hollowLamplighter.met = false;
-    mem.set('spirebound_save_v2', JSON.stringify(inconsistentHollow));
-    assert.equal(loadRun(), null, 'redundant Hollow scheduler fields must agree');
+    assert.equal(_normaliseRunSnapshotForTest(inconsistentHollow, low), null,
+      'redundant Hollow scheduler fields must agree');
 
-    const dynamicSave = newRun(472);
+    const dynamicSave = newRun(472, { content: high });
     dynamicSave.quests.eighthOmen = { state: 'armed', progress: 0, memory: { dueIn: 4 } };
     dynamicSave.quests.hollowLamplighter = { state: 'revealed', progress: 0, memory: { emberDebt: 4 } };
     dynamicSave.endQueue = [{ t: 'pageRead', index: 6, text: 'A sixth configured page.' }];
     assert.equal(saveRun(dynamicSave), true);
-    assert.ok(loadRun(), 'configured guarantee, ember debt, and Page target pass save validation');
+    assert.ok(_normaliseRunSnapshotForTest(JSON.parse(mem.get('spirebound_save_v2')), high),
+      'configured guarantee, ember debt, and Page target pass save validation');
 
-    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = oldGuaranteeRuns;
-    PROGRESSION.emberglass.hollowLamplighter.emberDebt = oldEmberDebt;
     const compatibilitySave = newRun(475);
     compatibilitySave.quests.eighthOmen = {
-      state: 'armed', progress: 0, memory: { dueIn: oldGuaranteeRuns },
+      state: 'armed', progress: 0, memory: { dueIn: PROGRESSION.emberglass.eighthOmen.guaranteeRuns },
     };
     compatibilitySave.quests.hollowLamplighter = {
-      state: 'revealed', progress: 0, memory: { emberDebt: oldEmberDebt },
+      state: 'revealed', progress: 0,
+      memory: { emberDebt: PROGRESSION.emberglass.hollowLamplighter.emberDebt },
     };
     assert.equal(saveRun(compatibilitySave), true);
-    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = 1;
-    PROGRESSION.emberglass.hollowLamplighter.emberDebt = 2;
-    const lowerTuningReload = loadRun();
-    assert.ok(lowerTuningReload, 'lower memory tunables do not invalidate an existing run contract');
-    assert.equal(lowerTuningReload.quests.eighthOmen.memory.dueIn, oldGuaranteeRuns);
-    assert.equal(lowerTuningReload.quests.hollowLamplighter.memory.emberDebt, oldEmberDebt);
+    assert.ok(loadRun(), 'core loadRun still accepts shipped memory contracts');
 
     const excessiveDue = structuredClone(JSON.parse(mem.get('spirebound_save_v2')));
     excessiveDue.quests.eighthOmen.memory.dueIn =
@@ -2509,17 +4075,117 @@ function forceHand(run, cb, ids) {
       PROGRESSION.emberglass.hollowLamplighter.saveEmberDebtMax + 1;
     mem.set('spirebound_save_v2', JSON.stringify(excessiveDebt));
     assert.equal(loadRun(), null, 'Hollow historical compatibility remains schema-bounded');
+    assert.equal(_normaliseRunSnapshotForTest(excessiveDebt, low), null,
+      'explicit tuned normaliser rejects above-ceiling ember debt');
   } finally {
     EngineApi._setQuestRng(null);
-    PROGRESSION.emberglass.eighthOmen.guaranteeRuns = oldGuaranteeRuns;
-    PROGRESSION.emberglass.hollowLamplighter.emberDebt = oldEmberDebt;
-    QUESTS.unreadablePage.target = oldPageTarget;
-    PROGRESSION.emberglass.paleOnes.hiddenPerRun = oldHiddenPerRun;
-    PROGRESSION.emberglass.paleOnes.markedAct1 = oldMarkedAct1;
-    PROGRESSION.emberglass.hollowLamplighter.maxMeetingsPerRun = oldMaxMeetings;
     if (previousLocalStorage) globalThis.localStorage = previousLocalStorage;
     else delete globalThis.localStorage;
   }
+}
+{
+  // Task 12B fix: dawn validators must observe the run-bound quest targets.
+  assert.equal(QUESTS.unreadablePage.target, 5, 'core Unreadable Page target remains 5');
+  const dawnTuned = makeTunedContent({
+    progression: { features: { emberglass: { unreadablePage: { completeAt: 6 } } } },
+  }, 'dawn-tuned');
+  assert.equal(dawnTuned.quests.unreadablePage.target, 6);
+  const prevLs = globalThis.localStorage;
+  const store = new Map();
+  try {
+    globalThis.localStorage = {
+      getItem: (k) => store.get(k) ?? null,
+      setItem: (k, v) => store.set(k, v),
+      removeItem: (k) => store.delete(k),
+    };
+    const dawnRun = newRun(512, { content: dawnTuned });
+    dawnRun.pendingRunEnd = { outcome: 'win' };
+    assert.equal(saveRun(dawnRun), true);
+    const tunedDawnEvents = [
+      { t: 'pageRead', index: 6, text: 'SIXTH PAGE — Tuned ceiling.' },
+      { t: 'questProgress', id: 'unreadablePage', progress: 6, target: 6 },
+    ];
+    assert.equal(stagePendingDawn(dawnRun, tunedDawnEvents, []), true,
+      'stagePendingDawn accepts tuned pageRead/questProgress targets');
+    assert.equal(dawnRun.pendingDawn.events.length, 2);
+    assert.equal(advancePendingDawn(dawnRun, 1), true,
+      'advancePendingDawn re-validates against run-bound content');
+    assert.equal(advancePendingDawn(dawnRun, 2), true);
+    assert.equal(completePendingDawn(dawnRun), true,
+      'completePendingDawn re-validates against run-bound content');
+
+    const coreDawn = newRun(513);
+    coreDawn.pendingRunEnd = { outcome: 'win' };
+    assert.equal(saveRun(coreDawn), true);
+    assert.equal(stagePendingDawn(coreDawn, tunedDawnEvents, []), false,
+      'core content still rejects above-ceiling dawn events');
+  } finally {
+    if (prevLs) globalThis.localStorage = prevLs;
+    else delete globalThis.localStorage;
+  }
+}
+{
+  // Task 12B fix: run-capable cardData callers must pass run.
+  const cardTuned = makeTunedContent({}, 'card-tuned', (authoring) => {
+    authoring.cards.strike.cost = 2;
+    authoring.cards.strike.effects = [{ kind: 'dmg', n: 99 }];
+    authoring.cards.burn.endTurnDmg = 7;
+    authoring.cards.defend.unremovable = true;
+    authoring.cards.hex.type = 'skill';
+  });
+  const tunedRun = newRun(514, { ephemeral: true, content: cardTuned });
+  const strike = makeCard(tunedRun, 'strike');
+  assert.equal(cardData(strike).cost, 1, 'one-argument cardData stays on the core catalogue');
+  assert.equal(cardData(strike).effects[0].n, 6);
+  assert.equal(cardData(strike, tunedRun).cost, 2, 'run-bound cardData observes tuned cost');
+  assert.equal(cardData(strike, tunedRun).effects[0].n, 99, 'run-bound cardData observes tuned effects');
+
+  assert.ok(!removableCards(tunedRun).some((c) => c.id === 'defend'),
+    'removableCards observes tuned unremovable via run');
+  const defend = tunedRun.player.deck.find((c) => c.id === 'defend');
+  assert.ok(defend);
+  assert.equal(removeCardFromDeck(tunedRun, defend.uid), false,
+    'removeCardFromDeck observes tuned unremovable via run');
+
+  const previewCb = startCombat(tunedRun, ['gravewarden']);
+  const handStrike = previewCb.hand.find((c) => c.id === 'strike') || (() => {
+    const c = makeCard(tunedRun, 'strike');
+    previewCb.hand.push(c);
+    return c;
+  })();
+  assert.equal(effCost(tunedRun, previewCb, handStrike), 2, 'effCost observes tuned cost via run');
+  assert.equal(canPlay(tunedRun, previewCb, handStrike, 0), true);
+  assert.equal(previewPlay(tunedRun, previewCb, handStrike, 0).hits[0].dmg, 99,
+    'previewPlay observes tuned damage via run');
+
+  const kindleRun = newRun(516, { ephemeral: true, content: cardTuned });
+  const kindleCombat = startCombat(kindleRun, ['sporeling']);
+  const tunedHex = makeCard(kindleRun, 'hex');
+  kindleCombat.hand = [tunedHex];
+  assert.equal(cardData(tunedHex).type, 'curse', 'one-argument cardData still sees core hex as curse');
+  assert.equal(canKindle(kindleRun, kindleCombat, tunedHex), true,
+    'canKindle observes tuned type via run (hex retuned off curse)');
+
+  const burnRun = newRun(517, { ephemeral: true, content: cardTuned });
+  const burnCb = startCombat(burnRun, ['sporeling']);
+  burnCb.hand = [makeCard(burnRun, 'burn')];
+  burnCb.queue.length = 0;
+  endTurn(burnRun, burnCb);
+  const burnHit = burnCb.queue.find((e) => e.t === 'hitPlayer' && e.source === 'burn');
+  assert.equal(burnHit?.amount, 7, 'endTurn observes tuned endTurnDmg via run');
+
+  const playRun = newRun(518, { ephemeral: true, content: cardTuned });
+  const playCb = startCombat(playRun, ['gravewarden']);
+  const playStrike = playCb.hand.find((c) => c.id === 'strike') || (() => {
+    const c = makeCard(playRun, 'strike');
+    playCb.hand.push(c);
+    return c;
+  })();
+  playCb.enemies[0].block = 0;
+  playCb.queue.length = 0;
+  assert.equal(playCard(playRun, playCb, playStrike.uid, 0), true);
+  const hit = playCb.queue.find((e) => e.t === 'hitEnemy');
+  assert.equal(hit?.amount, 99, 'playCard applies tuned damage via run-bound cardData');
 }
 {
   const q = Object.fromEntries(QUEST_IDS.map((id) => [id, {
@@ -4217,7 +5883,13 @@ function randomAgentRun(seed) {
   checkManifest('boons', Object.keys(BOONS));
   checkManifest('arts', Object.keys(ARTS));
   checkManifest('heroes', ASPECTS.map((a) => a.id));
-  checkManifest('stage', [1, 2, 3].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => `act${a}-${l}`)));
+  const BOSS_STAGE_OPTIONAL = ['rootheart', 'leviathan', 'sovereign']
+    .flatMap((boss) => ['backdrop', 'mid', 'ledge'].map((l) => `${boss}-${l}`));
+  checkManifest(
+    'stage',
+    [1, 2, 3].flatMap((a) => ['backdrop', 'mid', 'ledge'].map((l) => `act${a}-${l}`)),
+    BOSS_STAGE_OPTIONAL,
+  );
   checkManifest('props', ['campfire', 'chest', 'chest-open', 'merchant']);
   checkManifest('statuses', Object.keys(STATUS_INFO));
   checkManifest('deeds', Object.keys(DEEDS));
@@ -4226,7 +5898,7 @@ function randomAgentRun(seed) {
     'emberglass-mural', 'emberglass-frame',
     ...QUEST_IDS.map((id) => 'emberglass-mask-' + id),
   ];
-  checkManifest('meta', ['fallen', 'ascended', 'monument-node'], ROSE_OPTIONAL);
+  checkManifest('meta', ['fallen', 'ascended', 'monument-node'], [...ROSE_OPTIONAL, 'unlock-toast-frame']);
   {
     const roseIds = [
       'emberglass-mural', 'emberglass-frame',
@@ -4288,8 +5960,10 @@ function randomAgentRun(seed) {
   assert.ok(s1.awaitMs <= 400 && s1.awaitMs >= 200);
   const s10 = flightSchedule(10, 400);
   assert.ok(s10.stagger <= s1.stagger || s10.stagger <= 48);
-  assert.ok(s10.awaitMs <= 480, 'large n stays near budget');
+  assert.equal(s10.awaitMs, s10.stagger * 9 + s10.flightDur,
+    'large-n awaitMs is honest stagger*(n-1)+flightDur');
   assert.ok(s10.stagger >= 8);
+  assert.ok(s10.flightDur <= 400, 'flightDur compressed into budget');
 
   const d5 = drawBatchSchedule(5, 500);
   assert.equal(d5.stagger, 100);
@@ -4300,6 +5974,99 @@ function randomAgentRun(seed) {
   assert.ok(d1.flightDur <= 280);
 
   assert.deepEqual(PILE_IDS, ['draw', 'discard', 'ashes']);
+
+  // Task 28 — P5 ceremony budgets compress stagger; awaitMs is honest wall-clock.
+  assert.equal(CEREMONY_BUDGET_MS.discardHand, 440);
+  assert.equal(CEREMONY_BUDGET_MS.reshuffle, 600);
+  const dh = flightSchedule(5, CEREMONY_BUDGET_MS.discardHand, { ceremony: 'discardHand' });
+  assert.equal(dh.awaitMs, dh.stagger * 4 + dh.flightDur,
+    'discardHand awaitMs = stagger*(n-1)+flightDur');
+  assert.ok(dh.awaitMs <= CEREMONY_BUDGET_MS.discardHand + 1,
+    'discardHand wall-clock stays within budget');
+  assert.ok(dh.stagger <= 24);
+  const rs = flightSchedule(8, CEREMONY_BUDGET_MS.reshuffle, { ceremony: 'reshuffle' });
+  assert.equal(rs.awaitMs, rs.stagger * 7 + rs.flightDur,
+    'reshuffle awaitMs = stagger*(n-1)+flightDur');
+  assert.ok(rs.awaitMs <= CEREMONY_BUDGET_MS.reshuffle + 1);
+  assert.ok(rs.stagger <= 22);
+}
+
+// ---- Task 28 presentation ownership inventory ----------------------------
+{
+  const index = buildOwnerIndex();
+  assert.equal(index.size, PRESENTATION_OWNERS.length,
+    'every row must appear exactly once in the owner index');
+  // No silent Phase-2 fall-through: every combat event drain handles must be listed.
+  const drainSource = readFileSync(new URL('../src/ui/drain.js', import.meta.url), 'utf8');
+  const drainCases = [...drainSource.matchAll(/case\s+'([a-zA-Z]+)'/g)].map((m) => m[1]);
+  const combatOwned = new Set(
+    PRESENTATION_OWNERS.filter((r) => r.domain === 'combat').map((r) => r.eventType),
+  );
+  for (const eventType of drainCases) {
+    assert.ok(combatOwned.has(eventType),
+      `drain case '${eventType}' must have a combat presentation owner`);
+  }
+  // Overlapping quest names have two domain-qualified owners.
+  for (const eventType of overlappingQuestEventTypes()) {
+    assert.equal(ownerFor('combat', eventType), 'pixi-combat');
+    assert.equal(ownerFor('end', eventType), 'dom-end');
+  }
+  // Dawn-only events stay on the end domain.
+  for (const eventType of [
+    'whisper', 'pageRead', 'eighthResolved', 'shadeResolved', 'shardGrant', 'act4Reveal',
+  ]) {
+    assert.equal(ownerFor('end', eventType), 'dom-end');
+    assert.throws(() => ownerFor('combat', eventType), /undeclared/);
+  }
+  // Source inventory: end.js remains the only Dawn owner (Task 28 must not migrate it).
+  const endSource = readFileSync(new URL('../src/ui/screens/end.js', import.meta.url), 'utf8');
+  assert.match(endSource, /dawnEventHtml/);
+  assert.match(endSource, /drainEndQueue/);
+  assert.match(endSource, /presentation\.dawn/);
+
+  // Declared pixi-combat owners for banner events must route through presentation.banner
+  // (no DOM `.turn-banner` / screenEl append) — inventory ↔ runtime parity.
+  function drainCaseBody(source, eventType) {
+    const start = source.indexOf(`case '${eventType}'`);
+    assert.ok(start >= 0, `missing drain case ${eventType}`);
+    const brace = source.indexOf('{', start);
+    let depth = 0;
+    for (let i = brace; i < source.length; i += 1) {
+      if (source[i] === '{') depth += 1;
+      else if (source[i] === '}') {
+        depth -= 1;
+        if (depth === 0) return source.slice(brace, i + 1);
+      }
+    }
+    throw new Error(`unclosed drain case ${eventType}`);
+  }
+  for (const eventType of ['bossIntro', 'variantDialogue']) {
+    assert.equal(ownerFor('combat', eventType), 'pixi-combat');
+    const body = drainCaseBody(drainSource, eventType);
+    assert.match(body, /presentation\.banner\s*\(/,
+      `${eventType} must call presentation.banner`);
+    assert.doesNotMatch(body, /turn-banner|screenEl\(\)\.appendChild/,
+      `${eventType} must not append a DOM turn-banner`);
+  }
+  const victoryBody = drainCaseBody(drainSource, 'victory');
+  assert.match(victoryBody, /presentation\.banner\s*\(/,
+    'perfect victory banner must use presentation.banner');
+  assert.doesNotMatch(victoryBody, /perfect-banner|turn-banner/,
+    'perfect victory must not use DOM .perfect-banner');
+
+  const replayPreviewSource = readFileSync(
+    new URL('../src/ui/dev/replay-preview.js', import.meta.url), 'utf8',
+  );
+  assert.match(replayPreviewSource, /createCombatPresentation/,
+    'Lab replay uses the shared combat presentation factory');
+  assert.doesNotMatch(replayPreviewSource, /lab-replay-card-flight|innerHTML/,
+    'Lab replay drops the separate DOM card-flight FACTORIES path');
+
+  const combatSourceForFloaties = readFileSync(
+    new URL('../src/ui/combat.js', import.meta.url), 'utf8',
+  );
+  assert.match(combatSourceForFloaties, /rejectCombatDomCeremony|pixi-presentation-missing/,
+    'combat rejects DOM floaties/banner fallback while S.screen === combat');
 }
 
 // ---- ui chrome helpers (pure) ----
@@ -4608,6 +6375,3292 @@ function randomAgentRun(seed) {
   const pct = feetToOriginPct({ footX: 50, footRow: 199 }, 100, 200, 100, 200);
   assert.equal(pct.ox, 50, 'feet-scan: origin ox');
   assert.equal(pct.oy, 99.5, 'feet-scan: origin oy near bottom');
+}
+
+// ---- Round 5 Task 11: content registry, registrations and doctor ------------
+{
+  assert.deepEqual(MERGE_POLICIES, Object.freeze({
+    player: 'singleton', shop: 'singleton',
+    cards: 'keyed-unique', statuses: 'keyed-unique', relics: 'keyed-unique',
+    potions: 'keyed-unique', enemies: 'keyed-unique', events: 'keyed-unique',
+    omens: 'keyed-unique', affixes: 'keyed-unique', arts: 'keyed-unique',
+    deeds: 'keyed-unique', quests: 'keyed-unique', variants: 'keyed-unique',
+    shadeKits: 'keyed-unique', boons: 'keyed-unique', themes: 'keyed-unique',
+    aspects: 'append-unique-id', vows: 'append', questIds: 'append-unique',
+    progression: 'nested-declared',
+  }));
+  assert.deepEqual(PROGRESSION_MERGE_POLICIES, Object.freeze({
+    revealThresholds: 'keyed-unique',
+    poolWaves: Object.freeze({
+      definitions: 'keyed-unique', extensions: 'existing-key-explicit',
+      members: 'append-unique', gateAssignment: 'globally-unique',
+    }),
+    features: 'keyed-unique-flatten',
+  }));
+  assert.ok(Object.isFrozen(CONTENT_SCHEMAS));
+  assert.equal(CONTENT_SCHEMAS.themes.fields.bossPlates.kind, 'object');
+  assert.equal(CONTENT_SCHEMAS.themes.fields.lanternLights.kind, 'array');
+  assert.equal(CONTENT_SCHEMAS.themes.fields.tagline.source, 'locale');
+
+  const sampleInput = {
+    id: 'sample',
+    cards: { sampleCard: {
+      type: 'attack', rarity: 'common', cost: 1,
+      target: 'enemy', vfx: 'slash', effects: [{ kind: 'dmg', n: 1 }],
+    } },
+    enemies: { sampleEnemy: {
+      hp: [1, 1], facets: 2,
+      moves: { wait: { intent: 'buff' } }, ai: (_ctx) => 'wait',
+    } },
+  };
+  const sample = definePack(sampleInput);
+  const sampleLocale = {
+    cards: { sampleCard: { name: 'Sample', text: 'Deal @1@ damage.' } },
+    enemies: { sampleEnemy: { name: 'Sample Enemy', moves: { wait: { name: 'Wait' } } } },
+  };
+  sampleInput.cards.sampleCard.effects[0].n = 99;
+  assert.equal(sample.cards.sampleCard.effects[0].n, 1, 'definePack snapshots caller-owned data');
+  assert.equal(sample.enemies.sampleEnemy.ai, sampleInput.enemies.sampleEnemy.ai,
+    'declared behaviour hooks retain function identity');
+  const registry = createContentRegistry([sample]);
+  assert.equal(registry.cards.sampleCard.name, undefined);
+  assert.equal(registry.enemies.sampleEnemy.ai.length, 1);
+  assert.equal(Object.isFrozen(registry.cards), true);
+  assert.equal(Object.isFrozen(registry.cards.sampleCard.effects), true);
+  assert.throws(() => { registry.cards.sampleCard.effects[0].n = 2; }, TypeError);
+  assert.throws(() => createContentRegistry([sample, sample]), /duplicate pack.*sample/i);
+  const sample2 = definePack({ id: 'sample2', cards: { sampleCard: sample.cards.sampleCard } });
+  assert.throws(() => createContentRegistry([sample, sample2]), /duplicate.*sampleCard/i);
+  assert.throws(() => definePack({ id: 'bad', cards: { bad: { text: 'locale leak' } } }),
+    /source.*locale|cards\.bad/i);
+  assert.throws(() => definePack({ id: 'bad-protocol', QUEST_STATES: [] }), /protocol|unknown domain/i);
+  assert.throws(() => definePack({ id: 'bad-whispers', whispers: [] }), /locale-field-in-pack|whispers/i);
+  assert.throws(() => definePack({ id: 'bad-reveals', reveals: [] }), /derived|unknown domain|reveals/i);
+  let getterRuns = 0;
+  const accessorCard = {};
+  Object.defineProperty(accessorCard, 'cost', { enumerable: true, get() { getterRuns++; return 1; } });
+  assert.throws(() => definePack({ id: 'accessor', cards: { accessorCard } }), (error) =>
+    error.problems.some((problem) => problem.code === 'accessor-not-allowed'
+      && problem.field === 'cards.accessorCard.cost'));
+  assert.equal(getterRuns, 0, 'descriptor validation never invokes accessors');
+  assert.throws(() => definePack({ id: 'function-data', cards: { bad: { cost: () => 1 } } }),
+    /function|cards\.bad\.cost/i);
+
+  const coreProgression = definePack({
+    id: 'progression-core',
+    aspects: [{ id: 'aspectA', hp: 1 }],
+    progression: {
+      revealThresholds: { poolWave2: { runsPlayed: 2 } },
+      poolWaves: { define: { poolWave2: { cards: ['executioner'], relics: ['reapersBell'] } }, extend: {} },
+      features: { emberglass: { enabled: true, nested: { value: 1 } } },
+    },
+  });
+  const expansionProgression = definePack({
+    id: 'progression-expansion',
+    progression: {
+      revealThresholds: { expansionGate: { runsPlayed: 7 } },
+      poolWaves: {
+        define: { expansionGate: { cards: ['expansionCard'], relics: [] } },
+        extend: { poolWave2: { cards: ['expansionCommon'], relics: [] } },
+      },
+      features: { expansionQuest: { enabled: true } },
+    },
+  });
+  const progressionRegistry = createContentRegistry([coreProgression, expansionProgression]);
+  assert.deepEqual(progressionRegistry.progression, {
+    revealThresholds: { poolWave2: { runsPlayed: 2 }, expansionGate: { runsPlayed: 7 } },
+    poolWaves: {
+      poolWave2: { cards: ['executioner', 'expansionCommon'], relics: ['reapersBell'] },
+      expansionGate: { cards: ['expansionCard'], relics: [] },
+    },
+    emberglass: { enabled: true, nested: { value: 1 } },
+    expansionQuest: { enabled: true },
+  });
+  assert.throws(() => { progressionRegistry.progression.emberglass.nested.value = 2; }, TypeError);
+  const secondExtension = definePack({ id: 'progression-extension-2', progression: {
+    revealThresholds: {}, poolWaves: { define: {}, extend: { poolWave2: { cards: ['later'], relics: [] } } }, features: {},
+  } });
+  assert.deepEqual(createContentRegistry([coreProgression, expansionProgression, secondExtension])
+    .progression.poolWaves.poolWave2.cards, ['executioner', 'expansionCommon', 'later']);
+  const progressionFailures = [
+    { id: 'forward', progression: { revealThresholds: {}, poolWaves: { define: {}, extend: { later: { cards: [], relics: [] } } }, features: {} } },
+    { id: 'threshold', progression: { revealThresholds: { poolWave2: {} }, poolWaves: { define: {}, extend: {} }, features: {} } },
+    { id: 'wave', progression: { revealThresholds: {}, poolWaves: { define: { poolWave2: { cards: [], relics: [] } }, extend: {} }, features: {} } },
+    { id: 'feature', progression: { revealThresholds: {}, poolWaves: { define: {}, extend: {} }, features: { emberglass: {} } } },
+    { id: 'reserved', progression: { revealThresholds: {}, poolWaves: { define: {}, extend: {} }, features: { poolWaves: {} } } },
+    { id: 'member', progression: { revealThresholds: {}, poolWaves: { define: {}, extend: { poolWave2: { cards: ['executioner'], relics: [] } } }, features: {} } },
+    { id: 'gate', progression: { revealThresholds: {}, poolWaves: { define: { other: { cards: ['executioner'], relics: [] } }, extend: {} }, features: {} } },
+  ];
+  for (const bad of progressionFailures) {
+    assert.throws(() => createContentRegistry([coreProgression, definePack(bad)]), /progression|poolWave2|emberglass|duplicate|reserved|extension/i);
+  }
+  assert.throws(() => createContentRegistry([coreProgression,
+    definePack({ id: 'aspect-duplicate', aspects: [{ id: 'aspectA' }] })]), /aspectA|duplicate/i);
+
+  assert.throws(() => definePack({
+    id: 'bad-theme',
+    themes: {
+      bad: {
+        name: 'Locale leak',
+        plates: { background: 'x' },
+        weather: { kind: 'ash' },
+        palette: {},
+        music: 'combat',
+        roster: [],
+        encounters: [],
+        rewardGold: [1, 2],
+        mapHaze: 'haze',
+        lanternLights: [],
+        bossPlates: [],
+      },
+    },
+  }), (error) => {
+    assert.ok(error.problems.length >= 2, 'invalid theme aggregates every problem');
+    assert.ok(error.problems.some((problem) => problem.code === 'locale-field-in-pack'
+      && problem.field === 'themes.bad.name'));
+    assert.ok(error.problems.some((problem) => problem.code === 'required-field-missing'
+      && problem.field === 'themes.bad.legacyAct'));
+    assert.ok(error.problems.some((problem) => problem.code === 'invalid-boss-plates'
+      && problem.field === 'themes.bad.bossPlates'));
+    assert.ok(!error.problems.some((problem) => problem.code === 'unknown-field'
+      && problem.severity === 'error'), 'success path must not depend on unknown-key failures');
+    return true;
+  });
+
+  const completeTheme = {
+    legacyAct: { boss: 'sampleEnemy', theme: {
+      sky: '#000', fog: '#111', particles: '#222', glow: '#333', accent: '#444', ember: '#555',
+    } },
+    plates: { background: 'theme/bg', midground: 'theme/mid', foreground: 'theme/fg' },
+    atmosphere: 'ash',
+    weather: { kind: 'ash', intensity: 1 }, palette: { accent: 'accent', haze: 'haze' },
+    music: { map: 'map', combat: 'combat', boss: 'combat', victory: 'combat' },
+    roster: { normal: ['sampleEnemy'], elite: [], boss: ['sampleEnemy'] },
+    encounters: { weak: [['sampleEnemy']], normal: [['sampleEnemy']], elite: [['sampleEnemy']], boss: [['sampleEnemy']] },
+    rewardGold: { normal: [10, 20], elite: [10, 20], boss: [10, 20] },
+    mapHaze: 'haze', lanternLights: [], bossPlates: {},
+  };
+  const completePack = definePack({
+    id: 'complete',
+    player: { id: 'aspectA', hp: 10, gold: 0, deck: ['sampleCard'] },
+    shop: { cardCount: 1, relicCount: 1, potionCount: 1 },
+    cards: sample.cards, statuses: {}, relics: {}, potions: {}, enemies: sample.enemies,
+    events: {}, omens: {}, affixes: {}, arts: {}, deeds: {}, quests: {}, variants: {},
+    shadeKits: {}, boons: {}, themes: { actOne: completeTheme },
+    aspects: [{ id: 'aspectA', hp: 10 }], vows: [], questIds: [],
+    progression: { revealThresholds: {}, poolWaves: { define: { core: { cards: ['sampleCard'], relics: [] } }, extend: {} }, features: {} },
+  });
+  const completeLocale = {
+    cards: {
+      sampleCard: { name: 'Sample', text: 'Deal @1@ damage.', textUp: 'Deal @2@ damage.' },
+    },
+    enemies: sampleLocale.enemies,
+    acts: [{ name: 'The Sample', bossName: 'Sample Enemy', tagline: 'Optional words' }],
+    aspects: { aspectA: { name: 'Aspect A', blurb: 'An aspect.' } }, whispers: ['A whisper.'],
+  };
+  const resources = {
+    ...STATIC_REFERENCE_CATALOGUES,
+    vfxIds: new Set([...STATIC_REFERENCE_CATALOGUES.vfxIds, 'slash']),
+    musicIds: new Set([...STATIC_REFERENCE_CATALOGUES.musicIds, 'combat']),
+    tokenIds: new Set([...STATIC_REFERENCE_CATALOGUES.tokenIds, 'accent', 'haze']),
+    assetManifest: new Set(['theme/bg', 'theme/mid', 'theme/fg']),
+  };
+  assert.throws(() => createContentContext([sample], {
+    id: 'incomplete', resources, localeContent: sampleLocale, localeToken: 'en',
+  }), /player|themes/i);
+  const context = createContentContext([completePack], {
+    id: 'fixture-context', resources, localeContent: completeLocale, localeToken: 'en',
+  });
+  assert.equal(context.contextVersion, 1);
+  assert.deepEqual(context.packIds, ['complete']);
+  assert.equal(context.cards.sampleCard.name, 'Sample');
+  assert.equal(context.acts[0].name, 'The Sample');
+  assert.equal(context.acts[0].theme.sky, '#000');
+  assert.deepEqual(context.encounters, [{
+    weak: [['sampleEnemy']], normal: [['sampleEnemy']], elite: [['sampleEnemy']], boss: [['sampleEnemy']],
+  }]);
+  assert.deepEqual(context.rewardGold, [{ normal: [10, 20], elite: [10, 20], boss: [10, 20] }]);
+  assert.equal(context.themes.actOne.id, 'actOne');
+  assert.deepEqual(context.cardPools.common, ['sampleCard']);
+  assert.equal(context.poolGate.cards.sampleCard, 'core');
+  assert.deepEqual(context.reveals, []);
+  assert.deepEqual(context.whispers, ['A whisper.']);
+  assert.equal(themeById(context, 'actOne'), context.themes.actOne);
+  assert.equal(themeById(context, 'missing'), null);
+  assert.equal(themeForAct(context, 0), context.themes.actOne);
+  assert.equal(themeForAct(context, -1), null);
+  assert.equal(registryIsFinalTheme(context, 0), true);
+  assert.equal(registryIsFinalTheme(context, 1), false);
+  assert.throws(() => { context.quests.extra = {}; }, TypeError);
+  assert.throws(() => createContentContext([completePack], {
+    id: '', resources, localeContent: completeLocale, localeToken: 'en',
+  }), /non-empty|id/i);
+  assert.throws(() => createContentContext([completePack], {
+    id: 'no-locale', resources, localeContent: {}, localeToken: '',
+  }), /locale/i);
+
+  const revealPack = definePack({
+    id: 'reveal-order',
+    player: completePack.player, shop: completePack.shop, cards: completePack.cards,
+    statuses: {}, relics: {}, potions: {}, enemies: completePack.enemies, events: {},
+    omens: {}, affixes: {}, arts: {}, deeds: {}, quests: {}, variants: {}, shadeKits: {},
+    boons: {}, themes: completePack.themes, aspects: completePack.aspects, vows: [],
+    questIds: [],
+    progression: {
+      revealThresholds: { firstGate: { runsPlayed: 1 }, secondGate: { runsPlayed: 2 } },
+      poolWaves: { define: { firstGate: { cards: ['sampleCard'], relics: [] } }, extend: {} },
+      features: {},
+    },
+  });
+  const revealContext = createContentContext([revealPack], {
+    id: 'reveal-context', resources, localeContent: completeLocale, localeToken: 'en',
+  });
+  assert.deepEqual(revealContext.reveals.map((row) => row.id), ['firstGate', 'secondGate']);
+  assert.equal(revealContext.reveals[0].trigger, revealContext.progression.revealThresholds.firstGate);
+
+  assert.deepEqual(joinLocaleContent([
+    { cards: { a: { name: 'A' } }, whispers: ['one'] },
+    { cards: { b: { name: 'B' } }, whispers: ['two'] },
+  ]), { cards: { a: { name: 'A' }, b: { name: 'B' } }, whispers: ['one', 'two'] });
+
+  const bootWithoutAssets = createContentContext([completePack], {
+    id: 'boot-no-assets',
+    resources: { ...resources, assetManifest: new Set() },
+    localeContent: completeLocale, localeToken: 'en',
+  });
+  assert.equal(bootWithoutAssets.themes.actOne.plates.background, 'theme/bg',
+    'missing raster inventory is not a production-boot error');
+
+  const badVfxPack = definePack({
+    id: 'bad-vfx',
+    player: completePack.player, shop: completePack.shop,
+    cards: { badVfxCard: {
+      type: 'attack', rarity: 'common', cost: 1, target: 'enemy', vfx: 'not-a-vfx',
+      effects: [{ kind: 'dmg', n: 1 }],
+    } },
+    statuses: {}, relics: {}, potions: {}, enemies: completePack.enemies, events: {},
+    omens: {}, affixes: {}, arts: {}, deeds: {}, quests: {}, variants: {}, shadeKits: {},
+    boons: {}, themes: completePack.themes, aspects: completePack.aspects, vows: [],
+    questIds: [],
+    progression: completePack.progression,
+  });
+  const badVfxLocale = {
+    ...completeLocale,
+    cards: { badVfxCard: { name: 'Bad', text: 'Bad.' } },
+  };
+  let bootVfxProblem = null;
+  try {
+    createContentContext([badVfxPack], {
+      id: 'bad-vfx-boot', resources, localeContent: badVfxLocale, localeToken: 'en',
+    });
+  } catch (error) {
+    bootVfxProblem = error.problems.find((problem) => problem.code === 'unknown-vfx-id');
+  }
+  assert.ok(bootVfxProblem, 'boot rejects unknown card VFX');
+  const doctorVfxReport = doctorContent([badVfxPack], {
+    ...resources, localeContent: badVfxLocale, localeToken: 'en',
+  });
+  const doctorVfxProblem = doctorVfxReport.problems.find((problem) => problem.code === 'unknown-vfx-id');
+  assert.ok(doctorVfxProblem, 'doctor rejects unknown card VFX');
+  assert.equal(bootVfxProblem.field, doctorVfxProblem.field);
+  assert.equal(bootVfxProblem.code, doctorVfxProblem.code);
+  assert.equal(bootVfxProblem.field, 'cards.badVfxCard.vfx');
+
+  const doctorReport = doctorContent([completePack], {
+    ...resources, localeContent: completeLocale, localeToken: 'en', assetManifest: new Set(),
+  });
+  assert.equal(doctorReport.ok, false);
+  assert.ok(doctorReport.problems.every((problem) => problem.code && problem.severity
+    && problem.packId && problem.domain && problem.entryId && problem.field
+    && problem.expected && problem.actual && problem.hint));
+  assert.ok(doctorReport.problems.some((problem) => problem.code === 'asset-missing'
+    && problem.field.includes('themes.actOne.plates')));
+  assert.equal(doctorReport.domains.themes.entries.find((entry) => entry.id === 'actOne').badges.art.status,
+    'missing', 'art badge is missing when asset refs fail the supplied manifest');
+  assert.equal(doctorReport.domains.cards.entries.find((entry) => entry.id === 'sampleCard').badges.art.status,
+    'not-applicable', 'art badge is not-applicable when an entry has no asset refs');
+  const doctorArtComplete = doctorContent([completePack], {
+    ...resources, localeContent: completeLocale, localeToken: 'en',
+  });
+  assert.equal(doctorArtComplete.domains.themes.entries.find((entry) => entry.id === 'actOne').badges.art.status,
+    'complete', 'art badge is complete when assetManifest is supplied and every ref resolves');
+  assert.equal(doctorArtComplete.domains.cards.entries.find((entry) => entry.id === 'sampleCard').badges.art.status,
+    'not-applicable');
+
+  const relicPack = definePack({
+    id: 'relic-locale-gap',
+    player: completePack.player, shop: completePack.shop, cards: completePack.cards,
+    statuses: {}, relics: { gapRelic: { rarity: 'common', glyph: '◆', tone: 'ash' } },
+    potions: {}, enemies: completePack.enemies, events: {}, omens: {}, affixes: {}, arts: {},
+    deeds: {}, quests: {}, variants: {}, shadeKits: {}, boons: {}, themes: completePack.themes,
+    aspects: completePack.aspects, vows: [], questIds: [], progression: completePack.progression,
+  });
+  const relicLocaleGap = doctorContent([relicPack], {
+    ...resources, localeContent: completeLocale, localeToken: 'en',
+  });
+  assert.ok(relicLocaleGap.problems.some((problem) => problem.code === 'locale-field-missing'
+    && problem.field === 'relics.gapRelic.name'),
+  'schema-driven locale coverage reports exact-path locale-field-missing');
+  assert.ok(relicLocaleGap.problems.some((problem) => problem.code === 'locale-field-missing'
+    && problem.field === 'relics.gapRelic.text'));
+  assert.equal(relicLocaleGap.domains.relics.entries.find((entry) => entry.id === 'gapRelic').badges.locale.status,
+    'missing', 'missing required locale-owned fields prevent a false locale: complete badge');
+  const actsWithoutTagline = {
+    ...completeLocale,
+    acts: [{ name: 'The Sample', bossName: 'Sample Enemy' }],
+  };
+  assert.doesNotThrow(() => createContentContext([completePack], {
+    id: 'optional-tagline', resources, localeContent: actsWithoutTagline, localeToken: 'en',
+  }), 'optional tagline remains optional');
+
+  const progressionMergeDoctor = doctorContent([
+    coreProgression,
+    definePack({
+      id: 'dup-progression-threshold',
+      progression: {
+        revealThresholds: { poolWave2: { runsPlayed: 9 } },
+        poolWaves: { define: {}, extend: {} },
+        features: {},
+      },
+    }),
+  ], { ...resources, localeContent: completeLocale, localeToken: 'en' });
+  assert.ok(progressionMergeDoctor.domains.progression.problems.some((problem) =>
+    problem.severity === 'error'
+    && problem.code === 'duplicate-progression-threshold'
+    && problem.entryId === 'poolWave2'),
+  'progression domain surfaces merge errors whose entryId is a threshold id');
+  const progressionEntry = progressionMergeDoctor.domains.progression.entries
+    .find((entry) => entry.id === 'progression');
+  assert.ok(progressionEntry, 'progression inventory is a synthetic singleton row');
+  assert.equal(progressionEntry.complete, false,
+    'progression entry is incomplete when a merge problem uses a non-matching entryId');
+  assert.ok(progressionEntry.problems.some((problem) => problem.code === 'duplicate-progression-threshold'
+    && problem.entryId === 'poolWave2'),
+  'unmatched progression problems fold into the synthetic progression entry');
+  assert.equal(progressionMergeDoctor.domains.progression.complete, 0,
+    'domain complete count is not falsely green when progression has errors');
+
+  const orphanActsLocale = {
+    ...completeLocale,
+    acts: [
+      { name: 'The Sample', bossName: 'Sample Enemy', tagline: 'Optional words' },
+      { name: 'Orphan Act', bossName: 'Nobody', tagline: 'Extra' },
+    ],
+  };
+  const orphanActsDoctor = doctorContent([completePack], {
+    ...resources, localeContent: orphanActsLocale, localeToken: 'en',
+  });
+  assert.ok(orphanActsDoctor.problems.some((problem) => problem.code === 'orphan-locale-entry'
+    && problem.domain === 'themes'
+    && problem.field === 'acts.1'
+    && problem.entryId === '1'),
+  'extra localeContent.acts rows report orphan-locale-entry like other domains');
+
+  assert.deepEqual(Object.keys(doctorReport.domains).sort(), Object.keys(MERGE_POLICIES).sort());
+  for (const domain of Object.values(doctorReport.domains)) {
+    for (const entry of domain.entries) {
+      assert.deepEqual(Object.keys(entry.badges).sort(), ['art', 'audio', 'charMeta', 'locale', 'pool', 'vfx']);
+      assert.ok(entry.links.gallery && entry.links.lab);
+    }
+  }
+  const formatted = formatContentReport(doctorReport);
+  assert.equal(typeof formatted, 'string');
+  assert.match(formatted, /cards|themes/);
+
+  const registration = defineContentRegistration({
+    id: 'core-registration', mechanics: completePack,
+    locales: { en: completeLocale }, targets: { production: 0, development: 0 },
+  });
+  assert.deepEqual(Object.keys(registration), ['id', 'mechanics', 'locales', 'targets']);
+  assert.ok(Object.isFrozen(registration.targets));
+  for (const bad of [
+    { id: 'no-en', mechanics: completePack, locales: {}, targets: { production: 0 } },
+    { id: 'empty-en', mechanics: completePack, locales: { en: {} }, targets: { production: 0 } },
+    { id: 'bad-locale', mechanics: completePack, locales: { '': completeLocale, en: completeLocale }, targets: { production: 0 } },
+    { id: 'bad-target', mechanics: completePack, locales: { en: completeLocale }, targets: { production: -1 } },
+    { id: 'unknown-target', mechanics: completePack, locales: { en: completeLocale }, targets: { mystery: 0 } },
+  ]) assert.throws(() => defineContentRegistration(bad), /locale|target|English|en/i);
+
+  const fixturePack = definePack({ id: 'fixture-pack', cards: { fixtureCard: {
+    type: 'skill', rarity: 'common', cost: 0, target: 'self', vfx: 'slash', effects: [],
+  } } });
+  const fixtureRegistration = defineContentRegistration({
+    id: 'fixture-registration', mechanics: fixturePack,
+    locales: { en: { cards: { fixtureCard: { name: 'Fixture', text: 'Fixture.', textUp: 'Fixture+' } } } },
+    targets: { development: 1, fixture: 1 },
+  });
+  const manifest = Object.freeze({
+    version: 1, target: 'development',
+    registrations: Object.freeze([registration, fixtureRegistration]),
+    provenance: Object.freeze([
+      { id: registration.id, sourcePath: 'src/packs/core/registration.js' },
+      { id: fixtureRegistration.id, sourcePath: 'src/packs/_sample/registration.js' },
+    ]),
+  });
+  let createContextCalls = 0;
+  const compiled = compileContentRegistrations(manifest, {
+    id: 'compiled', resources, localeToken: 'en', fixtures: ['fixture-registration'],
+    createContext: (...args) => {
+      createContextCalls += 1;
+      return createContentContext(...args);
+    },
+  });
+  assert.equal(createContextCalls, 1, 'compileContentRegistrations invokes createContentContext exactly once');
+  assert.deepEqual(compiled.context.packIds, ['complete', 'fixture-pack']);
+  assert.equal(compiled.context.cards.fixtureCard.name, 'Fixture');
+  assert.deepEqual(compiled.provenance.registrationIds, ['core-registration', 'fixture-registration']);
+  assert.throws(() => compileContentRegistrations({
+    version: 1, target: 'production', registrations: [registration],
+  }, {
+    id: 'production-fixtures', resources, localeToken: 'en', fixtures: ['fixture-registration'],
+  }), /production.*fixture|fixture selection/i);
+  assert.throws(() => compileContentRegistrations(manifest, {
+    id: 'missing-fixture', resources, localeToken: 'en', fixtures: ['absent'],
+  }), /fixture.*absent|absent.*fixture/i);
+  assert.throws(() => compileContentRegistrations({ ...manifest, registrations: [registration, registration] }, {
+    id: 'duplicate-registration', resources, localeToken: 'en', fixtures: [],
+  }), /duplicate registration/i);
+  const duplicateMechanics = defineContentRegistration({
+    id: 'other-registration', mechanics: completePack, locales: { en: completeLocale }, targets: { development: 2 },
+  });
+  assert.throws(() => compileContentRegistrations({ ...manifest, registrations: [registration, duplicateMechanics] }, {
+    id: 'duplicate-mechanics', resources, localeToken: 'en', fixtures: [],
+  }), /duplicate mechanics|complete/i);
+  const sameOrder = defineContentRegistration({
+    id: 'same-order', mechanics: fixturePack, locales: { en: completeLocale }, targets: { development: 0 },
+  });
+  assert.throws(() => compileContentRegistrations({ ...manifest, registrations: [registration, sameOrder] }, {
+    id: 'duplicate-order', resources, localeToken: 'en', fixtures: [],
+  }), /order|duplicate/i);
+  const replacement = defineContentRegistration({
+    id: fixtureRegistration.id, mechanics: definePack({ id: 'fixture-replacement' }),
+    locales: { en: { cards: { replacement: { name: 'Replacement' } } } },
+    targets: fixtureRegistration.targets,
+  });
+  const replacedManifest = withContentRegistration(manifest, replacement);
+  assert.equal(replacedManifest.registrations.length, manifest.registrations.length);
+  assert.equal(replacedManifest.registrations[1].mechanics.id, 'fixture-replacement');
+  assert.deepEqual(replacedManifest.registrations.map((row) => row.id), manifest.registrations.map((row) => row.id));
+  assert.throws(() => withContentRegistration(manifest,
+    defineContentRegistration({ id: 'new', mechanics: fixturePack, locales: { en: completeLocale }, targets: { development: 3 } })),
+  /replace|existing/i);
+  const registrationDoctor = doctorContentRegistrations(manifest, {
+    id: 'doctor', resources: { ...resources, assetManifest: new Set() }, localeToken: 'en', fixtures: ['fixture-registration'],
+  });
+  assert.ok(registrationDoctor.report && registrationDoctor.provenance);
+
+  const tempRoot = mkdtempSync(join(tmpdir(), 'glassvow-content-registrations-'));
+  try {
+    const sourceRoot = join(tempRoot, 'src', 'packs');
+    mkdirSync(join(sourceRoot, 'core'), { recursive: true });
+    mkdirSync(join(sourceRoot, 'expansion'), { recursive: true });
+    mkdirSync(join(sourceRoot, '_sample'), { recursive: true });
+    writeFileSync(join(sourceRoot, 'core', 'registration.js'), 'export default { id: "core", mechanics: { id: "core-pack" }, locales: { en: { cards: { core: { name: "Core" } } } }, targets: { production: 0 } };\n');
+    writeFileSync(join(sourceRoot, 'expansion', 'registration.js'), 'export default { id: "expansion", mechanics: { id: "expansion-pack" }, locales: { en: { cards: { expansion: { name: "Expansion" } } } }, targets: { production: 1, development: 1 } };\n');
+    writeFileSync(join(sourceRoot, '_sample', 'registration.js'), 'export default { id: "sample", mechanics: { id: "sample-pack" }, locales: { en: { cards: { sample: { name: "Sample" } } } }, targets: { development: 2, fixture: 2 } };\n');
+    const discovered = await discoverContentRegistrations(sourceRoot);
+    assert.deepEqual(discovered.map((row) => row.registration.id), ['core', 'expansion', 'sample']);
+    const productionSource = renderContentRegistrationManifest(discovered, 'production');
+    assert.match(productionSource, /core\/registration\.js/);
+    assert.match(productionSource, /expansion\/registration\.js/);
+    assert.doesNotMatch(productionSource, /_sample|sample\/registration\.js/);
+    assert.ok(productionSource.endsWith('\n'));
+    assert.equal(productionSource, renderContentRegistrationManifest(discovered, 'production'));
+    const developmentSource = renderContentRegistrationManifest(discovered, 'development');
+    assert.match(developmentSource, /core\/registration\.js/,
+      'development manifest includes production-base registrations even without a development target key');
+    assert.match(developmentSource, /expansion\/registration\.js/);
+    assert.match(developmentSource, /_sample\/registration\.js/);
+    assert.ok(developmentSource.indexOf('core/registration.js')
+      < developmentSource.indexOf('_sample/registration.js'));
+    const fixtureSource = renderContentRegistrationManifest(discovered, 'fixture');
+    assert.match(fixtureSource, /core\/registration\.js/);
+    assert.match(fixtureSource, /expansion\/registration\.js/);
+    assert.match(fixtureSource, /_sample\/registration\.js/);
+    assert.doesNotMatch(fixtureSource, new RegExp(tempRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+// ---- Task 13: fourth-theme registry + theme-music combat cues --------------
+{
+  const sampleEnemy = { hp: [8, 8], facets: 1, art: { kind: 'wisp' }, moves: { wait: { intent: 'block', block: 1 } }, ai: (_ctx) => 'wait' };
+  const sampleCard = {
+    type: 'attack', rarity: 'common', cost: 1, target: 'enemy', vfx: 'slash',
+    effects: [{ kind: 'dmg', n: 1 }],
+  };
+  const baseTheme = {
+    legacyAct: { boss: 'sampleEnemy', theme: {
+      sky: 1, fog: 2, particles: 3, glow: 4, accent: '#444', ember: '#555',
+    } },
+    plates: { backdrop: 'theme/bg', mid: 'theme/mid', ledge: 'theme/fg' },
+    atmosphere: 'ash',
+    weather: { rate: 1, colors: ['#fff'], vx: [0, 1], vy: [1, 2], size: [1, 2], drift: 0.1, emberRate: 0.1 },
+    palette: { tint: 'gold', glow: 'gold', haze: 'text-dim' },
+    music: { map: 'map', combat: 'combat', boss: 'combat', victory: 'victory' },
+    roster: { normal: ['sampleEnemy'], elite: [], boss: ['sampleEnemy'] },
+    encounters: { weak: [['sampleEnemy']], normal: [['sampleEnemy']], elite: [['sampleEnemy']], boss: [['sampleEnemy']] },
+    rewardGold: { normal: [1, 1], elite: [1, 1], boss: [1, 1] },
+    mapHaze: 'text-dim', lanternLights: [], bossPlates: {},
+  };
+  const fourThemes = {
+    actOne: baseTheme,
+    actTwo: { ...baseTheme, atmosphere: 'mire', music: { map: 'map', combat: 'shadeDuel', boss: 'usurper', victory: 'victory' }, rewardGold: { normal: [2, 2], elite: [2, 2], boss: [2, 2] } },
+    actThree: { ...baseTheme, atmosphere: 'astral', music: { map: 'map', combat: 'eighthOmen', boss: 'sealedDoor', victory: 'victory' }, rewardGold: { normal: [3, 3], elite: [3, 3], boss: [3, 3] } },
+    // Explicit astral with ash-like falling vy — prove atmosphere wins over heuristic.
+    sampleTheme: {
+      ...baseTheme,
+      atmosphere: 'astral',
+      weather: { ...baseTheme.weather, vy: [10, 26] },
+      music: { map: 'map', combat: 'paleOnes', boss: 'usurper', victory: 'victory' },
+      rewardGold: { normal: [4, 4], elite: [4, 4], boss: [4, 4] },
+    },
+  };
+  const fourPack = definePack({
+    id: 'four-theme',
+    player: { id: 'aspectA', hp: 10, gold: 0, deck: ['sampleCard'] },
+    shop: { cardCount: 1, relicCount: 1, potionCount: 1 },
+    cards: { sampleCard }, statuses: {}, relics: {}, potions: {},
+    enemies: { sampleEnemy }, events: {}, omens: {}, affixes: {}, arts: {}, deeds: {},
+    quests: {}, variants: {}, shadeKits: {}, boons: {}, themes: fourThemes,
+    aspects: [{ id: 'aspectA', hp: 10 }], vows: [], questIds: [],
+    progression: { revealThresholds: {}, poolWaves: { define: { core: { cards: ['sampleCard'], relics: [] } }, extend: {} }, features: {} },
+  });
+  const fourLocale = {
+    cards: { sampleCard: { name: 'Sample', text: 'Deal @1@ damage.' } },
+    enemies: { sampleEnemy: { name: 'Sample Enemy', moves: { wait: { name: 'Wait' } } } },
+    acts: [
+      { name: 'One', bossName: 'B1', tagline: 't' },
+      { name: 'Two', bossName: 'B2', tagline: 't' },
+      { name: 'Three', bossName: 'B3', tagline: 't' },
+      { name: 'Sample', bossName: 'Sample Enemy', tagline: 'fourth' },
+    ],
+    aspects: { aspectA: { name: 'Aspect A', blurb: 'An aspect.' } }, whispers: ['A whisper.'],
+  };
+  const fourResources = {
+    ...STATIC_REFERENCE_CATALOGUES,
+    vfxIds: new Set([...STATIC_REFERENCE_CATALOGUES.vfxIds, 'slash']),
+    musicIds: new Set([...STATIC_REFERENCE_CATALOGUES.musicIds, 'combat']),
+    assetManifest: new Set(['theme/bg', 'theme/mid', 'theme/fg']),
+  };
+  const four = createContentContext([fourPack], {
+    id: 'four-theme-context', resources: fourResources, localeContent: fourLocale, localeToken: 'en',
+  });
+  assert.equal(themeForAct(four, 3).id, 'sampleTheme');
+  assert.deepEqual(four.rewardGold[3], { normal: [4, 4], elite: [4, 4], boss: [4, 4] });
+  assert.equal(registryIsFinalTheme(four, 3), true);
+  assert.equal(registryIsFinalTheme(four, 2), false);
+  // Atmosphere comes from the theme record, not weather.vy heuristics.
+  assert.equal(resolveAtmosphere(themeForAct(four, 3)), 'astral');
+  assert.equal(resolveAtmosphere({ weather: { vy: [10, 26] } }), 'ash', 'vy-only fallback still works');
+  const themeMusic = { combat: 'paleOnes', boss: 'usurper' };
+  assert.equal(resolveCombatCue('monster', themeMusic), 'paleOnes');
+  assert.equal(resolveCombatCue('boss', themeMusic), 'usurper');
+  assert.equal(resolveCombatCue('elite', themeMusic), 'elite');
+
+  assert.deepEqual(CORE_CONTENT.themeOrder, ['act1', 'act2', 'act3']);
+  assert.deepEqual(
+    CORE_CONTENT.themeOrder.map((id) => CORE_CONTENT.themes[id].atmosphere),
+    ['ash', 'mire', 'astral'],
+  );
+  for (const themeId of CORE_CONTENT.themeOrder) {
+    const theme = CORE_CONTENT.themes[themeId];
+    assert.equal(theme.id, themeId);
+    for (const key of [
+      'legacyAct', 'plates', 'atmosphere', 'weather', 'palette', 'music', 'roster', 'encounters',
+      'rewardGold', 'mapHaze', 'lanternLights', 'bossPlates',
+    ]) assert.ok(Object.hasOwn(theme, key), `core theme ${themeId} missing ${key}`);
+    assert.equal(resolveAtmosphere(theme), theme.atmosphere);
+    assert.equal(typeof theme.music.map, 'string');
+    assert.equal(typeof theme.music.combat, 'string');
+    assert.equal(typeof theme.music.boss, 'string');
+    assert.equal(typeof theme.music.victory, 'string');
+    assert.ok(theme.roster.normal && theme.roster.elite && theme.roster.boss);
+    assert.ok(!Object.hasOwn(theme.legacyAct, 'name'));
+    assert.ok(!Object.hasOwn(theme.legacyAct, 'bossName'));
+  }
+  assert.equal(ACTS.length, 3);
+  assert.equal(ENCOUNTERS.length, 3);
+  assert.equal(REWARD_GOLD.length, 3);
+  assert.deepEqual(REWARD_GOLD, CORE_CONTENT.rewardGold);
+  assert.deepEqual(ENCOUNTERS, CORE_CONTENT.encounters);
+
+  const {
+    BASE_COLOUR, BASE_TYPE, BASE_EASING, TOKEN_IDS, createExperienceTokens,
+    cssVariables, applyExperienceTokens, UI_TOKENS,
+  } = await import('../src/ui/tokens.js');
+  assert.ok(TOKEN_IDS.has('gold'));
+  assert.equal(BASE_COLOUR.gold, UI_TOKENS.gold);
+  assert.ok(BASE_TYPE['font-body']);
+  assert.ok(BASE_EASING['ease-out-soft']);
+  const tokens = createExperienceTokens({ gold: '#f2c14e', 'ease-out-soft': BASE_EASING['ease-out-soft'] });
+  assert.deepEqual(cssVariables(tokens)['--r5-gold'], '#f2c14e');
+  const fakeRoot = { style: { props: Object.create(null), setProperty(k, v) { this.props[k] = v; } } };
+  applyExperienceTokens(fakeRoot, tokens);
+  assert.equal(fakeRoot.style.props['--r5-gold'], '#f2c14e');
+  const cssText = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  for (const banned of ['#f4e7c5', '#ece7df', '#aaa6b8', '#8fd0ff']) {
+    assert.ok(!cssText.includes(banned), `styles.css must not embed Round 5 raw literal ${banned}`);
+  }
+
+  // Task 21: owner-approved ROUND5_TOKENS + structured aliases must be present
+  // and exactly match the FE contract's shared-values record.
+  const {
+    ROUND5_TOKENS, EASING, DURATION_MS, COLOUR, TYPE, R5_CSS_VARIABLE_MAP,
+    contrastRatio, POLICY_TIERS, resolveTier, isReducedTier,
+  } = await import('../src/ui/tokens.js');
+  assert.deepEqual(COLOUR, {
+    gold: '#f2c14e', goldDim: '#9c7c34', ink: '#0b0e1a',
+    parchment: '#f4e7c5', text: '#ece7df', textDim: '#aaa6b8',
+    danger: '#ff7060', ward: '#8fd0ff', ember: '#ff9a4d',
+  });
+  assert.deepEqual(TYPE, { display: 'Cinzel', body: 'Alegreya' });
+  assert.deepEqual(EASING.outSoft, [0.22, 1, 0.36, 1]);
+  assert.deepEqual(EASING.spring, [0.34, 1.56, 0.64, 1]);
+  assert.deepEqual(DURATION_MS, { micro: 120, quick: 180, standard: 320, screen: 450, ceremony: 640 });
+  assert.equal(ROUND5_TOKENS.gold, '#f2c14e');
+  assert.equal(ROUND5_TOKENS['gold-dim'], '#9c7c34');
+  assert.equal(ROUND5_TOKENS.parchment, '#f4e7c5');
+  assert.equal(ROUND5_TOKENS.text, '#ece7df');
+  assert.equal(ROUND5_TOKENS['text-dim'], '#aaa6b8');
+  assert.equal(ROUND5_TOKENS.danger, '#ff7060');
+  assert.equal(ROUND5_TOKENS.ward, '#8fd0ff');
+  assert.equal(ROUND5_TOKENS.ember, '#ff9a4d');
+  assert.equal(ROUND5_TOKENS['ease-out-soft'], 'cubic-bezier(0.22, 1, 0.36, 1)');
+  assert.equal(ROUND5_TOKENS['ease-spring'], 'cubic-bezier(0.34, 1.56, 0.64, 1)');
+  assert.equal(ROUND5_TOKENS['dur-micro'], '120ms');
+  assert.equal(ROUND5_TOKENS['dur-ceremony'], '640ms');
+  assert.match(ROUND5_TOKENS['font-body'], /'Alegreya'/);
+  assert.match(ROUND5_TOKENS['font-display'], /'Cinzel'/);
+  for (const key of [
+    'danger', 'ward', 'ember',
+    'dur-micro', 'dur-quick', 'dur-standard', 'dur-screen', 'dur-ceremony',
+  ]) assert.ok(Object.hasOwn(R5_CSS_VARIABLE_MAP, key), `R5 CSS variable map must expose ${key}`);
+  const round5Vars = cssVariables(ROUND5_TOKENS);
+  assert.equal(round5Vars['--r5-parchment'], '#f4e7c5');
+  assert.equal(round5Vars['--r5-danger'], '#ff7060');
+
+  // Approved text/background pairs must clear WCAG AA (≥4.5:1).
+  const backgroundIds = ['ink'];
+  const textIds = ['text', 'parchment', 'gold'];
+  for (const bg of backgroundIds) {
+    for (const fg of textIds) {
+      const ratio = contrastRatio(COLOUR[fg], COLOUR[bg]);
+      assert.ok(
+        ratio >= 4.5,
+        `contrast ${fg} on ${bg} must be >=4.5, was ${ratio.toFixed(3)}`,
+      );
+    }
+  }
+  // Sanity of the WCAG maths (white/black = 21).
+  assert.ok(Math.abs(contrastRatio('#ffffff', '#000000') - 21) < 0.01);
+  // Same colour = 1.
+  assert.ok(Math.abs(contrastRatio('#7f7f7f', '#7f7f7f') - 1) < 0.001);
+
+  // Policy helpers.
+  assert.deepEqual(POLICY_TIERS, ['full', 'lite', 'reduced']);
+  assert.equal(resolveTier(undefined), 'full');
+  assert.equal(resolveTier({ motion: 'reduced' }), 'reduced');
+  assert.equal(resolveTier({ lite: true }), 'lite');
+  assert.equal(resolveTier({ tier: 'FULL' }), 'full');
+  assert.equal(resolveTier({ tier: 'lite' }), 'lite');
+  assert.equal(isReducedTier({ motion: 'reduced' }), true);
+  assert.equal(isReducedTier({}), false);
+
+  // tokens.js remains DOM-free and dependency-clean.
+  const tokensSource = readFileSync(new URL('../src/ui/tokens.js', import.meta.url), 'utf8');
+  for (const forbidden of ['document', 'window', 'localStorage', 'import.meta.glob']) {
+    assert.ok(
+      !new RegExp(`\\b${forbidden.replace('.', '\\.')}\\b`).test(tokensSource),
+      `tokens.js must not reference ${forbidden}`,
+    );
+  }
+
+  // Task 32 Title/Embark presentation token seams.
+  {
+    const {
+      TITLE_PARALLAX_LAYER_IDS, TITLE_PARALLAX_FALLBACK_ID, R5_SCREEN_END_STATES,
+      VERSION_GESTURE, compositionProfile, screenPresentationAttrs,
+      TITLE_ROSE_PHASES, titleRosePhase,
+    } = await import('../src/ui/tokens.js');
+    assert.deepEqual(TITLE_PARALLAX_LAYER_IDS, [
+      'round5-back', 'round5-mid', 'round5-foreground',
+    ]);
+    assert.equal(TITLE_PARALLAX_FALLBACK_ID, 'title');
+    assert.equal(R5_SCREEN_END_STATES.titleReady, 'title-ready');
+    assert.equal(R5_SCREEN_END_STATES.embarkLit, 'embark-lit');
+    assert.deepEqual(VERSION_GESTURE, { taps: 5, windowMs: 2000, hideMs: 3000 });
+    assert.equal(compositionProfile(false), 'fresh');
+    assert.equal(compositionProfile(true), 'grown');
+    assert.deepEqual(screenPresentationAttrs({ reduced: true }), { tier: 'reduced', motion: 'reduced' });
+    assert.deepEqual(screenPresentationAttrs({ lite: true }), { tier: 'lite', motion: 'full' });
+    assert.deepEqual(TITLE_ROSE_PHASES, ['absent', 'loading', 'inert', 'ready', 'fallback']);
+    assert.equal(titleRosePhase({ shardCount: 0 }), 'absent');
+    assert.equal(titleRosePhase({ shardCount: 1, assets: null }), 'fallback');
+    assert.equal(titleRosePhase({ shardCount: 1, assets: {}, decodeFailed: true }), 'inert');
+    assert.equal(titleRosePhase({ shardCount: 1, assets: {}, ready: true }), 'ready');
+    assert.equal(titleRosePhase({ shardCount: 1, assets: {} }), 'loading');
+  }
+
+  // Task 39 — ship-front resolver contracts (pure).
+  {
+    const {
+      resolveCombatPlates, resolveTitleLayers, resolveUnlockToastFrame,
+      validateStoreShotList, TITLE_LAYER_IDS, TITLE_FALLBACK_ID, UNLOCK_TOAST_FRAME_ID,
+    } = await import('../src/ui/shipfront-assets.js');
+    const act1 = {
+      plates: { backdrop: 'act1-backdrop', mid: 'act1-mid', ledge: 'act1-ledge' },
+      bossPlates: {
+        rootheart: {
+          backdrop: 'rootheart-backdrop', mid: 'rootheart-mid', ledge: 'rootheart-ledge',
+        },
+      },
+    };
+    const all = new Set([
+      'act1-backdrop', 'act1-mid', 'act1-ledge',
+      'rootheart-backdrop', 'rootheart-mid', 'rootheart-ledge',
+      'round5-back', 'round5-mid', 'round5-foreground', 'title',
+      'unlock-toast-frame',
+    ]);
+    assert.deepEqual(
+      resolveCombatPlates(act1, { kind: 'boss', bossId: 'rootheart' }, all),
+      { backdrop: 'rootheart-backdrop', mid: 'rootheart-mid', ledge: 'rootheart-ledge' },
+    );
+    assert.deepEqual(
+      resolveCombatPlates(act1, { kind: 'normal', bossId: 'rootheart' }, all),
+      { backdrop: 'act1-backdrop', mid: 'act1-mid', ledge: 'act1-ledge' },
+      'normal fights never consume boss overrides',
+    );
+    assert.deepEqual(
+      resolveCombatPlates(act1, { kind: 'boss', bossId: 'missing' }, all),
+      { backdrop: 'act1-backdrop', mid: 'act1-mid', ledge: 'act1-ledge' },
+      'absent boss override resolves act-standard plates',
+    );
+    const noBossArt = new Set(['act1-backdrop', 'act1-mid', 'act1-ledge']);
+    assert.deepEqual(
+      resolveCombatPlates(act1, { kind: 'boss', bossId: 'rootheart' }, noBossArt),
+      { backdrop: 'act1-backdrop', mid: 'act1-mid', ledge: 'act1-ledge' },
+      'unavailable boss plate ids fall back to act plates',
+    );
+    assert.deepEqual(resolveTitleLayers(all), [...TITLE_LAYER_IDS]);
+    assert.deepEqual(
+      resolveTitleLayers(new Set(['title'])),
+      [TITLE_FALLBACK_ID, TITLE_FALLBACK_ID, TITLE_FALLBACK_ID],
+    );
+    assert.equal(resolveUnlockToastFrame(all), UNLOCK_TOAST_FRAME_ID);
+    assert.equal(resolveUnlockToastFrame(new Set()), null);
+    const shots = [
+      { id: 'title', seed: 1, shape: 'desktop-landscape', profile: 'fresh' },
+      { id: 'combat', seed: 2, shape: 'desktop-landscape', profile: 'fresh' },
+      { id: 'map', seed: 3, shape: 'desktop-landscape', profile: 'fresh' },
+      { id: 'rose-window', seed: 4, shape: 'desktop-landscape', profile: 'grown' },
+      { id: 'boss', seed: 5, shape: 'desktop-landscape', profile: 'grown' },
+    ];
+    assert.equal(validateStoreShotList(shots).ok, true);
+    assert.equal(validateStoreShotList(shots.slice(0, 4)).ok, false);
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    assert.equal(pkg.scripts['capture:store-kit'], 'node tools/capture-store-kit.mjs');
+    const genIcons = readFileSync(new URL('../tools/gen-icons.sh', import.meta.url), 'utf8');
+    assert.match(genIcons, /--public-only/);
+    assert.match(genIcons, /requires explicit --source/);
+  }
+
+
+
+  // tween.js honours REDUCED policy by applying endState once.
+  const { tween, runNamedCeremony } = await import('../src/ui/tween.js');
+  {
+    let seen = null;
+    const runner = tween({
+      from: 0, to: 1, duration: 500, endState: 'terminal',
+      policy: { motion: 'reduced' },
+      onUpdate(value) { seen = value; },
+    });
+    const outcome = await runner.done;
+    assert.equal(seen, 'terminal', 'REDUCED tween must apply endState once');
+    assert.deepEqual(outcome, { outcome: 'settled', motion: 'reduced' });
+  }
+  // Zero-duration tween settles immediately with the target value.
+  {
+    let seen = null;
+    const runner = tween({
+      from: 0, to: 5, duration: 0,
+      onUpdate(value) { seen = value; },
+    });
+    const outcome = await runner.done;
+    assert.equal(seen, 5);
+    assert.equal(outcome.outcome, 'settled');
+    assert.equal(outcome.motion, 'normal');
+  }
+  {
+    const finishes = [];
+    const ceremony = runNamedCeremony({
+      name: 'lantern-lighting',
+      endState: 'embark-lit',
+      barrier: { begin: () => ({ finish: () => finishes.push('barrier'), cancel() { finishes.push('cancel'); } }) },
+      trace: {
+        begin: () => ({
+          finish: (outcome, details) => finishes.push(['span', outcome, details?.attributes?.endState, details?.attributes?.motion]),
+        }),
+      },
+      from: 0, to: 1, duration: 100,
+      policy: { motion: 'reduced' },
+    });
+    const result = await ceremony.done;
+    assert.equal(result.motion, 'reduced');
+    assert.deepEqual(finishes, [
+      ['span', 'settled', 'embark-lit', 'reduced'],
+      'barrier',
+    ]);
+  }
+}
+
+// ---- Task 21: bundle-budget baseline shape --------------------------------
+{
+  const budgetPath = new URL('../test/budgets/round5-bundle.json', import.meta.url);
+  const budget = JSON.parse(readFileSync(budgetPath, 'utf8'));
+  assert.ok(Number.isInteger(budget.prePixiEntryGzipBytes));
+  assert.ok(budget.prePixiEntryGzipBytes > 0);
+  assert.ok(typeof budget.entryRel === 'string' && budget.entryRel.length > 0);
+  if (budget.maxEntryGzipBytes !== null) {
+    assert.ok(Number.isInteger(budget.maxEntryGzipBytes));
+    assert.ok(budget.maxEntryGzipBytes >= budget.prePixiEntryGzipBytes);
+    assert.equal(budget.maxEntryGzipBytes % 1024, 0);
+  }
+}
+
+// ---- Task 21: font provenance verifier hashes align with checked-in evidence
+{
+  const provenance = JSON.parse(readFileSync(
+    new URL('../docs/licences/fonts/round5-provenance.json', import.meta.url),
+    'utf8',
+  ));
+  const packageNames = provenance.packages.map((p) => p.name).sort();
+  assert.deepEqual(packageNames, ['@fontsource/alegreya', '@fontsource/cinzel']);
+  for (const pkg of provenance.packages) {
+    assert.equal(pkg.version, '5.2.8');
+    assert.match(pkg.lockIntegrity, /^sha512-/);
+    assert.ok(pkg.assets.length >= 3);
+    for (const asset of pkg.assets) {
+      assert.match(asset.sha256, /^[0-9a-f]{64}$/);
+      assert.match(asset.file, /\.woff2$/);
+    }
+  }
+  // The plan pins the alegreya italic; provenance must include it.
+  const alegreya = provenance.packages.find((p) => p.name === '@fontsource/alegreya');
+  assert.ok(alegreya.assets.some((asset) => asset.style === 'italic' && asset.weight === '400'));
+}
+
+// ---- Task 14: isolated sample pack + fourth-theme fixture -------------------
+{
+  const sha256 = (value) => createHash('sha256').update(value).digest('hex');
+  const projectRoot = fileURLToPath(new URL('..', import.meta.url));
+
+  assert.equal(Object.hasOwn(CORE_CONTENT.cards, 'sampleCard'), false);
+  assert.equal(Object.hasOwn(CORE_CONTENT.enemies, 'sampleEnemy'), false);
+  assert.equal(Object.hasOwn(CORE_CONTENT.themes, 'sampleTheme'), false);
+  assert.equal(CORE_CONTENT.acts.length, 3);
+  assert.equal(ACTS.length, 3);
+
+  const coreOnly = createDevRegistry({ fixtures: [] });
+  assert.deepEqual(coreOnly.context.packIds, ['core']);
+  assert.deepEqual(coreOnly.context.themeOrder, ['act1', 'act2', 'act3']);
+  assert.equal(Object.hasOwn(coreOnly.context.cards, 'sampleCard'), false);
+  assert.deepEqual(coreOnly.provenance.registrationIds, ['core']);
+
+  const sampleReg = createDevRegistry({ fixtures: ['sample'] });
+  assert.equal(sampleReg.context.id, 'dev:_sample');
+  assert.deepEqual(sampleReg.context.packIds, ['core', 'sample']);
+  assert.deepEqual(sampleReg.provenance.registrationIds, ['core', 'sample']);
+  assert.ok(sampleReg.context.cards.sampleCard);
+  assert.ok(sampleReg.context.enemies.sampleEnemy);
+  assert.ok(sampleReg.context.themes.sampleTheme);
+  assert.equal(sampleReg.context.themeOrder.at(-1), 'sampleTheme');
+  assert.equal(sampleReg.context.acts.length, 4);
+  assert.equal(sampleReg.context.acts[3].name, 'Test Gallery');
+  assert.equal(sampleReg.context.acts[3].bossName, 'Test Pane');
+  assert.deepEqual(sampleReg.context.rewardGold[3], { normal: [1, 1], elite: [1, 1], boss: [1, 1] });
+  assert.equal(sampleReg.context.cards.sampleCard.name, 'Test Spark');
+  assert.equal(sampleReg.context.enemies.sampleEnemy.name, 'Test Pane');
+  assert.equal(sampleReg.context.enemies.sampleEnemy.moves.wait.name, 'Wait');
+
+  const sampleMusic = sampleReg.context.themes.sampleTheme.music;
+  assert.equal(resolveCombatCue('monster', sampleMusic), 'paleOnes');
+  assert.equal(resolveCombatCue('boss', sampleMusic), 'usurper');
+  assert.equal(resolveCombatCue('elite', sampleMusic), 'elite');
+
+  assert.throws(() => createDevRegistry({ fixtures: ['sample'], packs: [] }), /Unknown createDevRegistry option/);
+  assert.throws(() => createDevRegistry({ fixtures: ['sample', 'sample'] }), /Duplicate fixture/);
+  assert.throws(() => createDevRegistry({ fixtures: ['missing'] }), /Unknown fixture|absent/i);
+  assert.throws(() => createDevRegistry({ fixtures: ['core'] }), /development\+fixture|lacks/i);
+  const productionManifestModule = await import('../src/packs/compiled/production.js');
+  assert.throws(() => compileContentRegistrations(
+    productionManifestModule.CONTENT_REGISTRATION_MANIFEST,
+    { id: 'prod-fixtures', fixtures: ['sample'] },
+  ), /production.*fixture|fixture selection/i);
+
+  const productionManifestSource = readFileSync(new URL('../src/packs/compiled/production.js', import.meta.url), 'utf8');
+  const developmentManifestSource = readFileSync(new URL('../src/packs/compiled/development.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(productionManifestSource, /_sample|sample\/registration/);
+  assert.match(developmentManifestSource, /_sample\/registration\.js/);
+  assert.match(developmentManifestSource, /"sample"/);
+
+  // Mechanics fixtures must not own display strings.
+  for (const [label, row] of [
+    ['sampleCard', sampleCard],
+    ['sampleEnemy', sampleEnemy],
+    ['sampleTheme', sampleTheme],
+  ]) {
+    const json = JSON.stringify(row);
+    assert.doesNotMatch(json, /"(?:name|text|tagline|bossName|dialogue)"\s*:/,
+      `${label} mechanics must not embed locale display fields`);
+  }
+  assert.equal(SAMPLE_PACK.cards.sampleCard.effects[0].n, 3);
+  assert.equal(SAMPLE_LOCALE_EN.cards.sampleCard.name, 'Test Spark');
+  assert.equal(SAMPLE_LOCALE_EN.acts.sampleTheme.name, 'Test Gallery');
+  assert.deepEqual(Object.keys(SAMPLE_LOCALE_EN).sort(), [
+    'acts', 'affixes', 'arts', 'aspects', 'boons', 'cards', 'deeds', 'enemies',
+    'events', 'omens', 'potions', 'quests', 'relics', 'shadeKits', 'status',
+    'variants', 'vows', 'whispers',
+  ].sort());
+
+  const exerciseSampleJourney = (content, seed, label) => {
+    const run = newRun(seed, { ephemeral: true, content });
+    assert.equal(contentIdFor(run), content.id, `${label} content id`);
+    assert.equal(isEphemeralRun(run), true);
+    assert.equal(themeCount(run), 4, `${label} theme count`);
+    assert.ok(run.player.deck.length > 0, `${label} starter deck`);
+    assert.ok(run.map?.nodes?.length > 0, `${label} map`);
+    assert.equal(isFinalTheme(run), false, `${label} act 0 non-final`);
+    run.act = 2;
+    assert.equal(isFinalTheme(run), false, `${label} Act 3 (index 2) non-final with sample`);
+    run.act = 3;
+    assert.equal(isFinalTheme(run), true, `${label} theme index 3 final`);
+    const enc = rollEncounter(run, 'monster', 5);
+    assert.deepEqual(enc, ['sampleEnemy'], `${label} sample encounter`);
+    const cb = startCombat(run, enc, 'normal');
+    assert.equal(cb.enemies[0].key, 'sampleEnemy');
+    assert.equal(cb.enemies[0].name, 'Test Pane');
+    assert.deepEqual(EngineApi.enemyMove(cb.enemies[0]), { intent: 'block', block: 1, name: 'Wait' });
+    const boss = startCombat(run, ['sampleEnemy'], 'boss');
+    assert.equal(boss.enemies[0].key, 'sampleEnemy');
+    assert.equal(boss.enemies[0].hp, 12);
+    const spark = makeCard(run, 'sampleCard');
+    assert.equal(cardData(spark, run).name, 'Test Spark');
+    return run;
+  };
+
+  // Isolation in both call orders (no module-global current context).
+  {
+    const sampleFirst = createDevRegistry({ fixtures: ['sample'] }).context;
+    const sampleRunA = exerciseSampleJourney(sampleFirst, 1401, 'sample-then-core');
+    const coreRunA = newRun(1402);
+    assert.equal(contentIdFor(coreRunA), 'core');
+    assert.equal(themeCount(coreRunA), 3);
+    assert.ok(!coreRunA.player.deck.some((id) => id === 'sampleCard'));
+    coreRunA.act = 2;
+    assert.equal(isFinalTheme(coreRunA), true);
+    assert.equal(isEphemeralRun(coreRunA), false);
+    assert.equal(contentIdFor(sampleRunA), 'dev:_sample');
+    assert.equal(themeCount(sampleRunA), 4);
+
+    const coreRunB = newRun(1403);
+    const sampleSecond = createDevRegistry({ fixtures: ['sample'] }).context;
+    const sampleRunB = exerciseSampleJourney(sampleSecond, 1404, 'core-then-sample');
+    assert.equal(contentIdFor(coreRunB), 'core');
+    assert.equal(themeCount(coreRunB), 3);
+    assert.equal(contentIdFor(sampleRunB), 'dev:_sample');
+  }
+
+  // Engine-owned persistence writes are success-shaped no-ops for sample runs.
+  const previousLocalStorage = globalThis.localStorage;
+  const mem = new Map();
+  try {
+    globalThis.localStorage = {
+      getItem: (key) => mem.get(key) ?? null,
+      setItem: (key, value) => mem.set(key, value),
+      removeItem: (key) => mem.delete(key),
+    };
+    const ephemeralSample = newRun(1405, {
+      ephemeral: true,
+      content: createDevRegistry({ fixtures: ['sample'] }).context,
+    });
+    assert.equal(saveRun(ephemeralSample), true);
+    assert.equal(mem.size, 0);
+    assert.equal(commitRunStats(ephemeralSample, true), true);
+    assert.equal(mem.size, 0);
+    assert.equal(recordRunEnd(ephemeralSample, false), true);
+    assert.equal(mem.size, 0);
+  } finally {
+    globalThis.localStorage = previousLocalStorage;
+  }
+
+  // Future paired Act 4 data-drop proof (temporary tree; worktree stays clean).
+  const protectedHashes = Object.freeze({
+    content: sha256(readFileSync(join(projectRoot, 'src/content.js'))),
+    i18n: sha256(readFileSync(join(projectRoot, 'src/i18n/index.js'))),
+    i18nEn: sha256(readFileSync(join(projectRoot, 'src/i18n/en/index.js'))),
+    engine: sha256(readFileSync(join(projectRoot, 'src/engine.js'))),
+    actCoupling: sha256(spawnSync('npm', ['run', '-s', 'test:act-coupling'], {
+      cwd: projectRoot, encoding: 'utf8',
+    }).stdout || ''),
+  });
+  const tempRoot = mkdtempSync(join(tmpdir(), 'glassvow-act4-drop-'));
+  try {
+    const tempSrc = join(tempRoot, 'src');
+    cpSync(join(projectRoot, 'src'), tempSrc, { recursive: true });
+    const packsRoot = join(tempSrc, 'packs');
+    const productionPath = join(packsRoot, 'compiled/production.js');
+    const developmentPath = join(packsRoot, 'compiled/development.js');
+    const productionBefore = sha256(readFileSync(productionPath));
+    const developmentBefore = sha256(readFileSync(developmentPath));
+
+    const act4Dir = join(packsRoot, '_act4_drop');
+    mkdirSync(act4Dir, { recursive: true });
+    writeFileSync(join(act4Dir, 'theme.js'), `export const act4Theme = {
+  legacyAct: { boss: 'rootheart', theme: {
+    sky: 1, fog: 2, particles: 3, glow: 4, accent: '#111', ember: '#222',
+  } },
+  plates: { backdrop: 'act1-backdrop', mid: 'act1-mid', ledge: 'act1-ledge' },
+  atmosphere: 'mire',
+  weather: { rate: 1, colors: ['#aaa'], vx: [0, 1], vy: [1, 2], size: [1, 2], drift: 0.1, emberRate: 0.1 },
+  palette: { tint: 'good', glow: 'gold', haze: 'text-dim' },
+  music: { map: 'map', combat: 'shadeDuel', boss: 'sealedDoor', victory: 'victory' },
+  roster: { normal: ['sporeling'], elite: [], boss: ['rootheart'] },
+  encounters: { weak: [['sporeling']], normal: [['sporeling']], elite: [['sporeling']], boss: [['rootheart']] },
+  rewardGold: { normal: [9, 9], elite: [9, 9], boss: [9, 9] },
+  mapHaze: 'text-dim', lanternLights: [], bossPlates: {},
+};
+`);
+    writeFileSync(join(act4Dir, 'locale-en.js'), `export const ACT4_LOCALE_EN = {
+  cards: {}, status: {}, relics: {}, potions: {}, arts: {}, boons: {},
+  enemies: {}, events: {}, omens: {}, affixes: {},
+  acts: { act4: { name: 'The Fourth Climb', bossName: 'The Fourth Keeper', tagline: 'Paired drop.' } },
+  aspects: {}, vows: {}, deeds: {}, quests: {}, whispers: [], variants: {}, shadeKits: {},
+};
+`);
+    writeFileSync(join(act4Dir, 'index.js'), `import { definePack } from '../../registry.js';
+import { act4Theme } from './theme.js';
+export const ACT4_PACK = definePack({ id: 'act4', themes: { act4: act4Theme } });
+`);
+    writeFileSync(join(act4Dir, 'registration.js'), `import { defineContentRegistration } from '../../content-registration.js';
+import { ACT4_PACK } from './index.js';
+import { ACT4_LOCALE_EN } from './locale-en.js';
+export default defineContentRegistration({
+  id: 'act4',
+  mechanics: ACT4_PACK,
+  locales: { en: ACT4_LOCALE_EN },
+  targets: { production: 3, development: 3, fixture: 3 },
+});
+`);
+
+    await compileRegistrationFiles({
+      sourceRoot: packsRoot,
+      outputs: { production: productionPath, development: developmentPath },
+    });
+    const productionAfterDrop = readFileSync(productionPath, 'utf8');
+    const developmentAfterDrop = readFileSync(developmentPath, 'utf8');
+    assert.match(productionAfterDrop, /_act4_drop\/registration\.js/);
+    assert.doesNotMatch(productionAfterDrop, /_sample/);
+    assert.match(developmentAfterDrop, /_act4_drop\/registration\.js/);
+    assert.match(developmentAfterDrop, /_sample\/registration\.js/);
+
+    const prodManifest = (await import(`${pathToFileURL(productionPath).href}?drop=${Date.now()}`))
+      .CONTENT_REGISTRATION_MANIFEST;
+    const prodCompiled = compileContentRegistrations(prodManifest, {
+      id: 'production-act4', resources: STATIC_REFERENCE_CATALOGUES, localeToken: 'en',
+    });
+    assert.deepEqual(prodCompiled.provenance.registrationIds, ['core', 'act4']);
+    assert.deepEqual(prodCompiled.context.themeOrder, ['act1', 'act2', 'act3', 'act4']);
+    assert.equal(prodCompiled.context.themeOrder.at(-1), 'act4');
+    assert.equal(registryIsFinalTheme(prodCompiled.context, 3), true);
+    assert.deepEqual(prodCompiled.context.rewardGold[3], { normal: [9, 9], elite: [9, 9], boss: [9, 9] });
+    assert.equal(prodCompiled.context.acts[3].name, 'The Fourth Climb');
+    assert.equal(prodCompiled.context.acts[3].bossName, 'The Fourth Keeper');
+    assert.equal(prodCompiled.context.acts[3].tagline, 'Paired drop.');
+
+    const devManifest = (await import(`${pathToFileURL(developmentPath).href}?drop=${Date.now() + 1}`))
+      .CONTENT_REGISTRATION_MANIFEST;
+    assert.deepEqual(devManifest.provenance.map((row) => row.id), ['core', 'act4', 'sample']);
+    const devCompiled = compileContentRegistrations(devManifest, {
+      id: 'dev-act4-sample', resources: STATIC_REFERENCE_CATALOGUES, localeToken: 'en',
+      fixtures: ['sample'],
+    });
+    assert.deepEqual(devCompiled.provenance.registrationIds, ['core', 'act4', 'sample']);
+    assert.deepEqual(devCompiled.context.themeOrder, ['act1', 'act2', 'act3', 'act4', 'sampleTheme']);
+    assert.equal(devCompiled.context.themes.sampleTheme.name, 'Test Gallery');
+    assert.equal(devCompiled.context.acts[4].name, 'Test Gallery');
+    const dropSampleRun = newRun(1410, { ephemeral: true, content: devCompiled.context });
+    dropSampleRun.act = 4;
+    assert.equal(isFinalTheme(dropSampleRun), true);
+    assert.deepEqual(rollEncounter(dropSampleRun, 'monster', 5), ['sampleEnemy']);
+
+    const walk = (dir, base = dir) => {
+      const out = [];
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        const rel = full.slice(base.length + 1).split('\\').join('/');
+        if (entry.isDirectory()) out.push(...walk(full, base));
+        else out.push(rel);
+      }
+      return out;
+    };
+    const originalPackFiles = new Set(walk(join(projectRoot, 'src/packs')).map((p) => `packs/${p}`));
+    const tempPackFiles = walk(packsRoot).map((p) => `packs/${p}`);
+    const delta = tempPackFiles.filter((p) => !originalPackFiles.has(p)
+      && p !== 'packs/compiled/production.js'
+      && p !== 'packs/compiled/development.js');
+    assert.ok(delta.every((p) => p.startsWith('packs/_act4_drop/')),
+      `unexpected pack delta outside _act4_drop: ${delta.join(',')}`);
+    assert.ok(delta.some((p) => p.endsWith('registration.js')));
+
+    assert.equal(sha256(readFileSync(join(projectRoot, 'src/content.js'))), protectedHashes.content);
+    assert.equal(sha256(readFileSync(join(projectRoot, 'src/i18n/index.js'))), protectedHashes.i18n);
+    assert.equal(sha256(readFileSync(join(projectRoot, 'src/i18n/en/index.js'))), protectedHashes.i18nEn);
+    assert.equal(sha256(readFileSync(join(projectRoot, 'src/engine.js'))), protectedHashes.engine);
+
+    rmSync(act4Dir, { recursive: true, force: true });
+    await compileRegistrationFiles({
+      sourceRoot: packsRoot,
+      outputs: { production: productionPath, development: developmentPath },
+    });
+    assert.equal(sha256(readFileSync(productionPath)), productionBefore,
+      'production manifest returns to baseline after Act 4 removal');
+    assert.equal(sha256(readFileSync(developmentPath)), developmentBefore,
+      'development manifest returns to baseline after Act 4 removal');
+    const restoredDev = (await import(`${pathToFileURL(developmentPath).href}?restored=${Date.now()}`))
+      .CONTENT_REGISTRATION_MANIFEST;
+    const restored = compileContentRegistrations(restoredDev, {
+      id: 'dev-restored', resources: STATIC_REFERENCE_CATALOGUES, localeToken: 'en',
+      fixtures: ['sample'],
+    });
+    assert.deepEqual(restored.context.themeOrder, ['act1', 'act2', 'act3', 'sampleTheme']);
+    exerciseSampleJourney(restored.context, 1411, 'post-act4-removal');
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/content.js'))), protectedHashes.content);
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/i18n/index.js'))), protectedHashes.i18n);
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/i18n/en/index.js'))), protectedHashes.i18nEn);
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/engine.js'))), protectedHashes.engine);
+  assert.equal(sha256(spawnSync('npm', ['run', '-s', 'test:act-coupling'], {
+    cwd: projectRoot, encoding: 'utf8',
+  }).stdout || ''), protectedHashes.actCoupling);
+
+  assert.doesNotMatch(
+    readFileSync(join(projectRoot, 'src/packs/compiled/production.js'), 'utf8'),
+    /_act4_drop|_sample/,
+  );
+}
+
+// ---- Task 15: aggregate P2 registry equivalence / doctor / freeze ----------
+{
+  const sha256 = (value) => createHash('sha256').update(value).digest('hex');
+  const projectRoot = fileURLToPath(new URL('..', import.meta.url));
+  const assetsRoot = join(projectRoot, 'src', 'assets');
+
+  const walkAssetKeys = (dir, out = []) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walkAssetKeys(path, out);
+      else if (/\.(png|jpg|jpeg|webp)$/i.test(entry.name)) {
+        const rel = path.slice(assetsRoot.length + 1).split(/[/\\]/).join('/');
+        const slash = rel.indexOf('/');
+        if (slash > 0) {
+          const category = rel.slice(0, slash);
+          const id = rel.slice(slash + 1).replace(/\.(png|jpg|jpeg|webp)$/i, '');
+          out.push(`${category}/${id}`);
+        }
+      }
+    }
+    return out;
+  };
+
+  const resourceManifest = {
+    assetManifest: new Set(walkAssetKeys(assetsRoot)),
+    vfxIds: new Set(VFX_IDS),
+    characterKindIds: new Set(CHARACTER_KIND_IDS),
+    fallbackIds: new Set(STRUCTURAL_FALLBACK_IDS),
+    musicIds: new Set(MUSIC_CATALOG.map(({ id }) => id)),
+    sfxIds: new Set(SFX_CATALOG.map(({ id }) => id)),
+    tokenIds: new Set(UI_TOKEN_IDS),
+    // Documented default-fallback: missing CHAR_META keys use CHAR_*_DEFAULT.
+    charMetaIds: new Set(Object.keys(CHAR_META)),
+    charMetaDefaultFallback: true,
+  };
+
+  assert.deepEqual([...resourceManifest.vfxIds].sort(), [...STATIC_REFERENCE_CATALOGUES.vfxIds].sort());
+  assert.deepEqual([...resourceManifest.characterKindIds].sort(), [...STATIC_REFERENCE_CATALOGUES.characterKindIds].sort());
+  assert.deepEqual([...resourceManifest.fallbackIds].sort(), [...STATIC_REFERENCE_CATALOGUES.fallbackIds].sort());
+  assert.deepEqual([...resourceManifest.musicIds].sort(), [...STATIC_REFERENCE_CATALOGUES.musicIds].sort());
+  assert.deepEqual([...resourceManifest.sfxIds].sort(), [...STATIC_REFERENCE_CATALOGUES.sfxIds].sort());
+  assert.deepEqual([...resourceManifest.tokenIds].sort(), [...STATIC_REFERENCE_CATALOGUES.tokenIds].sort());
+
+  const productionManifestModule = await import('../src/packs/compiled/production.js');
+  const PRODUCTION_CONTENT_REGISTRATION_MANIFEST = productionManifestModule.CONTENT_REGISTRATION_MANIFEST;
+  const doctorResources = { ...STATIC_REFERENCE_CATALOGUES, ...resourceManifest };
+  const registrationDoctor = doctorContentRegistrations(PRODUCTION_CONTENT_REGISTRATION_MANIFEST, {
+    resources: doctorResources, localeToken: 'en',
+  });
+  assert.equal(registrationDoctor.report.ok, true, 'production doctor has zero errors');
+  assert.equal(registrationDoctor.report.summary.errors, 0);
+  assert.equal(registrationDoctor.report.problems.some((p) => p.code === 'asset-missing'), false,
+    'production doctor has zero asset-missing with filesystem assetManifest');
+  for (const [domain, row] of Object.entries(registrationDoctor.report.domains)) {
+    assert.equal(row.complete, row.total, `domain ${domain} complete === total`);
+  }
+  for (const entry of registrationDoctor.report.domains.themes.entries) {
+    assert.equal(entry.badges.art.status, 'complete',
+      `theme ${entry.id} art badge is complete when plates resolve against assetManifest`);
+  }
+  const formattedDoctor = formatContentReport(registrationDoctor.report);
+  assert.match(formattedDoctor, /^content: ok/);
+  console.log(formattedDoctor.trimEnd());
+
+  const expectedExports = [
+    'PLAYER', 'ACTS', 'CARDS', 'CARD_POOLS', 'STATUS_INFO', 'RELICS', 'RELIC_POOLS', 'POTIONS',
+    'ENEMIES', 'ENCOUNTERS', 'EVENTS', 'REWARD_GOLD', 'SHOP', 'OMENS', 'AFFIXES', 'ARTS', 'DEEDS',
+    'PROGRESSION', 'REVEALS', 'POOL_GATE', 'QUEST_IDS', 'WHISPERS', 'QUESTS', 'SHADE_KITS',
+    'VARIANTS', 'ASPECTS', 'VOWS', 'BOONS',
+    'QUEST_STATES', 'QUEST_ACTIVE_STATES', 'TERMINAL_OUTCOMES', 'RUN_ID_RE',
+  ];
+  assert.deepEqual([...CONTENT_EXPORT_NAMES, ...PROTOCOL_EXPORT_NAMES], expectedExports);
+  assert.equal(expectedExports.length, 32);
+  const dataNamespace = await import('../src/data.js');
+  for (const name of expectedExports) {
+    assert.ok(Object.hasOwn(dataNamespace, name), `data.js exports ${name}`);
+  }
+  assert.deepEqual(QUEST_STATES, ['dormant', 'armed', 'revealed', 'complete']);
+  assert.deepEqual(QUEST_ACTIVE_STATES, ['armed', 'revealed']);
+  assert.deepEqual(TERMINAL_OUTCOMES, ['win', 'death', 'abandon']);
+  assert.equal(RUN_ID_RE.source, dataNamespace.RUN_ID_RE.source);
+  assert.equal(RUN_ID_RE.flags, dataNamespace.RUN_ID_RE.flags);
+  for (const domain of Object.keys(CORE_CONTENT)) {
+    assert.ok(!PROTOCOL_EXPORT_NAMES.includes(domain), `protocol ${domain} is not a pack domain`);
+  }
+  assert.equal(Object.hasOwn(CORE_CONTENT, 'QUEST_STATES'), false);
+  assert.equal(Object.hasOwn(CORE_CONTENT, 'RUN_ID_RE'), false);
+
+  for (const schema of Object.values(CONTENT_SCHEMAS)) {
+    for (const [fieldName, field] of Object.entries(schema.fields || {})) {
+      assert.ok(field.source === 'pack' || field.source === 'locale',
+        `schema field ${fieldName} source must be pack|locale`);
+    }
+  }
+  for (const [domain, row] of Object.entries(registrationDoctor.report.domains)) {
+    for (const entry of row.entries) {
+      if (entry.badges.locale.status !== 'not-applicable') {
+        assert.equal(entry.badges.locale.status, 'complete',
+          `${domain}.${entry.id} locale badge`);
+      }
+      if (['cards', 'relics'].includes(domain)) {
+        assert.equal(entry.badges.pool.status, 'complete',
+          `${domain}.${entry.id} pool membership or schema no-pool`);
+      }
+    }
+  }
+
+  // Task 15 three-leg golden equality (Task 12A shape) + Task 10 catalogue legs.
+  const oracle = JSON.parse(readFileSync(new URL('./fixtures/round5-content-oracle-v1.json', import.meta.url), 'utf8'));
+  const liveOracle = await captureLiveContentOracle();
+  assert.deepEqual(liveOracle.contentExports, oracle.contentExports);
+  assert.deepEqual(liveOracle.protocolExports, oracle.protocolExports);
+  assert.deepEqual(liveOracle.enemyAi, oracle.enemyAi);
+  assert.deepEqual(liveOracle.shadeAi, oracle.shadeAi);
+  assert.deepEqual(liveOracle.rawMechanics, oracle.rawMechanics);
+  assert.deepEqual(liveOracle.i18n, oracle.i18n);
+  assert.equal(liveOracle.monteCarlo.sha256, oracle.monteCarlo.sha256);
+  assert.equal(Object.keys(oracle.i18n.domains).length, 18);
+  assert.equal(Object.keys(liveOracle.i18n.domains).length, 18);
+  assert.deepEqual(Object.keys(liveOracle.i18n.domains).sort(), Object.keys(oracle.i18n.domains).sort());
+  assert.equal(liveOracle.i18n.catalogueSha256, oracle.i18n.catalogueSha256);
+  assert.match(oracle.i18n.catalogueSha256, /^[a-f0-9]{64}$/);
+  assert.equal(oracle.rawMechanics.value.CARDS.strike.name, undefined);
+  assert.equal(oracle.rawMechanics.value.CARDS.strike.type, CARDS.strike.type);
+  assert.ok(oracle.rawMechanics.mechanicsPaths.includes('CARDS.strike.type'));
+  assert.ok(oracle.rawMechanics.localeOwnedPaths.includes('CARDS.strike.name'));
+  assert.equal(oracle.provenance.sourceSha, '9c4f7e5624b1c7eae8eb6fd3e7c27ff5ec0df5f8');
+  assert.match(oracle.provenance.sourceTree, /^[a-f0-9]{40}$/);
+  assert.throws(() => definePack({ id: 'p2-locale-leak', cards: {
+    leak: { type: 'attack', rarity: 'common', cost: 1, target: 'enemy', vfx: 'slash', effects: [], name: 'Leak' },
+  } }), /locale.field.in.pack|source.*locale/i);
+
+  assert.equal(getLocale(), 'en');
+  const i18nApis = ['getContent', 'getLocale', 'hydrateContent', 'lookup', 'registerLocale', 'setLocale', 't'];
+  const i18nModule = await import('../src/i18n/index.js');
+  assert.deepEqual(Object.keys(i18nModule).filter((k) => i18nApis.includes(k)).sort(), i18nApis.sort());
+  assert.equal(i18nModule.setLocale('zz'), false);
+  assert.equal(getLocale(), 'en');
+  assert.equal(PLAYER.name, getContent().aspects.duskblade.name);
+  assert.equal(ASPECTS[0], PLAYER);
+
+  // No save key/shape change vs the 9c4f7e5 contract.
+  const engineSource = readFileSync(join(projectRoot, 'src/engine.js'), 'utf8');
+  assert.match(engineSource, /const SAVE_KEY = 'spirebound_save_v2'/);
+  assert.match(engineSource, /const STATS_KEY = 'spirebound_stats_v1'/);
+  assert.match(readFileSync(join(projectRoot, 'src/vigil.js'), 'utf8'), /spirebound_vigil_v2/);
+  assert.doesNotMatch(engineSource, /spirebound_save_v3/);
+  assert.doesNotMatch(engineSource, /localStorage\.setItem\([^)]*contentId/);
+
+  const coreAccessors = descriptorInventory({ CORE_CONTENT }).accessors;
+  assert.deepEqual(coreAccessors, [], 'core context has no schema-visible accessors');
+  assert.equal(Object.isFrozen(CORE_CONTENT), true);
+  assert.throws(() => { CORE_CONTENT.themeOrder.push('x'); }, TypeError);
+  assert.equal(CORE_CONTENT.quests.hollowLamplighter.target, 5,
+    'materialised Hollow target retains Phase 2 numeric value');
+  const hollowDesc = Object.getOwnPropertyDescriptor(CORE_CONTENT.quests.hollowLamplighter, 'target');
+  assert.equal(hollowDesc.get, undefined);
+  assert.equal(hollowDesc.value, 5);
+
+  const authoringSnap = createCoreAuthoring();
+  authoringSnap.cards.strike.cost = 99;
+  assert.equal(CORE_CONTENT.cards.strike.cost, CARDS.strike.cost);
+  assert.notEqual(CORE_CONTENT.cards.strike.cost, 99);
+
+  const tuned = makeTunedContent({}, 'p2-tuned', (authoring) => {
+    authoring.progression.features.emberglass.hollowLamplighter.completeAt = 5;
+  });
+  assert.equal(tuned.quests.hollowLamplighter.target, 5);
+  assert.equal(Object.isFrozen(tuned), true);
+  const coreRun = newRun(1501);
+  const sampleReg = createDevRegistry({ fixtures: ['sample'] });
+  const sampleRun = newRun(1502, { ephemeral: true, content: sampleReg.context });
+  assert.equal(contentIdFor(coreRun), 'core');
+  assert.equal(contentIdFor(sampleRun), 'dev:_sample');
+  assert.equal(themeCount(coreRun), 3);
+  assert.equal(themeCount(sampleRun), 4);
+  assert.equal(isEphemeralRun(sampleRun), true);
+  assert.equal(isEphemeralRun(coreRun), false);
+  assert.equal(Object.hasOwn(CORE_CONTENT.cards, 'sampleCard'), false,
+    'P2 equivalence is not claimed from an assembly-only sample');
+
+  // Sample locale badges complete via development+fixture doctor.
+  const developmentManifestModule = await import('../src/packs/compiled/development.js');
+  const sampleDoctor = doctorContentRegistrations(
+    developmentManifestModule.CONTENT_REGISTRATION_MANIFEST,
+    { resources: doctorResources, localeToken: 'en', fixtures: ['sample'] },
+  );
+  assert.equal(sampleDoctor.report.ok, true, 'sample/dev doctor has zero errors');
+  for (const [domain, row] of Object.entries(sampleDoctor.report.domains)) {
+    for (const entry of row.entries) {
+      if (entry.badges.locale.status !== 'not-applicable') {
+        assert.equal(entry.badges.locale.status, 'complete',
+          `sample ${domain}.${entry.id} locale badge`);
+      }
+    }
+  }
+  assert.ok(sampleDoctor.report.domains.cards.entries.some((e) => e.id === 'sampleCard'));
+  assert.ok(sampleDoctor.report.domains.themes.entries.some((e) => e.id === 'sampleTheme'));
+  assert.deepEqual(Object.keys(SAMPLE_LOCALE_EN).sort(), [
+    'acts', 'affixes', 'arts', 'aspects', 'boons', 'cards', 'deeds', 'enemies',
+    'events', 'omens', 'potions', 'quests', 'relics', 'shadeKits', 'status',
+    'variants', 'vows', 'whispers',
+  ].sort());
+
+  // Task 12B: tuned high/low save-validation projections.
+  {
+    const high = makeTunedContent({
+      progression: { features: { emberglass: {
+        paleOnes: { hiddenPerRun: 2 },
+        eighthOmen: { guaranteeRuns: 4, saveDueInMax: 4 },
+        hollowLamplighter: { emberDebt: 4, saveEmberDebtMax: 4, maxMeetingsPerRun: 2 },
+        unreadablePage: { completeAt: 6 },
+      } } },
+    }, 'p2-tuned-high');
+    const low = makeTunedContent({
+      progression: { features: { emberglass: {
+        paleOnes: { hiddenPerRun: 1 },
+        eighthOmen: { guaranteeRuns: 1, saveDueInMax: 2 },
+        hollowLamplighter: { emberDebt: 2, saveEmberDebtMax: 3, maxMeetingsPerRun: 1 },
+      } } },
+    }, 'p2-tuned-low');
+    const prevLs = globalThis.localStorage;
+    const mem = new Map();
+    try {
+      globalThis.localStorage = {
+        getItem: (key) => mem.get(key) ?? null,
+        setItem: (key, value) => mem.set(key, value),
+        removeItem: (key) => mem.delete(key),
+      };
+      const questSet = (activeId) => Object.fromEntries(QUEST_IDS.map((id) => [id, {
+        state: id === activeId ? 'revealed' : 'dormant', progress: 0, memory: {},
+      }]));
+      const historicalQuests = questSet('paleOnes');
+      historicalQuests.hollowLamplighter = {
+        state: 'revealed', progress: 1, memory: { eligibleMisses: 0 },
+      };
+      const historical = newRun(1510, { content: high, quests: historicalQuests, reveals: [] });
+      historical.questScratch.hollowLamplighter = {
+        due: true, met: true, meetings: 2, debtActive: false,
+      };
+      assert.equal(saveRun(historical), true);
+      const durable = JSON.parse(mem.get('spirebound_save_v2'));
+      const reloaded = _normaliseRunSnapshotForTest(durable, low);
+      assert.ok(reloaded, 'lower tuning accepts historical scheduler counters');
+      assert.equal(contentIdFor(reloaded), 'p2-tuned-low');
+      assert.equal(reloaded.questScratch.paleOnes.hiddenRemaining, 2);
+      assert.equal(reloaded.questScratch.hollowLamplighter.meetings, 2);
+      const dynamic = newRun(1511, { content: high });
+      dynamic.quests.eighthOmen = { state: 'armed', progress: 0, memory: { dueIn: 4 } };
+      dynamic.quests.hollowLamplighter = { state: 'revealed', progress: 0, memory: { emberDebt: 4 } };
+      dynamic.endQueue = [{ t: 'pageRead', index: 6, text: 'A sixth configured page.' }];
+      assert.equal(saveRun(dynamic), true);
+      assert.ok(_normaliseRunSnapshotForTest(JSON.parse(mem.get('spirebound_save_v2')), high),
+        'high tuning accepts configured guarantee/debt/Page target');
+      const excessiveDebt = structuredClone(dynamic);
+      excessiveDebt.quests.hollowLamplighter.memory.emberDebt =
+        high.progression.emberglass.hollowLamplighter.saveEmberDebtMax + 1;
+      assert.equal(_normaliseRunSnapshotForTest(excessiveDebt, low), null,
+        'tuned normaliser rejects above-ceiling ember debt');
+    } finally {
+      if (prevLs) globalThis.localStorage = prevLs;
+      else delete globalThis.localStorage;
+    }
+  }
+
+  // CORE_CONTENT compiled with static catalogues only (no filesystem assetManifest).
+  assert.deepEqual(_CORE_CONTENT_PROVENANCE.registrationIds, ['core']);
+  assert.equal(Object.hasOwn(STATIC_REFERENCE_CATALOGUES, 'assetManifest'), false);
+  const contentSource = readFileSync(join(projectRoot, 'src/content.js'), 'utf8');
+  assert.match(contentSource, /STATIC_REFERENCE_CATALOGUES/);
+  assert.doesNotMatch(contentSource, /assetManifest/);
+
+  // Negative: unknown VFX + unknown music share stable code/entry/field across boot+doctor.
+  const coreRegistration = (await import('../src/packs/core/registration.js')).default;
+  const corePack = coreRegistration.mechanics;
+  const coreLocale = coreRegistration.locales.en;
+  const orphanLocale = {
+    ...coreLocale,
+    acts: { ...coreLocale.acts, orphanAct: { name: 'Orphan', bossName: 'Nobody', tagline: 'Extra' } },
+  };
+  const orphanDoctor = doctorContent([corePack], {
+    ...STATIC_REFERENCE_CATALOGUES, localeContent: orphanLocale, localeToken: 'en',
+  });
+  assert.ok(orphanDoctor.problems.some((p) => p.code === 'orphan-locale-entry'),
+    'orphan locale rows are reported');
+  const negAuthoring = createCoreAuthoring();
+  negAuthoring.cards.strike = { ...negAuthoring.cards.strike, vfx: 'not-a-live-vfx' };
+  negAuthoring.themes.act1 = {
+    ...negAuthoring.themes.act1,
+    music: { ...negAuthoring.themes.act1.music, combat: 'not-a-live-cue' },
+  };
+  const badPack = definePack({ id: 'p2-neg-vfx-music', ...negAuthoring });
+  let bootProblems = [];
+  try {
+    createContentContext([badPack], {
+      id: 'p2-neg', resources: STATIC_REFERENCE_CATALOGUES, localeContent: coreLocale, localeToken: 'en',
+    });
+  } catch (error) {
+    bootProblems = error.problems || [];
+  }
+  const doctorNeg = doctorContent([badPack], {
+    ...STATIC_REFERENCE_CATALOGUES, localeContent: coreLocale, localeToken: 'en',
+  });
+  for (const code of ['unknown-vfx-id', 'unknown-music-id']) {
+    const bootHit = bootProblems.find((p) => p.code === code);
+    const doctorHit = doctorNeg.problems.find((p) => p.code === code);
+    assert.ok(bootHit, `boot reports ${code}`);
+    assert.ok(doctorHit, `doctor reports ${code}`);
+    assert.equal(bootHit.field, doctorHit.field);
+    assert.equal(bootHit.entryId, doctorHit.entryId);
+    assert.equal(bootHit.code, doctorHit.code);
+  }
+  assert.equal(CONTENT_SCHEMAS.cards.fields.vfx.reference, 'vfx-id');
+  assert.equal(CONTENT_SCHEMAS.themes.fields.music.kind, 'object');
+  assert.equal(CONTENT_SCHEMAS.themes.fields.music.reference, 'music-id',
+    'Manager schema music reference kind matches VFX-style music-id');
+
+  // Neither schema nor UI modules carry an independent id enum.
+  const registrySource = readFileSync(join(projectRoot, 'src/registry.js'), 'utf8');
+  assert.doesNotMatch(registrySource, /(?:VFX_IDS|MUSIC_CATALOG|CHARACTER_KIND_IDS)\s*=/);
+  assert.doesNotMatch(registrySource, /new Set\(\[\s*['\"]slash['\"]/);
+  for (const rel of ['src/ui/assets.js', 'src/ui/content.js', 'src/ui/context.js']) {
+    const src = readFileSync(join(projectRoot, rel), 'utf8');
+    assert.doesNotMatch(src, /(?:const|let|var)\s+(?:VFX_IDS|MUSIC_IDS|CHARACTER_KIND_IDS)\s*=/,
+      `${rel} must not define an independent id enum`);
+  }
+
+  // Negative: missing raster is doctor-only; runtime boot fallback remains valid.
+  const missingAssetDoctor = doctorContent([corePack], {
+    ...STATIC_REFERENCE_CATALOGUES, localeContent: coreLocale, localeToken: 'en',
+    assetManifest: new Set([...resourceManifest.assetManifest]
+      .filter((key) => key !== `stage/${corePack.themes.act1.plates.backdrop}`)),
+  });
+  const assetProblem = missingAssetDoctor.problems.find((p) => p.code === 'asset-missing'
+    && p.field === 'themes.act1.plates.backdrop');
+  assert.ok(assetProblem, 'doctor reports asset-missing at exact plate path');
+  assert.doesNotThrow(() => createContentContext([corePack], {
+    id: 'p2-asset-boot',
+    resources: { ...STATIC_REFERENCE_CATALOGUES, assetManifest: new Set() },
+    localeContent: coreLocale, localeToken: 'en',
+  }), 'missing raster inventory is not a createContentContext error');
+
+  // Music contract (Task 6/13): five exports, 22 live cues, Rose/Hollow/Dawn/summit, fourth theme.
+  const musicResolveSource = readFileSync(join(projectRoot, 'src/music-resolve.js'), 'utf8');
+  const musicExports = [...musicResolveSource.matchAll(/^export (?:const|function) (\w+)/gm)]
+    .map((m) => m[1]).sort();
+  assert.deepEqual(musicExports, [
+    'QUEST_COMBAT_CUES', 'SCREEN_CUES', 'dawnEventCue', 'resolveCombatCue', 'resolveScreenCue',
+  ].sort());
+  assert.equal(MUSIC_CATALOG.length, 22);
+  assert.ok(MUSIC_CATALOG.every((row) => row.wired));
+  assert.equal(QUEST_COMBAT_CUES.paleOnes, 'paleOnes');
+  assert.equal(resolveCombatCue('monster', { combat: 'act1Combat' }, { questId: 'paleOnes' }), 'paleOnes');
+  assert.equal(resolveCombatCue('monster', { combat: 'act1Combat' }, { omenId: 'eighthOmen' }), 'eighthOmen');
+  assert.equal(resolveCombatCue('boss', { combat: 'act1Combat', boss: 'act1Boss' }, { omenId: 'eighthOmen' }), 'act1Boss');
+  assert.equal(SCREEN_CUES.hollow, 'hollowLamplighter');
+  assert.equal(resolveScreenCue('hollow'), 'hollowLamplighter');
+  assert.equal(SCREEN_CUES.vigil, 'vigil');
+  assert.equal(resolveScreenCue('vigil'), 'vigil');
+  assert.ok(MUSIC_CATALOG.some((row) => row.id === 'roseWindow'), 'Rose Window cue remains live');
+  assert.equal(dawnEventCue({ t: 'pageRead' }), 'unreadablePage');
+  assert.equal(dawnEventCue({ t: 'act4Reveal' }), 'sealedDoor');
+  assert.ok(MUSIC_CATALOG.some((row) => row.id === 'sealedDoor'), 'summit sealedDoor cue remains live');
+  assert.equal(resolveScreenCue('map', 'eighthOmen'), 'eighthOmen');
+  assert.equal(resolveScreenCue('reward'), null);
+  assert.equal(resolveScreenCue('bossRelic'), null);
+  const fourthThemeMusic = { combat: 'paleOnes', boss: 'usurper' };
+  assert.equal(resolveCombatCue('monster', fourthThemeMusic), 'paleOnes');
+  assert.equal(resolveCombatCue('boss', fourthThemeMusic), 'usurper');
+  assert.doesNotMatch(musicResolveSource, /Math\.min\([^)]*2[^)]*\)|act\$\{|`act\$\{/);
+  assert.doesNotMatch(musicResolveSource, /from ['\"]\.\/(?:audio|music|stage|ui)/);
+
+  // Compiler freshness + paired Act-4 drop/restore (Task 14 equivalent inside aggregate).
+  const checkCompile = spawnSync('npm', ['run', '-s', 'test:content-registrations'], {
+    cwd: projectRoot, encoding: 'utf8',
+  });
+  assert.equal(checkCompile.status, 0, checkCompile.stderr || checkCompile.stdout);
+  const productionBefore = sha256(readFileSync(join(projectRoot, 'src/packs/compiled/production.js')));
+  const developmentBefore = sha256(readFileSync(join(projectRoot, 'src/packs/compiled/development.js')));
+  assert.match(productionBefore, /^[a-f0-9]{64}$/);
+  assert.match(developmentBefore, /^[a-f0-9]{64}$/);
+  assert.doesNotMatch(readFileSync(join(projectRoot, 'src/packs/compiled/production.js'), 'utf8'), /_sample/);
+  assert.match(readFileSync(join(projectRoot, 'src/packs/compiled/development.js'), 'utf8'), /_sample/);
+
+  const protectedHashes = Object.freeze({
+    content: sha256(readFileSync(join(projectRoot, 'src/content.js'))),
+    i18n: sha256(readFileSync(join(projectRoot, 'src/i18n/index.js'))),
+    i18nEn: sha256(readFileSync(join(projectRoot, 'src/i18n/en/index.js'))),
+    engine: sha256(readFileSync(join(projectRoot, 'src/engine.js'))),
+    actCoupling: sha256(spawnSync('npm', ['run', '-s', 'test:act-coupling'], {
+      cwd: projectRoot, encoding: 'utf8',
+    }).stdout || ''),
+  });
+  const tempRoot = mkdtempSync(join(tmpdir(), 'glassvow-t15-act4-'));
+  try {
+    const tempSrc = join(tempRoot, 'src');
+    cpSync(join(projectRoot, 'src'), tempSrc, { recursive: true });
+    const packsRoot = join(tempSrc, 'packs');
+    const productionPath = join(packsRoot, 'compiled/production.js');
+    const developmentPath = join(packsRoot, 'compiled/development.js');
+    const act4Dir = join(packsRoot, '_act4_drop');
+    mkdirSync(act4Dir, { recursive: true });
+    writeFileSync(join(act4Dir, 'theme.js'), `export const act4Theme = {
+  legacyAct: { boss: 'rootheart', theme: {
+    sky: 1, fog: 2, particles: 3, glow: 4, accent: '#111', ember: '#222',
+  } },
+  plates: { backdrop: 'act1-backdrop', mid: 'act1-mid', ledge: 'act1-ledge' },
+  atmosphere: 'mire',
+  weather: { rate: 1, colors: ['#aaa'], vx: [0, 1], vy: [1, 2], size: [1, 2], drift: 0.1, emberRate: 0.1 },
+  palette: { tint: 'good', glow: 'gold', haze: 'text-dim' },
+  music: { map: 'map', combat: 'shadeDuel', boss: 'sealedDoor', victory: 'victory' },
+  roster: { normal: ['sporeling'], elite: [], boss: ['rootheart'] },
+  encounters: { weak: [['sporeling']], normal: [['sporeling']], elite: [['sporeling']], boss: [['rootheart']] },
+  rewardGold: { normal: [9, 9], elite: [9, 9], boss: [9, 9] },
+  mapHaze: 'text-dim', lanternLights: [], bossPlates: {},
+};
+`);
+    writeFileSync(join(act4Dir, 'locale-en.js'), `export const ACT4_LOCALE_EN = {
+  cards: {}, status: {}, relics: {}, potions: {}, arts: {}, boons: {},
+  enemies: {}, events: {}, omens: {}, affixes: {},
+  acts: { act4: { name: 'The Fourth Climb', bossName: 'The Fourth Keeper', tagline: 'Paired drop.' } },
+  aspects: {}, vows: {}, deeds: {}, quests: {}, whispers: [], variants: {}, shadeKits: {},
+};
+`);
+    writeFileSync(join(act4Dir, 'index.js'), `import { definePack } from '../../registry.js';
+import { act4Theme } from './theme.js';
+export const ACT4_PACK = definePack({ id: 'act4', themes: { act4: act4Theme } });
+`);
+    writeFileSync(join(act4Dir, 'registration.js'), `import { defineContentRegistration } from '../../content-registration.js';
+import { ACT4_PACK } from './index.js';
+import { ACT4_LOCALE_EN } from './locale-en.js';
+export default defineContentRegistration({
+  id: 'act4',
+  mechanics: ACT4_PACK,
+  locales: { en: ACT4_LOCALE_EN },
+  targets: { production: 3, development: 3, fixture: 3 },
+});
+`);
+    await compileRegistrationFiles({
+      sourceRoot: packsRoot,
+      outputs: { production: productionPath, development: developmentPath },
+    });
+    const productionAfterDrop = readFileSync(productionPath, 'utf8');
+    const developmentAfterDrop = readFileSync(developmentPath, 'utf8');
+    assert.match(productionAfterDrop, /_act4_drop\/registration\.js/);
+    assert.doesNotMatch(productionAfterDrop, /_sample/);
+    assert.match(developmentAfterDrop, /_act4_drop\/registration\.js/);
+    assert.match(developmentAfterDrop, /_sample\/registration\.js/);
+    const prodManifest = (await import(`${pathToFileURL(productionPath).href}?t15drop=${Date.now()}`))
+      .CONTENT_REGISTRATION_MANIFEST;
+    const prodCompiled = compileContentRegistrations(prodManifest, {
+      id: 't15-production-act4', resources: STATIC_REFERENCE_CATALOGUES, localeToken: 'en',
+    });
+    assert.deepEqual(prodCompiled.provenance.registrationIds, ['core', 'act4']);
+    assert.deepEqual(prodCompiled.context.themeOrder, ['act1', 'act2', 'act3', 'act4']);
+    assert.equal(prodCompiled.context.acts[3].name, 'The Fourth Climb');
+    rmSync(act4Dir, { recursive: true, force: true });
+    await compileRegistrationFiles({
+      sourceRoot: packsRoot,
+      outputs: { production: productionPath, development: developmentPath },
+    });
+    assert.equal(sha256(readFileSync(productionPath)), productionBefore,
+      'production manifest returns to baseline after Act 4 removal');
+    assert.equal(sha256(readFileSync(developmentPath)), developmentBefore,
+      'development manifest returns to baseline after Act 4 removal');
+    const restoredDev = (await import(`${pathToFileURL(developmentPath).href}?t15restored=${Date.now()}`))
+      .CONTENT_REGISTRATION_MANIFEST;
+    const restored = compileContentRegistrations(restoredDev, {
+      id: 't15-dev-restored', resources: STATIC_REFERENCE_CATALOGUES, localeToken: 'en',
+      fixtures: ['sample'],
+    });
+    assert.deepEqual(restored.context.themeOrder, ['act1', 'act2', 'act3', 'sampleTheme']);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/content.js'))), protectedHashes.content);
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/i18n/index.js'))), protectedHashes.i18n);
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/i18n/en/index.js'))), protectedHashes.i18nEn);
+  assert.equal(sha256(readFileSync(join(projectRoot, 'src/engine.js'))), protectedHashes.engine);
+  const actCouplingAfter = spawnSync('npm', ['run', '-s', 'test:act-coupling'], {
+    cwd: projectRoot, encoding: 'utf8',
+  });
+  assert.equal(actCouplingAfter.status, 0, actCouplingAfter.stderr || actCouplingAfter.stdout);
+  assert.equal(sha256(actCouplingAfter.stdout || ''), protectedHashes.actCoupling,
+    'act-coupling stdout hash unchanged through Act-4 drop/restore');
+  assert.doesNotMatch(readFileSync(join(projectRoot, 'src/packs/compiled/production.js'), 'utf8'), /_act4_drop/);
+
+  // No HMR accept on pack/locale/data/registry — edits force full-page reload.
+  const noHmrPaths = [
+    'src/data.js', 'src/registry.js', 'src/packs/_sample/locale-en.js',
+  ];
+  for (const rel of noHmrPaths) {
+    assert.doesNotMatch(readFileSync(join(projectRoot, rel), 'utf8'), /import\.meta\.hot|hot\.accept/,
+      `${rel} must not own an HMR accept handler`);
+  }
+  const walkJs = (dir, out = []) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walkJs(path, out);
+      else if (entry.name.endsWith('.js')) out.push(path);
+    }
+    return out;
+  };
+  for (const path of [
+    ...walkJs(join(projectRoot, 'src/packs/core')),
+    ...walkJs(join(projectRoot, 'src/i18n/en')),
+  ]) {
+    assert.doesNotMatch(readFileSync(path, 'utf8'), /import\.meta\.hot|hot\.accept/,
+      `${path} must not own an HMR accept handler`);
+  }
+}
+
+// ---- Task 16A: ephemeral presentation binding + run-effects isolation -------
+{
+  // Re-run green Task 12B/14 engine facts against the compiled sample registry.
+  // A failure here returns to P2 — do not “fix” it in UI binding.
+  const sampleReg = createDevRegistry({ fixtures: ['sample'] });
+  const dev = sampleReg.context;
+  assert.equal(dev.id, 'dev:_sample');
+  assert.equal(Object.isFrozen(dev), true);
+  assert.ok(dev.cards.sampleCard);
+  assert.ok(dev.enemies.sampleEnemy);
+  assert.equal(dev.themeOrder.at(-1), 'sampleTheme');
+  assert.doesNotMatch(
+    readFileSync(new URL('../src/packs/dev.js', import.meta.url), 'utf8'),
+    /CORE_PACK|SAMPLE_PACK|locale-en/,
+    'Lab/dev registry must not import pack or locale fragments directly',
+  );
+
+  {
+    const sampleRun = newRun(1601, { ephemeral: true, content: dev });
+    assert.equal(contentIdFor(sampleRun), 'dev:_sample');
+    assert.equal(isEphemeralRun(sampleRun), true);
+    assert.equal(themeCount(sampleRun), 4);
+    sampleRun.act = 3;
+    assert.equal(isFinalTheme(sampleRun), true);
+    assert.deepEqual(rollEncounter(sampleRun, 'monster', 5), ['sampleEnemy']);
+    const coreRun = newRun(1602);
+    assert.equal(contentIdFor(coreRun), 'core');
+    assert.equal(isEphemeralRun(coreRun), false);
+    assert.equal(themeCount(coreRun), 3);
+  }
+
+  // Presentation binding: bind after newRun; identity + theme resolution.
+  {
+    const sampleRun = newRun(1603, { ephemeral: true, content: dev });
+    bindRunContent(sampleRun, dev);
+    assert.equal(contentIdFor(sampleRun), 'dev:_sample');
+    assert.equal(contentViewFor(sampleRun), dev);
+    sampleRun.act = dev.themeOrder.indexOf('sampleTheme');
+    assert.equal(themeForRun(sampleRun).id, 'sampleTheme');
+    assert.ok(contentViewFor(sampleRun).cards.sampleCard);
+    assert.ok(contentViewFor(sampleRun).enemies.sampleEnemy);
+    assert.ok(contentViewFor(sampleRun).themes.sampleTheme);
+    assert.equal(contentViewFor(sampleRun).statuses, dev.statuses);
+  }
+
+  // Non-ephemeral binding throws; normal run view is exact imported CORE_CONTENT.
+  {
+    const normal = newRun(1604);
+    assert.throws(() => bindRunContent(normal, CORE_CONTENT), /ephemeral/i);
+    assert.equal(contentViewFor(normal), CORE_CONTENT);
+    assert.equal(contentViewFor(normal), UI_CORE_CONTENT);
+    assert.equal(themeForRun(normal).id, CORE_CONTENT.themeOrder[0]);
+  }
+
+  // Mismatched content id rejects bind.
+  {
+    const sampleRun = newRun(1605, { ephemeral: true, content: dev });
+    assert.throws(() => bindRunContent(sampleRun, CORE_CONTENT), /content id|mismatch/i);
+  }
+
+  // Simultaneous core/sample isolation in both call orders (presentation + engine).
+  {
+    const sampleA = newRun(1606, { ephemeral: true, content: dev });
+    bindRunContent(sampleA, dev);
+    const coreA = newRun(1607);
+    assert.equal(contentViewFor(sampleA), dev);
+    assert.equal(contentViewFor(coreA), CORE_CONTENT);
+    assert.equal(contentIdFor(sampleA), 'dev:_sample');
+    assert.equal(contentIdFor(coreA), 'core');
+    sampleA.act = dev.themeOrder.indexOf('sampleTheme');
+    assert.equal(themeForRun(sampleA).id, 'sampleTheme');
+    assert.notEqual(themeForRun(coreA).id, 'sampleTheme');
+
+    const coreB = newRun(1608);
+    const sampleB = newRun(1609, { ephemeral: true, content: dev });
+    bindRunContent(sampleB, dev);
+    assert.equal(contentViewFor(coreB), CORE_CONTENT);
+    assert.equal(contentViewFor(sampleB), dev);
+    sampleB.act = dev.themeOrder.indexOf('sampleTheme');
+    assert.equal(themeForRun(sampleB).id, 'sampleTheme');
+  }
+
+  // Ephemeral run-effects: sentinel stores stay byte-identical; success shapes.
+  {
+    const snap = (store) => JSON.stringify([...store.entries()].sort(([a], [b]) => (a < b ? -1 : 1)));
+    const runStore = new Map();
+    const statsStore = new Map();
+    const vigilStore = new Map([['spirebound_vigil_v2', JSON.stringify({
+      v: 2, shards: [], unlocks: [], reveals: [], news: false, bequest: null,
+    })]]);
+    const beforeRun = snap(runStore);
+    const beforeStats = snap(statsStore);
+    const beforeVigil = snap(vigilStore);
+
+    const engine = {
+      ...EngineApi,
+      isEphemeralRun,
+      contentIdFor,
+      saveRun(run) {
+        if (isEphemeralRun(run)) return true;
+        runStore.set('save', JSON.stringify(run.runId));
+        return true;
+      },
+      journalTerminalOutcome(run, outcome) {
+        return EngineApi.journalTerminalOutcome(run, outcome);
+      },
+      finaliseTerminalOutbox(...args) { return EngineApi.finaliseTerminalOutbox(...args); },
+      stagePendingDawn(run, events, unlocks) {
+        runStore.set('dawn', JSON.stringify({ events, unlocks }));
+        return true;
+      },
+      recordRunEnd(run) {
+        statsStore.set('end', JSON.stringify({ id: run.runId, won: false }));
+        return true;
+      },
+      advancePendingDawn(run, cursor) {
+        runStore.set('dawnCursor', String(cursor));
+        return true;
+      },
+      completePendingDawn(run) {
+        runStore.set('dawnClear', run.runId);
+        return true;
+      },
+      buyQuestItem(run, itemId) {
+        runStore.set('buy', itemId);
+        return { ok: true, reason: null };
+      },
+      payHollowPrice(run) {
+        runStore.set('hollowPay', run.runId);
+        return { ok: true, deferred: false, message: 'paid' };
+      },
+      stageHollowExit(run) {
+        runStore.set('hollowExit', run.runId);
+        return { kind: 'destination', nodeId: 'n1', type: 'shop', eventId: null };
+      },
+      completePendingHollowRoute(run) {
+        runStore.set('hollowClear', run.runId);
+        return true;
+      },
+      beginShadeDuel(run, clear) {
+        runStore.set('shadeBegin', run.runId);
+        return { status: clear() ? 'ready' : 'retry' };
+      },
+      resumeShadeDuel(run, clear) {
+        runStore.set('shadeResume', run.runId);
+        return { status: clear() ? 'ready' : 'retry' };
+      },
+      sealedSummitShardThreshold() { return 1; },
+    };
+    const vigil = {
+      syncVigil() {
+        vigilStore.set('sync', '1');
+        return { shards: [] };
+      },
+      setBequest(act, row, bequest) {
+        vigilStore.set('bequest', JSON.stringify({ act, row, bequest }));
+        return true;
+      },
+      clearBequest() {
+        vigilStore.set('bequest', null);
+        return true;
+      },
+      clearNews() {
+        vigilStore.set('news', 'cleared');
+        return { news: false };
+      },
+      clearVigil() {
+        vigilStore.set('cleared', '1');
+        return true;
+      },
+      commitPendingRunEnd(run, acknowledge) {
+        vigilStore.set('commit', run.runId);
+        run.runEndResult = { whisper: 'x', newShards: [], vigil: { shards: [] } };
+        run.vigilResult = { newUnlocks: [] };
+        return {
+          accepted: acknowledge(run),
+          outcome: run.pendingRunEnd?.outcome || 'win',
+          newUnlocks: [],
+          ledger: run.runEndResult,
+        };
+      },
+    };
+    const effects = RunEffectsModule.createRunEffects({ engine, vigil });
+    const ephemeral = newRun(1610, { ephemeral: true, content: dev });
+    bindRunContent(ephemeral, dev);
+
+    assert.equal(effects.saveRun(ephemeral), true);
+    assert.deepEqual(effects.buyQuestItem(ephemeral, 'flamelessLantern'), { ok: true, reason: null });
+    assert.deepEqual(effects.payHollowPrice(ephemeral), { ok: true, deferred: false, message: 'paid' });
+    assert.ok(effects.stageHollowExit(ephemeral)?.kind);
+    assert.equal(effects.completeHollowRoute(ephemeral), true);
+    assert.deepEqual(effects.beginShadeDuel(ephemeral), { status: 'ready' });
+    assert.deepEqual(effects.resumeShadeDuel(ephemeral), { status: 'ready' });
+    assert.equal(effects.setBequest(ephemeral, 1, 2, { kind: 'gold', amount: 10 }), true);
+    assert.equal(effects.clearBequest(ephemeral), true);
+    assert.deepEqual(effects.journalRunEnd(ephemeral, 'win'), { outcome: 'win' });
+
+    let finalisedCalls = 0;
+    const winResult = effects.finaliseRunEnd(ephemeral, {
+      revealThreshold: 1,
+      persist: (action) => action(),
+      onPersistenceFailure: () => assert.fail('ephemeral must not hit persistence failure'),
+      onFinalised: () => { finalisedCalls++; },
+    });
+    assert.equal(winResult?.kind, 'lab-result');
+    assert.equal(winResult.outcome, 'win');
+    assert.equal(winResult.ephemeral, true);
+    assert.equal(winResult.accepted, true);
+    assert.equal(winResult.contentId, 'dev:_sample');
+    assert.equal(Object.isFrozen(winResult), true);
+    assert.equal(finalisedCalls, 0, 'Lab-result path must not enter Dawn/Fall onFinalised');
+
+    const fallRun = newRun(1611, { ephemeral: true, content: dev });
+    bindRunContent(fallRun, dev);
+    effects.journalRunEnd(fallRun, 'death');
+    const fallResult = effects.finaliseRunEnd(fallRun, {
+      revealThreshold: 1,
+      persist: (action) => action(),
+      onPersistenceFailure: () => assert.fail('ephemeral fall must not persist'),
+      onFinalised: () => assert.fail('ephemeral fall must not present Fall'),
+    });
+    assert.equal(fallResult?.kind, 'lab-result');
+    assert.equal(fallResult.outcome, 'death');
+
+    const abandonRun = newRun(1612, { ephemeral: true, content: dev });
+    bindRunContent(abandonRun, dev);
+    effects.journalRunEnd(abandonRun, 'abandon');
+    const abandonResult = effects.finaliseRunEnd(abandonRun, {
+      revealThreshold: 1,
+      persist: (action) => action(),
+      onPersistenceFailure: () => assert.fail('ephemeral abandon must not persist'),
+      onFinalised: () => assert.fail('ephemeral abandon must not present'),
+    });
+    assert.equal(abandonResult?.kind, 'lab-result');
+    assert.equal(abandonResult.outcome, 'abandon');
+
+    assert.equal(effects.advanceDawn(ephemeral, 1), true);
+    assert.equal(effects.completeDawn(ephemeral), true);
+
+    assert.equal(snap(runStore), beforeRun, 'ephemeral effects must not write run-save sentinel');
+    assert.equal(snap(statsStore), beforeStats, 'ephemeral effects must not write stats sentinel');
+    assert.equal(snap(vigilStore), beforeVigil, 'ephemeral effects must not write Vigil sentinel');
+  }
+
+  // Normal journeys still mutate through the same adapter (post-Phase-2 order).
+  {
+    const calls = [];
+    const engine = {
+      saveRun(run) { calls.push(['saveRun', run.runId]); return true; },
+      buyQuestItem(run, itemId) { calls.push(['buyQuestItem', itemId]); return { ok: true, reason: null }; },
+      payHollowPrice(run) { calls.push(['payHollowPrice']); return { ok: true, deferred: false, message: 'paid' }; },
+      stageHollowExit(run) { calls.push(['stageHollowExit']); return { kind: 'destination', nodeId: 'n1', type: 'shop', eventId: null }; },
+      completePendingHollowRoute(run) { calls.push(['completePendingHollowRoute']); return true; },
+      beginShadeDuel(run, clear) { calls.push(['beginShadeDuel']); return { status: clear() ? 'ready' : 'retry' }; },
+      resumeShadeDuel(run, clear) { calls.push(['resumeShadeDuel']); return { status: clear() ? 'ready' : 'retry' }; },
+      journalTerminalOutcome(run, outcome) {
+        calls.push(['journalTerminalOutcome', outcome]);
+        run.pendingRunEnd = { outcome };
+        return run.pendingRunEnd;
+      },
+      stagePendingDawn(run, events, newUnlocks) {
+        calls.push(['stagePendingDawn', events.map((e) => e.t), [...newUnlocks]]);
+        run.pendingRunEnd = null;
+        run.pendingDawn = { events, cursor: 0, newUnlocks };
+        return true;
+      },
+      recordRunEnd(run, won) { calls.push(['recordRunEnd', won]); return true; },
+      finaliseTerminalOutbox(run, persist, blocked, finalised) {
+        calls.push(['finaliseTerminalOutbox']);
+        const result = persist();
+        if (result?.accepted !== true) { blocked(); return false; }
+        finalised(result);
+        return true;
+      },
+      advancePendingDawn(run, nextCursor) { calls.push(['advancePendingDawn', nextCursor]); return true; },
+      completePendingDawn(run) { calls.push(['completePendingDawn']); return true; },
+      isEphemeralRun: () => false,
+      contentIdFor: () => 'core',
+    };
+    const vigil = {
+      syncVigil() { calls.push(['syncVigil']); return { shards: [] }; },
+      setBequest(act, row, bequest) { calls.push(['setBequest', act, row]); return true; },
+      clearBequest() { calls.push(['clearBequest']); return true; },
+      clearNews() { calls.push(['clearNews']); return { news: false }; },
+      clearVigil() { calls.push(['clearVigil']); return true; },
+      commitPendingRunEnd(run, acknowledge) {
+        calls.push(['commitPendingRunEnd']);
+        run.runEndResult = { whisper: 'ok', newShards: ['hollowLamplighter'], vigil: { shards: ['hollowLamplighter'] } };
+        run.vigilResult = { newUnlocks: ['aspect2'] };
+        return {
+          accepted: acknowledge(run), outcome: 'win',
+          newUnlocks: ['aspect2'], ledger: run.runEndResult,
+        };
+      },
+    };
+    const effects = RunEffectsModule.createRunEffects({ engine, vigil });
+    const run = { runId: 'normal-16a', endQueue: [], shards: [], pendingRunEnd: null };
+    assert.equal(effects.saveRun(run), true);
+    assert.equal(effects.setBequest(run, 2, 7, { kind: 'gold', amount: 50 }), true);
+    assert.equal(effects.clearBequest(run), true);
+    effects.journalRunEnd(run, 'win');
+    let completed = null;
+    assert.equal(effects.finaliseRunEnd(run, {
+      revealThreshold: 1,
+      persist: (action) => action(),
+      onPersistenceFailure: () => assert.fail('normal finalise must accept'),
+      onFinalised: (result) => { completed = result; },
+    }), true);
+    assert.equal(completed.outcome, 'win');
+    assert.ok(run.pendingDawn);
+    assert.equal(effects.advanceDawn(run, 1), true);
+    assert.equal(effects.completeDawn(run), true);
+    assert.ok(calls.some(([name]) => name === 'commitPendingRunEnd'));
+    assert.ok(calls.some(([name]) => name === 'stagePendingDawn'));
+    assert.ok(calls.some(([name]) => name === 'setBequest'));
+  }
+
+  // Source: UI mutators for terminal/Vigil/stats/Dawn/Hollow/Shard/bequest live only in run-effects.
+  {
+    const runEffectsSource = readFileSync(new URL('../src/ui/run-effects.js', import.meta.url), 'utf8');
+    const readUiOwners = (directory, prefix = '') => readdirSync(directory, { withFileTypes: true })
+      .flatMap((entry) => entry.isDirectory()
+        ? readUiOwners(new URL(`${entry.name}/`, directory), `${prefix}${entry.name}/`)
+        : entry.name.endsWith('.js')
+          ? [[`${prefix}${entry.name}`, readFileSync(new URL(entry.name, directory), 'utf8')]]
+          : []);
+    const uiOwnersSource = readUiOwners(new URL('../src/ui/', import.meta.url))
+      .filter(([name]) => name !== 'run-effects.js')
+      .map(([, source]) => source)
+      .join('\n');
+    for (const owner of [
+      'saveRun', 'buyQuestItem', 'payHollowPrice', 'stageHollowExit', 'completePendingHollowRoute',
+      'beginShadeDuel', 'resumeShadeDuel', 'journalTerminalOutcome',
+      'finaliseTerminalOutbox', 'stagePendingDawn', 'advancePendingDawn', 'completePendingDawn',
+      'recordRunEnd', 'commitRunStats',
+    ]) {
+      assert.doesNotMatch(uiOwnersSource, new RegExp(`\\bE\\.${owner}\\s*\\(`),
+        `16A: ${owner} remains owned by run-effects`);
+    }
+    for (const owner of ['syncVigil', 'commitPendingRunEnd', 'setBequest', 'clearBequest', 'clearNews', 'clearVigil', 'commitRunEnd', 'commitRunToVigil']) {
+      assert.doesNotMatch(uiOwnersSource, new RegExp(`(?<![.\\w])${owner}\\s*\\(`),
+        `16A: bare ${owner} must not appear outside run-effects`);
+      assert.doesNotMatch(uiOwnersSource, new RegExp(`\\bVigil\\.${owner}\\s*\\(`),
+        `16A: Vigil.${owner} must not appear outside run-effects`);
+    }
+    assert.match(runEffectsSource, /isEphemeralRun|lab-result/,
+      'run-effects must own ephemeral Lab-result suppression');
+  }
+
+  // Active-run UI modules resolve catalogues through contentViewFor; title/gallery stay core-only.
+  // screens/run.js routes via themeForRun only (no catalogue table reads) — not in this list.
+  {
+    const CORE_CATALOGUE_ALLOWLIST = new Set([
+      'index.js',
+      'probe.js',
+      'rose.js',
+      'screens/title.js',
+      'screens/gallery.js',
+      'screens/audio-gallery.js',
+      'screens/vigil.js',
+      'screens/embark.js',
+    ]);
+    const ACTIVE_RUN_MODULES = [
+      'assets.js', 'navigation.js', 'combat.js', 'drain.js', 'overlay.js', 'tooltip.js',
+      'screens/map.js', 'screens/lamplighter.js', 'screens/reward.js',
+      'screens/rest.js', 'screens/shop.js', 'screens/event.js', 'screens/end.js',
+    ];
+    const catalogueImport = /import\s*\{[^}]*\b(?:CARDS|RELICS|ENEMIES|POTIONS|OMENS|AFFIXES|ARTS|STATUS_INFO)\b[^}]*\}\s*from\s*['"][^'"]*data\.js['"]/;
+    const readUi = (rel) => readFileSync(new URL(`../src/ui/${rel}`, import.meta.url), 'utf8');
+    for (const rel of ACTIVE_RUN_MODULES) {
+      const source = readUi(rel);
+      assert.doesNotMatch(source, catalogueImport,
+        `${rel} must not import active catalogues from data.js`);
+      assert.match(source, /contentViewFor/,
+        `${rel} must resolve active-run catalogues through contentViewFor`);
+    }
+    assert.doesNotMatch(readUi('screens/run.js'), /void\s+runCatalogues\s*\(\s*\)/,
+      'run.js must not use a vacuous void runCatalogues() gate');
+    assert.doesNotMatch(readUi('screens/run.js'), catalogueImport,
+      'screens/run.js must not import active catalogues from data.js');
+    assert.match(readUi('screens/run.js'), /themeForRun/,
+      'screens/run.js resolves presentation theme through themeForRun');
+    for (const rel of CORE_CATALOGUE_ALLOWLIST) {
+      const source = readUi(rel);
+      // Allowlist may keep CORE_CONTENT / data catalogues; must not bind sample ids.
+      assert.doesNotMatch(source, /sampleCard|sampleEnemy|sampleTheme|_sample/,
+        `${rel} core-only allowlist must not hard-code sample ids`);
+    }
+    assert.match(readUi('content.js'), /RUN_PRESENTATION_CONTENT|WeakMap/,
+      'presentation binding owns a WeakMap');
+    assert.match(readUi('content.js'), /bindRunContent/,
+      'bindRunContent is exported from ui/content.js');
+  }
+
+  // Card presentation + scene plates must use the run-bound context (not CORE / actN defaults).
+  {
+    const sampleRun = newRun(1620, { ephemeral: true, content: dev });
+    bindRunContent(sampleRun, dev);
+    const sampleCardKey = Object.keys(dev.cards).find((id) => !Object.hasOwn(CORE_CONTENT.cards, id));
+    assert.ok(sampleCardKey, 'sample registry exposes a non-core card');
+    assert.equal(cardData({ id: sampleCardKey }), undefined,
+      'one-arg cardData stays on CORE and cannot resolve a sample-only card');
+    assert.equal(cardData({ id: sampleCardKey }, sampleRun)?.name, dev.cards[sampleCardKey].name,
+      'run-bound cardData resolves the sample card through the presentation path');
+    assert.equal(contentViewFor(sampleRun).cards[sampleCardKey]?.name, dev.cards[sampleCardKey].name);
+
+    sampleRun.act = dev.themeOrder.indexOf('sampleTheme');
+    const theme = themeForRun(sampleRun);
+    assert.equal(theme.id, 'sampleTheme');
+    assert.equal(theme.plates.backdrop, 'act1-backdrop',
+      'sampleTheme reuses act1 plates — sceneBg must not invent act4-backdrop from act index');
+    assert.notEqual(theme.plates.backdrop, `act${sampleRun.act + 1}-backdrop`);
+
+    const readUi = (rel) => readFileSync(new URL(`../src/ui/${rel}`, import.meta.url), 'utf8');
+    const cardPresentationFiles = [
+      'tooltip.js', 'combat.js', 'overlay.js', 'screens/reward.js',
+    ];
+    for (const rel of cardPresentationFiles) {
+      const source = readUi(rel);
+      const oneArg = [...source.matchAll(/\bE\.cardData\s*\(\s*([^)]+)\s*\)/g)]
+        .filter((m) => !m[1].includes(','));
+      assert.equal(oneArg.length, 0,
+        `16A: ${rel} must pass the active run into every E.cardData call`);
+    }
+    const assetsSource = readUi('assets.js');
+    assert.match(assetsSource, /themeForRun/,
+      'sceneBg resolves plates through themeForRun');
+    assert.match(assetsSource, /plates/,
+      'sceneBg reads theme.plates');
+    assert.doesNotMatch(assetsSource, /act\$\{\s*\(?\s*S\.run/,
+      'sceneBg must not hard-code act${n}-backdrop from the act index');
+    assert.match(assetsSource, /class="scene-bg"/,
+      'sceneBg uses scene-bg only');
+    assert.doesNotMatch(assetsSource, /class="scene-bg r5-scene-panel"/,
+      'sceneBg must not stamp r5-scene-panel (FE card shell breaks full-bleed)');
+  }
+
+  // setBequest / clearBequest require a run — omitted run must not fail open to Vigil.
+  {
+    const calls = [];
+    const effects = RunEffectsModule.createRunEffects({
+      engine: { isEphemeralRun, contentIdFor },
+      vigil: {
+        setBequest(...args) { calls.push(['setBequest', ...args]); return true; },
+        clearBequest() { calls.push(['clearBequest']); return true; },
+      },
+    });
+    assert.throws(() => effects.clearBequest(), /run/i);
+    assert.throws(() => effects.clearBequest(null), /run/i);
+    assert.throws(() => effects.setBequest(2, 7, { kind: 'gold', amount: 1 }), /run/i);
+    assert.throws(() => effects.setBequest(null, 2, 7, { kind: 'gold', amount: 1 }), /run/i);
+    assert.deepEqual(calls, [], 'omitted/null run must not touch Vigil bequest APIs');
+  }
+}
+
+// ---- Task 16B: bounded Lab scenario / replay codecs -----------------------
+{
+  const core = CORE_CONTENT;
+  const sampleReg = createDevRegistry({ fixtures: ['sample'] });
+  const dev = sampleReg.context;
+
+  const scenario = {
+    v: 1, mode: 'combat', seed: 20260710, aspectId: 'duskblade',
+    themeId: 'act1', kind: 'normal', omenId: 'thinGlass',
+    enemies: [
+      { id: 'sporeling', variantId: null },
+      { id: 'duskfang', variantId: 'paleDuskfang' },
+    ],
+    deck: [{ id: 'strike', up: false }, { id: 'defend', up: false }],
+    hand: [{ id: 'strike', up: false }],
+  };
+
+  // Exact round-trip against core.
+  assert.deepEqual(
+    validateLabScenario(decodeLabScenario(encodeLabScenario(scenario)), core),
+    scenario,
+  );
+
+  // Deterministic key order: shuffled input keys still encode identically.
+  const shuffled = {
+    hand: scenario.hand, enemies: scenario.enemies, deck: scenario.deck,
+    omenId: scenario.omenId, kind: scenario.kind, themeId: scenario.themeId,
+    aspectId: scenario.aspectId, seed: scenario.seed, mode: scenario.mode, v: scenario.v,
+  };
+  assert.equal(encodeLabScenario(shuffled), encodeLabScenario(scenario));
+
+  // Decoded values are deep-frozen copies.
+  const decoded = decodeLabScenario(encodeLabScenario(scenario));
+  assert.equal(Object.isFrozen(decoded), true);
+  assert.equal(Object.isFrozen(decoded.enemies), true);
+  assert.equal(Object.isFrozen(decoded.enemies[0]), true);
+  assert.equal(Object.isFrozen(decoded.deck), true);
+  assert.throws(() => { decoded.seed = 1; }, TypeError);
+  assert.throws(() => { decoded.enemies.push({ id: 'x', variantId: null }); }, TypeError);
+
+  // Sample scenario: passes against dev, fails against core with all unknown ids.
+  const sampleScenario = {
+    v: 1, mode: 'combat', seed: 20260711, aspectId: 'duskblade',
+    themeId: 'sampleTheme', kind: 'normal', omenId: 'thinGlass',
+    enemies: [{ id: 'sampleEnemy', variantId: null }],
+    deck: [{ id: 'sampleCard', up: false }],
+    hand: [{ id: 'sampleCard', up: false }],
+  };
+  assert.deepEqual(
+    validateLabScenario(decodeLabScenario(encodeLabScenario(sampleScenario)), dev),
+    sampleScenario,
+  );
+  let sampleVsCoreErr;
+  try {
+    validateLabScenario(sampleScenario, core);
+  } catch (err) {
+    sampleVsCoreErr = err;
+  }
+  assert.ok(sampleVsCoreErr, 'sample ids must fail against core');
+  const reported = String(sampleVsCoreErr.message) + JSON.stringify(sampleVsCoreErr.problems || []);
+  assert.match(reported, /sampleTheme/);
+  assert.match(reported, /sampleEnemy/);
+  assert.match(reported, /sampleCard/);
+
+  // decodeLabScenario rejects duplicate query keys.
+  const token = encodeLabScenario(scenario);
+  assert.throws(() => decodeLabScenario(`scenario=${token}&scenario=${token}`), /duplicate/i);
+  assert.throws(() => decodeLabScenario(`?scenario=${token}&foo=1&foo=2`), /duplicate/i);
+
+  // Decode from a single scenario= query key works and stays frozen.
+  assert.deepEqual(decodeLabScenario(`?scenario=${token}`), scenario);
+
+  // Shape limits: >4 enemies, >60 deck, version ≠ 1, size caps.
+  assert.throws(() => decodeLabScenario(encodeLabScenario({
+    ...scenario,
+    enemies: [1, 2, 3, 4, 5].map(() => ({ id: 'sporeling', variantId: null })),
+  })), /enemies|4/i);
+  assert.throws(() => decodeLabScenario(encodeLabScenario({
+    ...scenario,
+    deck: Array.from({ length: 61 }, () => ({ id: 'strike', up: false })),
+  })), /deck|60/i);
+  assert.throws(() => decodeLabScenario(encodeLabScenario({ ...scenario, v: 2 })), /version/i);
+
+  // Oversized scenario payload (>8192 serialised bytes).
+  const fatDeck = Array.from({ length: 60 }, (_, i) => ({
+    id: `strike_${'x'.repeat(120)}_${i}`, up: false,
+  }));
+  const fatScenario = { ...scenario, deck: fatDeck };
+  let fatEncoded;
+  try {
+    fatEncoded = encodeLabScenario(fatScenario);
+  } catch (err) {
+    fatEncoded = null;
+    assert.match(String(err.message), /8192|size|bytes/i);
+  }
+  if (fatEncoded != null) {
+    assert.throws(() => decodeLabScenario(fatEncoded), /8192|size|bytes/i);
+  }
+
+  // Oversized replay payload (>4096 serialised bytes).
+  const fatReplay = {
+    v: 1,
+    kind: 'card-flight',
+    subject: { kind: 'card', contentId: 'strike', upgraded: false },
+    parameters: { destination: 'discard', motion: 'full', pad: 'y'.repeat(5000) },
+    endState: { destination: 'discard', visible: false },
+  };
+  let fatReplayEncoded;
+  try {
+    fatReplayEncoded = encodeReplayDescriptor(fatReplay);
+  } catch (err) {
+    fatReplayEncoded = null;
+    assert.match(String(err.message), /4096|size|bytes/i);
+  }
+  if (fatReplayEncoded != null) {
+    assert.throws(() => decodeReplayDescriptor(fatReplayEncoded), /4096|size|bytes/i);
+  }
+
+  // decode is shape-only — does not consult imported core tables for semantic ids.
+  const nonsense = {
+    v: 1, mode: 'combat', seed: 1, aspectId: 'noSuchAspect',
+    themeId: 'noSuchTheme', kind: 'normal', omenId: 'noSuchOmen',
+    enemies: [{ id: 'noSuchEnemy', variantId: null }],
+    deck: [{ id: 'noSuchCard', up: false }],
+    hand: [],
+  };
+  assert.deepEqual(decodeLabScenario(encodeLabScenario(nonsense)), nonsense,
+    'decodeLabScenario must not silently validate against core tables');
+
+  // Replay descriptor round-trip; no commands/engine/save/DOM fields.
+  const replay = {
+    v: 1,
+    kind: 'card-flight',
+    subject: { kind: 'card', contentId: 'strike', upgraded: false },
+    parameters: { destination: 'discard', motion: 'full' },
+    endState: { destination: 'discard', visible: false },
+  };
+  assert.deepEqual(decodeReplayDescriptor(encodeReplayDescriptor(replay)), replay);
+  const frozenReplay = decodeReplayDescriptor(encodeReplayDescriptor(replay));
+  assert.equal(Object.isFrozen(frozenReplay), true);
+  assert.throws(() => decodeReplayDescriptor(encodeReplayDescriptor({ ...replay, v: 2 })), /version/i);
+  assert.throws(() => decodeReplayDescriptor(encodeReplayDescriptor({
+    ...replay, command: { type: 'playCard' },
+  })), /command|unknown|field/i);
+  assert.throws(() => decodeReplayDescriptor(encodeReplayDescriptor({
+    ...replay, engineState: {},
+  })), /engine|unknown|field/i);
+  assert.throws(() => decodeReplayDescriptor(encodeReplayDescriptor({
+    ...replay, save: {},
+  })), /save|unknown|field/i);
+
+  // Enemy row rules: compatible variant, own-shade special case, mismatches aggregate.
+  validateLabScenario({
+    ...scenario,
+    enemies: [{ id: 'shade', variantId: 'ownShade1' }],
+  }, core);
+  let variantErr;
+  try {
+    validateLabScenario({
+      ...scenario,
+      enemies: [
+        { id: 'sporeling', variantId: 'paleDuskfang' },
+        { id: 'duskfang', variantId: 'ownShade1' },
+        { id: 'shade', variantId: 'paleDuskfang' },
+      ],
+    }, core);
+  } catch (err) {
+    variantErr = err;
+  }
+  assert.ok(variantErr, 'mismatched variants must fail validation');
+  const variantReport = String(variantErr.message) + JSON.stringify(variantErr.problems || []);
+  assert.match(variantReport, /paleDuskfang/);
+  assert.match(variantReport, /ownShade1/);
+
+  // Stage core + sample climb scenarios through newRun with aspect/omen/theme/seed parity.
+  // Unknown ids fail before RNG or run mutation (validate first).
+  {
+    let mutated = false;
+    const bogus = { ...scenario, aspectId: 'missingAspect', themeId: 'missingTheme', omenId: 'missingOmen' };
+    assert.throws(() => validateLabScenario(bogus, core), /missingAspect|missingTheme|missingOmen/);
+    assert.equal(mutated, false);
+
+    const stageClimb = (raw, content) => {
+      const validated = validateLabScenario(raw, content);
+      const aspect = content.aspects.findIndex((row) => row.id === validated.aspectId);
+      assert.ok(aspect >= 0, 'validated aspectId must resolve');
+      const themeIndex = content.themeOrder.indexOf(validated.themeId);
+      assert.ok(themeIndex >= 0, 'validated themeId must resolve');
+      const beforeCards = [];
+      const run = newRun(validated.seed, {
+        aspect,
+        ephemeral: true,
+        content,
+      });
+      // aspectId selected starting aspect/deck before cards were made inside newRun.
+      assert.equal(content.aspects[run.aspect].id, validated.aspectId);
+      assert.deepEqual(run.player.deck.map((c) => c.id), content.aspects[aspect].startDeck);
+      assert.deepEqual(beforeCards, [], 'no cards exist before newRun');
+      run.act = themeIndex;
+      while (run.omens.length <= themeIndex) run.omens.push(null);
+      run.omens[themeIndex] = validated.omenId;
+      assert.equal(run.omens[run.act], validated.omenId,
+        'omenId occupies the selected act slot before combat setup');
+      assert.equal(run.act, themeIndex, 'themeId selects the correct numeric act');
+      run.rngState = validated.seed;
+      run.map = genMap(run);
+      const combatIds = validated.enemies.map((row) => row.variantId ?? row.id);
+      const cb = startCombat(run, combatIds, validated.kind);
+      return { run, cb, validated, combatIds };
+    };
+
+    const coreClimb = {
+      v: 1, mode: 'combat', seed: 20260712, aspectId: 'ashwarden',
+      themeId: 'act2', kind: 'normal', omenId: 'thinGlass',
+      enemies: [
+        { id: 'sporeling', variantId: null },
+        { id: 'shade', variantId: 'ownShade2' },
+      ],
+      deck: [{ id: 'defend', up: false }],
+      hand: [{ id: 'defend', up: false }],
+    };
+    const a = stageClimb(coreClimb, core);
+    const b = stageClimb(coreClimb, core);
+    assert.deepEqual(
+      a.run.map.nodes.map((n) => ({ id: n.id, type: n.type, next: n.next })),
+      b.run.map.nodes.map((n) => ({ id: n.id, type: n.type, next: n.next })),
+      'fixed seed produces the same map on URL reload',
+    );
+    assert.deepEqual(a.combatIds, ['sporeling', 'ownShade2']);
+    assert.equal(a.cb.enemies[0].variantId, null);
+    assert.equal(a.cb.enemies[1].variantId, 'ownShade2');
+
+    const sampleClimb = {
+      v: 1, mode: 'combat', seed: 20260713, aspectId: 'duskblade',
+      themeId: 'sampleTheme', kind: 'normal', omenId: 'thinGlass',
+      enemies: [{ id: 'sampleEnemy', variantId: null }],
+      deck: [{ id: 'sampleCard', up: false }],
+      hand: [{ id: 'sampleCard', up: false }],
+    };
+    const s = stageClimb(sampleClimb, dev);
+    assert.equal(s.run.act, dev.themeOrder.indexOf('sampleTheme'));
+    assert.equal(contentIdFor(s.run), 'dev:_sample');
+    assert.equal(s.cb.enemies[0].key || s.cb.enemies[0].id || s.combatIds[0], 'sampleEnemy');
+  }
+
+  // Legacy numeric opts.aspect and normal rolled-omen path retain exact parity.
+  {
+    const legacyA = newRun(4242, { aspect: 1 });
+    const legacyB = newRun(4242, { aspect: 1 });
+    assert.equal(legacyA.aspect, 1);
+    assert.equal(core.aspects[legacyA.aspect].id, 'ashwarden');
+    assert.deepEqual(legacyA.player.deck.map((c) => c.id), legacyB.player.deck.map((c) => c.id));
+    assert.deepEqual(
+      legacyA.map.nodes.map((n) => ({ id: n.id, type: n.type })),
+      legacyB.map.nodes.map((n) => ({ id: n.id, type: n.type })),
+    );
+    const rolled = newRun(4243);
+    assert.equal(rolled.omens.length >= 1, true);
+    assert.ok(rolled.omens[0] == null || Object.hasOwn(core.omens, rolled.omens[0]));
+  }
+
+  // Codec module stays Node-pure (no DOM/audio/stage imports).
+  {
+    const source = readFileSync(new URL('../src/dev/lab-scenario.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /from\s+['"]\.\.\/(audio|music|stage|ui)\b/);
+    assert.doesNotMatch(source, /document\.|window\.|localStorage/);
+  }
+}
+
+
+// ---- Task 19: schema-driven Content Manager serialiser ----
+{
+  const {
+    EDITABLE_DOMAINS, EDITABLE_PACK_IDS, CONTENT_SAVE_VERSION,
+    DOMAIN_MECHANICS_PATH, DOMAIN_LOCALE_PATH, DOMAIN_MECHANICS_EXPORT, DOMAIN_LOCALE_EXPORT,
+    fieldOwnership, splitBySource, joinBySource,
+    serializeMechanicsModule, serializeLocaleExport, applyLocaleExportToSource,
+    validateContentSavePayload, materialiseOwnData,
+  } = await import('../src/dev/content-serialize.js');
+
+  assert.deepEqual([...EDITABLE_DOMAINS], ['cards', 'relics', 'potions', 'themes']);
+  assert.deepEqual([...EDITABLE_PACK_IDS], ['core']);
+  assert.equal(CONTENT_SAVE_VERSION, 1);
+  for (const domain of EDITABLE_DOMAINS) {
+    assert.match(DOMAIN_MECHANICS_PATH[domain], /^src\/packs\/core\//);
+    assert.equal(DOMAIN_LOCALE_PATH[domain], 'src/i18n/en/content.js');
+    assert.ok(DOMAIN_MECHANICS_EXPORT[domain]);
+    assert.ok(DOMAIN_LOCALE_EXPORT[domain]);
+  }
+  assert.equal(DOMAIN_LOCALE_EXPORT.themes, 'acts');
+
+  // Field ownership comes only from CONTENT_SCHEMAS (Manager/Lab/doctor share it).
+  const cardFields = fieldOwnership('cards');
+  assert.deepEqual(cardFields.map((f) => f.name), Object.keys(CONTENT_SCHEMAS.cards.fields));
+  assert.equal(cardFields.find((f) => f.name === 'cost').source, 'pack');
+  assert.equal(cardFields.find((f) => f.name === 'text').source, 'locale');
+  assert.equal(cardFields.find((f) => f.name === 'name').source, 'locale');
+  const themeFields = fieldOwnership('themes');
+  assert.equal(themeFields.find((f) => f.name === 'tagline').source, 'locale');
+  assert.equal(themeFields.find((f) => f.name === 'atmosphere').source, 'pack');
+
+  // Lab + doctor + Manager share ordered registration provenance.
+  const labProv = createDevRegistry({ fixtures: ['sample'] }).provenance;
+  const doctorProv = doctorContentRegistrations(
+    (await import('../src/packs/compiled/development.js')).CONTENT_REGISTRATION_MANIFEST,
+    { fixtures: ['sample'] },
+  ).provenance;
+  assert.deepEqual(labProv.registrationIds, doctorProv.registrationIds);
+  assert.deepEqual(
+    labProv.registrations.map((r) => ({ id: r.id, mechanicsPackId: r.mechanicsPackId, sourcePath: r.sourcePath, targets: r.targets })),
+    doctorProv.registrations.map((r) => ({ id: r.id, mechanicsPackId: r.mechanicsPackId, sourcePath: r.sourcePath, targets: r.targets })),
+  );
+
+  // Joined round-trip for a card.
+  const strikeJoined = {
+    type: 'attack', rarity: 'starter', cost: 1, target: 'enemy', vfx: 'slash',
+    effects: [{ kind: 'dmg', n: 6 }],
+    up: { effects: [{ kind: 'dmg', n: 9 }] },
+    name: 'Edge', text: 'Deal @6@ damage.', textUp: 'Deal @9@ damage.',
+  };
+  const splitCard = splitBySource('cards', strikeJoined);
+  assert.equal(splitCard.mechanics.name, undefined);
+  assert.equal(splitCard.mechanics.text, undefined);
+  assert.equal(splitCard.display.name, 'Edge');
+  assert.equal(splitCard.mechanics.cost, 1);
+  assert.deepEqual(joinBySource('cards', splitCard.mechanics, splitCard.display), strikeJoined);
+
+  // Theme round-trip (locale lives under acts indices, mechanics under theme ids).
+  const themeJoined = {
+    atmosphere: 'ash', mapHaze: 'text-dim', lanternLights: [], bossPlates: {},
+    legacyAct: { boss: 'rootheart', theme: { sky: 1, fog: 2, particles: 3, glow: 4, accent: '#a', ember: '#b' } },
+    plates: { backdrop: 'a', mid: 'b', ledge: 'c' },
+    weather: { rate: 1 }, palette: { tint: 'good' }, music: { map: 'map' },
+    roster: { normal: [], elite: [], boss: [] },
+    encounters: { weak: [], strong: [], elite: [], boss: [] },
+    rewardGold: { combat: [10, 20], elite: [30, 40], boss: [50, 60], treasure: [5, 10] },
+    name: 'The Ashen Woods', bossName: 'The Rootheart', tagline: 'optional',
+  };
+  const splitTheme = splitBySource('themes', themeJoined);
+  assert.equal(splitTheme.display.name, 'The Ashen Woods');
+  assert.equal(splitTheme.mechanics.name, undefined);
+  assert.equal(splitTheme.mechanics.atmosphere, 'ash');
+  assert.deepEqual(joinBySource('themes', splitTheme.mechanics, splitTheme.display), themeJoined);
+
+  // Unknown non-function extension: warn, preserve byte-for-byte across serialise→parse→serialise.
+  const withExt = {
+    type: 'attack', rarity: 'common', cost: 1, target: 'enemy', vfx: 'slash', effects: [],
+    customExt: 42,
+    name: 'X', text: 'Y',
+  };
+  const splitExt = splitBySource('cards', withExt);
+  assert.equal(splitExt.mechanics.customExt, 42);
+  assert.ok(splitExt.warnings.some((w) => /customExt|unknown/i.test(w)));
+  const order = ['extCard'];
+  const mechMod = serializeMechanicsModule('cards', { extCard: splitExt.mechanics }, { order });
+  assert.equal(mechMod.endsWith('\n'), true);
+  assert.equal(mechMod.endsWith('\n\n'), false);
+  const locMod = serializeLocaleExport('cards', { extCard: splitExt.display }, { order });
+  assert.equal(locMod.endsWith('\n'), true);
+  // Deterministic: second serialise identical.
+  assert.equal(serializeMechanicsModule('cards', { extCard: splitExt.mechanics }, { order }), mechMod);
+  assert.equal(serializeLocaleExport('cards', { extCard: splitExt.display }, { order }), locMod);
+  // Parse round-trip preserves extension.
+  const tmpDir = mkdtempSync(join(tmpdir(), 'content-ser-'));
+  try {
+    const mechPath = join(tmpDir, 'cards.tmp.mjs');
+    writeFileSync(mechPath, mechMod);
+    const parsed = await import(`${pathToFileURL(mechPath).href}?t=${Date.now()}`);
+    assert.equal(parsed.CARDS.extCard.customExt, 42);
+    const again = serializeMechanicsModule('cards', parsed.CARDS, { order });
+    assert.equal(again, mechMod);
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+
+  // Reject functions / ai in editable domains.
+  assert.throws(() => splitBySource('cards', { ...strikeJoined, ai: () => {} }), /function|ai/i);
+  assert.throws(() => materialiseOwnData({ get x() { return 1; } }, 'row'), /accessor/i);
+  assert.throws(() => serializeMechanicsModule('cards', { bad: { ...splitCard.mechanics, boom: () => 1 } }, { order: ['bad'] }), /function/i);
+
+  // Reject prototype / meta keys — JSON-parsed own keys must not pollute or serialise.
+  for (const key of ['__proto__', 'prototype', 'constructor']) {
+    const polluted = JSON.parse(`{"a":1,"${key}":{"polluted":true}}`);
+    assert.throws(() => materialiseOwnData(polluted, 'row'), /prototype|meta|forbidden/i);
+    const outProbe = (() => {
+      try { return materialiseOwnData(polluted, 'row'); } catch { return null; }
+    })();
+    assert.equal(outProbe, null);
+    assert.throws(
+      () => serializeMechanicsModule('cards', {
+        bad: { ...splitCard.mechanics, ...JSON.parse(`{"${key}":{"n":1}}`) },
+      }, { order: ['bad'] }),
+      /prototype|meta|forbidden/i,
+    );
+    assert.throws(
+      () => serializeMechanicsModule('cards', {
+        [key]: splitCard.mechanics,
+      }, { order: [key] }),
+      /prototype|meta|forbidden/i,
+    );
+  }
+  {
+    // Independent probe shape: assignment to out['__proto__'] must never succeed.
+    const raw = JSON.parse('{"a":1,"__proto__":{"polluted":true}}');
+    let threw = false;
+    try {
+      const out = materialiseOwnData(raw, 'row');
+      assert.equal(out.polluted, undefined);
+      assert.notEqual(Object.getPrototypeOf(out)?.polluted, true);
+    } catch (err) {
+      threw = /prototype|meta|forbidden/i.test(String(err?.message ?? err));
+    }
+    assert.equal(threw, true);
+  }
+
+  // Payload validation: version, pack, domain, order uniqueness, projection match, path traversal.
+  const goodPayload = {
+    v: 1, packId: 'core', locale: 'en', domain: 'cards',
+    order: ['strike'],
+    mechanics: { strike: splitCard.mechanics },
+    display: { strike: splitCard.display },
+  };
+  assert.deepEqual(validateContentSavePayload(goodPayload), []);
+  assert.ok(validateContentSavePayload({ ...goodPayload, v: 2 }).some((p) => /version/i.test(p)));
+  assert.ok(validateContentSavePayload({ ...goodPayload, packId: 'other' }).some((p) => /pack/i.test(p)));
+  assert.ok(validateContentSavePayload({ ...goodPayload, domain: 'enemies' }).some((p) => /domain/i.test(p)));
+  assert.ok(validateContentSavePayload({ ...goodPayload, order: ['strike', 'strike'] }).some((p) => /unique|duplicate/i.test(p)));
+  assert.ok(validateContentSavePayload({ ...goodPayload, order: ['strike'], mechanics: {}, display: { strike: splitCard.display } }).some((p) => /order|projection|mechanics/i.test(p)));
+  assert.ok(validateContentSavePayload({ ...goodPayload, path: '../etc/passwd' }).some((p) => /path/i.test(p)));
+  assert.ok(validateContentSavePayload({ ...goodPayload, mechanicsFile: 'src/packs/core/../../evil.js' }).some((p) => /path/i.test(p)));
+
+  // Locale splice preserves surrounding exports.
+  const sampleLocale = `// hdr\n\nexport const cards = {\n  a: { name: "A" },\n};\n\nexport const relics = {\n  r: { name: "R" },\n};\n`;
+  const nextCards = serializeLocaleExport('cards', { a: { name: 'B', text: 't' } }, { order: ['a'] });
+  const spliced = applyLocaleExportToSource(sampleLocale, 'cards', nextCards);
+  assert.match(spliced, /name: "B"/);
+  assert.match(spliced, /export const relics/);
+  assert.doesNotMatch(spliced, /name: "A"/);
+
+  // Vite config retains SPIRE defines + existing save endpoints beside __content-save.
+  // Pin the full PR #18 marker set (not a vacuous subset of identifier strings).
+  const viteSrc = readFileSync(new URL('../vite.config.js', import.meta.url), 'utf8');
+  for (const marker of [
+    '__SPIRE_VERSION__',
+    '__SPIRE_GIT_SHA__',
+    '__SPIRE_RELEASE__',
+    'SPIRE_EMBED_SHA',
+    'command === "serve"',
+    '"unknown"',
+    'SPIRE_RELEASE === "1"',
+  ]) {
+    assert.ok(viteSrc.includes(marker), `Vite marker missing: ${marker}`);
+  }
+  for (const route of [
+    '__audio-save',
+    '__bf-save',
+    '__char-save',
+    '__bfui-save',
+    '__ward-save',
+    '__content-save',
+  ]) {
+    assert.match(viteSrc, new RegExp(`middlewares\\.use\\("/${route}"`));
+  }
+  assert.match(viteSrc, /export default defineConfig\(\(\{ command \}\) =>/);
+  assert.doesNotMatch(viteSrc, /export default \{/);
+}
+
+// ---- Task 19: content manager source contracts ----
+{
+  const managerPath = new URL('../src/ui/dev/content-manager.js', import.meta.url);
+  const managerSource = readFileSync(managerPath, 'utf8');
+  assert.match(managerSource, /compileContentRegistrations/);
+  assert.match(managerSource, /DEVELOPMENT_CONTENT_REGISTRATION_MANIFEST/);
+  assert.match(managerSource, /fieldOwnership/);
+  assert.match(managerSource, /__content-save/);
+  assert.doesNotMatch(managerSource, /from\s+['"][^'"]*packs\/(core|_sample)\//);
+  assert.doesNotMatch(managerSource, /PACK_IDS\s*=/);
+  const shellSource = readFileSync(new URL('../src/ui/dev/shell.js', import.meta.url), 'utf8');
+  assert.match(shellSource, /id:\s*['"]contentedit['"][\s\S]*?available:\s*true/);
+  const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.match(mainSource, /contentedit/);
+  assert.match(mainSource, /ui\/dev\/content-manager/);
+}
+
+// ---- Task 18: content doctor dashboard source contracts ----
+{
+  const doctorPath = new URL('../src/ui/dev/doctor.js', import.meta.url);
+  const doctorSource = readFileSync(doctorPath, 'utf8');
+  assert.match(doctorSource, /doctorContentRegistrations/);
+  assert.match(doctorSource, /DEVELOPMENT_CONTENT_REGISTRATION_MANIFEST/);
+  assert.match(doctorSource, /fixtures:\s*\[\s*['"]sample['"]\s*\]/);
+  assert.doesNotMatch(doctorSource, /from\s+['"][^'"]*packs\/(core|_sample|act4)/);
+  assert.doesNotMatch(doctorSource, /from\s+['"][^'"]*i18n\/en/);
+  assert.doesNotMatch(doctorSource, /from\s+['"][^'"]*locale-en/);
+  assert.doesNotMatch(doctorSource, /PACK_IDS\s*=/);
+  assert.doesNotMatch(doctorSource, /packList\s*=/);
+  assert.doesNotMatch(doctorSource, /packs:\s*\[\s*['"]core['"]/);
+  const shellPath = new URL('../src/ui/dev/shell.js', import.meta.url);
+  const shellSource = readFileSync(shellPath, 'utf8');
+  assert.match(shellSource, /data-dev-shell/);
+  assert.match(shellSource, /data-dev-route=/);
+  for (const route of ['gallery', 'audio', 'bfedit', 'bfuiedit', 'charedit', 'vfxedit', 'lab', 'dashboard', 'contentedit']) {
+    assert.match(shellSource, new RegExp(`id:\\s*['"]${route}['"]`));
+    assert.match(shellSource, new RegExp(`href:\\s*['"]\\?${route}=1['"]`));
+  }
+  assert.match(shellSource, /iconSvg/);
+  assert.doesNotMatch(shellSource, /⚔|♛|✓|✗/);
+}
+
+// ---- Task 17: production-surface verifier marker list + Lab codec normalize ----
+{
+  // Pin the full frozen inventory — deleting any marker must fail this gate.
+  assert.deepEqual([...FORBIDDEN_PRODUCTION_MARKERS], [
+    '__content-save',
+    'Content Lab',
+    '_sample',
+    'data-dev-shell',
+    'data-content-doctor',
+    'contentedit',
+    'data-lab-root',
+    'createDevRegistry',
+    'ui/dev/lab',
+    'ui/dev/doctor',
+    'ui/dev/content-manager',
+    'ui/dev/shell',
+  ]);
+  assert.equal(FORBIDDEN_PRODUCTION_MARKERS.length, 12);
+  assert.equal(Object.isFrozen(FORBIDDEN_PRODUCTION_MARKERS), true);
+  // scan helper rejects markers when planted in a synthetic file set.
+  const tmp = mkdtempSync(join(tmpdir(), 'spire-surface-'));
+  try {
+    writeFileSync(join(tmp, 'index.html'), '<script src="/assets/x.js"></script>\n');
+    mkdirSync(join(tmp, 'assets'));
+    writeFileSync(join(tmp, 'assets', 'x.js'), 'console.log("Content Lab")\n');
+    const hits = scanProductionSurface(tmp);
+    assert.ok(hits.some((h) => h.marker === 'Content Lab'));
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+
+  const replay = {
+    v: 1,
+    kind: 'card-flight',
+    subject: { kind: 'card', contentId: 'strike', upgraded: false },
+    parameters: { destination: 'discard', motion: 'full' },
+    endState: { destination: 'discard', visible: false },
+  };
+  assert.deepEqual(normalizeReplayDescriptor(replay), replay);
+  assert.equal(Object.isFrozen(normalizeReplayDescriptor(replay)), true);
+
+  // Production UI modules must not branch on sample ids.
+  {
+    const uiRoot = new URL('../src/ui/', import.meta.url);
+    const walk = (dir, rel = '') => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const nextRel = rel ? `${rel}/${entry.name}` : entry.name;
+        if (entry.isDirectory()) {
+          if (entry.name === 'dev') continue; // Lab/doctor are DEV-only
+          walk(join(dir, entry.name), nextRel);
+        } else if (entry.name.endsWith('.js')) {
+          const source = readFileSync(join(dir, entry.name), 'utf8');
+          assert.doesNotMatch(source, /sampleTheme|sampleEnemy|sampleCard/,
+            `${nextRel} must not branch on sample content ids`);
+        }
+      }
+    };
+    walk(fileURLToPath(uiRoot));
+  }
+}
+
+// ---- Task 22a: combat Pixi renderer seam (scaffold source contract) --------
+// combat-gl.js imports pixi.js which requires a browser globals; we cannot
+// exercise the factory in Node. Instead we assert the seam's source contract:
+// the interface keys, the blocking-id ledger and the fact that combat/index
+// dual-write through the injected renderer.
+{
+  const combatGlSource = readFileSync(new URL('../src/ui/combat-gl.js', import.meta.url), 'utf8');
+  assert.match(combatGlSource, /export async function createCombatRenderer\(/,
+    'combat-gl exposes the createCombatRenderer factory');
+  for (const key of [
+    'mount', 'sync', 'layout', 'hitTest', 'setInteraction', 'readUI', 'stats',
+    'loseContextForTest', 'freezeForTest', 'unfreezeForTest', 'destroy',
+  ]) {
+    assert.match(combatGlSource, new RegExp(`\\b${key}\\b`),
+      `combat-gl must expose ${key} on the renderer handle`);
+  }
+  assert.match(combatGlSource, /COMBAT_RENDERER_VERSION\s*=\s*2\b/,
+    'combat-gl presentation model version is 2');
+  const blockingListMatch = combatGlSource.match(
+    /COMBAT_BLOCKING_UI_IDS\s*=\s*Object\.freeze\(\[([\s\S]*?)\]\)/,
+  );
+  assert.ok(blockingListMatch, 'combat-gl declares the blocking id ledger');
+  const blockingIds = blockingListMatch[1]
+    .split(',')
+    .map((entry) => entry.trim().replace(/^['"]|['"]$/g, ''))
+    .filter(Boolean);
+  assert.equal(blockingIds.length, 17,
+    'combat-gl blocking id ledger has 17 combat-visible ui ids');
+  const expectedBlockingIds = [
+    'candle-lit', 'candle-spent',
+    'facet-empty', 'facet-chipped',
+    'hp-vial-frame', 'heart', 'coin', 'deck', 'menu', 'ward',
+    'end-turn', 'lantern',
+    'intent-attack', 'intent-block', 'intent-buff', 'intent-debuff', 'intent-heal',
+  ];
+  assert.deepEqual([...blockingIds].sort(), [...expectedBlockingIds].sort(),
+    'combat-gl blocking ids match the 17 combat-visible chrome ledger');
+  const fullListMatch = combatGlSource.match(
+    /COMBAT_UI_TEXTURE_IDS\s*=\s*Object\.freeze\(\[([\s\S]*?)\]\)/,
+  );
+  assert.ok(fullListMatch, 'combat-gl declares the full ui texture ledger');
+  const spreadMatch = /\.{3}COMBAT_BLOCKING_UI_IDS/.test(fullListMatch[1]);
+  assert.ok(spreadMatch, 'full texture ledger spreads the blocking list to stay in sync');
+  const additionalIds = fullListMatch[1]
+    .replace(/\.{3}COMBAT_BLOCKING_UI_IDS,?/, '')
+    .split(',')
+    .map((entry) => entry.trim().replace(/^['"]|['"]$/g, ''))
+    .filter(Boolean);
+  assert.equal(17 + additionalIds.length, 27,
+    'combat-gl total texture ledger is 17 blocking + 10 map-node = 27 ids');
+  const pileMatch = combatGlSource.match(
+    /COMBAT_PILE_TEXTURE_IDS\s*=\s*Object\.freeze\(\[([\s\S]*?)\]\)/,
+  );
+  assert.ok(pileMatch, 'combat-gl declares the pile texture ledger');
+  const pileIds = pileMatch[1]
+    .split(',')
+    .map((entry) => entry.trim().replace(/^['"]|['"]$/g, ''))
+    .filter(Boolean);
+  assert.deepEqual([...pileIds].sort(), ['ashes', 'discard', 'draw'],
+    'combat-gl gates textured-ready on the 3 pile master ids');
+  assert.match(combatGlSource, /pixiLayer\.loseContextForTest\(\)/,
+    'combat-gl bridges loseContextForTest to the Task 21 pixi layer');
+  assert.match(combatGlSource, /pixiLayer\.freezeForTest\(/,
+    'combat-gl bridges freezeForTest to the Task 21 pixi layer');
+  assert.match(combatGlSource, /pixiLayer\.unfreezeForTest\(\)/,
+    'combat-gl bridges unfreezeForTest to the Task 21 pixi layer');
+  assert.match(combatGlSource, /container\.visible\s*=\s*true/,
+    'combat-gl paints bottom chrome (Task 22b-1) so the root becomes visible');
+  assert.match(combatGlSource, /paintBottomChrome\s*\(/,
+    'combat-gl exposes a paintBottomChrome routine that composes the widgets');
+  assert.match(combatGlSource, /bottomChromeReady/,
+    'combat-gl tracks bottom-chrome readiness for stats() consumers');
+  assert.match(combatGlSource, /paintHudChrome\s*\(/,
+    'combat-gl paints HUD chrome (Task 22b-2)');
+  assert.match(combatGlSource, /paintPlatesChrome\s*\(/,
+    'combat-gl paints plate chrome (Task 22b-2)');
+  assert.match(combatGlSource, /domRect\('#hud \[data-act="deck"\]'\)/,
+    'combat-gl paints the deck widget from the live DOM seat');
+  assert.match(combatGlSource, /measurePlateWidgets\s*\(/,
+    'combat-gl caches distinct plate widget seats for readUI');
+  assert.match(combatGlSource, /wrapBounds/,
+    'combat-gl exposes wrapBounds on the plate cache');
+  assert.match(combatGlSource, /hudReady/,
+    'combat-gl tracks HUD readiness for stats() consumers');
+  assert.match(combatGlSource, /platesReady/,
+    'combat-gl tracks plate readiness for stats() consumers');
+
+  const combatSource = readFileSync(new URL('../src/ui/combat.js', import.meta.url), 'utf8');
+  assert.match(combatSource, /combatGlMount/,
+    'combat.js dual-writes into the combat renderer on mount');
+  assert.match(combatSource, /combatGlSync/,
+    'combat.js dual-writes into the combat renderer on sync');
+  assert.match(combatSource, /buildPresentationModel\(/,
+    'combat.js constructs a stable presentation model for the renderer');
+  assert.match(combatSource, /buildHudModel\s*\(/,
+    'combat.js builds a HUD presentation slice for Task 22b-2');
+  assert.match(combatSource, /buildPlatesModel\s*\(/,
+    'combat.js builds a plates presentation slice for Task 22b-2');
+  assert.match(combatSource, /pixi-plate-chrome/,
+    'combat.js marks the combat screen when plate chrome is Pixi-owned');
+  assert.match(combatSource, /pixi-hud-chrome/,
+    'combat.js marks the HUD when HUD chrome is Pixi-owned');
+  // Task 23 — hit proxies are gone; combat input is owned by pointer.js.
+  assert.doesNotMatch(combatSource, /combat-hit-proxies/,
+    'combat.js no longer mounts #combat-hit-proxies');
+  assert.doesNotMatch(combatSource, /data-proxy=/,
+    'combat.js no longer declares hit-proxy data-proxy buttons');
+  assert.doesNotMatch(combatSource, /ensureHudHitProxies\s*\(/,
+    'combat.js no longer maintains HUD hit proxies');
+  assert.doesNotMatch(combatSource, /placeHitProxies\s*\(/,
+    'combat.js no longer places chrome hit proxies');
+  assert.match(combatSource, /createCombatPointerRouter\s*\(/,
+    'combat.js installs the sole stage pointer router');
+  assert.match(combatSource, /installCombatPointerRouter\s*\(/,
+    'combat.js owns the router install seam');
+
+  const pointerSource = readFileSync(new URL('../src/ui/pointer.js', import.meta.url), 'utf8');
+  assert.match(pointerSource, /export function createCombatPointerRouter/,
+    'pointer.js exports createCombatPointerRouter');
+  assert.match(pointerSource, /enable\s*\(/, 'pointer router exposes enable()');
+  assert.match(pointerSource, /disable\s*\(/, 'pointer router exposes disable()');
+  assert.match(pointerSource, /cancel\s*\(/, 'pointer router exposes cancel()');
+  assert.match(pointerSource, /state\s*\(/, 'pointer router exposes state()');
+  assert.match(pointerSource, /destroy\s*\(/, 'pointer router exposes destroy()');
+  assert.match(pointerSource, /DRAG_START_PX\s*=\s*26/, 'drag starts at 26 client px');
+  assert.match(pointerSource, /LONG_PRESS_CANCEL_PX\s*=\s*12/, 'long-press cancels at 12 client px');
+
+  // Old combat-specific listener sites must be gone or delegated to pointer.js.
+  const forbiddenSites = [
+    [/box\.onclick\s*=\s*\(\)\s*=>\s*onEnemyClick/, 'enemy box.onclick'],
+    [/box\.addEventListener\(\s*['"]pointerenter['"]/, 'enemy pointerenter'],
+    [/box\.addEventListener\(\s*['"]pointerleave['"]/, 'enemy pointerleave'],
+    [/c\.addEventListener\(\s*['"]pointerdown['"]/, 'card pointerdown'],
+    [/c\.addEventListener\(\s*['"]pointermove['"]/, 'card pointermove'],
+    [/c\.addEventListener\(\s*['"]pointerup['"]/, 'card pointerup'],
+    [/c\.addEventListener\(\s*['"]pointercancel['"]/, 'card pointercancel'],
+    [/ce\.root\.addEventListener\(\s*['"]pointerdown['"]/, 'combat-root pointerdown'],
+    [/document\.addEventListener\(\s*['"]pointermove['"],\s*aimMove\)/, 'targeting document pointermove'],
+  ];
+  for (const [pattern, label] of forbiddenSites) {
+    assert.doesNotMatch(combatSource, pattern,
+      `old combat listener site removed or delegated: ${label}`);
+  }
+  // Task 29 — dead !glActive() DOM chrome onclick fallbacks must be gone.
+  assert.doesNotMatch(combatSource, /if\s*\(!glActive\(\)\)\s*\{[\s\S]*?ce\.lantern\.onclick/,
+    'Task 29 removes dead !glActive() DOM chrome onclick fallbacks');
+
+  const indexSource = readFileSync(new URL('../src/ui/index.js', import.meta.url), 'utf8');
+  assert.match(indexSource, /import\s*\{\s*createCombatRenderer\s*\}\s*from\s*'\.\/combat-gl\.js'/,
+    'UI composition root imports the combat renderer factory');
+  assert.match(indexSource, /combatRenderer\s*=\s*await\s+createCombatRenderer\(/,
+    'UI composition root boots the combat renderer after Pixi is ready');
+  assert.match(indexSource, /combatGl:\s*combatRenderer/,
+    'window.spirebound exposes the combat renderer for tests and dev');
+  assert.match(indexSource, /combatGlMount:\s*\(model\)\s*=>\s*combatRenderer\?\.mount\(model\)/,
+    'combat late callbacks wire the renderer mount');
+  assert.match(indexSource, /combatGlSync:\s*\(model\)\s*=>\s*combatRenderer\?\.sync\(model\)/,
+    'combat late callbacks wire the renderer sync');
+  assert.match(indexSource, /getCombatRenderer:\s*\(\)\s*=>\s*combatRenderer/,
+    'probe context resolves the combat renderer lazily');
+
+  const probeSource = readFileSync(new URL('../src/ui/probe.js', import.meta.url), 'utf8');
+  assert.match(probeSource, /ui\(\)\s*\{[\s\S]*?version:\s*2/,
+    'probe.ui() reports the Task 23 Probe v2 version');
+  assert.match(probeSource, /const hand = \(cb\)/, 'probe.ui() exposes hand seats from Pixi/engine');
+  assert.match(probeSource, /selectedCardUid:/, 'probe.ui() exposes keyboard selected card');
+  assert.match(probeSource, /selectedEnemyIndex:/, 'probe.ui() exposes keyboard selected enemy');
+  assert.match(probeSource, /const piles = \{/, 'probe.ui() exposes piles');
+  assert.match(probeSource, /queueIdle:\s*\(\)\s*=>/, 'probe exposes queueIdle separately');
+  assert.match(probeSource, /settle:\s*\(\)\s*=>\s*presentationSettled/, 'probe exposes settle separately');
+  assert.match(probeSource, /loseRendererContextForTest/, 'probe exposes loseRendererContextForTest');
+  assert.match(probeSource, /async freeze\(/, 'probe.freeze is async and settles first');
+  assert.match(probeSource, /unfreeze\s*\(/, 'probe exposes unfreeze');
+}
+
+// ---- Task 24: frozen visual-policy + no global maxDiffPixelRatio ----------
+{
+  const { VISUAL_DIFF_RATIOS, VISUAL_SUITE_KEYS, screenshotDiffOptions } = await import(
+    '../test/e2e/visual-policy.js'
+  );
+  assert.deepEqual(VISUAL_SUITE_KEYS, [
+    'legacy', 'p4Combat', 'p5Cards', 'p6Screens', 'p7Shipfront',
+  ]);
+  for (const key of VISUAL_SUITE_KEYS) {
+    assert.equal(VISUAL_DIFF_RATIOS[key], 0.01, `${key} ratio frozen at 0.01`);
+  }
+  assert.equal(screenshotDiffOptions('p4Combat').maxDiffPixelRatio, 0.01);
+  assert.throws(() => screenshotDiffOptions('unknown'), /unknown visual suite key/);
+
+  const configSource = readFileSync(new URL('../playwright.config.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(
+    configSource,
+    /maxDiffPixelRatio\s*:\s*0(?:\.\d+)?/,
+    'playwright.config must not set a numeric maxDiffPixelRatio',
+  );
+
+  const visualSpec = readFileSync(new URL('../test/e2e/visual.spec.js', import.meta.url), 'utf8');
+  assert.match(visualSpec, /expectScreenshot|screenshotDiffOptions/,
+    'visual.spec routes screenshots through the suite-key helper');
+  assert.match(visualSpec, /['"]p5Cards['"]/, 'combat visual cases declare p5Cards');
+  assert.match(visualSpec, /suiteKey|['"]legacy['"]/, 'non-combat cases declare a suite key');
+
+  const helpersSource = readFileSync(new URL('../test/e2e/helpers.js', import.meta.url), 'utf8');
+  assert.match(helpersSource, /screenshotDiffOptions|VISUAL_DIFF_RATIOS/,
+    'helpers import the visual-policy map');
+
+  // No other e2e/config file may hard-code a numeric maxDiffPixelRatio.
+  const scanRoots = [
+    new URL('../playwright.config.js', import.meta.url),
+    new URL('../test/e2e/helpers.js', import.meta.url),
+    new URL('../test/e2e/visual.spec.js', import.meta.url),
+    new URL('../test/e2e/pixi.spec.js', import.meta.url),
+  ];
+  for (const url of scanRoots) {
+    const text = readFileSync(url, 'utf8');
+    assert.doesNotMatch(
+      text,
+      /maxDiffPixelRatio\s*:\s*\d+(?:\.\d+)?/,
+      `${url.pathname} must not embed a numeric maxDiffPixelRatio`,
+    );
+  }
+}
+
+// ---- Task 24: profile fixtures + PERF 55/22 contract -----------------------
+{
+  const {
+    buildAndValidateProfiles,
+  } = await import('../test/fixtures/round5-profile-fixtures.js');
+  const profiles = buildAndValidateProfiles();
+  assert.equal(profiles.fresh.vigil.runsPlayed, 0);
+  assert.ok(profiles.veteran.reveals.includes('act4'));
+  assert.ok(profiles.veteran.vigil.unlocks.includes('aspect2'));
+  assert.ok((profiles.veteran.vigil.vowUnlocked || 0) >= 1);
+
+  const perfSource = readFileSync(new URL('../test/e2e/perf.spec.js', import.meta.url), 'utf8');
+  assert.match(perfSource, /PERF_WARNING/);
+  assert.match(perfSource, /minAvgFps:\s*55/);
+  assert.match(perfSource, /maxP95FrameMs:\s*22/);
+  // 55/22 must not appear inside expect() or process.exit / throw-on-miss branches.
+  assert.doesNotMatch(
+    perfSource,
+    /expect\([^)]*55|expect\([^)]*22/,
+    'perf thresholds must not be assert.expect gates',
+  );
+  assert.doesNotMatch(
+    perfSource,
+    /if\s*\([^)]*(?:avgFps|p95)[^)]*\)\s*(?:\{[^}]*throw|throw|process\.exit)/,
+    'perf threshold misses must not throw or exit',
+  );
+  // Warnings are recorded; the expect/exit path for validity stays separate.
+  const warningBlock = perfSource.slice(perfSource.indexOf('PERF_WARNING'));
+  assert.doesNotMatch(warningBlock, /process\.exit|throw new Error\(`average/);
+}
+
+// ---- Task 26: card-face layout + bounded composer cache ---------------------
+{
+  const {
+    CARD_FACE_WIDTH, CARD_FACE_HEIGHT, BODY_FONT_STEPS, BODY_MAX_LINES,
+    FACE_CACHE_MAX_ENTRIES, FACE_CACHE_BYTE_CAPS,
+    estimateFaceBytes, faceCacheKey, faceDprCap, faceCacheByteCap,
+    layoutCardFace, layoutCardBody, tokenizeBody, wrapBodyTokens,
+    upgradeDiffRanges, assertFaceContrast, approximateMeasure,
+    layoutRegions,
+  } = await import('../src/ui/cardface-layout.js');
+  const { createCardFaceComposer } = await import('../src/ui/cardface.js');
+  const { registerLocale, setLocale, getLocale: liveLocale } = await import('../src/i18n/index.js');
+  const { ROUND5_TOKENS } = await import('../src/ui/tokens.js');
+
+  assert.equal(CARD_FACE_WIDTH, 152);
+  assert.equal(CARD_FACE_HEIGHT, 216);
+  assert.deepEqual([...BODY_FONT_STEPS], [12.8, 11.5, 10.5]);
+  assert.equal(BODY_MAX_LINES, 6);
+  assert.equal(FACE_CACHE_MAX_ENTRIES, 24);
+  assert.equal(FACE_CACHE_BYTE_CAPS.lite, 4_191_990);
+  assert.equal(FACE_CACHE_BYTE_CAPS.full, 16_767_960);
+
+  const bytes1 = estimateFaceBytes(152, 216, 1);
+  assert.equal(bytes1, Math.ceil(152 * 1) * Math.ceil(216 * 1) * 4 * 1.33);
+  const bytes2 = estimateFaceBytes(152, 216, 2);
+  assert.equal(bytes2, Math.ceil(152 * 2) * Math.ceil(216 * 2) * 4 * 1.33);
+  assert.ok(FACE_CACHE_BYTE_CAPS.lite / bytes1 >= 24);
+  assert.ok(FACE_CACHE_BYTE_CAPS.full / bytes2 >= 24);
+  assert.equal(faceDprCap({ tier: 'lite' }), 1);
+  assert.equal(faceDprCap({ tier: 'full' }), 2);
+  assert.equal(faceCacheByteCap({ tier: 'lite' }), FACE_CACHE_BYTE_CAPS.lite);
+
+  const contrast = assertFaceContrast(4.5);
+  assert.equal(contrast.ok, true, `face contrast failures: ${JSON.stringify(contrast.failures)}`);
+
+  const regions = layoutRegions();
+  assert.ok(regions.body.w > 100);
+  assert.equal(regions.rarityRail.h, 5, 'rarity chrome is a .card-rarity chip height, not a 2px rail');
+  assert.equal(regions.rarityRail.w, 24);
+  assert.ok(regions.type, 'production type row region present');
+  assert.equal(regions.art.x, 0, 'art band is full-bleed like .card-art');
+  assert.ok(regions.art.h < CARD_FACE_HEIGHT * 0.5, 'art band leaves room for name/type/body');
+  assert.equal(regions.cost.size, 36, 'cost gem matches .card-cost 36px');
+  assert.match(
+    readFileSync(new URL('../src/ui/cardface.js', import.meta.url), 'utf8'),
+    /hexGemPoints|drawHexGem/,
+    'cardface paints hex cost gem matching .card-cost clip-path',
+  );
+  assert.match(
+    readFileSync(new URL('../src/ui/cardface.js', import.meta.url), 'utf8'),
+    /toUpperCase\(\)|card-type|regions\.type/,
+    'cardface paints production ATTACK/SKILL type row',
+  );
+  assert.match(
+    readFileSync(new URL('../src/ui/combat-gl.js', import.meta.url), 'utf8'),
+    /createCardFaceAssets\(\)/,
+    'combat-gl wires real card art assets into the face composer',
+  );
+  assert.doesNotMatch(
+    readFileSync(new URL('../src/ui/combat-gl.js', import.meta.url), 'utf8'),
+    /assets:\s*null/,
+    'combat-gl must not pass assets: null to the card-face composer',
+  );
+  // Keyword icon runs must stay atomic.
+  const tokens = tokenizeBody('Deal @10@ damage. Kindle. Gain #5# Ward.');
+  assert.ok(tokens.some((t) => t.kind === 'keyword' && t.text === 'Kindle'));
+  assert.ok(tokens.some((t) => t.kind === 'keyword' && t.text === 'Ward'));
+  assert.ok(tokens.some((t) => t.kind === 'value' && t.value === 10));
+
+  const narrow = wrapBodyTokens(tokenizeBody('Kindle Kindle Kindle Kindle'), {
+    fontSize: 13,
+    maxWidth: approximateMeasure('Kindle', 13) + 12,
+    maxLines: 6,
+    measure: approximateMeasure,
+  });
+  assert.ok(narrow.lines.length >= 2);
+  for (const line of narrow.lines) {
+    for (const tok of line) {
+      if (tok.kind === 'keyword') assert.equal(tok.text, 'Kindle');
+    }
+  }
+
+  // Overflow ellipsis + diagnostic at 11px.
+  const huge = 'Smolder '.repeat(80).trim();
+  const overflow = layoutCardBody(huge, {
+    maxWidth: regions.body.w,
+    maxLines: 6,
+    measure: approximateMeasure,
+  });
+  assert.equal(overflow.ellipsized, true);
+  assert.ok(overflow.diagnostic);
+  assert.equal(overflow.diagnostic.code, 'cardface-body-overflow');
+  assert.equal(overflow.fontSize, 10.5);
+
+  // Every base + upgraded core card fits without emergency fallback.
+  for (const [id, card] of Object.entries(CARDS)) {
+    for (const up of [false, true]) {
+      if (up && !card.up) continue;
+      const face = layoutCardFace({ ...card, id }, {
+        up,
+        getLocale: () => 'en',
+        dpr: 1,
+      });
+      assert.equal(face.body.ellipsized, false, `card ${id} up=${up} must fit without ellipsis`);
+      assert.equal(face.contrast.ok, true);
+      assert.match(face.key, /^en\u001f/);
+    }
+  }
+
+  const diffs = upgradeDiffRanges('Deal @6@ damage.', 'Deal @9@ damage.');
+  assert.ok(diffs.length >= 1);
+  assert.ok(diffs.some((r) => 'Deal @9@ damage.'.slice(r.start, r.end).includes('9')));
+
+  // Cache key must read the live getLocale() token — not a fictional constant.
+  let localeToken = 'en';
+  const keyEn = faceCacheKey({
+    getLocale: () => localeToken,
+    id: 'strike',
+    up: false,
+    cost: 1,
+    text: 'Deal @6@ damage.',
+    dpr: 1,
+    rarity: 'starter',
+    type: 'attack',
+  });
+  localeToken = 'xx-cardface';
+  const keyXx = faceCacheKey({
+    getLocale: () => localeToken,
+    id: 'strike',
+    up: false,
+    cost: 1,
+    text: 'Deal @6@ damage.',
+    dpr: 1,
+    rarity: 'starter',
+    type: 'attack',
+  });
+  assert.match(keyEn, /^en\u001f/);
+  assert.match(keyXx, /^xx-cardface\u001f/);
+  assert.notEqual(keyEn, keyXx);
+
+  // Composer LRU + locale invalidation (stub bake — no WebGL).
+  const mockRenderer = { resolution: 1 };
+  const composer = createCardFaceComposer({
+    renderer: mockRenderer,
+    registries: { cards: CARDS },
+    tokens: ROUND5_TOKENS,
+    getLocale: () => liveLocale(),
+    policy: { tier: 'full' },
+    bakeFace: (layout) => ({
+      width: 152, height: 216, destroy() {}, key: layout.key, __stub: true,
+    }),
+  });
+  const a1 = composer.acquire({ id: 'strike' }, { up: false });
+  const a2 = composer.acquire({ id: 'defend' }, { up: false });
+  assert.ok(a1.key.startsWith('en\u001f'));
+  assert.equal(composer.stats().entries, 2);
+  const exported = composer.exportImage({ id: 'strike' }, { up: false });
+  assert.equal(exported.key, a1.key);
+  assert.ok(exported.url);
+  // Prefer object URLs when the host supports them; never empty Blob / data-URL.
+  if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function' && typeof Blob !== 'undefined') {
+    assert.ok(exported.url.startsWith('blob:'), `expected blob URL, got ${exported.url}`);
+  }
+  a1.release();
+  a2.release();
+  exported.release();
+
+  // Targeted locale invalidation drops matching prefix keys (not the inverse).
+  composer.acquire({ id: 'strike' }, { up: false }).release();
+  composer.acquire({ id: 'defend' }, { up: false }).release();
+  assert.ok(composer.stats().entries >= 1);
+  const droppedEn = composer.invalidate({ locale: 'en' });
+  assert.ok(droppedEn >= 1);
+  assert.equal(composer.stats().entries, 0);
+
+  // Fill past max entries to force eviction of released faces.
+  for (const id of Object.keys(CARDS).slice(0, 30)) {
+    const handle = composer.acquire({ id }, { up: false });
+    handle.release();
+  }
+  assert.ok(composer.stats().entries <= FACE_CACHE_MAX_ENTRIES);
+  assert.ok(composer.stats().bytes <= FACE_CACHE_BYTE_CAPS.full);
+
+  // Locale invalidation: register/switch a synthetic UI catalogue, observe
+  // the locale token change, invalidate every baked text texture, then
+  // restore en. Do not claim live card-table rehydration; card mechanics/display
+  // tables remain the module-init English graph in this slice.
+  assert.equal(liveLocale(), 'en');
+  const beforeKeys = composer.stats().keys.length;
+  assert.ok(beforeKeys > 0);
+  registerLocale('zz-cardface', {
+    content: {},
+    ui: { menu: { beginClimb: 'ZZ climb' } },
+  });
+  assert.equal(setLocale('zz-cardface'), true);
+  assert.equal(liveLocale(), 'zz-cardface');
+  const removed = composer.invalidate({ localeChanged: true });
+  assert.ok(removed >= beforeKeys);
+  assert.equal(composer.stats().entries, 0);
+  // Re-acquire under the new locale — key must carry zz-cardface.
+  const zzFace = composer.acquire({ id: 'strike' }, { up: false });
+  assert.ok(zzFace.key.startsWith('zz-cardface\u001f'), zzFace.key);
+  zzFace.release();
+  // Prefix-targeted drop while still on zz: only zz keys leave.
+  composer.acquire({ id: 'defend' }, { up: false }).release();
+  const zzDropped = composer.invalidate({ locale: 'zz-cardface' });
+  assert.ok(zzDropped >= 1);
+  assert.equal(composer.stats().entries, 0);
+  assert.equal(setLocale('en'), true);
+  assert.equal(liveLocale(), 'en');
+  composer.invalidate({ localeChanged: true });
+  assert.equal(composer.stats().entries, 0);
+  composer.destroy();
+}
+
+// ---- Task 27: pure hand-layout freeze (P4 DOM seat centres) -----------------
+{
+  const {
+    HAND_MAX_GAP, HAND_SPAN, HAND_EDGE_RESERVE, HAND_MAX_STEP_DEG, HAND_TOTAL_DEG,
+    HAND_SAG_PER_DEG, HAND_MAX_CARDS, HAND_BASE_Y,
+    handGap, handRotationDeg, handSeatOffset, handSeatCenter, layoutHandSeats,
+  } = await import('../src/ui/hand-layout.js');
+
+  assert.equal(HAND_MAX_GAP, 112);
+  assert.equal(HAND_SPAN, 640);
+  assert.equal(HAND_EDGE_RESERVE, 246);
+  assert.equal(HAND_MAX_STEP_DEG, 5);
+  assert.equal(HAND_TOTAL_DEG, 42);
+  assert.equal(HAND_SAG_PER_DEG, 3.2);
+  assert.equal(HAND_MAX_CARDS, 10);
+  assert.equal(HAND_BASE_Y, 26);
+
+  // P4 DOM seat centres for 1 / 5 / 10 cards must equal pure layout output.
+  const stageW = 1458;
+  const cardW = 152;
+  const cardH = Math.round(cardW * 1.42);
+  const zoneCenterX = stageW / 2;
+  const baseBottom = 820 - 8;
+  for (const n of [1, 5, 10]) {
+    const gap = Math.min(112, 640 / Math.max(n, 1), (stageW - 246) / Math.max(n - 1, 1));
+    assert.equal(handGap(n, stageW), gap, `gap n=${n}`);
+    for (let i = 0; i < n; i += 1) {
+      const rot = n > 1 ? (i - (n - 1) / 2) * Math.min(5, 42 / n) : 0;
+      const x = (i - (n - 1) / 2) * gap;
+      const sagY = Math.abs(rot) * 3.2 + 26;
+      const expected = {
+        x: zoneCenterX + x,
+        y: baseBottom - cardH / 2 + sagY,
+      };
+      const got = handSeatCenter(i, n, {
+        stageW, cardW, cardH, zoneCenterX, baseBottom,
+      });
+      assert.equal(got.x, expected.x, `seat x n=${n} i=${i}`);
+      assert.equal(got.y, expected.y, `seat y n=${n} i=${i}`);
+      assert.equal(handRotationDeg(i, n), rot);
+      const off = handSeatOffset(i, n, stageW);
+      assert.equal(off.x, x);
+      assert.equal(off.y, sagY);
+    }
+    assert.equal(layoutHandSeats(n, {
+      stageW, cardW, cardH, zoneCenterX, baseBottom,
+    }).length, n);
+  }
+}
+
+// ---- Task 29: P5 legacy combat residue gate (must stay absent after cleanup) ---
+{
+  const uiJs = [
+    readFileSync(new URL('../src/ui/index.js', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/ui/combat.js', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/ui/pixi-app.js', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/ui/combat-gl.js', import.meta.url), 'utf8'),
+  ].join('\n');
+  const stylesSource = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  const combatSource = readFileSync(new URL('../src/ui/combat.js', import.meta.url), 'utf8');
+
+  // Escape valve must not return.
+  assert.doesNotMatch(uiJs, /\?uigl=0|searchParams\.get\(\s*['"]uigl['"]\s*\)|params\.get\(\s*['"]uigl['"]\s*\)/,
+    'Task 29: ?uigl=0 escape valve must be absent');
+
+  // Named legacy combat face/hand selectors (DOM hand cards).
+  assert.doesNotMatch(stylesSource, /\.hand-zone\s+\.card\b/,
+    'Task 29: combat .hand-zone .card face/hand CSS must be removed');
+  assert.doesNotMatch(stylesSource, /\.hand-zone\s+\.card\.(?:dragging|lifted|armed|draw-pending|draw-in|will-cast|will-burn)\b/,
+    'Task 29: combat hand interaction CSS must be removed');
+  assert.doesNotMatch(stylesSource, /\.card\.played-up\b|\.card\.exhausting\b/,
+    'Task 29: combat-only .card.played-up / .exhausting CSS must be removed');
+  assert.doesNotMatch(stylesSource, /\.flycard(?:-face|-back|-pile)?\b/,
+    'Task 29: combat-only .flycard* CSS must be removed');
+
+  // .flymote remains for map/reward flights; combat must not create it.
+  assert.match(stylesSource, /\.flymote\b/,
+    'Task 29: non-combat .flymote CSS remains for map/reward');
+  assert.match(combatSource, /rejectCombatDomCeremony\('presentation\.mote-flight'\)/,
+    'Task 29: combat rejects DOM mote flights');
+  assert.match(combatSource, /rejectCombatDomCeremony\('presentation\.card-flight'\)/,
+    'Task 29: combat rejects DOM card flights');
+
+  // Combat-only banner / dialogue residues (keep .turn-banner + omen for non-combat).
+  assert.doesNotMatch(stylesSource, /\.turn-banner\.boss-banner\b|\.boss-banner\b/,
+    'Task 29: combat .boss-banner CSS must be removed');
+  assert.doesNotMatch(stylesSource, /\.turn-banner\.perfect-banner\b|\.perfect-banner\b/,
+    'Task 29: combat .perfect-banner CSS must be removed');
+  assert.doesNotMatch(stylesSource, /\.variant-dialogue\b/,
+    'Task 29: combat .variant-dialogue CSS must be removed');
+
+  // Dead listener registration for non-Pixi chrome.
+  assert.doesNotMatch(combatSource, /if\s*\(!glActive\(\)\)\s*\{[\s\S]*?ce\.lantern\.onclick/,
+    'Task 29: dead !glActive() chrome onclick listeners must be removed');
+
+  // Source checks so a legacy combat selector cannot return silently.
+  assert.match(combatSource, /rejectCombatDomCeremony/,
+    'Task 29: combat still rejects silent DOM ceremony fallback');
+  assert.doesNotMatch(combatSource, /S\.screen\s*===\s*['"]combat['"][\s\S]{0,200}el\(\s*['"]div['"]\s*,\s*['"]turn-banner['"]/,
+    'Task 29: combat path must not construct DOM turn-banner');
 }
 
 let wins = 0, deaths = 0;

@@ -1,0 +1,102 @@
+{
+  "id": "dawn__phone-landscape__grown",
+  "screen": "dawn",
+  "shape": "phone-landscape",
+  "profile": "grown",
+  "projection": {
+    "version": 1,
+    "screen": "dawn",
+    "shape": "phone-landscape",
+    "profile": "grown",
+    "stage": {
+      "w": 844,
+      "h": 390,
+      "shape": "phone-landscape"
+    },
+    "dawn": {
+      "whisper": {
+        "left": 171.34374914169314,
+        "top": 217.92734689712523,
+        "width": 113.4531273841858,
+        "height": 13.500002861022951,
+        "right": 284.79687652587893,
+        "bottom": 231.42734975814818,
+        "cx": 228.07031283378603,
+        "cy": 224.6773483276367
+      },
+      "ledger": {
+        "left": 456.1718759536744,
+        "top": 139.98983764648438,
+        "width": 375.81256008148193,
+        "height": 99.00002098083496,
+        "right": 831.9844360351562,
+        "bottom": 238.98985862731934,
+        "cx": 644.0781559944153,
+        "cy": 189.48984813690186
+      },
+      "ceremony": {
+        "left": 12.000000447034836,
+        "top": 117.58360385894775,
+        "width": 432.17189769744874,
+        "height": 199.40624446868898,
+        "right": 444.1718981444836,
+        "bottom": 316.98984832763676,
+        "cx": 228.0859492957592,
+        "cy": 217.28672609329226
+      },
+      "content": {
+        "left": 0,
+        "top": -0.010156250000015278,
+        "width": 844.0000000000001,
+        "height": 390.00002899169925,
+        "right": 844.0000000000001,
+        "bottom": 389.98987274169923,
+        "cx": 422.00000000000006,
+        "cy": 194.9898582458496
+      }
+    },
+    "embark": {
+      "vowDial": null,
+      "aspectCards": []
+    },
+    "scene": {
+      "sceneBgCount": 0,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": {
+        "left": 0,
+        "top": -0.010156250000015278,
+        "width": 844.0000000000001,
+        "height": 390.00002899169925,
+        "right": 844.0000000000001,
+        "bottom": 389.98987274169923,
+        "cx": 422.00000000000006,
+        "cy": 194.9898582458496
+      }
+    },
+    "title": {
+      "parallaxCount": 0,
+      "parallaxTop": null,
+      "wordmark": null,
+      "wordmarkClipped": null
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": null,
+      "selectionVisible": false
+    },
+    "fall": {
+      "panel": null
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": true,
+      "rarityAccentDistinct": true
+    }
+  }
+}

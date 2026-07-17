@@ -1,0 +1,90 @@
+{
+  "id": "fall__desktop-landscape__grown",
+  "projection": {
+    "version": 1,
+    "screen": "fall",
+    "shape": "desktop-landscape",
+    "profile": "grown",
+    "stage": {
+      "w": 1458,
+      "h": 820,
+      "shape": "desktop-landscape"
+    },
+    "dawn": {
+      "whisper": null,
+      "ledger": {
+        "left": 408.9375158786774,
+        "top": 499.5000077153415,
+        "width": 640.125037765503,
+        "height": 164.0000069522858,
+        "right": 1049.0625536441803,
+        "bottom": 663.5000146676273,
+        "cx": 729.0000347614289,
+        "cy": 581.5000111914844
+      },
+      "ceremony": null,
+      "content": {
+        "left": 0,
+        "top": 0,
+        "width": 1458,
+        "height": 820,
+        "right": 1458,
+        "bottom": 820,
+        "cx": 729,
+        "cy": 410
+      }
+    },
+    "embark": {
+      "vowDial": null,
+      "aspectCards": []
+    },
+    "scene": {
+      "sceneBgCount": 0,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": {
+        "left": 0,
+        "top": 0,
+        "width": 1458,
+        "height": 820,
+        "right": 1458,
+        "bottom": 820,
+        "cx": 729,
+        "cy": 410
+      }
+    },
+    "title": {
+      "parallaxCount": 0,
+      "parallaxTop": null,
+      "wordmark": null,
+      "wordmarkClipped": null
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": null,
+      "selectionVisible": false
+    },
+    "fall": {
+      "panel": {
+        "left": 0,
+        "top": 0,
+        "width": 1458,
+        "height": 820,
+        "right": 1458,
+        "bottom": 820,
+        "cx": 729,
+        "cy": 410
+      }
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": null,
+      "rarityAccentDistinct": null
+    }
+  }
+}

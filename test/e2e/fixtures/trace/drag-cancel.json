@@ -1,0 +1,15 @@
+{
+  "journey": "drag-cancel",
+  "records": [
+    [
+      "input.card-drag",
+      "start",
+      null
+    ],
+    [
+      "input.card-drag",
+      "end",
+      "cancelled"
+    ]
+  ]
+}

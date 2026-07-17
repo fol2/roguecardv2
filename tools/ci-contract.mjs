@@ -3,21 +3,45 @@ import { pathToFileURL } from 'node:url';
 
 const UNIT_LANES = ['changes', 'unit-tests', 'build-dist'];
 const SMOKE_LANES = ['changes', 'smoke-e2e'];
-const FULL_E2E_LANES = ['changes', 'e2e-disk', 'e2e-random', 'e2e-main', 'e2e-serial', 'e2e-visual'];
+const P2_BASE_GATE_LANES = ['changes', 'unit', 'e2e-nonvisual', 'progression'];
+// The pool lane is the whole nonvisual kit, duration-balanced by
+// tools/e2e-shard.mjs — slow-spec relevance narrows what the pool runs
+// (SPIREBOUND_E2E_SKIP_SLOW), never which lanes are required.
+const P2_BASE_E2E_LANES = ['changes', 'e2e-aux', 'e2e-random', 'e2e-pool'];
+
+/** Full-mode e2e leaf lanes. */
+export const FULL_E2E_LANES = Object.freeze([
+  'changes', 'e2e-aux', 'e2e-random', 'e2e-pool',
+  'e2e-webkit', 'e2e-leak', 'e2e-visual',
+]);
 
 const truthy = (value) => value === true || String(value).toLowerCase() === 'true';
 
-export function resolveCiMode(eventName, draftValue) {
+export function isRound5StandingRef(refName = '') {
+  const name = String(refName).replace(/^refs\/heads\//, '');
+  return name.startsWith('jamesto/round5-') || name.startsWith('cursor/round5-');
+}
+
+export function resolveCiMode(eventName, draftValue, refName = '') {
   if (eventName === 'push') return 'full';
-  if (eventName === 'pull_request') return truthy(draftValue) ? 'smoke' : 'full';
+  if (eventName === 'pull_request') {
+    if (!truthy(draftValue)) return 'full';
+    return isRound5StandingRef(refName) ? 'p2-base' : 'smoke';
+  }
   throw new Error(`Unsupported CI event: ${eventName}`);
 }
 
 export function requiredCiLanes(gate, relevant, mode) {
+  if (gate === 'p2-base') {
+    if (mode !== 'p2-base' && mode !== 'full') throw new Error(`Unsupported p2-base CI mode: ${mode}`);
+    if (!truthy(relevant)) return ['changes'];
+    return [...P2_BASE_GATE_LANES];
+  }
   if (!truthy(relevant)) return ['changes'];
   if (gate === 'unit') return [...UNIT_LANES];
   if (gate !== 'e2e') throw new Error(`Unsupported CI gate: ${gate}`);
   if (mode === 'smoke') return [...SMOKE_LANES];
+  if (mode === 'p2-base') return [...P2_BASE_E2E_LANES];
   if (mode === 'full') return [...FULL_E2E_LANES];
   throw new Error(`Unsupported CI mode: ${mode}`);
 }
@@ -37,7 +61,11 @@ export function verifyCiGate({ gate, relevant, mode, results }) {
 function runCli() {
   const command = process.argv[2];
   if (command === 'mode') {
-    const mode = resolveCiMode(process.env.GITHUB_EVENT_NAME, process.env.PR_DRAFT);
+    const mode = resolveCiMode(
+      process.env.GITHUB_EVENT_NAME,
+      process.env.PR_DRAFT,
+      process.env.CI_REF_NAME || process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || '',
+    );
     if (!process.env.GITHUB_OUTPUT) throw new Error('GITHUB_OUTPUT is required');
     appendFileSync(process.env.GITHUB_OUTPUT, `mode=${mode}\n`);
     console.log(`CI mode: ${mode}`);

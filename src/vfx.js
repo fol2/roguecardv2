@@ -2,19 +2,16 @@
 // All coordinates are STAGE px (the fixed virtual resolution, src/stage.js);
 // the canvas backing store carries the real on-screen density.
 import { stageW, stageH, stageScale, stageRect } from './stage.js';
+import { VFX_IDS } from './presentation-catalog.js';
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let canvas, ctx2, floatLayer, shakeEl;
 let parts = [];
 let flashes = [];
 let shakeV = 0, shakeX = 0, shakeY = 0;
 let hitstopUntil = 0;
-const WEATHER = [
-  { rate: 1, colors: ['#b8b0a0', '#8a8378'], vx: [-6, 6], vy: [10, 26], size: [1.4, 2.6], drift: 0.4, emberRate: 0.5 },
-  { rate: 0.75, colors: ['#9fd4ff', '#cfe6ff'], vx: [-4, 4], vy: [8, 18], size: [1.6, 3], drift: 0.7, emberRate: 0.25 },
-  { rate: 1.25, colors: ['#ff9a4d', '#ffd166'], vx: [24, 60], vy: [-18, -4], size: [1.4, 2.4], drift: 1.1, emberRate: 0.9 },
-];
 let weather = null;
 let weatherAcc = 0;
+let weatherSpec = null;
 
 export const LITE = matchMedia('(pointer: coarse)').matches;
 // backing texels per stage px: real density (device DPR × stage scale), capped
@@ -43,9 +40,11 @@ export function freezeVfx() {
   if (ctx2) ctx2.clearRect(0, 0, canvas.width, canvas.height);
 }
 
-export function setWeather(act, { boss = false, mult = 1 } = {}) {
+/** Apply theme weather record (from packs/core themes). Pass null to clear. */
+export function setWeather(weatherRecord, { boss = false, mult = 1 } = {}) {
   parts = parts.filter((p) => !p.weather);
-  weather = act == null ? null : { act: Math.min(act, 2), boss, mult };
+  weatherSpec = weatherRecord || null;
+  weather = weatherSpec ? { boss, mult } : null;
   weatherAcc = 0;
 }
 
@@ -56,8 +55,8 @@ function tick(t) {
   const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016);
   lastT = t;
   if (t < hitstopUntil) return; // freeze frame
-  if (weather && !REDUCED) {
-    const w = WEATHER[weather.act];
+  if (weather && weatherSpec && !REDUCED) {
+    const w = weatherSpec;
     weatherAcc += dt * w.rate * (weather.boss ? 1.4 : 1) * weather.mult * (LITE ? 0.6 : 1);
     while (weatherAcc >= 1) {
       weatherAcc -= 1;
@@ -145,7 +144,27 @@ function tick(t) {
   }
 }
 
-export function shake(power = 8) { if (REDUCED) return; shakeV = Math.max(shakeV, power); }
+export function shake(power = 8) {
+  if (REDUCED) {
+    try { shakeListeners.forEach((fn) => fn({ power: 0, reduced: true })); } catch { /* diagnostic only */ }
+    return;
+  }
+  shakeV = Math.max(shakeV, power);
+  try { shakeListeners.forEach((fn) => fn({ power: shakeV, reduced: false })); } catch { /* diagnostic only */ }
+}
+const shakeListeners = new Set();
+/** Pixi/test subscribers observe shake activation without reading DOM. */
+export function subscribeShake(listener) {
+  if (typeof listener !== 'function') return () => {};
+  shakeListeners.add(listener);
+  return () => shakeListeners.delete(listener);
+}
+/**
+ * Round 5 shake offset reader. The Pixi world root subscribes to this on
+ * every ticker so its transform stays glued to `#shake`'s DOM transform.
+ * Returns the exact stage-px offset currently applied to `#shake`.
+ */
+export function readShakeOffset() { return { x: shakeX, y: shakeY }; }
 export function hitstop(ms = 60) { if (REDUCED) return; hitstopUntil = performance.now() + ms; }
 export function flash(color = '#fff', alpha = 0.18, dur = 0.25) { if (REDUCED) return; flashes.push({ color, alpha, dur, life: dur }); }
 
@@ -352,7 +371,13 @@ export const centerOf = (el) => {
 };
 
 // ---- archetype primitives ----
-export const ARCHETYPE_TONES = { slash: '#ffffff', pierce: '#cfe6ff', blunt: '#ffd8a0', fire: '#ff9a4d', poison: '#d3a15a', void: '#c99aff', ward: '#9fd4ff' };
+export const ARCHETYPE_TONES = Object.freeze(Object.fromEntries(VFX_IDS.map((id) => {
+  const tones = {
+    slash: '#ffffff', pierce: '#cfe6ff', blunt: '#ffd8a0', fire: '#ff9a4d',
+    poison: '#d3a15a', void: '#c99aff', ward: '#9fd4ff',
+  };
+  return [id, tones[id] || '#ffffff'];
+})));
 
 export function emberTrail(x0, y0, x1, y1, color = '#ff9a4d') {
   if (REDUCED) return;

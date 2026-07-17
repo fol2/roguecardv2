@@ -1,26 +1,49 @@
-// Performance reference (hardening spec §10): the previous pass *assumed* the
-// budget was met and never measured it. This suite records valid metrics and
-// warns on target misses without making host-sensitive timings a release gate.
-// Portrait project = the LITE tier (coarse pointer), CPU throttled 4× via
-// CDP — a mid-range phone stand-in. The load is the heaviest single beat:
-// an AoE bespoke effect (Requiem) hitting three enemies at once.
+// Performance reference (hardening spec §10 / Round 5 Task 24):
+// Portrait/LITE @ 4× CPU and desktop/Full (foil/high DPR). Valid target misses
+// emit PERF_WARNING and never fail the suite. Missing/invalid/crashed metrics
+// or an unreadypixi layer remain hard failures. Semantic trace recording is
+// disabled in both tiers; each writes a separate JSON artifact.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 import { boot, startFight, collectErrors, expectNoErrors } from './helpers.js';
 
-const PERF_REFERENCE = Object.freeze({ minAvgFps: 55, maxP95FrameMs: 22 });
+export const PERF_REFERENCE = Object.freeze({ minAvgFps: 55, maxP95FrameMs: 22 });
+
+function tierForProject(projectName) {
+  if (projectName === 'portrait') return 'lite';
+  if (projectName === 'desktop') return 'full';
+  return null;
+}
+
+function artifactName(tier) {
+  return tier === 'full' ? 'perf-metrics-full.json' : 'perf-metrics.json';
+}
 
 test.beforeEach(() => {
-  // measurement wants a quiet machine: no parallel WebGL pages stealing the
-  // GPU. npm run test:e2e:perf runs this file alone with a single worker.
   test.skip(!process.env.PERF, 'perf measurement runs separately — use npm run test:e2e:perf');
-  test.skip(test.info().project.name !== 'portrait',
-    'the fps budget is defined for the LITE tier — portrait project only');
+  const tier = process.env.PERF_TIER || 'lite';
+  const project = test.info().project.name;
+  const expected = tierForProject(project);
+  test.skip(!expected, 'perf runs on portrait (LITE) or desktop (Full) only');
+  if (tier === 'full') {
+    test.skip(project !== 'desktop', 'PERF_TIER=full requires the desktop project');
+  } else {
+    test.skip(project !== 'portrait', 'default LITE perf requires the portrait project');
+  }
 });
 
-test('AoE effect burst records reference metrics at 4x CPU throttle', async ({ page }) => {
+test('AoE effect burst records reference metrics', async ({ page }) => {
+  const project = test.info().project.name;
+  const tier = tierForProject(project);
   const errors = collectErrors(page);
-  await boot(page); // mesh + LITE exactly as a real coarse-pointer device gets them
+  // Disable semantic trace recording for both measurement tiers.
+  await boot(page, { query: `trace=off&tier=${tier}` });
+  await page.waitForFunction(() => window.spirebound?.pixi?.status?.() === 'ready', null, {
+    timeout: 20_000,
+  });
+  const pixiReady = await page.evaluate(() => window.spirebound.pixi.status() === 'ready');
+  expect(pixiReady, 'Pixi must be ready before perf sampling').toBe(true);
+
   await startFight(page, ['duskfang', 'duskfang', 'duskfang']);
   const fixture = await page.evaluate(() => {
     const enemies = window.__probe.state().enemies;
@@ -33,20 +56,17 @@ test('AoE effect burst records reference metrics at 4x CPU throttle', async ({ p
   ).toBeGreaterThan(18);
   await page.evaluate(() => {
     window.__probe.setEnergy(9);
-    // keep every corpse off the critical path: leave all three alive,
-    // the burst itself is the load being measured
   });
   const uids = await page.evaluate(() => window.__probe.forceHand(['annihilate', 'annihilate']));
 
-  // let shader compilation and first-paint costs pass — the gate measures
-  // steady-state playback, not the one-off warm-up (cold headless GPU runs
-  // <1fps for the first seconds while ANGLE compiles the bloom pipeline)
   await page.waitForTimeout(3000);
 
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  let cdp = null;
+  if (tier === 'lite') {
+    cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  }
 
-  // sample rAF deltas for 3s while both bursts play back
   const sampler = page.evaluate(() => new Promise((resolve) => {
     const deltas = [];
     requestAnimationFrame((first) => {
@@ -65,7 +85,8 @@ test('AoE effect burst records reference metrics at 4x CPU throttle', async ({ p
     for (const u of us) await window.__probe.play(u, null);
   }, uids);
   const deltas = await sampler;
-  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  if (cdp) await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+
   const survivors = await page.evaluate(() => (
     window.__probe.state().enemies.filter((enemy) => enemy.hp > 0).length
   ));
@@ -81,7 +102,7 @@ test('AoE effect burst records reference metrics at 4x CPU throttle', async ({ p
   if (![avgFps, p95, worst].every((value) => Number.isFinite(value) && value > 0)) {
     throw new Error('performance measurement produced non-finite frame metrics');
   }
-  expectNoErrors(errors, 'perf burst');
+  expectNoErrors(errors, `perf burst (${tier})`);
 
   const metrics = {
     avgFps: Number(avgFps.toFixed(2)),
@@ -89,6 +110,8 @@ test('AoE effect burst records reference metrics at 4x CPU throttle', async ({ p
     worstFrameMs: Number(worst.toFixed(2)),
     frames: deltas.length,
     project: test.info().project.name,
+    tier,
+    pixiReady: true,
   };
   const values = [metrics.avgFps, metrics.p95FrameMs, metrics.worstFrameMs, metrics.frames];
   if (!values.every((value) => Number.isFinite(value) && value > 0)
@@ -96,10 +119,15 @@ test('AoE effect burst records reference metrics at 4x CPU throttle', async ({ p
     throw new Error(`performance measurement produced invalid metrics: ${JSON.stringify(metrics)}`);
   }
   mkdirSync('test-results', { recursive: true });
-  writeFileSync('test-results/perf-metrics.json', `${JSON.stringify(metrics, null, 2)}\n`);
+  const outName = artifactName(tier);
+  writeFileSync(`test-results/${outName}`, `${JSON.stringify(metrics, null, 2)}\n`);
   console.log(`PERF_RESULT ${JSON.stringify(metrics)}`);
-  test.info().annotations.push({ type: 'perf', description: `avg ${avgFps.toFixed(1)}fps, p95 frame ${p95.toFixed(1)}ms, worst ${worst.toFixed(1)}ms over ${deltas.length} frames` });
+  test.info().annotations.push({
+    type: 'perf',
+    description: `${tier} avg ${avgFps.toFixed(1)}fps, p95 frame ${p95.toFixed(1)}ms, worst ${worst.toFixed(1)}ms over ${deltas.length} frames`,
+  });
 
+  // Thresholds are reference-only: never expect()/exit non-zero on a valid miss.
   const warnings = [];
   if (avgFps < PERF_REFERENCE.minAvgFps) {
     warnings.push(`average ${avgFps.toFixed(1)} fps < ${PERF_REFERENCE.minAvgFps} fps target`);

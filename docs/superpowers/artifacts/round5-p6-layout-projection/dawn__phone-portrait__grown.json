@@ -1,0 +1,102 @@
+{
+  "id": "dawn__phone-portrait__grown",
+  "screen": "dawn",
+  "shape": "phone-portrait",
+  "profile": "grown",
+  "projection": {
+    "version": 1,
+    "screen": "dawn",
+    "shape": "phone-portrait",
+    "profile": "grown",
+    "stage": {
+      "w": 390,
+      "h": 844,
+      "shape": "phone-portrait"
+    },
+    "dawn": {
+      "whisper": {
+        "left": 45.05232971191406,
+        "top": 355.04687576293946,
+        "width": 113.4531314086914,
+        "height": 13.49999481201172,
+        "right": 158.50546112060547,
+        "bottom": 368.5468705749512,
+        "cx": 101.77889541625976,
+        "cy": 361.7968731689453
+      },
+      "ledger": {
+        "left": 23.396078643798827,
+        "top": 395.99998733520505,
+        "width": 343.1874626159668,
+        "height": 199.99999588012696,
+        "right": 366.58354125976564,
+        "bottom": 595.999983215332,
+        "cx": 194.98980995178223,
+        "cy": 495.9999852752685
+      },
+      "ceremony": {
+        "left": 17.989847564697264,
+        "top": 307.99998657226564,
+        "width": 343.1874626159668,
+        "height": 82.00001022338867,
+        "right": 361.17731018066405,
+        "bottom": 389.9999967956543,
+        "cx": 189.58357887268068,
+        "cy": 348.99999168396
+      },
+      "content": {
+        "left": -0.010156250000000285,
+        "top": 0,
+        "width": 389.99996459960937,
+        "height": 844,
+        "right": 389.98980834960935,
+        "bottom": 844,
+        "cx": 194.9898260498047,
+        "cy": 422
+      }
+    },
+    "embark": {
+      "vowDial": null,
+      "aspectCards": []
+    },
+    "scene": {
+      "sceneBgCount": 0,
+      "sceneBgStampedAsPanel": false,
+      "centerPanel": {
+        "left": -0.010156250000000285,
+        "top": 0,
+        "width": 389.99996459960937,
+        "height": 844,
+        "right": 389.98980834960935,
+        "bottom": 844,
+        "cx": 194.9898260498047,
+        "cy": 422
+      }
+    },
+    "title": {
+      "parallaxCount": 0,
+      "parallaxTop": null,
+      "wordmark": null,
+      "wordmarkClipped": null
+    },
+    "map": {
+      "bg3dVisible": false,
+      "keepBg3dAttr": false
+    },
+    "lamp": {
+      "root": null,
+      "selectionVisible": false
+    },
+    "fall": {
+      "panel": null
+    },
+    "vigil": {
+      "title": null
+    },
+    "cardface": {
+      "costGemVertexCount": 6,
+      "hasArtTexture": true,
+      "rarityAccentDistinct": true
+    }
+  }
+}

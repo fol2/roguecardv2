@@ -20,14 +20,17 @@ export const SCREEN_CUES = {
   hollow: 'hollowLamplighter',
 };
 
-/** Quest override → Eighth Omen (non-boss) → act defaults. */
-export function resolveCombatCue(kind, actIdx, { questId = null, omenId = null } = {}) {
+/**
+ * Quest override → Eighth Omen (non-boss) → theme Music record.
+ * @param {string} kind
+ * @param {{ combat?: string, boss?: string }|null|undefined} themeMusic
+ */
+export function resolveCombatCue(kind, themeMusic, { questId = null, omenId = null } = {}) {
   if (questId && QUEST_COMBAT_CUES[questId]) return QUEST_COMBAT_CUES[questId];
   if (omenId === 'eighthOmen' && kind !== 'boss') return 'eighthOmen';
-  const act = Math.max(0, Math.min(2, actIdx | 0)) + 1;
-  if (kind === 'boss') return `act${act}Boss`;
+  if (kind === 'boss') return themeMusic?.boss || null;
   if (kind === 'elite') return 'elite';
-  return `act${act}Combat`;
+  return themeMusic?.combat || null;
 }
 
 export function resolveScreenCue(name, overrideCue = null) {

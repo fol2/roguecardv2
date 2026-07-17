@@ -1,0 +1,201 @@
+{
+  "role": "live-vs-golden",
+  "generatedAt": "2026-07-16T13:53:42.712Z",
+  "liveSourceSha": "c3e542a88fbf4b7071135eeeafc0bcf0966745e8",
+  "goldenSourceSha": "272e0e491b91528f75c2e344211cdc42f839d381",
+  "focusCount": 19,
+  "unexpectedTotal": 0,
+  "expectedDriftPaths": [
+    "cardface",
+    "dawn.ceremony.bottom",
+    "dawn.ceremony.cy",
+    "dawn.ceremony.height",
+    "dawn.ceremony.right",
+    "dawn.ceremony.top",
+    "dawn.ceremony.width",
+    "dawn.content.height",
+    "dawn.content.width",
+    "dawn.ledger.bottom",
+    "dawn.ledger.height",
+    "dawn.ledger.left",
+    "dawn.ledger.right",
+    "dawn.ledger.top",
+    "dawn.ledger.width",
+    "dawn.whisper.bottom",
+    "dawn.whisper.cx",
+    "dawn.whisper.cy",
+    "dawn.whisper.left",
+    "dawn.whisper.right",
+    "dawn.whisper.top",
+    "dawn.whisper.width",
+    "embark.aspectCards[0].bottom",
+    "embark.aspectCards[0].cx",
+    "embark.aspectCards[0].cy",
+    "embark.aspectCards[0].height",
+    "embark.aspectCards[0].left",
+    "embark.aspectCards[0].right",
+    "embark.aspectCards[0].top",
+    "embark.aspectCards[0].width",
+    "embark.aspectCards[1].bottom",
+    "embark.aspectCards[1].cx",
+    "embark.aspectCards[1].cy",
+    "embark.aspectCards[1].height",
+    "embark.aspectCards[1].left",
+    "embark.aspectCards[1].right",
+    "embark.aspectCards[1].top",
+    "embark.aspectCards[1].width",
+    "embark.vowDial.bottom",
+    "embark.vowDial.cy",
+    "embark.vowDial.height",
+    "embark.vowDial.top",
+    "hud.phonePortraitRightPack",
+    "lamp.root.height",
+    "lamp.root.width",
+    "map.bg3dVisible",
+    "map.keepBg3dAttr",
+    "scene.centerPanel.height",
+    "scene.centerPanel.width",
+    "scene.sceneBgStampedAsPanel",
+    "title.fullBleedBackground",
+    "title.parallaxTop",
+    "title.wordmark.bottom",
+    "title.wordmark.cy",
+    "title.wordmark.top"
+  ],
+  "rows": [
+    {
+      "id": "dawn__phone-portrait__grown",
+      "deltaCount": 20,
+      "expectedCount": 20,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "dawn__phone-landscape__grown",
+      "deltaCount": 12,
+      "expectedCount": 12,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "embark__desktop-landscape__grown",
+      "deltaCount": 6,
+      "expectedCount": 6,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "embark__phone-landscape__grown",
+      "deltaCount": 21,
+      "expectedCount": 21,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "embark__pad-landscape__grown",
+      "deltaCount": 6,
+      "expectedCount": 6,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "event__phone-landscape__grown",
+      "deltaCount": 4,
+      "expectedCount": 4,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "fall__desktop-landscape__grown",
+      "deltaCount": 2,
+      "expectedCount": 2,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "fall__pad-landscape__grown",
+      "deltaCount": 2,
+      "expectedCount": 2,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "lamplighter__phone-portrait__grown",
+      "deltaCount": 3,
+      "expectedCount": 3,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "lamplighter__phone-landscape__grown",
+      "deltaCount": 3,
+      "expectedCount": 3,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "map__desktop-landscape__grown",
+      "deltaCount": 4,
+      "expectedCount": 4,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "rest__phone-landscape__grown",
+      "deltaCount": 4,
+      "expectedCount": 4,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "rewards__phone-landscape__grown",
+      "deltaCount": 4,
+      "expectedCount": 4,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "shop__phone-landscape__grown",
+      "deltaCount": 4,
+      "expectedCount": 4,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "treasure__phone-landscape__grown",
+      "deltaCount": 4,
+      "expectedCount": 4,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "title__desktop-landscape__grown",
+      "deltaCount": 6,
+      "expectedCount": 6,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "title__phone-portrait__grown",
+      "deltaCount": 6,
+      "expectedCount": 6,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "title__phone-landscape__grown",
+      "deltaCount": 5,
+      "expectedCount": 5,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    },
+    {
+      "id": "vigil__phone-landscape__grown",
+      "deltaCount": 2,
+      "expectedCount": 2,
+      "unexpectedCount": 0,
+      "unexpectedPaths": []
+    }
+  ],
+  "sha256": "1708886b1d170f0c63b8725d97c76b22465c9dfea21403d49767d16bd7c0c14f"
+}

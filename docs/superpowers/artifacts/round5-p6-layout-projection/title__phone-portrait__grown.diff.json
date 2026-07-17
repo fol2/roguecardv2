@@ -1,0 +1,53 @@
+{
+  "id": "title__phone-portrait__grown",
+  "deltaCount": 6,
+  "expectedCount": 6,
+  "unexpectedCount": 0,
+  "unexpectedPaths": [],
+  "expectedPathsHit": [
+    "title.parallaxTop",
+    "title.wordmark.top",
+    "title.wordmark.bottom",
+    "title.wordmark.cy",
+    "cardface.hasArtTexture",
+    "cardface.rarityAccentDistinct"
+  ],
+  "deltas": [
+    {
+      "path": "title.parallaxTop",
+      "kind": "value-drift",
+      "live": 0,
+      "golden": 120.27540088653564
+    },
+    {
+      "path": "title.wordmark.top",
+      "kind": "box-drift",
+      "live": 282.32811599731446,
+      "golden": 440.1907009887695
+    },
+    {
+      "path": "title.wordmark.bottom",
+      "kind": "box-drift",
+      "live": 371.46872604370117,
+      "golden": 530.6684449768065
+    },
+    {
+      "path": "title.wordmark.cy",
+      "kind": "box-drift",
+      "live": 326.89842102050784,
+      "golden": 485.42957298278805
+    },
+    {
+      "path": "cardface.hasArtTexture",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    },
+    {
+      "path": "cardface.rarityAccentDistinct",
+      "kind": "missing-golden",
+      "live": true,
+      "golden": null
+    }
+  ]
+}

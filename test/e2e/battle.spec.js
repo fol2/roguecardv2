@@ -10,11 +10,14 @@
 // NOTE: the mesh-on kill scenarios FAIL against the pre-fix code — the warp
 // plane keeps rendering the corpse (hardening spec §2). The mesh-off twin
 // passes, which pins the defect to the mesh lifecycle, not the DOM path.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './trace-fixture.js';
 import {
   boot, startFight, settle, probeState, collectErrors,
   expectInvariants, expectNoErrors, recordTransientText, waitForTransientText,
+  inventoryCombatDom,
 } from './helpers.js';
+import { snapStage } from '../../src/ui/widgets.js';
+import { bfResolve, bfSlots } from '../../src/battlefield.js';
 
 // correctness is viewport-independent; run the heavy scenarios once
 test.beforeEach(() => {
@@ -113,10 +116,9 @@ test('Shade story fragment waits for defeat', async ({ page }) => {
   const errors = collectErrors(page);
   await boot(page, { query: 'mesh=0' });
   await recordTransientText(page);
-  const dialogue = page.locator('.variant-dialogue');
   await page.evaluate(() => window.spirebound.startCombatUI(['ownShade1'], 'monster'));
   await settle(page);
-  await expect(dialogue).toHaveCount(0);
+  expect(await page.locator('.variant-dialogue, .turn-banner').count()).toBe(0);
   expect(await page.evaluate(() => window.__seenTransientText
     .some((text) => text.includes('I remember the stone')))).toBe(false);
 
@@ -128,6 +130,7 @@ test('Shade story fragment waits for defeat', async ({ page }) => {
   await page.evaluate((cardUid) => window.__probe.play(cardUid, 0), uid);
   await waitForTransientText(page, 'I remember the stone');
   await settle(page);
+  expect(await page.locator('.variant-dialogue, .turn-banner').count()).toBe(0);
   expectNoErrors(errors, 'Shade death fragment');
 });
 
@@ -217,6 +220,58 @@ test('boss death reaches the rewards screen with the world restored', async ({ p
   expectNoErrors(errors, 'boss death');
 });
 
+test('boss encounters resolve boss plate ids; normal fights keep act plates', async ({ page }) => {
+  const errors = collectErrors(page);
+  await boot(page);
+
+  await startFight(page, ['rootheart'], 'boss');
+  let plates = await page.evaluate(() => ({
+    backdrop: document.querySelector('.sl-backdrop')?.dataset.plateId || null,
+    mid: document.querySelector('.sl-mid')?.dataset.plateId || null,
+    ledge: document.querySelector('.sl-ledge')?.dataset.plateId || null,
+  }));
+  expect(plates).toEqual({
+    backdrop: 'rootheart-backdrop',
+    mid: 'rootheart-mid',
+    ledge: 'rootheart-ledge',
+  });
+
+  await startFight(page, ['duskfang'], 'normal');
+  plates = await page.evaluate(() => ({
+    backdrop: document.querySelector('.sl-backdrop')?.dataset.plateId || null,
+    mid: document.querySelector('.sl-mid')?.dataset.plateId || null,
+    ledge: document.querySelector('.sl-ledge')?.dataset.plateId || null,
+  }));
+  expect(plates).toEqual({
+    backdrop: 'act1-backdrop',
+    mid: 'act1-mid',
+    ledge: 'act1-ledge',
+  });
+
+  // Deliberately absent boss override on a boss fight → act-standard plates.
+  await page.evaluate(() => {
+    const theme = window.spirebound.S.run
+      ? window.spirebound.themeForRun?.(window.spirebound.S.run)
+      : null;
+    // Force an unknown boss id through startCombatUI with a boss kind but no override key.
+    window.spirebound.startCombatUI(['duskfang'], 'boss');
+  });
+  await settle(page);
+  plates = await page.evaluate(() => ({
+    backdrop: document.querySelector('.sl-backdrop')?.dataset.plateId || null,
+    mid: document.querySelector('.sl-mid')?.dataset.plateId || null,
+    ledge: document.querySelector('.sl-ledge')?.dataset.plateId || null,
+    kind: window.spirebound.S.cb?.kind,
+    bossKey: window.spirebound.S.cb?.enemies?.[0]?.key,
+  }));
+  expect(plates.kind).toBe('boss');
+  expect(plates.bossKey).toBe('duskfang');
+  expect(plates.backdrop).toBe('act1-backdrop');
+  expect(plates.mid).toBe('act1-mid');
+  expect(plates.ledge).toBe('act1-ledge');
+  expectNoErrors(errors, 'boss plate resolution');
+});
+
 test('lantern art fires clean', async ({ page }) => {
   const errors = collectErrors(page);
   await boot(page);
@@ -291,3 +346,245 @@ for (const scenario of RANDOM_AGENT_FIGHTS) {
     expectNoErrors(errors, `mini-run fight vs ${scenario.ids.join('+')}`);
   });
 }
+
+// ---- Task 29: P5 combat DOM allowed-list + PR17 geometry via Pixi readUI ----
+
+test('P5 combat DOM stays on the allowed-list', async ({ page }) => {
+  const errors = collectErrors(page);
+  await boot(page, { query: 'mesh=0' });
+  await startFight(page, ['duskfang', 'sporeling']);
+  await settle(page);
+
+  const inventory = await inventoryCombatDom(page);
+  expect(inventory.screen).toBe('combat');
+  expect(inventory.mounts.uigl).toBe(true);
+  expect(inventory.mounts.vfx).toBe(true);
+  expect(inventory.mounts.tooltip).toBe(true);
+  expect(inventory.emptyHosts.floaties, '#floaties must be empty during combat').toBe(0);
+  expect(inventory.emptyHosts.aim, '#aim must be empty during combat').toBe(0);
+  expect(inventory.emptyHosts.handZone, '.hand-zone stays an empty structural host').toBe(0);
+  for (const [sel, n] of Object.entries(inventory.forbidden)) {
+    expect(n, `forbidden combat selector ${sel}`).toBe(0);
+  }
+  expect(inventory.unexpected, `unexpected combat DOM: ${JSON.stringify(inventory.unexpected)}`).toEqual([]);
+  expect(inventory.ok).toBe(true);
+  expectNoErrors(errors, 'P5 DOM allowed-list');
+});
+
+test('PR17 geometry is readable from probe.ui / Pixi readUI', async ({ page }) => {
+  const errors = collectErrors(page);
+  await boot(page, { query: 'mesh=0&shape=desktop-landscape' });
+  await page.evaluate(() => { window.spirebound.S.run.act = 0; });
+  await startFight(page, ['duskfang', 'duskfang']);
+  await settle(page);
+
+  const authored = bfSlots(bfResolve('desktop-landscape', 0), 2).map((s) => s.x);
+  expect(authored).toEqual([1000, 1197]);
+
+  const geom = await page.evaluate(() => {
+    const ui = window.__probe.ui();
+    const read = window.spirebound.combatGl.readUI();
+    const enemies = read?.enemies || [];
+    const plates = read?.plates?.enemies || [];
+    const drifts = enemies.map((e, i) => {
+      const art = e?.artBounds || e?.bounds;
+      const plate = plates[i]?.plateBounds || e?.plateBounds;
+      if (!art || !plate) return null;
+      const artCx = (art.left + art.right) / 2;
+      const plateCx = (plate.left + plate.right) / 2;
+      const visible = plates[i]?.visibleBounds || plate;
+      return {
+        artCx,
+        plateCx,
+        drift: Math.abs(plateCx - artCx),
+        overlaps: plate.left < art.right && art.left < plate.right,
+        plate,
+        visible,
+      };
+    }).filter(Boolean);
+    const gaps = [];
+    for (let i = 0; i < drifts.length - 1; i += 1) {
+      const a = drifts[i].visible;
+      const b = drifts[i + 1].visible;
+      gaps.push(b.left - a.right);
+    }
+    const cf = read?.candleFrame;
+    const resolution = Number(window.spirebound.pixi?.application?.()?.renderer?.resolution)
+      || ((window.devicePixelRatio || 1) * (window.__probe.stage().scale || 1));
+    return {
+      uiVersion: ui?.version ?? null,
+      kind: ui?.renderer?.kind ?? null,
+      source: read?.plates ? 'readUI' : null,
+      handLen: ui?.hand?.length ?? 0,
+      drifts,
+      gaps,
+      candleW: cf?.bounds?.width ?? null,
+      candleSlots: cf?.slots?.length ?? 0,
+      restingFloor: read?.restingHandFloor ?? null,
+      resolution,
+      shape: window.__probe.stage().shape,
+    };
+  });
+
+  expect(geom.uiVersion).toBe(2);
+  expect(geom.kind).toBe('pixi');
+  expect(geom.source).toBe('readUI');
+  expect(geom.shape).toBe('desktop-landscape');
+  expect(geom.handLen).toBeGreaterThan(0);
+  expect(geom.drifts.length).toBe(2);
+  // Exact desktop pair anchors (PR17 / battlefield-layout.js).
+  expect(Math.round(geom.drifts[0].artCx), 'desktop pair anchor 0').toBe(1000);
+  expect(Math.round(geom.drifts[1].artCx), 'desktop pair anchor 1').toBe(1197);
+  for (const d of geom.drifts) {
+    expect(d.overlaps, 'plate overlaps own art').toBe(true);
+    expect(d.drift, 'desktop pair drift ≤80').toBeLessThanOrEqual(80);
+  }
+  // Minimal-displacement 6-gap packing between adjacent visible chrome.
+  for (const gap of geom.gaps) {
+    expect(gap, '6-gap packing between adjacent plates').toBeGreaterThanOrEqual(6);
+  }
+  expect(geom.candleW, 'desktop-landscape candle frame').toBe(snapStage(120, geom.resolution));
+  expect(geom.candleSlots).toBeGreaterThanOrEqual(3);
+
+  // General 90-drift case (trio) via the same readUI seam.
+  await page.evaluate(async () => {
+    window.spirebound.startCombatUI(['sporeling', 'sporeling', 'sporeling'], 'normal');
+    await window.__probe.settle();
+  });
+  const trio = await page.evaluate(() => {
+    const read = window.spirebound.combatGl.readUI();
+    return (read?.enemies || []).map((e, i) => {
+      const art = e?.artBounds;
+      const plate = read?.plates?.enemies?.[i]?.plateBounds || e?.plateBounds;
+      if (!art || !plate) return null;
+      return Math.abs(((plate.left + plate.right) / 2) - ((art.left + art.right) / 2));
+    }).filter((n) => n != null);
+  });
+  expect(trio.length).toBe(3);
+  for (const drift of trio) {
+    expect(drift, 'general formation drift ≤90').toBeLessThanOrEqual(90);
+  }
+
+  // Restore dual-foe for hover / dead-member checks.
+  await page.evaluate(async () => {
+    window.spirebound.startCombatUI(['duskfang', 'duskfang'], 'normal');
+    await window.__probe.settle();
+  });
+
+  // Hover must not yank plate floor (≤1 stage px).
+  const before = await page.evaluate(() => {
+    const plates = window.spirebound.combatGl.readUI()?.plates?.enemies || [];
+    return plates.map((p) => p.plateBounds?.top ?? null);
+  });
+  const seat = await page.evaluate(() => {
+    const card = window.__probe.ui().hand[0];
+    return card?.seatBounds || card?.bounds || null;
+  });
+  expect(seat).toBeTruthy();
+  const from = await page.evaluate((bounds) => {
+    const info = window.__probe.stage();
+    const stage = document.getElementById('stage').getBoundingClientRect();
+    return {
+      x: stage.left + ((bounds.left + bounds.right) / 2) * info.scale,
+      y: stage.top + ((bounds.top + bounds.bottom) / 2) * info.scale,
+    };
+  }, seat);
+  await page.mouse.move(from.x, from.y);
+  await page.waitForFunction(() => window.__probe.ui().hand.some((c) => c.hovered));
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const after = await page.evaluate(() => {
+    const plates = window.spirebound.combatGl.readUI()?.plates?.enemies || [];
+    return plates.map((p) => p.plateBounds?.top ?? null);
+  });
+  expect(after.length).toBe(before.length);
+  before.forEach((top, i) => {
+    expect(Math.abs((after[i] ?? 0) - (top ?? 0)), `plate ${i} floor on hover`).toBeLessThanOrEqual(1);
+  });
+
+  // Dead-member stability: kill first foe; survivors stay put.
+  const beforeKill = await page.evaluate(() => {
+    const plates = window.spirebound.combatGl.readUI()?.plates?.enemies || [];
+    return plates.map((p) => ({ left: p.plateBounds?.left, right: p.plateBounds?.right }));
+  });
+  await page.evaluate(async () => {
+    window.__probe.setEnemyHp(0, 1);
+    window.__probe.setEnergy(3);
+    const [uid] = window.__probe.forceHand(['strike']);
+    await window.__probe.play(uid, 0);
+  });
+  await settle(page);
+  await page.waitForTimeout(1400);
+  const afterKill = await page.evaluate(() => {
+    const plates = window.spirebound.combatGl.readUI()?.plates?.enemies || [];
+    return plates.map((p) => ({ left: p.plateBounds?.left, right: p.plateBounds?.right }));
+  });
+  if (afterKill.length > 1 && beforeKill.length > 1) {
+    // 3px, not 1: plateBounds passes through snapRect(rect, resolution), and a
+    // resolution re-snap under runner load shifts every plate ~1-2px with no
+    // reflow (observed 1.82px). A real formation reflow moves survivors by
+    // tens of px, so this still fails loudly on the regression it guards.
+    expect(Math.abs((afterKill[1].left ?? 0) - (beforeKill[1].left ?? 0))).toBeLessThanOrEqual(3);
+    expect(Math.abs((afterKill[1].right ?? 0) - (beforeKill[1].right ?? 0))).toBeLessThanOrEqual(3);
+  }
+  expectNoErrors(errors, 'PR17 via readUI');
+});
+
+test('authored candle frames across five stage shapes', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop', 'shape sweep forces ?shape= on desktop');
+  const expected = {
+    'desktop-landscape': 120,
+    'pad-landscape': 120,
+    'pad-portrait': 102,
+    'phone-portrait': 84,
+    'phone-landscape': 72,
+  };
+  for (const [shape, frameW] of Object.entries(expected)) {
+    await page.goto(`/?shape=${shape}&mesh=0`);
+    await page.waitForFunction(() => window.spirebound?.pixi?.status() === 'ready', null, {
+      timeout: 15_000,
+    });
+    const measured = await page.evaluate(async () => {
+      window.spirebound.S.run = window.spirebound.E.newRun(20260706, { aspect: 0 });
+      window.spirebound.startCombatUI(['duskfang'], 'normal');
+      await window.__probe.settle();
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const cf = window.spirebound.combatGl?.readUI?.()?.candleFrame;
+      const centres = (cf?.slots || []).map((s) => (s.bounds.left + s.bounds.right) / 2);
+      const pitches = centres.slice(1).map((cx, i) => cx - centres[i]);
+      const resolution = Number(window.spirebound.pixi?.application?.()?.renderer?.resolution)
+        || ((window.devicePixelRatio || 1) * (window.__probe.stage().scale || 1));
+      return {
+        shape: window.__probe.stage().shape,
+        frameW: cf?.bounds?.width ?? null,
+        n: cf?.slots?.length ?? 0,
+        avgPitch: pitches.length ? pitches.reduce((a, b) => a + b, 0) / pitches.length : 0,
+        resolution,
+      };
+    });
+    expect(measured.shape).toBe(shape);
+    expect(measured.frameW, `${shape} candle frame`).toBe(snapStage(frameW, measured.resolution));
+    // Grow slots → pitch compresses inside the fixed frame.
+    await page.evaluate(() => {
+      const P = window.spirebound.S.cb.player;
+      P.energyMax = 5;
+      window.__probe.setEnergy(5);
+    });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const grown = await page.evaluate(() => {
+      const cf = window.spirebound.combatGl?.readUI?.()?.candleFrame;
+      const centres = (cf?.slots || []).map((s) => (s.bounds.left + s.bounds.right) / 2);
+      const pitches = centres.slice(1).map((cx, i) => cx - centres[i]);
+      const resolution = Number(window.spirebound.pixi?.application?.()?.renderer?.resolution)
+        || ((window.devicePixelRatio || 1) * (window.__probe.stage().scale || 1));
+      return {
+        frameW: cf?.bounds?.width ?? null,
+        n: cf?.slots?.length ?? 0,
+        avgPitch: pitches.length ? pitches.reduce((a, b) => a + b, 0) / pitches.length : 0,
+        resolution,
+      };
+    });
+    expect(grown.frameW).toBe(snapStage(frameW, grown.resolution));
+    expect(grown.n).toBe(5);
+    expect(grown.avgPitch).toBeLessThan(measured.avgPitch - 1);
+  }
+});

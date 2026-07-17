@@ -1,0 +1,20 @@
+{
+  "journey": "title-embark",
+  "records": [
+    [
+      "screen.requested",
+      "point",
+      "accepted"
+    ],
+    [
+      "screen.exited",
+      "point",
+      "completed"
+    ],
+    [
+      "screen.entered",
+      "point",
+      "completed"
+    ]
+  ]
+}
