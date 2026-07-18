@@ -521,6 +521,9 @@ export function assertNaturalProgressionCanary() {
     'fixed-seed unrigged progression canary must complete fresh-to-promise within 40 Rounds');
   assert.equal(cycle.stagedRound, 36,
     'fixed-seed unrigged progression canary stages the Act IV promise on Round 36');
+  assert.equal(cycle.rounds.reduce((sum, { record }) =>
+    sum + (record.triggerFunnels?.['act4Reveal.staged']?.succeeded || 0), 0), 1,
+  'natural progression canary must observe its same-Round Act IV staging transition once');
   assert.equal(cycle.rounds.flatMap(({ record }) => record.issues || []).length, 0,
     'fixed-seed unrigged progression canary must retain zero simulator issues');
   assert.ok(cycle.rounds.every(({ record }) => record.actReached <= 2),
@@ -1093,13 +1096,13 @@ function assertRunRecordParity(matrix) {
   assert.ok(stackIssue?.stack?.includes('\n'), 'retained engine issue must include the full multi-line stack');
 }
 
-function stableReport(report) {
+function stableReport(report, serialiser = serialise) {
   const copy = structuredClone(report);
   delete copy.meta.date;
   delete copy.meta.durationMs;
   delete copy.meta.workers;
   delete copy.meta.config.workers;
-  return serialise(copy);
+  return serialiser(copy);
 }
 
 function assertRunnerIntegration() {
@@ -1118,13 +1121,57 @@ function assertRunnerIntegration() {
     assert.equal(status.done, status.total, `workers=${workers} status must reach done === total`);
     return report;
   };
+  const runCycle = (workers, filename) => {
+    const output = join(root, filename);
+    execFileSync(process.execPath, [runnerPath,
+      '--mode', 'cycle', '--cycles', '2', '--max-rounds', '1',
+      '--policy', 'progression', '--seed', '31', '--workers', String(workers),
+      '--label', 'cycle-runner-smoke', '--out', output,
+    ], { cwd: root, stdio: 'pipe' });
+    const report = JSON.parse(readFileSync(output, 'utf8'));
+    const status = JSON.parse(readFileSync(statusPath, 'utf8'));
+    assert.equal(status.running, false, `cycle workers=${workers} status must be terminal`);
+    assert.equal(status.done, status.total, `cycle workers=${workers} status must reach done === total`);
+    assert.equal(report.meta.schema, CYCLE_SCHEMA_VERSION);
+    assert.equal(report.policies.progression.completion.counts.started, 2);
+    return report;
+  };
   try {
+    const runnerUrl = pathToFileURL(runnerPath).href;
+    const parserSource = `
+      import assert from 'node:assert/strict';
+      import { parseArgs } from ${JSON.stringify(runnerUrl)};
+      assert.throws(() => parseArgs(['--mode', 'cycle', '--runs', '1']), /--runs/);
+      assert.throws(() => parseArgs(['--mode', 'cycle', '--profile', 'fresh']), /--profile/);
+      assert.throws(() => parseArgs(['--mode', 'round', '--cycles', '1']), /--cycles/);
+      assert.throws(() => parseArgs(['--mode', 'round', '--target', 'usurper.buy']), /--target/);
+      assert.throws(() => parseArgs(['--mode', 'round', '--runs', '1000001']), /--runs must be <= 1000000/);
+      assert.throws(() => parseArgs(['--mode', 'cycle', '--cycles', '1000001']), /--cycles must be <= 1000000/);
+      assert.throws(() => parseArgs([
+        '--mode', 'cycle', '--cycles', '101', '--max-rounds', '1000', '--policy', 'progression',
+      ]), /cycles \\* maxRounds must be <= 100000/);
+      assert.throws(() => parseArgs(['--workers', '33']), /--workers must be <= 32/);
+      assert.equal(parseArgs([
+        '--mode', 'cycle', '--cycles', '1', '--max-rounds', '1',
+        '--policy', 'coverage', '--target', 'usurper.buy',
+      ]).target, 'usurper.buy');
+    `;
+    execFileSync(process.execPath, ['--input-type=module', '--eval', parserSource], {
+      cwd: root, stdio: 'pipe',
+    });
+
     const serial = run(1, 'serial.json');
     const parallel = run(4, 'parallel.json');
     assert.equal(stableReport(serial), stableReport(parallel),
       'runner report aggregates must be independent of worker count');
     assert.deepEqual(readdirSync(root).filter((name) => name.endsWith('.tmp')), [],
       'runner must not leave a report publication temp file');
+
+    const cycleSerial = runCycle(1, 'cycle-serial.json');
+    const cycleParallel = runCycle(2, 'cycle-parallel.json');
+    assert.equal(stableReport(cycleSerial, serialiseCycles),
+      stableReport(cycleParallel, serialiseCycles),
+    'cycle runner reports must be byte-stable independent of worker count');
 
     const concurrentSource = `
       const { spawn } = require('node:child_process');
@@ -1148,7 +1195,6 @@ function assertRunnerIntegration() {
     assert.deepEqual(readdirSync(join(root, '.sim-reports')).filter((name) => name.endsWith('.tmp')), [],
       'concurrent runners must not share or leave status temp files');
 
-    const runnerUrl = pathToFileURL(runnerPath).href;
     const faultSource = `(async () => {
       const { runSimulation } = await import(${JSON.stringify(runnerUrl)});
       try {

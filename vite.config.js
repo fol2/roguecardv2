@@ -3,7 +3,7 @@ import { readdirSync, writeFileSync, renameSync, readFileSync, unlinkSync, statS
 import { basename, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { execSync, spawn } from "node:child_process";
-import { runnerMetadata } from "./tools/sim/runner.mjs";
+import { cycleWorkProblem, runnerMetadata } from "./tools/sim/runner.mjs";
 
 const BF_SAVE_PORT = 5174;
 // Vite Host header gate for loading the page over Tailscale / LAN.
@@ -24,7 +24,6 @@ const AUDIO_SELECTION_TMP = `${AUDIO_SELECTION_PATH}.tmp`;
 const SIM_REPORT_DIR = resolve(".sim-reports");
 const SIM_STATUS_PATH = resolve(SIM_REPORT_DIR, ".status.json");
 const SIM_LABEL_RE = /^[A-Za-z0-9._-]+$/;
-const SIM_RUN_LIMIT = 1_000_000;
 
 function readAudioInventory(baseVersions) {
   const roots = {
@@ -151,7 +150,11 @@ function validateSimRunBody(value) {
       problems.push(`${name}: need a positive integer`);
       return fallback;
     }
-    return Math.min(input, max);
+    if (input > max) {
+      problems.push(`${name}: must be <= ${max}`);
+      return fallback;
+    }
+    return input;
   };
   const mode = value.mode ?? metadata.defaults.mode;
   if (!metadata.modes.includes(mode)) problems.push("mode: invalid value");
@@ -165,9 +168,10 @@ function validateSimRunBody(value) {
   if (mode === "cycle") {
     if (Object.hasOwn(value, "runs")) problems.push("runs: available only in round mode");
     if (Object.hasOwn(value, "profile")) problems.push("profile: unavailable in cycle mode");
-    cycles = positiveInt("cycles", value.cycles, metadata.defaults.cycles, SIM_RUN_LIMIT);
-    maxRounds = positiveInt("maxRounds", value.maxRounds, metadata.defaults.maxRounds, Number.MAX_SAFE_INTEGER);
-    if (maxRounds > metadata.limits.maxRounds) problems.push(`maxRounds: must be <= ${metadata.limits.maxRounds}`);
+    cycles = positiveInt("cycles", value.cycles, metadata.defaults.cycles, metadata.limits.cycles);
+    maxRounds = positiveInt("maxRounds", value.maxRounds, metadata.defaults.maxRounds, metadata.limits.maxRounds);
+    const workProblem = cycleWorkProblem(cycles, maxRounds);
+    if (workProblem) problems.push(workProblem);
     target = value.target ?? null;
     if (target != null && policy !== "coverage") problems.push("target: available only for coverage");
     if (target != null && !metadata.targets.includes(target)) problems.push("target: unknown trigger");
@@ -175,12 +179,12 @@ function validateSimRunBody(value) {
     for (const key of ["cycles", "maxRounds", "target"]) {
       if (Object.hasOwn(value, key)) problems.push(`${key}: available only in cycle mode`);
     }
-    runs = positiveInt("runs", value.runs, metadata.defaults.runs, SIM_RUN_LIMIT);
+    runs = positiveInt("runs", value.runs, metadata.defaults.runs, metadata.limits.runs);
     profile = value.profile ?? metadata.defaults.profile;
     if (!["revealed", "fresh", "both"].includes(profile)) problems.push("profile: invalid value");
   }
   let workers = value.workers ?? "auto";
-  if (workers !== "auto") workers = positiveInt("workers", workers, 1, 32);
+  if (workers !== "auto") workers = positiveInt("workers", workers, 1, metadata.limits.workers);
   const label = value.label ?? "proving-grounds";
   if (typeof label !== "string" || !SIM_LABEL_RE.test(label)) {
     problems.push("label: use only letters, numbers, dot, underscore, or hyphen");

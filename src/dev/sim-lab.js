@@ -232,7 +232,7 @@ function shell() {
           <form class="pg-controls" id="pg-run-form" aria-label="Run simulation">
             <fieldset class="pg-control-group"><legend>Simulation population and machine policy</legend><span id="pg-mode-controls"></span></fieldset>
             <label class="pg-field">Workers<select name="workers"><option value="auto">Auto</option><option>1</option><option>2</option><option>4</option><option>8</option></select></label>
-            <label class="pg-field label">Label<input name="label" value="sim-lab" pattern="[A-Za-z0-9._-]+" required></label>
+            <label class="pg-field label">Label<input name="label" value="${esc(state.metadata?.defaults?.label || 'proving-grounds')}" pattern="[A-Za-z0-9._-]+" required></label>
             <button class="pg-run" type="submit">Run simulation</button>
           </form>
         </div>
@@ -248,16 +248,27 @@ function renderRunControls(mode = 'round', policy = null) {
   const metadata = state.metadata;
   const defaults = metadata.defaults;
   const policies = metadata.policies.filter((item) => item.modes.includes(mode));
+  const profiles = ['revealed', 'fresh', 'both'];
   const chosen = policies.some((item) => item.id === policy) ? policy : defaults[mode];
   const targets = chosen === 'coverage' ? `<label class="pg-field">Target<select name="target" aria-describedby="pg-target-help"><option value="">Deterministic rotation</option>${metadata.targets.map((id) => `<option value="${esc(id)}">${esc(id)}</option>`).join('')}</select><small id="pg-target-help">Coverage only</small></label>` : '';
   $('#pg-mode-controls').outerHTML = `<span id="pg-mode-controls" style="display:contents">
     <label class="pg-field">Mode<select name="mode" aria-label="Simulation mode">${metadata.modes.map((id) => `<option value="${id}"${id === mode ? ' selected' : ''}>${id === 'cycle' ? 'Full Cycle' : 'Round'}</option>`).join('')}</select></label>
     ${mode === 'cycle'
       ? `<label class="pg-field">Cycles<input name="cycles" type="number" min="1" max="${metadata.limits.cycles}" value="${defaults.cycles}" required></label><label class="pg-field">Max Rounds<input name="maxRounds" type="number" min="1" max="${metadata.limits.maxRounds}" value="${defaults.maxRounds}" required></label>`
-      : `<label class="pg-field">Runs<input name="runs" type="number" min="1" max="${metadata.limits.runs}" value="2000" required></label><label class="pg-field">Profile<select name="profile"><option value="both">Both</option><option value="revealed">Revealed</option><option value="fresh">Fresh</option></select></label>`}
+      : `<label class="pg-field">Runs<input name="runs" type="number" min="1" max="${metadata.limits.runs}" value="${defaults.runs}" required></label><label class="pg-field">Profile<select name="profile">${profiles.map((id) => `<option value="${id}"${id === defaults.profile ? ' selected' : ''}>${id[0].toUpperCase()}${id.slice(1)}</option>`).join('')}</select></label>`}
     <label class="pg-field">Policy<select name="policy">${mode === 'round' ? '<option value="both">Both legacy policies</option>' : ''}${policies.map((item) => `<option value="${esc(item.id)}"${item.id === chosen ? ' selected' : ''}>${esc(item.id)}</option>`).join('')}</select></label>
     <label class="pg-field">Seed<input name="seed" type="number" min="0" value="1" required></label>${targets}
   </span>`;
+}
+
+function validateCycleWork(form) {
+  const cycles = form.elements.cycles;
+  const maxRounds = form.elements.maxRounds;
+  if (!cycles || !maxRounds) return true;
+  const budget = state.metadata.limits.cycleRounds;
+  const valid = Number(cycles.value) * Number(maxRounds.value) <= budget;
+  cycles.setCustomValidity(valid ? '' : `Cycles times Max Rounds must be ${budget} or fewer`);
+  return valid;
 }
 
 function renderTabs() {
@@ -761,7 +772,19 @@ function bind() {
     }
     if (event.target.id === 'pg-compare-policy') { state.comparePolicy = event.target.value; renderContent(); }
   });
-  $('#pg-run-form').addEventListener('submit', (event) => { event.preventDefault(); launchRun(event.currentTarget); });
+  document.addEventListener('input', (event) => {
+    if (event.target.name === 'cycles' || event.target.name === 'maxRounds') {
+      validateCycleWork($('#pg-run-form'));
+    }
+  });
+  $('#pg-run-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (!validateCycleWork(event.currentTarget)) {
+      event.currentTarget.reportValidity();
+      return;
+    }
+    launchRun(event.currentTarget);
+  });
 }
 
 export async function initSimLab() {

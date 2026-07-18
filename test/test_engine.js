@@ -5069,6 +5069,11 @@ function forceHand(run, cb, ids) {
   assert.deepEqual(loadVigil().act4Promise, {
     status: 'staged', runId: claimRetry.runId, provenance: 'runtime',
   }, 'reload repair claims the saved queue owner without a sentinel id');
+  assert.equal(coordinator.repairPendingDawn(halfWritten), true,
+    'reload repair accepts the matching already-staged runtime owner');
+  assert.deepEqual(loadVigil().act4Promise, {
+    status: 'staged', runId: claimRetry.runId, provenance: 'runtime',
+  }, 'already-staged repair does not replace the durable promise owner');
   assert.equal(coordinator.repairPendingDawn({
     runId: 'sentinel', pendingDawn: { events: [{ t: 'act4Reveal' }] },
   }), false, 'repair rejects a fabricated promise owner');

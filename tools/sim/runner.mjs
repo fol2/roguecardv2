@@ -24,6 +24,11 @@ const DEFAULT_RUNS = 10_000;
 const DEFAULT_CYCLES = 100;
 const DEFAULT_MAX_ROUNDS = 100;
 const MAX_ROUNDS_LIMIT = 1_000;
+const MAX_RUNS_LIMIT = 1_000_000;
+const MAX_CYCLES_LIMIT = 1_000_000;
+const MAX_WORKERS_LIMIT = 32;
+const MAX_CYCLE_ROUND_WORK = 100_000;
+const MAX_SUFFIX_BOOTSTRAP_DRAWS = 100_000_000;
 const SMOKE_RUNS = 300;
 const SMOKE_SEED = 1;
 const REPORT_DIR = resolve('.sim-reports');
@@ -37,6 +42,7 @@ const usage = `Usage: npm run sim -- [options]
   --runs N                 Runs per policy/profile sweep (default 10000)
   --cycles N               Full Cycles (cycle mode; default 100)
   --max-rounds N           Round cap per cycle (default 100; max ${MAX_ROUNDS_LIMIT})
+                           cycles * max-rounds must be <= ${MAX_CYCLE_ROUND_WORK}
   --policy ${POLICY_VALUES.join('|')}|both  (round)
            ${CYCLE_POLICY_VALUES.join('|')}              (cycle)
   --profile revealed|fresh|both
@@ -58,17 +64,33 @@ export function runnerMetadata() {
       ...registry.defaults, mode: 'round', runs: DEFAULT_RUNS, cycles: DEFAULT_CYCLES,
       maxRounds: DEFAULT_MAX_ROUNDS, profile: 'revealed', workers: 'auto', label: 'proving-grounds',
     },
-    limits: { maxRounds: MAX_ROUNDS_LIMIT, runs: 1_000_000, cycles: 1_000_000, workers: 32 },
+    limits: {
+      maxRounds: MAX_ROUNDS_LIMIT,
+      runs: MAX_RUNS_LIMIT,
+      cycles: MAX_CYCLES_LIMIT,
+      workers: MAX_WORKERS_LIMIT,
+      cycleRounds: MAX_CYCLE_ROUND_WORK,
+      suffixBootstrapDraws: MAX_SUFFIX_BOOTSTRAP_DRAWS,
+    },
     targets: triggerIds(),
   };
 }
 
-const integer = (name, value, { min = 0 } = {}) => {
+const integer = (name, value, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
   if (!/^-?\d+$/.test(String(value))) throw new TypeError(`${name} must be an integer`);
   const n = Number(value);
   if (!Number.isSafeInteger(n) || n < min) throw new RangeError(`${name} must be >= ${min}`);
+  if (n > max) throw new RangeError(`${name} must be <= ${max}`);
   return n;
 };
+
+export function cycleWorkProblem(cycles, maxRounds) {
+  if (!Number.isSafeInteger(cycles) || !Number.isSafeInteger(maxRounds)) return null;
+  const total = cycles * maxRounds;
+  return total > MAX_CYCLE_ROUND_WORK
+    ? `cycles * maxRounds must be <= ${MAX_CYCLE_ROUND_WORK}`
+    : null;
+}
 
 function optionValue(args, index, name) {
   const arg = args[index];
@@ -116,13 +138,14 @@ export function parseArgs(args) {
     out.label = out.label === 'proving-grounds' ? 'smoke' : out.label;
   }
   if (!MODE_VALUES.includes(out.mode)) throw new TypeError(`unknown mode: ${out.mode}`);
-  const defaults = runnerMetadata().defaults;
+  const metadata = runnerMetadata();
+  const { defaults, limits } = metadata;
   out.policy ??= defaults[out.mode];
   if (out.mode === 'round') {
     for (const flag of ['--cycles', '--max-rounds', '--target']) {
       if (supplied.has(flag)) throw new TypeError(`${flag} is available only in cycle mode`);
     }
-    out.runs = integer('--runs', out.runs ?? defaults.runs, { min: 1 });
+    out.runs = integer('--runs', out.runs ?? defaults.runs, { min: 1, max: limits.runs });
     out.profile ??= defaults.profile;
     if (![...POLICY_VALUES, 'both'].includes(out.policy)) throw new TypeError(`unknown round policy: ${out.policy}`);
     if (![...PROFILE_VALUES, 'both'].includes(out.profile)) throw new TypeError(`unknown profile: ${out.profile}`);
@@ -130,9 +153,12 @@ export function parseArgs(args) {
     if (supplied.has('--runs')) throw new TypeError('--runs is available only in round mode; use --cycles');
     if (supplied.has('--profile')) throw new TypeError('--profile is not available in cycle mode');
     if (out.policy === 'both' || !CYCLE_POLICY_VALUES.includes(out.policy)) throw new TypeError(`unknown cycle policy: ${out.policy}`);
-    out.cycles = integer('--cycles', out.cycles ?? defaults.cycles, { min: 1 });
-    out.maxRounds = integer('--max-rounds', out.maxRounds ?? defaults.maxRounds, { min: 1 });
-    if (out.maxRounds > MAX_ROUNDS_LIMIT) throw new RangeError(`--max-rounds must be <= ${MAX_ROUNDS_LIMIT}`);
+    out.cycles = integer('--cycles', out.cycles ?? defaults.cycles, { min: 1, max: limits.cycles });
+    out.maxRounds = integer('--max-rounds', out.maxRounds ?? defaults.maxRounds, {
+      min: 1, max: limits.maxRounds,
+    });
+    const workProblem = cycleWorkProblem(out.cycles, out.maxRounds);
+    if (workProblem) throw new RangeError(workProblem);
     if (out.target != null) {
       if (out.policy !== 'coverage') throw new TypeError('--target is available only with cycle coverage policy');
       if (!triggerIds().includes(out.target)) throw new TypeError(`unknown coverage target: ${out.target}`);
@@ -141,7 +167,9 @@ export function parseArgs(args) {
     out.runs = null;
   }
   out.seed = integer('--seed', out.seed, { min: 0 });
-  if (out.workers !== 'auto') out.workers = integer('--workers', out.workers, { min: 1 });
+  if (out.workers !== 'auto') {
+    out.workers = integer('--workers', out.workers, { min: 1, max: limits.workers });
+  }
   if (!LABEL_RE.test(out.label)) throw new TypeError('--label must match [A-Za-z0-9._-]+');
   if (out.out != null && (!String(out.out).trim() || String(out.out).includes('\0'))) {
     throw new TypeError('--out must be a non-empty path');
@@ -153,7 +181,7 @@ const expanded = (value, all) => value === 'both' ? [...all] : [value];
 
 function workerCount(value) {
   const requested = value === 'auto' ? availableParallelism() : value;
-  return Math.max(1, Math.min(requested, 32));
+  return Math.max(1, Math.min(requested, MAX_WORKERS_LIMIT));
 }
 
 function splitSweep(policy, profile, runs, seed, partitions) {

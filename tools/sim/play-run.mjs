@@ -762,11 +762,14 @@ export function playRun(seed, makePolicy, config = {}) {
         before: { eligible: true, value: shardsBefore }, intent: { automatic: true },
         after: { value: shardsAfter },
       });
-      if (promiseBefore === 'pending' && intent === 'dawn') observe('act4Reveal.staged', {
+      const promiseAfter = vigilAfter?.act4Promise?.status || null;
+      const act4StagingEligible = intent === 'dawn' && promiseBefore !== 'staged' &&
+        (promiseBefore === 'pending' || shardsAfter >= sealedSummitShardThreshold(run));
+      if (act4StagingEligible) observe('act4Reveal.staged', {
         unitId: `round:${rec.seed}`, phase: 'terminal',
-        before: { eligible: true, value: false }, intent: { action: intent },
-        after: { value: vigilAfter?.act4Promise?.status === 'staged',
-          ...(vigilAfter?.act4Promise?.status === 'staged' ? {} : { reason: terminalResult?.accepted === false
+        before: { eligible: true, value: promiseBefore === 'staged' }, intent: { action: intent },
+        after: { value: promiseAfter === 'staged',
+          ...(promiseAfter === 'staged' ? {} : { reason: terminalResult?.accepted === false
             ? 'terminal-rejected' : 'promise-locked' }) },
       });
 

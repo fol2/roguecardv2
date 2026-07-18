@@ -23,8 +23,8 @@ const sourceBlock = (source, marker) => {
 
 assert.deepEqual(
   importSpecifiers('../src/engine.js'),
-  ['./data.js', './run-lifecycle.js'],
-  'engine may import only Node-safe data and run lifecycle owners',
+  ['./data.js'],
+  'engine must import only the Node-safe data owner',
 );
 assert.deepEqual(
   importSpecifiers('../src/vigil.js'),
@@ -33,8 +33,8 @@ assert.deepEqual(
 );
 assert.deepEqual(
   importSpecifiers('../src/run-lifecycle.js'),
-  ['./content-protocol.js'],
-  'run lifecycle may import only the Node-safe protocol owner',
+  ['./content-protocol.js', './engine.js'],
+  'run lifecycle may import only the Node-safe protocol and engine owners',
 );
 const runLifecycleSource = readFileSync(new URL('../src/run-lifecycle.js', import.meta.url), 'utf8');
 assert.doesNotMatch(runLifecycleSource,
@@ -732,7 +732,7 @@ assert.deepEqual([...new Set(traceOwnedFixtureIds)].sort(), [...fixtureManifest.
   assert.doesNotMatch(protocolSource, /\b(?:document|window|localStorage)\b|import\.meta\.glob/);
 
   const engineStillNodePure = importSpecifiers('../src/engine.js');
-  assert.deepEqual(engineStillNodePure, ['./data.js', './run-lifecycle.js']);
+  assert.deepEqual(engineStillNodePure, ['./data.js']);
 
   for (const modulePath of [
     '../src/content.js', '../src/content-protocol.js',

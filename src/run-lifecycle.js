@@ -1,11 +1,7 @@
 // Node-pure run lifecycle coordination. Browser storage, in-memory simulator
 // storage, and failure-injection fixtures all arrive through explicit ports.
 import { RUN_ID_RE, TERMINAL_OUTCOMES } from './content-protocol.js';
-
-const RECEIPT_CACHE_KEYS = Object.freeze([
-  'vigilCommitted', 'vigilWon', 'vigilResult',
-  'runEndCommitted', 'runEndOutcome', 'runEndResult',
-]);
+import { advancedDawnSnapshot, applyPendingDawnSnapshot, pendingDawnSnapshot } from './engine.js';
 
 const validRunId = (id) => typeof id === 'string' && RUN_ID_RE.test(id);
 const copyEvents = (events) => Array.isArray(events)
@@ -33,36 +29,6 @@ export function buildDawnQueue(run, ledger, revealThreshold) {
     return !(event.t === 'questComplete' &&
       queue.slice(index + 1).some((later) => later.t === 'shardGrant' && later.id === event.id));
   });
-}
-
-export function pendingDawnSnapshot(run, events, newUnlocks = []) {
-  if (!run || typeof run !== 'object' || run?.pendingRunEnd?.outcome !== 'win' ||
-      run.pendingDawn != null || !validRunId(run.runId)) return null;
-  const pendingDawn = {
-    events: copyEvents(events),
-    cursor: 0,
-    newUnlocks: Array.isArray(newUnlocks) ? [...newUnlocks] : [],
-  };
-  const snapshot = { ...run, pendingRunEnd: null, pendingDawn };
-  for (const key of RECEIPT_CACHE_KEYS) delete snapshot[key];
-  return snapshot;
-}
-
-export function applyPendingDawnSnapshot(run, snapshot) {
-  run.pendingRunEnd = null;
-  run.pendingDawn = snapshot.pendingDawn;
-  for (const key of RECEIPT_CACHE_KEYS) delete run[key];
-}
-
-export function advancedDawnSnapshot(run, nextCursor) {
-  const pending = run?.pendingDawn;
-  if (!pending || !Array.isArray(pending.events) || !Number.isInteger(pending.cursor) ||
-      !Number.isInteger(nextCursor) || nextCursor !== pending.cursor + 1 ||
-      nextCursor > pending.events.length) return null;
-  return {
-    ...run,
-    pendingDawn: { ...pending, events: copyEvents(pending.events), cursor: nextCursor },
-  };
 }
 
 function resultWithAcceptance(terminal, accepted) {

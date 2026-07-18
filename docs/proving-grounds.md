@@ -77,6 +77,10 @@ npm run sim -- --mode cycle --cycles 1 --max-rounds 100 \
 Cycle mode rejects `--runs` and `--profile`; it always owns a fresh evolving
 Vigil. Round mode rejects `--cycles`, `--max-rounds`, and `--target`. Use
 `npm run sim -- --help` for current limits and the complete flag matrix.
+Cycle requests are also bounded by `cycles * maxRounds <= 100,000`. With the
+fixed 1,000-resample suffix method, that caps worst-case bootstrap sampling at
+100,000,000 whole-cycle draws. The CLI, dev endpoint, metadata, and browser
+form enforce the same budget before workers start.
 
 ## Reading schema 2
 

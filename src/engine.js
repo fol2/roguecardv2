@@ -1,6 +1,5 @@
 // SPIREBOUND engine — pure game logic, no DOM. UI consumes cb.queue for animation.
 import { PLAYER, ACTS, ASPECTS, VOWS, CARDS, CARD_POOLS, STATUS_INFO, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE, PROGRESSION, QUEST_IDS, WHISPERS, QUESTS, QUEST_STATES, QUEST_ACTIVE_STATES, TERMINAL_OUTCOMES, RUN_ID_RE, VARIANTS, SHADE_KITS, BOONS, DEEDS } from './data.js';
-import { advancedDawnSnapshot, applyPendingDawnSnapshot, pendingDawnSnapshot } from './run-lifecycle.js';
 
 
 // ---------------------------------------------------------------- run→content seam (Task 12B)
@@ -125,6 +124,44 @@ const legacyRunId = (run) =>
   `legacy-${(Number(run.seed) >>> 0).toString(36)}-${Math.max(0, Math.floor(Number(run.stats?.start) || 0)).toString(36)}`;
 const validRunId = (id) => typeof id === 'string' && RUN_ID_RE.test(id);
 const continuedTerminalRuns = new WeakSet();
+const RECEIPT_CACHE_KEYS = Object.freeze([
+  'vigilCommitted', 'vigilWon', 'vigilResult',
+  'runEndCommitted', 'runEndOutcome', 'runEndResult',
+]);
+
+const copyLifecycleEvents = (events) => Array.isArray(events)
+  ? events.map((event) => ({ ...event }))
+  : [];
+
+export function pendingDawnSnapshot(run, events, newUnlocks = []) {
+  if (!run || typeof run !== 'object' || run?.pendingRunEnd?.outcome !== 'win' ||
+      run.pendingDawn != null || !validRunId(run.runId)) return null;
+  const pendingDawn = {
+    events: copyLifecycleEvents(events),
+    cursor: 0,
+    newUnlocks: Array.isArray(newUnlocks) ? [...newUnlocks] : [],
+  };
+  const snapshot = { ...run, pendingRunEnd: null, pendingDawn };
+  for (const key of RECEIPT_CACHE_KEYS) delete snapshot[key];
+  return snapshot;
+}
+
+export function applyPendingDawnSnapshot(run, snapshot) {
+  run.pendingRunEnd = null;
+  run.pendingDawn = snapshot.pendingDawn;
+  for (const key of RECEIPT_CACHE_KEYS) delete run[key];
+}
+
+export function advancedDawnSnapshot(run, nextCursor) {
+  const pending = run?.pendingDawn;
+  if (!pending || !Array.isArray(pending.events) || !Number.isInteger(pending.cursor) ||
+      !Number.isInteger(nextCursor) || nextCursor !== pending.cursor + 1 ||
+      nextCursor > pending.events.length) return null;
+  return {
+    ...run,
+    pendingDawn: { ...pending, events: copyLifecycleEvents(pending.events), cursor: nextCursor },
+  };
+}
 
 export function savedRunRequiresFinalisation(run) {
   return TERMINAL_OUTCOMES.includes(run?.pendingRunEnd?.outcome) || run?.pendingDawn != null;

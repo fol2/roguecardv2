@@ -19,7 +19,10 @@ const METADATA = Object.freeze({
     cycles: 100, maxRounds: 100, profile: 'revealed', workers: 'auto',
     label: 'proving-grounds',
   },
-  limits: { maxRounds: 1000, runs: 1_000_000, cycles: 1_000_000, workers: 32 },
+  limits: {
+    maxRounds: 1000, runs: 1_000_000, cycles: 1_000_000, workers: 32,
+    cycleRounds: 100_000, suffixBootstrapDraws: 100_000_000,
+  },
   targets: ['page.take', 'shade.qualifying-fall', 'usurper.buy'],
   policies: [
     { id: 'random', modes: ['round'], knowledgeClass: 'baseline' },
@@ -68,6 +71,24 @@ async function openLab(page, names, onRun = null) {
   await expect(page.getByRole('heading', { name: 'Proving Grounds' })).toBeVisible();
 }
 
+test('real simulation endpoint rejects work and count limits consistently', async ({ request }) => {
+  const metadataResponse = await request.get('/__sim-metadata');
+  expect(metadataResponse.ok()).toBe(true);
+  const metadata = await metadataResponse.json();
+  expect(metadata.limits).toMatchObject(METADATA.limits);
+
+  for (const data of [
+    { mode: 'round', runs: metadata.limits.runs + 1, policy: 'greedy', profile: 'revealed' },
+    { mode: 'cycle', cycles: metadata.limits.cycles + 1, maxRounds: 1, policy: 'progression' },
+    { mode: 'cycle', cycles: 101, maxRounds: 1000, policy: 'progression' },
+    { mode: 'round', runs: 1, policy: 'greedy', profile: 'revealed', workers: metadata.limits.workers + 1 },
+  ]) {
+    const response = await request.post('/__sim-run', { data });
+    expect(response.status()).toBe(400);
+    expect((await response.json()).problems.length).toBeGreaterThan(0);
+  }
+});
+
 test('schema 2 cycle evidence renders and replacing it with schema 1 falls back to Headline', async ({ page }) => {
   await openLab(page, ['schema-2-progression.json', 'schema-1-round.json']);
 
@@ -89,8 +110,17 @@ test('schema 2 cycle evidence renders and replacing it with schema 1 falls back 
   await expect(page.getByRole('tab', { name: 'Cycle / Progress' })).toHaveCount(0);
 });
 
-test('all-censored coverage opens trigger-first, excludes Compare, and copies explicit-target repro by keyboard', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test('all-censored coverage opens trigger-first, excludes Compare, and copies explicit-target repro by keyboard', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__simCopiedText = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async (text) => { window.__simCopiedText = text; },
+        readText: async () => window.__simCopiedText,
+      },
+    });
+  });
   await openLab(page, ['schema-2-coverage-censored.json', 'schema-2-progression.json']);
 
   await expect(page.getByRole('tab', { name: 'Cycle / Progress' })).toHaveAttribute('aria-selected', 'true');
@@ -111,7 +141,7 @@ test('all-censored coverage opens trigger-first, excludes Compare, and copies ex
   await copy.focus();
   await page.keyboard.press('Enter');
   await expect(copy).toHaveText('Copied');
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain(
+  await expect.poll(() => page.evaluate(() => window.__simCopiedText)).toContain(
     '--mode cycle --cycles 1 --max-rounds 3 --policy coverage --target usurper.buy',
   );
 });
@@ -120,6 +150,10 @@ test('mode and policy controls expose Target only for coverage and submit an exp
   let submitted = null;
   await openLab(page, ['schema-2-progression.json'], (payload) => { submitted = payload; });
   const form = page.getByRole('form', { name: 'Run simulation' });
+
+  await expect(form.locator('[name="runs"]')).toHaveValue(String(METADATA.defaults.runs));
+  await expect(form.locator('[name="profile"]')).toHaveValue(METADATA.defaults.profile);
+  await expect(form.locator('[name="label"]')).toHaveValue(METADATA.defaults.label);
 
   await page.getByLabel('Simulation mode').selectOption('cycle');
   await expect(form.locator('[name="cycles"]')).toBeVisible();
@@ -134,6 +168,11 @@ test('mode and policy controls expose Target only for coverage and submit an exp
   await form.getByRole('button', { name: 'Run simulation' }).click();
   expect(await form.locator('[name="cycles"]').evaluate((input) => input.checkValidity())).toBe(false);
   expect(await form.locator('[name="maxRounds"]').evaluate((input) => input.checkValidity())).toBe(false);
+  expect(submitted).toBeNull();
+  await form.locator('[name="cycles"]').fill('101');
+  await form.locator('[name="maxRounds"]').fill('1000');
+  await form.getByRole('button', { name: 'Run simulation' }).click();
+  expect(await form.locator('[name="cycles"]').evaluate((input) => input.checkValidity())).toBe(false);
   expect(submitted).toBeNull();
   await form.locator('[name="cycles"]').fill('1');
   await form.locator('[name="maxRounds"]').fill('3');
