@@ -570,7 +570,7 @@ export function assertIntegrationRegressionContracts() {
   assert.equal(missedHollow.triggerFunnels['hollow.reachable'].succeeded, 1,
     'Hollow denominator fixture must expose a reachable Unlit choice');
   assert.deepEqual(missedHollow.triggerFunnels['hollow.entered'], {
-    eligible: 2, attempted: 2, succeeded: 0, missed: 2,
+    eligible: 2, attempted: 0, succeeded: 0, missed: 2,
     reasons: { 'unlit-not-chosen': 2 },
   }, 'every reachable Unlit choice that is not selected must remain in the Hollow entry denominator');
   assert.equal(missedHollow.triggerEvents.find(({ triggerId }) =>

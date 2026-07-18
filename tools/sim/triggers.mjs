@@ -32,7 +32,7 @@ const definitions = [
   ['page.read', 'round', CHOSEN, ['dawn'], increased, 'round', ['fall', 'page-not-held']],
   ['hollow.due', 'round', AUTO, [], present, 'round', ['not-due', 'debt-active', 'quest-inactive']],
   ['hollow.reachable', 'round', AUTO, [], present, 'round', ['no-unlit-route']],
-  ['hollow.entered', 'hollow-meeting', AUTO, [], truthy, 'round:hollow', ['unlit-not-chosen', 'meeting-cap']],
+  ['hollow.entered', 'hollow-meeting', CHOSEN, ['enter'], truthy, 'round:hollow', ['unlit-not-chosen', 'meeting-cap']],
   ['hollow.paid', 'hollow-meeting', CHOSEN, ['pay'], truthy, 'round:hollow', ['left-unpaid', 'price-unaffordable', 'payment-rejected']],
   ['hollow.progressed', 'hollow-meeting', CHOSEN, ['pay'], increased, 'round:hollow', ['deferred-ember-debt', 'left-unpaid', 'price-unaffordable', 'payment-rejected']],
   ['shard.threshold', 'quest-completion', AUTO, [], increased, 'round:terminal', ['threshold-not-crossed', 'terminal-rejected']],

@@ -429,7 +429,8 @@ export function playRun(seed, makePolicy, config = {}) {
         : null;
       if (hollowUnit) observe('hollow.entered', {
         unitId: hollowUnit, phase: 'hollow',
-        before: { eligible: true, value: false }, intent: { automatic: true },
+        before: { eligible: true, value: false },
+        intent: { action: selectedUnlit ? 'enter' : 'skip' },
         after: {
           value: !!hollow,
           ...(hollow ? {} : { reason: selectedUnlit ? 'meeting-cap' : 'unlit-not-chosen' }),
