@@ -5,25 +5,29 @@ const fixture = (name) => JSON.parse(readFileSync(
   new URL(`./fixtures/sim/${name}.json`, import.meta.url), 'utf8',
 ));
 
+function progressionRoundFixture(label, winRate = null) {
+  const report = structuredClone(fixture('schema-1-round'));
+  report.meta.label = label;
+  report.meta.config.policy = 'progression';
+  report.policies.progression = report.policies.greedy;
+  delete report.policies.greedy;
+  report.policies.progression.meta = {
+    ...report.policies.progression.meta,
+    mode: 'round', policyId: 'progression', policyVersion: 1,
+    knowledgeClass: 'player-visible',
+    interpretation: {
+      id: 'goal-directed-machine', label: 'Goal-directed machine-policy evidence',
+      balanceEligible: true,
+    },
+  };
+  if (winRate != null) report.policies.progression.headline.winRate = winRate;
+  return report;
+}
+
 const REPORTS = Object.freeze({
   'schema-1-round.json': fixture('schema-1-round'),
-  'schema-1-progression-round.json': (() => {
-    const report = structuredClone(fixture('schema-1-round'));
-    report.meta.label = 'Schema 1 Progression Round fixture';
-    report.meta.config.policy = 'progression';
-    report.policies.progression = report.policies.greedy;
-    delete report.policies.greedy;
-    report.policies.progression.meta = {
-      ...report.policies.progression.meta,
-      mode: 'round', policyId: 'progression', policyVersion: 1,
-      knowledgeClass: 'player-visible',
-      interpretation: {
-        id: 'goal-directed-machine', label: 'Goal-directed machine-policy evidence',
-        balanceEligible: true,
-      },
-    };
-    return report;
-  })(),
+  'schema-1-progression-round.json': progressionRoundFixture('Schema 1 Progression Round fixture'),
+  'schema-1-progression-round-b.json': progressionRoundFixture('Schema 1 Progression Round B fixture', 0.5),
   'schema-2-progression.json': fixture('schema-2-progression'),
   'schema-2-coverage-censored.json': fixture('schema-2-coverage-censored'),
 });
@@ -132,6 +136,15 @@ test('Round progression is labelled as machine-policy evidence, not player telem
   await expect(page.getByText('Goal-directed machine-policy evidence').first()).toBeVisible();
   await expect(page.getByText('This is not observed player win-rate proof.')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Machine-policy signals' })).toBeVisible();
+});
+
+test('Compare derives a shared Progressive Round policy from compatible reports', async ({ page }) => {
+  await openLab(page, ['schema-1-progression-round.json', 'schema-1-progression-round-b.json']);
+  await page.getByRole('tab', { name: 'Compare' }).click();
+
+  await expect(page.locator('#pg-compare-policy')).toHaveValue('progression');
+  await expect(page.getByRole('heading', { name: 'A/B balance glass' })).toBeVisible();
+  await expect(page.getByText('Policy provenance differs')).toHaveCount(0);
 });
 
 test('all-censored coverage opens trigger-first, excludes Compare, and copies explicit-target repro by keyboard', async ({ page }) => {

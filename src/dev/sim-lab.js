@@ -532,6 +532,16 @@ function compareOptions(selected) {
   return state.reports.map((r) => `<option value="${esc(r.name)}"${r.name === selected ? ' selected' : ''}>${esc(r.label || r.name)}</option>`).join('');
 }
 
+function sharedComparePolicies(reportA, reportB) {
+  const shared = Object.keys(reportA?.policies || {}).filter((id) => reportB?.policies?.[id]);
+  const order = new Map((state.metadata?.policies || []).map((item, index) => [item.id, index]));
+  return shared.sort((left, right) => {
+    const leftIndex = order.get(left) ?? Number.MAX_SAFE_INTEGER;
+    const rightIndex = order.get(right) ?? Number.MAX_SAFE_INTEGER;
+    return leftIndex - rightIndex || left.localeCompare(right);
+  });
+}
+
 function compareCardRows(sectionA, sectionB) {
   const cardsA = sectionA.cards || {}, cardsB = sectionB.cards || {};
   const ids = [...new Set([...Object.keys(cardsA), ...Object.keys(cardsB)])];
@@ -562,7 +572,8 @@ function renderCompare() {
   if (reportSchema(reportA) !== reportSchema(reportB) || reportMode(reportA) !== reportMode(reportB)) {
     return '<div class="pg-neutral"><div><strong>Incompatible populations</strong>Compare requires the same report schema and mode; Round and Full Cycle evidence is never subtracted.</div></div>';
   }
-  if (!reportA.policies?.[state.comparePolicy] || !reportB.policies?.[state.comparePolicy]) {
+  const sharedPolicies = sharedComparePolicies(reportA, reportB);
+  if (!sharedPolicies.includes(state.comparePolicy)) {
     return '<div class="pg-neutral"><div><strong>Policy provenance differs</strong>Select a policy present in both reports.</div></div>';
   }
   const a = sectionFor(reportA, state.comparePolicy); const b = sectionFor(reportB, state.comparePolicy);
@@ -598,7 +609,7 @@ function renderCompare() {
   return `<div class="pg-grid"><section class="pg-card wide"><h3>A/B balance glass</h3><div class="pg-compare-controls">
     <label class="pg-field">Report A<select id="pg-compare-a">${compareOptions(state.compareA)}</select></label>
     <label class="pg-field">Report B<select id="pg-compare-b">${compareOptions(state.compareB)}</select></label>
-    <label class="pg-field">Policy<select id="pg-compare-policy">${['greedy','random'].map((p)=>`<option${p===state.comparePolicy?' selected':''}>${p}</option>`).join('')}</select></label>
+    <label class="pg-field">Policy<select id="pg-compare-policy">${sharedPolicies.map((policy) => `<option value="${esc(policy)}"${policy === state.comparePolicy ? ' selected' : ''}>${esc(policy)}</option>`).join('')}</select></label>
   </div><div class="pg-table-wrap"><table class="pg-table"><thead><tr><th>Measure</th><th>A</th><th>B</th><th>Δ B − A</th></tr></thead><tbody>${rows.map(([label,av,bv,d,format])=>`<tr><td>${esc(label)}</td><td>${esc(av)}</td><td>${esc(bv)}</td><td>${deltaCell(d,format)}</td></tr>`).join('')}</tbody></table></div></section>
   <section class="pg-card wide"><h3>Card deltas</h3><div class="pg-table-wrap"><table class="pg-table"><thead><tr><th>Card</th><th>Pick A</th><th>Pick B</th><th>Δ pick</th><th>Win A</th><th>Win B</th><th>Δ win</th></tr></thead><tbody>${cardRows.map((row) => `<tr><td>${esc(row.id)}</td><td>${pct(row.pickA)}</td><td>${pct(row.pickB)}</td><td>${deltaCell(row.pickDelta)}</td><td>${row.winA == null ? '—' : pct(row.winA)}</td><td>${row.winB == null ? '—' : pct(row.winB)}</td><td>${row.winDelta == null ? '<span class="pg-muted">—</span>' : deltaCell(row.winDelta)}</td></tr>`).join('')}</tbody></table></div></section>
   <section class="pg-card wide"><h3>Death deltas by act and floor</h3><div class="pg-table-wrap"><table class="pg-table"><thead><tr><th>Cell</th><th>Deaths A</th><th>Deaths B</th><th>Δ deaths</th></tr></thead><tbody>${deathRows.map((row) => `<tr><td>${esc(row.label)}</td><td>${count(row.a)}</td><td>${count(row.b)}</td><td>${deltaCell(row.delta, (value) => `${finite(value) >= 0 ? '+' : ''}${count(value)}`)}</td></tr>`).join('')}</tbody></table></div></section>
@@ -643,6 +654,8 @@ async function ensureCompareReports() {
   await Promise.all([state.compareA, state.compareB].map(async (file) => {
     if (!state.cache.has(file)) state.cache.set(file, await json(`/__sim-report?f=${encodeURIComponent(file)}`));
   }));
+  const sharedPolicies = sharedComparePolicies(state.cache.get(state.compareA), state.cache.get(state.compareB));
+  if (!sharedPolicies.includes(state.comparePolicy)) state.comparePolicy = sharedPolicies[0] || null;
 }
 
 async function refreshReports({ loadLatest = false } = {}) {
