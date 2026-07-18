@@ -12,6 +12,8 @@
     "release:build": "SPIRE_RELEASE=1 vite build",
     "preview": "vite preview",
     "test": "node test/test_engine.js",
+    "sim": "node tools/sim/runner.mjs",
+    "sim:smoke": "node tools/sim/runner.mjs --smoke",
     "test:round5:standing": "node tools/run-round5-standing-gates.mjs",
     "test:progression": "node tools/emberglass-pacing.mjs",
     "test:fonts": "node tools/verify-round5-fonts.mjs --check",
