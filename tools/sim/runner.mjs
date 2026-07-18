@@ -12,6 +12,8 @@ import { finalise, merge, serialise } from './telemetry.mjs';
 
 const POLICY_VALUES = Object.freeze(['random', 'greedy']);
 const PROFILE_VALUES = Object.freeze(['revealed', 'fresh']);
+const SMOKE_RUNS = 300;
+const SMOKE_SEED = 1;
 const REPORT_DIR = resolve('.sim-reports');
 const STATUS_PATH = resolve(REPORT_DIR, '.status.json');
 const STATUS_TMP_PATH = resolve(REPORT_DIR, '.status.json.tmp');
@@ -26,7 +28,7 @@ const usage = `Usage: npm run sim -- [options]
   --workers auto|N         Concurrent worker threads (default auto)
   --label NAME             Report filename label
   --out PATH               Explicit report path
-  --smoke                  300 runs, both policies, both profiles
+  --smoke                  Fixed-seed assert gate: 300 runs/policy/profile
 `;
 
 const integer = (name, value, { min = 0 } = {}) => {
@@ -72,9 +74,10 @@ export function parseArgs(args) {
     if (!hit) throw new TypeError(`unknown option: ${arg}`);
   }
   if (out.smoke) {
-    out.runs = 300;
+    out.runs = SMOKE_RUNS;
     out.policy = 'both';
     out.profile = 'both';
+    out.seed = SMOKE_SEED;
     out.label = out.label === 'proving-grounds' ? 'smoke' : out.label;
   }
   out.runs = integer('--runs', out.runs, { min: 1 });
@@ -279,6 +282,11 @@ async function main() {
   try {
     config = parseArgs(process.argv.slice(2));
     if (config.help) { process.stdout.write(usage); return; }
+    if (config.smoke) {
+      const { runSmoke } = await import('./smoke.mjs');
+      process.stdout.write(`${JSON.stringify({ smoke: 'passed', ...runSmoke(config) })}\n`);
+      return;
+    }
     const { report, output } = await runSimulation(config);
     const summary = Object.fromEntries(Object.entries(report.policies).map(([policy, section]) => [policy, {
       runs: section.meta.runs,
