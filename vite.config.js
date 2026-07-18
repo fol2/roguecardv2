@@ -1,8 +1,8 @@
 import { defineConfig } from "vite";
-import { readdirSync, writeFileSync, renameSync, readFileSync, unlinkSync } from "node:fs";
-import { resolve } from "node:path";
+import { readdirSync, writeFileSync, renameSync, readFileSync, unlinkSync, statSync } from "node:fs";
+import { basename, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 
 const BF_SAVE_PORT = 5174;
 // Vite Host header gate for loading the page over Tailscale / LAN.
@@ -20,6 +20,10 @@ const WARD_PARAMS_PATH = resolve("src/ward-params.js");
 const WARD_PARAMS_TMP = `${WARD_PARAMS_PATH}.tmp`;
 const AUDIO_SELECTION_PATH = resolve("public/audio-selection.json");
 const AUDIO_SELECTION_TMP = `${AUDIO_SELECTION_PATH}.tmp`;
+const SIM_REPORT_DIR = resolve(".sim-reports");
+const SIM_STATUS_PATH = resolve(SIM_REPORT_DIR, ".status.json");
+const SIM_LABEL_RE = /^[A-Za-z0-9._-]+$/;
+const SIM_RUN_LIMIT = 1_000_000;
 
 function readAudioInventory(baseVersions) {
   const roots = {
@@ -80,12 +84,179 @@ function readJsonBody(req, res, limit = 1_048_576) {
   });
 }
 
+function sendJson(res, statusCode, payload) {
+  res.statusCode = statusCode;
+  res.setHeader("content-type", "application/json");
+  res.setHeader("cache-control", "no-store");
+  res.end(JSON.stringify(payload));
+}
+
+function readSimStatus() {
+  try {
+    const status = JSON.parse(readFileSync(SIM_STATUS_PATH, "utf8"));
+    return status && typeof status === "object" && !Array.isArray(status)
+      ? status
+      : { running: false };
+  } catch {
+    return { running: false };
+  }
+}
+
+function processAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function reportSummary(name) {
+  const path = resolve(SIM_REPORT_DIR, name);
+  const report = JSON.parse(readFileSync(path, "utf8"));
+  const section = report.policies?.greedy
+    || Object.values(report.policies || {})[0]
+    || report;
+  const stat = statSync(path);
+  return {
+    name,
+    mtime: stat.mtime.toISOString(),
+    size: stat.size,
+    label: report.meta?.label || name.replace(/\.json$/, ""),
+    runs: report.meta?.runs ?? section.meta?.runs ?? 0,
+    winRate: section.headline?.winRate ?? null,
+  };
+}
+
+function validateSimRunBody(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { problems: ["body must be an object"] };
+  }
+  const allowed = new Set(["runs", "seed", "policy", "profile", "workers", "label"]);
+  const problems = Object.keys(value)
+    .filter((key) => !allowed.has(key))
+    .map((key) => `unexpected field: ${key}`);
+  const positiveInt = (name, input, fallback, max) => {
+    if (input == null) return fallback;
+    if (!Number.isSafeInteger(input) || input < 1) {
+      problems.push(`${name}: need a positive integer`);
+      return fallback;
+    }
+    return Math.min(input, max);
+  };
+  const runs = positiveInt("runs", value.runs, 10_000, SIM_RUN_LIMIT);
+  const seed = value.seed == null ? 1 : value.seed;
+  if (!Number.isSafeInteger(seed) || seed < 0) problems.push("seed: need a non-negative integer");
+  const policy = value.policy ?? "greedy";
+  if (!["random", "greedy", "both"].includes(policy)) problems.push("policy: invalid value");
+  const profile = value.profile ?? "revealed";
+  if (!["revealed", "fresh", "both"].includes(profile)) problems.push("profile: invalid value");
+  let workers = value.workers ?? "auto";
+  if (workers !== "auto") workers = positiveInt("workers", workers, 1, 32);
+  const label = value.label ?? "proving-grounds";
+  if (typeof label !== "string" || !SIM_LABEL_RE.test(label)) {
+    problems.push("label: use only letters, numbers, dot, underscore, or hyphen");
+  }
+  return { problems, config: { runs, seed, policy, profile, workers, label } };
+}
+
 // dev-only battlefield editor save endpoint (?bfedit=1 → POST /__bf-save)
 function bfSavePlugin() {
   return {
     name: "bf-save",
     apply: "serve",
     configureServer(server) {
+      let activeSimPid = null;
+
+      server.middlewares.use("/__sim-reports", (req, res) => {
+        if (req.method !== "GET") return sendJson(res, 405, { ok: false, problems: ["method not allowed"] });
+        try {
+          const reports = readdirSync(SIM_REPORT_DIR, { withFileTypes: true })
+            .filter((entry) => entry.isFile() && entry.name.endsWith(".json") && entry.name !== ".status.json")
+            .flatMap((entry) => {
+              try { return [reportSummary(entry.name)]; } catch { return []; }
+            })
+            .sort((a, b) => b.mtime.localeCompare(a.mtime));
+          return sendJson(res, 200, reports);
+        } catch {
+          return sendJson(res, 200, []);
+        }
+      });
+
+      server.middlewares.use("/__sim-report", (req, res) => {
+        if (req.method !== "GET") return sendJson(res, 405, { ok: false, problems: ["method not allowed"] });
+        const name = new URL(req.url || "/", "http://sim.local").searchParams.get("f") || "";
+        if (!name || basename(name) !== name || !name.endsWith(".json") || name === ".status.json") {
+          return sendJson(res, 400, { ok: false, problems: ["invalid report name"] });
+        }
+        try {
+          res.statusCode = 200;
+          res.setHeader("content-type", "application/json");
+          res.setHeader("cache-control", "no-store");
+          return res.end(readFileSync(resolve(SIM_REPORT_DIR, name)));
+        } catch {
+          return sendJson(res, 404, { ok: false, problems: ["report not found"] });
+        }
+      });
+
+      server.middlewares.use("/__sim-status", (req, res) => {
+        if (req.method !== "GET") return sendJson(res, 405, { ok: false, problems: ["method not allowed"] });
+        const status = readSimStatus();
+        if (status.running && !processAlive(status.pid)) {
+          return sendJson(res, 200, {
+            ...status,
+            running: false,
+            error: status.error || "runner process is no longer alive",
+          });
+        }
+        if (!status.running && processAlive(activeSimPid)) {
+          return sendJson(res, 200, { running: true, pid: activeSimPid, done: 0, total: null });
+        }
+        return sendJson(res, 200, status);
+      });
+
+      server.middlewares.use("/__sim-run", async (req, res) => {
+        if (req.method !== "POST") return sendJson(res, 405, { ok: false, problems: ["method not allowed"] });
+        if (!bfSaveOriginOk(req)) return sendJson(res, 403, { ok: false, problems: ["forbidden origin"] });
+        const body = await readJsonBody(req, res, 65_536);
+        if (body == null) return;
+        let payload;
+        try { payload = JSON.parse(body); } catch {
+          return sendJson(res, 400, { ok: false, problems: ["invalid JSON"] });
+        }
+        const { problems, config } = validateSimRunBody(payload);
+        if (problems.length) return sendJson(res, 400, { ok: false, problems });
+        const status = readSimStatus();
+        if (processAlive(activeSimPid) || (status.running && processAlive(status.pid))) {
+          return sendJson(res, 409, { ok: false, problems: ["simulation already running"] });
+        }
+        const args = [
+          resolve("tools/sim/runner.mjs"),
+          "--runs", String(config.runs),
+          "--seed", String(config.seed),
+          "--policy", config.policy,
+          "--profile", config.profile,
+          "--workers", String(config.workers),
+          "--label", config.label,
+        ];
+        try {
+          const child = spawn(process.execPath, args, {
+            cwd: resolve("."),
+            detached: true,
+            shell: false,
+            stdio: "ignore",
+          });
+          activeSimPid = child.pid;
+          child.once("exit", () => { if (activeSimPid === child.pid) activeSimPid = null; });
+          child.unref();
+          return sendJson(res, 202, { ok: true, pid: child.pid, config });
+        } catch (error) {
+          activeSimPid = null;
+          return sendJson(res, 500, { ok: false, problems: [String(error?.message ?? error)] });
+        }
+      });
+
       server.middlewares.use("/audio-selection.json", (req, res, next) => {
         res.setHeader("cache-control", "no-store");
         next();
