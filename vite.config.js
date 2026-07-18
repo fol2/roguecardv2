@@ -199,6 +199,7 @@ function bfSavePlugin() {
     apply: "serve",
     configureServer(server) {
       let activeSimPid = null;
+      let activeSimConfig = null;
 
       server.middlewares.use("/__sim-metadata", (req, res) => {
         if (req.method !== "GET") return sendJson(res, 405, { ok: false, problems: ["method not allowed"] });
@@ -247,7 +248,21 @@ function bfSavePlugin() {
           });
         }
         if (!status.running && processAlive(activeSimPid)) {
-          return sendJson(res, 200, { running: true, pid: activeSimPid, done: 0, total: null });
+          const cycle = activeSimConfig?.mode === "cycle";
+          return sendJson(res, 200, {
+            running: true,
+            pid: activeSimPid,
+            done: 0,
+            total: cycle ? activeSimConfig.cycles : null,
+            config: activeSimConfig,
+            ...(cycle ? {
+              roundsPlayed: 0,
+              promisesStaged: 0,
+              censoredCycles: 0,
+              failedCycles: 0,
+              currentTarget: activeSimConfig.target,
+            } : {}),
+          });
         }
         return sendJson(res, 200, status);
       });
@@ -289,11 +304,17 @@ function bfSavePlugin() {
             stdio: "ignore",
           });
           activeSimPid = child.pid;
-          child.once("exit", () => { if (activeSimPid === child.pid) activeSimPid = null; });
+          activeSimConfig = { ...config };
+          child.once("exit", () => {
+            if (activeSimPid !== child.pid) return;
+            activeSimPid = null;
+            activeSimConfig = null;
+          });
           child.unref();
           return sendJson(res, 202, { ok: true, pid: child.pid, config });
         } catch (error) {
           activeSimPid = null;
+          activeSimConfig = null;
           return sendJson(res, 500, { ok: false, problems: [String(error?.message ?? error)] });
         }
       });
