@@ -12,12 +12,13 @@ release artefacts or player telemetry.
 ## Exact lifecycle definitions
 
 A **Round** is one canonical Climb from Embark through playable Acts I–III. It
-ends in exactly one Run Outcome: Dawn, Fall, or simulator error. `Round` is a
+ends at Dawn or Fall, the two Run Outcomes reachable by the walker. A simulator
+error is a separate failed-Round status, not a Run Outcome. `Round` is a
 reporting alias only; it does not rename the Climb domain or appear in player
 copy. Act indices remain `0..2`. There is no playable Act IV map or fight.
 
 A **Full Cycle** is an ordered sequence of Rounds sharing one isolated Vigil.
-It always starts from a fresh profile and ends at the first of:
+It always starts from a fresh Vigil and ends at the first of:
 
 - the `act4Reveal` sealed-door promise being durably staged to a specific
   Round/run id: `completed`;
@@ -48,6 +49,10 @@ Progression receives only a disclosed goal id and its current visible
 eligibility. Coverage may receive an explicit trigger target, but it receives
 no future random values. Neither policy writes Vigil state; the walker and
 canonical terminal coordinator own all state transitions.
+
+In independent Round mode, `progression` with the `revealed` profile starts
+with all six quest identities disclosed and rotates the active quest objective
+by seed. The `fresh` profile exposes no undisclosed quest identity.
 
 ## Commands
 

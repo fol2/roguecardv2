@@ -7,6 +7,23 @@ const fixture = (name) => JSON.parse(readFileSync(
 
 const REPORTS = Object.freeze({
   'schema-1-round.json': fixture('schema-1-round'),
+  'schema-1-progression-round.json': (() => {
+    const report = structuredClone(fixture('schema-1-round'));
+    report.meta.label = 'Schema 1 Progression Round fixture';
+    report.meta.config.policy = 'progression';
+    report.policies.progression = report.policies.greedy;
+    delete report.policies.greedy;
+    report.policies.progression.meta = {
+      ...report.policies.progression.meta,
+      mode: 'round', policyId: 'progression', policyVersion: 1,
+      knowledgeClass: 'player-visible',
+      interpretation: {
+        id: 'goal-directed-machine', label: 'Goal-directed machine-policy evidence',
+        balanceEligible: true,
+      },
+    };
+    return report;
+  })(),
   'schema-2-progression.json': fixture('schema-2-progression'),
   'schema-2-coverage-censored.json': fixture('schema-2-coverage-censored'),
 });
@@ -108,6 +125,13 @@ test('schema 2 cycle evidence renders and replacing it with schema 1 falls back 
   await expect(page.getByRole('tab', { name: 'Headline' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('heading', { name: 'Run verdict' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Cycle / Progress' })).toHaveCount(0);
+});
+
+test('Round progression is labelled as machine-policy evidence, not player telemetry', async ({ page }) => {
+  await openLab(page, ['schema-1-progression-round.json']);
+  await expect(page.getByText('Goal-directed machine-policy evidence').first()).toBeVisible();
+  await expect(page.getByText('This is not observed player win-rate proof.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Machine-policy signals' })).toBeVisible();
 });
 
 test('all-censored coverage opens trigger-first, excludes Compare, and copies explicit-target repro by keyboard', async ({ page }) => {

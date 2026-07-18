@@ -585,5 +585,10 @@ export function makeWalkerPolicyFactory(definition, options = {}) {
   if (!['baseline', 'player-visible', 'coverage-only'].includes(definition.knowledgeClass)) {
     throw new TypeError(`unknown knowledge class: ${definition.knowledgeClass}`);
   }
-  return (rng) => adapterFor(definition, definition.factory(rng, options), options);
+  return (rng, context = {}) => {
+    const resolved = options.objectiveForRun && options.objective == null
+      ? { ...options, objective: options.objectiveForRun(context.run, context) }
+      : options;
+    return adapterFor(definition, definition.factory(rng, resolved), resolved);
+  };
 }

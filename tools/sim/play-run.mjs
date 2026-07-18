@@ -36,7 +36,10 @@ import {
   journalTerminalOutcome, markShadeFall, questRecord, runRevealed, runRng,
   sealedSummitShardThreshold, MAP_ROWS,
 } from '../../src/engine.js';
-import { ASPECTS, VOWS, ARTS, BOONS, CARDS, EVENTS, PROGRESSION, QUEST_ACTIVE_STATES } from '../../src/data.js';
+import {
+  ASPECTS, VOWS, ARTS, BOONS, CARDS, EVENTS, PROGRESSION,
+  QUEST_ACTIVE_STATES, QUEST_IDS,
+} from '../../src/data.js';
 import { _setStore, loadVigil, revealSnapshot, bequestOptions, setBequest } from '../../src/vigil.js';
 import { TRIGGER_CATALOGUE_VERSION, createTriggerObserver } from './triggers.mjs';
 
@@ -92,6 +95,16 @@ function freshReveals() {
   return freshRevealsCache;
 }
 
+function disclosedQuestSnapshot() {
+  return Object.fromEntries(QUEST_IDS.map((id) => [id, {
+    state: 'revealed', progress: 0,
+    memory: id === 'eighthOmen' ? { seen: true }
+      : id === 'hollowLamplighter'
+        ? { eligibleMisses: PROGRESSION.emberglass.hollowLamplighter.pityEligibleRuns - 1 }
+        : {},
+  }]));
+}
+
 const errMsg = (err) => String((err && err.message) || err);
 const issueStack = (err) => typeof err?.stack === 'string'
   ? err.stack.trim().slice(0, STACK_LIMIT)
@@ -103,7 +116,7 @@ export function playRun(seed, makePolicy, config = {}) {
   const round = config.round || null;
   const start = round?.start || config.runOptions || null;
   const cell = { ...cellForSeed(seed), ...(round?.cell || {}) };
-  const policy = makePolicy(mulberry32(seed ^ POLICY_RNG_SALT));
+  let policy = null;
   const triggerObserver = createTriggerObserver({
     policy: config.policyId || round?.policyId || 'unknown',
     cycleSeed: config.cycleSeed ?? round?.cycleSeed ?? seed,
@@ -165,6 +178,9 @@ export function playRun(seed, makePolicy, config = {}) {
     run = newRun(seed, legacy ? {
       aspect: cell.aspect, vow: cell.vow, ephemeral: true,
       reveals: profile === 'fresh' ? freshReveals() : null,
+      quests: config.purposefulQuests && profile === 'revealed'
+        ? disclosedQuestSnapshot()
+        : undefined,
       monument: cell.monument ? { act: 0, row: 5, bequest: { kind: 'gold', amount: 40 } } : null,
     } : {
       ...start,
@@ -172,6 +188,7 @@ export function playRun(seed, makePolicy, config = {}) {
       vow: start.vow ?? cell.vow,
       ephemeral: start.ephemeral ?? !round?.terminal,
     });
+    policy = makePolicy(mulberry32(seed ^ POLICY_RNG_SALT), { run, seed, profile });
     if (legacy) applyBoon(run, cell.boon); // legacy PR31 cell compatibility
 
     if (run.pendingLamplighter) {

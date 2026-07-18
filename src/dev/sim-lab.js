@@ -374,8 +374,12 @@ function renderHeadline(section) {
     </section><section class="pg-card wide"><h3>Endpoint</h3><p>Completion means the durable <b>Act IV promise</b> was staged to a specific Round/run id. It does not mean an Act IV victory.</p></section></div>`;
   }
   const h = section.headline || {};
+  const interpretation = section.meta?.interpretation ||
+    policyDefinition(state.policy)?.reportInterpretation || {};
+  const goalDirected = interpretation.id === 'goal-directed-machine';
   return `<div class="pg-grid">
-    <section class="pg-card wide"><div style="display:flex;justify-content:space-between;gap:12px;align-items:end"><h3>Run verdict</h3>${policyPicker()}</div>
+    <section class="pg-card wide">${goalDirected ? `<span class="pg-badge">Machine-policy evidence</span>
+      <p class="pg-interpretation">${esc(interpretation.label)}. This is not observed player win-rate proof.</p>` : ''}<div style="display:flex;justify-content:space-between;gap:12px;align-items:end"><h3>Run verdict</h3>${policyPicker()}</div>
       <div class="pg-metrics">${metric('Wins', count(h.wins))}${metric('Win rate', pct(h.winRate), `95% CI ${pct(h.wilson95?.[0])}–${pct(h.wilson95?.[1])}`)}${metric('Avg floors', finite(h.avgFloorsReached).toFixed(2))}${metric('Issues', count(section.issues?.total), section.issues?.total ? 'reproducible seeds captured' : 'no engine or invariant issues')}</div>
       ${flagsBanner(section)}
     </section>
@@ -383,7 +387,7 @@ function renderHeadline(section) {
     <section class="pg-card"><h3>Vow confidence</h3>${wilsonBars(h.byVow)}</section>
     <section class="pg-card"><h3>Act reach funnel</h3>${funnel(h.actReach || [])}</section>
     <section class="pg-card"><h3>Aspect × vow stained glass</h3>${aspectVowMatrix(h.byAspectVow)}</section>
-    <section class="pg-card wide"><h3>Balance signals</h3>${(section.flags || []).length ? `<div class="pg-flags">${section.flags.map((flag) => `<div class="pg-flag"><b>${esc(flag.kind)}</b> · ${esc(flag.message || flag.id || '')}</div>`).join('')}</div>` : '<div class="pg-muted">No automatic thresholds fired.</div>'}</section>
+    <section class="pg-card wide"><h3>${goalDirected ? 'Machine-policy signals' : 'Balance signals'}</h3>${(section.flags || []).length ? `<div class="pg-flags">${section.flags.map((flag) => `<div class="pg-flag"><b>${esc(flag.kind)}</b> · ${esc(flag.message || flag.id || '')}</div>`).join('')}</div>` : '<div class="pg-muted">No automatic thresholds fired.</div>'}</section>
   </div>`;
 }
 

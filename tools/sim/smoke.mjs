@@ -32,7 +32,7 @@ import {
   isRevealed,
   revealSnapshot,
 } from '../../src/vigil.js';
-import { objectiveForVigil, playCycle } from './play-cycle.mjs';
+import { objectiveForRoundRun, objectiveForVigil, playCycle } from './play-cycle.mjs';
 import { playRun } from './play-run.mjs';
 import { makeWalkerPolicyFactory } from './policy-adapter.mjs';
 import { createObservation } from './policies/observation.mjs';
@@ -494,6 +494,26 @@ export function assertIntegrationRegressionContracts() {
   assert.deepEqual(objectiveForVigil(disclosedVigil, 'page.read', 'coverage-only'), {
     targetId: 'page.take', currentEligibility: true,
   }, 'coverage must pursue Page acquisition before its requested summit read target');
+  const revealedRunState = {
+    quests: Object.fromEntries(QUEST_IDS.map((id) => [id, {
+      state: 'revealed', progress: 0, memory: {},
+    }])),
+    lastFall: null,
+  };
+  assert.deepEqual(new Set(Array.from({ length: QUEST_IDS.length }, (_, seed) =>
+    objectiveForRoundRun(revealedRunState, seed)?.targetId)), new Set([
+    'pale.kill', 'shade.qualifying-fall', 'usurper.buy',
+    'eighth.final-attempt', 'page.take', 'hollow.paid',
+  ]), 'Round progression must rotate through every disclosed quest objective');
+  const roundProgressionFactory = makeWalkerPolicyFactory(progressionDefinition, {
+    objectiveForRun: (run, { seed }) =>
+      objectiveForRoundRun(run, seed, progressionDefinition.knowledgeClass),
+  });
+  const pageRound = playRun(4, roundProgressionFactory, {
+    profile: 'revealed', policyId: 'progression', purposefulQuests: true,
+  });
+  assert.equal(pageRound.triggerFunnels['page.take'].succeeded, 1,
+    'Round progression must execute its disclosed Page objective through live flow');
   assert.throws(() => createObservation({
     phase: 'node', state: {}, knowledgeClass: 'player-visible',
     objective: { ...objective, priority: 1 },
@@ -573,6 +593,7 @@ const cycleRound = (ordinal, outcome, options = {}) => ({
     issues: options.issues || [],
     triggerCatalogueVersion: TRIGGER_CATALOGUE_VERSION,
     triggerFunnels: options.triggerFunnels || {},
+    triggerEvents: options.triggerEvents || [],
   },
   vigilAfter: options.vigilAfter || {
     shards: [], act4Promise: { status: 'locked' }, lastFall: null,
@@ -681,7 +702,15 @@ export function assertCycleTelemetryContract() {
         eligible: 1, attempted: 0, succeeded: 0, missed: 1,
         reasons: { 'insufficient-gold': 1 },
       },
-    } } },
+    }, triggerEvents: [{
+      triggerId: 'usurper.buy', phase: 'shop', missed: 1,
+      reason: 'insufficient-gold',
+      repro: {
+        policy: 'coverage', cycleSeed: 76, roundOrdinal: 1, runSeed: 10_001,
+        phase: 'shop', triggerId: 'usurper.buy', reason: 'insufficient-gold',
+        targetId: 'usurper.buy',
+      },
+    }] } },
   });
 
   const cycles = [ae1, censored, failed, early, shadeAndDelayed, usurper];
@@ -765,6 +794,11 @@ export function assertCycleTelemetryContract() {
     kind === 'target-missed' && triggerId === 'usurper.buy' &&
     reproduction?.command.includes('--target usurper.buy')),
   'failed explicit coverage targets must retain target-specific reproduction');
+  assert.ok(directReport.issues.some(({ kind, reproduction }) =>
+    kind === 'target-missed' && reproduction?.roundOrdinal === 1 &&
+    reproduction?.runSeed === 10_001 && reproduction?.phase === 'shop' &&
+    reproduction?.reason === 'insufficient-gold'),
+  'failed explicit targets must reproduce the Round and phase of an observed miss');
 
   const allCensored = finaliseCycles(reduceCycle(newCycleAggregate(meta), censored));
   assert.equal(allCensored.completion.rates.completion, 0, 'AE7 completion rate is zero');
@@ -1171,6 +1205,15 @@ function assertRunnerIntegration() {
     assert.equal(report.policies.progression.completion.counts.started, 2);
     return report;
   };
+  const runRoundProgression = () => {
+    const output = join(root, 'round-progression.json');
+    execFileSync(process.execPath, [runnerPath,
+      '--mode', 'round', '--runs', '2', '--policy', 'progression',
+      '--profile', 'revealed', '--seed', '4', '--workers', '1',
+      '--label', 'round-progression-smoke', '--out', output,
+    ], { cwd: root, stdio: 'pipe' });
+    return JSON.parse(readFileSync(output, 'utf8'));
+  };
   try {
     const runnerUrl = pathToFileURL(runnerPath).href;
     const parserSource = `
@@ -1207,6 +1250,21 @@ function assertRunnerIntegration() {
     assert.equal(stableReport(cycleSerial, serialiseCycles),
       stableReport(cycleParallel, serialiseCycles),
     'cycle runner reports must be byte-stable independent of worker count');
+
+    const roundProgression = runRoundProgression();
+    assert.deepEqual(roundProgression.policies.progression.meta, {
+      interpretation: {
+        balanceEligible: true,
+        id: 'goal-directed-machine',
+        label: 'Goal-directed machine-policy evidence',
+      },
+      knowledgeClass: 'player-visible',
+      mode: 'round',
+      policyId: 'progression',
+      policyVersion: 1,
+      runs: 2,
+      schema: 1,
+    }, 'Round reports must retain machine-policy provenance and interpretation');
 
     const concurrentSource = `
       const { spawn } = require('node:child_process');

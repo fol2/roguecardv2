@@ -98,12 +98,32 @@ function targetEligibility(vigil, targetId) {
   return questId ? questVisibleActive(vigil, questId) : false;
 }
 
-export function objectiveForVigil(vigil, explicitTargetId = null, knowledgeClass = 'player-visible') {
-  const visibleObjective = (targetId, currentEligibility) => Object.freeze({
+function visibleObjective(targetId, currentEligibility, knowledgeClass) {
+  return Object.freeze({
     targetId,
     currentEligibility,
     ...(knowledgeClass === 'player-visible' ? { disclosed: true } : {}),
   });
+}
+
+export function objectiveForRoundRun(run, seed, knowledgeClass = 'player-visible') {
+  requireSeed(seed);
+  if (run?.lastFall?.standing === true && questVisibleActive(run, 'ownShade')) {
+    return visibleObjective('shade.duel', true, knowledgeClass);
+  }
+  const hollow = run?.quests?.hollowLamplighter;
+  if (hollow?.state === 'revealed' && hollow.memory?.emberDebt > 0) {
+    return visibleObjective('hollow.progressed', true, knowledgeClass);
+  }
+  const candidates = QUEST_IDS
+    .filter((id) => questVisibleActive(run, id))
+    .map((id) => QUEST_TARGETS[id]);
+  if (!candidates.length) return null;
+  const targetId = candidates[seed % candidates.length];
+  return visibleObjective(targetId, targetEligibility(run, targetId), knowledgeClass);
+}
+
+export function objectiveForVigil(vigil, explicitTargetId = null, knowledgeClass = 'player-visible') {
   if (explicitTargetId) {
     let strategyTargetId = explicitTargetId;
     if (knowledgeClass === 'coverage-only') {
@@ -118,22 +138,22 @@ export function objectiveForVigil(vigil, explicitTargetId = null, knowledgeClass
         strategyTargetId = 'usurper.buy';
       }
     }
-    return visibleObjective(strategyTargetId, targetEligibility(vigil, strategyTargetId));
+    return visibleObjective(strategyTargetId, targetEligibility(vigil, strategyTargetId), knowledgeClass);
   }
   if (vigil?.act4Promise?.status === 'pending') return Object.freeze({
-    ...visibleObjective(PROMISE_TARGET, true),
+    ...visibleObjective(PROMISE_TARGET, true, knowledgeClass),
   });
   if (vigil?.lastFall?.standing === true && questVisibleActive(vigil, 'ownShade')) {
-    return visibleObjective('shade.duel', true);
+    return visibleObjective('shade.duel', true, knowledgeClass);
   }
   const hollow = vigil?.quests?.hollowLamplighter;
   if (hollow?.state === 'revealed' && hollow.memory?.emberDebt > 0) {
-    return visibleObjective('hollow.progressed', true);
+    return visibleObjective('hollow.progressed', true, knowledgeClass);
   }
   for (const id of QUEST_IDS) {
     if (!questVisibleActive(vigil, id)) continue;
     const targetId = QUEST_TARGETS[id];
-    return visibleObjective(targetId, targetEligibility(vigil, targetId));
+    return visibleObjective(targetId, targetEligibility(vigil, targetId), knowledgeClass);
   }
   return null;
 }

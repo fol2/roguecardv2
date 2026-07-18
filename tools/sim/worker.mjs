@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import { playCycle } from './play-cycle.mjs';
+import { objectiveForRoundRun, playCycle } from './play-cycle.mjs';
 import { playRun } from './play-run.mjs';
 import { newCycleAggregate, reduceCycle } from './cycle-telemetry.mjs';
 import { makeWalkerPolicyFactory } from './policy-adapter.mjs';
@@ -54,12 +54,22 @@ function runRoundTask(task) {
   const definition = getPolicyDefinition(task.policy);
   if (!definition) throw new TypeError(`unknown policy: ${task.policy}`);
   if (!definition.modes.includes('round')) throw new TypeError(`policy ${task.policy} does not support round mode`);
-  const makePolicy = makeWalkerPolicyFactory(definition);
+  const makePolicy = makeWalkerPolicyFactory(definition, task.policy === 'progression' ? {
+    objectiveForRun: (run, { seed }) => objectiveForRoundRun(run, seed, definition.knowledgeClass),
+  } : {});
 
-  const aggregate = newAggregate({ policy: task.policy });
+  const aggregate = newAggregate({
+    mode: 'round', policyId: task.policy, policyVersion: definition.version,
+    knowledgeClass: definition.knowledgeClass,
+    interpretation: definition.reportInterpretation,
+  });
   let pendingProgress = 0;
   for (let offset = 0; offset < task.runs; offset++) {
-    reduceRecord(aggregate, playRun(task.startSeed + offset, makePolicy, { profile: task.profile }));
+    reduceRecord(aggregate, playRun(task.startSeed + offset, makePolicy, {
+      profile: task.profile,
+      policyId: task.policy,
+      purposefulQuests: task.policy === 'progression',
+    }));
     pendingProgress++;
     if (pendingProgress === 250) {
       parentPort.postMessage({ type: 'progress', delta: { completed: pendingProgress } });

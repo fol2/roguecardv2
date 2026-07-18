@@ -267,14 +267,22 @@ function targetMissIssue(cycle) {
   const funnel = cycleFunnel(cycle, cycle.targetId);
   if (funnel.succeeded > 0) return null;
   const reasons = Object.keys(funnel.reasons).sort(cmpStr);
-  const round = cycle.rounds.at(-1);
-  const reason = reasons[0] || 'not-observed';
+  let observedMiss = null;
+  for (const round of cycle.rounds) {
+    const event = (round.record?.triggerEvents || []).find(({ triggerId, missed }) =>
+      triggerId === cycle.targetId && missed === 1);
+    if (event) { observedMiss = { round, event }; break; }
+  }
+  const round = observedMiss?.round || cycle.rounds.at(-1);
+  const reason = observedMiss?.event?.reason || reasons[0] || 'not-observed';
+  const phase = observedMiss?.event?.phase || 'terminal';
   const reproduction = normaliseReproduction(cycle, round, {
-    phase: 'terminal', triggerId: cycle.targetId, reason, targetId: cycle.targetId,
+    ...(observedMiss?.event?.repro || {}),
+    phase, triggerId: cycle.targetId, reason, targetId: cycle.targetId,
   });
   return {
     kind: 'target-missed',
-    phase: 'terminal',
+    phase,
     message: `Coverage target '${cycle.targetId}' did not succeed (${reason})`,
     stack: null,
     triggerId: cycle.targetId,
