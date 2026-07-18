@@ -73,6 +73,8 @@ assert.equal(
 );
 assert.equal(packageJson.scripts['content:compile'], 'node tools/compile-content-registrations.mjs');
 assert.equal(packageJson.scripts['test:content-registrations'], 'node tools/compile-content-registrations.mjs --check');
+assert.equal(packageJson.scripts['sim:smoke'], 'node tools/sim/runner.mjs --smoke',
+  'the Proving Grounds smoke gate must stay on runner assert mode');
 assert.equal(
   packageJson.scripts['test:e2e:webkit'],
   'playwright test stage trace --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-lab && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-screens',
@@ -85,6 +87,61 @@ assert.equal(
   packageJson.scripts['test:e2e:update'],
   'playwright test visual --update-snapshots --project=desktop --project=portrait --project=landscape --workers=1 --no-deps',
 );
+
+const ciWorkflowSource = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+const unitJobStart = ciWorkflowSource.indexOf('\n  unit_tests:');
+const unitJobEnd = ciWorkflowSource.indexOf('\n  build_dist:', unitJobStart);
+assert.notEqual(unitJobStart, -1, 'CI must retain the unit_tests job');
+assert.notEqual(unitJobEnd, -1, 'CI must retain build_dist after unit_tests');
+const unitJobSource = ciWorkflowSource.slice(unitJobStart, unitJobEnd);
+const engineTestStep = unitJobSource.indexOf('- run: npm test');
+const simSmokeStep = unitJobSource.indexOf('- run: npm run sim:smoke');
+assert.notEqual(engineTestStep, -1, 'unit_tests must run the engine self-check');
+assert.ok(simSmokeStep > engineTestStep,
+  'unit_tests must run sim:smoke after npm test');
+
+const simRoot = new URL('../tools/sim/', import.meta.url);
+const readSimModules = (directory, prefix = '') => readdirSync(directory, { withFileTypes: true })
+  .flatMap((entry) => {
+    if (entry.isDirectory()) return readSimModules(new URL(`${entry.name}/`, directory), `${prefix}${entry.name}/`);
+    if (!entry.name.endsWith('.mjs')) return [];
+    const url = new URL(entry.name, directory);
+    return [{ name: `${prefix}${entry.name}`, url, source: readFileSync(url, 'utf8') }];
+  });
+const allImportSpecifiers = (source) => [
+  ...source.matchAll(/^\s*import\s+(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]\s*;?/gm),
+  ...source.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g),
+].map((match) => match[1]);
+const allowedSimSrcImports = new Set([
+  new URL('../src/engine.js', import.meta.url).href,
+  new URL('../src/data.js', import.meta.url).href,
+  new URL('../src/vigil.js', import.meta.url).href,
+]);
+for (const module of readSimModules(simRoot)) {
+  assert.doesNotMatch(module.source, /\bMath\.random\s*\(/,
+    `tools/sim/${module.name} must use seeded RNG, never Math.random`);
+  for (const specifier of allImportSpecifiers(module.source)) {
+    if (specifier.startsWith('node:')) continue;
+    assert.ok(specifier.startsWith('.'),
+      `tools/sim/${module.name} may import only Node built-ins, sim siblings, or engine/data/vigil`);
+    const target = new URL(specifier, module.url).href;
+    assert.ok(target.startsWith(simRoot.href) || allowedSimSrcImports.has(target),
+      `tools/sim/${module.name} import is outside the Node-safe whitelist: ${specifier}`);
+  }
+}
+
+const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+const simLabSource = readFileSync(new URL('../src/dev/sim-lab.js', import.meta.url), 'utf8');
+const simLabRefs = [...mainSource.matchAll(/['"]\.\/dev\/sim-lab\.js['"]/g)];
+assert.equal(simLabRefs.length, 1,
+  'main.js must reference the Proving Grounds page exactly once');
+assert.match(
+  sourceBlock(mainSource, "if (import.meta.env.DEV && qs.has('sim'))"),
+  /await import\(['"]\.\/dev\/sim-lab\.js['"]\)/,
+  'the Proving Grounds page must stay lazy-loaded inside its DEV-only main.js branch',
+);
+assert.doesNotMatch(simLabSource, /from\s+['"]\.\.\/(?:engine|data|vigil|ui|stage|audio|music)\.js['"]/,
+  'the report lab must consume endpoint JSON rather than importing game owners');
 
 for (const modulePath of [
   '../src/registry.js', '../src/content-registration.js',
