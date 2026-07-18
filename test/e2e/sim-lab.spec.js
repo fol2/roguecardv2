@@ -143,7 +143,10 @@ test('Compare derives a shared Progressive Round policy from compatible reports'
   await page.getByRole('tab', { name: 'Compare' }).click();
 
   await expect(page.locator('#pg-compare-policy')).toHaveValue('progression');
-  await expect(page.getByRole('heading', { name: 'A/B balance glass' })).toBeVisible();
+  const compareCard = page.getByRole('heading', { name: 'A/B balance glass' }).locator('..');
+  await expect(compareCard).toBeVisible();
+  await expect(compareCard.getByText('Goal-directed machine-policy evidence')).toBeVisible();
+  await expect(compareCard.getByText('Not observed player win-rate proof.')).toBeVisible();
   await expect(page.getByText('Policy provenance differs')).toHaveCount(0);
 });
 

@@ -606,7 +606,10 @@ function renderCompare() {
     ['Energy waste / turn', finite(ae.energyWastePerTurn).toFixed(2), finite(be.energyWastePerTurn).toFixed(2), be.energyWastePerTurn - ae.energyWastePerTurn, (n)=>`${finite(n)>=0?'+':''}${finite(n).toFixed(2)}`],
     ['Issues', count(a.section.issues?.total), count(b.section.issues?.total), finite(b.section.issues?.total)-finite(a.section.issues?.total), (n)=>`${finite(n)>=0?'+':''}${count(n)}`],
   ];
-  return `<div class="pg-grid"><section class="pg-card wide"><h3>A/B balance glass</h3><div class="pg-compare-controls">
+  const interpretation = aInterpretation?.id === 'goal-directed-machine'
+    ? `<span class="pg-badge">${esc(aInterpretation.label || 'Goal-directed machine-policy evidence')}</span><p class="pg-interpretation">Not observed player win-rate proof.</p>`
+    : '';
+  return `<div class="pg-grid"><section class="pg-card wide">${interpretation}<h3>A/B balance glass</h3><div class="pg-compare-controls">
     <label class="pg-field">Report A<select id="pg-compare-a">${compareOptions(state.compareA)}</select></label>
     <label class="pg-field">Report B<select id="pg-compare-b">${compareOptions(state.compareB)}</select></label>
     <label class="pg-field">Policy<select id="pg-compare-policy">${sharedPolicies.map((policy) => `<option value="${esc(policy)}"${policy === state.comparePolicy ? ' selected' : ''}>${esc(policy)}</option>`).join('')}</select></label>

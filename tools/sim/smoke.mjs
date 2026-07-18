@@ -558,6 +558,24 @@ export function assertIntegrationRegressionContracts() {
     eligible: 1, attempted: 1, succeeded: 0, missed: 1,
     reasons: { 'page-not-held': 1 },
   }, 'an eligible Dawn without the Page must retain the page-not-held miss reason');
+
+  const missedHollow = playRun(69, makeWalkerPolicyFactory(getPolicyDefinition('greedy')), {
+    policyId: 'greedy',
+    round: { start: { ephemeral: true, quests: {
+      hollowLamplighter: {
+        state: 'revealed', progress: 0, memory: { eligibleMisses: 2 },
+      },
+    } } },
+  });
+  assert.equal(missedHollow.triggerFunnels['hollow.reachable'].succeeded, 1,
+    'Hollow denominator fixture must expose a reachable Unlit choice');
+  assert.deepEqual(missedHollow.triggerFunnels['hollow.entered'], {
+    eligible: 2, attempted: 2, succeeded: 0, missed: 2,
+    reasons: { 'unlit-not-chosen': 2 },
+  }, 'every reachable Unlit choice that is not selected must remain in the Hollow entry denominator');
+  assert.equal(missedHollow.triggerEvents.find(({ triggerId }) =>
+    triggerId === 'hollow.entered')?.repro?.run?.runId, 'run-sim-1x-1',
+  'standalone Round trigger evidence must retain a seed-derived reproducible run id');
 }
 
 export function assertCoveragePrerequisiteCanary() {

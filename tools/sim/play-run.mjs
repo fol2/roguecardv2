@@ -175,8 +175,10 @@ export function playRun(seed, makePolicy, config = {}) {
   });
   try {
     const legacy = !start;
+    const simulationRunId = `run-sim-${(seed >>> 0).toString(36)}-${Math.max(1, config.roundOrdinal ?? round?.ordinal ?? 1).toString(36)}`;
     run = newRun(seed, legacy ? {
       aspect: cell.aspect, vow: cell.vow, ephemeral: true,
+      runId: config.runId || simulationRunId,
       reveals: profile === 'fresh' ? freshReveals() : null,
       quests: config.purposefulQuests && profile === 'revealed'
         ? disclosedQuestSnapshot()
@@ -184,6 +186,7 @@ export function playRun(seed, makePolicy, config = {}) {
       monument: cell.monument ? { act: 0, row: 5, bequest: { kind: 'gold', amount: 40 } } : null,
     } : {
       ...start,
+      runId: start.runId || config.runId || simulationRunId,
       aspect: start.aspect ?? cell.aspect,
       vow: start.vow ?? cell.vow,
       ephemeral: start.ephemeral ?? !round?.terminal,
@@ -403,23 +406,36 @@ export function playRun(seed, makePolicy, config = {}) {
       phase = 'node';
       const options = availableNodes(run);
       if (!options.length) { issue('invariant', 'node', 'no available nodes'); rec.outcome = 'error'; break; }
-      if (hollowScratch?.due && options.some((candidate) => candidate.unlit)) hollowReachable = true;
+      const hollowOptions = hollowScratch?.due
+        ? options.filter((candidate) => candidate.unlit)
+        : [];
+      if (hollowOptions.length) hollowReachable = true;
       let node = ask('node', 'pickNode', () => policy.pickNode(ctxOf(run), options));
       if (node === THREW) node = options[0];
       else if (!options.includes(node)) {
         issue('policy-illegal', 'node', 'pickNode: node not on offer');
         node = options[0];
       }
+      const selectedUnlit = node.unlit === true;
       const hiddenBefore = run.questScratch?.paleOnes?.hiddenRemaining || 0;
       let { type, hollow } = visitNode(run, node);
       let routedEnemyIds = null;
       let routedEventId = null;
+      const hollowOpportunity = hollowOptions.length
+        ? (selectedUnlit ? node : hollowOptions[0])
+        : null;
+      const hollowUnit = hollowOpportunity
+        ? `act:${run.act}:node:${hollowOpportunity.id}`
+        : null;
+      if (hollowUnit) observe('hollow.entered', {
+        unitId: hollowUnit, phase: 'hollow',
+        before: { eligible: true, value: false }, intent: { automatic: true },
+        after: {
+          value: !!hollow,
+          ...(hollow ? {} : { reason: selectedUnlit ? 'meeting-cap' : 'unlit-not-chosen' }),
+        },
+      });
       if (hollow) {
-        const hollowUnit = `act:${run.act}:node:${node.id}`;
-        observe('hollow.entered', {
-          unitId: hollowUnit, phase: 'hollow',
-          before: { eligible: true, value: false }, intent: { automatic: true }, after: { value: !!run.pendingHollow },
-        });
         const progressBefore = questRecord(run, 'hollowLamplighter')?.progress || 0;
         let decision = ask('hollow', 'hollowDecision', () => policy.hollowDecision(ctxOf(run), run.pendingHollow));
         if (decision === THREW || !['pay', 'leave'].includes(decision?.kind)) {
