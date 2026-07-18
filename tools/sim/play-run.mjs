@@ -25,8 +25,8 @@ import {
   canPlay, playCard, canKindle, kindleFromHand, canUseArt, useArt, usePotion,
   endTurn, genCombatRewards, addCardToDeck, gainPotion, gainRelic,
   rollBossRelics, genMap, healPlayer, upgradeCardInDeck, removeCardFromDeck,
-  removableCards, rollEvent, applyEventOps, genShop, randomRelic,
-  claimMonument, cardPool,
+  removableCards, rollEvent, rollEventCards, applyEventOps, genShop, randomRelic,
+  claimMonument, MAP_ROWS,
 } from '../../src/engine.js';
 import { ASPECTS, VOWS, BOONS, CARDS, EVENTS } from '../../src/data.js';
 import { _setStore, loadVigil, revealSnapshot } from '../../src/vigil.js';
@@ -35,6 +35,8 @@ const NODE_GUARD = 400; // node loop cap (mirrors randomAgentRun)
 const TURN_GUARD = 200; // combat turn cap
 const ACTION_GUARD = 40; // policy actions per turn cap
 const POLICY_RNG_SALT = 0x51ab; // KTD7: the policy stream, distinct from runRng
+const STACK_LIMIT = 8_192;
+const BOON_IDS = Object.keys(BOONS);
 
 export function mulberry32(seed) {
   return () => {
@@ -49,11 +51,10 @@ export function mulberry32(seed) {
 // `--runs 1 --seed K` replays the exact cell of the original run (R3).
 // vow is a 0..VOWS.length level, 0 = none.
 export function cellForSeed(seed) {
-  const boonIds = Object.keys(BOONS);
   return {
     aspect: seed % ASPECTS.length,
     vow: Math.floor(seed / ASPECTS.length) % (VOWS.length + 1),
-    boon: boonIds[seed % boonIds.length],
+    boon: BOON_IDS[seed % BOON_IDS.length],
     monument: seed % 4 === 0,
   };
 }
@@ -72,10 +73,9 @@ function freshReveals() {
 }
 
 const errMsg = (err) => String((err && err.message) || err);
-const firstStackLine = (err) =>
-  typeof err?.stack === 'string'
-    ? (err.stack.split('\n').find((l) => l.trim().startsWith('at ')) || '').trim()
-    : '';
+const issueStack = (err) => typeof err?.stack === 'string'
+  ? err.stack.trim().slice(0, STACK_LIMIT)
+  : '';
 
 export function playRun(seed, makePolicy, config = {}) {
   const profile = config.profile || 'revealed';
@@ -204,7 +204,7 @@ export function playRun(seed, makePolicy, config = {}) {
       if (p === 'remove') desc = { op: 'remove', options: run.player.deck.length > 1 ? removableCards(run) : [] };
       else if (p === 'upgrade') desc = { op: 'upgrade', options: run.player.deck.filter((c) => !c.up && CARDS[c.id].up) };
       else if (p === 'duplicate') desc = { op: 'duplicate', options: [...run.player.deck] };
-      else if (p && p.pickCard) desc = { op: 'pickCard', n: p.pickCard, options: cardPool(run, 'common') };
+      else if (p && p.pickCard) desc = { op: 'pickCard', n: p.pickCard, options: rollEventCards(run, p.pickCard) };
       if (!desc) return;
       if (!desc.options.length) { evRec.pending.push({ op: desc.op, resolved: null }); return; }
       let pick = ask('event', `eventPending(${desc.op})`, () => policy.eventPending(ctxOf(run), desc));
@@ -355,12 +355,12 @@ export function playRun(seed, makePolicy, config = {}) {
       rec.outcome = 'error';
     }
   } catch (err) {
-    issue('engine-error', phase, errMsg(err), firstStackLine(err));
+    issue('engine-error', phase, errMsg(err), issueStack(err));
     rec.outcome = 'error';
   }
   if (run) {
     rec.actReached = run.act;
-    rec.floorsReached = run.floorsClimbed;
+    rec.floorsReached = run.act * MAP_ROWS + run.floorsClimbed;
     rec.deck = run.player.deck.map((c) => ({ id: c.id, up: !!c.up }));
     rec.relics = [...run.player.relics];
     rec.potions = run.player.potions.filter(Boolean);

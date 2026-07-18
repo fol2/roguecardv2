@@ -145,12 +145,11 @@ export const RELIC_VALUES = Object.freeze(Object.fromEntries(
   Object.entries(RELICS).map(([id, d]) => [id, RELIC_OVERRIDES[id] ?? (8 + rarityValue(d.rarity))]),
 ));
 
-function valueOfCard(cardOrId, run, upgraded = null) {
+function valueOfCard(cardOrId, run) {
   if (typeof cardOrId === 'string') {
     const base = CARDS[cardOrId];
     if (!base) return -100;
-    const d = upgraded && base.up ? { ...base, ...base.up } : base;
-    return staticCardValueFromData(d);
+    return staticCardValueFromData(base);
   }
   return staticCardValueFromData(cardData(cardOrId, run));
 }
@@ -367,8 +366,10 @@ export function makePolicy(rng) {
   return {
     pickNode(ctx, nodes) {
       // Map ties are deliberately spatial, not random: leftmost column first.
-      return nodes.slice().sort((a, b) => nodeScore(ctx, b) - nodeScore(ctx, a)
-        || (a.col ?? 0) - (b.col ?? 0) || compareText(String(a.id), String(b.id)))[0];
+      return nodes.map((node) => ({ node, score: nodeScore(ctx, node) }))
+        .sort((a, b) => b.score - a.score
+          || (a.node.col ?? 0) - (b.node.col ?? 0)
+          || compareText(String(a.node.id), String(b.node.id)))[0].node;
     },
 
     combatAction(ctx, cb) {
@@ -464,8 +465,10 @@ export function makePolicy(rng) {
         if (freePotionSlots > 0 && buy(item)) freePotionSlots--;
       }
       const floor = draftFloor(ctx.run);
-      for (const item of shop.cards.slice().sort((a, b) => valueOfCard(b.id, ctx.run) - valueOfCard(a.id, ctx.run) || a.price - b.price)) {
-        if (valueOfCard(item.id, ctx.run) >= floor) buy(item);
+      const cards = shop.cards.map((item) => ({ item, value: valueOfCard(item.id, ctx.run) }))
+        .sort((a, b) => b.value - a.value || a.item.price - b.item.price);
+      for (const { item, value } of cards) {
+        if (value >= floor) buy(item);
       }
       return plan;
     },

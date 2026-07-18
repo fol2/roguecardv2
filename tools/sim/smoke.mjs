@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { MAP_ROWS } from '../../src/engine.js';
 import { POOL_GATE } from '../../src/data.js';
 import { playRun } from './play-run.mjs';
 import { makePolicy as makeGreedyPolicy } from './policies/greedy.mjs';
@@ -142,6 +148,104 @@ function assertFreshOffersStayCore(matrix) {
   }
 }
 
+function assertRunRecordParity(matrix) {
+  const records = Object.values(matrix).flatMap((profiles) => Object.values(profiles).flat());
+  const laterActRecords = records.filter((record) => record.actReached > 0);
+  assert.ok(laterActRecords.length > 0, 'smoke fixture must reach a later act');
+  for (const record of laterActRecords) {
+    assert.ok(record.floorsReached >= record.actReached * MAP_ROWS,
+      `seed ${record.seed} must retain completed-act floors`);
+  }
+
+  let eventOffer = null;
+  const capturingPolicy = (rng) => {
+    const base = makeRandomPolicy(rng);
+    return {
+      ...base,
+      eventPending(ctx, pending) {
+        if (pending.op === 'pickCard' && !eventOffer) eventOffer = [...pending.options];
+        return base.eventPending(ctx, pending);
+      },
+    };
+  };
+  for (let seed = 1; seed <= 600 && !eventOffer; seed++) {
+    playRun(seed, capturingPolicy, { profile: 'fresh' });
+  }
+  assert.equal(eventOffer?.length, 5, 'event card choice must use the live five-card offer');
+  assert.equal(new Set(eventOffer).size, eventOffer.length, 'event card choice must not contain duplicates');
+  assert.deepEqual(eventOffer.filter((id) => POOL_GATE.cards[id]), [],
+    'fresh event card choice must stay unlock-aware');
+
+  const stackPolicy = (rng) => {
+    const base = makeRandomPolicy(rng);
+    let injected = false;
+    return {
+      ...base,
+      combatAction(ctx, cb) {
+        if (injected) return base.combatAction(ctx, cb);
+        injected = true;
+        return Object.defineProperty({}, 'kind', {
+          get() { throw new Error('__smoke_stack_probe__'); },
+        });
+      },
+    };
+  };
+  const stackRecord = playRun(7, stackPolicy, { profile: 'revealed' });
+  const stackIssue = stackRecord.issues.find((issue) => issue.message === '__smoke_stack_probe__');
+  assert.ok(stackIssue?.stack?.includes('\n'), 'retained engine issue must include the full multi-line stack');
+}
+
+function stableReport(report) {
+  const copy = structuredClone(report);
+  delete copy.meta.date;
+  delete copy.meta.durationMs;
+  delete copy.meta.workers;
+  delete copy.meta.config.workers;
+  return serialise(copy);
+}
+
+function assertRunnerIntegration() {
+  const root = mkdtempSync(join(tmpdir(), 'glassvow-sim-smoke-'));
+  const runnerPath = fileURLToPath(new URL('./runner.mjs', import.meta.url));
+  const statusPath = join(root, '.sim-reports', '.status.json');
+  const run = (workers, filename) => {
+    const output = join(root, filename);
+    execFileSync(process.execPath, [runnerPath,
+      '--runs', '8', '--policy', 'both', '--profile', 'both', '--seed', '31',
+      '--workers', String(workers), '--label', 'runner-smoke', '--out', output,
+    ], { cwd: root, stdio: 'pipe' });
+    const report = JSON.parse(readFileSync(output, 'utf8'));
+    const status = JSON.parse(readFileSync(statusPath, 'utf8'));
+    assert.equal(status.running, false, `workers=${workers} status must be terminal`);
+    assert.equal(status.done, status.total, `workers=${workers} status must reach done === total`);
+    return report;
+  };
+  try {
+    const serial = run(1, 'serial.json');
+    const parallel = run(4, 'parallel.json');
+    assert.equal(stableReport(serial), stableReport(parallel),
+      'runner report aggregates must be independent of worker count');
+    assert.deepEqual(readdirSync(root).filter((name) => name.endsWith('.tmp')), [],
+      'runner must not leave a report publication temp file');
+
+    const runnerUrl = pathToFileURL(runnerPath).href;
+    const faultSource = `(async () => {
+      const { runSimulation } = await import(${JSON.stringify(runnerUrl)});
+      try {
+        await runSimulation({ runs: 2, policy: '__smoke_fault__', profile: 'revealed', seed: 1, workers: 2, label: 'fault', out: null });
+        process.exitCode = 2;
+      } catch {}
+    })();`;
+    execFileSync(process.execPath, ['--eval', faultSource], { cwd: root, stdio: 'pipe' });
+    const failedStatus = JSON.parse(readFileSync(statusPath, 'utf8'));
+    assert.equal(failedStatus.running, false, 'worker rejection must leave terminal status');
+    assert.match(String(failedStatus.error), /unknown policy/,
+      `worker rejection must retain its failure reason: ${failedStatus.error}`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
 export function runSmoke({ runs = SMOKE_RUNS, seed = SMOKE_SEED } = {}) {
   assert.equal(runs, SMOKE_RUNS, `smoke must run exactly ${SMOKE_RUNS} seeds per policy/profile`);
   assert.equal(seed, SMOKE_SEED, `smoke seed must stay fixed at ${SMOKE_SEED}`);
@@ -151,6 +255,8 @@ export function runSmoke({ runs = SMOKE_RUNS, seed = SMOKE_SEED } = {}) {
   assertDeterminism(seed);
   assertFaultProbe(seed);
   assertFreshOffersStayCore(matrix);
+  assertRunRecordParity(matrix);
+  assertRunnerIntegration();
 
   return {
     seed,

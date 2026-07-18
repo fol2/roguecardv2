@@ -144,43 +144,63 @@ function gitMeta() {
   }
 }
 
-function runWorker(task, onProgress) {
+function runWorker(task, onProgress, activeWorkers, poolState) {
   return new Promise((resolveWorker, rejectWorker) => {
     const worker = new Worker(new URL('./worker.mjs', import.meta.url), { type: 'module', workerData: task });
+    activeWorkers.add(worker);
     let settled = false;
+    const resolveOnce = (value) => {
+      if (settled) return;
+      settled = true;
+      activeWorkers.delete(worker);
+      resolveWorker(value);
+    };
+    const rejectOnce = (error) => {
+      if (settled) return;
+      settled = true;
+      poolState.failed = true;
+      activeWorkers.delete(worker);
+      rejectWorker(error);
+    };
     worker.on('message', (message) => {
-      if (message?.type === 'progress') onProgress(message.delta);
+      if (message?.type === 'progress') {
+        if (!poolState.failed) onProgress(message.delta);
+      }
       else if (message?.type === 'result') {
-        settled = true;
-        resolveWorker({ task, partial: message.partial });
+        resolveOnce({ task, partial: message.partial });
       } else if (message?.type === 'worker-error') {
-        settled = true;
         const error = new Error(message.message);
         if (message.stack) error.stack = message.stack;
-        rejectWorker(error);
+        rejectOnce(error);
       }
     });
-    worker.on('error', (error) => {
-      if (!settled) rejectWorker(error);
-    });
+    worker.on('error', rejectOnce);
     worker.on('exit', (code) => {
-      if (!settled && code !== 0) rejectWorker(new Error(`worker exited with code ${code}`));
-      else if (!settled) rejectWorker(new Error('worker exited without a result'));
+      if (!settled && code !== 0) rejectOnce(new Error(`worker exited with code ${code}`));
+      else if (!settled) rejectOnce(new Error('worker exited without a result'));
     });
   });
 }
 
 async function runPool(tasks, concurrency, onProgress) {
   const results = [];
+  const activeWorkers = new Set();
+  const poolState = { failed: false };
   let cursor = 0;
   async function lane() {
-    while (cursor < tasks.length) {
+    while (!poolState.failed && cursor < tasks.length) {
       const index = cursor++;
-      results[index] = await runWorker(tasks[index], onProgress);
+      results[index] = await runWorker(tasks[index], onProgress, activeWorkers, poolState);
     }
   }
-  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, lane));
-  return results;
+  try {
+    await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, lane));
+    return results;
+  } catch (error) {
+    poolState.failed = true;
+    await Promise.allSettled([...activeWorkers].map((worker) => worker.terminate()));
+    throw error;
+  }
 }
 
 function outputPath(config, startedAt) {
@@ -191,6 +211,16 @@ function outputPath(config, startedAt) {
 
 function removeVolatileStatusTemp() {
   try { unlinkSync(STATUS_TMP_PATH); } catch {}
+}
+
+function publishReport(destination, report) {
+  const tempPath = `${destination}.${process.pid}.tmp`;
+  try {
+    writeFileSync(tempPath, serialise(report));
+    renameSync(tempPath, destination);
+  } finally {
+    try { unlinkSync(tempPath); } catch {}
+  }
 }
 
 export async function runSimulation(config) {
@@ -211,8 +241,10 @@ export async function runSimulation(config) {
       seed: config.seed, workers: config.workers, label: config.label,
     },
   };
+  let terminal = false;
   writeStatus(status);
   const stop = (signal) => {
+    terminal = true;
     writeStatus({ ...status, running: false, error: `interrupted by ${signal}`, finishedAt: new Date().toISOString() });
     process.exit(128 + (signal === 'SIGINT' ? 2 : 15));
   };
@@ -220,6 +252,7 @@ export async function runSimulation(config) {
   process.once('SIGTERM', stop);
   try {
     const results = await runPool(tasks, concurrency, (delta) => {
+      if (terminal) return;
       status.done += delta;
       writeStatus(status);
     });
@@ -252,8 +285,9 @@ export async function runSimulation(config) {
       policies: sections,
     };
     mkdirSync(dirname(destination), { recursive: true });
-    writeFileSync(destination, serialise(report));
+    publishReport(destination, report);
     status.done = total;
+    terminal = true;
     writeStatus({
       ...status,
       running: false,
@@ -263,6 +297,7 @@ export async function runSimulation(config) {
     });
     return { report, output: destination };
   } catch (error) {
+    terminal = true;
     writeStatus({
       ...status,
       running: false,

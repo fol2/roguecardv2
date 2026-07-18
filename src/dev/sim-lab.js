@@ -24,9 +24,14 @@ const state = {
   comparePolicy: 'greedy',
   sort: { table: 'cards', key: 'offered', direction: -1 },
   running: false,
+  launching: false,
   sawRunning: false,
   lastOutput: null,
   error: null,
+  loadRequest: 0,
+  statusGeneration: 0,
+  pollTimer: null,
+  pollStopped: false,
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -163,7 +168,8 @@ function installStyles() {
     .pg-compare-controls select { min-width: 190px; padding: 7px; border-radius: 6px; }
     .pg-neutral { min-height: 280px; display: grid; place-items: center; text-align: center; color: var(--muted); border: 1px dashed #37415a; border-radius: 10px; padding: 30px; }
     .pg-neutral strong { display: block; color: #dfd5bb; font: 600 17px 'Cinzel',serif; margin-bottom: 6px; }
-    .pg-heat { display: grid; grid-template-columns: 42px repeat(5,minmax(34px,1fr)); gap: 5px; align-items: stretch; }
+    .pg-heat-wrap { overflow-x: auto; }
+    .pg-heat { display: grid; grid-template-columns: 48px repeat(15,minmax(34px,1fr)); gap: 5px; align-items: stretch; min-width: 650px; }
     .pg-heat b, .pg-heat span { min-height: 38px; display: grid; place-items: center; border-radius: 5px; font-size: 11px; }
     .pg-heat b { color: #bdb5a1; font-weight: 400; }
     .pg-heat span { border: 1px solid rgba(239,119,138,.18); color: #fff1e8; }
@@ -321,7 +327,9 @@ function renderHeadline(section) {
 function deathHeatmap(rows) {
   const lookup = new Map((rows || []).map(([act, row, value]) => [`${act}|${row}`, finite(value)]));
   const max = Math.max(1, ...lookup.values());
-  return `<div class="pg-heat"><b></b>${[0,1,2,3,4].map((row) => `<b>Row ${row + 1}</b>`).join('')}${[0,1,2].map((act) => `<b>Act ${act + 1}</b>${[0,1,2,3,4].map((row) => { const value = lookup.get(`${act}|${row}`) || 0; const alpha = .08 + .82 * value / max; return `<span style="background:rgba(198,52,77,${alpha.toFixed(3)})" title="Act ${act + 1}, row ${row + 1}: ${count(value)} deaths">${count(value)}</span>`; }).join('')}`).join('')}</div>`;
+  const acts = [0, 1, 2];
+  const mapRows = Array.from({ length: 15 }, (_, row) => row);
+  return `<div class="pg-heat-wrap"><div class="pg-heat"><b></b>${mapRows.map((row) => `<b>F${row + 1}</b>`).join('')}${acts.map((act) => `<b>Act ${act + 1}</b>${mapRows.map((row) => { const value = lookup.get(`${act}|${row}`) || 0; const alpha = .08 + .82 * value / max; return `<span style="background:rgba(198,52,77,${alpha.toFixed(3)})" title="Act ${act + 1}, floor ${row + 1}: ${count(value)} deaths">${count(value)}</span>`; }).join('')}`).join('')}</div></div>`;
 }
 
 function enemyBars(deaths) {
@@ -403,6 +411,29 @@ function compareOptions(selected) {
   return state.reports.map((r) => `<option value="${esc(r.name)}"${r.name === selected ? ' selected' : ''}>${esc(r.label || r.name)}</option>`).join('');
 }
 
+function compareCardRows(sectionA, sectionB) {
+  const cardsA = sectionA.cards || {}, cardsB = sectionB.cards || {};
+  const ids = [...new Set([...Object.keys(cardsA), ...Object.keys(cardsB)])];
+  return ids.map((id) => {
+    const a = cardsA[id] || {}, b = cardsB[id] || {};
+    const pickA = finite(a.picked) / Math.max(1, finite(a.offered));
+    const pickB = finite(b.picked) / Math.max(1, finite(b.offered));
+    const winA = a.winRateWhenDrafted == null ? null : finite(a.winRateWhenDrafted);
+    const winB = b.winRateWhenDrafted == null ? null : finite(b.winRateWhenDrafted);
+    return { id, pickA, pickB, pickDelta: pickB - pickA, winA, winB, winDelta: winA == null || winB == null ? null : winB - winA };
+  }).sort((a, b) => Math.abs(b.pickDelta) - Math.abs(a.pickDelta) || a.id.localeCompare(b.id));
+}
+
+function compareDeathRows(sectionA, sectionB) {
+  const cells = (section) => new Map((section.deaths?.byActRow || []).map(([act, row, value]) => [`${act}|${row}`, finite(value)]));
+  const cellsA = cells(sectionA), cellsB = cells(sectionB);
+  return [...new Set([...cellsA.keys(), ...cellsB.keys()])].map((key) => {
+    const [act, row] = key.split('|').map(Number);
+    const a = cellsA.get(key) || 0, b = cellsB.get(key) || 0;
+    return { key, label: `Act ${act + 1}, floor ${row + 1}`, a, b, delta: b - a };
+  }).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || a.key.localeCompare(b.key));
+}
+
 function renderCompare() {
   if (state.reports.length < 2) return '<div class="pg-neutral"><div><strong>Two panes make a comparison</strong>Run or retain at least two reports to unlock signed deltas.</div></div>';
   const reportA = state.cache.get(state.compareA); const reportB = state.cache.get(state.compareB);
@@ -411,6 +442,8 @@ function renderCompare() {
   if (!a.section || !b.section) return '<div class="pg-neutral">The selected policy is not present in both reports.</div>';
   const ah = a.section.headline || {}, bh = b.section.headline || {};
   const ae = a.section.economy || {}, be = b.section.economy || {};
+  const cardRows = compareCardRows(a.section, b.section);
+  const deathRows = compareDeathRows(a.section, b.section);
   const rows = [
     ['Win rate', pct(ah.winRate), pct(bh.winRate), bh.winRate - ah.winRate, signedPct],
     ['Average floors', finite(ah.avgFloorsReached).toFixed(2), finite(bh.avgFloorsReached).toFixed(2), bh.avgFloorsReached - ah.avgFloorsReached, (n)=>`${finite(n)>=0?'+':''}${finite(n).toFixed(2)}`],
@@ -424,6 +457,8 @@ function renderCompare() {
     <label class="pg-field">Report B<select id="pg-compare-b">${compareOptions(state.compareB)}</select></label>
     <label class="pg-field">Policy<select id="pg-compare-policy">${['greedy','random'].map((p)=>`<option${p===state.comparePolicy?' selected':''}>${p}</option>`).join('')}</select></label>
   </div><div class="pg-table-wrap"><table class="pg-table"><thead><tr><th>Measure</th><th>A</th><th>B</th><th>Δ B − A</th></tr></thead><tbody>${rows.map(([label,av,bv,d,format])=>`<tr><td>${esc(label)}</td><td>${esc(av)}</td><td>${esc(bv)}</td><td>${deltaCell(d,format)}</td></tr>`).join('')}</tbody></table></div></section>
+  <section class="pg-card wide"><h3>Card deltas</h3><div class="pg-table-wrap"><table class="pg-table"><thead><tr><th>Card</th><th>Pick A</th><th>Pick B</th><th>Δ pick</th><th>Win A</th><th>Win B</th><th>Δ win</th></tr></thead><tbody>${cardRows.map((row) => `<tr><td>${esc(row.id)}</td><td>${pct(row.pickA)}</td><td>${pct(row.pickB)}</td><td>${deltaCell(row.pickDelta)}</td><td>${row.winA == null ? '—' : pct(row.winA)}</td><td>${row.winB == null ? '—' : pct(row.winB)}</td><td>${row.winDelta == null ? '<span class="pg-muted">—</span>' : deltaCell(row.winDelta)}</td></tr>`).join('')}</tbody></table></div></section>
+  <section class="pg-card wide"><h3>Death deltas by act and floor</h3><div class="pg-table-wrap"><table class="pg-table"><thead><tr><th>Cell</th><th>Deaths A</th><th>Deaths B</th><th>Δ deaths</th></tr></thead><tbody>${deathRows.map((row) => `<tr><td>${esc(row.label)}</td><td>${count(row.a)}</td><td>${count(row.b)}</td><td>${deltaCell(row.delta, (value) => `${finite(value) >= 0 ? '+' : ''}${count(value)}`)}</td></tr>`).join('')}</tbody></table></div></section>
   <section class="pg-card"><h3>A · ${esc(a.policy)}</h3>${wilsonBars(ah.byProfile)}</section><section class="pg-card"><h3>B · ${esc(b.policy)}</h3>${wilsonBars(bh.byProfile)}</section></div>`;
 }
 
@@ -442,12 +477,15 @@ function renderContent() {
 
 async function loadReport(file) {
   if (!file) return;
+  const request = ++state.loadRequest;
   try {
     const report = state.cache.get(file) || await json(`/__sim-report?f=${encodeURIComponent(file)}`);
     state.cache.set(file, report);
+    if (request !== state.loadRequest) return;
     state.file = file; state.report = report; state.policy = firstPolicy(report, state.policy);
     state.error = null; renderMessage(); renderContent();
   } catch (error) {
+    if (request !== state.loadRequest) return;
     state.error = `Could not open report: ${error.message}`; renderMessage();
   }
 }
@@ -500,8 +538,11 @@ function renderStatus(status) {
 }
 
 async function pollStatus() {
+  if (state.launching) return;
+  const generation = state.statusGeneration;
   try {
     const status = await json('/__sim-status');
+    if (generation !== state.statusGeneration) return;
     const wasRunning = state.running;
     renderStatus(status);
     if (status.error) { state.error = `Runner: ${status.error}`; renderMessage(); }
@@ -510,8 +551,18 @@ async function pollStatus() {
       await refreshReports({ loadLatest: true });
     }
   } catch (error) {
+    if (generation !== state.statusGeneration) return;
     state.error = `Status check failed: ${error.message}`; state.running = false; $('.pg-run').disabled = false; renderMessage();
   }
+}
+
+function scheduleStatusPoll() {
+  if (state.pollStopped) return;
+  window.clearTimeout(state.pollTimer);
+  state.pollTimer = window.setTimeout(async () => {
+    await pollStatus();
+    scheduleStatusPoll();
+  }, 1000);
 }
 
 async function launchRun(form) {
@@ -523,11 +574,13 @@ async function launchRun(form) {
     workers: workersRaw === 'auto' ? 'auto' : Number(workersRaw), label: data.get('label'),
   };
   try {
-    state.error = null; state.sawRunning = true; state.running = true; renderMessage(); $('.pg-run').disabled = true;
+    state.statusGeneration++;
+    state.launching = true; state.error = null; state.sawRunning = true; state.running = true; renderMessage(); $('.pg-run').disabled = true;
     await json('/__sim-run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+    state.launching = false;
     await pollStatus();
   } catch (error) {
-    state.running = false; $('.pg-run').disabled = false; state.error = `Could not start sweep: ${error.message}`; renderMessage();
+    state.launching = false; state.running = false; $('.pg-run').disabled = false; state.error = `Could not start sweep: ${error.message}`; renderMessage();
   }
 }
 
@@ -565,5 +618,14 @@ export async function initSimLab() {
   installStyles(); shell(); bind();
   await refreshReports();
   await pollStatus();
-  window.setInterval(pollStatus, 1000);
+  scheduleStatusPoll();
+  window.addEventListener('pagehide', () => {
+    state.pollStopped = true;
+    window.clearTimeout(state.pollTimer);
+  });
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) return;
+    state.pollStopped = false;
+    pollStatus().then(scheduleStatusPoll);
+  });
 }
