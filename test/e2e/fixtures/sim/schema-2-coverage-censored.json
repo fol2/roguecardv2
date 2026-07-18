@@ -1,0 +1,67 @@
+{
+  "meta": {
+    "schema": 2,
+    "mode": "cycle",
+    "label": "All-censored coverage fixture",
+    "cycles": 1,
+    "totalRounds": 3,
+    "durationMs": 900,
+    "date": "2026-07-18T10:02:00.000Z",
+    "gitRev": "fixture3",
+    "dirty": false,
+    "config": { "policy": "coverage", "cycles": 1, "maxRounds": 3, "target": "usurper.buy" }
+  },
+  "policies": {
+    "coverage": {
+      "meta": {
+        "mode": "cycle",
+        "cycles": 1,
+        "totalRounds": 3,
+        "policyId": "coverage",
+        "policyVersion": 1,
+        "knowledgeClass": "coverage-only",
+        "interpretation": {
+          "id": "qa-operational-only",
+          "label": "QA-only operational evidence",
+          "balanceEligible": false
+        }
+      },
+      "rounds": [
+        { "ordinal": 1, "atRisk": 1, "started": 1, "dawns": 0, "falls": 1, "errors": 0, "winRate": 0, "wilson95": [0, 0.7935] },
+        { "ordinal": 2, "atRisk": 1, "started": 1, "dawns": 1, "falls": 0, "errors": 0, "winRate": 1, "wilson95": [0.2065, 1] },
+        { "ordinal": 3, "atRisk": 1, "started": 1, "dawns": 0, "falls": 1, "errors": 0, "winRate": 0, "wilson95": [0, 0.7935] }
+      ],
+      "completion": {
+        "counts": { "started": 1, "completed": 0, "censored": 1, "failed": 0, "timingPopulation": 1 },
+        "rates": { "completion": 0, "censoring": 1, "failure": 0 },
+        "completedOnly": { "label": "Descriptive among completed cycles only", "n": 0, "histogram": [], "meanRounds": null, "p10": null, "p50": null, "p90": null, "availability": "unavailable", "message": "No completed cycles" },
+        "threshold": { "label": "Six-Shard threshold Round", "histogram": [] },
+        "delivery": { "label": "Act IV promise delivery Round", "histogram": [] },
+        "kaplanMeier": { "restrictedMeanRounds": { "through": 3, "value": 3 } }
+      },
+      "progressiveSuffix": {
+        "rounds": [{ "ordinal": 1, "clusters": 1, "n": 3, "wins": 1, "winRate": 0.3333, "clusterBootstrap95": [0.3333, 0.3333] }],
+        "perfectSuffixStart": { "p10": null, "p50": null, "p90": null }
+      },
+      "triggers": {
+        "catalogueVersion": 1,
+        "funnels": {
+          "usurper.offer": { "eligible": 1, "attempted": 1, "succeeded": 1, "missed": 0, "reasons": {} },
+          "usurper.buy": { "eligible": 1, "attempted": 0, "succeeded": 0, "missed": 1, "reasons": { "insufficient-gold": 1 } }
+        }
+      },
+      "issues": [{
+        "kind": "target-missed",
+        "triggerId": "usurper.buy",
+        "message": "Explicit target was not reached before censoring",
+        "reproduction": {
+          "cycleSeed": 701,
+          "roundOrdinal": 3,
+          "runSeed": 991,
+          "command": "npm run sim -- --mode cycle --cycles 1 --max-rounds 3 --policy coverage --target usurper.buy --seed 701 --workers 1 --label repro-701"
+        }
+      }],
+      "flags": []
+    }
+  }
+}

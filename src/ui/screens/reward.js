@@ -229,11 +229,7 @@ function renderBossRelic() {
 }
 function advanceAct() {
   const run = S.run;
-  run.act++;
-  run.omens.push(E.omenEnabled(run) ? E.rollOmen(run) : null); // each act climbs under its own sky
-  run.nodeId = null;
-  run.map = E.genMap(run);
-  E.healPlayer(run, Math.round(run.player.maxHp * 0.35));
+  if (!E.advanceAct(run)) return;
   setTheme(themeForRun(run));
   setAltitude(run.act, 0);
   runEffects.saveRun(run);

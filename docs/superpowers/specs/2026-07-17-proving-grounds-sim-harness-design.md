@@ -1,5 +1,12 @@
 # Spirebound — Proving Grounds: automated playtesting harness (design)
 
+> **Version boundary:** this document defines the schema-1 independent-Round
+> harness. The persistent-Vigil Full Cycle extension is specified by the
+> [2026-07-18 machine-logic plan](../../plans/2026-07-18-001-feat-sim-machine-logic-round-cycles-plan.md)
+> and operated through the current [Proving Grounds guide](../../proving-grounds.md).
+> Sections below that defer career progression or Playwright proof are retained
+> as the historical v1 decision, not current capability.
+
 **Date:** 2026-07-17
 **Goal:** A headless balance-and-bug instrument: a heuristic bot ("balance bot")
 plays full runs through the pure engine at 100k scale on all CPU cores, emits

@@ -3,6 +3,7 @@ import { readdirSync, writeFileSync, renameSync, readFileSync, unlinkSync, statS
 import { basename, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { execSync, spawn } from "node:child_process";
+import { cycleWorkProblem, runnerMetadata } from "./tools/sim/runner.mjs";
 
 const BF_SAVE_PORT = 5174;
 // Vite Host header gate for loading the page over Tailscale / LAN.
@@ -23,7 +24,6 @@ const AUDIO_SELECTION_TMP = `${AUDIO_SELECTION_PATH}.tmp`;
 const SIM_REPORT_DIR = resolve(".sim-reports");
 const SIM_STATUS_PATH = resolve(SIM_REPORT_DIR, ".status.json");
 const SIM_LABEL_RE = /^[A-Za-z0-9._-]+$/;
-const SIM_RUN_LIMIT = 1_000_000;
 
 function readAudioInventory(baseVersions) {
   const roots = {
@@ -124,7 +124,13 @@ function reportSummary(name) {
     mtime: stat.mtime.toISOString(),
     size: stat.size,
     label: report.meta?.label || name.replace(/\.json$/, ""),
+    schema: report.meta?.schema ?? 1,
+    mode: report.meta?.mode ?? section.meta?.mode ?? "round",
+    policy: report.meta?.config?.policy ?? section.meta?.policyId ?? null,
+    balanceEligible: section.meta?.interpretation?.balanceEligible ?? true,
     runs: report.meta?.runs ?? section.meta?.runs ?? 0,
+    cycles: report.meta?.cycles ?? section.meta?.cycles ?? 0,
+    totalRounds: report.meta?.totalRounds ?? section.meta?.totalRounds ?? 0,
     winRate: section.headline?.winRate ?? null,
   };
 }
@@ -133,7 +139,8 @@ function validateSimRunBody(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return { problems: ["body must be an object"] };
   }
-  const allowed = new Set(["runs", "seed", "policy", "profile", "workers", "label"]);
+  const metadata = runnerMetadata();
+  const allowed = new Set(["mode", "runs", "cycles", "maxRounds", "seed", "policy", "profile", "target", "workers", "label"]);
   const problems = Object.keys(value)
     .filter((key) => !allowed.has(key))
     .map((key) => `unexpected field: ${key}`);
@@ -143,22 +150,46 @@ function validateSimRunBody(value) {
       problems.push(`${name}: need a positive integer`);
       return fallback;
     }
-    return Math.min(input, max);
+    if (input > max) {
+      problems.push(`${name}: must be <= ${max}`);
+      return fallback;
+    }
+    return input;
   };
-  const runs = positiveInt("runs", value.runs, 10_000, SIM_RUN_LIMIT);
+  const mode = value.mode ?? metadata.defaults.mode;
+  if (!metadata.modes.includes(mode)) problems.push("mode: invalid value");
   const seed = value.seed == null ? 1 : value.seed;
   if (!Number.isSafeInteger(seed) || seed < 0) problems.push("seed: need a non-negative integer");
-  const policy = value.policy ?? "greedy";
-  if (!["random", "greedy", "both"].includes(policy)) problems.push("policy: invalid value");
-  const profile = value.profile ?? "revealed";
-  if (!["revealed", "fresh", "both"].includes(profile)) problems.push("profile: invalid value");
+  const policy = value.policy ?? metadata.defaults[mode] ?? metadata.defaults.round;
+  const definition = metadata.policies.find((item) => item.id === policy);
+  const legacyBoth = mode === "round" && policy === "both";
+  if (!legacyBoth && (!definition || !definition.modes.includes(mode))) problems.push("policy: invalid for mode");
+  let runs = null; let cycles = null; let maxRounds = null; let profile = null; let target = null;
+  if (mode === "cycle") {
+    if (Object.hasOwn(value, "runs")) problems.push("runs: available only in round mode");
+    if (Object.hasOwn(value, "profile")) problems.push("profile: unavailable in cycle mode");
+    cycles = positiveInt("cycles", value.cycles, metadata.defaults.cycles, metadata.limits.cycles);
+    maxRounds = positiveInt("maxRounds", value.maxRounds, metadata.defaults.maxRounds, metadata.limits.maxRounds);
+    const workProblem = cycleWorkProblem(cycles, maxRounds);
+    if (workProblem) problems.push(workProblem);
+    target = value.target ?? null;
+    if (target != null && policy !== "coverage") problems.push("target: available only for coverage");
+    if (target != null && !metadata.targets.includes(target)) problems.push("target: unknown trigger");
+  } else {
+    for (const key of ["cycles", "maxRounds", "target"]) {
+      if (Object.hasOwn(value, key)) problems.push(`${key}: available only in cycle mode`);
+    }
+    runs = positiveInt("runs", value.runs, metadata.defaults.runs, metadata.limits.runs);
+    profile = value.profile ?? metadata.defaults.profile;
+    if (!["revealed", "fresh", "both"].includes(profile)) problems.push("profile: invalid value");
+  }
   let workers = value.workers ?? "auto";
-  if (workers !== "auto") workers = positiveInt("workers", workers, 1, 32);
+  if (workers !== "auto") workers = positiveInt("workers", workers, 1, metadata.limits.workers);
   const label = value.label ?? "proving-grounds";
   if (typeof label !== "string" || !SIM_LABEL_RE.test(label)) {
     problems.push("label: use only letters, numbers, dot, underscore, or hyphen");
   }
-  return { problems, config: { runs, seed, policy, profile, workers, label } };
+  return { problems, config: { mode, runs, cycles, maxRounds, seed, policy, profile, target, workers, label } };
 }
 
 // dev-only battlefield editor save endpoint (?bfedit=1 → POST /__bf-save)
@@ -168,6 +199,12 @@ function bfSavePlugin() {
     apply: "serve",
     configureServer(server) {
       let activeSimPid = null;
+      let activeSimConfig = null;
+
+      server.middlewares.use("/__sim-metadata", (req, res) => {
+        if (req.method !== "GET") return sendJson(res, 405, { ok: false, problems: ["method not allowed"] });
+        return sendJson(res, 200, runnerMetadata());
+      });
 
       server.middlewares.use("/__sim-reports", (req, res) => {
         if (req.method !== "GET") return sendJson(res, 405, { ok: false, problems: ["method not allowed"] });
@@ -211,7 +248,21 @@ function bfSavePlugin() {
           });
         }
         if (!status.running && processAlive(activeSimPid)) {
-          return sendJson(res, 200, { running: true, pid: activeSimPid, done: 0, total: null });
+          const cycle = activeSimConfig?.mode === "cycle";
+          return sendJson(res, 200, {
+            running: true,
+            pid: activeSimPid,
+            done: 0,
+            total: cycle ? activeSimConfig.cycles : null,
+            config: activeSimConfig,
+            ...(cycle ? {
+              roundsPlayed: 0,
+              promisesStaged: 0,
+              censoredCycles: 0,
+              failedCycles: 0,
+              currentTarget: activeSimConfig.target,
+            } : {}),
+          });
         }
         return sendJson(res, 200, status);
       });
@@ -233,13 +284,18 @@ function bfSavePlugin() {
         }
         const args = [
           resolve("tools/sim/runner.mjs"),
-          "--runs", String(config.runs),
+          "--mode", config.mode,
           "--seed", String(config.seed),
           "--policy", config.policy,
-          "--profile", config.profile,
           "--workers", String(config.workers),
           "--label", config.label,
         ];
+        if (config.mode === "cycle") {
+          args.push("--cycles", String(config.cycles), "--max-rounds", String(config.maxRounds));
+          if (config.target) args.push("--target", config.target);
+        } else {
+          args.push("--runs", String(config.runs), "--profile", config.profile);
+        }
         try {
           const child = spawn(process.execPath, args, {
             cwd: resolve("."),
@@ -248,11 +304,17 @@ function bfSavePlugin() {
             stdio: "ignore",
           });
           activeSimPid = child.pid;
-          child.once("exit", () => { if (activeSimPid === child.pid) activeSimPid = null; });
+          activeSimConfig = { ...config };
+          child.once("exit", () => {
+            if (activeSimPid !== child.pid) return;
+            activeSimPid = null;
+            activeSimConfig = null;
+          });
           child.unref();
           return sendJson(res, 202, { ok: true, pid: child.pid, config });
         } catch (error) {
           activeSimPid = null;
+          activeSimConfig = null;
           return sendJson(res, 500, { ok: false, problems: [String(error?.message ?? error)] });
         }
       });

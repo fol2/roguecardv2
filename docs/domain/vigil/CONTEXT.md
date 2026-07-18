@@ -55,3 +55,7 @@ _Avoid_: Hint, notification
 **Rose Window**:
 The six-pane Vigil image assembled from Emberglass Shards and completed before the sealed summit promise appears.
 _Avoid_: Progress wheel, quest board
+
+**Act IV Promise**:
+The sealed-summit disclosure queued after all six Emberglass Shards complete the Rose Window, then staged to one Dawn Ceremony without creating a playable Act IV.
+_Avoid_: Act IV victory, fourth Act

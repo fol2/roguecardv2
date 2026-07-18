@@ -1,61 +1,84 @@
-// The floor-baseline policy: reproduces the test_engine.js monte-carlo
-// agent's behaviour under the walker's policy contract — 90% play-chance
-// loop, 25% kindle, 40% art, 50/50 rest, 40% shop buys, 80% card take.
-// Decisions consume only the policy's own rng stream (KTD7).
-import { cardData, canUseArt } from '../../../src/engine.js';
-import { CARDS } from '../../../src/data.js';
+// Opt-in floor baseline over the same frozen legal-action seam as every other
+// policy. Decisions consume only this policy's seeded RNG stream.
+import { assertObservation } from './observation.mjs';
 
 export function makePolicy(rng) {
-  const choice = (arr) => arr[Math.floor(rng() * arr.length)];
-  // per-turn phase memory: the walker asks one action at a time, so the
-  // monte-carlo's play-loop → kindle → art → end shape is replayed here
-  let curCb = null, curTurn = 0, phase = 'play', plays = 0;
-  return {
-    pickNode(ctx, nodes) { return choice(nodes); },
-    combatAction(ctx, cb) {
-      if (cb !== curCb || cb.turn !== curTurn) { curCb = cb; curTurn = cb.turn; phase = 'play'; plays = 0; }
-      if (phase === 'play') {
-        const playable = cb.hand.filter((c) => {
-          const d = cardData(c, ctx.run);
-          return !d.unplayable && (d.cost ?? 99) <= cb.player.energy;
-        });
-        if (playable.length && plays < 30 && rng() < 0.9) {
-          plays++;
-          const living = cb.enemies.map((e, i) => (e.hp > 0 ? i : -1)).filter((i) => i >= 0);
-          return { kind: 'play', uid: choice(playable).uid, target: living.length ? choice(living) : null };
+  if (typeof rng !== 'function') throw new TypeError('random policy requires a seeded RNG');
+  const choice = (actions) => actions[Math.floor(rng() * actions.length)];
+  let combatKey = null;
+  let combatTurn = -1;
+  let combatPhase = 'play';
+  let plays = 0;
+
+  return Object.freeze({
+    decide(input) {
+      const observation = assertObservation(input);
+      if (observation.knowledgeClass !== 'baseline') {
+        throw new TypeError('random policy requires baseline knowledge class');
+      }
+      const { legalActions, phase, state } = observation;
+      if (phase === 'node') return choice(legalActions).key;
+      if (phase === 'combat') {
+        if (state.combatKey !== combatKey || state.turn !== combatTurn) {
+          combatKey = state.combatKey;
+          combatTurn = state.turn;
+          combatPhase = 'play';
+          plays = 0;
         }
-        phase = 'kindle';
+        if (combatPhase === 'play') {
+          const playable = legalActions.filter(({ kind }) => kind === 'play');
+          const groups = [...new Set(playable.map(({ group }) => group))];
+          if (groups.length && plays < 30 && rng() < 0.9) {
+            plays++;
+            const group = choice(groups);
+            return choice(playable.filter((action) => action.group === group)).key;
+          }
+          combatPhase = 'kindle';
+        }
+        if (combatPhase === 'kindle') {
+          combatPhase = 'art';
+          const kindle = legalActions.filter(({ kind, randomEligible }) => kind === 'kindle' && randomEligible !== false);
+          if (kindle.length && rng() < 0.25) return choice(kindle).key;
+        }
+        if (combatPhase === 'art') {
+          combatPhase = 'end';
+          const art = legalActions.find(({ kind }) => kind === 'art');
+          if (art && rng() < 0.4) return art.key;
+        }
+        return legalActions.find(({ kind }) => kind === 'end').key;
       }
-      if (phase === 'kindle') {
-        phase = 'art';
-        const kindlable = cb.hand.filter((c) => cardData(c, ctx.run).type !== 'curse');
-        if (kindlable.length && rng() < 0.25) return { kind: 'kindle', uid: choice(kindlable).uid };
+      if (phase === 'card-reward') {
+        const cards = legalActions.filter(({ kind }) => kind === 'card');
+        return cards.length && rng() < 0.8
+          ? choice(cards).key
+          : legalActions.find(({ kind }) => kind === 'skip').key;
       }
-      if (phase === 'art') {
-        phase = 'end';
-        if (canUseArt(ctx.run, cb) && rng() < 0.4) return { kind: 'art' };
+      if (phase === 'boss-relic' || phase === 'event-choice' || phase === 'lamplighter' ||
+          phase === 'hollow' || phase === 'monument' || phase === 'terminal' || phase === 'bequest') {
+        return choice(legalActions).key;
       }
-      return { kind: 'end' };
-    },
-    pickCardReward(ctx, cards) { return rng() < 0.8 ? choice(cards) : null; },
-    pickBossRelic(ctx, relicIds) { return choice(relicIds); },
-    restDecision(ctx) {
-      if (rng() < 0.5) return { kind: 'heal' };
-      const up = ctx.run.player.deck.filter((c) => !c.up && CARDS[c.id].up);
-      return up.length ? { kind: 'upgrade', uid: choice(up).uid } : { kind: 'heal' };
-    },
-    eventChoice(ctx, ev, valid) { return choice(valid); },
-    eventPending(ctx, pending) {
-      const pick = choice(pending.options);
-      return pending.op === 'pickCard' ? pick : pick.uid;
-    },
-    shopPlan(ctx, shop) {
-      const plan = [];
-      let gold = ctx.run.player.gold;
-      for (const it of [...shop.cards, ...shop.relics, ...shop.potions]) {
-        if (!it.sold && it.price <= gold && rng() < 0.4) { plan.push(it); gold -= it.price; }
+      if (phase === 'rest') {
+        const heal = legalActions.find(({ kind }) => kind === 'heal');
+        if (rng() < 0.5) return heal.key;
+        const upgrades = legalActions.filter(({ kind }) => kind === 'upgrade');
+        return upgrades.length ? choice(upgrades).key : heal.key;
       }
-      return plan;
+      if (phase === 'event-pending') {
+        const options = legalActions.filter(({ kind }) => kind !== 'skip');
+        return options.length ? choice(options).key : legalActions[0].key;
+      }
+      if (phase === 'shop') {
+        let gold = state.gold;
+        const plan = [];
+        for (const action of legalActions.slice().sort((a, b) => a.order - b.order)) {
+          if (!action.sold && action.price <= gold && rng() < 0.4) {
+            plan.push(action.key);
+            gold -= action.price;
+          }
+        }
+        return plan;
+      }
+      throw new TypeError(`unknown policy phase: ${phase}`);
     },
-  };
+  });
 }
