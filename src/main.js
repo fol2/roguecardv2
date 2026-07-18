@@ -13,6 +13,11 @@ import { loadAudioSelection } from './audio-assets.js';
 
 const qs = new URLSearchParams(location.search);
 async function boot() {
+  if (import.meta.env.DEV && qs.has('sim')) {
+    const { initSimLab } = await import('./dev/sim-lab.js');
+    await initSimLab();
+    return;
+  }
   // The host may replace this small JSON without rebuilding JS. Resolve it
   // before any title cue or SFX preload can cache the base selection.
   await loadAudioSelection();
