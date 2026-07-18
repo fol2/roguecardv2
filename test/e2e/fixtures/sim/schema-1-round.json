@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "schema": 1,
+    "mode": "round",
+    "label": "Schema 1 Round fixture",
+    "runs": 12,
+    "durationMs": 1200,
+    "date": "2026-07-18T10:00:00.000Z",
+    "gitRev": "fixture1",
+    "dirty": false,
+    "config": { "policy": "greedy", "profile": "revealed" }
+  },
+  "policies": {
+    "greedy": {
+      "meta": { "runs": 12 },
+      "headline": {
+        "wins": 9,
+        "winRate": 0.75,
+        "wilson95": [0.4677, 0.9111],
+        "avgFloorsReached": 36.5,
+        "byAspect": { "0": { "n": 12, "winRate": 0.75, "wilson95": [0.4677, 0.9111] } },
+        "byVow": { "0": { "n": 12, "winRate": 0.75, "wilson95": [0.4677, 0.9111] } },
+        "byProfile": { "revealed": { "n": 12, "winRate": 0.75, "wilson95": [0.4677, 0.9111] } },
+        "byAspectVow": { "0|0": { "n": 12, "winRate": 0.75 } },
+        "actReach": [12, 11, 10, 9]
+      },
+      "deaths": { "byActRow": [], "byEnemy": {}, "encountersByEnemy": {}, "byKind": {}, "avgHpLostPerFight": {} },
+      "cards": {},
+      "relics": {},
+      "economy": {},
+      "issues": { "total": 0, "detail": [], "countsBySignature": {} },
+      "flags": []
+    }
+  }
+}

@@ -1,6 +1,7 @@
 // DOM-free transaction coordination for normal game runs. Presentation,
 // retries and navigation remain with their caller. Ephemeral Lab runs receive
 // success-shaped suppression without storage / Vigil / stats side effects.
+import { buildDawnQueue, createTerminalCoordinator } from '../run-lifecycle.js';
 
 function labResult(engine, run, outcome) {
   return Object.freeze({
@@ -23,21 +24,17 @@ export function createRunEffects({ engine, vigil }) {
   };
 
   const ephemeral = (run) => !!engine.isEphemeralRun?.(run);
+  const persistRun = (run) => engine.saveRun(run);
 
-  const buildDawnQueue = (run, ledger, revealThreshold) => {
-    const events = [];
-    if (ledger?.whisper != null) events.push({ t: 'whisper', text: ledger.whisper });
-    events.push(...(run.endQueue || []).map((event) => ({ ...event })));
-    const newShards = Array.isArray(ledger?.newShards) ? [...ledger.newShards] : [];
-    for (const id of newShards) events.push({ t: 'shardGrant', id });
-    const before = new Set(run.shards || []);
-    const after = new Set(ledger?.vigil?.shards || [...before, ...newShards]);
-    if (newShards.length && before.size < revealThreshold && after.size >= revealThreshold) {
-      events.push({ t: 'act4Reveal' });
-    }
-    return events.filter((event, index, queue) => !(event.t === 'questComplete' &&
-      queue.slice(index + 1).some((later) => later.t === 'shardGrant' && later.id === event.id)));
-  };
+  let coordinator = null;
+  const terminal = () => (coordinator ??= createTerminalCoordinator({
+    commitVigil: (run, outcome) => vigil.commitTerminalVigil(run, outcome),
+    commitStats: (run, won) => engine.commitRunStats(run, won),
+    saveRun: persistRun,
+    clearSave: (runId) => engine.clearSave(runId),
+    loadVigil: () => vigil.loadVigil(),
+    claimAct4Promise: (runId) => vigil.claimAct4Promise(runId),
+  }));
 
   const clearBequest = (run) => {
     requireRun(run, 'clearBequest');
@@ -48,7 +45,7 @@ export function createRunEffects({ engine, vigil }) {
   const effects = {
     advanceDawn: (run, nextCursor) => {
       if (ephemeral(run)) return true;
-      return engine.advancePendingDawn(run, nextCursor);
+      return terminal().advanceDawn(run, nextCursor);
     },
     beginShadeDuel: (run, persist = (action) => action()) => {
       if (ephemeral(run)) return Object.freeze({ status: 'ready' });
@@ -64,7 +61,7 @@ export function createRunEffects({ engine, vigil }) {
     clearVigil: () => vigil.clearVigil(),
     completeDawn: (run) => {
       if (ephemeral(run)) return true;
-      return engine.completePendingDawn(run);
+      return terminal().completeDawn(run);
     },
     completeHollowRoute: (run) => {
       if (ephemeral(run)) return true;
@@ -80,16 +77,9 @@ export function createRunEffects({ engine, vigil }) {
         return labResult(engine, run, run.pendingRunEnd?.outcome);
       }
       const outcome = run.pendingRunEnd?.outcome;
-      const acknowledgeRunEnd = outcome === 'win'
-        ? (candidate) => engine.stagePendingDawn(
-            candidate,
-            buildDawnQueue(candidate, candidate.runEndResult, revealThreshold),
-            candidate.vigilResult?.newUnlocks || [],
-          )
-        : engine.recordRunEnd;
       return engine.finaliseTerminalOutbox(
         run,
-        () => persist(() => vigil.commitPendingRunEnd(run, acknowledgeRunEnd)),
+        () => persist(() => terminal().finalise(run, { revealThreshold })),
         onPersistenceFailure,
         (result) => onFinalised({ ...result, outcome }),
       );
@@ -111,7 +101,7 @@ export function createRunEffects({ engine, vigil }) {
     },
     saveRun: (run) => {
       if (ephemeral(run)) return true;
-      return engine.saveRun(run);
+      return persistRun(run);
     },
     setBequest: (run, act, row, bequest) => {
       requireRun(run, 'setBequest');
@@ -126,7 +116,19 @@ export function createRunEffects({ engine, vigil }) {
       }
       return engine.stageHollowExit(run);
     },
-    syncVigil: () => vigil.syncVigil(),
+    syncVigil: () => {
+      let current = vigil.syncVigil();
+      const saved = engine.loadRun?.();
+      if (saved?.pendingDawn?.events?.some((event) => event?.t === 'act4Reveal')) {
+        try {
+          if (terminal().repairPendingDawn(saved)) current = vigil.loadVigil();
+        } catch {
+          // The saved queue is the repair witness; leave it intact for the
+          // next sync rather than making a transient storage failure fatal.
+        }
+      }
+      return current;
+    },
   };
   return Object.freeze(effects);
 }

@@ -11,6 +11,9 @@ const TABS = Object.freeze([
   ['issues', 'Issues'],
   ['compare', 'Compare'],
 ]);
+const CYCLE_TABS = Object.freeze([
+  ['headline', 'Headline'], ['cycle', 'Cycle / Progress'], ['issues', 'Issues'], ['compare', 'Compare'],
+]);
 
 const state = {
   reports: [],
@@ -32,6 +35,7 @@ const state = {
   statusGeneration: 0,
   pollTimer: null,
   pollStopped: false,
+  metadata: null,
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -56,6 +60,17 @@ const sectionFor = (report, preferred = state.policy) => {
   const policy = firstPolicy(report, preferred);
   return { policy, section: policy ? report?.policies?.[policy] : null };
 };
+const reportMode = (report) => report?.meta?.mode || (Number(report?.meta?.schema) >= 2 ? 'cycle' : 'round');
+const reportSchema = (report) => Number(report?.meta?.schema || 1);
+const policyDefinition = (id) => state.metadata?.policies?.find((item) => item.id === id) || null;
+const isCoverage = (report = state.report, policy = state.policy) => {
+  const section = report?.policies?.[policy];
+  return section?.meta?.knowledgeClass === 'coverage-only' || policy === 'coverage';
+};
+function visibleTabs(report = state.report) {
+  if (!report || reportSchema(report) === 1) return TABS;
+  return isCoverage(report) ? CYCLE_TABS.filter(([id]) => id !== 'compare') : CYCLE_TABS;
+}
 
 async function json(url, options) {
   const response = await fetch(url, options);
@@ -114,6 +129,8 @@ function installStyles() {
     .pg-meta { display: flex; flex-wrap: wrap; gap: 7px 14px; margin-top: 7px; color: var(--muted); font-size: 12px; }
     .pg-meta b { color: #e5ddc8; font-weight: 600; }
     .pg-controls { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .pg-control-group { display: contents; border: 0; padding: 0; margin: 0; }
+    .pg-control-group legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
     .pg-field { display: grid; gap: 3px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
     .pg-field input, .pg-field select { border-radius: 6px; padding: 7px 8px; min-width: 68px; box-sizing: border-box; }
     .pg-field input { width: 84px; }
@@ -158,6 +175,9 @@ function installStyles() {
     .pg-table th button { border: 0; background: none; color: inherit; padding: 0; font-weight: 600; }
     .pg-table td { padding: 8px 10px; text-align: right; border-bottom: 1px solid rgba(55,65,90,.55); }
     .pg-table tbody tr:hover { background: rgba(91,210,207,.055); }
+    .pg-badge { display: inline-block; margin: 0 0 10px; padding: 4px 8px; border: 1px solid var(--gold-dim); border-radius: 999px; color: #f5dda2; font: 600 10px 'Cinzel',serif; text-transform: uppercase; letter-spacing: .08em; }
+    .pg-badge.qa { border-color: var(--rose); color: #ffc0c8; }
+    .pg-interpretation { margin: 0 0 14px; color: #d8d0bc; }
     .pg-positive { color: #7de0b1; } .pg-negative { color: #ff9ba8; } .pg-muted { color: var(--muted); }
     .pg-flags { display: grid; gap: 7px; }
     .pg-flag { padding: 9px 11px; border-left: 3px solid var(--gold); background: rgba(242,193,78,.07); }
@@ -187,6 +207,7 @@ function installStyles() {
     @media (max-width: 620px) {
       .pg-title h2 { white-space: normal; } .pg-field.label { display:grid; grid-column:span 2; }
       .pg-controls { display:grid; grid-template-columns: repeat(3,1fr); width:100%; }
+      .pg-control-group { display: contents; }
       .pg-field input, .pg-field select, .pg-field.label input { width:100%; min-width:0; } .pg-run { align-self:end; }
       .pg-metrics { grid-template-columns: repeat(2,1fr); } .pg-card { padding:13px; }
       .pg-status { grid-template-columns:1fr; } .pg-meta { display:none; }
@@ -208,29 +229,50 @@ function shell() {
       <header class="pg-top">
         <div class="pg-top-line">
           <div class="pg-title"><div class="pg-eyebrow">Selected report</div><h2 id="pg-heading">No report loaded</h2><div class="pg-meta" id="pg-meta"></div></div>
-          <form class="pg-controls" id="pg-run-form">
-            <label class="pg-field">Runs<input name="runs" type="number" min="1" max="1000000" value="2000" required></label>
-            <label class="pg-field">Seed<input name="seed" type="number" min="0" value="1" required></label>
-            <label class="pg-field">Policy<select name="policy"><option value="both">Both</option><option value="greedy">Greedy</option><option value="random">Random</option></select></label>
-            <label class="pg-field">Profile<select name="profile"><option value="both">Both</option><option value="revealed">Revealed</option><option value="fresh">Fresh</option></select></label>
+          <form class="pg-controls" id="pg-run-form" aria-label="Run simulation">
+            <fieldset class="pg-control-group"><legend>Simulation population and machine policy</legend><span id="pg-mode-controls"></span></fieldset>
             <label class="pg-field">Workers<select name="workers"><option value="auto">Auto</option><option>1</option><option>2</option><option>4</option><option>8</option></select></label>
             <label class="pg-field label">Label<input name="label" value="sim-lab" pattern="[A-Za-z0-9._-]+" required></label>
-            <button class="pg-run" type="submit">Run sweep</button>
+            <button class="pg-run" type="submit">Run simulation</button>
           </form>
         </div>
-        <div class="pg-status" id="pg-status" hidden><div class="pg-progress"><i></i></div><span class="pg-status-copy"></span></div>
+        <div class="pg-status" id="pg-status" role="status" aria-live="polite" hidden><div class="pg-progress"><i></i></div><span class="pg-status-copy"></span></div>
         <div id="pg-message"></div>
-        <nav class="pg-tabs" aria-label="Report sections">${TABS.map(([id, label]) => `<button class="pg-tab" data-tab="${id}" type="button">${label}</button>`).join('')}</nav>
+        <nav class="pg-tabs" aria-label="Report sections" role="tablist"></nav>
       </header>
       <section class="pg-content" id="pg-content"><div class="pg-neutral"><div><strong>The observatory is opening</strong>Loading simulation reports…</div></div></section>
     </main>`;
+}
+
+function renderRunControls(mode = 'round', policy = null) {
+  const metadata = state.metadata;
+  const defaults = metadata.defaults;
+  const policies = metadata.policies.filter((item) => item.modes.includes(mode));
+  const chosen = policies.some((item) => item.id === policy) ? policy : defaults[mode];
+  const targets = chosen === 'coverage' ? `<label class="pg-field">Target<select name="target" aria-describedby="pg-target-help"><option value="">Deterministic rotation</option>${metadata.targets.map((id) => `<option value="${esc(id)}">${esc(id)}</option>`).join('')}</select><small id="pg-target-help">Coverage only</small></label>` : '';
+  $('#pg-mode-controls').outerHTML = `<span id="pg-mode-controls" style="display:contents">
+    <label class="pg-field">Mode<select name="mode" aria-label="Simulation mode">${metadata.modes.map((id) => `<option value="${id}"${id === mode ? ' selected' : ''}>${id === 'cycle' ? 'Full Cycle' : 'Round'}</option>`).join('')}</select></label>
+    ${mode === 'cycle'
+      ? `<label class="pg-field">Cycles<input name="cycles" type="number" min="1" max="${metadata.limits.cycles}" value="${defaults.cycles}" required></label><label class="pg-field">Max Rounds<input name="maxRounds" type="number" min="1" max="${metadata.limits.maxRounds}" value="${defaults.maxRounds}" required></label>`
+      : `<label class="pg-field">Runs<input name="runs" type="number" min="1" max="${metadata.limits.runs}" value="2000" required></label><label class="pg-field">Profile<select name="profile"><option value="both">Both</option><option value="revealed">Revealed</option><option value="fresh">Fresh</option></select></label>`}
+    <label class="pg-field">Policy<select name="policy">${mode === 'round' ? '<option value="both">Both legacy policies</option>' : ''}${policies.map((item) => `<option value="${esc(item.id)}"${item.id === chosen ? ' selected' : ''}>${esc(item.id)}</option>`).join('')}</select></label>
+    <label class="pg-field">Seed<input name="seed" type="number" min="0" value="1" required></label>${targets}
+  </span>`;
+}
+
+function renderTabs() {
+  const tabs = visibleTabs();
+  if (!tabs.some(([id]) => id === state.tab)) state.tab = 'headline';
+  $('.pg-tabs').innerHTML = tabs.map(([id, label]) => `<button class="pg-tab${id === state.tab ? ' active' : ''}" data-tab="${id}" type="button" role="tab" aria-selected="${id === state.tab}" aria-controls="pg-content">${label}</button>`).join('');
 }
 
 function reportMeta() {
   const meta = state.report?.meta;
   $('#pg-heading').textContent = meta?.label || state.file || 'No report loaded';
   $('#pg-meta').innerHTML = meta ? [
-    `<span><b>${count(meta.runs)}</b> plays</span>`,
+    reportMode(state.report) === 'cycle'
+      ? `<span><b>${count(meta.cycles)}</b> cycles · <b>${count(meta.totalRounds)}</b> Rounds</span>`
+      : `<span><b>${count(meta.runs)}</b> plays</span>`,
     `<span><b>${duration(meta.durationMs)}</b> elapsed</span>`,
     `<span>rev <b>${esc(meta.gitRev || 'unknown')}</b>${meta.dirty ? ' · dirty' : ''}</span>`,
     `<span>${esc(meta.date ? new Date(meta.date).toLocaleString('en-GB') : '')}</span>`,
@@ -242,7 +284,7 @@ function renderRail() {
   $('#pg-report-list').innerHTML = state.reports.length ? state.reports.map((report) => `
     <button class="pg-report${report.name === state.file ? ' active' : ''}" data-report="${esc(report.name)}" type="button">
       <strong>${esc(report.label || report.name)}</strong>
-      <small>${count(report.runs)} plays · ${report.winRate == null ? '—' : pct(report.winRate)} win</small>
+      <small>${report.mode === 'cycle' ? `${count(report.cycles)} cycles · ${count(report.totalRounds)} Rounds` : `${count(report.runs)} plays · ${report.winRate == null ? '—' : pct(report.winRate)} win`}</small>
     </button>`).join('') : '<div class="pg-empty-rail">No reports yet.<br>Launch a sweep to kindle one.</div>';
 }
 
@@ -310,6 +352,16 @@ function funnel(values) {
 }
 
 function renderHeadline(section) {
+  if (reportMode(state.report) === 'cycle') {
+    const c = section.completion || {}; const counts = c.counts || {};
+    const interpretation = section.meta?.interpretation || policyDefinition(state.policy)?.reportInterpretation || {};
+    const coverage = isCoverage();
+    return `<div class="pg-grid"><section class="pg-card wide">
+      <span class="pg-badge${coverage ? ' qa' : ''}">${coverage ? 'QA operational context' : 'Machine-policy evidence'}</span>
+      <h3>Full Cycle verdict</h3><p class="pg-interpretation">${esc(interpretation.label || (coverage ? 'QA-only operational evidence' : 'Goal-directed machine-policy evidence'))}. ${coverage ? 'This evidence is excluded from balance Compare.' : 'This is not observed player win-rate proof.'}</p>
+      <div class="pg-metrics">${metric('Cycles', count(counts.started))}${metric('Rounds', count(section.meta?.totalRounds))}${metric('Completed', count(counts.completed), pct(c.rates?.completion))}${metric('Censored', count(counts.censored), pct(c.rates?.censoring))}${metric('Failed', count(counts.failed), pct(c.rates?.failure))}${metric('Issues', count(section.issues?.length || 0))}</div>
+    </section><section class="pg-card wide"><h3>Endpoint</h3><p>Completion means the durable <b>Act IV promise</b> was staged to a specific Round/run id. It does not mean an Act IV victory.</p></section></div>`;
+  }
   const h = section.headline || {};
   return `<div class="pg-grid">
     <section class="pg-card wide"><div style="display:flex;justify-content:space-between;gap:12px;align-items:end"><h3>Run verdict</h3>${policyPicker()}</div>
@@ -323,6 +375,53 @@ function renderHeadline(section) {
     <section class="pg-card wide"><h3>Balance signals</h3>${(section.flags || []).length ? `<div class="pg-flags">${section.flags.map((flag) => `<div class="pg-flag"><b>${esc(flag.kind)}</b> · ${esc(flag.message || flag.id || '')}</div>`).join('')}</div>` : '<div class="pg-muted">No automatic thresholds fired.</div>'}</section>
   </div>`;
 }
+
+function cycleRoundTable(rounds) {
+  return `<div class="pg-table-wrap"><table class="pg-table"><caption>Round ordinal Dawn rates and at-risk population</caption><thead><tr><th>Round</th><th>At risk</th><th>Dawns</th><th>Falls</th><th>Errors</th><th>Dawn rate</th><th>95% Wilson interval</th></tr></thead><tbody>${(rounds || []).map((row) => `<tr><td>${count(row.ordinal)}</td><td>${count(row.atRisk)}</td><td>${count(row.dawns)}</td><td>${count(row.falls)}</td><td>${count(row.errors)}</td><td>${pct(row.winRate)}</td><td>${pct(row.wilson95?.[0])}–${pct(row.wilson95?.[1])}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+function cycleRoundCurve(rounds) {
+  if (!rounds?.length) return '';
+  const width = 560; const height = 150; const left = 42; const right = 16; const top = 14; const bottom = 28;
+  const x = (index) => left + index * (width - left - right) / Math.max(1, rounds.length - 1);
+  const y = (rate) => top + (1 - finite(rate)) * (height - top - bottom);
+  const points = rounds.map((row, index) => `${x(index)},${y(row.winRate)}`).join(' ');
+  return `<svg class="pg-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Round ordinal Dawn-rate curve; exact values follow in the table">
+    ${[0,.5,1].map((rate) => `<line class="grid" x1="${left}" x2="${width-right}" y1="${y(rate)}" y2="${y(rate)}"/><text x="${left-7}" y="${y(rate)+4}" text-anchor="end">${pct(rate,0)}</text>`).join('')}
+    <polyline points="${points}" fill="none" stroke="var(--teal)" stroke-width="3"/>
+    ${rounds.map((row,index) => `<circle class="accent" cx="${x(index)}" cy="${y(row.winRate)}" r="4"><title>Round ${row.ordinal}: ${pct(row.winRate)}, at risk ${row.atRisk}</title></circle>`).join('')}
+    <text x="${left}" y="${height-6}">Round 1</text><text x="${width-right}" y="${height-6}" text-anchor="end">Round ${count(rounds.at(-1).ordinal)}</text>
+  </svg>`;
+}
+
+function histogramTable(distribution, empty = 'No completed cycles') {
+  const rows = distribution?.histogram || [];
+  return rows.length ? `<div class="pg-table-wrap"><table class="pg-table"><caption>${esc(distribution.label || 'Round distribution')}</caption><thead><tr><th>Round</th><th>Cycles</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${count(row.round)}</td><td>${count(row.count)}</td></tr>`).join('')}</tbody></table></div>` : `<div class="pg-neutral"><div><strong>${esc(empty)}</strong>Completion-only values are unavailable; censor and at-risk evidence remains above.</div></div>`;
+}
+
+function triggerTable(triggers, coverage) {
+  const rows = entries(triggers?.funnels).filter(([, row]) => coverage || row.eligible || row.attempted || row.succeeded || row.missed);
+  return `<div class="pg-table-wrap"><table class="pg-table"><caption>Version ${count(triggers?.catalogueVersion)} trigger funnel</caption><thead><tr><th>Trigger</th><th>Context</th><th>Eligible</th><th>Attempted</th><th>Succeeded</th><th>Missed</th><th>Miss reasons</th></tr></thead><tbody>${rows.map(([id, row]) => `<tr><td>${esc(id)}</td><td>${coverage ? '<span class="pg-badge qa">QA only</span>' : 'Quest edge'}</td><td>${count(row.eligible)}</td><td>${count(row.attempted)}</td><td>${count(row.succeeded)}</td><td>${count(row.missed)}</td><td>${esc(entries(row.reasons).map(([reason, n]) => `${reason}: ${count(n)}`).join(', ') || '—')}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+function suffixTable(progressiveSuffix) {
+  const rows = progressiveSuffix?.rounds || [];
+  return `<div class="pg-table-wrap"><table class="pg-table"><caption>Progressive suffix Dawn rate with whole-cycle cluster-bootstrap interval</caption><thead><tr><th>From Round</th><th>Cycles</th><th>Attempts</th><th>Dawns</th><th>Dawn rate</th><th>Bootstrap 95%</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${count(row.ordinal)}</td><td>${count(row.clusters)}</td><td>${count(row.n)}</td><td>${count(row.wins)}</td><td>${pct(row.winRate)}</td><td>${pct(row.clusterBootstrap95?.[0])}–${pct(row.clusterBootstrap95?.[1])}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+function renderCycle(section) {
+  const completion = section.completion || {}; const completed = completion.completedOnly || {};
+  const coverage = isCoverage();
+  const triggerCard = `<section class="pg-card wide"><span class="pg-badge${coverage ? ' qa' : ''}">${coverage ? 'QA operational evidence' : 'Auditable quest edges'}</span><h3>Quest and trigger funnels</h3>${triggerTable(section.triggers, coverage)}</section>`;
+  const body = `<section class="pg-card wide"><h3>Round Dawn rate</h3>${cycleRoundCurve(section.rounds)}${cycleRoundTable(section.rounds)}</section>
+    <section class="pg-card wide"><h3>Act IV promise completion and censoring</h3><div class="pg-metrics">${metric('Started', count(completion.counts?.started))}${metric('Completed', count(completion.counts?.completed), pct(completion.rates?.completion))}${metric('Censored', count(completion.counts?.censored), pct(completion.rates?.censoring))}${metric('Failed', count(completion.counts?.failed), 'excluded from timing')}${metric('Completed mean', completed.meanRounds == null ? 'Unavailable' : finite(completed.meanRounds).toFixed(2), completed.label || '')}${metric('Restricted mean', completion.kaplanMeier?.restrictedMeanRounds?.value == null ? 'Unavailable' : finite(completion.kaplanMeier.restrictedMeanRounds.value).toFixed(2), `through Round ${count(completion.kaplanMeier?.restrictedMeanRounds?.through)}`)}</div></section>
+    <section class="pg-card"><h3>Round of six-Shard threshold</h3>${histogramTable(completion.threshold, 'No threshold crossings')}</section>
+    <section class="pg-card"><h3>Rounds to the Act IV promise</h3>${histogramTable(completion.delivery)}</section>
+    <section class="pg-card wide"><h3>Progressive suffix</h3>${suffixTable(section.progressiveSuffix)}<p class="pg-muted">Perfect suffix start: p10 ${completedValue(section.progressiveSuffix?.perfectSuffixStart?.p10)}, p50 ${completedValue(section.progressiveSuffix?.perfectSuffixStart?.p50)}, p90 ${completedValue(section.progressiveSuffix?.perfectSuffixStart?.p90)}.</p></section>`;
+  return `<div class="pg-grid">${coverage ? triggerCard + body : body + triggerCard}</div>`;
+}
+
+function completedValue(value) { return value == null ? 'unavailable' : `Round ${count(value)}`; }
 
 function deathHeatmap(rows) {
   const lookup = new Map((rows || []).map(([act, row, value]) => [`${act}|${row}`, finite(value)]));
@@ -393,6 +492,13 @@ function reproCommand(issue) {
 }
 
 function renderIssues(section) {
+  if (Array.isArray(section.issues)) {
+    const coverage = isCoverage();
+    return `<div class="pg-grid"><section class="pg-card wide"><span class="pg-badge${coverage ? ' qa' : ''}">${coverage ? 'QA operational outcomes' : 'Cycle reproduction evidence'}</span><h3>Cycle issues · ${count(section.issues.length)}</h3>${section.issues.length ? section.issues.map((issue) => {
+      const command = issue.reproduction?.command || '';
+      return `<article class="pg-issue"><code>${esc(issue.kind)}</code><div>${coverage ? '<span class="pg-badge qa">QA only</span>' : ''}<b>cycle ${count(issue.reproduction?.cycleSeed)} · Round ${count(issue.reproduction?.roundOrdinal)} · run seed ${count(issue.reproduction?.runSeed)}</b><br><span class="pg-muted">${esc(issue.message)}</span><br><code>${esc(command)}</code></div><button class="pg-copy" data-copy="${esc(command)}" type="button" aria-label="Copy reproduction for cycle ${esc(issue.reproduction?.cycleSeed)}">Copy repro</button></article>`;
+    }).join('') : '<div class="pg-neutral"><div><strong>No cycle issues</strong>No failed target or simulator error was retained.</div></div>'}</section></div>`;
+  }
   const issues = section.issues || {};
   return `<div class="pg-grid">
     <section class="pg-card wide"><div style="display:flex;justify-content:space-between;gap:12px;align-items:end"><h3>Captured engine and invariant issues · ${count(issues.total)}</h3>${policyPicker()}</div>
@@ -438,8 +544,30 @@ function renderCompare() {
   if (state.reports.length < 2) return '<div class="pg-neutral"><div><strong>Two panes make a comparison</strong>Run or retain at least two reports to unlock signed deltas.</div></div>';
   const reportA = state.cache.get(state.compareA); const reportB = state.cache.get(state.compareB);
   if (!reportA || !reportB) return '<div class="pg-neutral">Loading comparison reports…</div>';
+  if (reportSchema(reportA) !== reportSchema(reportB) || reportMode(reportA) !== reportMode(reportB)) {
+    return '<div class="pg-neutral"><div><strong>Incompatible populations</strong>Compare requires the same report schema and mode; Round and Full Cycle evidence is never subtracted.</div></div>';
+  }
+  if (!reportA.policies?.[state.comparePolicy] || !reportB.policies?.[state.comparePolicy]) {
+    return '<div class="pg-neutral"><div><strong>Policy provenance differs</strong>Select a policy present in both reports.</div></div>';
+  }
   const a = sectionFor(reportA, state.comparePolicy); const b = sectionFor(reportB, state.comparePolicy);
   if (!a.section || !b.section) return '<div class="pg-neutral">The selected policy is not present in both reports.</div>';
+  const aInterpretation = a.section.meta?.interpretation; const bInterpretation = b.section.meta?.interpretation;
+  if (aInterpretation?.balanceEligible === false || bInterpretation?.balanceEligible === false || a.policy === 'coverage' || b.policy === 'coverage') {
+    return '<div class="pg-neutral"><div><strong>QA evidence cannot enter balance Compare</strong>Coverage outcomes remain operational trigger evidence only; no deltas were calculated.</div></div>';
+  }
+  const provenanceA = [a.section.meta?.policyId || a.policy, a.section.meta?.policyVersion, a.section.meta?.knowledgeClass, aInterpretation?.id].join('|');
+  const provenanceB = [b.section.meta?.policyId || b.policy, b.section.meta?.policyVersion, b.section.meta?.knowledgeClass, bInterpretation?.id].join('|');
+  if (provenanceA !== provenanceB) return '<div class="pg-neutral"><div><strong>Policy provenance differs</strong>Compare requires matching policy version, knowledge class, and interpretation.</div></div>';
+  if (reportMode(reportA) === 'cycle') {
+    const ac = a.section.completion || {}; const bc = b.section.completion || {};
+    const rows = [
+      ['Completion rate', ac.rates?.completion, bc.rates?.completion],
+      ['Censoring rate', ac.rates?.censoring, bc.rates?.censoring],
+      ['Failure rate', ac.rates?.failure, bc.rates?.failure],
+    ];
+    return `<div class="pg-grid"><section class="pg-card wide"><span class="pg-badge">Goal-directed machine-policy evidence</span><h3>Compatible Full Cycle comparison</h3><p class="pg-interpretation">Not observed player win-rate proof.</p><div class="pg-table-wrap"><table class="pg-table"><thead><tr><th>Measure</th><th>A</th><th>B</th><th>Δ B − A</th></tr></thead><tbody>${rows.map(([label, av, bv]) => `<tr><td>${label}</td><td>${pct(av)}</td><td>${pct(bv)}</td><td>${deltaCell(finite(bv) - finite(av))}</td></tr>`).join('')}</tbody></table></div></section></div>`;
+  }
   const ah = a.section.headline || {}, bh = b.section.headline || {};
   const ae = a.section.economy || {}, be = b.section.economy || {};
   const cardRows = compareCardRows(a.section, b.section);
@@ -464,14 +592,14 @@ function renderCompare() {
 
 function renderContent() {
   reportMeta(); renderRail();
-  $$('.pg-tab').forEach((button) => button.classList.toggle('active', button.dataset.tab === state.tab));
+  renderTabs();
   if (!state.report) {
     $('#pg-content').innerHTML = `<div class="pg-neutral"><div><strong>No report in the vault</strong>Use Run sweep above. Progress will appear here and the finished report will open automatically.</div></div>`;
     return;
   }
   const { section } = sectionFor(state.report);
   if (!section) { $('#pg-content').innerHTML = '<div class="pg-neutral">This report has no policy sections.</div>'; return; }
-  const renderers = { headline: renderHeadline, deaths: renderDeaths, cards: renderCards, economy: renderEconomy, issues: renderIssues };
+  const renderers = { headline: renderHeadline, deaths: renderDeaths, cards: renderCards, economy: renderEconomy, issues: renderIssues, cycle: renderCycle };
   $('#pg-content').innerHTML = state.tab === 'compare' ? renderCompare() : renderers[state.tab](section);
 }
 
@@ -483,6 +611,9 @@ async function loadReport(file) {
     state.cache.set(file, report);
     if (request !== state.loadRequest) return;
     state.file = file; state.report = report; state.policy = firstPolicy(report, state.policy);
+    if (reportMode(report) === 'cycle') state.comparePolicy = state.policy;
+    if (isCoverage(report)) state.tab = 'cycle';
+    else if (!visibleTabs(report).some(([id]) => id === state.tab)) state.tab = 'headline';
     state.error = null; renderMessage(); renderContent();
   } catch (error) {
     if (request !== state.loadRequest) return;
@@ -534,7 +665,14 @@ function renderStatus(status) {
   const total = finite(status.total); const done = finite(status.done); const ratio = total ? Math.min(1, done / total) : 0;
   node.hidden = !state.running && !state.sawRunning;
   $('.pg-progress > i', node).style.width = `${ratio * 100}%`;
-  $('.pg-status-copy', node).textContent = state.running ? `${count(done)} / ${total ? count(total) : '…'} plays · ${pct(ratio,0)}` : (status.error ? 'Sweep failed' : 'Sweep complete');
+  const unit = status.config?.mode === 'cycle' ? 'cycles' : 'plays';
+  const details = status.config?.mode === 'cycle'
+    ? ` · ${count(status.roundsPlayed)} Rounds · ${count(status.promisesStaged)} promises · ${count(status.censoredCycles)} censored · ${count(status.failedCycles)} failed${status.currentTarget ? ` · target ${status.currentTarget}` : ''}`
+    : '';
+  let copy = 'Simulation complete';
+  if (status.error) copy = 'Simulation failed';
+  if (state.running) copy = `${count(done)} / ${total ? count(total) : '…'} ${unit} · ${pct(ratio,0)}${details}`;
+  $('.pg-status-copy', node).textContent = copy;
 }
 
 async function pollStatus() {
@@ -568,11 +706,19 @@ function scheduleStatusPoll() {
 async function launchRun(form) {
   const data = new FormData(form);
   const workersRaw = data.get('workers');
+  const mode = data.get('mode');
   const payload = {
-    runs: Number(data.get('runs')), seed: Number(data.get('seed')),
-    policy: data.get('policy'), profile: data.get('profile'),
+    mode, seed: Number(data.get('seed')), policy: data.get('policy'),
     workers: workersRaw === 'auto' ? 'auto' : Number(workersRaw), label: data.get('label'),
   };
+  if (mode === 'cycle') {
+    payload.cycles = Number(data.get('cycles'));
+    payload.maxRounds = Number(data.get('maxRounds'));
+    if (data.get('target')) payload.target = data.get('target');
+  } else {
+    payload.runs = Number(data.get('runs'));
+    payload.profile = data.get('profile');
+  }
   try {
     state.statusGeneration++;
     state.launching = true; state.error = null; state.sawRunning = true; state.running = true; renderMessage(); $('.pg-run').disabled = true;
@@ -603,6 +749,11 @@ function bind() {
     }
   });
   document.addEventListener('change', async (event) => {
+    if (event.target.name === 'mode') { renderRunControls(event.target.value); return; }
+    if (event.target.name === 'policy') {
+      const mode = $('[name="mode"]').value;
+      if (mode === 'cycle') { renderRunControls(mode, event.target.value); return; }
+    }
     if (event.target.id === 'pg-policy') { state.policy = event.target.value; renderContent(); }
     if (event.target.id === 'pg-compare-a' || event.target.id === 'pg-compare-b') {
       if (event.target.id.endsWith('-a')) state.compareA = event.target.value; else state.compareB = event.target.value;
@@ -615,7 +766,8 @@ function bind() {
 
 export async function initSimLab() {
   document.title = 'Proving Grounds · Glassvow';
-  installStyles(); shell(); bind();
+  state.metadata = await json('/__sim-metadata');
+  installStyles(); shell(); renderRunControls(); bind();
   await refreshReports();
   await pollStatus();
   scheduleStatusPoll();

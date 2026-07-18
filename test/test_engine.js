@@ -22,11 +22,12 @@ import {
   shopSessionKey, shopStockForSession,
   finaliseTerminalOutbox, journalTerminalOutcome, savedRunRequiresFinalisation,
   SHADE_DUEL_TX, shadeVictorySkipsRewards, shadeLossBequestState,
-  contentIdFor, isEphemeralRun, themeCount, isFinalTheme, _normaliseRunSnapshotForTest,
+  contentIdFor, isEphemeralRun, themeCount, isFinalTheme, advanceAct, _normaliseRunSnapshotForTest,
 } from '../src/engine.js';
 import * as EngineApi from '../src/engine.js';
 import { CARDS, ENEMIES, EVENTS, CARD_POOLS, RELIC_POOLS, ARTS, OMENS, AFFIXES, ASPECTS, VOWS, BOONS, RELICS, POTIONS, STATUS_INFO, DEEDS, REVEALS, PROGRESSION, POOL_GATE, QUEST_IDS, QUESTS, WHISPERS, SHADE_KITS, VARIANTS, ACTS, ENCOUNTERS, REWARD_GOLD, PLAYER } from '../src/data.js';
-import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, commitPendingRunEnd, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
+import { _setStore, _setRng, loadVigil, saveVigil, syncVigil, commitRunToVigil, evaluateDeeds, setBequest, clearBequest, bequestOptions, isRevealed, revealSnapshot, commitRunEnd, commitPendingRunEnd, commitTerminalVigil, claimAct4Promise, clearNews, questSnapshot, whisperAt } from '../src/vigil.js';
+import { buildDawnQueue, createTerminalCoordinator } from '../src/run-lifecycle.js';
 import { bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFrame, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY, _setBF, bfRaw } from '../src/battlefield.js';
 import { serializeBF, validateBF } from '../src/dev/bf-serialize.js';
 import { uicResolve, _setUIC, uicRaw, relicBarLayout } from '../src/uic.js';
@@ -587,8 +588,8 @@ function forceHand(run, cb, ids) {
       finalised(result);
       return true;
     },
-    advancePendingDawn(run, nextCursor) { calls.push(['advancePendingDawn', run.runId, nextCursor]); return true; },
-    completePendingDawn(run) { calls.push(['completePendingDawn', run.runId]); return true; },
+    commitRunStats(run, won) { calls.push(['commitRunStats', run.runId, won]); return true; },
+    clearSave(runId) { calls.push(['clearSave', runId]); return true; },
   };
   const vigil = {
     syncVigil() { calls.push(['syncVigil']); return { shards: [] }; },
@@ -596,15 +597,18 @@ function forceHand(run, cb, ids) {
     clearBequest() { calls.push(['clearBequest']); return true; },
     clearNews() { calls.push(['clearNews']); return { news: false }; },
     clearVigil() { calls.push(['clearVigil']); return true; },
-    commitPendingRunEnd(run, acknowledge) {
-      calls.push(['commitPendingRunEnd', run.runId]);
-      run.runEndResult = { whisper: 'The glass remembers.', newShards: ['hollowLamplighter'], vigil: { shards: ['hollowLamplighter'] } };
-      run.vigilResult = { newUnlocks: ['aspect2'] };
+    commitTerminalVigil(run, outcome) {
+      calls.push(['commitTerminalVigil', run.runId]);
       return {
-        accepted: acknowledge(run), outcome: run.pendingRunEnd?.outcome || 'win',
-        newUnlocks: ['aspect2'], ledger: run.runEndResult,
+        outcome, newUnlocks: ['aspect2'],
+        ledger: {
+          whisper: 'The glass remembers.', newShards: ['hollowLamplighter'],
+          vigil: { shards: ['hollowLamplighter'], act4Promise: { status: 'pending' } },
+        },
       };
     },
+    loadVigil() { return { act4Promise: { status: 'pending' } }; },
+    claimAct4Promise(runId) { calls.push(['claimAct4Promise', runId]); return true; },
   };
   const effects = RunEffectsModule.createRunEffects({ engine, vigil });
   assert.deepEqual(Object.keys(effects), [
@@ -615,7 +619,7 @@ function forceHand(run, cb, ids) {
   ], 'the normal effects adapter has one frozen caller-facing surface');
   assert.equal(Object.isFrozen(effects), true);
 
-  const run = { runId: 'run-effects', endQueue: [{ t: 'questComplete', id: 'hollowLamplighter' }], shards: [] };
+  const run = { runId: 'run-effects-1', endQueue: [{ t: 'questComplete', id: 'hollowLamplighter' }], shards: [] };
   assert.equal(effects.saveRun(run), true, 'initial and ordinary saves preserve their boolean result');
   assert.deepEqual(effects.buyQuestItem(run, 'flamelessLantern'), { ok: true, reason: null });
   assert.deepEqual(effects.payHollowPrice(run), { ok: true, deferred: false, message: 'paid' });
@@ -654,12 +658,14 @@ function forceHand(run, cb, ids) {
     'whisper', 'shardGrant', 'act4Reveal',
   ], 'Dawn construction removes the superseded completion and preserves canonical order');
   assert.deepEqual(calls.slice(calls.findIndex(([name]) => name === 'journalTerminalOutcome')), [
-    ['journalTerminalOutcome', 'run-effects', 'win'],
-    ['saveRun', 'run-effects'],
-    ['finaliseTerminalOutbox', 'run-effects'],
+    ['journalTerminalOutcome', 'run-effects-1', 'win'],
+    ['saveRun', 'run-effects-1'],
+    ['finaliseTerminalOutbox', 'run-effects-1'],
     ['persist'],
-    ['commitPendingRunEnd', 'run-effects'],
-    ['stagePendingDawn', 'run-effects', ['whisper', 'shardGrant', 'act4Reveal'], ['aspect2']],
+    ['commitTerminalVigil', 'run-effects-1'],
+    ['commitRunStats', 'run-effects-1', true],
+    ['saveRun', 'run-effects-1'],
+    ['claimAct4Promise', 'run-effects-1'],
     ['onFinalised'],
   ], 'terminal journalling, finalisation, durable commit and Dawn staging have one order');
 
@@ -674,7 +680,9 @@ function forceHand(run, cb, ids) {
     { t: 'shardGrant', id: 'b' },
     { t: 'act4Reveal' },
   ], 'Dawn queue snapshots source events and shard ids');
-  assert.equal(effects.advanceDawn(run, 1), true);
+  while (run.pendingDawn.cursor < run.pendingDawn.events.length) {
+    assert.equal(effects.advanceDawn(run, run.pendingDawn.cursor + 1), true);
+  }
   assert.equal(effects.completeDawn(run), true);
 
   let retryBlocked = 0;
@@ -713,14 +721,13 @@ function forceHand(run, cb, ids) {
   for (const owner of [
     'saveRun', 'buyQuestItem', 'payHollowPrice', 'stageHollowExit', 'completePendingHollowRoute',
     'beginShadeDuel', 'resumeShadeDuel', 'journalTerminalOutcome',
-    'finaliseTerminalOutbox', 'stagePendingDawn', 'advancePendingDawn',
-    'completePendingDawn',
+    'finaliseTerminalOutbox',
   ]) {
     assert.doesNotMatch(uiOwnersSource, new RegExp(`\\bE\\.${owner}\\s*\\(`), `${owner} has one owner in run-effects`);
     assert.equal((runEffectsSource.match(new RegExp(`\\bengine\\.${owner}\\s*\\(`, 'g')) || []).length, 1,
       `${owner} has exactly one engine delegation in run-effects`);
   }
-  for (const owner of ['syncVigil', 'commitPendingRunEnd', 'setBequest', 'clearBequest', 'clearNews', 'clearVigil']) {
+  for (const owner of ['syncVigil', 'setBequest', 'clearBequest', 'clearNews', 'clearVigil']) {
     const bareOwnerPattern = new RegExp(`(?<![.\\w])${owner}\\s*\\(`);
     const vigilNamespacePattern = new RegExp(`\\bVigil\\.${owner}\\s*\\(`);
     assert.match(`Vigil.${owner}()`, vigilNamespacePattern,
@@ -730,6 +737,10 @@ function forceHand(run, cb, ids) {
     assert.equal((runEffectsSource.match(new RegExp(`\\bvigil\\.${owner}\\s*\\(`, 'g')) || []).length, 1,
       `${owner} has exactly one Vigil delegation in run-effects`);
   }
+  assert.doesNotMatch(runEffectsSource, /engine\.(?:stagePendingDawn|advancePendingDawn|completePendingDawn)\s*\(/,
+    'Dawn persistence uses the Node-pure lifecycle coordinator');
+  assert.match(runEffectsSource, /vigil\.commitTerminalVigil\s*\(/);
+  assert.match(runEffectsSource, /vigil\.claimAct4Promise\s*\(/);
   assert.match(endSource, /runEffects\.finaliseRunEnd\s*\(/,
     'the extracted end-screen owner delegates mutation');
   assert.doesNotMatch(uiOwnersSource, /function\s+dawnQueue\s*\(/,
@@ -4829,6 +4840,241 @@ function forceHand(run, cb, ids) {
   _setStore(null);
 }
 {
+  // U1: the live act transition is the sole Act I -> II / Act II -> III
+  // primitive. It rolls one sky, heals 35%, and can never create playable
+  // Act IV state.
+  const run = newRun(407, { reveals: ['omens'] });
+  run.player.hp = 1;
+  const initialOmenCount = run.omens.length;
+  assert.equal(advanceAct(run), true);
+  assert.equal(run.act, 1);
+  assert.equal(run.omens.length, initialOmenCount + 1, 'act entry rolls exactly one Omen slot');
+  assert.equal(run.player.hp, 1 + Math.round(run.player.maxHp * 0.35), 'act entry heals exactly 35% max HP');
+  assert.equal(run.nodeId, null);
+  assert.ok(run.map?.nodes?.length, 'act entry creates the next legal map');
+
+  run.player.hp = 1;
+  assert.equal(advanceAct(run), true);
+  assert.equal(run.act, 2);
+  const terminalSnapshot = JSON.stringify({
+    act: run.act, omens: run.omens, hp: run.player.hp, map: run.map, rng: run.rngState,
+  });
+  assert.equal(advanceAct(run), false, 'Act III has no playable successor');
+  assert.equal(JSON.stringify({
+    act: run.act, omens: run.omens, hp: run.player.hp, map: run.map, rng: run.rngState,
+  }), terminalSnapshot, 'rejected Act IV transition is mutation-free');
+  assert.equal(restHealFrac(newRun(408, { vow: 5 })), 0.2,
+    'the canonical act heal does not alter Vow-limited rest parity');
+}
+{
+  // U1: legacy six-Shard ledgers never fabricate a historical owner from a
+  // replaceable or corrupt latest-run receipt. Five Shards remain locked.
+  _setStore(null);
+  const template = loadVigil();
+  const receipt = (outcome, runId = 'run-legacy-proof') => ({
+    runId, outcome, whisper: outcome === 'win' ? 'old dawn' : null,
+    armed: [], completed: [], newShards: [],
+  });
+  const hydrateLegacy = (count, runEnd) => {
+    const raw = structuredClone(template);
+    raw.shards = QUEST_IDS.slice(0, count);
+    raw.receipts = { deeds: null, runEnd };
+    delete raw.act4Promise;
+    const mem = new Map([['spirebound_vigil_v2', JSON.stringify(raw)]]);
+    _setStore({
+      getItem: (key) => mem.get(key) ?? null,
+      setItem: (key, value) => mem.set(key, value),
+      removeItem: (key) => mem.delete(key),
+    });
+    return loadVigil();
+  };
+  assert.deepEqual(hydrateLegacy(5, receipt('win')).act4Promise, { status: 'locked' });
+  for (const latest of [
+    receipt('win'), receipt('death'), receipt('win', 'run-overwritten-proof'),
+    null, { runId: 'sentinel', outcome: 'win' },
+  ]) {
+    assert.deepEqual(hydrateLegacy(6, latest).act4Promise, {
+      status: 'staged', runId: null, provenance: 'legacy-assumed',
+    }, 'legacy six-Shard hydration has explicit ownerless provenance');
+  }
+  _setStore(null);
+}
+{
+  // U1 integration: terminal Vigil commit -> pending-Dawn save -> runtime
+  // claim. The same coordinator also covers Fall carry-over and every retry
+  // boundary without importing a browser module.
+  const prepareFiveShardVigil = () => {
+    _setStore(null);
+    const vigil = loadVigil();
+    vigil.shards = QUEST_IDS.slice(0, 5);
+    for (const id of vigil.shards) {
+      vigil.quests[id] = { state: 'complete', progress: QUESTS[id].target, memory: {} };
+    }
+    const finalId = QUEST_IDS[5];
+    vigil.quests[finalId] = { state: 'revealed', progress: 0, memory: {} };
+    assert.equal(saveVigil(vigil), true);
+    return finalId;
+  };
+  const completingRun = (seed, outcome, finalId) => {
+    const vigil = loadVigil();
+    const run = newRun(seed, {
+      quests: questSnapshot(vigil), shards: vigil.shards,
+      reveals: revealSnapshot(vigil), unlocks: vigil.unlocks,
+    });
+    run.quests[finalId] = { state: 'complete', progress: QUESTS[finalId].target, memory: {} };
+    run.questCompletions = [finalId];
+    run.pendingRunEnd = { outcome };
+    return run;
+  };
+  const savedRuns = new Map();
+  const calls = [];
+  let saveDawn = true;
+  let saveCursor = true;
+  let clearRun = true;
+  let rejectClaim = false;
+  const ports = {
+    commitVigil(run, outcome) {
+      calls.push('vigil');
+      return commitTerminalVigil(run, outcome);
+    },
+    commitStats(run, won) { calls.push(`stats:${won}`); return true; },
+    saveRun(run) {
+      calls.push('dawn-save');
+      if (!saveDawn) return false;
+      savedRuns.set(run.runId, structuredClone(run));
+      return true;
+    },
+    saveDawnCursor(run) {
+      calls.push('cursor-save');
+      if (!saveCursor) return false;
+      savedRuns.set(run.runId, structuredClone(run));
+      return true;
+    },
+    clearSave(runId) {
+      calls.push('clear-save');
+      if (!clearRun) return false;
+      savedRuns.delete(runId);
+      return true;
+    },
+    loadVigil,
+    claimAct4Promise(runId) {
+      calls.push('promise-claim');
+      if (rejectClaim) throw new Error('claim rejected');
+      return claimAct4Promise(runId);
+    },
+  };
+  const coordinator = createTerminalCoordinator(ports);
+  let result;
+
+  let finalId = prepareFiveShardVigil();
+  const beforeRejectedShard = loadVigil();
+  const durableVigil = new Map([['spirebound_vigil_v2', JSON.stringify(beforeRejectedShard)]]);
+  let rejectVigilWrite = true;
+  _setStore({
+    getItem: (key) => durableVigil.get(key) ?? null,
+    setItem: (key, value) => {
+      if (rejectVigilWrite) throw new Error('quota');
+      durableVigil.set(key, value);
+    },
+    removeItem: (key) => durableVigil.delete(key),
+  });
+  const rejectedShard = completingRun(4081, 'abandon', finalId);
+  assert.throws(
+    () => coordinator.finalise(rejectedShard, { revealThreshold: QUEST_IDS.length }),
+    /Vigil storage rejected the run end/,
+  );
+  assert.equal(JSON.parse(durableVigil.get('spirebound_vigil_v2')).shards.length, 5);
+  assert.deepEqual(JSON.parse(durableVigil.get('spirebound_vigil_v2')).act4Promise, { status: 'locked' },
+    'a rejected sixth-Shard write cannot leave a partial pending promise');
+  rejectVigilWrite = false;
+  result = coordinator.finalise(rejectedShard, { revealThreshold: QUEST_IDS.length });
+  assert.equal(result.accepted, true);
+  assert.deepEqual(loadVigil().act4Promise, { status: 'pending' },
+    'the same terminal journal can retry the atomic Shard + pending write');
+
+  finalId = prepareFiveShardVigil();
+  calls.length = 0;
+  const dawn = completingRun(409, 'win', finalId);
+  result = coordinator.finalise(dawn, { revealThreshold: QUEST_IDS.length });
+  assert.equal(result.accepted, true);
+  assert.deepEqual(calls.slice(0, 4), ['vigil', 'stats:true', 'dawn-save', 'promise-claim'],
+    'Dawn queue is durable before the runtime promise claim');
+  assert.equal(dawn.pendingRunEnd, null);
+  assert.equal(dawn.pendingDawn.events.filter((event) => event.t === 'act4Reveal').length, 1);
+  assert.deepEqual(loadVigil().act4Promise, {
+    status: 'staged', runId: dawn.runId, provenance: 'runtime',
+  });
+  assert.equal(buildDawnQueue(newRun(410), {
+    vigil: loadVigil(), newShards: [], whisper: null,
+  }, QUEST_IDS.length).some((event) => event.t === 'act4Reveal'), false,
+  'a later Dawn cannot stage an already-owned promise');
+
+  saveCursor = false;
+  const cursorBefore = dawn.pendingDawn.cursor;
+  assert.equal(coordinator.advanceDawn(dawn, cursorBefore + 1), false);
+  assert.equal(dawn.pendingDawn.cursor, cursorBefore, 'cursor failure leaves replay available');
+  saveCursor = true;
+  while (dawn.pendingDawn.cursor < dawn.pendingDawn.events.length) {
+    assert.equal(coordinator.advanceDawn(dawn, dawn.pendingDawn.cursor + 1), true);
+  }
+  clearRun = false;
+  assert.equal(coordinator.completeDawn(dawn), false);
+  assert.ok(dawn.pendingDawn, 'clear-save failure retains the completed Dawn outbox');
+  clearRun = true;
+  assert.equal(coordinator.completeDawn(dawn), true);
+
+  finalId = prepareFiveShardVigil();
+  const fallen = completingRun(411, 'death', finalId);
+  result = coordinator.finalise(fallen, { revealThreshold: QUEST_IDS.length });
+  assert.equal(result.accepted, true);
+  assert.equal(fallen.pendingDawn, null, 'Fall never becomes a Dawn presentation');
+  assert.deepEqual(loadVigil().act4Promise, { status: 'pending' },
+    'the sixth Shard and pending promise share the Fall Vigil write');
+  const laterDawn = newRun(412, {
+    quests: questSnapshot(loadVigil()), shards: loadVigil().shards,
+    reveals: revealSnapshot(loadVigil()), unlocks: loadVigil().unlocks,
+  });
+  laterDawn.pendingRunEnd = { outcome: 'win' };
+  result = coordinator.finalise(laterDawn, { revealThreshold: QUEST_IDS.length });
+  assert.equal(result.accepted, true);
+  assert.equal(laterDawn.pendingDawn.events.filter((event) => event.t === 'act4Reveal').length, 1);
+  assert.deepEqual(loadVigil().act4Promise, {
+    status: 'staged', runId: laterDawn.runId, provenance: 'runtime',
+  }, 'the first eligible later Dawn owns the pending promise');
+
+  finalId = prepareFiveShardVigil();
+  const saveRetry = completingRun(413, 'win', finalId);
+  saveDawn = false;
+  result = coordinator.finalise(saveRetry, { revealThreshold: QUEST_IDS.length });
+  assert.equal(result.accepted, false);
+  assert.deepEqual(loadVigil().act4Promise, { status: 'pending' });
+  assert.deepEqual(saveRetry.pendingRunEnd, { outcome: 'win' }, 'failed queue save retains the terminal journal');
+  saveDawn = true;
+  result = coordinator.finalise(saveRetry, { revealThreshold: QUEST_IDS.length });
+  assert.equal(result.accepted, true, 'pending-Dawn persistence retries against durable Vigil receipts');
+
+  finalId = prepareFiveShardVigil();
+  const claimRetry = completingRun(414, 'win', finalId);
+  rejectClaim = true;
+  assert.throws(
+    () => coordinator.finalise(claimRetry, { revealThreshold: QUEST_IDS.length }),
+    /claim rejected/,
+  );
+  const halfWritten = savedRuns.get(claimRetry.runId);
+  assert.ok(halfWritten?.pendingDawn?.events.some((event) => event.t === 'act4Reveal'),
+    'claim failure leaves a durable pending-Dawn repair witness');
+  assert.deepEqual(loadVigil().act4Promise, { status: 'pending' });
+  rejectClaim = false;
+  assert.equal(coordinator.repairPendingDawn(halfWritten), true);
+  assert.deepEqual(loadVigil().act4Promise, {
+    status: 'staged', runId: claimRetry.runId, provenance: 'runtime',
+  }, 'reload repair claims the saved queue owner without a sentinel id');
+  assert.equal(coordinator.repairPendingDawn({
+    runId: 'sentinel', pendingDawn: { events: [{ t: 'act4Reveal' }] },
+  }), false, 'repair rejects a fabricated promise owner');
+  _setStore(null);
+}
+{
   // the reveal ladder: counters only ever open doors
   _setStore(null);
   let v = loadVigil();
@@ -8341,8 +8587,8 @@ export default defineContentRegistration({
         finalised(result);
         return true;
       },
-      advancePendingDawn(run, nextCursor) { calls.push(['advancePendingDawn', nextCursor]); return true; },
-      completePendingDawn(run) { calls.push(['completePendingDawn']); return true; },
+      commitRunStats(run, won) { calls.push(['commitRunStats', won]); return true; },
+      clearSave(runId) { calls.push(['clearSave', runId]); return true; },
       isEphemeralRun: () => false,
       contentIdFor: () => 'core',
     };
@@ -8352,18 +8598,21 @@ export default defineContentRegistration({
       clearBequest() { calls.push(['clearBequest']); return true; },
       clearNews() { calls.push(['clearNews']); return { news: false }; },
       clearVigil() { calls.push(['clearVigil']); return true; },
-      commitPendingRunEnd(run, acknowledge) {
-        calls.push(['commitPendingRunEnd']);
-        run.runEndResult = { whisper: 'ok', newShards: ['hollowLamplighter'], vigil: { shards: ['hollowLamplighter'] } };
-        run.vigilResult = { newUnlocks: ['aspect2'] };
+      commitTerminalVigil(run, outcome) {
+        calls.push(['commitTerminalVigil']);
         return {
-          accepted: acknowledge(run), outcome: 'win',
-          newUnlocks: ['aspect2'], ledger: run.runEndResult,
+          outcome, newUnlocks: ['aspect2'],
+          ledger: {
+            whisper: 'ok', newShards: ['hollowLamplighter'],
+            vigil: { shards: ['hollowLamplighter'], act4Promise: { status: 'pending' } },
+          },
         };
       },
+      loadVigil() { return { act4Promise: { status: 'pending' } }; },
+      claimAct4Promise() { calls.push(['claimAct4Promise']); return true; },
     };
     const effects = RunEffectsModule.createRunEffects({ engine, vigil });
-    const run = { runId: 'normal-16a', endQueue: [], shards: [], pendingRunEnd: null };
+    const run = { runId: 'run-normal-16a', endQueue: [], shards: [], pendingRunEnd: null };
     assert.equal(effects.saveRun(run), true);
     assert.equal(effects.setBequest(run, 2, 7, { kind: 'gold', amount: 50 }), true);
     assert.equal(effects.clearBequest(run), true);
@@ -8377,10 +8626,12 @@ export default defineContentRegistration({
     }), true);
     assert.equal(completed.outcome, 'win');
     assert.ok(run.pendingDawn);
-    assert.equal(effects.advanceDawn(run, 1), true);
+    while (run.pendingDawn.cursor < run.pendingDawn.events.length) {
+      assert.equal(effects.advanceDawn(run, run.pendingDawn.cursor + 1), true);
+    }
     assert.equal(effects.completeDawn(run), true);
-    assert.ok(calls.some(([name]) => name === 'commitPendingRunEnd'));
-    assert.ok(calls.some(([name]) => name === 'stagePendingDawn'));
+    assert.ok(calls.some(([name]) => name === 'commitTerminalVigil'));
+    assert.ok(calls.some(([name]) => name === 'claimAct4Promise'));
     assert.ok(calls.some(([name]) => name === 'setBequest'));
   }
 

@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "schema": 2,
+    "mode": "cycle",
+    "label": "Schema 2 progression fixture",
+    "cycles": 2,
+    "totalRounds": 7,
+    "durationMs": 2400,
+    "date": "2026-07-18T10:01:00.000Z",
+    "gitRev": "fixture2",
+    "dirty": false,
+    "config": { "policy": "progression", "cycles": 2, "maxRounds": 6 }
+  },
+  "policies": {
+    "progression": {
+      "meta": {
+        "mode": "cycle",
+        "cycles": 2,
+        "totalRounds": 7,
+        "policyId": "progression",
+        "policyVersion": 1,
+        "knowledgeClass": "player-visible",
+        "interpretation": {
+          "id": "goal-directed-machine",
+          "label": "Goal-directed machine-policy evidence",
+          "balanceEligible": true
+        }
+      },
+      "rounds": [
+        { "ordinal": 1, "atRisk": 2, "started": 2, "dawns": 1, "falls": 1, "errors": 0, "winRate": 0.5, "wilson95": [0.0945, 0.9055] },
+        { "ordinal": 2, "atRisk": 2, "started": 2, "dawns": 2, "falls": 0, "errors": 0, "winRate": 1, "wilson95": [0.3424, 1] },
+        { "ordinal": 3, "atRisk": 2, "started": 2, "dawns": 2, "falls": 0, "errors": 0, "winRate": 1, "wilson95": [0.3424, 1] },
+        { "ordinal": 4, "atRisk": 1, "started": 1, "dawns": 1, "falls": 0, "errors": 0, "winRate": 1, "wilson95": [0.2065, 1] }
+      ],
+      "completion": {
+        "counts": { "started": 2, "completed": 2, "censored": 0, "failed": 0, "timingPopulation": 2 },
+        "rates": { "completion": 1, "censoring": 0, "failure": 0 },
+        "completedOnly": { "label": "Descriptive among completed cycles only", "n": 2, "histogram": [{ "round": 3, "count": 1 }, { "round": 4, "count": 1 }], "meanRounds": 3.5, "p10": 3, "p50": 3, "p90": 4 },
+        "threshold": { "label": "Six-Shard threshold Round", "histogram": [{ "round": 3, "count": 2 }] },
+        "delivery": { "label": "Act IV promise delivery Round", "histogram": [{ "round": 3, "count": 1 }, { "round": 4, "count": 1 }] },
+        "kaplanMeier": { "restrictedMeanRounds": { "through": 6, "value": 3.5 } }
+      },
+      "progressiveSuffix": {
+        "rounds": [{ "ordinal": 2, "clusters": 2, "n": 5, "wins": 5, "winRate": 1, "clusterBootstrap95": [1, 1] }],
+        "perfectSuffixStart": { "p10": 2, "p50": 2, "p90": 2 }
+      },
+      "triggers": {
+        "catalogueVersion": 1,
+        "funnels": { "act4Reveal.staged": { "eligible": 2, "attempted": 2, "succeeded": 2, "missed": 0, "reasons": {} } }
+      },
+      "issues": [],
+      "flags": []
+    }
+  }
+}

@@ -21,13 +21,25 @@ const sourceBlock = (source, marker) => {
   assert.fail(`source block must close: ${marker}`);
 };
 
-for (const modulePath of ['../src/engine.js', '../src/vigil.js']) {
-  assert.deepEqual(
-    importSpecifiers(modulePath),
-    ['./data.js'],
-    `${modulePath} must import only the Node-safe data module`,
-  );
-}
+assert.deepEqual(
+  importSpecifiers('../src/engine.js'),
+  ['./data.js', './run-lifecycle.js'],
+  'engine may import only Node-safe data and run lifecycle owners',
+);
+assert.deepEqual(
+  importSpecifiers('../src/vigil.js'),
+  ['./data.js'],
+  'vigil must import only the Node-safe data module',
+);
+assert.deepEqual(
+  importSpecifiers('../src/run-lifecycle.js'),
+  ['./content-protocol.js'],
+  'run lifecycle may import only the Node-safe protocol owner',
+);
+const runLifecycleSource = readFileSync(new URL('../src/run-lifecycle.js', import.meta.url), 'utf8');
+assert.doesNotMatch(runLifecycleSource,
+  /(?:ui\.js|stage\.js|audio\.js|music\.js|audio-assets|vite)|\b(?:document|window|localStorage)\b|import\.meta\.glob/,
+  'run lifecycle stays free of browser, stage, audio, playback, and Vite owners');
 
 const data = await import('../src/data.js');
 assert.deepEqual(data.QUEST_STATES, ['dormant', 'armed', 'revealed', 'complete']);
@@ -115,6 +127,7 @@ const allImportSpecifiers = (source) => [
 const allowedSimSrcImports = new Set([
   new URL('../src/engine.js', import.meta.url).href,
   new URL('../src/data.js', import.meta.url).href,
+  new URL('../src/run-lifecycle.js', import.meta.url).href,
   new URL('../src/vigil.js', import.meta.url).href,
 ]);
 for (const module of readSimModules(simRoot)) {
@@ -128,6 +141,203 @@ for (const module of readSimModules(simRoot)) {
     assert.ok(target.startsWith(simRoot.href) || allowedSimSrcImports.has(target),
       `tools/sim/${module.name} import is outside the Node-safe whitelist: ${specifier}`);
   }
+}
+
+assert.deepEqual(
+  allImportSpecifiers(readFileSync(new URL('../tools/sim/cycle-telemetry.mjs', import.meta.url), 'utf8')),
+  ['./triggers.mjs'],
+  'schema-2 cycle telemetry may depend only on the Node-pure trigger catalogue sibling',
+);
+const legacyTelemetry = await import('../tools/sim/telemetry.mjs');
+const cycleTelemetry = await import('../tools/sim/cycle-telemetry.mjs');
+assert.equal(legacyTelemetry.SCHEMA_VERSION, 1,
+  'schema-2 cycle telemetry must not change the legacy Round report schema');
+assert.equal(cycleTelemetry.CYCLE_SCHEMA_VERSION, 2,
+  'cycle telemetry exposes an additive schema-2 source for the runner');
+for (const name of [
+  'newCycleAggregate', 'reduceCycle', 'mergeCycleAggregates', 'finaliseCycles', 'serialiseCycles',
+]) {
+  assert.equal(typeof cycleTelemetry[name], 'function', `cycle telemetry must export ${name}`);
+}
+
+const policyRoot = new URL('../tools/sim/policies/', import.meta.url);
+for (const module of readSimModules(policyRoot)) {
+  const imports = allImportSpecifiers(module.source);
+  assert.ok(imports.every((specifier) => specifier.startsWith('.') &&
+    new URL(specifier, module.url).href.startsWith(policyRoot.href)),
+  `tools/sim/policies/${module.name} must depend only on policy siblings`);
+  assert.doesNotMatch(module.source, /\.\.\/\.\.\/\.\.\/src\/(?:engine|data|vigil)\.js/,
+    `tools/sim/policies/${module.name} must not import game owners`);
+}
+
+const {
+  POLICY_REGISTRY, getPolicyDefinition, legacyRoundPolicyIds,
+  policyMetadata, policyIdsForMode,
+} = await import('../tools/sim/policies/registry.mjs');
+assert.deepEqual(POLICY_REGISTRY.map(({ id }) => id), [
+  'random', 'greedy', 'progression', 'coverage',
+], 'the versioned registry is the sole ordered policy catalogue');
+assert.deepEqual(policyIdsForMode('round'), ['random', 'greedy', 'progression']);
+assert.deepEqual(policyIdsForMode('cycle'), ['progression', 'coverage']);
+assert.deepEqual(legacyRoundPolicyIds(), ['random', 'greedy'],
+  'the existing --policy both sweep retains random + greedy semantics');
+assert.equal(getPolicyDefinition('__unknown__'), null);
+assert.deepEqual(
+  POLICY_REGISTRY.map(({ knowledgeClass }) => knowledgeClass),
+  ['baseline', 'player-visible', 'player-visible', 'coverage-only'],
+);
+for (const definition of POLICY_REGISTRY) {
+  assert.equal(Number.isInteger(definition.version) && definition.version > 0, true,
+    `${definition.id} policy version must be a positive integer`);
+  assert.equal(typeof definition.factory, 'function', `${definition.id} policy factory must resolve`);
+  assert.equal(typeof definition.reportInterpretation?.label, 'string');
+}
+const safePolicyMetadata = policyMetadata();
+assert.equal(JSON.stringify(safePolicyMetadata).includes('factory'), false,
+  'serialisable endpoint/UI metadata must not expose executable factories');
+assert.deepEqual(safePolicyMetadata.defaults, { round: 'greedy', cycle: 'progression' });
+assert.deepEqual(safePolicyMetadata.policies.find(({ id }) => id === 'coverage')?.targetSelection, {
+  accepted: true, required: false, default: 'rotation', rotation: 'deterministic',
+});
+
+const { createObservation, isDeepFrozen } = await import('../tools/sim/policies/observation.mjs');
+const { SHADE_SETUP_TARGET_ID } = await import('../tools/sim/policies/objectives.mjs');
+const { makeWalkerPolicyFactory } = await import('../tools/sim/policy-adapter.mjs');
+const policyFixture = ({ objective = null, actions = null, knowledgeClass = 'player-visible' } = {}) =>
+  createObservation({
+    phase: 'node',
+    knowledgeClass,
+    state: { hpRatio: 1 },
+    objective,
+    legalActions: actions || [
+      { key: 'node:left', kind: 'node', genericScore: 4, order: 0 },
+      { key: 'node:right', kind: 'node', genericScore: 8, order: 1 },
+    ],
+  });
+for (const definition of POLICY_REGISTRY) {
+  const options = definition.id === 'coverage'
+    ? { objective: { targetId: 'coverage.fixture', currentEligibility: true } }
+    : {};
+  const policy = definition.factory(() => 0.25, options);
+  const observation = policyFixture({
+    knowledgeClass: definition.knowledgeClass,
+    objective: definition.knowledgeClass === 'coverage-only'
+      ? options.objective
+      : null,
+  });
+  const decision = policy.decide(observation);
+  assert.ok(observation.legalActions.some(({ key }) => key === decision),
+    `${definition.id} must choose one frozen legal-action key`);
+  assert.throws(() => policy.decide({ ...observation }), /deeply frozen/,
+    `${definition.id} must reject a mutable policy context`);
+  assert.throws(() => policy.decide(Object.freeze({
+    ...observation, run: Object.freeze({ hidden: true }),
+  })), /observation\.run/,
+  `${definition.id} must reject a frozen mutable-run capability too`);
+}
+
+for (const modulePath of [
+  '../tools/sim/runner.mjs', '../tools/sim/worker.mjs', '../tools/sim/smoke.mjs',
+]) {
+  const source = readFileSync(new URL(modulePath, import.meta.url), 'utf8');
+  assert.match(source, /policies\/registry\.mjs/,
+    `${modulePath} must consume the authoritative policy registry`);
+  assert.doesNotMatch(source, /from ['"]\.\/policies\/(?:random|greedy)\.mjs['"]/,
+    `${modulePath} must not reconstruct policy factories outside the registry`);
+}
+
+const objectiveActions = [
+  { key: 'generic', kind: 'node', genericScore: 100, order: 0 },
+  { key: 'prepare', kind: 'node', genericScore: 1, objectivePriority: 'prepare', order: 1 },
+  { key: 'preserve', kind: 'node', genericScore: 1, objectivePriority: 'preserve', order: 2 },
+  { key: 'active', kind: 'node', genericScore: 1, objectivePriority: 'active', order: 3 },
+];
+const progression = getPolicyDefinition('progression').factory(() => 0.5);
+assert.equal(progression.decide(policyFixture({
+  objective: { targetId: 'page.visible', currentEligibility: true, disclosed: true },
+  actions: objectiveActions,
+})), 'active', 'active target outranks preserve, prepare, and generic win');
+assert.equal(progression.decide(policyFixture({
+  objective: { targetId: 'page.visible', currentEligibility: true, disclosed: true },
+  actions: objectiveActions.filter(({ key }) => key !== 'active'),
+})), 'preserve', 'preserving an opportunity outranks preparation and generic win');
+assert.equal(progression.decide(policyFixture({
+  objective: { targetId: 'page.visible', currentEligibility: true, disclosed: true },
+  actions: objectiveActions.filter(({ key }) => !['active', 'preserve'].includes(key)),
+})), 'prepare', 'preparing a prerequisite outranks generic win');
+
+const coverage = getPolicyDefinition('coverage').factory(() => 0.5);
+const fallActions = [
+  { key: 'win', kind: 'node', genericScore: 10, order: 0 },
+  { key: 'fall', kind: 'fall', genericScore: 1000, objectivePriority: 'active', order: 1 },
+];
+assert.equal(coverage.decide(policyFixture({
+  knowledgeClass: 'coverage-only',
+  objective: { targetId: 'not-shade', currentEligibility: true },
+  actions: fallActions,
+})), 'win', 'an intentional Fall is forbidden for non-Shade targets');
+assert.equal(coverage.decide(policyFixture({
+  knowledgeClass: 'coverage-only',
+  objective: { targetId: SHADE_SETUP_TARGET_ID, currentEligibility: false },
+  actions: fallActions,
+})), 'win', 'an intentional Fall is forbidden before Shade setup is eligible');
+assert.equal(coverage.decide(policyFixture({
+  knowledgeClass: 'coverage-only',
+  objective: { targetId: SHADE_SETUP_TARGET_ID, currentEligibility: true },
+  actions: fallActions,
+})), 'fall', 'eligible Your Own Shade setup may intentionally Fall');
+assert.throws(() => progression.decide(policyFixture({
+  knowledgeClass: 'coverage-only',
+  objective: { targetId: 'harness-only', currentEligibility: true },
+})), /player-visible knowledge class/,
+'progression cannot consume a coverage-only target descriptor');
+
+assert.throws(() => policyFixture({
+  objective: { targetId: 'hidden', currentEligibility: true, disclosed: false },
+}), /disclosed/, 'progression observations reject unrevealed objective identity');
+assert.throws(() => policyFixture({
+  knowledgeClass: 'coverage-only',
+  objective: { targetId: 'fixture', currentEligibility: true, futureRng: 0.1 },
+}), /futureRng/, 'coverage observations reject future RNG capability');
+
+const capturedVisible = [];
+const captureDefinition = Object.freeze({
+  id: 'capture', knowledgeClass: 'player-visible',
+  factory: () => ({
+    decide(observation) {
+      capturedVisible.push(observation);
+      return observation.legalActions[0].key;
+    },
+  }),
+});
+const capture = makeWalkerPolicyFactory(captureDefinition)(() => 0.5);
+const visibleRun = (secret) => ({
+  act: 0,
+  armedQuestId: secret,
+  player: { hp: 30, maxHp: 60, gold: 50, deck: [], relics: [], potions: [] },
+});
+const hiddenNode = (secret) => ({
+  id: 'unlit-1', col: 0, row: 2, unlit: true, type: secret, hiddenFace: secret,
+});
+const firstHidden = hiddenNode('elite');
+const secondHidden = hiddenNode('shop');
+assert.equal(capture.pickNode({ run: visibleRun('pale') }, [firstHidden]), firstHidden);
+assert.equal(capture.pickNode({ run: visibleRun('usurper') }, [secondHidden]), secondHidden);
+assert.equal(isDeepFrozen(capturedVisible[0]), true, 'walker observations are recursively frozen');
+assert.deepEqual(capturedVisible[0], capturedVisible[1],
+  'player-visible policy input cannot distinguish hidden node face or armed quest identity');
+assert.equal(JSON.stringify(capturedVisible[0]).includes('elite'), false);
+assert.equal(JSON.stringify(capturedVisible[0]).includes('shop'), false);
+assert.equal(JSON.stringify(capturedVisible[0]).includes('pale'), false);
+assert.equal(JSON.stringify(capturedVisible[0]).includes('usurper'), false);
+
+for (const id of ['random', 'greedy', 'progression']) {
+  const make = () => getPolicyDefinition(id).factory(() => 0.25);
+  const deterministicObservation = policyFixture({
+    knowledgeClass: getPolicyDefinition(id).knowledgeClass,
+  });
+  assert.equal(make().decide(deterministicObservation), make().decide(deterministicObservation),
+    `${id} must repeat the same action for the same seed/observation`);
 }
 
 const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
@@ -521,8 +731,8 @@ assert.deepEqual([...new Set(traceOwnedFixtureIds)].sort(), [...fixtureManifest.
   assert.match(protocolSource, /RUN_ID_RE/);
   assert.doesNotMatch(protocolSource, /\b(?:document|window|localStorage)\b|import\.meta\.glob/);
 
-  const engineStillDataOnly = importSpecifiers('../src/engine.js');
-  assert.deepEqual(engineStillDataOnly, ['./data.js']);
+  const engineStillNodePure = importSpecifiers('../src/engine.js');
+  assert.deepEqual(engineStillNodePure, ['./data.js', './run-lifecycle.js']);
 
   for (const modulePath of [
     '../src/content.js', '../src/content-protocol.js',

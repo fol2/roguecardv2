@@ -6,6 +6,10 @@ import { DEEDS, CARDS, RELICS, REVEALS, QUEST_IDS, QUESTS, QUEST_STATES, QUEST_A
 const KEY = 'spirebound_vigil_v2';
 const KEY_V1 = 'spirebound_vigil_v1'; // read-only: migration source, never written
 const STATS_KEY = 'spirebound_stats_v1'; // pre-vigil ledger; seeds runs/wins once
+const ACT4_PROMISE_TRIGGER = REVEALS.find((reveal) => Number.isFinite(reveal?.trigger?.shards))?.trigger?.shards;
+const ACT4_PROMISE_THRESHOLD = Number.isFinite(ACT4_PROMISE_TRIGGER)
+  ? Math.max(0, Math.floor(ACT4_PROMISE_TRIGGER))
+  : Number.POSITIVE_INFINITY;
 
 let store = null;
 let memory = new Map();
@@ -25,6 +29,21 @@ export function _setStore(s) { store = s; memory = new Map(); }
 
 let armRng = Math.random;
 export function _setRng(fn) { armRng = typeof fn === 'function' ? fn : Math.random; }
+
+// Test/simulator session hook. `_setStore(null)` and `_setRng(null)` select
+// defaults; they cannot restore a caller's exact adapters or in-memory map.
+const runtimeAdapterSnapshots = new WeakSet();
+export function _captureRuntimeAdapters() {
+  const snapshot = Object.freeze({ store, memory, armRng });
+  runtimeAdapterSnapshots.add(snapshot);
+  return snapshot;
+}
+export function _restoreRuntimeAdapters(snapshot) {
+  if (!runtimeAdapterSnapshots.has(snapshot)) throw new TypeError('invalid Vigil runtime adapter snapshot');
+  store = snapshot.store;
+  memory = snapshot.memory;
+  armRng = snapshot.armRng;
+}
 
 const plainObject = (x) => x && typeof x === 'object' && !Array.isArray(x);
 const blankQuest = () => ({ state: 'dormant', progress: 0, memory: {} });
@@ -70,6 +89,30 @@ const cloneQuest = (id, q) => {
 const exactKeys = (x, keys) => plainObject(x) && Object.keys(x).length === keys.length && keys.every((k) => Object.hasOwn(x, k));
 const validRunId = (id) => typeof id === 'string' && RUN_ID_RE.test(id);
 const validQuestIds = (ids) => Array.isArray(ids) && ids.every((id) => QUEST_IDS.includes(id));
+const lockedAct4Promise = () => ({ status: 'locked' });
+const legacyAct4Promise = () => ({
+  status: 'staged', runId: null, provenance: 'legacy-assumed',
+});
+const cleanAct4Promise = (promise, shards, wasPresent) => {
+  const thresholdReached = shards.length >= ACT4_PROMISE_THRESHOLD;
+  if (!wasPresent) return thresholdReached ? legacyAct4Promise() : lockedAct4Promise();
+  if (exactKeys(promise, ['status']) && promise.status === 'locked') {
+    return thresholdReached ? { status: 'pending' } : lockedAct4Promise();
+  }
+  if (exactKeys(promise, ['status']) && promise.status === 'pending') {
+    return thresholdReached ? { status: 'pending' } : lockedAct4Promise();
+  }
+  if (exactKeys(promise, ['status', 'runId', 'provenance']) && promise.status === 'staged') {
+    if (promise.provenance === 'runtime' && validRunId(promise.runId)) {
+      return { status: 'staged', runId: promise.runId, provenance: 'runtime' };
+    }
+    if (promise.provenance === 'legacy-assumed' && promise.runId === null) {
+      return legacyAct4Promise();
+    }
+  }
+  if (thresholdReached) return legacyAct4Promise();
+  return lockedAct4Promise();
+};
 const cleanDeedReceipt = (receipt) => exactKeys(receipt, ['runId', 'won', 'newUnlocks']) &&
   validRunId(receipt.runId) && typeof receipt.won === 'boolean' &&
   Array.isArray(receipt.newUnlocks) && receipt.newUnlocks.every((id) => typeof id === 'string')
@@ -96,7 +139,7 @@ function hydrateReceipts(v) {
   return changed;
 }
 
-function hydrateV2(v) {
+function hydrateV2(v, { act4PromiseWasPresent = true } = {}) {
   let changed = false;
   const sourceQuests = plainObject(v.quests) ? v.quests : {};
   const quests = {};
@@ -116,6 +159,9 @@ function hydrateV2(v) {
   const shards = [...new Set((Array.isArray(v.shards) ? v.shards : []).filter((id) => QUEST_IDS.includes(id)))];
   if (JSON.stringify(v.shards) !== JSON.stringify(shards)) changed = true;
   v.shards = shards;
+  const act4Promise = cleanAct4Promise(v.act4Promise, shards, act4PromiseWasPresent);
+  if (!act4PromiseWasPresent || JSON.stringify(v.act4Promise) !== JSON.stringify(act4Promise)) changed = true;
+  v.act4Promise = act4Promise;
   const whispers = Math.max(0, Math.floor(Number(v.whispers) || 0));
   if (v.whispers !== whispers) changed = true;
   v.whispers = whispers;
@@ -143,9 +189,11 @@ export function loadVigil() {
   let v = null;
   try { v = JSON.parse(raw); } catch { /* corrupted */ }
   if (!v) v = migrateToV2();
+  const act4PromiseWasPresent = Object.hasOwn(v, 'act4Promise');
   const out = {
     v: 2, deeds: {}, unlocks: [], vowUnlocked: 0, lastFall: null,
     runsPlayed: 0, quests: {}, shards: [], whispers: 0, news: false,
+    act4Promise: lockedAct4Promise(),
     receipts: { deeds: null, runEnd: null },
     ...(v || {}),
   };
@@ -157,7 +205,7 @@ export function loadVigil() {
   if (!Array.isArray(out.unlocks)) { out.unlocks = []; changed = true; }
   if (!Array.isArray(out.shards)) { out.shards = []; changed = true; }
   if (!plainObject(out.quests)) { out.quests = {}; changed = true; }
-  if (hydrateV2(out)) changed = true;
+  if (hydrateV2(out, { act4PromiseWasPresent })) changed = true;
   if (changed) {
     try { getStore().setItem(KEY, JSON.stringify(out)); } catch { /* full */ }
   }
@@ -173,6 +221,7 @@ function migrateToV2() {
   const out = {
     v: 2, deeds: { ...DEFAULT_DEEDS }, unlocks: [], vowUnlocked: 0, lastFall: null,
     runsPlayed: 0, quests: {}, shards: [], whispers: 0, news: false,
+    act4Promise: lockedAct4Promise(),
     receipts: { deeds: null, runEnd: null },
   };
   if (v1) {
@@ -297,6 +346,9 @@ export function commitRunEnd(run, outcome = 'abandon') {
   }
   if (persistedHollow.state === 'complete') delete persistedHollow.memory.eligibleMisses;
   for (const id of completed) v.shards.push(id);
+  if (v.act4Promise.status === 'locked' && v.shards.length >= ACT4_PROMISE_THRESHOLD) {
+    v.act4Promise = { status: 'pending' };
+  }
   for (const id of run.unlocks || []) if (!v.unlocks.includes(id)) v.unlocks.push(id);
   const fall = run.questScratch?.ownShade?.fall;
   if (outcome === 'death' && fall) {
@@ -394,15 +446,39 @@ export function commitPendingRunEnd(run, recordRunEnd) {
   const outcome = run.pendingRunEnd?.outcome;
   if (!TERMINAL_OUTCOMES.includes(outcome)) throw new Error('run has no valid pending outcome');
   if (typeof recordRunEnd !== 'function') throw new Error('run cleanup acknowledgement is required');
-  const won = outcome === 'win';
-  const deedResult = outcome === 'abandon' ? { newUnlocks: [] } : commitRunToVigil(run, won);
+  const terminal = commitTerminalVigil(run, outcome);
+  return {
+    accepted: recordRunEnd(run, outcome === 'win') === true,
+    newUnlocks: [...terminal.newUnlocks],
+    ledger: terminal.ledger,
+    outcome,
+  };
+}
+
+export function commitTerminalVigil(run, outcome = run?.pendingRunEnd?.outcome) {
+  if (!TERMINAL_OUTCOMES.includes(outcome)) throw new Error('run has no valid pending outcome');
+  const deedResult = outcome === 'abandon'
+    ? { newUnlocks: [] }
+    : commitRunToVigil(run, outcome === 'win');
   const ledger = commitRunEnd(run, outcome);
   return {
-    accepted: recordRunEnd(run, won) === true,
     newUnlocks: [...deedResult.newUnlocks],
     ledger,
     outcome,
   };
+}
+
+export function claimAct4Promise(runId) {
+  if (!validRunId(runId)) throw new Error('Act IV promise claim requires a valid run id');
+  const v = loadVigil();
+  const promise = v.act4Promise;
+  if (promise?.status === 'staged') {
+    return promise.provenance === 'runtime' && promise.runId === runId;
+  }
+  if (promise?.status !== 'pending') return false;
+  v.act4Promise = { status: 'staged', runId, provenance: 'runtime' };
+  if (!saveVigil(v)) throw new Error('Vigil storage rejected the Act IV promise claim; retry when storage is available');
+  return true;
 }
 
 // the monument of the last fall

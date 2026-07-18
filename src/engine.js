@@ -1,5 +1,6 @@
 // SPIREBOUND engine — pure game logic, no DOM. UI consumes cb.queue for animation.
 import { PLAYER, ACTS, ASPECTS, VOWS, CARDS, CARD_POOLS, STATUS_INFO, RELICS, RELIC_POOLS, POTIONS, ENEMIES, ENCOUNTERS, EVENTS, REWARD_GOLD, SHOP, ARTS, OMENS, AFFIXES, REVEALS, POOL_GATE, PROGRESSION, QUEST_IDS, WHISPERS, QUESTS, QUEST_STATES, QUEST_ACTIVE_STATES, TERMINAL_OUTCOMES, RUN_ID_RE, VARIANTS, SHADE_KITS, BOONS, DEEDS } from './data.js';
+import { advancedDawnSnapshot, applyPendingDawnSnapshot, pendingDawnSnapshot } from './run-lifecycle.js';
 
 
 // ---------------------------------------------------------------- run→content seam (Task 12B)
@@ -108,6 +109,16 @@ export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 let runSequence = 0;
 let questRngOverride = null;
 export function _setQuestRng(fn) { questRngOverride = typeof fn === 'function' ? fn : null; }
+const questRngSnapshots = new WeakSet();
+export function _captureQuestRngAdapter() {
+  const snapshot = Object.freeze({ questRngOverride });
+  questRngSnapshots.add(snapshot);
+  return snapshot;
+}
+export function _restoreQuestRngAdapter(snapshot) {
+  if (!questRngSnapshots.has(snapshot)) throw new TypeError('invalid quest RNG adapter snapshot');
+  questRngOverride = snapshot.questRngOverride;
+}
 const freshRunId = (seed, startedAt) =>
   `run-${startedAt.toString(36)}-${(seed >>> 0).toString(36)}-${(++runSequence).toString(36)}`;
 const legacyRunId = (run) =>
@@ -392,6 +403,27 @@ export function rollOmen(run) {
 }
 export function omenMods(run) { return T(run).omens[run.omens?.[run.act]]?.mods || {}; }
 export function restHealFrac(run) { return Math.min(0.3, omenMods(run).restHealFrac ?? 0.3, vowMods(run).restHealFrac ?? 0.3); }
+const LIVE_ACT_SUCCESSOR = new Map([[0, 1], [1, 2]]);
+
+/** Canonical live Act I -> II / Act II -> III transition. There is no playable Act IV. */
+export function advanceAct(run) {
+  if (!run || !Number.isInteger(run.act) ||
+      run.pendingCombat != null || run.pendingReward != null ||
+      run.pendingRunEnd != null || run.pendingDawn != null ||
+      run.pendingHollow != null || run.pendingHollowRoute != null) return false;
+  const nextAct = LIVE_ACT_SUCCESSOR.get(run.act);
+  if (!Number.isInteger(nextAct) || !T(run).acts[nextAct]) return false;
+
+  run.act = nextAct;
+  run.omens ??= [];
+  run.omens.length = nextAct;
+  run.omens.push(omenEnabled(run) ? rollOmen(run) : null);
+  run.nodeId = null;
+  run.map = genMap(run);
+  healPlayer(run, Math.round(run.player.maxHp * 0.35));
+  return true;
+}
+
 export function makeCard(run, id, up = false) {
   return { uid: run.uid++, id, up, bonus: 0 };
 }
@@ -2279,40 +2311,19 @@ export function stagePendingDawn(run, events, newUnlocks = []) {
   if (run?.pendingRunEnd?.outcome !== 'win' || run.pendingDawn != null ||
       run.pendingCombat != null || run.pendingReward != null ||
       run.pendingHollow != null || run.pendingHollowRoute != null) return false;
-  const pending = {
-    events: Array.isArray(events) ? events.map((event) => ({ ...event })) : events,
-    cursor: 0,
-    newUnlocks: Array.isArray(newUnlocks) ? [...newUnlocks] : newUnlocks,
-  };
-  if (!validPendingDawn(pending, engineContentFor(run)) || !commitRunStats(run, true)) return false;
-  const journal = run.pendingRunEnd;
-  const receiptCacheKeys = [
-    'vigilCommitted', 'vigilWon', 'vigilResult',
-    'runEndCommitted', 'runEndOutcome', 'runEndResult',
-  ];
-  const receiptCache = new Map(receiptCacheKeys
-    .filter((key) => Object.hasOwn(run, key))
-    .map((key) => [key, run[key]]));
-  run.pendingRunEnd = null;
-  run.pendingDawn = pending;
-  receiptCacheKeys.forEach((key) => { delete run[key]; });
-  if (saveRun(run)) return true;
-  run.pendingDawn = null;
-  run.pendingRunEnd = journal;
-  for (const [key, value] of receiptCache) run[key] = value;
-  return false;
+  const snapshot = pendingDawnSnapshot(run, events, newUnlocks);
+  if (!snapshot || !validPendingDawn(snapshot.pendingDawn, engineContentFor(run)) ||
+      !commitRunStats(run, true) || !saveRun(snapshot)) return false;
+  applyPendingDawnSnapshot(run, snapshot);
+  return true;
 }
 
 export function advancePendingDawn(run, nextCursor) {
-  const pending = run?.pendingDawn;
-  if (!validPendingDawn(pending, engineContentFor(run)) || pending == null ||
-      !Number.isInteger(nextCursor) || nextCursor !== pending.cursor + 1 ||
-      nextCursor > pending.events.length) return false;
-  const previous = pending.cursor;
-  pending.cursor = nextCursor;
-  if (saveRun(run)) return true;
-  pending.cursor = previous;
-  return false;
+  const snapshot = advancedDawnSnapshot(run, nextCursor);
+  if (!snapshot || !validPendingDawn(snapshot.pendingDawn, engineContentFor(run)) ||
+      !saveRun(snapshot)) return false;
+  run.pendingDawn.cursor = nextCursor;
+  return true;
 }
 
 export function completePendingDawn(run) {

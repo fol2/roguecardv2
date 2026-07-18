@@ -8,10 +8,22 @@ import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { execFileSync } from 'node:child_process';
 
+import {
+  legacyRoundPolicyIds, policyIdsForMode, policyMetadata,
+} from './policies/registry.mjs';
+import { triggerIds } from './triggers.mjs';
+import { finaliseCycles, mergeCycleAggregates, serialiseCycles } from './cycle-telemetry.mjs';
 import { finalise, merge, serialise } from './telemetry.mjs';
 
-const POLICY_VALUES = Object.freeze(['random', 'greedy']);
+const POLICY_VALUES = Object.freeze(policyIdsForMode('round'));
+const LEGACY_ROUND_SWEEP = Object.freeze(legacyRoundPolicyIds());
 const PROFILE_VALUES = Object.freeze(['revealed', 'fresh']);
+const MODE_VALUES = Object.freeze(['round', 'cycle']);
+const CYCLE_POLICY_VALUES = Object.freeze(policyIdsForMode('cycle'));
+const DEFAULT_RUNS = 10_000;
+const DEFAULT_CYCLES = 100;
+const DEFAULT_MAX_ROUNDS = 100;
+const MAX_ROUNDS_LIMIT = 1_000;
 const SMOKE_RUNS = 300;
 const SMOKE_SEED = 1;
 const REPORT_DIR = resolve('.sim-reports');
@@ -21,15 +33,35 @@ const LABEL_RE = /^[A-Za-z0-9._-]+$/;
 
 const usage = `Usage: npm run sim -- [options]
 
+  --mode round|cycle       Simulation population (default round)
   --runs N                 Runs per policy/profile sweep (default 10000)
-  --policy random|greedy|both
+  --cycles N               Full Cycles (cycle mode; default 100)
+  --max-rounds N           Round cap per cycle (default 100; max ${MAX_ROUNDS_LIMIT})
+  --policy ${POLICY_VALUES.join('|')}|both  (round)
+           ${CYCLE_POLICY_VALUES.join('|')}              (cycle)
   --profile revealed|fresh|both
+  --target TRIGGER_ID      Coverage-only explicit target (rotation by default)
   --seed N                 First seed (default 1)
   --workers auto|N         Concurrent worker threads (default auto)
   --label NAME             Report filename label
   --out PATH               Explicit report path
   --smoke                  Fixed-seed assert gate: 300 runs/policy/profile
 `;
+
+export function runnerMetadata() {
+  const registry = policyMetadata();
+  return {
+    ...registry,
+    schemaVersion: 2,
+    modes: [...MODE_VALUES],
+    defaults: {
+      ...registry.defaults, mode: 'round', runs: DEFAULT_RUNS, cycles: DEFAULT_CYCLES,
+      maxRounds: DEFAULT_MAX_ROUNDS, profile: 'revealed', workers: 'auto', label: 'proving-grounds',
+    },
+    limits: { maxRounds: MAX_ROUNDS_LIMIT, runs: 1_000_000, cycles: 1_000_000, workers: 32 },
+    targets: triggerIds(),
+  };
+}
 
 const integer = (name, value, { min = 0 } = {}) => {
   if (!/^-?\d+$/.test(String(value))) throw new TypeError(`${name} must be an integer`);
@@ -49,41 +81,66 @@ function optionValue(args, index, name) {
 
 export function parseArgs(args) {
   const out = {
-    runs: 10_000,
-    policy: 'greedy',
-    profile: 'revealed',
+    mode: 'round', runs: null, cycles: null, maxRounds: null,
+    policy: null, profile: null, target: null,
     seed: 1,
     workers: 'auto',
     label: 'proving-grounds',
     out: null,
     smoke: false,
   };
+  const supplied = new Set();
   for (let i = 0; i < args.length;) {
     const arg = args[i];
     if (arg === '--help' || arg === '-h') return { ...out, help: true };
     if (arg === '--smoke') { out.smoke = true; i++; continue; }
     let hit = null;
-    for (const name of ['--runs', '--policy', '--profile', '--seed', '--workers', '--label', '--out']) {
+    for (const name of ['--mode', '--runs', '--cycles', '--max-rounds', '--policy', '--profile', '--target', '--seed', '--workers', '--label', '--out']) {
       hit = optionValue(args, i, name);
       if (!hit) continue;
       const key = name.slice(2);
-      out[key] = hit.value;
+      out[key === 'max-rounds' ? 'maxRounds' : key] = hit.value;
+      supplied.add(name);
       i += hit.consumed;
       break;
     }
     if (!hit) throw new TypeError(`unknown option: ${arg}`);
   }
   if (out.smoke) {
+    if (supplied.has('--mode') && out.mode !== 'round') throw new TypeError('--smoke supports round mode only');
+    out.mode = 'round';
     out.runs = SMOKE_RUNS;
     out.policy = 'both';
     out.profile = 'both';
     out.seed = SMOKE_SEED;
     out.label = out.label === 'proving-grounds' ? 'smoke' : out.label;
   }
-  out.runs = integer('--runs', out.runs, { min: 1 });
+  if (!MODE_VALUES.includes(out.mode)) throw new TypeError(`unknown mode: ${out.mode}`);
+  const defaults = runnerMetadata().defaults;
+  out.policy ??= defaults[out.mode];
+  if (out.mode === 'round') {
+    for (const flag of ['--cycles', '--max-rounds', '--target']) {
+      if (supplied.has(flag)) throw new TypeError(`${flag} is available only in cycle mode`);
+    }
+    out.runs = integer('--runs', out.runs ?? defaults.runs, { min: 1 });
+    out.profile ??= defaults.profile;
+    if (![...POLICY_VALUES, 'both'].includes(out.policy)) throw new TypeError(`unknown round policy: ${out.policy}`);
+    if (![...PROFILE_VALUES, 'both'].includes(out.profile)) throw new TypeError(`unknown profile: ${out.profile}`);
+  } else {
+    if (supplied.has('--runs')) throw new TypeError('--runs is available only in round mode; use --cycles');
+    if (supplied.has('--profile')) throw new TypeError('--profile is not available in cycle mode');
+    if (out.policy === 'both' || !CYCLE_POLICY_VALUES.includes(out.policy)) throw new TypeError(`unknown cycle policy: ${out.policy}`);
+    out.cycles = integer('--cycles', out.cycles ?? defaults.cycles, { min: 1 });
+    out.maxRounds = integer('--max-rounds', out.maxRounds ?? defaults.maxRounds, { min: 1 });
+    if (out.maxRounds > MAX_ROUNDS_LIMIT) throw new RangeError(`--max-rounds must be <= ${MAX_ROUNDS_LIMIT}`);
+    if (out.target != null) {
+      if (out.policy !== 'coverage') throw new TypeError('--target is available only with cycle coverage policy');
+      if (!triggerIds().includes(out.target)) throw new TypeError(`unknown coverage target: ${out.target}`);
+    }
+    out.profile = null;
+    out.runs = null;
+  }
   out.seed = integer('--seed', out.seed, { min: 0 });
-  if (![...POLICY_VALUES, 'both'].includes(out.policy)) throw new TypeError(`unknown policy: ${out.policy}`);
-  if (![...PROFILE_VALUES, 'both'].includes(out.profile)) throw new TypeError(`unknown profile: ${out.profile}`);
   if (out.workers !== 'auto') out.workers = integer('--workers', out.workers, { min: 1 });
   if (!LABEL_RE.test(out.label)) throw new TypeError('--label must match [A-Za-z0-9._-]+');
   if (out.out != null && (!String(out.out).trim() || String(out.out).includes('\0'))) {
@@ -114,13 +171,22 @@ function splitSweep(policy, profile, runs, seed, partitions) {
 }
 
 function makeTasks(config, concurrency) {
-  const policies = expanded(config.policy, POLICY_VALUES);
+  if (config.mode === 'cycle') {
+    const partitions = Math.min(concurrency, config.cycles);
+    const tasks = splitSweep(config.policy, null, config.cycles, config.seed, partitions)
+      .map(({ runs, ...task }) => ({
+        ...task, mode: 'cycle', cycles: runs, maxRounds: config.maxRounds, targetId: config.target,
+      }));
+    return { tasks, policies: [config.policy], profiles: [] };
+  }
+  const policies = config.policy === 'both' ? [...LEGACY_ROUND_SWEEP] : [config.policy];
   const profiles = expanded(config.profile, PROFILE_VALUES);
   const partitions = Math.min(concurrency, config.runs);
   const tasks = [];
   for (const policy of policies) {
     for (const profile of profiles) {
-      tasks.push(...splitSweep(policy, profile, config.runs, config.seed, partitions));
+      tasks.push(...splitSweep(policy, profile, config.runs, config.seed, partitions)
+        .map((task) => ({ ...task, mode: 'round' })));
     }
   }
   return { tasks, policies, profiles };
@@ -213,10 +279,10 @@ function removeVolatileStatusTemp() {
   try { unlinkSync(STATUS_TMP_PATH); } catch {}
 }
 
-function publishReport(destination, report) {
+function publishReport(destination, report, serialiser = serialise) {
   const tempPath = `${destination}.${process.pid}.tmp`;
   try {
-    writeFileSync(tempPath, serialise(report));
+    writeFileSync(tempPath, serialiser(report));
     renameSync(tempPath, destination);
   } finally {
     try { unlinkSync(tempPath); } catch {}
@@ -229,7 +295,7 @@ export async function runSimulation(config) {
   const concurrency = Math.min(requestedConcurrency, tasks.length);
   const startedAt = new Date();
   const destination = outputPath(config, startedAt);
-  const total = config.runs * policies.length * profiles.length;
+  const total = config.mode === 'cycle' ? config.cycles : config.runs * policies.length * profiles.length;
   const status = {
     running: true,
     pid: process.pid,
@@ -237,9 +303,14 @@ export async function runSimulation(config) {
     total,
     startedAt: startedAt.toISOString(),
     config: {
-      runs: config.runs, policy: config.policy, profile: config.profile,
+      mode: config.mode, runs: config.runs, cycles: config.cycles, maxRounds: config.maxRounds,
+      policy: config.policy, profile: config.profile, target: config.target,
       seed: config.seed, workers: config.workers, label: config.label,
     },
+    ...(config.mode === 'cycle' ? {
+      roundsPlayed: 0, promisesStaged: 0, censoredCycles: 0, failedCycles: 0,
+      currentTarget: config.target,
+    } : {}),
   };
   let terminal = false;
   writeStatus(status);
@@ -253,7 +324,14 @@ export async function runSimulation(config) {
   try {
     const results = await runPool(tasks, concurrency, (delta) => {
       if (terminal) return;
-      status.done += delta;
+      status.done += delta.completed;
+      if (config.mode === 'cycle') {
+        status.roundsPlayed += delta.rounds || 0;
+        status.promisesStaged += delta.promisesStaged || 0;
+        status.censoredCycles += delta.censored || 0;
+        status.failedCycles += delta.failed || 0;
+        if (delta.currentTarget) status.currentTarget = delta.currentTarget;
+      }
       writeStatus(status);
     });
     const byPolicy = Object.fromEntries(policies.map((policy) => [policy, []]));
@@ -261,23 +339,28 @@ export async function runSimulation(config) {
     const sections = {};
     for (const policy of policies) {
       const ordered = byPolicy[policy].sort((a, b) =>
-        PROFILE_VALUES.indexOf(a.task.profile) - PROFILE_VALUES.indexOf(b.task.profile)
+        (config.mode === 'round' ? PROFILE_VALUES.indexOf(a.task.profile) - PROFILE_VALUES.indexOf(b.task.profile) : 0)
         || a.task.startSeed - b.task.startSeed);
       let aggregate = ordered[0].partial;
-      for (const item of ordered.slice(1)) aggregate = merge(aggregate, item.partial);
-      sections[policy] = finalise(aggregate);
+      for (const item of ordered.slice(1)) aggregate = config.mode === 'cycle'
+        ? mergeCycleAggregates(aggregate, item.partial) : merge(aggregate, item.partial);
+      sections[policy] = config.mode === 'cycle' ? finaliseCycles(aggregate) : finalise(aggregate);
     }
     const durationMs = Date.now() - startedAt.getTime();
     const report = {
       meta: {
-        schema: 1,
+        schema: config.mode === 'cycle' ? 2 : 1,
+        mode: config.mode,
         date: startedAt.toISOString(),
         durationMs,
         workers: concurrency,
-        runs: total,
+        ...(config.mode === 'cycle'
+          ? { cycles: config.cycles, totalRounds: sections[config.policy].meta.totalRounds }
+          : { runs: total }),
         label: config.label,
         config: {
-          runs: config.runs, policy: config.policy, profile: config.profile,
+          mode: config.mode, runs: config.runs, cycles: config.cycles, maxRounds: config.maxRounds,
+          policy: config.policy, profile: config.profile, target: config.target,
           seed: config.seed, workers: config.workers,
         },
         ...gitMeta(),
@@ -285,7 +368,7 @@ export async function runSimulation(config) {
       policies: sections,
     };
     mkdirSync(dirname(destination), { recursive: true });
-    publishReport(destination, report);
+    publishReport(destination, report, config.mode === 'cycle' ? serialiseCycles : serialise);
     status.done = total;
     terminal = true;
     writeStatus({
@@ -323,12 +406,15 @@ async function main() {
       return;
     }
     const { report, output } = await runSimulation(config);
-    const summary = Object.fromEntries(Object.entries(report.policies).map(([policy, section]) => [policy, {
-      runs: section.meta.runs,
-      wins: section.headline.wins,
-      winRate: section.headline.winRate,
-      issues: section.issues.total,
-    }]));
+    const summary = Object.fromEntries(Object.entries(report.policies).map(([policy, section]) => [policy,
+      report.meta.mode === 'cycle' ? {
+        cycles: section.meta.cycles, rounds: section.meta.totalRounds,
+        completed: section.completion.counts.completed, censored: section.completion.counts.censored,
+        failed: section.completion.counts.failed, issues: section.issues.length,
+      } : {
+        runs: section.meta.runs, wins: section.headline.wins,
+        winRate: section.headline.winRate, issues: section.issues.total,
+      }]));
     process.stdout.write(`${JSON.stringify({ output, ...summary })}\n`);
   } catch (error) {
     process.stderr.write(`sim: ${String(error?.message ?? error)}\n`);
