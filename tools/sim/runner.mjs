@@ -16,7 +16,7 @@ const SMOKE_RUNS = 300;
 const SMOKE_SEED = 1;
 const REPORT_DIR = resolve('.sim-reports');
 const STATUS_PATH = resolve(REPORT_DIR, '.status.json');
-const STATUS_TMP_PATH = resolve(REPORT_DIR, '.status.json.tmp');
+const STATUS_TMP_PATH = resolve(REPORT_DIR, `.status.${process.pid}.json.tmp`);
 const LABEL_RE = /^[A-Za-z0-9._-]+$/;
 
 const usage = `Usage: npm run sim -- [options]

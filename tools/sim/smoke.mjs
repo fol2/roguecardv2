@@ -228,6 +228,28 @@ function assertRunnerIntegration() {
     assert.deepEqual(readdirSync(root).filter((name) => name.endsWith('.tmp')), [],
       'runner must not leave a report publication temp file');
 
+    const concurrentSource = `
+      const { spawn } = require('node:child_process');
+      const runner = ${JSON.stringify(runnerPath)};
+      const launch = (seed, output) => new Promise((resolve, reject) => {
+        const child = spawn(process.execPath, [runner,
+          '--runs', '2', '--policy', 'random', '--profile', 'revealed',
+          '--seed', String(seed), '--workers', '1', '--label', 'concurrent-smoke', '--out', output,
+        ], { cwd: process.cwd(), stdio: 'pipe' });
+        let stderr = '';
+        child.stderr.on('data', (chunk) => { stderr += chunk; });
+        child.once('error', reject);
+        child.once('exit', (code) => code === 0 ? resolve() : reject(new Error(stderr || \`runner exited \${code}\`)));
+      });
+      Promise.all([
+        launch(51, ${JSON.stringify(join(root, 'concurrent-a.json'))}),
+        launch(61, ${JSON.stringify(join(root, 'concurrent-b.json'))}),
+      ]).catch((error) => { console.error(error.message); process.exitCode = 1; });
+    `;
+    execFileSync(process.execPath, ['--eval', concurrentSource], { cwd: root, stdio: 'pipe' });
+    assert.deepEqual(readdirSync(join(root, '.sim-reports')).filter((name) => name.endsWith('.tmp')), [],
+      'concurrent runners must not share or leave status temp files');
+
     const runnerUrl = pathToFileURL(runnerPath).href;
     const faultSource = `(async () => {
       const { runSimulation } = await import(${JSON.stringify(runnerUrl)});
