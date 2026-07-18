@@ -201,7 +201,10 @@ assert.deepEqual(safePolicyMetadata.policies.find(({ id }) => id === 'coverage')
 });
 
 const { createObservation, isDeepFrozen } = await import('../tools/sim/policies/observation.mjs');
-const { SHADE_SETUP_TARGET_ID } = await import('../tools/sim/policies/objectives.mjs');
+const {
+  SHADE_SETUP_TARGET_ID,
+  objectivePriorityFor,
+} = await import('../tools/sim/policies/objectives.mjs');
 const { makeWalkerPolicyFactory } = await import('../tools/sim/policy-adapter.mjs');
 const policyFixture = ({ objective = null, actions = null, knowledgeClass = 'player-visible' } = {}) =>
   createObservation({
@@ -265,6 +268,12 @@ assert.equal(progression.decide(policyFixture({
   objective: { targetId: 'page.visible', currentEligibility: true, disclosed: true },
   actions: objectiveActions.filter(({ key }) => !['active', 'preserve'].includes(key)),
 })), 'prepare', 'preparing a prerequisite outranks generic win');
+assert.equal(objectivePriorityFor('page.take', ['page.take']), 'active',
+  'the requested trigger is the active objective');
+assert.equal(objectivePriorityFor('page.read', ['page.take']), 'prepare',
+  'taking the Page prepares the later read trigger');
+assert.equal(objectivePriorityFor('usurper.kill', ['usurper.buy']), 'prepare',
+  'buying the Flameless Lantern prepares the later Usurper kill');
 
 const coverage = getPolicyDefinition('coverage').factory(() => 0.5);
 const fallActions = [
@@ -330,6 +339,26 @@ assert.equal(JSON.stringify(capturedVisible[0]).includes('elite'), false);
 assert.equal(JSON.stringify(capturedVisible[0]).includes('shop'), false);
 assert.equal(JSON.stringify(capturedVisible[0]).includes('pale'), false);
 assert.equal(JSON.stringify(capturedVisible[0]).includes('usurper'), false);
+
+const capturedTargeted = [];
+const targetedCaptureDefinition = Object.freeze({
+  id: 'targeted-capture', knowledgeClass: 'coverage-only',
+  factory: () => ({
+    decide(observation) {
+      capturedTargeted.push(observation);
+      return observation.legalActions[0].key;
+    },
+  }),
+});
+const targetedCapture = makeWalkerPolicyFactory(targetedCaptureDefinition, {
+  objective: { targetId: 'usurper.buy', currentEligibility: true },
+})(() => 0.5);
+targetedCapture.pickNode({ run: visibleRun('usurper') }, [firstHidden]);
+targetedCapture.pickNode({ run: visibleRun('usurper') }, [secondHidden]);
+assert.deepEqual(capturedTargeted[0], capturedTargeted[1],
+  'an active coverage objective cannot distinguish the hidden face of an Unlit node');
+assert.equal(JSON.stringify(capturedTargeted).includes('shop'), false);
+assert.equal(JSON.stringify(capturedTargeted).includes('elite'), false);
 
 for (const id of ['random', 'greedy', 'progression']) {
   const make = () => getPolicyDefinition(id).factory(() => 0.25);

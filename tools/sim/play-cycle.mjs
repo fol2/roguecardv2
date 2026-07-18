@@ -18,6 +18,7 @@ import {
 import { playRun, mulberry32 } from './play-run.mjs';
 import { makeWalkerPolicyFactory } from './policy-adapter.mjs';
 import { getPolicyDefinition } from './policies/registry.mjs';
+import { objectiveDependsOn, SHADE_SETUP_TARGET_ID } from './policies/objectives.mjs';
 import { createMemoryStore, withSimulatorRuntime } from './runtime-session.mjs';
 import { getTriggerDefinition, triggerIds } from './triggers.mjs';
 
@@ -103,10 +104,22 @@ export function objectiveForVigil(vigil, explicitTargetId = null, knowledgeClass
     currentEligibility,
     ...(knowledgeClass === 'player-visible' ? { disclosed: true } : {}),
   });
-  if (explicitTargetId) return visibleObjective(
-    explicitTargetId,
-    targetEligibility(vigil, explicitTargetId),
-  );
+  if (explicitTargetId) {
+    let strategyTargetId = explicitTargetId;
+    if (knowledgeClass === 'coverage-only') {
+      if (explicitTargetId === PROMISE_TARGET || explicitTargetId === 'shard.threshold') {
+        strategyTargetId = objectiveForVigil(vigil, null, knowledgeClass)?.targetId || explicitTargetId;
+      } else if (objectiveDependsOn(explicitTargetId, SHADE_SETUP_TARGET_ID) &&
+          vigil?.lastFall?.standing !== true && questVisibleActive(vigil, 'ownShade')) {
+        strategyTargetId = SHADE_SETUP_TARGET_ID;
+      } else if (objectiveDependsOn(explicitTargetId, 'page.take')) {
+        strategyTargetId = 'page.take';
+      } else if (objectiveDependsOn(explicitTargetId, 'usurper.buy')) {
+        strategyTargetId = 'usurper.buy';
+      }
+    }
+    return visibleObjective(strategyTargetId, targetEligibility(vigil, strategyTargetId));
+  }
   if (vigil?.act4Promise?.status === 'pending') return Object.freeze({
     ...visibleObjective(PROMISE_TARGET, true),
   });

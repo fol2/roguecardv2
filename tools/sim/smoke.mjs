@@ -291,8 +291,8 @@ export function assertCycleOrchestratorContract() {
   });
   assert.equal(explicitCoverage.targetSelection, 'explicit');
   assert.ok(explicitCoverage.rounds.every((round) =>
-    round.targetId === 'hollow.paid' && round.objective.targetId === 'hollow.paid'),
-  'explicit coverage target must persist through the whole cycle');
+    round.targetId === 'hollow.paid'),
+  'the reported explicit coverage target must persist through the whole cycle');
   const rotatedA = playCycle(7306, 'coverage', {
     maxRounds: 1,
     roundExecutor: scriptedRoundExecutor({ completeActive: false }),
@@ -468,6 +468,12 @@ export function assertIntegrationRegressionContracts() {
       genericScore: -5, objectivePriority: 'active', order: 1 },
   ], usurperObjective)), [],
   'an unaffordable Usurper objective must preserve gold instead of spending away from 650');
+  assert.deepEqual(progression.decide(observation('shop', { gold: 649 }, [
+    { key: 'relic:cheap', kind: 'relic', price: 100, sold: false, genericScore: 100, order: 0 },
+    { key: 'quest:flamelessLantern', kind: 'quest-item', price: 650, sold: false,
+      genericScore: -5, objectivePriority: 'prepare', order: 1 },
+  ], { targetId: 'usurper.kill', currentEligibility: false, disclosed: true })), [],
+  'a downstream Usurper target must preserve 650 gold while preparing its purchase prerequisite');
 
   assert.equal(progression.decide(observation('terminal', {}, [
     { key: 'dawn', kind: 'dawn', genericScore: 1, order: 0 },
@@ -485,6 +491,9 @@ export function assertIntegrationRegressionContracts() {
     'progression receives only the disclosed player-visible goal and current eligibility');
   assert.equal(Object.hasOwn(visibleObjective, 'priority'), false,
     'player-visible objectives must not expose internal arbitration priority');
+  assert.deepEqual(objectiveForVigil(disclosedVigil, 'page.read', 'coverage-only'), {
+    targetId: 'page.take', currentEligibility: true,
+  }, 'coverage must pursue Page acquisition before its requested summit read target');
   assert.throws(() => createObservation({
     phase: 'node', state: {}, knowledgeClass: 'player-visible',
     objective: { ...objective, priority: 1 },
@@ -513,6 +522,32 @@ export function assertIntegrationRegressionContracts() {
   assert.equal(ineligibleShade.outcome, 'win',
     'the same seed must not intentionally Fall when Shade setup is ineligible');
   assert.deepEqual(ineligibleShade.issues, []);
+
+  const missingPage = playRun(1, makeWalkerPolicyFactory(getPolicyDefinition('greedy')), {
+    policyId: 'greedy',
+    round: { start: { ephemeral: true, quests: {
+      unreadablePage: { state: 'revealed', progress: 0, memory: {} },
+    } } },
+  });
+  assert.equal(missingPage.outcome, 'win', 'Page denominator fixture must reach the summit Dawn');
+  assert.deepEqual(missingPage.triggerFunnels['page.carry'], {
+    eligible: 1, attempted: 1, succeeded: 0, missed: 1,
+    reasons: { 'page-not-held': 1 },
+  }, 'an eligible summit without the Page must remain in the carry denominator');
+  assert.deepEqual(missingPage.triggerFunnels['page.read'], {
+    eligible: 1, attempted: 1, succeeded: 0, missed: 1,
+    reasons: { 'page-not-held': 1 },
+  }, 'an eligible Dawn without the Page must retain the page-not-held miss reason');
+}
+
+export function assertCoveragePrerequisiteCanary() {
+  for (const { id: targetId } of TRIGGER_CATALOGUE) {
+    const cycle = playCycle(1, 'coverage', { maxRounds: 45, targetId });
+    const succeeded = cycle.rounds.reduce((sum, { record }) =>
+      sum + (record.triggerFunnels?.[targetId]?.succeeded || 0), 0);
+    assert.ok(succeeded > 0,
+      `explicit coverage target ${targetId} must reach its prerequisite chain through live playCycle flow`);
+  }
 }
 
 export function assertNaturalProgressionCanary() {
@@ -1220,6 +1255,7 @@ export function runSmoke({ runs = SMOKE_RUNS, seed = SMOKE_SEED } = {}) {
   assertCycleTelemetryContract();
   assert.equal(typeof playCycle, 'function', 'Full Cycle orchestrator must be available to smoke');
   assertCycleOrchestratorContract();
+  assertCoveragePrerequisiteCanary();
   assertNaturalProgressionCanary();
   assertRoundParityFixture();
   const matrix = playMatrix(runs, seed);

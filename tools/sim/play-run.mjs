@@ -222,11 +222,14 @@ export function playRun(seed, makePolicy, config = {}) {
         'paleOnes', 'ownShade', 'usurper', 'eighthOmen', 'unreadablePage', 'hollowLamplighter',
       ].map((id) => [id, questRecord(run, id)?.progress || 0]));
       const finalBoss = kind === 'boss' && run.act === 2;
-      const carriesPage = finalBoss && run.player.deck.some((card) => card.id === 'unreadablePage') &&
+      const pageQuestActive = finalBoss &&
         QUEST_ACTIVE_STATES.includes(questRecord(run, 'unreadablePage')?.state);
-      if (carriesPage) observe('page.carry', {
+      const carriesPage = pageQuestActive &&
+        run.player.deck.some((card) => card.id === 'unreadablePage');
+      if (pageQuestActive) observe('page.carry', {
         unitId: combatUnit, phase: 'combat-start',
-        before: { eligible: true, value: false }, intent: { automatic: true }, after: { value: true },
+        before: { eligible: true, value: false }, intent: { automatic: true },
+        after: { value: carriesPage, ...(carriesPage ? {} : { reason: 'page-not-held' }) },
       });
       const fight = {
         enemies: [...enc], kind, affix: cb.affix, act: run.act, row: node.row,
@@ -337,11 +340,15 @@ export function playRun(seed, makePolicy, config = {}) {
         after: { value: questAfter('eighthOmen') > questBefore.eighthOmen,
           ...(cb.result === 'win' ? {} : { reason: 'final-fall' }) },
       });
-      if (finalBoss && carriesPage) observe('page.read', {
+      if (pageQuestActive) observe('page.read', {
         unitId: `round:${rec.seed}`, phase: 'combat',
         before: { eligible: true, value: questBefore.unreadablePage },
         intent: { action: cb.result === 'win' ? 'dawn' : 'fall' },
-        after: { value: questAfter('unreadablePage'), ...(cb.result === 'win' ? {} : { reason: 'fall' }) },
+        after: {
+          value: questAfter('unreadablePage'),
+          ...(cb.result !== 'win' ? { reason: 'fall' }
+            : carriesPage ? {} : { reason: 'page-not-held' }),
+        },
       });
       if (cb.result === 'win' && run.pendingCombat) clearPendingEncounter(run);
     };

@@ -12,6 +12,7 @@ import {
 import { ARTS, CARDS, POTIONS, PROGRESSION, RELICS } from '../../src/data.js';
 import { WEIGHTS } from './policies/greedy-core.mjs';
 import { createObservation } from './policies/observation.mjs';
+import { objectivePriorityFor } from './policies/objectives.mjs';
 
 const SELF_STATUS_VALUE = Object.freeze({
   str: WEIGHTS.selfStr,
@@ -313,7 +314,7 @@ const actionRecord = ({ ref, legacy, ...visible }) => visible;
 function adapterFor(definition, policy, options) {
   const knowledgeClass = definition.knowledgeClass;
   const objective = options.objective ?? null;
-  const targets = (...ids) => ids.includes(objective?.targetId) ? 'active' : undefined;
+  const targets = (...ids) => objectivePriorityFor(objective?.targetId, ids);
   let combatObject = null;
   let combatKey = 0;
   let combatTurn = -1;
@@ -341,11 +342,12 @@ function adapterFor(definition, policy, options) {
         col: node.col ?? 0,
         order,
         genericScore: nodeScore(ctx.run, node),
-        objectivePriority: node.type === 'monument'
+        objectivePriority: node.unlit
+          ? targets('hollow.reachable', 'hollow.entered', 'hollow.paid', 'hollow.progressed')
+          : node.type === 'monument'
           ? targets('shade.standing-monument', 'shade.duel', 'shade.win')
           : node.type === 'shop' ? targets('usurper.offer', 'usurper.afford', 'usurper.buy')
-            : node.unlit ? targets('hollow.reachable', 'hollow.entered', 'hollow.paid', 'hollow.progressed')
-              : undefined,
+            : undefined,
         ref: node,
       }));
       return decideOne('node', {
