@@ -64,7 +64,7 @@ test.describe('developer tools', () => {
 
     // Every non-null-group registry entry appears with the right href.
     for (const route of HUB_ROUTES) {
-      const link = page.locator(`a[data-dev-route="${route.id}"]`);
+      const link = page.locator(`a[data-dev-route="${route.param}"]`);
       await expect(link).toBeVisible();
       await expect(link).toHaveAttribute('href', `?${route.param}=1`);
     }
@@ -82,5 +82,25 @@ test.describe('developer tools', () => {
 
     // Back to game (preserved from old shell).
     await expect(page.locator('a.dev-hub-back[href="?"]')).toBeVisible();
+  });
+
+  test('charedit boots editor chrome and skips normal game boot', async ({ page }) => {
+    await page.goto('/?charedit=1');
+    await page.waitForSelector('[data-charedit-root]');
+    await expect(page.locator('[data-charedit-root]')).toBeVisible();
+    await expect(page.locator('#ce-bar')).toBeVisible();
+    // Exclusive-boot editors skip initUI — no title screen / game hook.
+    await expect(page.locator('.title-screen')).toHaveCount(0);
+    expect(await page.evaluate(() => !!window.spirebound)).toBe(false);
+  });
+
+  test('vfxedit boots editor chrome and skips normal game boot', async ({ page }) => {
+    await page.goto('/?vfxedit=1');
+    await page.waitForSelector('[data-vfxedit-root]');
+    await expect(page.locator('[data-vfxedit-root]')).toBeVisible();
+    await expect(page.locator('#vx-bar')).toBeVisible();
+    // Exclusive-boot editors skip initUI — no title screen / game hook.
+    await expect(page.locator('.title-screen')).toHaveCount(0);
+    expect(await page.evaluate(() => !!window.spirebound)).toBe(false);
   });
 });

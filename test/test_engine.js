@@ -9263,9 +9263,10 @@ export default defineContentRegistration({
   assert.match(hubSource, /iconSvg/);
   assert.match(hubSource, /from\s+['"]\.\/routes\.js['"]/);
   assert.doesNotMatch(hubSource, /href:\s*'\?/);
+  // Positive: renderRoute interpolates registry params into hrefs (not hardcoded).
+  assert.match(hubSource, /const href = `\?\$\{route\.param\}=1`/);
+  assert.match(hubSource, /href="\$\{esc\(href\)\}"/);
   assert.doesNotMatch(hubSource, /[⚔♛✓✗]/);
-  // Task 19: main.js checks updated for registry-driven routing (U1).
-  // The literals now live in routes.js; main.js just uses the registry loop.
   const routesSource = readFileSync(new URL('../src/dev/routes.js', import.meta.url), 'utf8');
   assert.match(routesSource, /contentedit/);
   assert.match(routesSource, /\.\/content-manager\.js/);
@@ -9275,65 +9276,82 @@ export default defineContentRegistration({
 {
   // Import the registry to check its shape.
   const { ROUTES } = await import('../src/dev/routes.js');
+
+  // Independent frozen inventory — registry deletion/addition must fail here.
+  const EXPECTED_ROUTE_PARAMS = [
+    'sim', 'lab', 'dashboard', 'contentedit', 'dev',
+    'charedit', 'vfxedit', 'bfedit', 'bfuiedit', 'gallery', 'audio',
+  ];
+  assert.deepEqual(ROUTES.map((r) => r.param), EXPECTED_ROUTE_PARAMS);
   
-  // Shape check: unique id and param across all entries.
-  const ids = new Set();
+  // Shape check: unique param across all entries.
   const params = new Set();
   for (const route of ROUTES) {
-    assert(!ids.has(route.id), `Duplicate route id: ${route.id}`);
     assert(!params.has(route.param), `Duplicate route param: ${route.param}`);
-    ids.add(route.id);
     params.add(route.param);
   }
   
-  // Shape check: every shell entry has a load thunk and exportName.
+  // Shape check: every shell entry has a load function.
   const shellEntries = ROUTES.filter(r => r.kind === 'shell');
   for (const route of shellEntries) {
-    assert(route.load, `Shell route ${route.id} missing load thunk`);
-    assert(route.exportName, `Shell route ${route.id} missing exportName`);
-    assert(typeof route.load === 'function', `Shell route ${route.id} load is not a function`);
+    assert(route.load, `Shell route ${route.param} missing load thunk`);
+    assert(typeof route.load === 'function', `Shell route ${route.param} load is not a function`);
   }
   
   // Shape check: overlay and screen entries have no load.
   const nonShellEntries = ROUTES.filter(r => r.kind !== 'shell');
   for (const route of nonShellEntries) {
-    assert(!route.load, `Non-shell route ${route.id} should not have a load thunk`);
+    assert(!route.load, `Non-shell route ${route.param} should not have a load thunk`);
   }
   
   // Shape check: only sim has preAudio.
   const preAudioEntries = ROUTES.filter(r => r.preAudio);
   assert.equal(preAudioEntries.length, 1, 'Only one route should have preAudio flag');
-  assert.equal(preAudioEntries[0].id, 'sim', 'Only sim should have preAudio flag');
+  assert.equal(preAudioEntries[0].param, 'sim', 'Only sim should have preAudio flag');
+  
+  // Shape check: every non-null group is one of the known groups.
+  const validGroups = new Set(['Simulation', 'Editors', 'Content', 'Art & Audio']);
+  for (const route of ROUTES) {
+    if (route.group != null) {
+      assert(validGroups.has(route.group), 
+        `Route ${route.param} has unknown group: ${route.group} (must be one of: ${Array.from(validGroups).join(', ')})`);
+    }
+  }
   
   // Drift guard: main.js imports the registry.
   const mainPath = new URL('../src/main.js', import.meta.url);
   const mainSource = readFileSync(mainPath, 'utf8');
   assert.match(mainSource, /import.*['"]\.\/dev\/routes\.js['"]/);
   
-  // Drift guard: all shell params appear in registry loop (implicitly verified by shape check).
   // Drift guard: all overlay params have qs.has literals in main.js (unchanged post-initUI).
   const overlayParams = ROUTES.filter(r => r.kind === 'overlay').map(r => r.param);
   for (const param of overlayParams) {
-    assert.match(mainSource, new RegExp(`qs\\.has\\(['"]${param}['"]\\)`), 
+    assert.match(mainSource, new RegExp(`qs\\.has\\(\\s*['"\`]${param}['"\`]\\s*\\)`),
       `Overlay param ${param} must have qs.has literal in main.js`);
   }
   
   // Drift guard: no shell params remain as direct qs.has literals (they're in the loop).
   const shellParams = shellEntries.map(r => r.param);
   for (const param of shellParams) {
-    // The registry loop is: `if (route.kind === 'shell' && qs.has(route.param))`
+    // The registry loop is: `if (route.kind === 'shell' && match(route) && qs.has(route.param))`
     // So we should NOT see bare qs.has(param) calls, only within the loop context.
-    const lineMatches = mainSource.split('\n').filter((line, idx) => {
+    const lineMatches = mainSource.split('\n').filter((line) => {
       // Look for qs.has that's NOT inside the registry loop (before 'route.param').
-      return line.match(new RegExp(`qs\\.has\\(['"]${param}['"]\\)`)) && 
+      return line.match(new RegExp(`qs\\.has\\(\\s*['"\`]${param}['"\`]\\s*\\)`)) &&
              !line.includes('route.param');
     });
     assert.equal(lineMatches.length, 0, 
       `Shell param ${param} should not have a direct qs.has literal (use registry loop instead)`);
   }
-  
-  // Verify all registry routes correspond to actual route handling logic or production screens.
-  // This is covered by the overlay qs.has checks + the load thunk checks above.
+
+  // Completeness: every qs.has('...') string-literal call in main.js is a known registry param.
+  const knownParams = new Set(ROUTES.map((r) => r.param));
+  const qsHasLiterals = [...mainSource.matchAll(/qs\.has\(\s*['"`]([^'"`]+)['"`]\s*\)/g)]
+    .map((m) => m[1]);
+  for (const param of qsHasLiterals) {
+    assert.ok(knownParams.has(param),
+      `main.js qs.has('${param}') must be a known registry param`);
+  }
   
   // Keep the existing doctor.js checks from the old Task 18.
   const doctorPath = new URL('../src/dev/doctor.js', import.meta.url);
@@ -9348,6 +9366,7 @@ export default defineContentRegistration({
   assert.doesNotMatch(doctorSource, /packList\s*=/);
   assert.doesNotMatch(doctorSource, /packs:\s*\[\s*['"]core['"]/);
 }
+
 // ---- Task 17: production-surface verifier marker list + Lab codec normalize ----
 {
   // Pin the full frozen inventory — deleting any marker must fail this gate.
@@ -9364,19 +9383,27 @@ export default defineContentRegistration({
     'dev/doctor',
     'dev/content-manager',
     'dev/hub',
+    'data-dev-chrome',
+    'data-dev-home',
+    'Proving Grounds',
+    'ui/dev/shell',
+    '__sim-run',
   ]);
-  assert.equal(FORBIDDEN_PRODUCTION_MARKERS.length, 12);
+  assert.equal(FORBIDDEN_PRODUCTION_MARKERS.length, 17);
   assert.equal(Object.isFrozen(FORBIDDEN_PRODUCTION_MARKERS), true);
-  // scan helper rejects markers when planted in a synthetic file set.
-  const tmp = mkdtempSync(join(tmpdir(), 'spire-surface-'));
-  try {
-    writeFileSync(join(tmp, 'index.html'), '<script src="/assets/x.js"></script>\n');
-    mkdirSync(join(tmp, 'assets'));
-    writeFileSync(join(tmp, 'assets', 'x.js'), 'console.log("Content Lab")\n');
-    const hits = scanProductionSurface(tmp);
-    assert.ok(hits.some((h) => h.marker === 'Content Lab'));
-  } finally {
-    rmSync(tmp, { recursive: true, force: true });
+  // scan helper rejects every marker when planted in a synthetic file set.
+  for (const marker of FORBIDDEN_PRODUCTION_MARKERS) {
+    const tmp = mkdtempSync(join(tmpdir(), 'spire-surface-'));
+    try {
+      writeFileSync(join(tmp, 'index.html'), '<script src="/assets/x.js"></script>\n');
+      mkdirSync(join(tmp, 'assets'));
+      writeFileSync(join(tmp, 'assets', 'x.js'), `console.log(${JSON.stringify(marker)})\n`);
+      const hits = scanProductionSurface(tmp);
+      assert.ok(hits.some((h) => h.marker === marker),
+        `scanProductionSurface must flag planted marker: ${marker}`);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   }
 
   const replay = {

@@ -5,7 +5,7 @@ import { iconSvg } from '../art.js';
 
 const STYLE_ID = 'dev-chrome-style';
 
-export const DEV_CHROME_STYLE = `
+const DEV_CHROME_STYLE = `
 [data-dev-chrome] {
   --dev-gold: #d4af78;
   --dev-ink: #f2e8d5;
@@ -35,14 +35,14 @@ export const DEV_CHROME_STYLE = `
 }
 `;
 
-function esc(value) {
+export function esc(value) {
   return String(value).replace(/[&<>"']/g, (ch) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[ch]));
 }
 
 /** Inject shared parchment chrome CSS once. */
-export function ensureDevChromeStyle() {
+function ensureDevChromeStyle() {
   if (document.getElementById(STYLE_ID)) return;
   const style = document.createElement('style');
   style.id = STYLE_ID;
@@ -51,18 +51,14 @@ export function ensureDevChromeStyle() {
 }
 
 /**
- * Shared header: tool title + optional Dev Hub back-link.
- * @param {{ title: string, home?: boolean, wrap?: boolean }} opts
- *   home=false → title only (hub); wrap=false → inner markup for an outer header.
+ * Shared header: tool title + Dev Hub back-link, wrapped in <header data-dev-chrome>.
+ * @param {{ title: string }} opts
  */
-export function renderDevChrome({ title, home = true, wrap = true }) {
+export function renderDevChrome({ title }) {
+  ensureDevChromeStyle();
   const titleHtml = `<h1 class="dev-chrome-title">${iconSvg('menu', 20)} ${esc(title)}</h1>`;
-  const homeHtml = home
-    ? `<a data-dev-home href="?dev=1">Dev Hub</a>`
-    : '';
-  const inner = `${titleHtml}${homeHtml}`;
-  if (!wrap) return inner;
-  return `<header data-dev-chrome>${inner}</header>`;
+  const homeHtml = `<a data-dev-home href="?dev=1">Dev Hub</a>`;
+  return `<header data-dev-chrome>${titleHtml}${homeHtml}</header>`;
 }
 
 /**

@@ -21,6 +21,11 @@ export const FORBIDDEN_PRODUCTION_MARKERS = Object.freeze([
   'dev/doctor',
   'dev/content-manager',
   'dev/hub',
+  'data-dev-chrome',
+  'data-dev-home',
+  'Proving Grounds',
+  'ui/dev/shell',
+  '__sim-run',
 ]);
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));

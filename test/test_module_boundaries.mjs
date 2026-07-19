@@ -371,13 +371,14 @@ for (const id of ['random', 'greedy', 'progression']) {
 
 const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 const simLabSource = readFileSync(new URL('../src/dev/sim-lab.js', import.meta.url), 'utf8');
-const simLabRefs = [...mainSource.matchAll(/['"]\.\/dev\/sim-lab\.js['"]/g)];
+const routesSource = readFileSync(new URL('../src/dev/routes.js', import.meta.url), 'utf8');
+const simLabRefs = [...routesSource.matchAll(/['"]\.\/sim-lab\.js['"]/g)];
 assert.equal(simLabRefs.length, 1,
-  'main.js must reference the Proving Grounds page exactly once');
+  'routes.js must reference the Proving Grounds page exactly once');
 assert.match(
-  sourceBlock(mainSource, "if (import.meta.env.DEV && qs.has('sim'))"),
-  /await import\(['"]\.\/dev\/sim-lab\.js['"]\)/,
-  'the Proving Grounds page must stay lazy-loaded inside its DEV-only main.js branch',
+  sourceBlock(mainSource, 'if (import.meta.env.DEV)'),
+  /await import\(['"]\.\/dev\/routes\.js['"]\)/,
+  'the route registry must stay lazy-loaded inside its DEV-only main.js branch',
 );
 assert.doesNotMatch(simLabSource, /from\s+['"]\.\.\/(?:engine|data|vigil|ui|stage|audio|music)\.js['"]/,
   'the report lab must consume endpoint JSON rather than importing game owners');

@@ -10,7 +10,7 @@ import {
 import { STATIC_REFERENCE_CATALOGUES } from '../content-resources.js';
 import { CONTENT_SCHEMAS, formatContentReport, MERGE_POLICIES } from '../registry.js';
 import { iconSvg } from '../art.js';
-import { ensureDevChromeStyle, renderDevChrome } from './chrome.js';
+import { esc, renderDevChrome } from './chrome.js';
 
 const ASSET_MODULES = import.meta.glob(
   ['../assets/*/*.{png,jpg,jpeg,webp}'],
@@ -24,12 +24,6 @@ function liveAssetManifest() {
     if (match) keys.add(`${match[1]}/${match[2]}`);
   }
   return keys;
-}
-
-function esc(value) {
-  return String(value).replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[ch]));
 }
 
 function linkHref(route, domain, id) {
@@ -175,7 +169,7 @@ export async function initDoctor() {
   const style = document.createElement('style');
   style.textContent = DOCTOR_STYLE;
   document.head.appendChild(style);
-  ensureDevChromeStyle();
+
 
   const host = document.getElementById('stage') || document.body;
   const root = document.createElement('div');
@@ -193,7 +187,7 @@ export async function initDoctor() {
     <h2>${iconSvg('chest', 16)} Domains</h2>
     ${domainHtml}
     ${renderProblems(report.problems)}
-    <p><a href="?dev=1">dev shell</a> · <a href="?">game</a></p>
+    <p><a href="?">game</a></p>
   `;
   host.appendChild(root);
 }

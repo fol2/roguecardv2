@@ -20,42 +20,36 @@ if (import.meta.env.DEV) {
   ROUTES = (await import('./dev/routes.js')).ROUTES;
 }
 
-async function boot() {
-  // Phase 1: Pre-audio shell routes (e.g., sim lab).
-  if (import.meta.env.DEV && ROUTES) {
-    for (const route of ROUTES) {
-      if (route.kind === 'shell' && route.preAudio && qs.has(route.param)) {
-        const module = await route.load();
-        const init = module[route.exportName];
-        await init();
-        return;
-      }
+/** Boot the first matching shell route that passes the match predicate. */
+async function bootFirstShell(match) {
+  if (!import.meta.env.DEV || !ROUTES) return false;
+  for (const route of ROUTES) {
+    if (route.kind === 'shell' && match(route) && qs.has(route.param)) {
+      const init = await route.load();
+      await init();
+      return true;
     }
   }
+  return false;
+}
+
+async function boot() {
+  // Phase 1: Pre-audio shell routes (e.g., sim lab).
+  if (import.meta.env.DEV && await bootFirstShell((r) => r.preAudio)) return;
 
   // The host may replace this small JSON without rebuilding JS. Resolve it
   // before any title cue or SFX preload can cache the base selection.
   await loadAudioSelection();
 
   // Phase 2: Post-audio shell routes (lab, dashboard, contentedit, dev).
-  if (import.meta.env.DEV && ROUTES) {
-    for (const route of ROUTES) {
-      if (route.kind === 'shell' && !route.preAudio && !route.exclusiveBoot && qs.has(route.param)) {
-        const module = await route.load();
-        const init = module[route.exportName];
-        await init();
-        return;
-      }
-    }
-  }
+  if (import.meta.env.DEV && await bootFirstShell((r) => !r.preAudio && !r.exclusiveBoot)) return;
 
   // Phase 3: Mutually-exclusive editors (charedit, vfxedit) that boot stage+mesh inside.
   let bootedAltEditor = false;
   if (import.meta.env.DEV && ROUTES) {
     for (const route of ROUTES) {
       if (route.kind === 'shell' && route.exclusiveBoot && qs.has(route.param)) {
-        const module = await route.load();
-        const init = module[route.exportName];
+        const init = await route.load();
         init(); // Fire-and-forget (sync init)
         bootedAltEditor = true;
         break;

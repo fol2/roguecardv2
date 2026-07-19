@@ -5,7 +5,7 @@ import {
   encodeLabScenario, decodeLabScenario, validateLabScenario,
   encodeReplayDescriptor, decodeReplayDescriptor,
 } from './lab-scenario.js';
-import { ensureDevChromeStyle, renderDevChrome } from './chrome.js';
+import { esc, renderDevChrome } from './chrome.js';
 import { bindRunContent, contentViewFor, themeForRun } from '../ui/content.js';
 import { renderReplayPreview, supportedReplayKinds } from './replay-preview.js';
 
@@ -70,12 +70,6 @@ const LAB_STYLE = `
   text-align: center; pointer-events: none;
 }
 `;
-
-function esc(value) {
-  return String(value).replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[ch]));
-}
 
 function optionsHtml(ids, selected) {
   return ids.map((id) =>
@@ -178,7 +172,6 @@ export async function initLab() {
   for (const key of Object.keys(DURABLE_STORAGE)) restoreDurableKey(key);
 
   const stage = document.getElementById('stage') || document.body;
-  ensureDevChromeStyle();
   const style = document.createElement('style');
   style.textContent = LAB_STYLE;
   document.head.appendChild(style);

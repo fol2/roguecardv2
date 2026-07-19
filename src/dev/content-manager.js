@@ -9,7 +9,7 @@ import {
 } from '../content-registration.js';
 import { STATIC_REFERENCE_CATALOGUES } from '../content-resources.js';
 import { iconSvg } from '../art.js';
-import { ensureDevChromeStyle, renderDevChrome } from './chrome.js';
+import { esc, renderDevChrome } from './chrome.js';
 import {
   EDITABLE_DOMAINS, CONTENT_SAVE_VERSION,
   DOMAIN_LOCALE_EXPORT, fieldOwnership, splitBySource, joinBySource,
@@ -58,12 +58,6 @@ const MANAGER_STYLE = `
 [data-manager-status][data-ok="1"] { color: #b7e0a8; }
 [data-manager-status][data-ok="0"] { color: #ff8a7a; }
 `;
-
-function esc(value) {
-  return String(value).replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[ch]));
-}
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -126,7 +120,7 @@ export async function initContentManager() {
   const style = document.createElement('style');
   style.textContent = MANAGER_STYLE;
   document.head.appendChild(style);
-  ensureDevChromeStyle();
+
 
   const host = document.getElementById('stage') || document.body;
   const root = document.createElement('div');
@@ -243,7 +237,7 @@ export async function initContentManager() {
       ${renderProvenance()}
       ${renderSchema()}
       ${renderForm()}
-      <p><a href="?dev=1">dev shell</a> · <a href="?dashboard=1">doctor</a> · <a href="?">game</a></p>
+      <p><a href="?dashboard=1">doctor</a> · <a href="?">game</a></p>
     `;
 
     root.querySelector('[data-manager-domain]').onchange = (event) => {
