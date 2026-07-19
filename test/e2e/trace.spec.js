@@ -525,6 +525,9 @@ test('Title ignition runs once per page session and REDUCED lands on title-ready
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.reload();
   await page.waitForFunction(() => window.__probe);
+  // __probe lands before the awaited Pixi/combat-renderer boot that gates
+  // show('title'); wait for the title to exist before asserting attributes.
+  await page.waitForFunction(() => document.querySelector('.r5-title')?.dataset.r5State === 'title-ready');
   await expect(page.locator('.r5-title')).toHaveAttribute('data-r5-state', 'title-ready');
   await expect(page.locator('.r5-title')).toHaveAttribute('data-motion', 'reduced');
   await expect(page.locator('[data-version-display]')).toHaveAttribute('data-r5-state', 'title-version-default');
