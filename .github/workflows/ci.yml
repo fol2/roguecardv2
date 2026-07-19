@@ -156,10 +156,12 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: node tools/check-bundle-budget.mjs
-      - name: Verify committed dist is current
-        run: |
-          git status --short -- dist/
-          test -z "$(git status --porcelain --untracked-files=all -- dist/)"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'push'
+        with:
+          name: dist-${{ github.sha }}
+          path: dist/
+          retention-days: 14
 
   unit:
     name: unit
