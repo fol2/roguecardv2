@@ -9,6 +9,7 @@ on:
     branches: [main]
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
+  merge_group:
 
 permissions:
   contents: read
@@ -24,9 +25,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      code: ${{ steps.filter.outputs.code }}
-      e2e: ${{ steps.filter.outputs.e2e }}
-      e2e_slow: ${{ steps.filter.outputs.e2e_slow }}
+      # merge_group runs skip the diff filter (paths-filter has no PR base
+      # there) and prove everything — they are the final gate before main.
+      code: ${{ github.event_name == 'merge_group' && 'true' || steps.filter.outputs.code }}
+      e2e: ${{ github.event_name == 'merge_group' && 'true' || steps.filter.outputs.e2e }}
+      e2e_slow: ${{ github.event_name == 'merge_group' && 'true' || steps.filter.outputs.e2e_slow }}
       mode: ${{ steps.mode.outputs.mode }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -34,6 +37,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - id: filter
+        if: github.event_name != 'merge_group'
         uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         with:
           # Empty token forces local git diff. GitHub's PR files API can fail on
@@ -308,24 +312,31 @@ jobs:
           if-no-files-found: ignore
 
   e2e_webkit:
-    name: e2e webkit
+    # Split along the three npm-script segments so a WebKit process crash
+    # (memory pressure over a long --workers=1 run) reruns one ~6-minute
+    # shard instead of the whole serial lane.
+    name: e2e webkit ${{ matrix.segment }}
     needs: changes
     if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
+    strategy:
+      fail-fast: false
+      matrix:
+        segment: [core, lab, screens]
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-playwright
-      - run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit
+      - run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-${{ matrix.segment }}
       - name: Verify clean checkout
         if: always()
         run: test -z "$(git status --porcelain --untracked-files=all)"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
-          name: playwright-webkit-${{ github.run_id }}
+          name: playwright-webkit-${{ matrix.segment }}-${{ github.run_id }}
           path: test-results/
           retention-days: 14
           if-no-files-found: ignore

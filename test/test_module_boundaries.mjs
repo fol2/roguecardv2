@@ -89,7 +89,11 @@ assert.equal(packageJson.scripts['sim:smoke'], 'node tools/sim/runner.mjs --smok
   'the Proving Grounds smoke gate must stay on runner assert mode');
 assert.equal(
   packageJson.scripts['test:e2e:webkit'],
-  'playwright test stage trace --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-lab && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-screens',
+  'npm run test:e2e:webkit-core && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-lab && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-screens',
+);
+assert.equal(
+  packageJson.scripts['test:e2e:webkit-core'],
+  'playwright test stage trace --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
 );
 assert.equal(
   packageJson.scripts['test:e2e:leak'],
