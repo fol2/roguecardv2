@@ -344,7 +344,12 @@ for (const removed of [
 }
 
 assert.equal(pkg.scripts['test:boundaries'], 'node test/test_module_boundaries.mjs');
-assert.match(pkg.scripts['test:ci'], /npm run test:boundaries/);
+assert.equal(
+  pkg.scripts['test:ci'],
+  'node test/test_ci_contract.mjs && npm run test:boundaries && node test/test_baseline_tools.mjs && node test/test_affected_specs.mjs',
+);
+assert.equal(pkg.scripts['test:fast'], 'node tools/affected-specs.mjs --run');
+assert.equal(pkg.scripts['test:watch'], 'node tools/affected-specs.mjs --run --watch');
 assert.equal(pkg.scripts['content:compile'], 'node tools/compile-content-registrations.mjs');
 assert.equal(pkg.scripts['test:content-registrations'], 'node tools/compile-content-registrations.mjs --check');
 // WebKit runs as three bounded invocations — one browser instance across all

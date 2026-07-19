@@ -73,6 +73,12 @@ const musicResolveSource = readFileSync(new URL('../src/music-resolve.js', impor
 assert.doesNotMatch(musicResolveSource, /behaviour-trace|\bdocument\b|\bwindow\b|stage\.js/, 'music-resolve must not import browser owners');
 
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+assert.equal(
+  packageJson.scripts['test:ci'],
+  'node test/test_ci_contract.mjs && npm run test:boundaries && node test/test_baseline_tools.mjs && node test/test_affected_specs.mjs',
+);
+assert.equal(packageJson.scripts['test:fast'], 'node tools/affected-specs.mjs --run');
+assert.equal(packageJson.scripts['test:watch'], 'node tools/affected-specs.mjs --run --watch');
 assert.equal(packageJson.scripts['test:e2e'], 'npm run test:e2e:nonvisual && npm run test:e2e:visual');
 assert.equal(packageJson.scripts['test:e2e:nonvisual'], 'npm run test:e2e:disk && npm run test:e2e:random-agent && npm run test:e2e:pool && npm run test:e2e:serial');
 assert.equal(
