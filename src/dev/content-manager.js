@@ -8,55 +8,64 @@ import {
   compileContentRegistrations, doctorContentRegistrations,
 } from '../content-registration.js';
 import { STATIC_REFERENCE_CATALOGUES } from '../content-resources.js';
-import { iconSvg } from '../art.js';
-import { esc, renderDevChrome } from './chrome.js';
+import { esc, ensureDevStyle, renderShellRail, renderDevTopbar, mountRailDrawer, setDevTitle } from './chrome.js';
 import {
   EDITABLE_DOMAINS, CONTENT_SAVE_VERSION,
   DOMAIN_LOCALE_EXPORT, fieldOwnership, splitBySource, joinBySource,
 } from './content-serialize.js';
 
 const MANAGER_STYLE = `
-[data-content-manager] {
-  position: absolute; inset: 0; z-index: 80; overflow: auto;
-  background: linear-gradient(165deg, #1a1410 0%, #0e0b09 55%, #16110d 100%);
-  color: #f2e8d5; font-family: Cinzel, serif; padding: 16px 18px 40px;
-}
-[data-content-manager] * { box-sizing: border-box; }
-[data-content-manager] h1 { margin: 0 0 8px; font-size: 20px; letter-spacing: 0.08em; display: flex; gap: 8px; align-items: center; }
-[data-content-manager] h2 { margin: 16px 0 8px; font-size: 14px; letter-spacing: 0.06em; color: #d4af78; }
-[data-content-manager] label { display: block; margin: 6px 0 2px; font-size: 12px; }
+[data-content-manager] .dev-scroll { display: grid; gap: 14px; align-content: start; max-width: 960px; }
+[data-content-manager] .dev-panel { padding: 14px 16px; }
+[data-content-manager] .dev-panel > h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600;
+  letter-spacing: 0.02em; color: var(--dev-text); display: flex; gap: 8px; align-items: center; }
+[data-content-manager] .dev-panel > h2 .dev-diamond { color: var(--dev-accent); font-size: 11px; }
+[data-content-manager] .cm-picker { display: flex; gap: 16px; flex-wrap: wrap; }
+[data-content-manager] .cm-picker label { display: flex; flex-direction: column; gap: 4px;
+  font: 600 10px var(--dev-font); letter-spacing: 0.1em; text-transform: uppercase; color: var(--dev-faint); }
 [data-content-manager] select, [data-content-manager] input, [data-content-manager] textarea {
-  width: min(520px, 100%); background: #1c1713; color: #f2e8d5;
-  border: 1px solid #5a4a38; padding: 4px 6px; font-family: ui-monospace, monospace; font-size: 12px;
+  font: 400 12px var(--dev-mono); color: var(--dev-text); background: var(--dev-input-bg);
+  border: 1px solid var(--dev-input-border); border-radius: 6px; padding: 6px 10px; outline: none;
+  width: 100%; box-sizing: border-box;
 }
-[data-content-manager] textarea { min-height: 64px; }
-[data-content-manager] button {
-  margin: 8px 6px 0 0; background: #3a2c1f; color: #f2e8d5;
-  border: 1px solid #8a6a3e; padding: 6px 12px; cursor: pointer;
-}
-[data-content-manager] button:disabled { opacity: 0.45; cursor: not-allowed; }
-[data-manager-registration] {
-  font-size: 12px; margin: 4px 0; padding: 6px 8px;
-  border: 1px solid rgba(212,175,120,0.22); background: rgba(0,0,0,0.2);
-}
-[data-manager-schema-field] {
-  display: inline-block; margin: 2px 4px 2px 0; padding: 1px 6px;
-  border: 1px solid rgba(212,175,120,0.3); font-size: 10px;
-}
-[data-manager-schema-field][data-source="locale"] { color: #9ec9ff; }
-[data-manager-schema-field][data-source="pack"] { color: #e8c98a; }
-[data-manager-field] { margin: 8px 0; max-width: 560px; }
-[data-manager-source] {
-  margin-left: 6px; font-size: 10px; letter-spacing: 0.04em;
-  padding: 1px 6px; border: 1px solid rgba(212,175,120,0.35);
-}
-[data-manager-source="pack"] { color: #e8c98a; }
-[data-manager-source="locale"] { color: #9ec9ff; }
-[data-manager-source="extension"] { color: #c9a0ff; }
-[data-manager-warnings] { color: #ffcc8a; font-size: 12px; white-space: pre-wrap; }
-[data-manager-status] { margin-top: 10px; font-size: 12px; }
-[data-manager-status][data-ok="1"] { color: #b7e0a8; }
-[data-manager-status][data-ok="0"] { color: #ff8a7a; }
+[data-content-manager] select:focus, [data-content-manager] input:focus, [data-content-manager] textarea:focus { border-color: var(--dev-accent); }
+[data-content-manager] textarea { min-height: 72px; resize: vertical; white-space: pre; }
+[data-content-manager] .cm-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; }
+[data-content-manager] [data-manager-field] { margin: 0; }
+[data-content-manager] [data-manager-field][data-extension="1"],
+[data-content-manager] [data-manager-field]:has(textarea) { grid-column: 1 / -1; }
+[data-content-manager] [data-manager-field] > label { display: flex; align-items: center; gap: 7px;
+  margin: 0 0 5px; font: 500 11px var(--dev-font); color: var(--dev-muted); }
+[data-content-manager] [data-manager-source] { display: inline-flex; padding: 1px 6px; border-radius: 4px;
+  font: 400 9px var(--dev-mono); border: 1px solid var(--dev-input-border); color: var(--dev-muted); }
+[data-content-manager] [data-manager-source="pack"] { color: var(--dev-accent-light); border-color: var(--dev-accent-border); }
+[data-content-manager] [data-manager-source="locale"] { color: var(--dev-teal); border-color: var(--dev-teal-border); }
+[data-content-manager] [data-manager-source="extension"] { color: var(--dev-pink); border-color: #59394a; }
+[data-content-manager] [data-manager-field][data-extension="1"] textarea { border-style: dashed; color: var(--dev-dim); background: #171825; }
+[data-content-manager] [data-manager-schema-field] { display: inline-flex; padding: 2px 7px; border-radius: 5px;
+  font: 400 9px var(--dev-mono); border: 1px solid var(--dev-input-border); color: var(--dev-muted); margin: 0; }
+[data-content-manager] [data-manager-schema-field][data-source="locale"] { color: var(--dev-teal); border-color: var(--dev-teal-border); }
+[data-content-manager] [data-manager-schema-field][data-source="pack"] { color: var(--dev-accent-light); border-color: var(--dev-accent-border); }
+[data-content-manager] .cm-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+[data-content-manager] [data-manager-registration] { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px;
+  background: var(--dev-input-bg); border: 1px solid var(--dev-input-border); font-size: 12px; color: var(--dev-dim); }
+[data-content-manager] [data-manager-registration] strong { font: 700 11px var(--dev-mono); color: var(--dev-accent-light); }
+[data-content-manager] [data-manager-registration] span,
+[data-content-manager] [data-manager-provenance] .cm-meta span { font-family: var(--dev-mono); color: var(--dev-muted); }
+[data-content-manager] .cm-meta { font: 400 11px var(--dev-mono); color: var(--dev-dim); }
+[data-content-manager] [data-manager-warnings] { color: var(--dev-amber); font-size: 12px;
+  white-space: pre-wrap; margin: 0 0 12px; }
+[data-content-manager] [data-manager-warnings]:empty { display: none; }
+[data-content-manager] button[data-manager-save] { margin-top: 14px; border: none; border-radius: 6px;
+  padding: 8px 18px; font: 600 12px var(--dev-font); color: #fff; cursor: pointer;
+  background: linear-gradient(90deg, #8b7cf6, #6d5ce8); }
+[data-content-manager] button[data-manager-save]:hover { filter: brightness(1.08); }
+[data-content-manager] button[data-manager-save]:disabled { opacity: 0.45; cursor: not-allowed; }
+[data-content-manager] [data-manager-status] { margin-top: 10px; font: 400 12px var(--dev-mono); }
+[data-content-manager] [data-manager-status][data-ok="1"] { color: var(--dev-teal); }
+[data-content-manager] [data-manager-status][data-ok="0"] { color: var(--dev-red); }
+[data-content-manager] .cm-note { font: 400 10px var(--dev-mono); color: var(--dev-faint); margin: 14px 0 0; }
+[data-content-manager] .cm-note span { color: var(--dev-muted); }
 `;
 
 function clone(value) {
@@ -117,15 +126,19 @@ export async function initContentManager() {
   let domain = EDITABLE_DOMAINS.includes(qs.get('domain')) ? qs.get('domain') : 'cards';
   let entryId = qs.get('id') || Object.keys(coreMechanics[domain] || {})[0];
 
+  ensureDevStyle();
+  setDevTitle('Content Manager');
   const style = document.createElement('style');
   style.textContent = MANAGER_STYLE;
   document.head.appendChild(style);
 
-
   const host = document.getElementById('stage') || document.body;
   const root = document.createElement('div');
   root.setAttribute('data-content-manager', '1');
+  root.className = 'dev-shell';
   host.appendChild(root);
+
+  const drawer = mountRailDrawer('contentedit');
 
   const state = {
     domain,
@@ -163,9 +176,9 @@ export async function initContentManager() {
         <div>source <span data-manager-source-path>${esc(row.sourcePath || '—')}</span></div>
         <div>targets <span data-manager-targets>${esc(JSON.stringify(row.targets || {}))}</span></div>
       </div>`).join('');
-    return `<section data-manager-provenance>
-      <h2>${iconSvg('lantern', 16)} Registration provenance</h2>
-      <div>target: ${esc(provenance.target)} · ids: ${esc((provenance.registrationIds || []).join(', '))}</div>
+    return `<section class="dev-panel" data-manager-provenance>
+      <h2><span class="dev-diamond">◆</span> Registration provenance</h2>
+      <div class="cm-meta">target: <span>${esc(provenance.target)}</span> · ids: <span>${esc((provenance.registrationIds || []).join(', '))}</span></div>
       ${rows}
     </section>`;
   }
@@ -173,9 +186,9 @@ export async function initContentManager() {
   function renderSchema() {
     const fields = fieldOwnership(state.domain).map((field) =>
       `<span data-manager-schema-field data-domain="${esc(state.domain)}" data-field="${esc(field.name)}" data-source="${esc(field.source)}">${esc(state.domain)}.${esc(field.name)}:${esc(field.source)}</span>`).join('');
-    return `<section data-manager-schema>
-      <h2>${iconSvg('cards', 16)} Schema field ownership</h2>
-      ${fields}
+    return `<section class="dev-panel" data-manager-schema>
+      <h2><span class="dev-diamond">◆</span> Schema field ownership</h2>
+      <div class="cm-chips">${fields}</div>
     </section>`;
   }
 
@@ -202,18 +215,18 @@ export async function initContentManager() {
 
     const extHtml = extensionKeys.map((key) => `
       <div data-manager-field="${esc(key)}" data-extension="1">
-        <label>${esc(key)} <span data-manager-source="extension">extension</span></label>
+        <label>${esc(key)} <span data-manager-source="extension">extension</span> · read-only</label>
         <textarea data-field="${esc(key)}" data-kind="raw" data-source="extension" readonly>${esc(JSON.stringify(joined[key], null, 2))}</textarea>
       </div>`).join('');
 
     return `
-      <section data-manager-form>
-        <h2>${iconSvg('menu', 16)} Edit ${esc(state.domain)}.${esc(state.entryId)}</h2>
+      <section class="dev-panel" data-manager-form>
+        <h2><span class="dev-diamond">◆</span> Edit ${esc(state.domain)}.${esc(state.entryId)}</h2>
         <div data-manager-warnings>${warnings.map(esc).join('\n')}</div>
-        ${fieldHtml}
-        ${extHtml}
+        <div class="cm-fields">${fieldHtml}${extHtml}</div>
         <button type="button" data-manager-save>Save</button>
         <div data-manager-status></div>
+        <p class="cm-note">Saving writes core mechanics + en locale via <span>/__content-save</span> · pack/locale split is automatic</p>
       </section>`;
   }
 
@@ -221,25 +234,34 @@ export async function initContentManager() {
     const order = Object.keys(state.mechanics[state.domain]);
     if (!order.includes(state.entryId)) state.entryId = order[0];
     writeQuery();
+    const status = `<span class="dev-chip ${doctor.report.ok ? 'is-ok' : 'is-warn'}">doctor ${doctor.report.ok ? 'ok' : 'problems'}</span>`;
     root.innerHTML = `
-      ${renderDevChrome({ title: 'Content Manager' })}
-      <p>Schema-driven core editor · cards / relics / potions / themes · doctor ok=${doctor.report.ok ? 'yes' : 'no'}</p>
-      <label>Domain
-        <select data-manager-domain>
-          ${EDITABLE_DOMAINS.map((d) => `<option value="${esc(d)}"${d === state.domain ? ' selected' : ''}>${esc(d)}</option>`).join('')}
-        </select>
-      </label>
-      <label>Entry
-        <select data-manager-entry>
-          ${order.map((id) => `<option value="${esc(id)}"${id === state.entryId ? ' selected' : ''}>${esc(id)}</option>`).join('')}
-        </select>
-      </label>
-      ${renderProvenance()}
-      ${renderSchema()}
-      ${renderForm()}
-      <p><a href="?dashboard=1">doctor</a> · <a href="?">game</a></p>
+      ${renderShellRail({ activeParam: 'contentedit' })}
+      <div class="dev-main">
+        ${renderDevTopbar({ title: 'Content Manager', param: 'contentedit', status, menu: true })}
+        <div class="dev-scroll">
+          <section class="dev-panel">
+            <div class="cm-picker">
+              <label>Domain
+                <select data-manager-domain>
+                  ${EDITABLE_DOMAINS.map((d) => `<option value="${esc(d)}"${d === state.domain ? ' selected' : ''}>${esc(d)}</option>`).join('')}
+                </select>
+              </label>
+              <label>Entry
+                <select data-manager-entry>
+                  ${order.map((id) => `<option value="${esc(id)}"${id === state.entryId ? ' selected' : ''}>${esc(id)}</option>`).join('')}
+                </select>
+              </label>
+            </div>
+          </section>
+          ${renderForm()}
+          ${renderSchema()}
+          ${renderProvenance()}
+        </div>
+      </div>
     `;
 
+    root.querySelector('[data-dev-menu]').onclick = () => drawer.toggle();
     root.querySelector('[data-manager-domain]').onchange = (event) => {
       state.domain = event.target.value;
       state.entryId = Object.keys(state.mechanics[state.domain])[0];

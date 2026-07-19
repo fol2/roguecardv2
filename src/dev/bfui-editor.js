@@ -4,6 +4,12 @@ import { serializeUIC, validateUIC } from './bfui-serialize.js';
 import { uicRaw, _setUIC, onUICChange, uicResolve } from '../uic.js';
 import { stageEl, stageInfo, toStage, stageRect } from '../stage.js';
 import { OMENS, RELICS } from '../data.js';
+import { ensureDevStyle, mountRailDrawer, setDevTitle } from './chrome.js';
+
+// Observatory slide-over rail drawer — floats over the live combat stage; does
+// not touch stage geometry. Capture-phase Esc closes it before the editor's own
+// Escape (deselect) fires. Mounted once; the ☰ button re-binds each toolbar render.
+let railDrawer = null;
 
 const SHAPES = ['phone-portrait', 'phone-landscape', 'pad-portrait', 'pad-landscape', 'desktop-landscape'];
 const POS = ['energy', 'lantern', 'endTurn', 'draw', 'discard', 'ashes'];
@@ -488,7 +494,8 @@ function renderToolbar() {
   bar.id = 'bfui-toolbar';
   const shape = stageInfo().shape;
   bar.innerHTML = `
-    <strong>bfuiedit</strong>
+    <button type="button" class="dev-menu-btn" id="bfui-menu" title="Dev tools" aria-label="Dev tools">☰</button>
+    <span class="bfui-title">UI chrome editor</span><span class="bfui-param">?bfuiedit=1</span>
     <span class="bfui-grp">shape
       <select id="bfui-shape">${SHAPES.map((s) => `<option value="${s}"${s === shape ? ' selected' : ''}>${s}</option>`).join('')}</select>
     </span>
@@ -499,6 +506,7 @@ function renderToolbar() {
       <button type="button" id="bfui-copy">Copy JS</button>
     </span>`;
   document.body.appendChild(bar);
+  bar.querySelector('#bfui-menu').onclick = () => railDrawer?.toggle();
   bar.querySelector('#bfui-shape').onchange = (e) => {
     if (state.dirty && !confirm('Switch shape? Unsaved edits stay in memory until Save.')) {
       e.target.value = shape;
@@ -605,18 +613,27 @@ function renderPanel() {
 }
 
 const CSS = `
-#bfui-toolbar { position: fixed; top: 0; left: 0; right: 0; z-index: 400; display: flex; gap: 14px; align-items: center; padding: 6px 10px; background: #0b0d18f2; color: #cdd3ea; font: 12px/1.4 monospace; border-bottom: 1px solid #333a55; }
-#bfui-toolbar .bfui-grp { display: flex; gap: 4px; align-items: center; }
+#bfui-toolbar { position: fixed; top: 0; left: 0; right: 0; z-index: 400; display: flex; gap: 12px; align-items: center; height: 48px; padding: 0 14px; background: var(--dev-bg); color: var(--dev-text); font-family: var(--dev-font); font-size: 12px; border-bottom: 1px solid var(--dev-border); -webkit-font-smoothing: antialiased; }
+#bfui-toolbar .bfui-title { font-size: 14px; font-weight: 700; color: var(--dev-text); white-space: nowrap; flex-shrink: 0; }
+#bfui-toolbar .bfui-param { font: 400 11px var(--dev-mono); color: var(--dev-faint); white-space: nowrap; flex-shrink: 0; }
+#bfui-toolbar .bfui-grp { display: flex; gap: 6px; align-items: center; color: var(--dev-dim); font-size: 11px; }
+#bfui-toolbar #bfui-dirty { font: 400 11px var(--dev-mono); color: var(--dev-amber); }
 #bfui-toolbar .bfui-right { margin-left: auto; display: flex; gap: 6px; }
-#bfui-toolbar button, #bfui-toolbar select { font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 4px; padding: 2px 7px; cursor: pointer; }
-#bfui-panel { position: fixed; top: 44px; right: 0; z-index: 400; width: 230px; max-height: calc(100vh - 60px); overflow: auto; background: #0b0d18f2; color: #cdd3ea; font: 12px/1.5 monospace; border: 1px solid #333a55; border-right: 0; padding: 10px; }
-#bfui-select { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #333a55; }
-#bfui-select button { font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 4px; padding: 1px 7px; cursor: pointer; }
-#bfui-select button.on { background: #34406e; border-color: #6fe3ff88; }
-#bfui-panel label { display: flex; justify-content: space-between; gap: 6px; margin: 4px 0; }
-#bfui-panel input, #bfui-panel select { width: 72px; font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
-#bfui-panel button[data-clear] { font: inherit; background: #3a2030; color: #ff9ebd; border: 1px solid #664455; border-radius: 3px; padding: 2px 7px; cursor: pointer; margin-top: 8px; }
-#bfui-panel .bfui-hint { color: #6a7288; font-size: 10px; margin-bottom: 6px; }
+#bfui-toolbar button, #bfui-toolbar select { font: 500 11px var(--dev-font); background: var(--dev-input-bg); color: var(--dev-muted); border: 1px solid var(--dev-input-border); border-radius: 6px; padding: 5px 10px; cursor: pointer; transition: border-color 0.14s ease, color 0.14s ease; }
+#bfui-toolbar select { font-family: var(--dev-mono); }
+#bfui-toolbar button:hover, #bfui-toolbar select:hover { border-color: var(--dev-accent-border); color: var(--dev-text); }
+#bfui-toolbar button.dev-menu-btn { background: none; border: 0; padding: 4px 6px; }
+#bfui-toolbar #bfui-save { border: 0; color: #fff; font-weight: 600; background: linear-gradient(90deg, #8b7cf6, #6d5ce8); }
+#bfui-toolbar #bfui-save:hover { filter: brightness(1.08); color: #fff; }
+#bfui-panel { position: fixed; top: 48px; right: 0; z-index: 400; width: 230px; max-height: calc(100vh - 60px); overflow: auto; background: var(--dev-rail); color: var(--dev-text); font-family: var(--dev-font); font-size: 12px; line-height: 1.5; border-left: 1px solid var(--dev-border); padding: 12px; -webkit-font-smoothing: antialiased; }
+#bfui-select { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--dev-border); }
+#bfui-select button { font: 400 10px var(--dev-mono); background: var(--dev-input-bg); color: var(--dev-muted); border: 1px solid var(--dev-input-border); border-radius: 5px; padding: 3px 8px; cursor: pointer; }
+#bfui-select button.on { background: var(--dev-accent-fill); color: var(--dev-accent-light); border-color: var(--dev-accent-border); }
+#bfui-panel label { display: flex; justify-content: space-between; gap: 6px; margin: 5px 0; align-items: center; color: var(--dev-dim); }
+#bfui-panel input, #bfui-panel select { width: 72px; font: 400 11px var(--dev-mono); background: var(--dev-input-bg); color: var(--dev-text); border: 1px solid var(--dev-input-border); border-radius: 5px; padding: 3px 5px; }
+#bfui-panel button[data-clear] { font: inherit; background: var(--dev-input-bg); color: var(--dev-pink); border: 1px solid var(--dev-input-border); border-radius: 5px; padding: 4px 8px; cursor: pointer; margin-top: 8px; }
+#bfui-panel button[data-clear]:hover { border-color: var(--dev-red); }
+#bfui-panel .bfui-hint { color: var(--dev-faint); font-size: 10px; margin-bottom: 6px; }
 #bfui-overlay { position: absolute; inset: 0; z-index: 50; pointer-events: none; }
 .bfui-editing .hand-zone { pointer-events: none !important; z-index: 5 !important; }
 .bfui-editing .player-zone, .bfui-editing .enemy { pointer-events: none !important; }
@@ -632,9 +649,12 @@ const CSS = `
 `;
 
 export function initBfuiEditor() {
+  ensureDevStyle();
+  setDevTitle('UI chrome editor');
   const style = document.createElement('style');
   style.textContent = CSS;
   document.head.appendChild(style);
+  railDrawer = mountRailDrawer('bfuiedit');
   state.working = clone(uicRaw());
   _setUIC(state.working, { silent: true });
   pushUrl();

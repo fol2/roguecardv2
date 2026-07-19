@@ -11,6 +11,11 @@ import {
   WARD_DEFAULTS, meshWardParams, meshWardSetParams, meshWardResetParams, meshWardCommitDefaults,
 } from '../mesh.js';
 import { validateWardParams } from './ward-serialize.js';
+import { ensureDevStyle, mountRailDrawer, setDevTitle } from './chrome.js';
+
+
+const DEV_SHELL_CSS = `
+`;
 
 const HERO_IDS = ASPECTS.map((a) => a.id);
 const ENEMY_IDS = Object.keys(ENEMIES).sort();
@@ -321,6 +326,7 @@ function mountChrome() {
     document.getElementById(id)?.remove();
   }
   document.documentElement.classList.add('vfx-edit');
+  ensureDevStyle();
   const screen = document.getElementById('screen');
   screen.innerHTML = '';
   screen.className = 'vx-screen';
@@ -328,7 +334,9 @@ function mountChrome() {
   const bar = document.createElement('header');
   bar.id = 'vx-bar';
   bar.setAttribute('data-vfxedit-root', '1');
-  bar.innerHTML = `<b>vfx edit</b><span id="vx-status">…</span>
+  bar.innerHTML = `<button type="button" class="dev-menu-btn" id="vx-menu" title="Dev tools" aria-label="Dev tools">☰</button>
+    <span class="vx-title">VFX editor</span><span class="vx-param">?vfxedit=1</span>
+    <span id="vx-status" class="dev-chip is-ok">…</span>
     <a href="/?gallery=1">gallery</a>
     <a href="/?charedit=1">charedit</a>
     <a href="/">← game</a>`;
@@ -343,8 +351,11 @@ function mountChrome() {
   document.body.append(bar, panel);
 
   const style = document.createElement('style');
-  style.textContent = CSS;
+  style.textContent = DEV_SHELL_CSS + CSS;
   document.head.appendChild(style);
+
+  const drawer = mountRailDrawer('vfxedit');
+  bar.querySelector('#vx-menu').onclick = () => drawer.toggle();
 
   window.addEventListener('keydown', (e) => {
     if (e.target.matches?.('input, select, textarea')) return;
@@ -354,47 +365,52 @@ function mountChrome() {
 }
 
 const CSS = `
-#vx-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 400; display: flex; gap: 14px; align-items: center;
-  padding: 8px 12px; background: #0b0d18f2; color: #cdd3ea; font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-  border-bottom: 1px solid #333a55; }
-#vx-bar a { color: #9fb4ff; text-decoration: none; }
-#vx-bar a:last-of-type { margin-left: auto; }
-#vx-status { color: #f0c56a; }
-#vx-panel { position: fixed; top: 44px; right: 0; bottom: 0; width: 320px; z-index: 400; overflow: auto;
-  border-left: 1px solid #333a55; background: #0b0d18f2; padding: 12px;
-  font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: #cdd3ea; }
-#vx-panel h4 { margin: 14px 0 8px; color: #f0c56a; font: inherit; letter-spacing: 0.08em; text-transform: uppercase; font-size: 11px; }
-.vx-sub { color: #6a7288; font-size: 11px; margin: 4px 0 8px; }
-.vx-sub em { color: #f0c56a; font-style: normal; }
-.vx-pick label { display: grid; gap: 4px; color: #9aa7c8; }
-.vx-pick select { width: 100%; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
+#vx-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 400; display: flex; gap: 12px; align-items: center; height: 48px;
+  padding: 0 16px; background: var(--dev-bg); color: var(--dev-text); font-family: var(--dev-font); font-size: 13px;
+  border-bottom: 1px solid var(--dev-border); -webkit-font-smoothing: antialiased; }
+#vx-bar .vx-title { font-size: 14px; font-weight: 700; color: var(--dev-text); }
+#vx-bar .vx-param { font: 400 11px var(--dev-mono); color: var(--dev-faint); }
+#vx-bar a { color: var(--dev-muted); text-decoration: none; font-size: 12px; margin-left: 12px; transition: color 0.14s ease; }
+#vx-bar a:hover { color: var(--dev-accent-light); }
+#vx-bar a:first-of-type { margin-left: auto; }
+#vx-status { font-family: var(--dev-font); }
+#vx-panel { position: fixed; top: 48px; right: 0; bottom: 0; width: 320px; z-index: 400; overflow: auto;
+  border-left: 1px solid var(--dev-border); background: var(--dev-rail); padding: 14px;
+  font-family: var(--dev-font); font-size: 12px; color: var(--dev-text); -webkit-font-smoothing: antialiased; }
+#vx-panel h4 { margin: 14px 0 8px; color: var(--dev-accent); font: 600 10px var(--dev-font); letter-spacing: 0.12em; text-transform: uppercase; }
+.vx-sub { color: var(--dev-faint); font-size: 11px; margin: 4px 0 8px; }
+.vx-sub em { color: var(--dev-accent-light); font-style: normal; font-family: var(--dev-mono); }
+.vx-pick label { display: grid; gap: 4px; color: var(--dev-dim); font-size: 10px; letter-spacing: 0.04em; }
+.vx-pick select { width: 100%; font: 400 12px var(--dev-mono); color: var(--dev-text); background: var(--dev-input-bg); border: 1px solid var(--dev-input-border); border-radius: 6px; padding: 6px 9px; }
 .vx-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
 .vx-actions button {
-  font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 4px; padding: 6px 14px; cursor: pointer; }
-.vx-actions button:hover { border-color: #9fd4ff; color: #9fd4ff; }
-.vx-row { display: grid; grid-template-columns: 72px 1fr 58px; gap: 6px; align-items: center; color: #9aa7c8; margin: 5px 0; }
-.vx-row em { color: #f0c56a; font-style: normal; text-align: right; font-size: 11px; }
-.vx-row input[type=range] { width: 100%; }
+  font: 600 12px var(--dev-font); background: var(--dev-input-bg); color: var(--dev-muted); border: 1px solid var(--dev-input-border); border-radius: 6px; padding: 7px 14px; cursor: pointer; transition: border-color 0.14s ease, color 0.14s ease; }
+.vx-actions button:hover { border-color: var(--dev-accent-border); color: var(--dev-text); }
+.vx-actions button#vx-grow, .vx-actions button#vx-save { border: 0; color: #fff; font-weight: 600; background: linear-gradient(90deg, #8b7cf6, #6d5ce8); }
+.vx-actions button#vx-grow:hover, .vx-actions button#vx-save:hover { filter: brightness(1.08); color: #fff; }
+.vx-row { display: grid; grid-template-columns: 80px 1fr 44px; gap: 8px; align-items: center; color: var(--dev-dim); font-size: 11px; margin: 6px 0; }
+.vx-row em { color: var(--dev-text); font-style: normal; text-align: right; font: 400 10px var(--dev-mono); }
+.vx-row input[type=range] { width: 100%; accent-color: var(--dev-accent); }
 .vx-row input[type=number] {
-  width: 100%; background: #1a2036; color: #f0c56a; border: 1px solid #3a4266; border-radius: 3px;
-  font: inherit; font-size: 11px; padding: 2px 4px; text-align: right; }
-.vx-tint-row input[type=color] { width: 100%; height: 24px; border: 1px solid #3a4266; background: #1a2036; padding: 0; cursor: pointer; }
-.vx-check { display: flex; align-items: center; gap: 8px; color: #9aa7c8; margin: 8px 0; cursor: pointer; }
-.vx-check input { accent-color: #9fd4ff; }
-.vx-hint { color: #6a7288; font-size: 11px; margin-top: 14px; }
-.vx-hint code { color: #9fb4ff; }
-.vx-hint b { color: #cdd3ea; font-weight: 600; }
+  width: 100%; background: var(--dev-input-bg); color: var(--dev-text); border: 1px solid var(--dev-input-border); border-radius: 5px;
+  font: 400 11px var(--dev-mono); padding: 3px 5px; text-align: right; }
+.vx-tint-row input[type=color] { width: 100%; height: 24px; border: 1px solid var(--dev-input-border); background: var(--dev-input-bg); padding: 0; cursor: pointer; border-radius: 5px; }
+.vx-check { display: flex; align-items: center; gap: 8px; color: var(--dev-muted); font-size: 11px; margin: 8px 0; cursor: pointer; }
+.vx-check input { accent-color: var(--dev-teal); }
+.vx-hint { color: var(--dev-faint); font-size: 10px; line-height: 1.6; margin-top: 14px; font-family: var(--dev-mono); }
+.vx-hint code { color: var(--dev-accent-light); }
+.vx-hint b { color: var(--dev-text); font-weight: 600; }
 html.vfx-edit #mesh { z-index: 8; }
 #vx-stage {
   position: absolute; inset: 0; padding-right: 320px; box-sizing: border-box;
   background:
-    radial-gradient(ellipse at 50% 70%, #1a2036 0%, #0b0d18 70%),
-    repeating-linear-gradient(90deg, transparent, transparent 39px, #1a203622 40px);
+    radial-gradient(ellipse at 50% 70%, #1a2036 0%, #10111c 70%),
+    repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(139,124,246,0.05) 40px);
   overflow: hidden;
 }
 .vx-ground {
-  position: absolute; left: 8%; right: calc(320px + 8%); bottom: 18%; height: 2px;
-  background: linear-gradient(90deg, transparent, #9fd4ff66 20%, #9fd4ff66 80%, transparent);
+  position: absolute; left: 8%; right: calc(320px + 8%); bottom: 18%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(139,124,246,0.5) 20%, rgba(139,124,246,0.5) 80%, transparent);
   z-index: 0;
 }
 .vx-actor {
@@ -403,10 +419,10 @@ html.vfx-edit #mesh { z-index: 8; }
 }
 .vx-sprite { position: absolute; inset: 0; width: 100%; height: 100%; }
 .vx-sprite img { width: 100%; height: 100%; object-fit: contain; object-position: center bottom; display: block; }
-.vx-meta { position: absolute; left: 12px; top: 12px; color: #9aa7c8; z-index: 3; pointer-events: none; }
-.vx-missing { position: absolute; inset: 0; display: grid; place-items: center; color: #664; z-index: 6; text-align: center; padding: 12px; }
+.vx-meta { position: absolute; left: 14px; top: 14px; color: var(--dev-faint); font: 400 10px var(--dev-mono); z-index: 3; pointer-events: none; }
+.vx-missing { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dev-faint); z-index: 6; text-align: center; padding: 12px; }
 @media (max-width: 800px) {
-  #vx-panel { width: 100%; top: auto; height: 42vh; border-left: 0; border-top: 1px solid #333a55; }
+  #vx-panel { width: 100%; top: auto; height: 42vh; border-left: 0; border-top: 1px solid var(--dev-border); }
   #vx-stage { padding-right: 0; padding-bottom: 42vh; }
   .vx-ground { right: 8%; }
   .vx-actor { left: 50%; }
@@ -414,6 +430,7 @@ html.vfx-edit #mesh { z-index: 8; }
 `;
 
 export function initVfxEditor() {
+  setDevTitle('VFX editor');
   initStage();
   initMesh();
   state.id = idFromUrl();
