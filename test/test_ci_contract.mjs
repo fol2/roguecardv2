@@ -27,6 +27,7 @@ assert.equal(isRound5StandingRef('cursor/entrance-progressive-delivery-0e31'), f
 assert.equal(isRound5StandingRef('main'), false);
 
 assert.equal(resolveCiMode('push', ''), 'full');
+assert.equal(resolveCiMode('merge_group', ''), 'full');
 assert.equal(resolveCiMode('push', '', 'main'), 'full');
 assert.equal(resolveCiMode('pull_request', true), 'smoke');
 assert.equal(resolveCiMode('pull_request', true, 'feature/x'), 'smoke');
@@ -308,9 +309,14 @@ assert.equal(pkg.scripts['content:compile'], 'node tools/compile-content-registr
 assert.equal(pkg.scripts['test:content-registrations'], 'node tools/compile-content-registrations.mjs --check');
 // WebKit runs as three bounded invocations — one browser instance across all
 // six WebGL-heavy specs accumulated enough pressure to hang late navigations.
+// CI runs each segment as its own matrix shard; the chained script is local.
 assert.equal(
   pkg.scripts['test:e2e:webkit'],
-  'playwright test stage trace --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-lab && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-screens',
+  'npm run test:e2e:webkit-core && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-lab && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-screens',
+);
+assert.equal(
+  pkg.scripts['test:e2e:webkit-core'],
+  'playwright test stage trace --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
 );
 assert.equal(
   pkg.scripts['test:e2e:webkit-lab'],
@@ -320,7 +326,7 @@ assert.equal(
   pkg.scripts['test:e2e:webkit-screens'],
   'playwright test production-profile p6-screens --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
 );
-const webkitChain = ['test:e2e:webkit', 'test:e2e:webkit-lab', 'test:e2e:webkit-screens']
+const webkitChain = ['test:e2e:webkit-core', 'test:e2e:webkit-lab', 'test:e2e:webkit-screens']
   .map((name) => pkg.scripts[name]).join(' && ');
 assert.equal(
   pkg.scripts['test:e2e:leak'],
@@ -449,7 +455,7 @@ for (const token of ['trace', 'stage', 'lab', 'theme-profile', 'production-profi
     `the webkit chain must retain cumulative token ${token}`,
   );
 }
-for (const name of ['test:e2e:webkit', 'test:e2e:webkit-lab', 'test:e2e:webkit-screens']) {
+for (const name of ['test:e2e:webkit-core', 'test:e2e:webkit-lab', 'test:e2e:webkit-screens']) {
   assert.match(pkg.scripts[name], /--project=iphone-webkit/);
   assert.match(pkg.scripts[name], /--project=ipad-webkit/);
   assert.match(pkg.scripts[name], /--workers=1/);
