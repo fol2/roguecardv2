@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Glassvow</string>
+    <string name="title_activity_main">Glassvow</string>
+    <string name="package_name">com.fol2.glassvow</string>
+    <string name="custom_url_scheme">com.fol2.glassvow</string>
+</resources>
