@@ -134,4 +134,6 @@ Promotion workflow: `docs/generated-art-workflow.md`.
 
 ## Documentation
 
+`docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`); relevant when implementing or debugging in documented areas. `CONCEPTS.md` (repo root) — shared domain vocabulary; relevant when orienting to the codebase or discussing domain concepts.
+
 Index of specs, asset bibles, and the visual-QA kit: [`docs/README.md`](docs/README.md). Active executor work: `docs/superpowers/plans/2026-07-06-visualisation-hardening-polish.md`.
