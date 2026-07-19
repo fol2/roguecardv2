@@ -39,6 +39,9 @@ async function openManager(page, { domain = 'cards', id = 'strike' } = {}) {
 test('Content Manager renders provenance, schema ownership, and editable form', async ({ page }) => {
   await openManager(page);
   await expect(page.locator('[data-content-manager]')).toBeVisible();
+  const home = page.locator('a[data-dev-home]');
+  await expect(home).toBeVisible();
+  await expect(home).toHaveAttribute('href', '?dev=1');
   await expect(page.locator('[data-manager-provenance]')).toBeVisible();
   await expect(page.locator('[data-manager-registration="core"]')).toBeVisible();
   await expect(page.locator('[data-manager-schema-field][data-source="locale"]').first()).toBeVisible();

@@ -172,6 +172,10 @@ test.describe('Content Lab', () => {
     await page.goto('/?lab=1');
     await waitLabReady(page);
 
+    const home = page.locator('a[data-dev-home]');
+    await expect(home).toBeVisible();
+    await expect(home).toHaveAttribute('href', '?dev=1');
+
     await expect(page.locator('[data-lab-mode]')).toBeVisible();
     await expect(page.locator('[data-lab-seed]')).toBeVisible();
     await expect(page.locator('[data-lab-aspect]')).toBeVisible();

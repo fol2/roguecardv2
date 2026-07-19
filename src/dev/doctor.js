@@ -10,6 +10,7 @@ import {
 import { STATIC_REFERENCE_CATALOGUES } from '../content-resources.js';
 import { CONTENT_SCHEMAS, formatContentReport, MERGE_POLICIES } from '../registry.js';
 import { iconSvg } from '../art.js';
+import { ensureDevChromeStyle, renderDevChrome } from './chrome.js';
 
 const ASSET_MODULES = import.meta.glob(
   ['../assets/*/*.{png,jpg,jpeg,webp}'],
@@ -174,6 +175,7 @@ export async function initDoctor() {
   const style = document.createElement('style');
   style.textContent = DOCTOR_STYLE;
   document.head.appendChild(style);
+  ensureDevChromeStyle();
 
   const host = document.getElementById('stage') || document.body;
   const root = document.createElement('div');
@@ -183,7 +185,7 @@ export async function initDoctor() {
     .join('');
 
   root.innerHTML = `
-    <h1>${iconSvg('lantern', 22)} Content doctor</h1>
+    ${renderDevChrome({ title: 'Content doctor' })}
     <p>Development registration manifest · fixtures sample · ${report.ok ? 'ok' : 'problems'}</p>
     <pre data-doctor-report-text>${esc(text)}</pre>
     ${renderProvenance(provenance)}

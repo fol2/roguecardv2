@@ -2,6 +2,7 @@
 // Renders every ROUTES entry with a non-null group; query params unchanged.
 
 import { iconSvg } from '../art.js';
+import { ensureDevChromeStyle, renderDevChrome } from './chrome.js';
 import { ROUTES } from './routes.js';
 
 const GROUP_ORDER = Object.freeze([
@@ -28,12 +29,12 @@ const HUB_STYLE = `
   padding-bottom: 14px;
   border-bottom: 1px solid rgba(212,175,120,0.22);
 }
-[data-dev-shell] h1 {
+[data-dev-shell] .dev-hub-header .dev-chrome-title {
   margin: 0; font-size: 24px; font-weight: 600;
   letter-spacing: 0.1em; display: flex; gap: 12px; align-items: center;
   color: #f5ecd8;
 }
-[data-dev-shell] h1 svg { color: #d4af78; flex-shrink: 0; }
+[data-dev-shell] .dev-hub-header .dev-chrome-title svg { color: #d4af78; flex-shrink: 0; }
 [data-dev-shell] .dev-hub-back {
   font-size: 12px; letter-spacing: 0.06em;
   color: rgba(212,175,120,0.85); text-decoration: none;
@@ -146,6 +147,7 @@ function renderGroup(section) {
 }
 
 export async function initDevShell() {
+  ensureDevChromeStyle();
   const style = document.createElement('style');
   style.textContent = HUB_STYLE;
   document.head.appendChild(style);
@@ -157,7 +159,7 @@ export async function initDevShell() {
   const sections = groupedRoutes().map(renderGroup).join('');
   root.innerHTML = `
     <header class="dev-hub-header">
-      <h1>${iconSvg('menu', 22)} Dev Hub</h1>
+      ${renderDevChrome({ title: 'Dev Hub', home: false, wrap: false })}
       <a class="dev-hub-back" href="?">back to game</a>
     </header>
     <p class="dev-hub-lede">Editors, labs, and galleries — existing query-param URLs unchanged.</p>

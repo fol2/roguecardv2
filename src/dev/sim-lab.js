@@ -3,6 +3,8 @@
 // import.meta.env.DEV branch in main.js. It consumes persisted report JSON; it
 // never imports the browser game or the Node simulation harness.
 
+import { renderDevHomeLink } from './chrome.js';
+
 const TABS = Object.freeze([
   ['headline', 'Headline'],
   ['explorer', 'Explorer'],
@@ -143,6 +145,12 @@ function installStyles() {
     .pg-kicker, .pg-eyebrow { color: var(--gold); letter-spacing: .18em; text-transform: uppercase; font: 600 10px/1.4 'Cinzel', serif; }
     .pg-brand h1 { margin: 6px 0 3px; color: #fff5cc; font: 600 24px/1.1 'Cinzel', serif; letter-spacing: .05em; }
     .pg-brand p { margin: 0; color: var(--muted); font-size: 13px; }
+    .pg-dev-home {
+      display: inline-block; margin-top: 10px; font: 600 11px/1.3 'Cinzel', serif;
+      letter-spacing: .08em; color: var(--gold); text-decoration: none;
+      border-bottom: 1px solid transparent; transition: color .15s ease, border-color .15s ease;
+    }
+    .pg-dev-home:hover { color: #fff5cc; border-bottom-color: rgba(242,193,78,.45); }
     .pg-rail-title { display: flex; justify-content: space-between; align-items: center; margin: 20px 7px 8px; color: #c8c1ae; font-size: 12px; }
     .pg-report-list { display: grid; gap: 7px; }
     .pg-report { width: 100%; padding: 11px 10px; text-align: left; border-radius: 8px; position: relative; overflow: hidden; }
@@ -322,7 +330,7 @@ function shell() {
   document.body.innerHTML = `
     <main class="pg">
       <aside class="pg-rail" aria-label="Simulation reports">
-        <div class="pg-brand"><div class="pg-kicker">Glassvow instrument</div><h1>Proving Grounds</h1><p>Deterministic balance observatory</p></div>
+        <div class="pg-brand"><div class="pg-kicker">Glassvow instrument</div><h1>Proving Grounds</h1><p>Deterministic balance observatory</p>${renderDevHomeLink({ className: 'pg-dev-home' })}</div>
         <div class="pg-rail-title"><span>REPORT VAULT</span><span id="pg-report-count">0</span></div>
         <div class="pg-report-list" id="pg-report-list"><div class="pg-empty-rail">Reading the archive…</div></div>
       </aside>

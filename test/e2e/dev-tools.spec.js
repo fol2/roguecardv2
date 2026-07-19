@@ -18,6 +18,10 @@ test.describe('developer tools', () => {
     const root = page.locator('[data-content-doctor]');
     await expect(root).toBeVisible();
 
+    const home = page.locator('a[data-dev-home]');
+    await expect(home).toBeVisible();
+    await expect(home).toHaveAttribute('href', '?dev=1');
+
     // Every registry domain with total/complete badges.
     for (const domain of MERGE_DOMAINS) {
       const section = page.locator(`[data-doctor-domain="${domain}"]`);

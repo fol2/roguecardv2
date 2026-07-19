@@ -9,6 +9,7 @@ import {
 } from '../content-registration.js';
 import { STATIC_REFERENCE_CATALOGUES } from '../content-resources.js';
 import { iconSvg } from '../art.js';
+import { ensureDevChromeStyle, renderDevChrome } from './chrome.js';
 import {
   EDITABLE_DOMAINS, CONTENT_SAVE_VERSION,
   DOMAIN_LOCALE_EXPORT, fieldOwnership, splitBySource, joinBySource,
@@ -125,6 +126,7 @@ export async function initContentManager() {
   const style = document.createElement('style');
   style.textContent = MANAGER_STYLE;
   document.head.appendChild(style);
+  ensureDevChromeStyle();
 
   const host = document.getElementById('stage') || document.body;
   const root = document.createElement('div');
@@ -226,7 +228,7 @@ export async function initContentManager() {
     if (!order.includes(state.entryId)) state.entryId = order[0];
     writeQuery();
     root.innerHTML = `
-      <h1>${iconSvg('lantern', 22)} Content Manager</h1>
+      ${renderDevChrome({ title: 'Content Manager' })}
       <p>Schema-driven core editor · cards / relics / potions / themes · doctor ok=${doctor.report.ok ? 'yes' : 'no'}</p>
       <label>Domain
         <select data-manager-domain>
