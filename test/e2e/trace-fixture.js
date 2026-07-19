@@ -2,18 +2,25 @@ import { test as base, expect } from '@playwright/test';
 import { attachBehaviourTrace } from './helpers.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 
+// trace=off is a harness-level opt-out: strip it so the app boots without
+// observers; every other navigation gets trace=1. Exported so tests that
+// open extra pages can give them the same mapping the default page has.
+export function patchTracedGoto(page) {
+  const originalGoto = page.goto.bind(page);
+  page.goto = (target, options) => {
+    const absolute = /^[a-z][a-z\d+.-]*:/i.test(String(target));
+    const url = new URL(String(target), 'http://trace.invalid');
+    const optedOut = url.searchParams.get('trace') === 'off';
+    if (optedOut) url.searchParams.delete('trace');
+    else if (!url.searchParams.has('trace')) url.searchParams.set('trace', '1');
+    const tracedTarget = absolute ? url.href : `${url.pathname}${url.search}${url.hash}`;
+    return originalGoto(tracedTarget, options);
+  };
+}
+
 export const test = base.extend({
   _traceFailure: [async ({ page }, use, testInfo) => {
-    const originalGoto = page.goto.bind(page);
-    page.goto = (target, options) => {
-      const absolute = /^[a-z][a-z\d+.-]*:/i.test(String(target));
-      const url = new URL(String(target), 'http://trace.invalid');
-      const optedOut = url.searchParams.get('trace') === 'off';
-      if (optedOut) url.searchParams.delete('trace');
-      else if (!url.searchParams.has('trace')) url.searchParams.set('trace', '1');
-      const tracedTarget = absolute ? url.href : `${url.pathname}${url.search}${url.hash}`;
-      return originalGoto(tracedTarget, options);
-    };
+    patchTracedGoto(page);
     try {
       await use();
     } finally {
