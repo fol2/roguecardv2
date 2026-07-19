@@ -76,10 +76,11 @@ function renderGallery() {
   screenEl().className = 'gallery-mode';
   screenEl().innerHTML = `<div class="g-toolbar">
     <div><b>Asset set:</b> ${assetSetLabel(gallerySet)}</div>
-    <nav>${setLinks}</nav>
+    <nav>${setLinks}${import.meta.env.DEV ? '<a href="?dev=1" class="g-devhub">Dev Hub ↩</a>' : ''}</nav>
   </div>` + Object.entries(cats).map(([cat, items]) => {
     const done = items.filter(([id]) => assetUrl(cat, id, gallerySet)).length;
-    return `<h2 class="g-head">${cat} — ${done}/${items.length} generated</h2>
+    const missing = items.length - done;
+    return `<h2 class="g-head">${cat}<span class="g-count">${done}/${items.length} generated</span>${missing ? `<span class="g-count g-count-miss">${missing} svg fallback</span>` : ''}</h2>
       <div class="gallery">${items.map(([id, svg]) => {
         const u = assetUrl(cat, id, gallerySet);
         return `<div class="g-cell ${u ? 'g-png' : 'g-svg'}"><button class="g-art g-open" type="button" data-cat="${escHtml(cat)}" data-id="${escHtml(id)}" data-url="${u ? escHtml(u) : ''}" aria-label="Enlarge ${escHtml(id)}"><span class="g-art-stage">${u ? `<img class="raster-art" src="${escHtml(u)}" alt="">` : svg()}</span></button>

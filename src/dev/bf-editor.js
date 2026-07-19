@@ -7,6 +7,12 @@ import { validateCharMeta } from './char-serialize.js';
 import { bfRaw, _setBF, onBFChange, bfResolve, bfActor, bfSlots, bfEnemySize, bfEnemyFootX, bfEnemyFootY, bfEnemyZOrder, bfHeroY } from '../battlefield.js';
 import { charMetaTable, _setCharMeta, onCharMetaChange } from '../char-meta.js';
 import { stageEl, stageW, stageH, stageScale, stageInfo } from '../stage.js';
+import { ensureDevStyle, mountRailDrawer, setDevTitle } from './chrome.js';
+
+// Observatory slide-over rail drawer — floats over the live combat stage; does
+// not touch stage geometry. Capture-phase Esc closes it before the editor's own
+// Escape (deselect) fires. Mounted once; the ☰ button re-binds each toolbar render.
+let railDrawer = null;
 
 const SLOT_FOOT = new Set(['footX', 'footY']);
 const editorAct = () => state.scenario?.act ?? 0;
@@ -482,6 +488,8 @@ function renderToolbar() {
   const shapeBtns = SHAPES.map((s) => `<button data-shape="${s}"${stageInfo().shape === s ? ' class="on"' : ''}>${s.replace('-', ' ')}</button>`).join('');
   const typeSel = (i) => `<select data-slot="${i}">${Object.keys(ENEMIES).map((k) => `<option${state.scenario.ids[i] === k ? ' selected' : ''}>${k}</option>`).join('')}</select>`;
   bar.innerHTML = `
+    <button type="button" class="dev-menu-btn" id="bf-menu" title="Dev tools" aria-label="Dev tools">☰</button>
+    <span class="bf-title">Battlefield editor</span><span class="bf-param">?bfedit=1</span>
     <span class="bf-grp">${shapeBtns}</span>
     <span class="bf-grp">act <select id="bf-act">${[0, 1, 2].map((a) => `<option value="${a}"${state.scenario.act === a ? ' selected' : ''}>${a + 1}</option>`).join('')}</select></span>
     <span class="bf-grp">hero <select id="bf-hero">${ASPECTS.map((a, i) => `<option value="${i}"${state.scenario.aspect === i ? ' selected' : ''}>${a.id}</option>`).join('')}</select></span>
@@ -490,6 +498,7 @@ function renderToolbar() {
     <span class="bf-grp bf-right"><span id="bf-dirty"></span>
       <button id="bf-copy">Copy JS</button><button id="bf-revert">Revert</button><button id="bf-save">Save</button></span>`;
   document.body.appendChild(bar);
+  bar.querySelector('#bf-menu').onclick = () => railDrawer?.toggle();
   bar.addEventListener('click', (e) => {
     const sh = e.target.dataset?.shape;
     if (sh) {
@@ -556,21 +565,33 @@ function renderToolbar() {
 }
 
 const CSS = `
-#bf-toolbar { position: fixed; top: 0; left: 0; right: 0; z-index: 400; display: flex; gap: 14px; align-items: center; padding: 6px 10px; background: #0b0d18f2; color: #cdd3ea; font: 12px/1.4 monospace; border-bottom: 1px solid #333a55; }
-#bf-toolbar .bf-grp { display: flex; gap: 4px; align-items: center; }
-#bf-toolbar .bf-right { margin-left: auto; }
-#bf-toolbar button, #bf-toolbar select { font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 4px; padding: 2px 7px; cursor: pointer; }
-#bf-toolbar button.on { background: #34406e; }
-#bf-panel { position: fixed; top: 44px; right: 0; z-index: 400; width: 250px; max-height: calc(100vh - 60px); overflow: auto; background: #0b0d18f2; color: #cdd3ea; font: 12px/1.5 monospace; border: 1px solid #333a55; border-right: 0; padding: 10px; }
-#bf-select { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #333a55; }
-#bf-select button { font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 4px; padding: 1px 7px; cursor: pointer; }
-#bf-select button.on { background: #34406e; border-color: #6fe3ff88; }
-#bf-panel label { display: flex; justify-content: space-between; gap: 6px; margin: 4px 0; }
+#bf-toolbar { position: fixed; top: 0; left: 0; right: 0; z-index: 400; display: flex; gap: 12px; align-items: center; height: 48px; padding: 0 14px; background: var(--dev-bg); color: var(--dev-text); font-family: var(--dev-font); font-size: 12px; border-bottom: 1px solid var(--dev-border); -webkit-font-smoothing: antialiased; }
+#bf-toolbar .bf-title { font-size: 14px; font-weight: 700; color: var(--dev-text); white-space: nowrap; flex-shrink: 0; }
+#bf-toolbar .bf-param { font: 400 11px var(--dev-mono); color: var(--dev-faint); white-space: nowrap; flex-shrink: 0; }
+#bf-toolbar .bf-grp { display: flex; gap: 4px; align-items: center; color: var(--dev-dim); }
+#bf-toolbar .bf-right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+#bf-toolbar #bf-dirty { font: 400 11px var(--dev-mono); color: var(--dev-amber); }
+#bf-toolbar button, #bf-toolbar select { font: 500 11px var(--dev-font); background: var(--dev-input-bg); color: var(--dev-muted); border: 1px solid var(--dev-input-border); border-radius: 6px; padding: 5px 10px; cursor: pointer; transition: border-color 0.14s ease, color 0.14s ease; }
+#bf-toolbar select { font-family: var(--dev-mono); }
+#bf-toolbar button:hover, #bf-toolbar select:hover { border-color: var(--dev-accent-border); color: var(--dev-text); }
+#bf-toolbar button.on { background: var(--dev-accent-fill); border-color: var(--dev-accent-border); color: var(--dev-accent-light); }
+#bf-toolbar button.dev-menu-btn { background: none; border: 0; padding: 4px 6px; }
+#bf-toolbar #bf-save { border: 0; color: #fff; font-weight: 600; background: linear-gradient(90deg, #8b7cf6, #6d5ce8); }
+#bf-toolbar #bf-save:hover { filter: brightness(1.08); color: #fff; }
+#bf-panel { position: fixed; top: 48px; right: 0; z-index: 400; width: 250px; max-height: calc(100vh - 60px); overflow: auto; background: var(--dev-rail); color: var(--dev-text); font-family: var(--dev-font); font-size: 12px; line-height: 1.5; border-left: 1px solid var(--dev-border); padding: 12px; -webkit-font-smoothing: antialiased; }
+#bf-select { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--dev-border); }
+#bf-select button { font: 400 10px var(--dev-mono); background: var(--dev-input-bg); color: var(--dev-muted); border: 1px solid var(--dev-input-border); border-radius: 5px; padding: 3px 9px; cursor: pointer; }
+#bf-select button.on { background: var(--dev-accent-fill); color: var(--dev-accent-light); border-color: var(--dev-accent-border); }
+#bf-panel h3 { margin: 6px 0 8px; font-size: 13px; font-weight: 700; color: var(--dev-text); }
+#bf-panel .bf-scope { color: var(--dev-dim); font-size: 10px; margin-bottom: 8px; }
+#bf-panel .bf-scope b { color: var(--dev-accent-light); font-family: var(--dev-mono); }
+#bf-panel label { display: flex; justify-content: space-between; gap: 6px; margin: 5px 0; align-items: center; color: var(--dev-dim); }
 #bf-panel label > span { display: flex; gap: 4px; align-items: center; }
-#bf-panel input { width: 56px; font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
-#bf-panel select { font: inherit; background: #1a2036; color: inherit; border: 1px solid #3a4266; border-radius: 3px; }
-#bf-panel button[data-clear] { font: inherit; background: #3a2030; color: #ff9ebd; border: 1px solid #664455; border-radius: 3px; padding: 0 5px; cursor: pointer; }
-#bf-panel .bf-hint { color: #6a7288; font-size: 10px; }
+#bf-panel input { width: 56px; font: 400 11px var(--dev-mono); background: var(--dev-input-bg); color: var(--dev-text); border: 1px solid var(--dev-input-border); border-radius: 5px; padding: 3px 5px; text-align: right; }
+#bf-panel select { font: 400 11px var(--dev-mono); background: var(--dev-input-bg); color: var(--dev-text); border: 1px solid var(--dev-input-border); border-radius: 5px; padding: 3px 5px; }
+#bf-panel button[data-clear] { font: inherit; background: var(--dev-input-bg); color: var(--dev-pink); border: 1px solid var(--dev-input-border); border-radius: 5px; padding: 0 6px; cursor: pointer; }
+#bf-panel button[data-clear]:hover { border-color: var(--dev-red); }
+#bf-panel .bf-hint { color: var(--dev-faint); font-size: 10px; }
 #bf-overlay { position: absolute; inset: 0; z-index: 8; pointer-events: none; } /* above #mesh (6) and the battlefield (7) */
 .bf-editing .player-zone, .bf-editing .enemy, .bf-editing .hand-zone { pointer-events: none !important; }
 .bf-editing .hand-zone { z-index: 5 !important; } /* cards must not hide the overlay boxes while editing */
@@ -585,9 +606,12 @@ const CSS = `
 `;
 
 export function initBfEditor() {
+  ensureDevStyle();
+  setDevTitle('Battlefield editor');
   const style = document.createElement('style');
   style.textContent = CSS;
   document.head.appendChild(style);
+  railDrawer = mountRailDrawer('bfedit');
   state.working = normalizeActs(clone(bfRaw()));
   state.meta = clone(charMetaTable());
   _setBF(state.working, { silent: true });

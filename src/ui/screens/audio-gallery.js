@@ -84,6 +84,7 @@ function renderAudioGallery() {
       <a href="#ag-sfx">SFX</a>
       <a href="#ag-music">Music</a>
       <button type="button" class="ag-stop" data-a="stop">Stop music</button>
+      ${import.meta.env.DEV ? '<a href="?dev=1" class="g-devhub">Dev Hub ↩</a>' : ''}
     </nav>
   </div>
   ${editorHtml}

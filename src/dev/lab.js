@@ -5,53 +5,80 @@ import {
   encodeLabScenario, decodeLabScenario, validateLabScenario,
   encodeReplayDescriptor, decodeReplayDescriptor,
 } from './lab-scenario.js';
-import { esc, renderDevChrome } from './chrome.js';
+import { esc, ensureDevStyle, mountRailDrawer, setDevTitle } from './chrome.js';
 import { bindRunContent, contentViewFor, themeForRun } from '../ui/content.js';
 import { renderReplayPreview, supportedReplayKinds } from './replay-preview.js';
 
+
 const LAB_STYLE = `
+
 [data-lab-root] {
   position: absolute; inset: 0; z-index: 80; pointer-events: none;
-  font-family: Cinzel, serif; color: #f2e8d5;
+  font-family: var(--dev-font); color: var(--dev-text); -webkit-font-smoothing: antialiased;
 }
 [data-lab-root] * { box-sizing: border-box; }
-[data-lab-root] > [data-dev-chrome] {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 2;
-  margin: 0; padding: 6px 12px 8px;
-  background: rgba(18, 14, 12, 0.92); border-bottom: 1px solid rgba(212,175,120,0.22);
+[data-lab-chrome] {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2; pointer-events: auto;
+  display: flex; align-items: center; gap: 12px; height: 48px; margin: 0; padding: 0 16px;
+  background: var(--dev-bg); border-bottom: 1px solid var(--dev-border);
 }
+[data-lab-chrome] .lab-title { font-size: 14px; font-weight: 700; color: var(--dev-text); }
+[data-lab-chrome] .lab-param { font: 400 11px var(--dev-mono); color: var(--dev-faint); }
+[data-lab-chrome] a[data-dev-home] {
+  margin-left: auto; font-size: 12px; color: var(--dev-muted); text-decoration: none;
+  transition: color 0.14s ease;
+}
+[data-lab-chrome] a[data-dev-home]:hover { color: var(--dev-accent-light); }
 [data-lab-panel], [data-lab-god], [data-lab-trace], [data-lab-result-host],
 [data-replay-preview-host] {
   pointer-events: auto;
 }
 [data-lab-panel] {
-  position: absolute; top: 44px; left: 8px; width: min(340px, 42%);
-  max-height: calc(100% - 52px); overflow: auto;
-  background: rgba(18, 14, 12, 0.92); border: 1px solid rgba(212, 175, 120, 0.35);
-  padding: 10px 12px; border-radius: 4px; font-size: 12px;
+  position: absolute; top: 56px; left: 12px; width: min(300px, 42%);
+  max-height: calc(100% - 68px); overflow: auto;
+  background: var(--dev-rail); border: 1px solid var(--dev-border);
+  padding: 14px; border-radius: 10px; font-size: 12px;
 }
-[data-lab-panel] h2 { margin: 0 0 8px; font-size: 14px; letter-spacing: 0.08em; }
-[data-lab-panel] label { display: block; margin: 4px 0; }
+[data-lab-panel] h2 { margin: 0 0 4px; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dev-faint); }
+[data-lab-panel] strong { display: block; margin: 12px 0 4px; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dev-accent); }
+[data-lab-panel] label { display: block; margin: 6px 0; color: var(--dev-dim); font-size: 10px; letter-spacing: 0.04em; }
 [data-lab-panel] select, [data-lab-panel] input[type="number"] {
-  width: 100%; background: #1c1713; color: #f2e8d5; border: 1px solid #5a4a38;
-  padding: 3px 4px;
+  width: 100%; margin-top: 3px; font: 400 11px var(--dev-mono); color: var(--dev-text);
+  background: var(--dev-input-bg); border: 1px solid var(--dev-input-border);
+  border-radius: 6px; padding: 5px 8px;
 }
+[data-lab-panel] input[type="checkbox"] { width: auto; accent-color: var(--dev-accent); }
 [data-lab-panel] button {
-  margin: 4px 4px 0 0; background: #3a2c1f; color: #f2e8d5;
-  border: 1px solid #8a6a3e; padding: 4px 8px; cursor: pointer;
+  margin: 6px 6px 0 0; font: 600 12px var(--dev-font); color: var(--dev-muted);
+  background: var(--dev-input-bg); border: 1px solid var(--dev-input-border);
+  border-radius: 6px; padding: 6px 12px; cursor: pointer; transition: border-color 0.14s ease, color 0.14s ease;
 }
+[data-lab-panel] button:hover { border-color: var(--dev-accent-border); color: var(--dev-text); }
+[data-lab-panel] button[data-lab-start] { border: 0; color: #fff; background: linear-gradient(90deg, #8b7cf6, #6d5ce8); }
+[data-lab-panel] button[data-lab-start]:hover { filter: brightness(1.08); color: #fff; }
 [data-lab-panel] button:disabled { opacity: 0.45; cursor: not-allowed; }
-[data-lab-errors] { color: #ff8a7a; margin-top: 6px; white-space: pre-wrap; }
+[data-lab-errors] { color: var(--dev-red); margin-top: 8px; white-space: pre-wrap; font: 400 11px var(--dev-mono); }
 [data-lab-god] {
-  position: absolute; top: 44px; right: 8px; width: 180px;
-  background: rgba(18, 14, 12, 0.9); border: 1px solid rgba(212, 175, 120, 0.35);
-  padding: 8px; border-radius: 4px; font-size: 12px;
+  position: absolute; top: 56px; right: 12px; width: 190px;
+  background: var(--dev-rail); border: 1px solid var(--dev-border);
+  padding: 12px; border-radius: 10px; font-size: 12px;
 }
+[data-lab-god] strong { display: block; margin-bottom: 8px; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dev-accent); }
+[data-lab-god] label { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 6px 0; color: var(--dev-dim); }
+[data-lab-god] input, [data-lab-god] select {
+  width: 80px; font: 400 11px var(--dev-mono); color: var(--dev-text);
+  background: var(--dev-input-bg); border: 1px solid var(--dev-input-border); border-radius: 6px; padding: 3px 6px;
+}
+[data-lab-god] button {
+  display: block; width: 100%; margin-top: 8px; font: 600 12px var(--dev-font); color: var(--dev-muted);
+  background: var(--dev-input-bg); border: 1px solid var(--dev-input-border); border-radius: 6px; padding: 6px 10px; cursor: pointer;
+}
+[data-lab-god] button:hover { border-color: var(--dev-accent-border); color: var(--dev-text); }
 [data-lab-trace] {
-  position: absolute; bottom: 8px; left: 360px; right: 8px; height: 96px;
-  background: rgba(10, 8, 7, 0.88); border: 1px solid rgba(212, 175, 120, 0.25);
-  padding: 6px 8px; overflow: auto; font-family: ui-monospace, monospace; font-size: 10px;
-  pointer-events: none;
+  position: absolute; bottom: 12px; left: 324px; right: 12px; height: 100px;
+  background: var(--dev-panel); border: 1px solid var(--dev-border);
+  padding: 8px 12px; overflow: auto; font-family: var(--dev-mono); font-size: 10px; line-height: 1.7; color: var(--dev-dim);
+  border-radius: 10px; pointer-events: none; white-space: pre-wrap;
 }
 [data-replay-preview-host] {
   position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
@@ -59,15 +86,15 @@ const LAB_STYLE = `
 }
 [data-lab-result-host] {
   position: absolute; top: 28%; left: 50%; transform: translateX(-50%);
-  background: rgba(20, 16, 12, 0.95); border: 1px solid #c9a05a;
-  padding: 12px 18px; border-radius: 4px; text-align: center;
+  background: var(--dev-panel); border: 1px solid var(--dev-accent-border);
+  padding: 12px 18px; border-radius: 10px; text-align: center; color: var(--dev-text);
 }
 .lab-replay-card-flight { opacity: 0; transform: translateY(8px); transition: 280ms ease; }
 .lab-replay-card-flight.lab-replay-run { opacity: 1; transform: none; }
 .lab-replay-card {
-  background: linear-gradient(160deg, #3a2a1c, #1a1410);
-  border: 1px solid #c9a05a; padding: 16px 20px; border-radius: 6px;
-  text-align: center; pointer-events: none;
+  background: linear-gradient(160deg, #241f38, #12131c);
+  border: 1px solid var(--dev-accent-border); padding: 16px 20px; border-radius: 10px;
+  text-align: center; color: var(--dev-accent-light); pointer-events: none;
 }
 `;
 
@@ -172,14 +199,32 @@ export async function initLab() {
   for (const key of Object.keys(DURABLE_STORAGE)) restoreDurableKey(key);
 
   const stage = document.getElementById('stage') || document.body;
+  ensureDevStyle();
+  setDevTitle('Content Lab');
   const style = document.createElement('style');
   style.textContent = LAB_STYLE;
   document.head.appendChild(style);
 
   const root = document.createElement('div');
   root.setAttribute('data-lab-root', '1');
-  root.insertAdjacentHTML('afterbegin', renderDevChrome({ title: 'Content Lab' }));
+  root.insertAdjacentHTML('afterbegin', `<header data-lab-chrome>
+    <button type="button" class="dev-menu-btn" data-lab-menu title="Dev tools" aria-label="Dev tools">☰</button>
+    <span class="lab-title">Content Lab</span><span class="lab-param">?lab=1</span>
+    <span class="dev-chip is-accent" data-lab-status>editor</span>
+    <a data-dev-home href="?dev=1">Dev Hub ↩</a>
+  </header>`);
   stage.appendChild(root);
+
+  const railDrawer = mountRailDrawer('lab');
+  root.querySelector('[data-lab-menu]').addEventListener('click', () => railDrawer.toggle());
+  function syncLabStatus() {
+    const chip = root.querySelector('[data-lab-status]');
+    if (!chip) return;
+    const staged = root.getAttribute('data-lab-staged');
+    chip.textContent = staged ? `sandbox staged · ${staged}` : 'editor';
+    chip.classList.toggle('is-ok', !!staged);
+    chip.classList.toggle('is-accent', !staged);
+  }
 
   let model = defaultModel(content);
   let replayPublicationArmed = false;
@@ -317,7 +362,7 @@ export async function initLab() {
       <button type="button" data-lab-hand-remove="${i}">Remove</button>
     </div>`).join('');
 
-    panel.innerHTML = `<h2>Content Lab</h2>
+    panel.innerHTML = `<h2>Scenario</h2>
       <button type="button" data-lab-start>Start sandbox</button>
       <button type="button" data-lab-replay disabled data-disabled-reason="">Replay last beat</button>
       <button type="button" data-lab-trace-copy>Copy transcript</button>
@@ -498,6 +543,7 @@ export async function initLab() {
     staging = true;
     lastErrors = [];
     root.removeAttribute('data-lab-staged');
+    syncLabStatus();
     try {
       let validated;
       try {
@@ -564,6 +610,7 @@ export async function initLab() {
       await probe.settle();
       replayPublicationArmed = true;
       root.setAttribute('data-lab-staged', validated.mode);
+      syncLabStatus();
       syncReplayButton();
       void auto;
     } finally {
