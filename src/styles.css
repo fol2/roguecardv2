@@ -2081,7 +2081,9 @@ html.mesh-on .enemy-art.warded::before { display: none; }
   .relic-chip { width: 34px; height: 34px; font-size: 16px; }
   .hud-relic { width: 38px; height: 38px; }
   #relicbar { max-width: 100%; gap: 2px; }
-  .map-title { top: calc(58px + var(--sat)); font-size: 12px; letter-spacing: 0.16em; padding: 0 58px; line-height: 1.7; }
+  /* Below the HUD omen/relic chip row (chips end ~107px + sat and the row
+     grows rightward with each relic) so the title never sits under chips. */
+  .map-title { top: calc(112px + var(--sat)); font-size: 12px; letter-spacing: 0.16em; padding: 0 16px; line-height: 1.7; }
   /* stage */
   .stage-ledge { --glow-h: 90px; }
   .hpbar-wrap { width: 118px; }
