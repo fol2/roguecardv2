@@ -1,4 +1,4 @@
-import { test, expect, bindTraceContract } from './trace-fixture.js';
+import { test, expect, bindTraceContract, patchTracedGoto } from './trace-fixture.js';
 import { boot, collectErrors, startFight, settle } from './helpers.js';
 import {
   freshLedger, seed, stagePendingRunEnd, waitForDawnComplete,
@@ -624,28 +624,32 @@ test('detached Title version timeout cannot emit a stale hidden action', async (
   }))).toEqual({ scheduled: 1, cleared: 1, fired: 0 });
 });
 
-test('enabled and disabled observers preserve identical detached-presentation state', async ({ page }) => {
-  const runJourney = async (query) => {
-    await boot(page, { query });
-    const elapsed = await page.evaluate(async () => {
+test('enabled and disabled observers preserve identical detached-presentation state', async ({ page, context }) => {
+  const runJourney = async (pg, query) => {
+    await boot(pg, { query });
+    const elapsed = await pg.evaluate(async () => {
     const start = performance.now();
     window.__probe.showBarrierProbe();
     await window.__probe.settle();
     return performance.now() - start;
     });
-    return page.evaluate((duration) => ({
+    return pg.evaluate((duration) => ({
       elapsed: duration,
       state: window.__probe.state(),
       trace: window.__probe.behaviourTrace(),
     }), elapsed);
   };
 
-  const enabled = await runJourney('trace=1');
-  const disabled = await runJourney('trace=off');
+  const enabled = await runJourney(page, 'trace=1');
+  // Fresh page for the second journey: two full WebGL boots in one WebKit
+  // renderer process kept crashing this test on loaded CI runners.
+  const disabledPage = await context.newPage();
+  patchTracedGoto(disabledPage);
+  const disabled = await runJourney(disabledPage, 'trace=off');
   expect(enabled.trace.enabled).toBe(true);
   expect(enabled.trace.records.some((record) => record.eventName === 'presentation.banner')).toBe(true);
   expect(disabled.trace.enabled).toBe(false);
-  expect(new URL(page.url()).searchParams.has('trace')).toBe(false);
+  expect(new URL(disabledPage.url()).searchParams.has('trace')).toBe(false);
   expect(disabled.trace.records).toEqual([]);
   expect(enabled.elapsed).toBeGreaterThanOrEqual(1000);
   expect(disabled.elapsed).toBeGreaterThanOrEqual(1000);

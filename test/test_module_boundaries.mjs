@@ -93,7 +93,15 @@ assert.equal(
 );
 assert.equal(
   packageJson.scripts['test:e2e:webkit-core'],
-  'playwright test stage trace --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
+  'npm run test:e2e:webkit-core-iphone && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-core-ipad',
+);
+assert.equal(
+  packageJson.scripts['test:e2e:webkit-core-iphone'],
+  'playwright test stage --project=iphone-webkit --workers=1 --no-deps && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=iphone-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=iphone-webkit --shard=2/2',
+);
+assert.equal(
+  packageJson.scripts['test:e2e:webkit-core-ipad'],
+  'playwright test stage --project=ipad-webkit --workers=1 --no-deps && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=ipad-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=ipad-webkit --shard=2/2',
 );
 assert.equal(
   packageJson.scripts['test:e2e:leak'],

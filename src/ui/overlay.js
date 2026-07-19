@@ -341,10 +341,16 @@ export function createOverlay({ tr, runEffects, cardEl, actions }) {
           background.addEventListener(type, blockBackground, true);
         }
       }
-      // Focus sync (DOM is already mounted); rAF retries if a same-tick blur wins.
+      // Focus sync (DOM is already mounted); rAF retries if a same-tick blur
+      // wins — but only when focus is still outside the dialog. Under low-fps
+      // load the rAF can fire late enough to stomp a focus the user has
+      // already moved between the buttons.
       const focusRetry = () => $(focusSelector, $('#overlay'))?.focus();
       focusRetry();
-      requestAnimationFrame(focusRetry);
+      requestAnimationFrame(() => {
+        const overlayRoot = $('#overlay');
+        if (overlayRoot && !overlayRoot.contains(document.activeElement)) focusRetry();
+      });
       return transaction;
     } catch (error) {
       transaction.settled = true;

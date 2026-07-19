@@ -14,6 +14,7 @@ import {
   flattenReportTests,
   mergeRecordedTimings,
   loadTimings,
+  runBucket,
   SLICE_TARGET_SECONDS,
   FALLBACK_TEST_SECONDS,
   POOL_PROJECTS,
@@ -253,6 +254,27 @@ assert.doesNotMatch(workflow, /fail-fast: true/,
 assert.doesNotMatch(workflow, /CI_SLOW_RELEVANT/, 'slow relevance narrows the pool, not the lanes');
 assert.doesNotMatch(workflow, /e2e_battle|e2e_audio|e2e_heavy|e2e_emberglass|e2e_pixi|e2e_trace|e2e_screens|e2e_lab|e2e_editors|e2e_main|E2E_MAIN_PEEL/,
   'hand-peeled suite lanes must not reappear; rebalance via e2e-shard-timings.json');
+assert.match(workflow, /PLAYWRIGHT_JSON_OUTPUT_NAME: \$\{\{ runner\.temp \}\}\/pool-report\.json/,
+  'pool jobs must emit JSON reports so --record can rebalance from CI durations');
+assert.match(workflow, /name: pool-report-\$\{\{ matrix\.shard \}\}-\$\{\{ github\.run_id \}\}/);
+
+// Each invocation inside a bucket must write a distinct report file, or the
+// bucket's later invocations would overwrite the earlier durations.
+{
+  const seenReports = [];
+  runBucket('1/1', {
+    env: { PLAYWRIGHT_JSON_OUTPUT_NAME: '/tmp/pool-report.json' },
+    plan: [{ weight: 2, slices: [
+      { key: 'desktop|test/e2e/a.spec.js', project: 'desktop', file: 'test/e2e/a.spec.js', slice: 1, slices: 1, weight: 1 },
+      { key: 'desktop|test/e2e/b.spec.js', project: 'desktop', file: 'test/e2e/b.spec.js', slice: 1, slices: 2, weight: 1 },
+    ] }],
+    spawn: (_cmd, _args, opts) => {
+      seenReports.push(opts.env.PLAYWRIGHT_JSON_OUTPUT_NAME);
+      return { status: 0 };
+    },
+  });
+  assert.deepEqual(seenReports, ['/tmp/pool-report-1.json', '/tmp/pool-report-2.json']);
+}
 
 assert.match(workflow, /e2e_nonvisual:[\s\S]*?CI_GATE: e2e[\s\S]*?CI_MODE: p2-base/);
 assert.match(workflow, /needs: \[changes, e2e_aux, e2e_random, e2e_pool\]/);
@@ -316,7 +338,22 @@ assert.equal(
 );
 assert.equal(
   pkg.scripts['test:e2e:webkit-core'],
-  'playwright test stage trace --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
+  'npm run test:e2e:webkit-core-iphone && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-core-ipad',
+);
+// core runs three bounded invocations per device (stage, trace 1/2, trace
+// 2/2): one WebKit browser instance across the whole stage+trace run kept
+// accumulating enough memory pressure to crash or hang late navigations.
+assert.equal(
+  pkg.scripts['test:e2e:webkit-core-iphone'],
+  'playwright test stage --project=iphone-webkit --workers=1 --no-deps && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=iphone-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=iphone-webkit --shard=2/2',
+);
+assert.equal(
+  pkg.scripts['test:e2e:webkit-core-ipad'],
+  'playwright test stage --project=ipad-webkit --workers=1 --no-deps && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=ipad-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=ipad-webkit --shard=2/2',
+);
+assert.equal(
+  pkg.scripts['test:e2e:webkit-trace'],
+  'playwright test trace --workers=1 --no-deps',
 );
 assert.equal(
   pkg.scripts['test:e2e:webkit-lab'],
@@ -326,8 +363,10 @@ assert.equal(
   pkg.scripts['test:e2e:webkit-screens'],
   'playwright test production-profile p6-screens --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
 );
-const webkitChain = ['test:e2e:webkit-core', 'test:e2e:webkit-lab', 'test:e2e:webkit-screens']
-  .map((name) => pkg.scripts[name]).join(' && ');
+const webkitChain = [
+  'test:e2e:webkit-core-iphone', 'test:e2e:webkit-core-ipad',
+  'test:e2e:webkit-lab', 'test:e2e:webkit-screens',
+].map((name) => pkg.scripts[name]).join(' && ');
 assert.equal(
   pkg.scripts['test:e2e:leak'],
   'playwright test leak --project=desktop --project=iphone-webkit --project=ipad-webkit --workers=1 --no-deps',
@@ -455,9 +494,17 @@ for (const token of ['trace', 'stage', 'lab', 'theme-profile', 'production-profi
     `the webkit chain must retain cumulative token ${token}`,
   );
 }
-for (const name of ['test:e2e:webkit-core', 'test:e2e:webkit-lab', 'test:e2e:webkit-screens']) {
+for (const name of ['test:e2e:webkit-lab', 'test:e2e:webkit-screens']) {
   assert.match(pkg.scripts[name], /--project=iphone-webkit/);
   assert.match(pkg.scripts[name], /--project=ipad-webkit/);
+}
+// core is device-split for CI wall-clock; each half still runs serial.
+assert.match(pkg.scripts['test:e2e:webkit-core-iphone'], /--project=iphone-webkit/);
+assert.match(pkg.scripts['test:e2e:webkit-core-ipad'], /--project=ipad-webkit/);
+for (const name of [
+  'test:e2e:webkit-core-iphone', 'test:e2e:webkit-core-ipad',
+  'test:e2e:webkit-lab', 'test:e2e:webkit-screens',
+]) {
   assert.match(pkg.scripts[name], /--workers=1/);
 }
 

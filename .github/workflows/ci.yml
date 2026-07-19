@@ -300,6 +300,13 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-playwright
       - run: node tools/run-with-strict-e2e-port.mjs -- node tools/e2e-shard.mjs --shard ${{ matrix.shard }}/${{ strategy.job-total }}
+        env:
+          # Per-invocation JSON reports (outside the repo — the clean-checkout
+          # gate would trip on files under the tree; step-level env because
+          # the runner context is unavailable at job level). Refresh shard
+          # balance from a FULL-mode run only: download every pool-report-*
+          # artifact, then node tools/e2e-shard.mjs --record <all at once>.
+          PLAYWRIGHT_JSON_OUTPUT_NAME: ${{ runner.temp }}/pool-report.json
       - name: Verify clean checkout
         if: always()
         run: test -z "$(git status --porcelain --untracked-files=all)"
@@ -310,18 +317,27 @@ jobs:
           path: test-results/
           retention-days: 14
           if-no-files-found: ignore
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: pool-report-${{ matrix.shard }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/pool-report-*.json
+          retention-days: 7
+          if-no-files-found: ignore
 
   e2e_webkit:
-    # Split along the three npm-script segments so a WebKit process crash
-    # (memory pressure over a long --workers=1 run) reruns one ~6-minute
-    # shard instead of the whole serial lane.
+    # Split along bounded npm-script segments so a WebKit process crash
+    # (memory pressure over a long --workers=1 run) reruns one short shard
+    # instead of the whole serial lane. core (stage+trace, the WebGL-heavy
+    # half) is further split per device — it was the ~10-minute critical
+    # path of the whole gate as a single job.
     name: e2e webkit ${{ matrix.segment }}
     needs: changes
     if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
     strategy:
       fail-fast: false
       matrix:
-        segment: [core, lab, screens]
+        segment: [core-iphone, core-ipad, lab, screens]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -365,13 +381,19 @@ jobs:
           if-no-files-found: ignore
 
   e2e_visual:
-    name: e2e visual ${{ matrix.project }}
+    # desktop renders the heavyweight screenshots (~7 min alone), so it runs
+    # as two Playwright --shard halves; portrait/landscape fit in one job.
+    name: e2e visual ${{ matrix.project }} ${{ matrix.shard }}
     needs: changes
     if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
     strategy:
       fail-fast: false
       matrix:
-        project: [desktop, portrait, landscape]
+        include:
+          - { project: desktop, shard: 1/2 }
+          - { project: desktop, shard: 2/2 }
+          - { project: portrait, shard: 1/1 }
+          - { project: landscape, shard: 1/1 }
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -379,14 +401,14 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-playwright
-      - run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual:project -- --project=${{ matrix.project }}
+      - run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:visual:project -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}
       - name: Verify clean checkout
         if: always()
         run: test -z "$(git status --porcelain --untracked-files=all)"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
-          name: playwright-visual-${{ matrix.project }}-${{ github.run_id }}
+          name: playwright-visual-${{ matrix.project }}-${{ strategy.job-index }}-${{ github.run_id }}
           path: test-results/
           retention-days: 14
           if-no-files-found: ignore

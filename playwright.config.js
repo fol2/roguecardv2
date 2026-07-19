@@ -32,7 +32,9 @@ export default defineConfig({
   workers: 2,
   retries: 0, // flake must surface and be fixed, not retried away
   timeout: 90_000,
-  reporter: [['list']],
+  // json feeds tools/e2e-shard.mjs --record (shard rebalancing); it only
+  // engages when PLAYWRIGHT_JSON_OUTPUT_NAME points it at a file.
+  reporter: process.env.PLAYWRIGHT_JSON_OUTPUT_NAME ? [['list'], ['json']] : [['list']],
   use: {
     baseURL: e2eServer.origin,
     // tracing chokes on the WebGL-heavy page (corrupt zips + teardown hangs);
@@ -49,6 +51,11 @@ export default defineConfig({
     },
   },
   expect: {
+    // CI runners under load run 15-20x slower than local; the 5s default
+    // expect budget kept failing boot-paced assertions one call site at a
+    // time (stage:310, :739, :856 — same family three cycles running).
+    // Passing assertions return immediately, so the headroom is free.
+    timeout: process.env.CI ? 15_000 : 5_000,
     // Per-suite maxDiffPixelRatio lives in test/e2e/visual-policy.js and is
     // passed explicitly into each toHaveScreenshot call. Do not put a numeric
     // maxDiffPixelRatio here — test_engine scans for that regression.
