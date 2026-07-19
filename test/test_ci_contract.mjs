@@ -358,16 +358,21 @@ assert.equal(
   pkg.scripts['test:e2e:webkit-core'],
   'npm run test:e2e:webkit-core-iphone && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-core-ipad',
 );
-// core runs three bounded invocations per device (stage, trace 1/2, trace
-// 2/2): one WebKit browser instance across the whole stage+trace run kept
-// accumulating enough memory pressure to crash or hang late navigations.
+// core runs four bounded invocations per device (stage 1/2, stage 2/2,
+// trace 1/2, trace 2/2): one WebKit browser instance across a whole spec
+// suite kept accumulating enough memory pressure to crash or hang late
+// navigations (trace ×3, then stage.spec:512 reload on 2026-07-19).
 assert.equal(
   pkg.scripts['test:e2e:webkit-core-iphone'],
-  'playwright test stage --project=iphone-webkit --workers=1 --no-deps && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=iphone-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=iphone-webkit --shard=2/2',
+  'npm run test:e2e:webkit-stage -- --project=iphone-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-stage -- --project=iphone-webkit --shard=2/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=iphone-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=iphone-webkit --shard=2/2',
 );
 assert.equal(
   pkg.scripts['test:e2e:webkit-core-ipad'],
-  'playwright test stage --project=ipad-webkit --workers=1 --no-deps && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=ipad-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=ipad-webkit --shard=2/2',
+  'npm run test:e2e:webkit-stage -- --project=ipad-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-stage -- --project=ipad-webkit --shard=2/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=ipad-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=ipad-webkit --shard=2/2',
+);
+assert.equal(
+  pkg.scripts['test:e2e:webkit-stage'],
+  'playwright test stage --workers=1 --no-deps',
 );
 assert.equal(
   pkg.scripts['test:e2e:webkit-trace'],
@@ -520,10 +525,15 @@ for (const name of ['test:e2e:webkit-lab', 'test:e2e:webkit-screens']) {
 assert.match(pkg.scripts['test:e2e:webkit-core-iphone'], /--project=iphone-webkit/);
 assert.match(pkg.scripts['test:e2e:webkit-core-ipad'], /--project=ipad-webkit/);
 for (const name of [
-  'test:e2e:webkit-core-iphone', 'test:e2e:webkit-core-ipad',
+  'test:e2e:webkit-stage', 'test:e2e:webkit-trace',
   'test:e2e:webkit-lab', 'test:e2e:webkit-screens',
 ]) {
   assert.match(pkg.scripts[name], /--workers=1/);
+}
+// Every core invocation routes through the serial stage/trace helpers.
+for (const name of ['test:e2e:webkit-core-iphone', 'test:e2e:webkit-core-ipad']) {
+  assert.doesNotMatch(pkg.scripts[name], /playwright test /,
+    `${name} must only chain the webkit-stage/webkit-trace helpers`);
 }
 
 const agents = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
