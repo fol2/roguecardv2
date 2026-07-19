@@ -95,27 +95,35 @@ test.describe('developer tools', () => {
   });
 
   test('soft-nav swaps hub ↔ doctor ↔ manager without document reload', async ({ page }) => {
+    // Narrow shapes collapse the rail into the ☰ drawer — click whichever is live.
+    async function clickDevNav(href) {
+      const railLink = page.locator(`.dev-shell > .dev-rail a.dev-nav-item[href="${href}"]`);
+      if (await railLink.isVisible()) { await railLink.click(); return; }
+      await page.locator('button[data-dev-menu]').click();
+      await page.locator(`.dev-drawer.is-open .dev-drawer-rail a.dev-nav-item[href="${href}"]`).click();
+    }
+
     await page.goto('/?dev=1');
     await page.waitForSelector('[data-dev-shell]');
     await page.evaluate(() => { window.__navProbe = { t: Date.now() }; });
 
-    await page.locator('.dev-shell > .dev-rail a.dev-nav-item[href="?dashboard=1"]').click();
+    await clickDevNav('?dashboard=1');
     await page.waitForSelector('[data-content-doctor]');
     expect(page.url()).toContain('dashboard=1');
     expect(await page.evaluate(() => window.__navProbe?.t)).toBeTruthy();
 
-    await page.locator('.dev-shell > .dev-rail a.dev-nav-item[href="?contentedit=1"]').click();
+    await clickDevNav('?contentedit=1');
     await page.waitForSelector('[data-content-manager]');
     expect(page.url()).toContain('contentedit=1');
     expect(await page.evaluate(() => window.__navProbe?.t)).toBeTruthy();
 
-    await page.locator('.dev-shell > .dev-rail a.dev-nav-item[href="?dev=1"]').click();
+    await clickDevNav('?dev=1');
     await page.waitForSelector('[data-dev-shell]');
     expect(page.url()).toMatch(/[?&]dev=1/);
     expect(await page.evaluate(() => window.__navProbe?.t)).toBeTruthy();
 
     // Hard-nav tool still does a real load (probe dies).
-    await page.locator('.dev-shell > .dev-rail a.dev-nav-item[href="?lab=1"]').click();
+    await clickDevNav('?lab=1');
     await page.waitForSelector('[data-lab-root]');
     expect(await page.evaluate(() => window.__navProbe?.t)).toBeFalsy();
   });
