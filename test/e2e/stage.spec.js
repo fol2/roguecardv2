@@ -333,7 +333,9 @@ test('Eighth Omen floor echo survives its delayed real map-selection callback', 
     node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     return true;
   });
-  await expect.poll(() => page.evaluate(() => window.spirebound.S.run.floorsClimbed))
+  // The floor climb lands via the delayed travel callback; on a loaded CI
+  // runner that delay outlives the default 5s expect budget (2× observed).
+  await expect.poll(() => page.evaluate(() => window.spirebound.S.run.floorsClimbed), { timeout: 15_000 })
     .toBeGreaterThan(beforeFloor);
   await expect.poll(() => page.evaluate(() => window.__efeText), { timeout: 10_000 })
     .toMatch(/\/\//);
