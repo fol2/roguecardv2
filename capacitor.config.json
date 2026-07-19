@@ -1,0 +1,8 @@
+{
+  "appId": "com.fol2.glassvow",
+  "appName": "Glassvow",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "never"
+  }
+}
