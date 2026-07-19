@@ -1,0 +1,59 @@
+name: preview-rebase
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: preview-rebase
+  cancel-in-progress: true
+
+env:
+  PREVIEW_BRANCH: jamesto/spirebound-public-preview
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    steps:
+      # Deploy-key checkout: GITHUB_TOKEN cannot push refs containing
+      # .github/workflows changes, and main's history includes them.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          ssh-key: ${{ secrets.PREVIEW_REBASE_DEPLOY_KEY }}
+
+      - name: Rebase preview branch onto main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "preview-rebase-bot"
+          git config user.email "actions@github.com"
+          git fetch origin "$PREVIEW_BRANCH"
+
+          if git merge-base --is-ancestor "origin/$PREVIEW_BRANCH" origin/main; then
+            echo "preview branch is contained in main — nothing to rebase"
+            exit 0
+          fi
+          if [ "$(git merge-base "origin/$PREVIEW_BRANCH" origin/main)" = "$(git rev-parse origin/main)" ]; then
+            echo "preview branch already sits on main tip — up to date"
+            exit 0
+          fi
+
+          git switch -c preview-rebase "origin/$PREVIEW_BRANCH"
+          if ! git rebase origin/main; then
+            git rebase --abort
+            title="preview-rebase: conflict rebasing $PREVIEW_BRANCH onto main"
+            if [ -z "$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')" ]; then
+              gh issue create --title "$title" \
+                --body "Automatic rebase of \`$PREVIEW_BRANCH\` onto main failed at $(git rev-parse origin/main). Resolve manually and force-push, then close this issue."
+            fi
+            exit 1
+          fi
+          git push --force-with-lease origin "preview-rebase:$PREVIEW_BRANCH"
