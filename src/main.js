@@ -12,51 +12,73 @@ import { initUI } from './ui.js';
 import { loadAudioSelection } from './audio-assets.js';
 
 const qs = new URLSearchParams(location.search);
+
+// DEV-only route registry (imported for type/drift checking in tests).
+// In production, import.meta.env.DEV is false, so this import does not execute.
+let ROUTES = null;
+if (import.meta.env.DEV) {
+  ROUTES = (await import('./dev/routes.js')).ROUTES;
+}
+
 async function boot() {
-  if (import.meta.env.DEV && qs.has('sim')) {
-    const { initSimLab } = await import('./dev/sim-lab.js');
-    await initSimLab();
-    return;
+  // Phase 1: Pre-audio shell routes (e.g., sim lab).
+  if (import.meta.env.DEV && ROUTES) {
+    for (const route of ROUTES) {
+      if (route.kind === 'shell' && route.preAudio && qs.has(route.param)) {
+        const module = await route.load();
+        const init = module[route.exportName];
+        await init();
+        return;
+      }
+    }
   }
+
   // The host may replace this small JSON without rebuilding JS. Resolve it
   // before any title cue or SFX preload can cache the base selection.
   await loadAudioSelection();
-  if (import.meta.env.DEV && qs.has('lab')) {
-    const { initLab } = await import('./ui/dev/lab.js');
-    await initLab();
-    return;
+
+  // Phase 2: Post-audio shell routes (lab, dashboard, contentedit, dev).
+  if (import.meta.env.DEV && ROUTES) {
+    for (const route of ROUTES) {
+      if (route.kind === 'shell' && !route.preAudio && !route.exclusiveBoot && qs.has(route.param)) {
+        const module = await route.load();
+        const init = module[route.exportName];
+        await init();
+        return;
+      }
+    }
   }
-  if (import.meta.env.DEV && qs.has('dashboard')) {
-    const { initDoctor } = await import('./ui/dev/doctor.js');
-    await initDoctor();
-    return;
+
+  // Phase 3: Mutually-exclusive editors (charedit, vfxedit) that boot stage+mesh inside.
+  let bootedAltEditor = false;
+  if (import.meta.env.DEV && ROUTES) {
+    for (const route of ROUTES) {
+      if (route.kind === 'shell' && route.exclusiveBoot && qs.has(route.param)) {
+        const module = await route.load();
+        const init = module[route.exportName];
+        init(); // Fire-and-forget (sync init)
+        bootedAltEditor = true;
+        break;
+      }
+    }
   }
-  if (import.meta.env.DEV && qs.has('contentedit')) {
-    const { initContentManager } = await import('./ui/dev/content-manager.js');
-    await initContentManager();
-    return;
-  }
-  if (import.meta.env.DEV && qs.has('dev')) {
-    const { initDevShell } = await import('./ui/dev/shell.js');
-    await initDevShell();
-    return;
-  }
-  if (import.meta.env.DEV && qs.has('charedit')) {
-    // stage + mesh boot inside the editor so warp/float match combat
-    import('./dev/char-editor.js').then((m) => m.initCharEditor());
-  } else if (import.meta.env.DEV && qs.has('vfxedit')) {
-    import('./dev/vfx-editor.js').then((m) => m.initVfxEditor());
-  } else {
+
+  if (!bootedAltEditor) {
+    // Normal game boot.
     initStage();
     initScene();
     initVfx();
     initMesh();
     await initUI();
-    if (import.meta.env.DEV && qs.has('bfedit')) {
-      import('./dev/bf-editor.js').then((m) => m.initBfEditor());
-    }
-    if (import.meta.env.DEV && qs.has('bfuiedit')) {
-      import('./dev/bfui-editor.js').then((m) => m.initBfuiEditor());
+
+    // Phase 4: Post-UI overlay editors (bfedit, bfuiedit).
+    if (import.meta.env.DEV) {
+      if (qs.has('bfedit')) {
+        import('./dev/bf-editor.js').then((m) => m.initBfEditor());
+      }
+      if (qs.has('bfuiedit')) {
+        import('./dev/bfui-editor.js').then((m) => m.initBfuiEditor());
+      }
     }
   }
 }
