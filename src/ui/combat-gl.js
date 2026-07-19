@@ -1403,6 +1403,9 @@ export async function createCombatRenderer({
         style: {
           fontFamily: 'Cinzel', fontSize: 12, fontWeight: '600',
           fill: 0xb8b4a8, letterSpacing: 1.5,
+          // Wrap inside the DOM seat like .hud-mid does — an unwrapped line
+          // spills over the gold/phial widgets on pad portrait.
+          wordWrap: true, wordWrapWidth: Math.max(60, midSeat.w), align: 'center',
         },
       });
       mid.anchor?.set?.(0.5, 0.5);
