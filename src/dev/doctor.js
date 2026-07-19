@@ -9,7 +9,7 @@ import {
 } from '../packs/compiled/development.js';
 import { STATIC_REFERENCE_CATALOGUES } from '../content-resources.js';
 import { CONTENT_SCHEMAS, formatContentReport, MERGE_POLICIES } from '../registry.js';
-import { esc, ensureDevStyle, renderDevRail, renderDevTopbar, mountRailDrawer, setDevTitle } from './chrome.js';
+import { esc, ensureDevStyle, renderShellRail, renderDevTopbar, mountRailDrawer, setDevTitle } from './chrome.js';
 
 const ASSET_MODULES = import.meta.glob(
   ['../assets/*/*.{png,jpg,jpeg,webp}'],
@@ -198,7 +198,7 @@ export async function initDoctor() {
     <span class="dev-topbar-param">manifest development · fixtures sample · locale en</span>`;
 
   root.innerHTML = `
-    ${renderDevRail({ activeParam: 'dashboard' })}
+    ${renderShellRail({ activeParam: 'dashboard' })}
     <div class="dev-main">
       ${renderDevTopbar({ title: 'Content doctor', param: 'dashboard', status, menu: true })}
       <div class="dev-scroll">

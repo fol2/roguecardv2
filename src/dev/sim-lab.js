@@ -3,7 +3,7 @@
 // import.meta.env.DEV branch in main.js. It consumes persisted report JSON; it
 // never imports the browser game or the Node simulation harness.
 
-import { ensureDevStyle, renderDevRail, mountRailDrawer, setDevTitle } from './chrome.js';
+import { ensureDevStyle, renderShellRail, renderDevHomeLink, mountRailDrawer, setDevTitle } from './chrome.js';
 
 const TABS = Object.freeze([
   ['headline', 'Headline'],
@@ -337,14 +337,14 @@ function shell() {
   ensureDevStyle();
   document.body.innerHTML = `
     <div class="dev-shell" data-sim-shell>
-    ${renderDevRail({ activeParam: 'sim' }).replace(/\sdata-dev-home/g, '')}
+    ${renderShellRail({ activeParam: 'sim' })}
     <main class="pg">
       <aside class="pg-rail" aria-label="Simulation reports">
         <div class="pg-rail-title"><span>Report vault</span><span id="pg-report-count">0</span></div>
         <div class="pg-report-list" id="pg-report-list"><div class="pg-empty-rail">Reading the archive…</div></div>
       </aside>
       <header class="pg-top">
-        <div class="pg-topbar"><button type="button" class="dev-menu-btn dev-menu-rail" data-dev-menu title="Dev tools" aria-label="Dev tools">☰</button><h1 class="pg-topbar-title">Proving Grounds</h1><span class="pg-topbar-param">?sim=1</span></div>
+        <div class="pg-topbar"><button type="button" class="dev-menu-btn dev-menu-rail" data-dev-menu title="Dev tools" aria-label="Dev tools">☰</button><h1 class="pg-topbar-title">Proving Grounds</h1><span class="pg-topbar-param">?sim=1</span>${renderDevHomeLink({ className: 'pg-dev-home' })}</div>
         <div class="pg-top-line">
           <div class="pg-title"><div class="pg-eyebrow">Selected report</div><h2 id="pg-heading">No report loaded</h2><div class="pg-meta" id="pg-meta"></div></div>
           <div class="pg-top-actions"><span class="pg-universe" id="pg-universe">No evidence universe</span><button class="pg-action" data-open-runner type="button">New sweep</button></div>

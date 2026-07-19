@@ -113,6 +113,15 @@ const OBSERVATORY_STYLE = `
   transition: color 0.14s ease;
 }
 .dev-drawer-back:hover { color: var(--dev-muted); }
+.dev-topbar-home {
+  font-size: 12px; color: var(--dev-muted); text-decoration: none;
+  transition: color 0.14s ease;
+}
+.dev-topbar-home:hover { color: var(--dev-accent-light); }
+.dev-topbar .dev-hub-back {
+  border-top: 0; padding: 0; font-size: 12px; color: var(--dev-muted);
+}
+.dev-topbar .dev-hub-back:hover { color: var(--dev-accent-light); }
 
 /* ---- buttons ---- */
 .dev-btn {
@@ -309,18 +318,37 @@ export function renderDevRail({ activeParam = '' } = {}) {
 }
 
 /**
- * Tool-column topbar: bold title, mono ?param=1 chip, optional status/actions html.
- * When menu:true, prepends the responsive ☰ control (visible ≤980px, where the
- * persistent rail collapses and the drawer takes over).
- * @param {{ title: string, param: string, status?: string, actions?: string, menu?: boolean }} opts
+ * Full-rail shells park the home/back anchors in the always-visible topbar (the
+ * rail collapses ≤980px, and e2e asserts their visibility across viewports) —
+ * strip those anchors from the persistent rail so each page has exactly one.
  */
-export function renderDevTopbar({ title, param, status = '', actions = '', menu = false }) {
+export function renderShellRail({ activeParam = '' } = {}) {
+  return renderDevRail({ activeParam })
+    .replace(/\sdata-dev-home/g, '')
+    .replace(/<a class="dev-hub-back"[^>]*>[^<]*<\/a>/, '');
+}
+
+/**
+ * Tool-column topbar: bold title, mono ?param=1 chip, optional status/actions html.
+ * menu:true prepends the responsive ☰ control (visible ≤980px, where the rail
+ * collapses and the drawer takes over) and appends the back-to-game anchor;
+ * home (defaults to menu) appends the data-dev-home Dev Hub link — pass
+ * home:false on the hub itself, where a self-link would be noise.
+ * @param {{ title: string, param: string, status?: string, actions?: string, menu?: boolean, home?: boolean }} opts
+ */
+export function renderDevTopbar({ title, param, status = '', actions = '', menu = false, home = menu }) {
   ensureDevStyle();
   const menuBtn = menu
     ? `<button type="button" class="dev-menu-btn dev-menu-rail" data-dev-menu title="Dev tools" aria-label="Dev tools">☰</button>`
     : '';
-  const right = (status || actions)
-    ? `<div class="dev-topbar-right">${status}${actions}</div>`
+  const homeLink = home
+    ? `<a data-dev-home href="?dev=1" class="dev-topbar-home">Dev Hub ↩</a>`
+    : '';
+  const back = menu
+    ? `<a class="dev-hub-back" href="?">↩ Back to game</a>`
+    : '';
+  const right = (status || actions || homeLink || back)
+    ? `<div class="dev-topbar-right">${status}${actions}${homeLink}${back}</div>`
     : '';
   return `<div class="dev-topbar">
     ${menuBtn}

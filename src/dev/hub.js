@@ -2,7 +2,7 @@
 // Rail + topbar + launch-card grid, built from ROUTES (query params unchanged).
 
 import { iconSvg } from '../art.js';
-import { esc, ensureDevStyle, renderDevRail, renderDevTopbar, mountRailDrawer, setDevTitle } from './chrome.js';
+import { esc, ensureDevStyle, renderShellRail, renderDevTopbar, mountRailDrawer, setDevTitle } from './chrome.js';
 import { ROUTES } from './routes.js';
 
 const GROUP_ORDER = Object.freeze(['Simulation', 'Editors', 'Content', 'Art & Audio']);
@@ -56,9 +56,9 @@ export async function initDevShell() {
 
   const sections = groupedRoutes().map(renderGroup).join('');
   root.innerHTML = `
-    ${renderDevRail({ activeParam: 'dev' })}
+    ${renderShellRail({ activeParam: 'dev' })}
     <div class="dev-main">
-      ${renderDevTopbar({ title: 'Dev Hub', param: 'dev', menu: true })}
+      ${renderDevTopbar({ title: 'Dev Hub', param: 'dev', menu: true, home: false })}
       <div class="dev-scroll">${sections}</div>
     </div>
   `;

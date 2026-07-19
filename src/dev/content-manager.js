@@ -8,7 +8,7 @@ import {
   compileContentRegistrations, doctorContentRegistrations,
 } from '../content-registration.js';
 import { STATIC_REFERENCE_CATALOGUES } from '../content-resources.js';
-import { esc, ensureDevStyle, renderDevRail, renderDevTopbar, mountRailDrawer, setDevTitle } from './chrome.js';
+import { esc, ensureDevStyle, renderShellRail, renderDevTopbar, mountRailDrawer, setDevTitle } from './chrome.js';
 import {
   EDITABLE_DOMAINS, CONTENT_SAVE_VERSION,
   DOMAIN_LOCALE_EXPORT, fieldOwnership, splitBySource, joinBySource,
@@ -236,7 +236,7 @@ export async function initContentManager() {
     writeQuery();
     const status = `<span class="dev-chip ${doctor.report.ok ? 'is-ok' : 'is-warn'}">doctor ${doctor.report.ok ? 'ok' : 'problems'}</span>`;
     root.innerHTML = `
-      ${renderDevRail({ activeParam: 'contentedit' })}
+      ${renderShellRail({ activeParam: 'contentedit' })}
       <div class="dev-main">
         ${renderDevTopbar({ title: 'Content Manager', param: 'contentedit', status, menu: true })}
         <div class="dev-scroll">
