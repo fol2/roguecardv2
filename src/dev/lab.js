@@ -4,8 +4,9 @@
 import {
   encodeLabScenario, decodeLabScenario, validateLabScenario,
   encodeReplayDescriptor, decodeReplayDescriptor,
-} from '../../dev/lab-scenario.js';
-import { bindRunContent, contentViewFor, themeForRun } from '../content.js';
+} from './lab-scenario.js';
+import { esc, renderDevChrome } from './chrome.js';
+import { bindRunContent, contentViewFor, themeForRun } from '../ui/content.js';
 import { renderReplayPreview, supportedReplayKinds } from './replay-preview.js';
 
 const LAB_STYLE = `
@@ -14,13 +15,18 @@ const LAB_STYLE = `
   font-family: Cinzel, serif; color: #f2e8d5;
 }
 [data-lab-root] * { box-sizing: border-box; }
+[data-lab-root] > [data-dev-chrome] {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+  margin: 0; padding: 6px 12px 8px;
+  background: rgba(18, 14, 12, 0.92); border-bottom: 1px solid rgba(212,175,120,0.22);
+}
 [data-lab-panel], [data-lab-god], [data-lab-trace], [data-lab-result-host],
 [data-replay-preview-host] {
   pointer-events: auto;
 }
 [data-lab-panel] {
-  position: absolute; top: 8px; left: 8px; width: min(340px, 42%);
-  max-height: calc(100% - 16px); overflow: auto;
+  position: absolute; top: 44px; left: 8px; width: min(340px, 42%);
+  max-height: calc(100% - 52px); overflow: auto;
   background: rgba(18, 14, 12, 0.92); border: 1px solid rgba(212, 175, 120, 0.35);
   padding: 10px 12px; border-radius: 4px; font-size: 12px;
 }
@@ -37,7 +43,7 @@ const LAB_STYLE = `
 [data-lab-panel] button:disabled { opacity: 0.45; cursor: not-allowed; }
 [data-lab-errors] { color: #ff8a7a; margin-top: 6px; white-space: pre-wrap; }
 [data-lab-god] {
-  position: absolute; top: 8px; right: 8px; width: 180px;
+  position: absolute; top: 44px; right: 8px; width: 180px;
   background: rgba(18, 14, 12, 0.9); border: 1px solid rgba(212, 175, 120, 0.35);
   padding: 8px; border-radius: 4px; font-size: 12px;
 }
@@ -64,12 +70,6 @@ const LAB_STYLE = `
   text-align: center; pointer-events: none;
 }
 `;
-
-function esc(value) {
-  return String(value).replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[ch]));
-}
 
 function optionsHtml(ids, selected) {
   return ids.map((id) =>
@@ -118,7 +118,7 @@ function writeQuery(patch) {
 }
 
 export async function initLab() {
-  const { createDevRegistry: build } = await import('../../packs/dev.js');
+  const { createDevRegistry: build } = await import('../packs/dev.js');
   const registry = build({ fixtures: ['sample'] });
   const content = registry.context;
 
@@ -157,11 +157,11 @@ export async function initLab() {
   };
 
   // Boot the normal stage/UI stack so probe drivers and combat renderers exist.
-  const { initStage } = await import('../../stage.js');
-  const { initScene } = await import('../../scene3d.js');
-  const { initVfx } = await import('../../vfx.js');
-  const { initMesh } = await import('../../mesh.js');
-  const { initUI } = await import('../../ui.js');
+  const { initStage } = await import('../stage.js');
+  const { initScene } = await import('../scene3d.js');
+  const { initVfx } = await import('../vfx.js');
+  const { initMesh } = await import('../mesh.js');
+  const { initUI } = await import('../ui.js');
   initStage();
   initScene();
   initVfx();
@@ -178,6 +178,7 @@ export async function initLab() {
 
   const root = document.createElement('div');
   root.setAttribute('data-lab-root', '1');
+  root.insertAdjacentHTML('afterbegin', renderDevChrome({ title: 'Content Lab' }));
   stage.appendChild(root);
 
   let model = defaultModel(content);
@@ -521,7 +522,7 @@ export async function initLab() {
       };
       renderEditor();
 
-      const E = window.spirebound?.E || (await import('../../engine.js'));
+      const E = window.spirebound?.E || (await import('../engine.js'));
       const S = window.spirebound?.S;
       const show = window.spirebound?.show;
       const aspectIndex = content.aspects.findIndex((row) => row.id === validated.aspectId);
@@ -603,11 +604,11 @@ export async function initLab() {
   await waitProbe();
 
   // Expose module trace for replay-preview spans.
-  const { trace } = await import('../context.js');
+  const { trace } = await import('../ui/context.js');
   window.__labTrace = trace;
   trace.setOnReplayable?.(publishReplay);
 
-  const { bindUICommands } = await import('../commands.js');
+  const { bindUICommands } = await import('../ui/commands.js');
   bindUICommands({ showLabResult });
 
   // Extend probe with Lab-only readers/drivers (frozen merge).
@@ -673,8 +674,8 @@ export async function initLab() {
       const E = window.spirebound.E;
       const run = S.run;
       if (!run) return;
-      const { createRunEffects } = await import('../run-effects.js');
-      const Vigil = await import('../../vigil.js');
+      const { createRunEffects } = await import('../ui/run-effects.js');
+      const Vigil = await import('../vigil.js');
       const effects = createRunEffects({ engine: E, vigil: Vigil });
       effects.journalRunEnd(run, outcome);
       const result = effects.finaliseRunEnd(run, {

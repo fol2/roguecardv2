@@ -3,16 +3,17 @@
 
 import {
   doctorContentRegistrations,
-} from '../../content-registration.js';
+} from '../content-registration.js';
 import {
   CONTENT_REGISTRATION_MANIFEST as DEVELOPMENT_CONTENT_REGISTRATION_MANIFEST,
-} from '../../packs/compiled/development.js';
-import { STATIC_REFERENCE_CATALOGUES } from '../../content-resources.js';
-import { CONTENT_SCHEMAS, formatContentReport, MERGE_POLICIES } from '../../registry.js';
-import { iconSvg } from '../../art.js';
+} from '../packs/compiled/development.js';
+import { STATIC_REFERENCE_CATALOGUES } from '../content-resources.js';
+import { CONTENT_SCHEMAS, formatContentReport, MERGE_POLICIES } from '../registry.js';
+import { iconSvg } from '../art.js';
+import { esc, renderDevChrome } from './chrome.js';
 
 const ASSET_MODULES = import.meta.glob(
-  ['../../assets/*/*.{png,jpg,jpeg,webp}'],
+  ['../assets/*/*.{png,jpg,jpeg,webp}'],
   { eager: true, query: '?url', import: 'default' },
 );
 
@@ -23,12 +24,6 @@ function liveAssetManifest() {
     if (match) keys.add(`${match[1]}/${match[2]}`);
   }
   return keys;
-}
-
-function esc(value) {
-  return String(value).replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[ch]));
 }
 
 function linkHref(route, domain, id) {
@@ -175,6 +170,7 @@ export async function initDoctor() {
   style.textContent = DOCTOR_STYLE;
   document.head.appendChild(style);
 
+
   const host = document.getElementById('stage') || document.body;
   const root = document.createElement('div');
   root.setAttribute('data-content-doctor', '1');
@@ -183,7 +179,7 @@ export async function initDoctor() {
     .join('');
 
   root.innerHTML = `
-    <h1>${iconSvg('lantern', 22)} Content doctor</h1>
+    ${renderDevChrome({ title: 'Content doctor' })}
     <p>Development registration manifest · fixtures sample · ${report.ok ? 'ok' : 'problems'}</p>
     <pre data-doctor-report-text>${esc(text)}</pre>
     ${renderProvenance(provenance)}
@@ -191,7 +187,7 @@ export async function initDoctor() {
     <h2>${iconSvg('chest', 16)} Domains</h2>
     ${domainHtml}
     ${renderProblems(report.problems)}
-    <p><a href="?dev=1">dev shell</a> · <a href="?">game</a></p>
+    <p><a href="?">game</a></p>
   `;
   host.appendChild(root);
 }

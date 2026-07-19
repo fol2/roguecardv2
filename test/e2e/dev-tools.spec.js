@@ -1,4 +1,5 @@
 import { test, expect } from './trace-fixture.js';
+import { ROUTES } from '../../src/dev/routes.js';
 
 const MERGE_DOMAINS = [
   'player', 'shop', 'cards', 'statuses', 'relics', 'potions', 'enemies', 'events',
@@ -6,10 +7,8 @@ const MERGE_DOMAINS = [
   'themes', 'aspects', 'vows', 'questIds', 'progression',
 ];
 
-const SHELL_ROUTES = [
-  'gallery', 'audio', 'bfedit', 'bfuiedit', 'charedit', 'vfxedit',
-  'lab', 'dashboard', 'contentedit',
-];
+const HUB_ROUTES = ROUTES.filter((route) => route.group != null);
+const GROUP_HEADINGS = ['Simulation', 'Editors', 'Content', 'Art & Audio'];
 
 test.describe('developer tools', () => {
   test('dashboard renders doctor domains, provenance, schema ownership, and tool links', async ({ page }) => {
@@ -18,6 +17,10 @@ test.describe('developer tools', () => {
 
     const root = page.locator('[data-content-doctor]');
     await expect(root).toBeVisible();
+
+    const home = page.locator('a[data-dev-home]');
+    await expect(home).toBeVisible();
+    await expect(home).toHaveAttribute('href', '?dev=1');
 
     // Every registry domain with total/complete badges.
     for (const domain of MERGE_DOMAINS) {
@@ -54,15 +57,50 @@ test.describe('developer tools', () => {
     await expect(page.locator('[data-doctor-problems]')).toBeVisible();
   });
 
-  test('dev shell lists every existing editor/gallery/Lab/dashboard/contentedit route', async ({ page }) => {
+  test('dev hub lists every registry route, grouped, with sim and back-to-game', async ({ page }) => {
     await page.goto('/?dev=1');
     await page.waitForSelector('[data-dev-shell]');
     await expect(page.locator('[data-dev-shell]')).toBeVisible();
 
-    for (const route of SHELL_ROUTES) {
-      const link = page.locator(`a[data-dev-route="${route}"]`);
+    // Every non-null-group registry entry appears with the right href.
+    for (const route of HUB_ROUTES) {
+      const link = page.locator(`a[data-dev-route="${route.param}"]`);
       await expect(link).toBeVisible();
-      await expect(link).toHaveAttribute('href', new RegExp(`[?&]${route}=1`));
+      await expect(link).toHaveAttribute('href', `?${route.param}=1`);
     }
+
+    // Rendered route-link count matches registry (no drift / no hub self-link).
+    await expect(page.locator('a[data-dev-route]')).toHaveCount(HUB_ROUTES.length);
+
+    // Sim lab is listed (was missing from the old static shell).
+    await expect(page.locator('a[data-dev-route="sim"]')).toHaveAttribute('href', '?sim=1');
+
+    // Four group headings render.
+    for (const heading of GROUP_HEADINGS) {
+      await expect(page.locator(`[data-dev-group="${heading}"] h2`)).toHaveText(heading);
+    }
+
+    // Back to game (preserved from old shell).
+    await expect(page.locator('a.dev-hub-back[href="?"]')).toBeVisible();
+  });
+
+  test('charedit boots editor chrome and skips normal game boot', async ({ page }) => {
+    await page.goto('/?charedit=1');
+    await page.waitForSelector('[data-charedit-root]');
+    await expect(page.locator('[data-charedit-root]')).toBeVisible();
+    await expect(page.locator('#ce-bar')).toBeVisible();
+    // Exclusive-boot editors skip initUI — no title screen / game hook.
+    await expect(page.locator('.title-screen')).toHaveCount(0);
+    expect(await page.evaluate(() => !!window.spirebound)).toBe(false);
+  });
+
+  test('vfxedit boots editor chrome and skips normal game boot', async ({ page }) => {
+    await page.goto('/?vfxedit=1');
+    await page.waitForSelector('[data-vfxedit-root]');
+    await expect(page.locator('[data-vfxedit-root]')).toBeVisible();
+    await expect(page.locator('#vx-bar')).toBeVisible();
+    // Exclusive-boot editors skip initUI — no title screen / game hook.
+    await expect(page.locator('.title-screen')).toHaveCount(0);
+    expect(await page.evaluate(() => !!window.spirebound)).toBe(false);
   });
 });

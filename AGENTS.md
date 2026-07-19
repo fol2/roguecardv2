@@ -83,9 +83,10 @@ mesh.js   ← WebGL character warp; imports stage.js
 ui.js     ← 1-line re-export of ui/index.js (kept as the stable import path)
 ui/       ← the only orchestrator; owns the DOM. index.js is the composition root; drain.js plays back cb.queue;
             pixi-app.js + combat-gl.js own the Pixi combat presentation (#uigl canvas, WebGL lifecycle);
-            pointer.js routes input; screens/ hold per-screen modules; probe.js owns window.__probe;
-            dev/ is dev-only tooling (Content Lab, doctor, content manager) — never imported in production builds
+            pointer.js routes input; screens/ hold per-screen modules; probe.js owns window.__probe
+
 main.js   ← initStage → initScene → initVfx → initMesh → initUI (dev-only ?lab/?dashboard/?contentedit/?dev shells lazy-load first)
+dev/      ← dev-only tooling root — route registry (routes.js), Dev Hub (?dev=1, hub.js), shared chrome, editors, labs, sim-lab, serializers; lazy-loaded only behind import.meta.env.DEV in main.js; never imported in production builds
 ```
 
 **Never import `audio.js` or `music.js` from `engine.js` or `vigil.js`** — top-level `localStorage` access throws in Node and would break the tests. Engine and vigil are the two modules that must stay Node-runnable. **`stage.js` is browser-only** (DOM) — same import ban for engine/vigil.

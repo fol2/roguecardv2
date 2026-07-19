@@ -203,6 +203,9 @@ async function openLab(page, names, onRun = null, { unavailable = new Set() } = 
   });
   await page.goto('/?sim=1');
   await expect(page.getByRole('heading', { name: 'Proving Grounds' })).toBeVisible();
+  const home = page.locator('a[data-dev-home]');
+  await expect(home).toBeVisible();
+  await expect(home).toHaveAttribute('href', '?dev=1');
 }
 
 test('real simulation endpoint rejects work and count limits consistently', async ({ request }) => {

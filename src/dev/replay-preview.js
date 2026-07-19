@@ -2,7 +2,7 @@
 // Combat ceremonies reuse createCombatPresentation (same factory as combat-gl).
 
 import { Application, Container } from 'pixi.js';
-import { createCombatPresentation } from '../combat-presentation.js';
+import { createCombatPresentation } from '../ui/combat-presentation.js';
 
 /**
  * Thin adapter: boot an ephemeral Pixi app + createCombatPresentation, run the

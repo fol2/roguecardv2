@@ -327,6 +327,7 @@ function mountChrome() {
 
   const bar = document.createElement('header');
   bar.id = 'vx-bar';
+  bar.setAttribute('data-vfxedit-root', '1');
   bar.innerHTML = `<b>vfx edit</b><span id="vx-status">…</span>
     <a href="/?gallery=1">gallery</a>
     <a href="/?charedit=1">charedit</a>
