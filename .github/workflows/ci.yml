@@ -294,17 +294,19 @@ jobs:
     timeout-minutes: 15
     env:
       SPIREBOUND_E2E_SKIP_SLOW: ${{ needs.changes.outputs.e2e_slow == 'true' && '0' || '1' }}
-      # Per-invocation JSON reports (outside the repo — the clean-checkout
-      # gate would trip on files under the tree). Refresh shard balance from
-      # a FULL-mode run only: download every pool-report-* artifact, then
-      # node tools/e2e-shard.mjs --record <all reports at once>.
-      PLAYWRIGHT_JSON_OUTPUT_NAME: ${{ runner.temp }}/pool-report.json
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-playwright
       - run: node tools/run-with-strict-e2e-port.mjs -- node tools/e2e-shard.mjs --shard ${{ matrix.shard }}/${{ strategy.job-total }}
+        env:
+          # Per-invocation JSON reports (outside the repo — the clean-checkout
+          # gate would trip on files under the tree; step-level env because
+          # the runner context is unavailable at job level). Refresh shard
+          # balance from a FULL-mode run only: download every pool-report-*
+          # artifact, then node tools/e2e-shard.mjs --record <all at once>.
+          PLAYWRIGHT_JSON_OUTPUT_NAME: ${{ runner.temp }}/pool-report.json
       - name: Verify clean checkout
         if: always()
         run: test -z "$(git status --porcelain --untracked-files=all)"
