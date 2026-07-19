@@ -591,6 +591,9 @@ test('detached Title version timeout cannot emit a stale hidden action', async (
   });
   await page.goto('/?trace=1');
   await page.waitForFunction(() => window.__probe);
+  // Same boot race as the ignition test above: __probe lands before the
+  // awaited Pixi boot that gates show('title'), so wait out the title paint.
+  await page.waitForFunction(() => document.querySelector('.r5-title')?.dataset.r5State === 'title-ready');
   const logo = page.locator('[data-version-logo]');
   await expect(logo).toBeVisible();
   // Click burst, debug-shown check, seq snapshot, and leave-title all share one
