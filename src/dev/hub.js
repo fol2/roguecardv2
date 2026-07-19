@@ -1,44 +1,107 @@
-// Dev launcher shell — DEV-only static route list (?dev=1).
-// Existing tool URLs unchanged; availability labels only.
+// Dev Hub — registry-driven launcher (?dev=1).
+// Renders every ROUTES entry with a non-null group; query params unchanged.
 
 import { iconSvg } from '../art.js';
+import { ROUTES } from './routes.js';
 
-const ROUTES = Object.freeze([
-  { id: 'gallery', href: '?gallery=1', label: 'Art gallery', available: true },
-  { id: 'audio', href: '?audio=1', label: 'Audio gallery', available: true },
-  { id: 'bfedit', href: '?bfedit=1', label: 'Battlefield editor', available: true },
-  { id: 'bfuiedit', href: '?bfuiedit=1', label: 'UI chrome editor', available: true },
-  { id: 'charedit', href: '?charedit=1', label: 'Character editor', available: true },
-  { id: 'vfxedit', href: '?vfxedit=1', label: 'VFX editor', available: true },
-  { id: 'lab', href: '?lab=1', label: 'Content Lab', available: true },
-  { id: 'dashboard', href: '?dashboard=1', label: 'Content doctor', available: true },
-  { id: 'contentedit', href: '?contentedit=1', label: 'Content Manager', available: true },
+const GROUP_ORDER = Object.freeze([
+  'Simulation',
+  'Editors',
+  'Content',
+  'Art & Audio',
 ]);
 
-const SHELL_STYLE = `
+const HUB_STYLE = `
 [data-dev-shell] {
   position: absolute; inset: 0; z-index: 80; overflow: auto;
-  background: linear-gradient(160deg, #17120e 0%, #0c0a08 60%, #14100c 100%);
-  color: #f2e8d5; font-family: Cinzel, serif; padding: 20px 22px 40px;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(212,175,120,0.07), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 90% 100%, rgba(120,80,40,0.08), transparent 50%),
+    linear-gradient(160deg, #17120e 0%, #0c0a08 55%, #14100c 100%);
+  color: #f2e8d5; font-family: Cinzel, Georgia, serif;
+  padding: 28px 28px 56px;
 }
-[data-dev-shell] h1 { margin: 0 0 12px; font-size: 22px; letter-spacing: 0.08em; display: flex; gap: 10px; align-items: center; }
-[data-dev-shell] p { margin: 0 0 16px; opacity: 0.85; font-size: 13px; }
-[data-dev-shell] ul { list-style: none; margin: 0; padding: 0; max-width: 520px; }
-[data-dev-shell] li {
-  margin: 0 0 8px; border: 1px solid rgba(212,175,120,0.3);
-  background: rgba(22,16,12,0.9); border-radius: 4px;
+[data-dev-shell] .dev-hub-header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+  max-width: 640px; margin: 0 0 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(212,175,120,0.22);
 }
-[data-dev-shell] a {
-  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+[data-dev-shell] h1 {
+  margin: 0; font-size: 24px; font-weight: 600;
+  letter-spacing: 0.1em; display: flex; gap: 12px; align-items: center;
+  color: #f5ecd8;
+}
+[data-dev-shell] h1 svg { color: #d4af78; flex-shrink: 0; }
+[data-dev-shell] .dev-hub-back {
+  font-size: 12px; letter-spacing: 0.06em;
+  color: rgba(212,175,120,0.85); text-decoration: none;
+  padding: 4px 0; border-bottom: 1px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+[data-dev-shell] .dev-hub-back:hover {
+  color: #f2e8d5; border-bottom-color: rgba(212,175,120,0.55);
+}
+[data-dev-shell] .dev-hub-lede {
+  margin: 0 0 28px; max-width: 640px;
+  opacity: 0.72; font-size: 13px; letter-spacing: 0.02em;
+  line-height: 1.45;
+}
+[data-dev-shell] .dev-hub-group {
+  max-width: 640px; margin: 0 0 28px;
+}
+[data-dev-shell] .dev-hub-group h2 {
+  margin: 0 0 10px; padding: 0 2px;
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: rgba(212,175,120,0.7);
+}
+[data-dev-shell] .dev-hub-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+[data-dev-shell] .dev-hub-list li {
+  margin: 0; border: 1px solid rgba(212,175,120,0.28);
+  background: rgba(22,16,12,0.88); border-radius: 5px;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+[data-dev-shell] .dev-hub-list li:hover {
+  border-color: rgba(212,175,120,0.55);
+  background: rgba(36,26,18,0.95);
+  box-shadow: 0 0 0 1px rgba(212,175,120,0.08), 0 6px 18px rgba(0,0,0,0.28);
+}
+[data-dev-shell] .dev-hub-list a {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start; gap: 12px 14px;
+  padding: 12px 14px;
   color: #f2e8d5; text-decoration: none;
 }
-[data-dev-shell] a:hover { background: rgba(212,175,120,0.08); }
-[data-dev-availability] {
-  margin-left: auto; font-size: 10px; letter-spacing: 0.06em;
-  padding: 2px 8px; border: 1px solid rgba(212,175,120,0.35);
+[data-dev-shell] .dev-hub-list a > svg {
+  margin-top: 2px; color: #d4af78; opacity: 0.9;
 }
-[data-dev-availability="available"] { color: #b7e0a8; }
-[data-dev-availability="planned"] { color: #9a8f7e; }
+[data-dev-shell] .dev-hub-route-body {
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+}
+[data-dev-shell] .dev-hub-route-label {
+  font-size: 15px; letter-spacing: 0.04em; line-height: 1.25;
+}
+[data-dev-shell] .dev-hub-route-desc {
+  font-size: 12px; letter-spacing: 0.01em; line-height: 1.4;
+  color: rgba(242,232,213,0.62);
+  font-family: Georgia, 'Times New Roman', serif;
+}
+[data-dev-shell] .dev-hub-param {
+  align-self: start; margin-top: 2px;
+  font-size: 10px; letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border: 1px solid rgba(212,175,120,0.35);
+  border-radius: 3px;
+  color: rgba(212,175,120,0.9);
+  background: rgba(212,175,120,0.06);
+  white-space: nowrap;
+}
 `;
 
 function esc(value) {
@@ -47,30 +110,58 @@ function esc(value) {
   }[ch]));
 }
 
+function groupedRoutes() {
+  const byGroup = new Map(GROUP_ORDER.map((name) => [name, []]));
+  for (const route of ROUTES) {
+    if (route.group == null) continue;
+    const bucket = byGroup.get(route.group);
+    if (bucket) bucket.push(route);
+  }
+  return GROUP_ORDER
+    .map((name) => ({ name, routes: byGroup.get(name) || [] }))
+    .filter((section) => section.routes.length > 0);
+}
+
+function renderRoute(route) {
+  const href = `?${route.param}=1`;
+  const badge = `?${route.param}=1`;
+  return `<li>
+    <a data-dev-route="${esc(route.id)}" href="${esc(href)}">
+      ${iconSvg('lantern', 18)}
+      <span class="dev-hub-route-body">
+        <span class="dev-hub-route-label">${esc(route.label)}</span>
+        <span class="dev-hub-route-desc">${esc(route.description)}</span>
+      </span>
+      <span class="dev-hub-param">${esc(badge)}</span>
+    </a>
+  </li>`;
+}
+
+function renderGroup(section) {
+  const items = section.routes.map(renderRoute).join('');
+  return `<section class="dev-hub-group" data-dev-group="${esc(section.name)}">
+    <h2>${esc(section.name)}</h2>
+    <ul class="dev-hub-list">${items}</ul>
+  </section>`;
+}
+
 export async function initDevShell() {
   const style = document.createElement('style');
-  style.textContent = SHELL_STYLE;
+  style.textContent = HUB_STYLE;
   document.head.appendChild(style);
 
   const host = document.getElementById('stage') || document.body;
   const root = document.createElement('div');
   root.setAttribute('data-dev-shell', '1');
-  const items = ROUTES.map((route) => {
-    const avail = route.available ? 'available' : 'planned';
-    return `<li>
-      <a data-dev-route="${esc(route.id)}" href="${esc(route.href)}">
-        ${iconSvg('lantern', 18)}
-        <span>${esc(route.label)}</span>
-        <span data-dev-availability="${avail}">${avail}</span>
-      </a>
-    </li>`;
-  }).join('');
 
+  const sections = groupedRoutes().map(renderGroup).join('');
   root.innerHTML = `
-    <h1>${iconSvg('menu', 22)} Dev tools</h1>
-    <p>Static launcher — existing editor and gallery URLs unchanged.</p>
-    <ul>${items}</ul>
-    <p><a href="?">back to game</a></p>
+    <header class="dev-hub-header">
+      <h1>${iconSvg('menu', 22)} Dev Hub</h1>
+      <a class="dev-hub-back" href="?">back to game</a>
+    </header>
+    <p class="dev-hub-lede">Editors, labs, and galleries — existing query-param URLs unchanged.</p>
+    ${sections}
   `;
   host.appendChild(root);
 }

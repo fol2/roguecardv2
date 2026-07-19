@@ -9255,8 +9255,15 @@ export default defineContentRegistration({
   assert.match(managerSource, /__content-save/);
   assert.doesNotMatch(managerSource, /from\s+['"][^'"]*packs\/(core|_sample)\//);
   assert.doesNotMatch(managerSource, /PACK_IDS\s*=/);
-  const shellSource = readFileSync(new URL('../src/dev/hub.js', import.meta.url), 'utf8');
-  assert.match(shellSource, /id:\s*['"]contentedit['"][\s\S]*?available:\s*true/);
+  // Task 19 / U3: hub is registry-driven — source contracts replace the old
+  // static ROUTES id/href/available literals that lived in shell.js.
+  const hubSource = readFileSync(new URL('../src/dev/hub.js', import.meta.url), 'utf8');
+  assert.match(hubSource, /data-dev-shell/);
+  assert.match(hubSource, /data-dev-route=/);
+  assert.match(hubSource, /iconSvg/);
+  assert.match(hubSource, /from\s+['"]\.\/routes\.js['"]/);
+  assert.doesNotMatch(hubSource, /href:\s*'\?/);
+  assert.doesNotMatch(hubSource, /[⚔♛✓✗]/);
   // Task 19: main.js checks updated for registry-driven routing (U1).
   // The literals now live in routes.js; main.js just uses the registry loop.
   const routesSource = readFileSync(new URL('../src/dev/routes.js', import.meta.url), 'utf8');
