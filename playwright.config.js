@@ -32,7 +32,9 @@ export default defineConfig({
   workers: 2,
   retries: 0, // flake must surface and be fixed, not retried away
   timeout: 90_000,
-  reporter: [['list']],
+  // json feeds tools/e2e-shard.mjs --record (shard rebalancing); it only
+  // engages when PLAYWRIGHT_JSON_OUTPUT_NAME points it at a file.
+  reporter: process.env.PLAYWRIGHT_JSON_OUTPUT_NAME ? [['list'], ['json']] : [['list']],
   use: {
     baseURL: e2eServer.origin,
     // tracing chokes on the WebGL-heavy page (corrupt zips + teardown hangs);

@@ -60,8 +60,11 @@ export function listPoolUnits({ spawn = spawnSync, env = process.env } = {}) {
     ...POOL_PROJECTS.map((p) => `--project=${p}`),
     '--no-deps', '--grep-invert', POOL_GREP_INVERT,
   ];
+  // The listing parses --reporter=json from stdout; PLAYWRIGHT_JSON_OUTPUT_NAME
+  // would silently redirect it to a file, so it must not reach this spawn.
+  const { PLAYWRIGHT_JSON_OUTPUT_NAME: _drop, ...listEnv } = poolEnv(env);
   const child = spawn('npx', args, {
-    shell: false, encoding: 'utf8', env: poolEnv(env), maxBuffer: 256 * 1024 * 1024,
+    shell: false, encoding: 'utf8', env: listEnv, maxBuffer: 256 * 1024 * 1024,
   });
   if (child.status !== 0) {
     throw new Error(`playwright --list failed (${child.status}): ${child.stderr}`);
@@ -154,13 +157,22 @@ export function runBucket(shard, { spawn = spawnSync, env = process.env, plan } 
     return 0;
   }
   let status = 0;
+  let invocationIndex = 0;
   for (const invocation of bucketInvocations(bucket)) {
+    invocationIndex += 1;
     const args = [
       'playwright', 'test', ...invocation.files, ...baseArgs(invocation.project),
       ...(invocation.shard ? [`--shard=${invocation.shard}`] : []),
     ];
+    const runEnv = poolEnv(env);
+    // A bucket runs several invocations; each needs its own JSON report file
+    // or later invocations would overwrite earlier ones.
+    if (runEnv.PLAYWRIGHT_JSON_OUTPUT_NAME) {
+      runEnv.PLAYWRIGHT_JSON_OUTPUT_NAME = runEnv.PLAYWRIGHT_JSON_OUTPUT_NAME
+        .replace(/(\.json)?$/, `-${invocationIndex}.json`);
+    }
     process.stdout.write(`\n> npx ${args.join(' ')}\n`);
-    const child = spawn('npx', args, { shell: false, stdio: 'inherit', env: poolEnv(env) });
+    const child = spawn('npx', args, { shell: false, stdio: 'inherit', env: runEnv });
     status = Math.max(status, Number.isInteger(child?.status) ? child.status : 1);
   }
   return status;
