@@ -13,7 +13,7 @@
     "release": "node tools/release.mjs",
     "release:build": "SPIRE_RELEASE=1 vite build",
     "preview": "vite preview",
-    "test": "node test/test_engine.js",
+    "test": "node test/test_engine.js && node test/test_drain_playback.mjs",
     "sim": "node tools/sim/runner.mjs",
     "sim:smoke": "node tools/sim/runner.mjs --smoke",
     "test:round5:standing": "node tools/run-round5-standing-gates.mjs",

@@ -8,6 +8,7 @@ import {
   impactSet,
   matchTouchpoints,
   selectPlan,
+  runPlan,
   isWatchIgnored,
 } from '../tools/affected-specs.mjs';
 
@@ -220,6 +221,56 @@ function fakeGraph(edges) {
   assert.equal(isWatchIgnored('node_modules/x'), true);
   assert.equal(isWatchIgnored('.git/HEAD'), true);
   assert.equal(isWatchIgnored('src/engine.js'), false);
+}
+
+{
+  // Drain playback: changed drain.js triggers node test
+  const g = fakeGraph({ 'src/ui/drain.js': [] });
+  const plan = selectPlan(['src/ui/drain.js'], { graph: g });
+  assert.equal(plan.drainPlayback, true, 'drain.js change sets drainPlayback');
+  assert.ok(plan.commands.includes('node test/test_drain_playback.mjs'), 'drain test command included');
+  assert.ok(plan.specs.includes('test/e2e/battle.spec.js'), 'battle.spec still in specs via touchpoint');
+  assert.ok(plan.specs.includes('test/e2e/presentation.spec.js'), 'presentation.spec in specs via touchpoint');
+}
+
+{
+  // Drain playback: presentation-owners.js also triggers
+  const g = fakeGraph({ 'src/ui/presentation-owners.js': [] });
+  const plan = selectPlan(['src/ui/presentation-owners.js'], { graph: g });
+  assert.equal(plan.drainPlayback, true, 'presentation-owners.js change sets drainPlayback');
+  assert.ok(plan.commands.includes('node test/test_drain_playback.mjs'), 'drain test command included');
+}
+
+{
+  // Drain playback: non-drain changes don't trigger drainPlayback
+  const g = fakeGraph({
+    'src/ui/index.js': [],
+    'src/ui/drain.js': [],
+  });
+  const plan = selectPlan(['src/ui/index.js'], { graph: g });
+  assert.equal(plan.drainPlayback, false, 'non-drain changes do not trigger drainPlayback');
+  assert.equal(plan.npmTest, false, 'index.js change alone does not set npmTest');
+}
+
+{
+  // Drain playback: impact-only reach must NOT trigger (changed-files-only rule)
+  const g = fakeGraph({ 'src/ui/drain.js': ['src/ui/behaviour-trace.js'] });
+  const plan = selectPlan(['src/ui/behaviour-trace.js'], { graph: g });
+  assert.equal(plan.impact.includes('src/ui/drain.js'), true, 'drain.js is in the impact set');
+  assert.equal(plan.drainPlayback, false, 'impacted-only drain.js does not trigger drainPlayback');
+}
+
+{
+  // runPlan executes the drain playback command, before any playwright specs
+  const g = fakeGraph({ 'src/ui/drain.js': [] });
+  const plan = selectPlan(['src/ui/drain.js'], { graph: g });
+  const invoked = [];
+  const status = runPlan(plan, {
+    spawn: (cmd, args) => { invoked.push([cmd, ...args].join(' ')); return { status: 0 }; },
+  });
+  assert.equal(status, 0);
+  assert.equal(invoked[0], 'node test/test_drain_playback.mjs', 'drain test runs first');
+  assert.ok(invoked[1]?.startsWith('npx playwright test'), 'playwright specs run after');
 }
 
 console.log('test_affected_specs: ok');

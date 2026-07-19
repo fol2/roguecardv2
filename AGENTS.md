@@ -27,7 +27,7 @@ npm install
 npm run dev          # Vite dev server (host 0.0.0.0, port 5174 — see vite.config.js)
 npm run build        # static bundle → dist/
 npm run preview      # serve the built dist/
-npm test             # node test/test_engine.js — unit checks + 300-run monte-carlo bot
+npm test             # test_engine.js (unit checks + 300-run monte-carlo bot) + test_drain_playback.mjs (ms-fast UI drain spy tests)
 npm run test:fast    # affected-only local loop (tools/affected-specs.mjs — import-graph + curated e2e map)
 npm run test:watch   # continuous affected loop: fs.watch src/+test/, debounce, re-run plan
 npm run test:e2e     # Playwright visual-QA kit (geometry, battle, stage, visual, perf)
@@ -36,7 +36,8 @@ npm run test:e2e:perf     # performance reference; warns on target misses
 ```
 
 - **`npm run test:fast`** runs only the tests affected by the current diff (Node suite and/or a desktop Playwright subset). Full verification stays in CI; unmapped or out-of-scope files refuse to under-select (`FULL SUITE REQUIRED`). **`npm run test:watch`** is the continuous loop: watches `src/` + `test/`, debounces ~300ms, recomputes the affected plan per burst, and runs plain `npm test` whenever the engine rule selects it.
-- **Tests are a single self-check script**, not a framework. `npm test` runs the whole of `test/test_engine.js` (plain `node`, `node:assert`). There is no test runner or `-t` filter — to run a subset, comment out blocks in that file. Any assertion failure exits non-zero.
+- **Tests are plain self-check scripts**, not a framework. `npm test` runs the whole of `test/test_engine.js` then `test/test_drain_playback.mjs` (plain `node`, `node:assert`). There is no test runner or `-t` filter — to run a subset, comment out blocks in the file. Any assertion failure exits non-zero.
+- **`test/test_drain_playback.mjs`** covers `src/ui/drain.js` handlers in Node with spy stubs (no jsdom — `createDrain` is fully dependency-injected). Editing `src/ui/drain.js` or `src/ui/presentation-owners.js` makes `test:fast`/`test:watch` run it first (~40ms) before the heavier Playwright specs. New drain event handlers should add a case here.
 - **Playwright** (`test/e2e/`) is separate from `npm test` and requires Chromium (`npx playwright install chromium` once if launch fails). It reuses the dev server on port 5174. Spec: `docs/superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md` §3.
 - **The complete Playwright gate is partitioned into five lanes.** `npm run test:e2e` runs the disk-writing battlefield-editor case, random-agent coverage, the duration-balanced nonvisual pool, serial-heavy `@serial` coverage, then the complete visual suite. In CI the pool fans out as `e2e pool k/N` matrix shards bin-packed by `tools/e2e-shard.mjs` from measured durations in `tools/e2e-shard-timings.json` (refresh with `--record <playwright-json-report>`; resize by editing the one matrix list in `ci.yml` — never hand-peel suites). Baseline refresh uses one worker; visual, update, random-agent, serial-heavy, and performance lanes use `--no-deps`.
 - **`dist/` is untracked** — CI builds it on every code-relevant run and uploads a `dist-<sha>` artifact on pushes (14-day retention). Build locally with `npm run build` when you need it (e.g. Capacitor `webDir` before `cap sync`).

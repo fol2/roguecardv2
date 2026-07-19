@@ -22,6 +22,8 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /** Core engine / content owners — always pull the Node suite + battle/stage. */
 export const ENGINE_CORE_RE = /^(?:src\/(?:engine|data|content|registry|content-registration|vigil)\.js|src\/packs(?:\/|$))/;
 
+export const DRAIN_PLAYBACK_RE = /^src\/ui\/(?:drain|presentation-owners)\.js$/;
+
 /**
  * Curated module-prefix → e2e specs. Longest prefix wins.
  * Derived from src/ layout + test/e2e/*.spec.js headers (not guessed).
@@ -330,6 +332,7 @@ export function selectPlan(changedFiles, {
   let testCi = false;
   const specs = new Set();
   let fullSuiteFor = null;
+  let drainPlayback = false;
 
   const markFull = (file) => {
     if (!fullSuiteFor) fullSuiteFor = file;
@@ -372,6 +375,12 @@ export function selectPlan(changedFiles, {
       matched = true;
     }
 
+    // Drain playback tests — changed only
+    if (DRAIN_PLAYBACK_RE.test(file)) {
+      drainPlayback = true;
+      matched = true;
+    }
+
     // (d) nothing matched → full suite (never silently under-select)
     if (!matched) {
       markFull(file);
@@ -384,6 +393,7 @@ export function selectPlan(changedFiles, {
     return {
       npmTest: false,
       testCi: false,
+      drainPlayback: false,
       specs: [],
       fullSuiteFor: null,
       commands: [],
@@ -395,6 +405,7 @@ export function selectPlan(changedFiles, {
     return {
       npmTest: false,
       testCi: false,
+      drainPlayback: false,
       specs: [],
       fullSuiteFor,
       commands: [`FULL SUITE REQUIRED (${fullSuiteFor})`],
@@ -405,6 +416,7 @@ export function selectPlan(changedFiles, {
   const orderedSpecs = [...specs].sort();
   const commands = [];
   if (npmTest) commands.push('npm test');
+  if (drainPlayback) commands.push('node test/test_drain_playback.mjs');
   if (testCi) commands.push('npm run test:ci');
   if (orderedSpecs.length) {
     commands.push(
@@ -415,6 +427,7 @@ export function selectPlan(changedFiles, {
   return {
     npmTest,
     testCi,
+    drainPlayback,
     specs: orderedSpecs,
     fullSuiteFor: null,
     commands,
@@ -459,6 +472,12 @@ export function runPlan(plan, {
   if (plan.npmTest) {
     process.stdout.write('> npm test\n');
     const child = spawn('npm', ['test'], { cwd, env, shell: false, stdio: 'inherit' });
+    status = Math.max(status, Number.isInteger(child?.status) ? child.status : 1);
+    if (status !== 0) return status;
+  }
+  if (plan.drainPlayback) {
+    process.stdout.write('> node test/test_drain_playback.mjs\n');
+    const child = spawn('node', ['test/test_drain_playback.mjs'], { cwd, env, shell: false, stdio: 'inherit' });
     status = Math.max(status, Number.isInteger(child?.status) ? child.status : 1);
     if (status !== 0) return status;
   }
