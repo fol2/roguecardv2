@@ -24,6 +24,8 @@ export function isRound5StandingRef(refName = '') {
 
 export function resolveCiMode(eventName, draftValue, refName = '') {
   if (eventName === 'push') return 'full';
+  // Merge-queue runs are the final proof before main — always the full gate.
+  if (eventName === 'merge_group') return 'full';
   if (eventName === 'pull_request') {
     if (!truthy(draftValue)) return 'full';
     return isRound5StandingRef(refName) ? 'p2-base' : 'smoke';
