@@ -1394,19 +1394,22 @@ export async function createCombatRenderer({
       hudLayer.addChild(goldText);
     }
 
-    // Mid act label
+    // Mid act label — DOM seat is the source of truth: narrow shapes hide
+    // .hud-mid (act & floor live on the map title), so no seat = no paint.
     const midSeat = seatCenter(domRect('#hud .hud-mid'));
-    const mid = new Text({
-      text: `${String(hudState.actName || '').toUpperCase()}  ·  Act ${hudState.act ?? 1}  ·  Floor ${hudState.floor ?? 0}  ·  ${hudState.bossName || ''}`,
-      style: {
-        fontFamily: 'Cinzel', fontSize: 12, fontWeight: '600',
-        fill: 0xb8b4a8, letterSpacing: 1.5,
-      },
-    });
-    mid.anchor?.set?.(0.5, 0.5);
-    mid.x = snapStage(midSeat?.x ?? (barLeft + barWidth / 2), resolution);
-    mid.y = snapStage(midSeat?.y ?? (barTop + barH * 0.48), resolution);
-    hudLayer.addChild(mid);
+    if (midSeat) {
+      const mid = new Text({
+        text: `${String(hudState.actName || '').toUpperCase()}  ·  Act ${hudState.act ?? 1}  ·  Floor ${hudState.floor ?? 0}  ·  ${hudState.bossName || ''}`,
+        style: {
+          fontFamily: 'Cinzel', fontSize: 12, fontWeight: '600',
+          fill: 0xb8b4a8, letterSpacing: 1.5,
+        },
+      });
+      mid.anchor?.set?.(0.5, 0.5);
+      mid.x = snapStage(midSeat.x, resolution);
+      mid.y = snapStage(midSeat.y, resolution);
+      hudLayer.addChild(mid);
+    }
 
     // Deck + menu — paint into the same seats the hit proxies cover.
     const deckSeat = seatCenter(domRect('#hud [data-act="deck"]'));
