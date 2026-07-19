@@ -9,6 +9,7 @@ import {
 } from '../content-registration.js';
 import { STATIC_REFERENCE_CATALOGUES } from '../content-resources.js';
 import { esc, ensureDevStyle, renderShellRail, renderDevTopbar, mountRailDrawer, setDevTitle } from './chrome.js';
+import { installDevSoftNav } from './nav.js';
 import {
   EDITABLE_DOMAINS, CONTENT_SAVE_VERSION,
   DOMAIN_LOCALE_EXPORT, fieldOwnership, splitBySource, joinBySource,
@@ -128,9 +129,12 @@ export async function initContentManager() {
 
   ensureDevStyle();
   setDevTitle('Content Manager');
-  const style = document.createElement('style');
-  style.textContent = MANAGER_STYLE;
-  document.head.appendChild(style);
+  if (!document.getElementById('dev-manager-style')) {
+    const style = document.createElement('style');
+    style.id = 'dev-manager-style';
+    style.textContent = MANAGER_STYLE;
+    document.head.appendChild(style);
+  }
 
   const host = document.getElementById('stage') || document.body;
   const root = document.createElement('div');
@@ -331,6 +335,7 @@ export async function initContentManager() {
   }
 
   render();
+  installDevSoftNav('contentedit');
   window.__contentManager = {
     domain: () => state.domain,
     entryId: () => state.entryId,

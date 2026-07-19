@@ -20,6 +20,7 @@ const ROUTES = Object.freeze([
     group: 'Content',
     kind: 'shell',
     load: async () => (await import('./lab.js')).initLab,
+    // Not soft-nav safe: boots stage/UI and freezes durable localStorage keys.
   },
   {
     param: 'dashboard',

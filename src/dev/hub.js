@@ -3,6 +3,7 @@
 
 import { iconSvg } from '../art.js';
 import { esc, ensureDevStyle, renderShellRail, renderDevTopbar, mountRailDrawer, setDevTitle } from './chrome.js';
+import { installDevSoftNav } from './nav.js';
 import { ROUTES } from './routes.js';
 
 const GROUP_ORDER = Object.freeze(['Simulation', 'Editors', 'Content', 'Art & Audio']);
@@ -66,4 +67,5 @@ export async function initDevShell() {
 
   const drawer = mountRailDrawer('dev');
   root.querySelector('[data-dev-menu]').addEventListener('click', () => drawer.toggle());
+  installDevSoftNav('dev');
 }

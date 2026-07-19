@@ -363,6 +363,17 @@ export function setDevTitle(title) {
   document.title = title + ' · Glassvow Dev';
 }
 
+/** @type {{ wrap: HTMLElement | null, onKey: (e: KeyboardEvent) => void } | null} */
+let railDrawerState = null;
+
+/** Tear down the ☰ drawer and its capture-phase Escape listener (soft-nav safe). */
+export function unmountRailDrawer() {
+  if (!railDrawerState) return;
+  window.removeEventListener('keydown', railDrawerState.onKey, true);
+  railDrawerState.wrap?.remove();
+  railDrawerState = null;
+}
+
 /**
  * ☰ slide-over rail drawer for stage-centric tools (lab + editors). Floats over
  * the live stage; never shifts geometry. Lazily mounts on first toggle so
@@ -370,12 +381,20 @@ export function setDevTitle(title) {
  * Capture-phase Esc closes the drawer before a tool's own Escape handler
  * (e.g. deselect) fires. The rail's data-dev-home marker is stripped so each
  * tool keeps exactly one such link.
+ * Remount replaces any prior drawer (no stacked Escape listeners on soft-nav).
  * @param {string} param active route param, e.g. 'lab'
  * @returns {{ toggle: () => void, close: () => void }}
  */
 export function mountRailDrawer(param) {
   ensureDevStyle();
+  unmountRailDrawer();
   let wrap = null;
+  const close = () => wrap?.classList.remove('is-open');
+  const onKey = (e) => {
+    if (e.key === 'Escape' && wrap?.classList.contains('is-open')) { e.stopImmediatePropagation(); close(); }
+  };
+  window.addEventListener('keydown', onKey, true);
+  railDrawerState = { wrap: null, onKey };
   const ensure = () => {
     if (wrap) return wrap;
     wrap = document.createElement('div');
@@ -386,12 +405,9 @@ export function mountRailDrawer(param) {
     wrap.innerHTML = `<div class="dev-drawer-backdrop"></div><div class="dev-drawer-rail">${rail}</div>`;
     document.body.appendChild(wrap);
     wrap.querySelector('.dev-drawer-backdrop').addEventListener('click', close);
+    railDrawerState = { wrap, onKey };
     return wrap;
   };
-  const close = () => wrap?.classList.remove('is-open');
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && wrap?.classList.contains('is-open')) { e.stopImmediatePropagation(); close(); }
-  }, true);
   return {
     toggle: () => { ensure().classList.toggle('is-open'); },
     close,

@@ -10,6 +10,7 @@ import {
 import { STATIC_REFERENCE_CATALOGUES } from '../content-resources.js';
 import { CONTENT_SCHEMAS, formatContentReport, MERGE_POLICIES } from '../registry.js';
 import { esc, ensureDevStyle, renderShellRail, renderDevTopbar, mountRailDrawer, setDevTitle } from './chrome.js';
+import { installDevSoftNav } from './nav.js';
 
 const ASSET_MODULES = import.meta.glob(
   ['../assets/*/*.{png,jpg,jpeg,webp}'],
@@ -181,9 +182,12 @@ export async function initDoctor() {
 
   ensureDevStyle();
   setDevTitle('Content doctor');
-  const style = document.createElement('style');
-  style.textContent = DOCTOR_STYLE;
-  document.head.appendChild(style);
+  if (!document.getElementById('dev-doctor-style')) {
+    const style = document.createElement('style');
+    style.id = 'dev-doctor-style';
+    style.textContent = DOCTOR_STYLE;
+    document.head.appendChild(style);
+  }
 
   const host = document.getElementById('stage') || document.body;
   const root = document.createElement('div');
@@ -220,4 +224,5 @@ export async function initDoctor() {
 
   const drawer = mountRailDrawer('dashboard');
   root.querySelector('[data-dev-menu]').addEventListener('click', () => drawer.toggle());
+  installDevSoftNav('dashboard');
 }

@@ -94,6 +94,32 @@ test.describe('developer tools', () => {
     expect(await page.evaluate(() => !!window.spirebound)).toBe(false);
   });
 
+  test('soft-nav swaps hub ↔ doctor ↔ manager without document reload', async ({ page }) => {
+    await page.goto('/?dev=1');
+    await page.waitForSelector('[data-dev-shell]');
+    await page.evaluate(() => { window.__navProbe = { t: Date.now() }; });
+
+    await page.locator('.dev-shell > .dev-rail a.dev-nav-item[href="?dashboard=1"]').click();
+    await page.waitForSelector('[data-content-doctor]');
+    expect(page.url()).toContain('dashboard=1');
+    expect(await page.evaluate(() => window.__navProbe?.t)).toBeTruthy();
+
+    await page.locator('.dev-shell > .dev-rail a.dev-nav-item[href="?contentedit=1"]').click();
+    await page.waitForSelector('[data-content-manager]');
+    expect(page.url()).toContain('contentedit=1');
+    expect(await page.evaluate(() => window.__navProbe?.t)).toBeTruthy();
+
+    await page.locator('.dev-shell > .dev-rail a.dev-nav-item[href="?dev=1"]').click();
+    await page.waitForSelector('[data-dev-shell]');
+    expect(page.url()).toMatch(/[?&]dev=1/);
+    expect(await page.evaluate(() => window.__navProbe?.t)).toBeTruthy();
+
+    // Hard-nav tool still does a real load (probe dies).
+    await page.locator('.dev-shell > .dev-rail a.dev-nav-item[href="?lab=1"]').click();
+    await page.waitForSelector('[data-lab-root]');
+    expect(await page.evaluate(() => window.__navProbe?.t)).toBeFalsy();
+  });
+
   test('vfxedit boots editor chrome and skips normal game boot', async ({ page }) => {
     await page.goto('/?vfxedit=1');
     await page.waitForSelector('[data-vfxedit-root]');
