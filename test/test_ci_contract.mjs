@@ -340,13 +340,20 @@ assert.equal(
   pkg.scripts['test:e2e:webkit-core'],
   'npm run test:e2e:webkit-core-iphone && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-core-ipad',
 );
+// core runs three bounded invocations per device (stage, trace 1/2, trace
+// 2/2): one WebKit browser instance across the whole stage+trace run kept
+// accumulating enough memory pressure to crash or hang late navigations.
 assert.equal(
   pkg.scripts['test:e2e:webkit-core-iphone'],
-  'playwright test stage trace --project=iphone-webkit --workers=1 --no-deps',
+  'playwright test stage --project=iphone-webkit --workers=1 --no-deps && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=iphone-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=iphone-webkit --shard=2/2',
 );
 assert.equal(
   pkg.scripts['test:e2e:webkit-core-ipad'],
-  'playwright test stage trace --project=ipad-webkit --workers=1 --no-deps',
+  'playwright test stage --project=ipad-webkit --workers=1 --no-deps && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=ipad-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=ipad-webkit --shard=2/2',
+);
+assert.equal(
+  pkg.scripts['test:e2e:webkit-trace'],
+  'playwright test trace --workers=1 --no-deps',
 );
 assert.equal(
   pkg.scripts['test:e2e:webkit-lab'],
