@@ -7,6 +7,7 @@
     "dev": "vite",
     "test:ci": "node test/test_ci_contract.mjs && npm run test:boundaries && node test/test_baseline_tools.mjs && node test/test_affected_specs.mjs",
     "test:fast": "node tools/affected-specs.mjs --run",
+    "test:watch": "node tools/affected-specs.mjs --run --watch",
     "test:boundaries": "node test/test_module_boundaries.mjs",
     "build": "vite build",
     "release": "node tools/release.mjs",

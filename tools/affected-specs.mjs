@@ -3,14 +3,17 @@
 // so e2e selection uses a curated touchpoint map (CHANGED files only) plus a
 // static import-graph reverse closure over src/**/*.js (rule (b) cores only).
 //
-//   node tools/affected-specs.mjs [--base <ref>] [--list] [--run]
+//   node tools/affected-specs.mjs [--base <ref>] [--list] [--run] [--watch]
 //
 // Default base: origin/main. --list prints one command per line; --run executes
 // the plan (npm test first if selected, then one desktop Playwright invocation).
-// Unmapped or out-of-scope files print FULL SUITE REQUIRED and --run exits 2.
+// --watch (with --run) fs.watch()s src/ + test/, debounces ~300ms, and re-runs
+// the plan for each burst (plain `npm test` when the engine rule fires).
+// --watch and --list are mutually exclusive. Unmapped or out-of-scope files
+// print FULL SUITE REQUIRED and --run exits 2.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, watch } from 'node:fs';
 import { dirname, join, normalize, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -474,10 +477,109 @@ export function runPlan(plan, {
   return status;
 }
 
+const WATCH_IGNORE_RE = /(?:^|\/)(?:test-results|dist|node_modules|\.git)(?:\/|$)/;
+const WATCH_DEBOUNCE_MS = 300;
+
+/** True when a watch event path should be ignored. */
+export function isWatchIgnored(relPath) {
+  return WATCH_IGNORE_RE.test(toPosix(relPath));
+}
+
+/**
+ * Continuous loop: watch src/ + test/, debounce bursts, select+run plan.
+ * Returns a handle with close() for tests; CLI keeps the process alive.
+ */
+export function startWatch({
+  cwd = REPO_ROOT,
+  debounceMs = WATCH_DEBOUNCE_MS,
+  onCycle = null,
+  spawn = spawnSync,
+  env = process.env,
+  watchFn = watch,
+} = {}) {
+  let timer = null;
+  let pending = new Set();
+  let running = false;
+  let queued = null;
+  const watchers = [];
+
+  const summarise = (files, plan, ms, status) => {
+    const n = files.length;
+    const label = plan.fullSuiteFor
+      ? `FULL SUITE (${plan.fullSuiteFor})`
+      : (plan.commands.length ? plan.commands.join(' && ') : 'nothing');
+    return `watch: ${n} file${n === 1 ? '' : 's'} → ${label} (${(ms / 1000).toFixed(1)}s, exit ${status})`;
+  };
+
+  const runBurst = (files) => {
+    const sorted = [...files].sort();
+    const plan = selectPlan(sorted, { root: cwd });
+    const t0 = Date.now();
+    const status = runPlan(plan, { cwd, spawn, env });
+    const ms = Date.now() - t0;
+    const line = summarise(sorted, plan, ms, status);
+    process.stdout.write(`${line}\n`);
+    if (onCycle) onCycle({ files: sorted, plan, ms, status, line });
+    return status;
+  };
+
+  const flush = () => {
+    timer = null;
+    const files = pending;
+    pending = new Set();
+    if (!files.size) return;
+    if (running) {
+      queued = new Set([...(queued || []), ...files]);
+      return;
+    }
+    running = true;
+    try {
+      runBurst(files);
+    } finally {
+      running = false;
+      if (queued?.size) {
+        pending = new Set([...pending, ...queued]);
+        queued = null;
+        timer = setTimeout(flush, debounceMs);
+      }
+    }
+  };
+
+  const onEvent = (dirLabel, filename) => {
+    if (!filename) return;
+    const rel = toPosix(join(dirLabel, filename));
+    if (isWatchIgnored(rel)) return;
+    if (!rel.startsWith('src/') && !rel.startsWith('test/')) return;
+    pending.add(rel);
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(flush, debounceMs);
+  };
+
+  for (const dir of ['src', 'test']) {
+    const abs = join(cwd, dir);
+    if (!existsSync(abs)) continue;
+    watchers.push(watchFn(abs, { recursive: true }, (_event, filename) => {
+      onEvent(dir, filename == null ? '' : String(filename));
+    }));
+  }
+
+  process.stdout.write(`watching src/ + test/ (debounce ${debounceMs}ms); Ctrl-C to exit\n`);
+
+  return {
+    close() {
+      if (timer) clearTimeout(timer);
+      for (const w of watchers) {
+        try { w.close(); } catch { /* ignore */ }
+      }
+    },
+  };
+}
+
 function parseArgs(argv) {
   let base = 'origin/main';
   let list = false;
   let run = false;
+  let watchMode = false;
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--base') {
@@ -485,17 +587,28 @@ function parseArgs(argv) {
       if (!base) throw new Error('--base requires a ref');
     } else if (a === '--list') list = true;
     else if (a === '--run') run = true;
+    else if (a === '--watch') watchMode = true;
     else if (a === '--help' || a === '-h') {
-      throw new Error('Usage: node tools/affected-specs.mjs [--base <ref>] [--list] [--run]');
+      throw new Error('Usage: node tools/affected-specs.mjs [--base <ref>] [--list | --run [--watch]]');
     } else {
-      throw new Error(`Unknown arg ${a}\nUsage: node tools/affected-specs.mjs [--base <ref>] [--list] [--run]`);
+      throw new Error(`Unknown arg ${a}\nUsage: node tools/affected-specs.mjs [--base <ref>] [--list | --run [--watch]]`);
     }
   }
-  return { base, list, run };
+  if (watchMode && list) {
+    throw new Error('--watch and --list are mutually exclusive');
+  }
+  if (watchMode && !run) {
+    throw new Error('--watch requires --run');
+  }
+  return { base, list, run, watchMode };
 }
 
 function runCli(argv = process.argv.slice(2)) {
-  const { base, list, run } = parseArgs(argv);
+  const { base, list, run, watchMode } = parseArgs(argv);
+  if (watchMode) {
+    startWatch();
+    return;
+  }
   const changed = collectChangedFiles({ base });
   const plan = selectPlan(changed);
   if (run) {

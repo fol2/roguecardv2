@@ -8,6 +8,7 @@ import {
   impactSet,
   matchTouchpoints,
   selectPlan,
+  isWatchIgnored,
 } from '../tools/affected-specs.mjs';
 
 function fakeGraph(edges) {
@@ -206,6 +207,19 @@ function fakeGraph(edges) {
   const cards = selectPlan(['src/packs/core/cards.js'], { graph: g });
   assert.equal(cards.npmTest, true, 'packs hit must set npmTest via rule (b)');
   assert.ok(cards.specs.includes('test/e2e/battle.spec.js'), 'packs hit must include battle via rule (b)');
+}
+
+{
+  // Watch mode: ignore noise dirs; engine hits keep plain npm test
+  const g = fakeGraph({ 'src/engine.js': [] });
+  const watched = selectPlan(['src/engine.js'], { graph: g });
+  assert.equal(watched.npmTest, true);
+  assert.equal(watched.commands[0], 'npm test');
+  assert.equal(isWatchIgnored('test-results/foo'), true);
+  assert.equal(isWatchIgnored('dist/index.js'), true);
+  assert.equal(isWatchIgnored('node_modules/x'), true);
+  assert.equal(isWatchIgnored('.git/HEAD'), true);
+  assert.equal(isWatchIgnored('src/engine.js'), false);
 }
 
 console.log('test_affected_specs: ok');
