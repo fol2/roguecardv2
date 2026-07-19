@@ -39,6 +39,45 @@
   opacity: 1 !important;
 }
 
+/* Focal scrim — elegance through restraint. The three stained-glass plates
+   compose into edge-to-edge noise (corner shard clusters, a band of hanging
+   lanterns across the top, lead-lines arcing the whole frame). This overlay
+   subtracts that clutter: kill the top band, sink the corners/sides, settle
+   the floor — so the eye reads wordmark -> menu -> cathedral silhouette and
+   the jewel glass survives as accent, not wallpaper. Sits above the parallax
+   (z-index 0, painted after it) and below the content stack (z-index 1). */
+#screen .r5-title::after,
+#screen .title-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    /* top band: extinguish the upper shard clusters + hanging lanterns */
+    linear-gradient(to bottom,
+      rgba(6, 8, 16, 0.82) 0%,
+      rgba(6, 8, 16, 0.42) 14%,
+      rgba(6, 8, 16, 0) 32%),
+    /* floor: settle the ground so the cathedral reads as a silhouette anchor */
+    linear-gradient(to top,
+      rgba(6, 8, 16, 0.5) 0%,
+      rgba(6, 8, 16, 0) 24%),
+    /* vignette pool: clear centre, sink the flanking shards + corners */
+    radial-gradient(118% 104% at 50% 40%,
+      rgba(6, 8, 16, 0) 30%,
+      rgba(6, 8, 16, 0.34) 60%,
+      rgba(5, 6, 12, 0.7) 100%);
+}
+
+/* REDUCED / LITE keep the scrim (it is static paint, no motion) but soften it
+   a touch so low-contrast tiers don't crush the art into mud. */
+#screen .r5-title[data-tier="lite"]::after,
+#screen .r5-title[data-tier="reduced"]::after,
+#screen .r5-title[data-motion="reduced"]::after {
+  opacity: 0.86;
+}
+
 /* No-parallax fallback: banner itself is full-bleed cover (not golden inset). */
 #screen .r5-title .title-banner,
 #screen .title-screen .title-banner {
