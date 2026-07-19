@@ -36,7 +36,7 @@ npm run test:e2e:perf     # performance reference; warns on target misses
 - **Tests are a single self-check script**, not a framework. `npm test` runs the whole of `test/test_engine.js` (plain `node`, `node:assert`). There is no test runner or `-t` filter — to run a subset, comment out blocks in that file. Any assertion failure exits non-zero.
 - **Playwright** (`test/e2e/`) is separate from `npm test` and requires Chromium (`npx playwright install chromium` once if launch fails). It reuses the dev server on port 5174. Spec: `docs/superpowers/specs/2026-07-06-visualisation-hardening-polish-design.md` §3.
 - **The complete Playwright gate is partitioned into five lanes.** `npm run test:e2e` runs the disk-writing battlefield-editor case, random-agent coverage, the duration-balanced nonvisual pool, serial-heavy `@serial` coverage, then the complete visual suite. In CI the pool fans out as `e2e pool k/N` matrix shards bin-packed by `tools/e2e-shard.mjs` from measured durations in `tools/e2e-shard-timings.json` (refresh with `--record <playwright-json-report>`; resize by editing the one matrix list in `ci.yml` — never hand-peel suites). Baseline refresh uses one worker; visual, update, random-agent, serial-heavy, and performance lanes use `--no-deps`.
-- **`dist/` is committed** and rebuilt into the repo, so `npm run build` produces large diffs — that is expected here, not a mistake.
+- **`dist/` is untracked** — CI builds it on every code-relevant run and uploads a `dist-<sha>` artifact on pushes (14-day retention). Build locally with `npm run build` when you need it (e.g. Capacitor `webDir` before `cap sync`).
 - **CI:** `.github/workflows/ci.yml` runs unit/build checks and browser smoke in parallel for Draft PRs. Ready PRs and pushes to `main` run the complete parallel Playwright gate; the stable aggregate check names are `unit` and `e2e`. `perf.yml` records nightly/manual performance reference metrics without gating the target budget but fails if no valid measurement is produced; `update-baselines.yml` (manual dispatch) regenerates only linux visual baselines as an artifact.
 
 ## Cursor Cloud specific instructions
@@ -127,7 +127,7 @@ Promotion workflow: `docs/generated-art-workflow.md`.
 
 ## Git
 
-`dist/` is tracked and regenerated (expect big diffs). Do not commit unless explicitly asked.
+`dist/` is gitignored; CI builds it and uploads a push artifact. Locally: `npm run build` (needed for Capacitor). Do not commit unless explicitly asked.
 
 ## Documentation
 

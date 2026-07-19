@@ -23,6 +23,9 @@ test.beforeEach(({}, testInfo) => {
 
 const MAP_SETTLE_QUIET_MS = 800;
 const MAP_SETTLE_QUIET_FRAMES = 20;
+// On software-rendered CI runners rAF can drop to ~1.5fps, so 20 quiet frames
+// alone costs 13s+; 5s of unchanged DOM is settle regardless of frame rate.
+const MAP_SETTLE_QUIET_FALLBACK_MS = 5_000;
 const MAP_SETTLE_TIMEOUT_MS = 90_000;
 
 /** Wait for the map dolly's roll-invariant distance/focus signal to settle. */
@@ -40,7 +43,7 @@ async function showMapAndWaitSettled(page) {
     window.spirebound.show('map');
   });
   try {
-    await page.waitForFunction(({ quietMs, quietFrames }) => {
+    await page.waitForFunction(({ quietMs, quietFrames, quietFallbackMs }) => {
       const nodes = [...document.querySelectorAll('.mnode')];
       const edges = [...document.querySelectorAll('.medge')];
       const values = nodes.map((node) => {
@@ -71,12 +74,14 @@ async function showMapAndWaitSettled(page) {
         return false;
       }
       state.quietFrames += 1;
+      const quietAge = now - state.quietSince;
       return state.moved
-        && state.quietFrames >= quietFrames
-        && now - state.quietSince >= quietMs;
+        && quietAge >= quietMs
+        && (state.quietFrames >= quietFrames || quietAge >= quietFallbackMs);
     }, {
       quietMs: MAP_SETTLE_QUIET_MS,
       quietFrames: MAP_SETTLE_QUIET_FRAMES,
+      quietFallbackMs: MAP_SETTLE_QUIET_FALLBACK_MS,
     }, { polling: 'raf', timeout: MAP_SETTLE_TIMEOUT_MS });
   } catch (error) {
     const diagnostic = await page.evaluate(() => {

@@ -166,7 +166,8 @@ export function runBucket(shard, { spawn = spawnSync, env = process.env, plan } 
     ];
     const runEnv = poolEnv(env);
     // A bucket runs several invocations; each needs its own JSON report file
-    // or later invocations would overwrite earlier ones.
+    // and outputDir, or later invocations would overwrite/wipe earlier ones.
+    runEnv.PLAYWRIGHT_OUTPUT_DIR = `test-results/pool-inv-${invocationIndex}`;
     if (runEnv.PLAYWRIGHT_JSON_OUTPUT_NAME) {
       runEnv.PLAYWRIGHT_JSON_OUTPUT_NAME = runEnv.PLAYWRIGHT_JSON_OUTPUT_NAME
         .replace(/(\.json)?$/, `-${invocationIndex}.json`);

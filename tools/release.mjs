@@ -61,7 +61,7 @@ console.log(`
 Release build ready: ${before} → ${after}
 
 Suggested next steps (not run automatically):
-  git add package.json package-lock.json dist src
+  git add package.json package-lock.json src
   git commit -m "release: v${after}"
   git tag v${after}
   git push && git push origin v${after}
