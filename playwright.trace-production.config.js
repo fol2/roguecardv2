@@ -15,6 +15,8 @@ export default defineConfig({
   retries: 0,
   timeout: 90_000,
   reporter: [['list']],
+  // Same per-invocation isolation as the main config (see its outputDir note).
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR || 'test-results',
   use: { baseURL: server.origin },
   projects: [{ name: 'production', use: { viewport: { width: 1280, height: 720 } } }],
   webServer: {

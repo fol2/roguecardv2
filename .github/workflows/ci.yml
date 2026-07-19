@@ -234,13 +234,19 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-playwright
       - run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:disk
+        env:
+          PLAYWRIGHT_OUTPUT_DIR: test-results/aux-disk
       - name: Verify e2e restored the checkout
         if: always()
         run: test -z "$(git status --porcelain --untracked-files=all)"
       - run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:trace-production
         if: ${{ !cancelled() }}
+        env:
+          PLAYWRIGHT_OUTPUT_DIR: test-results/aux-trace-production
       - run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:serial
         if: ${{ !cancelled() }}
+        env:
+          PLAYWRIGHT_OUTPUT_DIR: test-results/aux-serial
       - name: Verify clean checkout
         if: always()
         run: test -z "$(git status --porcelain --untracked-files=all)"

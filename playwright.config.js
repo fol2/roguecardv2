@@ -35,6 +35,10 @@ export default defineConfig({
   // json feeds tools/e2e-shard.mjs --record (shard rebalancing); it only
   // engages when PLAYWRIGHT_JSON_OUTPUT_NAME points it at a file.
   reporter: process.env.PLAYWRIGHT_JSON_OUTPUT_NAME ? [['list'], ['json']] : [['list']],
+  // Playwright clears outputDir at the start of every invocation; CI jobs that
+  // chain several invocations point each at its own subdir so a later run
+  // cannot wipe an earlier failure's screenshots before artifact upload.
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR || 'test-results',
   use: {
     baseURL: e2eServer.origin,
     // tracing chokes on the WebGL-heavy page (corrupt zips + teardown hangs);
