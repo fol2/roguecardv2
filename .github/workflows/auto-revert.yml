@@ -73,7 +73,24 @@ jobs:
             exit 0
           fi
 
-          git push origin "HEAD:refs/heads/${BRANCH}"
+          # GITHUB_TOKEN cannot push commits that touch .github/workflows
+          # (no `workflows` permission) — fall back to an issue for those.
+          if ! git push origin "HEAD:refs/heads/${BRANCH}"; then
+            gh issue create \
+              --repo "$REPO" \
+              --title "main CI red at ${SHORT_SHA} — manual revert needed (push rejected)" \
+              --body "$(cat <<EOF
+          The \`ci\` workflow failed on main at \`${FAILED_SHA}\`.
+
+          Failed run: ${FAILED_RUN_URL}
+
+          The automatic revert could not be pushed (likely because the revert
+          touches \`.github/workflows/\`, which \`GITHUB_TOKEN\` may not modify).
+          Please revert manually.
+          EOF
+          )"
+            exit 0
+          fi
 
           gh pr create \
             --repo "$REPO" \
