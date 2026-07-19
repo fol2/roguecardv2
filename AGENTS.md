@@ -132,6 +132,8 @@ Promotion workflow: `docs/generated-art-workflow.md`.
 
 `dist/` is gitignored; CI builds it and uploads a push artifact. Locally: `npm run build` (needed for Capacitor). Do not commit unless explicitly asked.
 
+**Trunk flow (default since 2026-07-19).** Verification is local-first: keep `npm run test:watch` running while editing, gate a push on `npm run test:fast` + `npm run test:ci`, then push `main` directly — branch protection permits admin pushes, and the full browser matrix runs post-merge (a red main auto-opens a revert PR via `auto-revert.yml`, so a brief red main is a handled event, not an emergency). Open a PR only when the change wants review or pre-merge proof: the PR smoke gate takes ~5 minutes, and the `ci-full` label buys the complete matrix before merge.
+
 ## Documentation
 
 `docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`); relevant when implementing or debugging in documented areas. `CONCEPTS.md` (repo root) — shared domain vocabulary; relevant when orienting to the codebase or discussing domain concepts.
