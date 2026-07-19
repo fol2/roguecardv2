@@ -186,7 +186,13 @@ export function mergeRecordedTimings(existing, tests) {
     sums.set(key, (sums.get(key) ?? 0) + test.durationMs / 1000);
   }
   const merged = { ...existing };
-  for (const [key, secs] of sums) merged[key] = Math.round(secs * 10) / 10;
+  for (const [key, secs] of sums) {
+    // A unit whose tests all skipped on this project sums to ~0ms; keep the
+    // prior weight rather than writing a 0 the plan (and its contract test)
+    // would reject.
+    const rounded = Math.round(secs * 10) / 10;
+    if (rounded > 0) merged[key] = rounded;
+  }
   return Object.fromEntries(Object.entries(merged).sort(([a], [b]) => a.localeCompare(b)));
 }
 
