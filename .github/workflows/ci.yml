@@ -308,24 +308,31 @@ jobs:
           if-no-files-found: ignore
 
   e2e_webkit:
-    name: e2e webkit
+    # Split along the three npm-script segments so a WebKit process crash
+    # (memory pressure over a long --workers=1 run) reruns one ~6-minute
+    # shard instead of the whole serial lane.
+    name: e2e webkit ${{ matrix.segment }}
     needs: changes
     if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.mode == 'full'
+    strategy:
+      fail-fast: false
+      matrix:
+        segment: [core, lab, screens]
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-playwright
-      - run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit
+      - run: node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-${{ matrix.segment }}
       - name: Verify clean checkout
         if: always()
         run: test -z "$(git status --porcelain --untracked-files=all)"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
-          name: playwright-webkit-${{ github.run_id }}
+          name: playwright-webkit-${{ matrix.segment }}-${{ github.run_id }}
           path: test-results/
           retention-days: 14
           if-no-files-found: ignore
