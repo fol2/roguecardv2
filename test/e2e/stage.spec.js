@@ -736,7 +736,9 @@ test('Begin Anew on Embark confirms before abandoning a saved climb', async ({ p
   });
   await page.reload();
   await page.waitForFunction(() => window.spirebound && window.__probe);
-  await expect(page.locator('[data-a="continue"]')).toHaveCount(1);
+  // Post-reload title boot (three.js scene init) outlives the default 5s
+  // expect budget on a loaded CI runner before the buttons render.
+  await expect(page.locator('[data-a="continue"]')).toHaveCount(1, { timeout: 15_000 });
   await expect(page.locator('[data-a="embark"]')).toHaveText('Begin the Climb');
   await page.click('[data-a="embark"]');
   await expect(page.locator('.embark-screen [data-a="begin"]')).toHaveText('Begin Anew');

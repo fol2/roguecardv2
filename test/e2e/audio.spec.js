@@ -257,10 +257,13 @@ async function waitForAudioResult(page, result) {
 }
 
 async function waitForMusicOwner(page, id, afterSeq) {
+  // 45s: locally this resolves in <2s, but two WebGL-heavy workers on a
+  // loaded CI runner starve the page enough to blow a 20s budget. The poll
+  // returns the moment the record lands, so the headroom is free on pass.
   await expect.poll(() => page.evaluate(({ cueId, after }) => window.__probe.behaviourTrace().records
     .some((record) => record.seq > after && record.eventName === 'audio.music-request' &&
       record.attributes?.id === cueId && record.attributes?.mode === 'active'),
-  { cueId: id, after: afterSeq }), { timeout: 20_000 }).toBe(true);
+  { cueId: id, after: afterSeq }), { timeout: 45_000 }).toBe(true);
 }
 
 test('audio unlock observes fulfilled state and rejection instead of optimistic playback', async ({ page }) => {
