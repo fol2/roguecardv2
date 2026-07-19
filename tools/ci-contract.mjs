@@ -22,13 +22,29 @@ export function isRound5StandingRef(refName = '') {
   return name.startsWith('jamesto/round5-') || name.startsWith('cursor/round5-');
 }
 
-export function resolveCiMode(eventName, draftValue, refName = '') {
+/** Comma-separated PR label names from `PR_LABELS` (ci.yml join expression). */
+export function parsePrLabels(labelsValue = '') {
+  return new Set(
+    String(labelsValue)
+      .split(',')
+      .map((label) => label.trim())
+      .filter(Boolean),
+  );
+}
+
+export function resolveCiMode(eventName, draftValue, refName = '', labelsValue = '') {
   if (eventName === 'push') return 'full';
   // Merge-queue runs are the final proof before main — always the full gate.
   if (eventName === 'merge_group') return 'full';
   if (eventName === 'pull_request') {
-    if (!truthy(draftValue)) return 'full';
-    return isRound5StandingRef(refName) ? 'p2-base' : 'smoke';
+    // Draft and Ready PRs share the smoke gate by default. Escape hatches
+    // (priority order): `ci-full` label → full; round5 standing refs → p2-base.
+    // draftValue is unused for mode but kept so the CLI env stays stable.
+    void draftValue;
+    const labels = parsePrLabels(labelsValue);
+    if (labels.has('ci-full')) return 'full';
+    if (isRound5StandingRef(refName)) return 'p2-base';
+    return 'smoke';
   }
   throw new Error(`Unsupported CI event: ${eventName}`);
 }
@@ -67,6 +83,7 @@ function runCli() {
       process.env.GITHUB_EVENT_NAME,
       process.env.PR_DRAFT,
       process.env.CI_REF_NAME || process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || '',
+      process.env.PR_LABELS || '',
     );
     if (!process.env.GITHUB_OUTPUT) throw new Error('GITHUB_OUTPUT is required');
     appendFileSync(process.env.GITHUB_OUTPUT, `mode=${mode}\n`);

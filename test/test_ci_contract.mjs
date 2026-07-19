@@ -33,10 +33,18 @@ assert.equal(resolveCiMode('push', '', 'main'), 'full');
 assert.equal(resolveCiMode('pull_request', true), 'smoke');
 assert.equal(resolveCiMode('pull_request', true, 'feature/x'), 'smoke');
 assert.equal(resolveCiMode('pull_request', 'true'), 'smoke');
+assert.equal(resolveCiMode('pull_request', false), 'smoke',
+  'Ready PRs default to smoke — full matrix runs post-merge on main');
+assert.equal(resolveCiMode('pull_request', 'false'), 'smoke');
+assert.equal(resolveCiMode('pull_request', false, 'feature/x'), 'smoke');
 assert.equal(resolveCiMode('pull_request', true, 'jamesto/round5-production-engineering-continuation'), 'p2-base');
-assert.equal(resolveCiMode('pull_request', false, 'jamesto/round5-x'), 'full');
-assert.equal(resolveCiMode('pull_request', false), 'full');
-assert.equal(resolveCiMode('pull_request', 'false'), 'full');
+assert.equal(resolveCiMode('pull_request', false, 'jamesto/round5-x'), 'p2-base',
+  'round5 standing refs keep p2-base whether draft or Ready');
+assert.equal(resolveCiMode('pull_request', false, 'feature/x', 'ci-full'), 'full');
+assert.equal(resolveCiMode('pull_request', true, 'feature/x', 'needs-review,ci-full'), 'full');
+assert.equal(resolveCiMode('pull_request', false, 'jamesto/round5-x', 'ci-full'), 'full',
+  'ci-full outranks round5 standing refs');
+assert.equal(resolveCiMode('pull_request', false, 'feature/x', 'other-label'), 'smoke');
 assert.throws(() => resolveCiMode('workflow_dispatch', false), /Unsupported CI event/);
 
 assert.deepEqual(FULL_E2E_LANES, [
@@ -228,6 +236,12 @@ assert.deepEqual(POOL_PROJECTS, ['desktop', 'portrait', 'landscape']);
 
 const workflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 assert.match(workflow, /CI_REF_NAME: \$\{\{ github\.head_ref \|\| github\.ref_name \}\}/);
+assert.match(workflow, /PR_LABELS: \$\{\{ join\(github\.event\.pull_request\.labels\.\*\.name, ','\) \}\}/);
+assert.match(
+  workflow,
+  /types: \[opened, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled\]/,
+  'labeled/unlabeled must re-run CI when ci-full is toggled',
+);
 assert.match(workflow, /name: p2-base/);
 assert.match(workflow, /p2-base:[\s\S]*?if: always\(\) && \(needs\.changes\.outputs\.mode == 'full' \|\| needs\.changes\.outputs\.mode == 'p2-base'\)/);
 assert.match(workflow, /name: e2e nonvisual/);
@@ -516,8 +530,24 @@ const agents = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
 assert.match(agents, /test:e2e:perf\s+# performance reference; warns on target misses/);
 assert.match(agents, /disk-writing[\s\S]*random-agent[\s\S]*pool[\s\S]*serial-heavy[\s\S]*visual/);
 assert.match(agents, /e2e-shard\.mjs/);
-assert.match(agents, /browser smoke[\s\S]*Draft PRs/);
-assert.match(agents, /Ready PRs[\s\S]*complete parallel Playwright gate/);
+assert.match(agents, /smoke gate[\s\S]*Draft and Ready PRs/);
+assert.match(agents, /label `ci-full` opts a PR into the complete matrix/);
+assert.match(agents, /Pushes to `main` run the complete gate/);
+assert.match(agents, /auto-revert\.yml/);
 assert.match(agents, /stable aggregate check names are `unit` and `e2e`/);
+
+const autoRevert = readFileSync(
+  new URL('../.github/workflows/auto-revert.yml', import.meta.url),
+  'utf8',
+);
+assert.match(autoRevert, /name: auto-revert/);
+assert.match(
+  autoRevert,
+  /if: github\.event\.workflow_run\.conclusion == 'failure' && github\.event\.workflow_run\.event == 'push'/,
+);
+assert.match(autoRevert, /workflows: \["ci"\]/);
+assert.match(autoRevert, /FAILED_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
+assert.match(autoRevert, /actions\/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0/);
+assert.match(autoRevert, /GITHUB_TOKEN do not trigger the ci/);
 
 console.log('ci contract checks passed');
