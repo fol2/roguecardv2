@@ -51,6 +51,11 @@ export default defineConfig({
     },
   },
   expect: {
+    // CI runners under load run 15-20x slower than local; the 5s default
+    // expect budget kept failing boot-paced assertions one call site at a
+    // time (stage:310, :739, :856 — same family three cycles running).
+    // Passing assertions return immediately, so the headroom is free.
+    timeout: process.env.CI ? 15_000 : 5_000,
     // Per-suite maxDiffPixelRatio lives in test/e2e/visual-policy.js and is
     // passed explicitly into each toHaveScreenshot call. Do not put a numeric
     // maxDiffPixelRatio here — test_engine scans for that regression.
