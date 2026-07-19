@@ -3,16 +3,16 @@
 
 import {
   CONTENT_REGISTRATION_MANIFEST as DEVELOPMENT_CONTENT_REGISTRATION_MANIFEST,
-} from '../../packs/compiled/development.js';
+} from '../packs/compiled/development.js';
 import {
   compileContentRegistrations, doctorContentRegistrations,
-} from '../../content-registration.js';
-import { STATIC_REFERENCE_CATALOGUES } from '../../content-resources.js';
-import { iconSvg } from '../../art.js';
+} from '../content-registration.js';
+import { STATIC_REFERENCE_CATALOGUES } from '../content-resources.js';
+import { iconSvg } from '../art.js';
 import {
   EDITABLE_DOMAINS, CONTENT_SAVE_VERSION,
   DOMAIN_LOCALE_EXPORT, fieldOwnership, splitBySource, joinBySource,
-} from '../../dev/content-serialize.js';
+} from './content-serialize.js';
 
 const MANAGER_STYLE = `
 [data-content-manager] {

@@ -23,7 +23,7 @@ const ROUTES = Object.freeze([
     group: 'Content',
     kind: 'shell',
     exportName: 'initLab',
-    load: () => import('../ui/dev/lab.js'),
+    load: () => import('./lab.js'),
   },
   {
     id: 'dashboard',
@@ -33,7 +33,7 @@ const ROUTES = Object.freeze([
     group: 'Content',
     kind: 'shell',
     exportName: 'initDoctor',
-    load: () => import('../ui/dev/doctor.js'),
+    load: () => import('./doctor.js'),
   },
   {
     id: 'contentedit',
@@ -43,7 +43,7 @@ const ROUTES = Object.freeze([
     group: 'Content',
     kind: 'shell',
     exportName: 'initContentManager',
-    load: () => import('../ui/dev/content-manager.js'),
+    load: () => import('./content-manager.js'),
   },
   {
     id: 'dev',
@@ -53,7 +53,7 @@ const ROUTES = Object.freeze([
     group: null, // Hub entry, not listed in hub itself
     kind: 'shell',
     exportName: 'initDevShell',
-    load: () => import('../ui/dev/shell.js'),
+    load: () => import('./hub.js'),
   },
   {
     id: 'charedit',

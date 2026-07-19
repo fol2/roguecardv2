@@ -3,16 +3,16 @@
 
 import {
   doctorContentRegistrations,
-} from '../../content-registration.js';
+} from '../content-registration.js';
 import {
   CONTENT_REGISTRATION_MANIFEST as DEVELOPMENT_CONTENT_REGISTRATION_MANIFEST,
-} from '../../packs/compiled/development.js';
-import { STATIC_REFERENCE_CATALOGUES } from '../../content-resources.js';
-import { CONTENT_SCHEMAS, formatContentReport, MERGE_POLICIES } from '../../registry.js';
-import { iconSvg } from '../../art.js';
+} from '../packs/compiled/development.js';
+import { STATIC_REFERENCE_CATALOGUES } from '../content-resources.js';
+import { CONTENT_SCHEMAS, formatContentReport, MERGE_POLICIES } from '../registry.js';
+import { iconSvg } from '../art.js';
 
 const ASSET_MODULES = import.meta.glob(
-  ['../../assets/*/*.{png,jpg,jpeg,webp}'],
+  ['../assets/*/*.{png,jpg,jpeg,webp}'],
   { eager: true, query: '?url', import: 'default' },
 );
 

@@ -6306,7 +6306,7 @@ function randomAgentRun(seed) {
     'perfect victory must not use DOM .perfect-banner');
 
   const replayPreviewSource = readFileSync(
-    new URL('../src/ui/dev/replay-preview.js', import.meta.url), 'utf8',
+    new URL('../src/dev/replay-preview.js', import.meta.url), 'utf8',
   );
   assert.match(replayPreviewSource, /createCombatPresentation/,
     'Lab replay uses the shared combat presentation factory');
@@ -9247,7 +9247,7 @@ export default defineContentRegistration({
 
 // ---- Task 19: content manager source contracts ----
 {
-  const managerPath = new URL('../src/ui/dev/content-manager.js', import.meta.url);
+  const managerPath = new URL('../src/dev/content-manager.js', import.meta.url);
   const managerSource = readFileSync(managerPath, 'utf8');
   assert.match(managerSource, /compileContentRegistrations/);
   assert.match(managerSource, /DEVELOPMENT_CONTENT_REGISTRATION_MANIFEST/);
@@ -9255,13 +9255,13 @@ export default defineContentRegistration({
   assert.match(managerSource, /__content-save/);
   assert.doesNotMatch(managerSource, /from\s+['"][^'"]*packs\/(core|_sample)\//);
   assert.doesNotMatch(managerSource, /PACK_IDS\s*=/);
-  const shellSource = readFileSync(new URL('../src/ui/dev/shell.js', import.meta.url), 'utf8');
+  const shellSource = readFileSync(new URL('../src/dev/hub.js', import.meta.url), 'utf8');
   assert.match(shellSource, /id:\s*['"]contentedit['"][\s\S]*?available:\s*true/);
   // Task 19: main.js checks updated for registry-driven routing (U1).
   // The literals now live in routes.js; main.js just uses the registry loop.
   const routesSource = readFileSync(new URL('../src/dev/routes.js', import.meta.url), 'utf8');
   assert.match(routesSource, /contentedit/);
-  assert.match(routesSource, /ui\/dev\/content-manager/);
+  assert.match(routesSource, /\.\/content-manager\.js/);
 }
 
 // ---- Task 18: dev route registry shape and drift guards ----
@@ -9329,7 +9329,7 @@ export default defineContentRegistration({
   // This is covered by the overlay qs.has checks + the load thunk checks above.
   
   // Keep the existing doctor.js checks from the old Task 18.
-  const doctorPath = new URL('../src/ui/dev/doctor.js', import.meta.url);
+  const doctorPath = new URL('../src/dev/doctor.js', import.meta.url);
   const doctorSource = readFileSync(doctorPath, 'utf8');
   assert.match(doctorSource, /doctorContentRegistrations/);
   assert.match(doctorSource, /DEVELOPMENT_CONTENT_REGISTRATION_MANIFEST/);
@@ -9353,10 +9353,10 @@ export default defineContentRegistration({
     'contentedit',
     'data-lab-root',
     'createDevRegistry',
-    'ui/dev/lab',
-    'ui/dev/doctor',
-    'ui/dev/content-manager',
-    'ui/dev/shell',
+    'dev/lab',
+    'dev/doctor',
+    'dev/content-manager',
+    'dev/hub',
   ]);
   assert.equal(FORBIDDEN_PRODUCTION_MARKERS.length, 12);
   assert.equal(Object.isFrozen(FORBIDDEN_PRODUCTION_MARKERS), true);

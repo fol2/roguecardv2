@@ -1,7 +1,7 @@
 // Dev launcher shell — DEV-only static route list (?dev=1).
 // Existing tool URLs unchanged; availability labels only.
 
-import { iconSvg } from '../../art.js';
+import { iconSvg } from '../art.js';
 
 const ROUTES = Object.freeze([
   { id: 'gallery', href: '?gallery=1', label: 'Art gallery', available: true },

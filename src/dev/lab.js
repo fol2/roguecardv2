@@ -4,8 +4,8 @@
 import {
   encodeLabScenario, decodeLabScenario, validateLabScenario,
   encodeReplayDescriptor, decodeReplayDescriptor,
-} from '../../dev/lab-scenario.js';
-import { bindRunContent, contentViewFor, themeForRun } from '../content.js';
+} from './lab-scenario.js';
+import { bindRunContent, contentViewFor, themeForRun } from '../ui/content.js';
 import { renderReplayPreview, supportedReplayKinds } from './replay-preview.js';
 
 const LAB_STYLE = `
@@ -118,7 +118,7 @@ function writeQuery(patch) {
 }
 
 export async function initLab() {
-  const { createDevRegistry: build } = await import('../../packs/dev.js');
+  const { createDevRegistry: build } = await import('../packs/dev.js');
   const registry = build({ fixtures: ['sample'] });
   const content = registry.context;
 
@@ -157,11 +157,11 @@ export async function initLab() {
   };
 
   // Boot the normal stage/UI stack so probe drivers and combat renderers exist.
-  const { initStage } = await import('../../stage.js');
-  const { initScene } = await import('../../scene3d.js');
-  const { initVfx } = await import('../../vfx.js');
-  const { initMesh } = await import('../../mesh.js');
-  const { initUI } = await import('../../ui.js');
+  const { initStage } = await import('../stage.js');
+  const { initScene } = await import('../scene3d.js');
+  const { initVfx } = await import('../vfx.js');
+  const { initMesh } = await import('../mesh.js');
+  const { initUI } = await import('../ui.js');
   initStage();
   initScene();
   initVfx();
@@ -521,7 +521,7 @@ export async function initLab() {
       };
       renderEditor();
 
-      const E = window.spirebound?.E || (await import('../../engine.js'));
+      const E = window.spirebound?.E || (await import('../engine.js'));
       const S = window.spirebound?.S;
       const show = window.spirebound?.show;
       const aspectIndex = content.aspects.findIndex((row) => row.id === validated.aspectId);
@@ -674,7 +674,7 @@ export async function initLab() {
       const run = S.run;
       if (!run) return;
       const { createRunEffects } = await import('../run-effects.js');
-      const Vigil = await import('../../vigil.js');
+      const Vigil = await import('../vigil.js');
       const effects = createRunEffects({ engine: E, vigil: Vigil });
       effects.journalRunEnd(run, outcome);
       const result = effects.finaliseRunEnd(run, {
