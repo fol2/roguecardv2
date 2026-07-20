@@ -103,11 +103,11 @@ assert.equal(
 );
 assert.equal(
   packageJson.scripts['test:e2e:webkit-core-iphone'],
-  'npm run test:e2e:webkit-stage -- --project=iphone-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-stage -- --project=iphone-webkit --shard=2/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=iphone-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=iphone-webkit --shard=2/2',
+  'npm run test:e2e:webkit-stage -- --project=iphone-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-stage -- --project=iphone-webkit --shard=2/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=iphone-webkit --shard=1/3 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=iphone-webkit --shard=2/3 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=iphone-webkit --shard=3/3',
 );
 assert.equal(
   packageJson.scripts['test:e2e:webkit-core-ipad'],
-  'npm run test:e2e:webkit-stage -- --project=ipad-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-stage -- --project=ipad-webkit --shard=2/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=ipad-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=ipad-webkit --shard=2/2',
+  'npm run test:e2e:webkit-stage -- --project=ipad-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-stage -- --project=ipad-webkit --shard=2/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=ipad-webkit --shard=1/3 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=ipad-webkit --shard=2/3 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-trace -- --project=ipad-webkit --shard=3/3',
 );
 assert.equal(
   packageJson.scripts['test:e2e:leak'],
