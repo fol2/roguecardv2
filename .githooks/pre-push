@@ -1,0 +1,14 @@
+#!/bin/sh
+# Pre-push gate — Glassvow SDLC Phase 0.
+#
+# Runs the Node-only contract/boundary/affected checks (test:ci, <1min) before any
+# push. test:ci self-guards ci.yml / package.json / pin drift and the affected-specs
+# plan, so a forgotten pin update or a broken contract fails HERE instead of burning a
+# full post-merge CI cycle (see project memory: pre-push-gate — 3 cycles lost skipping it).
+#
+# This is a floor-raiser, not a guarantee: `git push --no-verify` still bypasses it, and
+# the post-merge matrix + closed-net auto-revert remain the real backstop.
+#
+# Enable per-clone with:  git config core.hooksPath .githooks
+echo "▶ pre-push: npm run test:ci (Node contract/boundary/affected gate)…"
+npm run test:ci

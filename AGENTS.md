@@ -8,6 +8,10 @@ Guidance for AI coding agents (Claude Code, Cursor, Codex, …) working in this 
 
 ## Agent skills
 
+### Delivery loop
+
+How work flows here — bet → lean brief → sign → delegate by rework-risk → agent review off-window → selective diff-review → pre-push gate → land dark → closed-net auto-revert. The binding constraint is orchestrator attention, so review moves left (onto a signed brief) and off-window (external reviewer + delegated gate maintenance). See `docs/agents/sdlc-loop.md` — it carries the routing table, the lean-brief template, the regression-gate rules, and the direct-push/runner policy.
+
 ### Issue tracker
 
 Issues live in GitHub Issues, and external PRs are also a triage surface. See `docs/agents/issue-tracker.md`.
