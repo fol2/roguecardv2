@@ -563,6 +563,13 @@ assert.match(
 assert.match(autoRevert, /workflows: \["ci"\]/);
 assert.match(autoRevert, /FAILED_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
 assert.match(autoRevert, /actions\/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0/);
-assert.match(autoRevert, /GITHUB_TOKEN do not trigger the ci/);
+// Phase 3 direct-push-revert: the admin PAT (not GITHUB_TOKEN) re-triggers ci,
+// carries workflow scope, and bypasses required checks (enforce_admins=false),
+// so a red main reverts straight to green with zero human touches.
+assert.match(autoRevert, /token: \$\{\{ secrets\.AUTO_REVERT_PAT \}\}/);
+assert.match(autoRevert, /git push origin HEAD:main/);
+// Loop guard: a red main whose head is already a revert becomes an issue,
+// never an infinite revert loop.
+assert.match(autoRevert, /"auto-revert:"\* \| "Revert "\*/);
 
 console.log('ci contract checks passed');

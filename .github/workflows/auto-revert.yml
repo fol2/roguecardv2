@@ -1,10 +1,22 @@
 # Auto-revert safety net for the PR-smoke / main-full CI trade-off.
-# When a push to main fails the full ci gate, open a revert PR.
+# When a push to main fails the full `ci` gate, revert it straight back to a
+# green main with ZERO human touches — matching the trunk-flow philosophy.
 #
-# Known limitation: PRs created by GITHUB_TOKEN do not trigger the ci
-# workflow; a human (or the orchestrator agent) closes/reopens or pushes
-# to the branch to get checks, then merges. That is acceptable — this is
-# the rare path.
+# How the zero-touch path works (SDLC redesign Phase 3):
+#   secrets.AUTO_REVERT_PAT is a PAT owned by the repo admin. Unlike
+#   GITHUB_TOKEN it (a) re-triggers `ci` on its push, (b) can carry `workflow`
+#   scope so it may revert .github/workflows changes, and (c) bypasses main's
+#   required-status-checks because enforce_admins is false. So the revert
+#   commit lands on main directly and `ci` re-runs on it (green — it restores
+#   the prior state).
+#
+# Fallbacks stay honest — a human is pulled in only for the two cases a machine
+# cannot resolve: a revert that CONFLICTS, and a red main whose head is ITSELF
+# an auto-revert (the underlying red is not a single revertable commit — the
+# loop guard turns this into an issue instead of reverting forever).
+#
+# If AUTO_REVERT_PAT is absent/expired, the push fails auth and we fall back to
+# an issue — i.e. it degrades to the old semi-manual behaviour, never worse.
 
 name: auto-revert
 
@@ -15,8 +27,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
   issues: write
 
 jobs:
@@ -30,8 +41,12 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          # PAT (not GITHUB_TOKEN) so the revert push re-triggers `ci`, may touch
+          # workflow files, and bypasses branch protection as the admin owner.
+          token: ${{ secrets.AUTO_REVERT_PAT }}
+          persist-credentials: true
 
-      - name: Open revert PR or manual-revert issue
+      - name: Revert the failed commit straight to main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -40,17 +55,31 @@ jobs:
         run: |
           set -euo pipefail
           SHORT_SHA="${FAILED_SHA:0:7}"
-          BRANCH="revert-${SHORT_SHA}"
 
-          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
-            echo "Revert branch $BRANCH already exists — idempotent exit."
-            exit 0
-          fi
+          open_issue () {
+            gh issue create --repo "$REPO" \
+              --title "main CI red at ${SHORT_SHA} — manual revert needed$1" \
+              --body "The \`ci\` workflow failed on main at \`${FAILED_SHA}\`.
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          Failed run: ${FAILED_RUN_URL}
 
-          git checkout -b "$BRANCH"
+          $2"
+          }
+
+          git config user.name "auto-revert-bot"
+          git config user.email "actions@github.com"
+
+          # Loop guard: never auto-revert an auto-revert. If the failed head is
+          # itself a revert, the underlying red is not a single revertable
+          # commit — reverting it would re-apply the bad change and loop forever.
+          SUBJECT="$(git log -1 --format=%s "$FAILED_SHA")"
+          case "$SUBJECT" in
+            "auto-revert:"* | "Revert "*)
+              open_issue " (head is already a revert — loop guard)" \
+                "The failed commit is itself a revert, so main was likely red for an unrelated reason. Auto-revert stood down to avoid a revert loop. Please investigate manually."
+              exit 0
+              ;;
+          esac
 
           REVERT_ARGS=(--no-edit)
           if git rev-parse "${FAILED_SHA}^2" >/dev/null 2>&1; then
@@ -59,49 +88,18 @@ jobs:
 
           if ! git revert "${REVERT_ARGS[@]}" "$FAILED_SHA"; then
             git revert --abort 2>/dev/null || true
-            gh issue create \
-              --repo "$REPO" \
-              --title "main CI red at ${SHORT_SHA} — manual revert needed" \
-              --body "$(cat <<EOF
-          The \`ci\` workflow failed on main at \`${FAILED_SHA}\`.
-
-          Failed run: ${FAILED_RUN_URL}
-
-          Automatic \`git revert\` conflicted. Please revert manually.
-          EOF
-          )"
+            open_issue " (revert conflicted)" \
+              "Automatic \`git revert\` conflicted. Please revert manually."
             exit 0
           fi
 
-          # GITHUB_TOKEN cannot push commits that touch .github/workflows
-          # (no `workflows` permission) — fall back to an issue for those.
-          if ! git push origin "HEAD:refs/heads/${BRANCH}"; then
-            gh issue create \
-              --repo "$REPO" \
-              --title "main CI red at ${SHORT_SHA} — manual revert needed (push rejected)" \
-              --body "$(cat <<EOF
-          The \`ci\` workflow failed on main at \`${FAILED_SHA}\`.
-
-          Failed run: ${FAILED_RUN_URL}
-
-          The automatic revert could not be pushed (likely because the revert
-          touches \`.github/workflows/\`, which \`GITHUB_TOKEN\` may not modify).
-          Please revert manually.
-          EOF
-          )"
+          # Direct push to main. As the admin PAT this bypasses required checks;
+          # the push re-triggers `ci`, which passes (the revert restores the
+          # prior green state). Zero human touches.
+          if ! git push origin HEAD:main; then
+            open_issue " (push rejected)" \
+              "The automatic revert could not be pushed to main. AUTO_REVERT_PAT may be missing, expired, or lack Contents/Workflows write. Please revert manually."
             exit 0
           fi
 
-          gh pr create \
-            --repo "$REPO" \
-            --base main \
-            --head "$BRANCH" \
-            --title "auto-revert: main CI red at ${SHORT_SHA}" \
-            --body "$(cat <<EOF
-          Automatic revert of \`${FAILED_SHA}\` after the \`ci\` workflow failed on main.
-
-          Failed run: ${FAILED_RUN_URL}
-
-          **Note:** PRs opened by \`GITHUB_TOKEN\` do not re-trigger \`ci\`. Close/reopen or push an empty commit on this branch to get checks, then merge.
-          EOF
-          )"
+          echo "Reverted ${SHORT_SHA} directly on main; ci will re-run and go green."
