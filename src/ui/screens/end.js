@@ -634,6 +634,10 @@ export function createEndScreen(deps) {
       if (S.screen !== 'end' || S.run?.runId !== run.runId) return;
       $$('.end-btns button', screenEl()).forEach((button) => { button.disabled = false; });
       showUnlockToasts(owedUnlocks, run.runId);
+    }).catch(() => {
+      if (S.screen !== 'end' || S.run?.runId !== run.runId) return;
+      $$('.end-btns button', screenEl()).forEach((button) => { button.disabled = false; });
+      showRunEndPersistenceFailure?.(run);
     });
   }
 

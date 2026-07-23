@@ -1679,8 +1679,9 @@ function applyEffect(run, cb, inst, d, fx, target, sealMult) {
     case 'addCard': {
       for (let i = 0; i < (fx.n || 1); i++) {
         const c = { uid: run.uid++, id: fx.id, up: false, bonus: 0 };
-        (fx.where === 'hand' && cb.hand.length < 10 ? cb.hand : cb.discard).push(c);
-        cb.queue.push({ t: 'addCard', id: fx.id, where: fx.where || 'discard' });
+        const where = fx.where === 'hand' && cb.hand.length < 10 ? 'hand' : 'discard';
+        (where === 'hand' ? cb.hand : cb.discard).push(c);
+        cb.queue.push({ t: 'addCard', id: fx.id, where });
       }
       break;
     }
@@ -1933,14 +1934,18 @@ export function previewPlay(run, cb, inst, targetIdx = null) {
   const P = cb.player;
   const target = targetIdx != null ? cb.enemies[targetIdx] : null;
   const sealMult = hasRelic(run, 'executionersSeal') && d.type === 'attack' && (cb.counters.attacks + 1) % 10 === 0 ? 2 : 1;
+  // ironTalisman grants +1 str on every 3rd attack before damage — mirror that here
+  let previewStr = P.statuses.str || 0;
+  if (hasRelic(run, 'ironTalisman') && d.type === 'attack' && (cb.counters.attacks + 1) % 3 === 0) previewStr += 1;
   const hit = (base) => {
-    let dmg = base + (P.statuses.str || 0);
+    let dmg = base + previewStr;
     if (P.statuses.weak) dmg = Math.floor(dmg * 0.75);
     if (target && target.statuses.vulnerable) dmg = Math.floor(dmg * 1.5);
     return Math.max(0, Math.floor(dmg * sealMult));
   };
   const hits = [];
   let block = 0;
+  const wardMult = omenMods(run).wardMult || 1;
   for (const fx of d.effects) {
     if (fx.kind === 'dmg') hits.push({ dmg: hit(fx.n), times: fx.times || 1 });
     else if (fx.kind === 'block') block += previewBlock(run, cb, fx.n);
@@ -1951,9 +1956,9 @@ export function previewPlay(run, cb, inst, targetIdx = null) {
       else if (fx.id === 'phantom') hits.push({ dmg: hit(fx.n * Math.max(0, cb.hand.length - (cb.hand.includes(inst) ? 1 : 0))), times: 1 });
       else if (fx.id === 'shatterEcho') hits.push({ dmg: hit(fx.n * (target && (target.flags.staggered || target.statuses.vulnerable) ? 2 : 1)), times: 1 });
       else if (fx.id === 'emberNova') hits.push({ dmg: hit(fx.n * cb.embers), times: 1 });
-      else if (fx.id === 'doubleBlock') block += P.block;
+      else if (fx.id === 'doubleBlock') block += Math.round(Math.max(0, P.block) * wardMult);
       else if (fx.id === 'flawless') block += previewBlock(run, cb, fx.n) * (cb.counters.hpLost === 0 ? 2 : 1);
-      else if (fx.id === 'emberdance') block += fx.n * cb.embers;
+      else if (fx.id === 'emberdance') block += Math.round(Math.max(0, fx.n * cb.embers) * wardMult);
     }
   }
   let fxChips = 0;

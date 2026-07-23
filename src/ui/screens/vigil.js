@@ -258,7 +258,7 @@ function renderVigil({ tab = 'deeds' } = {}) {
   draw(tab);
   sc.onclick = (e) => {
     const t = e.target.closest('[data-a]');
-    if (!t) return;
+    if (!t || t.disabled) return;
     sfx.click();
     if (t.dataset.a === 'tab-deeds') {
       draw('deeds');
