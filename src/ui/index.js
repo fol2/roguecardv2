@@ -7,7 +7,7 @@ import {
 } from '../data.js';
 import {
   assetSetIds, assetSetLabel, assetUrl, campfireSvg, cardArtSvg, chestSvg,
-  enemySvg, eventArtSvg, heroSvg, iconInline, iconSvg, merchantSvg, potionSvg,
+  enemySvg, eventArtSvg, heroSvg, iconInline, iconSvg, merchantSvg, plinthSvg, potionSvg,
   uiIcon, uiIconUrl,
 } from '../art.js';
 import { drawBatchSchedule } from '../pile-chrome.js';
@@ -78,6 +78,7 @@ import { createRestScreen } from './screens/rest.js';
 import { createShopScreen } from './screens/shop.js';
 import { createEventScreen } from './screens/event.js';
 import { createEndScreen } from './screens/end.js';
+import { createCeremony } from './ceremony.js';
 import { createGalleryScreen } from './screens/gallery.js';
 import { createAudioGalleryScreen } from './screens/audio-gallery.js';
 
@@ -93,6 +94,10 @@ function tr(key, params) {
   return value;
 }
 const { initTooltip, fmtText, cardEl, tipBridge } = createTooltip({ tr });
+const ceremony = createCeremony({
+  stageEl, el, cardEl, relicArt, plinthSvg, iconSvg, sfx,
+  contentViewFor, S, E, presentationBarrier, trace, REDUCED, COARSE,
+});
 
 let navigatorApi;
 let combatApi;
@@ -254,7 +259,7 @@ screenOwners = Object.freeze({
     V, flyTo: screenLate.flyTo, tweenNum: screenLate.tweenNum, sfx, rasterOr, potionSvg,
     relicArt, requireRunSave, renderHud: screenLate.renderHud, show: screenLate.show,
     showCardGrid, openOverlay, closeOverlay, runEffects, setTheme, setAltitude, transition: screenLate.transition,
-    assetUrl, omenIconName, screenEl, themeForRun, contentViewFor,
+    assetUrl, omenIconName, screenEl, themeForRun, contentViewFor, ceremony,
     REDUCED, COARSE, presentationBarrier, trace,
   }),
   rest: createRestScreen({
