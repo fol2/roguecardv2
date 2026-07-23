@@ -13,7 +13,10 @@
 //   hud.scale    — uniform scale on .hud-bar (1 = authored size)
 // Imports nothing; imported by src/uic.js only.
 
-export const UIC = {
+// Editor-owned authored data. The exported UIC applies a pile de-overlap clamp
+// (resolver logic below) so stacked draw/discard/ashes widgets never collide on
+// narrow shapes — the numbers here stay as authored; the clamp derives the fix.
+const UIC_DATA = {
   base: {
     energy: { left: 24, bottom: 148 },
     lantern: { left: 42, bottom: 262, w: 104, h: 104 },
@@ -72,3 +75,52 @@ export const UIC = {
     },
   },
 };
+
+// ---- Pile de-overlap clamp (resolver logic, not rebaked coordinates) --------
+// draw/discard/ashes are bottom-anchored boxes; two of them collide only when
+// they sit in the same stage column (same edge anchor, overlapping widths) and
+// their vertical spans overlap. When that happens, lift the upper widget so its
+// box just clears the lower one — stays within the safe-area (moves up, away
+// from the stage bottom). Same-column detection is width-space only, so it needs
+// no stage width (keeps this file import-free / Node-safe).
+const PILES = ['draw', 'discard', 'ashes'];
+
+function pileSpan(p) {
+  if (!p || !Number.isFinite(p.w)) return null;
+  const side = p.left !== undefined ? 'left' : (p.right !== undefined ? 'right' : null);
+  if (!side) return null;
+  return { side, lo: p[side], hi: p[side] + p.w };
+}
+
+function sameColumn(a, b) {
+  const sa = pileSpan(a);
+  const sb = pileSpan(b);
+  return !!sa && !!sb && sa.side === sb.side && Math.min(sa.hi, sb.hi) > Math.max(sa.lo, sb.lo);
+}
+
+/** Resolve overlaps within one scope's own piles by lifting the upper widget. */
+function deoverlapScope(w) {
+  if (!w) return w;
+  for (let i = 0; i < PILES.length; i += 1) {
+    for (let j = i + 1; j < PILES.length; j += 1) {
+      const a = w[PILES[i]];
+      const b = w[PILES[j]];
+      if (!a || !b || !sameColumn(a, b)) continue;
+      if (!Number.isFinite(a.bottom) || !Number.isFinite(b.bottom)
+        || !Number.isFinite(a.h) || !Number.isFinite(b.h)) continue;
+      const lower = a.bottom <= b.bottom ? a : b;
+      const upper = lower === a ? b : a;
+      const clearBottom = lower.bottom + lower.h; // touch the lower box, no overlap
+      if (upper.bottom < clearBottom) upper.bottom = clearBottom;
+    }
+  }
+  return w;
+}
+
+function clampPiles(uic) {
+  deoverlapScope(uic.base);
+  for (const shape of Object.values(uic.shapes ?? {})) deoverlapScope(shape);
+  return uic;
+}
+
+export const UIC = clampPiles(UIC_DATA);

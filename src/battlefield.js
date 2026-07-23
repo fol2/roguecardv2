@@ -147,7 +147,14 @@ export function bfEnemyFrame(layout, key, tier, slot, stgW, stgH, presentationSc
     ? Math.max(8, stgH - (layout?.groundY ?? 0) - bottom - 8)
     : rawSize;
   const size = Math.round(Math.max(8, Math.min(rawSize, maxW, maxH)));
-  const left = Math.round((slot?.x ?? stgW / 2) - size / 2 + bfEnemyFootX(slot, key));
+  // Keep the art's horizontal centre on-stage so an actor is never rendered
+  // mostly off the edge on narrow shapes. The centre is `slot.x + footX` (size
+  // cancels), so this is a no-op for every authored placement — the per-actor
+  // foot anchor still lets oversized art overhang the edge by design — and only
+  // reels in a pathological slot.x / footX that would push the midpoint off.
+  let center = (slot?.x ?? stgW / 2) + bfEnemyFootX(slot, key);
+  if (Number.isFinite(stgW)) center = Math.min(Math.max(center, 0), stgW);
+  const left = Math.round(center - size / 2);
   return {
     size,
     left,
