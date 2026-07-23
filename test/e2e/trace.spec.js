@@ -128,7 +128,7 @@ const COMBAT_MODULE_KEYS = [
 ].sort();
 const DRAIN_HANDLER_KEYS = [
   'addCrack', 'artCast', 'banner', 'bumpPile', 'captureCardAnchor', 'choreoAttack',
-  'choreoHit', 'choreoStagger', 'chromePulse', 'clearDrawRevealPlan',
+  'choreoHit', 'choreoStagger', 'clearDrawRevealPlan',
   'clearPileVisualOverride', 'deleteDrawRevealPlan', 'enemyCenter',
   'flyCardBacks', 'flyTo', 'floatText', 'handFaceSize', 'handSeatCenter',
   'hasPileVisualOverride', 'heroCenter', 'holdPendingPileArrivals',

@@ -323,7 +323,6 @@ async function handleEvent(ev, targetIdx) {
       x.facets.classList.remove('pop');
       void x.facets.offsetWidth;
       x.facets.classList.add('pop');
-      presentation.chromePulse?.({ kind: 'facet', enemy: ev.idx }, { tone: 0xdfeaff });
       await sleep(110);
       break;
     }
@@ -411,7 +410,6 @@ async function handleEvent(ev, targetIdx) {
           ce.lantern.classList.remove('pop');
           void ce.lantern.offsetWidth;
           ce.lantern.classList.add('pop');
-          presentation.chromePulse?.('lantern', { tone: 0xffb35a });
           presentation.syncCombat();
         }, 440);
         await sleep(300);
@@ -663,10 +661,6 @@ async function handleEvent(ev, targetIdx) {
       chip.classList.remove('pulse');
       void chip.offsetWidth;
       chip.classList.add('pulse');
-      presentation.chromePulse?.(
-        isP ? { kind: 'block', who: 'player' } : { kind: 'block', enemy: ev.who },
-        { tone: 0x7ec8ff },
-      );
       presentation.syncCombat();
       await sleep(140);
       break;
@@ -699,7 +693,6 @@ async function handleEvent(ev, targetIdx) {
       ce.energy.classList.remove('pop');
       void ce.energy.offsetWidth;
       ce.energy.classList.add('pop');
-      presentation.chromePulse?.('energy', { tone: 0xffc95e });
       break;
     case 'exhaust': {
       const c = $(`.card[data-uid="${ev.uid}"]`, ce.hand);

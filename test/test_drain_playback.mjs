@@ -23,7 +23,7 @@ function makeSpy(name, impl = () => {}) {
 function createMockPresentation() {
   const methods = [
     'addCrack', 'artCast', 'banner', 'bumpPile', 'captureCardAnchor',
-    'choreoAttack', 'choreoHit', 'choreoStagger', 'chromePulse', 'clearDrawRevealPlan',
+    'choreoAttack', 'choreoHit', 'choreoStagger', 'clearDrawRevealPlan',
     'clearPileVisualOverride', 'deleteDrawRevealPlan', 'enemyCenter',
     'floatText', 'flyCardBacks', 'flyTo', 'handFaceSize', 'handSeatCenter',
     'hasPileVisualOverride', 'heroCenter', 'holdPendingPileArrivals',

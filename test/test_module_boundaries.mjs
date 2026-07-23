@@ -508,7 +508,7 @@ const combatKeys = [
 ].sort();
 const drainHandlerKeys = [
   'addCrack', 'artCast', 'banner', 'bumpPile', 'captureCardAnchor', 'choreoAttack',
-  'choreoHit', 'choreoStagger', 'chromePulse', 'clearPileVisualOverride', 'enemyCenter',
+  'choreoHit', 'choreoStagger', 'clearPileVisualOverride', 'enemyCenter',
   'floatText', 'flyCardBacks', 'flyTo', 'handFaceSize', 'handSeatCenter', 'heroCenter',
   'holdPendingPileArrivals', 'holdPileVisual', 'igniteVessel', 'layoutHand',
   'peekCardAnchor', 'pileCardByUid', 'pileFaceSize', 'releasePileVisual',
@@ -531,7 +531,7 @@ assert.deepEqual(objectLiteralKeys(uiIndexSource, 'const probe = installProbe({'
   'combat', 'context', 'drain', 'navigator', 'trace',
 ].sort(), 'the UI composition root calls the probe installer with exactly five owners');
 assert.deepEqual(shorthandKeys(combatSource, 'const drainHandlers = Object.freeze({'), drainHandlerKeys,
-  'combat owns the exact literal 41-key drain presentation surface');
+  'combat owns the exact literal 40-key drain presentation surface');
 assert.match(combatSource, /shatter:\s*shatterVessel/,
   'drainHandlers aliases shatterVessel as shatter for presentation.shatter');
 assert.deepEqual(shorthandKeys(combatSource, 'return Object.freeze({'), combatKeys,

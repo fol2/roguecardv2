@@ -184,45 +184,10 @@ export async function createPixiLayer({
   let shakeSyncLatched = false;
   let shakeUnsubscribe = null;
   let onContextLossHandler = typeof onContextLoss === 'function' ? onContextLoss : null;
-  // Production context-restore hook: the combat layer re-attaches its container
-  // and re-syncs state after a real GPU loss (the test path reuses the same seam).
-  let onContextRestoredHandler = null;
-  let recovering = false;
-  let resizeHandler = null;
-  let resizeRaf = 0;
-  let recoveryOverlay = null;
-
-  // "Restoring visuals" toast shown while a lost context is being rebuilt. Lives
-  // on <body> (not inside #stage) so combat-DOM inventory gates never see it.
-  const showRecoveryOverlay = () => {
-    if (typeof document === 'undefined') return;
-    if (!recoveryOverlay) {
-      const el = document.createElement('div');
-      el.id = 'pixi-recovery-overlay';
-      el.setAttribute('aria-live', 'polite');
-      el.textContent = 'Restoring visuals...';
-      el.style.cssText = 'position:fixed;left:50%;bottom:6%;transform:translateX(-50%);'
-        + 'padding:8px 16px;border-radius:999px;font:600 14px system-ui,sans-serif;'
-        + 'color:#f4ecdd;background:rgba(20,14,26,0.82);box-shadow:0 2px 12px rgba(0,0,0,0.4);'
-        + 'z-index:2147483647;pointer-events:none;opacity:0;transition:opacity .15s ease;';
-      (document.body || document.documentElement).appendChild(el);
-      recoveryOverlay = el;
-    }
-    recoveryOverlay.style.display = 'block';
-    void recoveryOverlay.offsetWidth; // reflow so the fade-in transition runs
-    recoveryOverlay.style.opacity = '1';
-  };
-  const hideRecoveryOverlay = () => {
-    if (!recoveryOverlay) return;
-    recoveryOverlay.style.opacity = '0';
-    recoveryOverlay.style.display = 'none';
-  };
 
   const setStatus = (next) => {
     status = next;
     transitions.push(next);
-    if (next === 'lost') showRecoveryOverlay();
-    else if (next === 'ready' || next === 'failed') hideRecoveryOverlay();
     trace?.emit?.('renderer.state', {
       outcome: next === 'failed' ? 'failed' : 'completed',
       attributes: { rendererId: 'pixi', state: next, generation },
@@ -346,20 +311,9 @@ export async function createPixiLayer({
     lossExtension = renderer.gl.getExtension('WEBGL_lose_context');
     worldRoot = new Container();
     application.stage.addChild(worldRoot);
-    attachCanvasListeners();
+    canvas.addEventListener('webglcontextlost', handleContextLoss);
     attachShakeSync();
     generation += 1;
-  };
-
-  // Canvas GL lifecycle listeners live on the CURRENT canvas. rebuild() swaps in
-  // a fresh clone, so we detach on teardown and re-attach here for every canvas.
-  const attachCanvasListeners = () => {
-    canvas.addEventListener('webglcontextlost', handleContextLoss);
-    canvas.addEventListener('webglcontextrestored', handleContextRestored);
-  };
-  const detachCanvasListeners = () => {
-    canvas.removeEventListener('webglcontextlost', handleContextLoss);
-    canvas.removeEventListener('webglcontextrestored', handleContextRestored);
   };
 
   const handleContextLoss = (event) => {
@@ -372,36 +326,6 @@ export async function createPixiLayer({
       contextLossResolve();
       contextLossResolve = null;
     }
-  };
-
-  // Production recovery: on a real browser-initiated restore, rebuild the Pixi
-  // layer (swap canvas + reinit) and let the combat layer re-attach + resync.
-  // The test path drives rebuild() explicitly via the probe, so this only fires
-  // for genuine GPU losses (WEBGL_lose_context never dispatches 'restored').
-  const handleContextRestored = () => {
-    if (destroyed || recovering || status !== 'lost') return;
-    recovering = true;
-    Promise.resolve()
-      .then(() => rebuild())
-      .then(() => { try { onContextRestoredHandler?.(); } catch { /* resync best-effort */ } })
-      .catch(() => { /* rebuild() already set 'failed' and hid the overlay */ })
-      .finally(() => { recovering = false; });
-  };
-
-  // Refit the renderer buffer to the current stage on resize / orientation
-  // change (otherwise combat chrome renders into a stale buffer — blurry within
-  // a shape, clipped/stretched across a shape boundary — until reload).
-  const refitRenderer = () => {
-    if (destroyed || status !== 'ready' || !renderer) return;
-    const w = stage.width();
-    const h = stage.height();
-    if (!(w > 0) || !(h > 0)) return;
-    try { renderer.resize(w, h, computeResolution()); } catch { /* mid-teardown */ }
-  };
-  const scheduleRefit = () => {
-    if (typeof requestAnimationFrame !== 'function') { refitRenderer(); return; }
-    if (resizeRaf) return;
-    resizeRaf = requestAnimationFrame(() => { resizeRaf = 0; refitRenderer(); });
   };
 
   const readSnapshot = () => currentSnapshot;
@@ -461,7 +385,6 @@ export async function createPixiLayer({
 
   const teardownRenderer = ({ preserveCanvas = true } = {}) => {
     detachShakeSync();
-    detachCanvasListeners();
     if (application) {
       application.stop();
       silenceAlreadyLostLoseContext();
@@ -569,12 +492,6 @@ export async function createPixiLayer({
 
   await boot();
 
-  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-    resizeHandler = scheduleRefit;
-    window.addEventListener('resize', resizeHandler);
-    window.addEventListener('orientationchange', resizeHandler);
-  }
-
   return Object.freeze({
     // lifecycle
     status: () => status,
@@ -583,17 +500,8 @@ export async function createPixiLayer({
     snapshot: readSnapshot,
     writeSnapshot,
     destroy() {
-      if (resizeHandler && typeof window !== 'undefined') {
-        window.removeEventListener('resize', resizeHandler);
-        window.removeEventListener('orientationchange', resizeHandler);
-        resizeHandler = null;
-      }
-      if (resizeRaf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(resizeRaf);
-      resizeRaf = 0;
       detachShakeSync();
       teardownRenderer({ preserveCanvas: false });
-      hideRecoveryOverlay();
-      if (recoveryOverlay) { try { recoveryOverlay.remove(); } catch { /* gone */ } recoveryOverlay = null; }
       setStatus('idle');
     },
     // roots
@@ -606,9 +514,6 @@ export async function createPixiLayer({
     unfreezeForTest,
     setOnContextLoss(handler) {
       onContextLossHandler = typeof handler === 'function' ? handler : null;
-    },
-    setOnContextRestored(handler) {
-      onContextRestoredHandler = typeof handler === 'function' ? handler : null;
     },
     // metadata
     policy: policy ? Object.freeze({ ...policy }) : Object.freeze({}),

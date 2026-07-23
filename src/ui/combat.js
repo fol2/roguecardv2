@@ -216,56 +216,6 @@ export function createCombat({
       }),
     };
   }
-  /** Which foe the hand preview resolves against (drives vulnerable). Explicit
-   *  targeting selection wins; otherwise auto-lock a lone survivor; else null
-   *  (str/weak still apply, vulnerable does not). */
-  function previewTargetIdx(cb) {
-    const sel = S.selectedEnemyIndex;
-    if (Number.isInteger(sel) && cb.enemies[sel]?.hp > 0) return sel;
-    const alive = [];
-    cb.enemies.forEach((e, i) => { if (e.hp > 0) alive.push(i); });
-    return alive.length === 1 ? alive[0] : null;
-  }
-
-  const VALUE_MARKER_RE = /([@#])(\d+)\1/g;
-  /**
-   * Preview-resolve each @n@ (damage) / #n# (ward) body marker for a hand card
-   * so the face shows Strength/Weak/relic-adjusted numbers, tinted green/red —
-   * the same treatment the cost already gets. Returns a `{value,state}` list in
-   * body-marker order (null entries = neutral/base), or null when nothing
-   * differs from the authored base (keeps the authored face + cache key stable).
-   */
-  function handCardDisplayValues(cb, inst, text, targetIdx) {
-    const src = String(text ?? '');
-    const markers = [];
-    VALUE_MARKER_RE.lastIndex = 0;
-    let m;
-    while ((m = VALUE_MARKER_RE.exec(src))) markers.push({ marker: m[1], base: Number(m[2]) });
-    if (!markers.length) return null;
-    let preview = null;
-    try { preview = E.previewPlay(S.run, cb, inst, targetIdx); } catch { preview = null; }
-    if (!preview) return null;
-    const hits = Array.isArray(preview.hits) ? preview.hits : [];
-    let hitIdx = 0;
-    let blockUsed = false;
-    let overrode = false;
-    // '@' markers walk the damage hits in effect order; '#' markers take the
-    // (single) resolved ward. Unmatched markers stay neutral on the base value.
-    const values = markers.map(({ marker, base }) => {
-      let resolved = null;
-      if (marker === '@') {
-        if (hitIdx < hits.length) { resolved = hits[hitIdx].dmg; hitIdx += 1; }
-      } else if (!blockUsed && preview.block > 0) {
-        resolved = preview.block;
-        blockUsed = true;
-      }
-      if (resolved == null || resolved === base) return null;
-      overrode = true;
-      return { value: resolved, state: resolved > base ? 'boosted' : 'reduced' };
-    });
-    return overrode ? values : null;
-  }
-
   function buildHandModel() {
     const cb = S.cb;
     if (!cb) {
@@ -289,7 +239,6 @@ export function createCombat({
     const baseBottom = zone && zone.height > 2
       ? zone.bottom - inset
       : stageH() - inset;
-    const previewIdx = previewTargetIdx(cb);
     const cards = cb.hand.map((inst) => {
       const d = E.cardData(inst, S.run);
       const playable = !d.unplayable && (E.effCost(S.run, cb, inst) ?? 99) <= cb.player.energy;
@@ -311,7 +260,6 @@ export function createCombat({
         up: d.up,
         effectiveCost: E.effCost(S.run, cb, inst),
         effectiveText: d.text,
-        values: handCardDisplayValues(cb, inst, d.text, previewIdx),
         playable,
         pending,
         tip: { title: d.name, body: d.text },
@@ -2016,15 +1964,6 @@ function pixiPresentation() {
   return glRenderer()?.presentation || null;
 }
 
-/** Combat juice — a brief Pixi scale/glow beat on a chrome widget when its
- *  value ticks (energy/lantern/piles/block/facet). No-op under DOM combat,
- *  where the widget's own CSS pop still fires. */
-function chromePulse(target, opts) {
-  const r = glRenderer();
-  if (!r || typeof r.pulse !== 'function') return false;
-  return r.pulse(target, opts);
-}
-
 /** Combat must never silently fall back to DOM `#floaties` / `.turn-banner`. */
 function rejectCombatDomCeremony(name, reason = 'pixi-presentation-missing') {
   const span = trace.begin(name, { attributes: { reason } });
@@ -2920,7 +2859,6 @@ const drainHandlers = Object.freeze({
   choreoAttack,
   choreoHit,
   choreoStagger,
-  chromePulse,
   clearPileVisualOverride,
   enemyCenter,
   flyCardBacks,
