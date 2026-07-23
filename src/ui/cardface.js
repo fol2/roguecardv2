@@ -62,7 +62,171 @@ const PROD = Object.freeze({
   costInk: '#241a05',
   paneTop: 'rgba(16, 20, 36, 0.9)',
   paneBot: 'rgba(9, 11, 20, 0.94)',
+  // `.card-text .val.boosted` / `.val.reduced` — preview-resolved value tint.
+  valBoosted: '#8fe8a0',
+  valReduced: '#ff8d8d',
 });
+
+/**
+ * Real per-glyph advance via `ctx.measureText` in the browser (fixes the
+ * heuristic mis-centering / underline drift). Falls back to the Node-pure
+ * `approximateMeasure` when there is no DOM so `cardface-layout.js` stays the
+ * single headless authority and its tests keep passing.
+ */
+let _measureCtx = null;
+function browserMeasure(text, fontSize, family = 'body') {
+  if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
+    return approximateMeasure(text, fontSize, family);
+  }
+  if (_measureCtx === null) {
+    const c = document.createElement('canvas');
+    _measureCtx = c.getContext('2d') || false;
+  }
+  if (!_measureCtx) return approximateMeasure(text, fontSize, family);
+  _measureCtx.font = family === 'display'
+    ? `700 ${fontSize}px Cinzel, serif`
+    : `${fontSize}px Alegreya, serif`;
+  return _measureCtx.measureText(String(text ?? '')).width;
+}
+
+/** Body value-marker overrides (@n@/#n#) → sanitised {value, state} list. */
+function normalizeValues(raw) {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const out = raw.map((v) => {
+    if (v == null) return {};
+    if (typeof v === 'number' || typeof v === 'string') return { value: v };
+    const state = v.state === 'boosted' || v.state === 'reduced' ? v.state : null;
+    return { value: v.value, state };
+  });
+  return out;
+}
+
+function valuesSignature(values) {
+  return values.map((v) => `${v?.value ?? ''}:${v?.state ?? ''}`).join(',');
+}
+
+/** Type → art hue, mirroring art.js cardArtSvg (kept inline: art.js top-level
+ *  `import.meta.glob` throws under raw Node, and cardface.js must stay Node-importable). */
+function typeArtHue(type) {
+  return { attack: 356, skill: 205, power: 268, status: 160, curse: 300 }[type] ?? 205;
+}
+
+function hashArtId(s) {
+  let h = 9;
+  for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 387420489);
+  return (h ^ (h >>> 9)) >>> 0;
+}
+
+/**
+ * Synchronous procedural art painted straight to canvas2d — no raster, no
+ * async decode — so a face is never a blank band on a cold cache and the
+ * raster-less `unreadablePage` curse still renders. Motif language mirrors
+ * art.js `cardArtSvg` (backlit glass base + a struck-glass sigil per type).
+ */
+function drawProceduralArt(ctx, region, id, type) {
+  const hue = typeArtHue(type);
+  const h = hashArtId(id);
+  const midY = region.y + region.h * 0.42;
+  const cx = region.x + region.w / 2;
+  const cy = region.y + region.h / 2;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(region.x, region.y, region.w, region.h);
+  ctx.clip();
+  const base = ctx.createRadialGradient(cx, midY, 4, cx, midY, region.w * 0.62);
+  base.addColorStop(0, `hsl(${hue}, 46%, 20%)`);
+  base.addColorStop(1, `hsl(${hue}, 52%, 7%)`);
+  ctx.fillStyle = base;
+  ctx.fillRect(region.x, region.y, region.w, region.h);
+
+  const lit = `hsl(${hue}, 82%, 64%)`;
+  const lit2 = `hsl(${(hue + 34) % 360}, 78%, 58%)`;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.translate(cx, cy);
+  ctx.rotate((((h % 17) - 8) * Math.PI) / 180);
+  const u = region.h / 150; // motif authored in the ~180×150 art viewBox
+  ctx.scale(u, u);
+  if (type === 'attack') {
+    const arc = (off, col, w, a) => {
+      ctx.strokeStyle = col; ctx.globalAlpha = a; ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(-58, 32 + off);
+      ctx.quadraticCurveTo(2, -34 + off, 74, -46 + off);
+      ctx.stroke();
+    };
+    arc(0, lit, 7, 0.9); arc(-22, lit2, 4, 0.6); arc(18, lit, 3, 0.4);
+  } else if (type === 'power') {
+    ctx.globalAlpha = 0.82;
+    for (let i = 0; i < 8; i += 1) {
+      const a = ((i * 45 + (h % 360)) * Math.PI) / 180;
+      ctx.strokeStyle = i % 2 ? lit2 : lit;
+      ctx.lineWidth = i % 2 ? 3 : 5;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * 22, Math.sin(a) * 22);
+      ctx.lineTo(Math.cos(a) * 50, Math.sin(a) * 50);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1; ctx.strokeStyle = lit; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2); ctx.stroke();
+  } else if (type === 'skill') {
+    ctx.globalAlpha = 0.85; ctx.strokeStyle = lit; ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(0, -52);
+    ctx.quadraticCurveTo(52, -34, 52, 8);
+    ctx.quadraticCurveTo(52, 50, 0, 66);
+    ctx.quadraticCurveTo(-52, 50, -52, 8);
+    ctx.quadraticCurveTo(-52, -34, 0, -52);
+    ctx.stroke();
+    ctx.globalAlpha = 0.6; ctx.strokeStyle = lit2; ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -32);
+    ctx.quadraticCurveTo(32, -18, 32, 12);
+    ctx.stroke();
+  } else {
+    ctx.globalAlpha = 0.8; ctx.strokeStyle = lit; ctx.lineWidth = 5;
+    ctx.setLineDash([16, 10]);
+    ctx.beginPath(); ctx.arc(0, 0, 38, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.7; ctx.strokeStyle = lit2; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(-28, 28); ctx.lineTo(28, -28); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
+ * Static rarity foil / glare on the baked face (the golden DOM card's
+ * `.card-inner::before/::after` + rare holographic wash, non-animated — the
+ * living cursor-tracked sweep stays a later combat-gl phase). Very low alpha
+ * so glyph contrast keeps its wide margin.
+ */
+function paintFoilOverlay(ctx, layout, tint) {
+  const { width, height } = layout;
+  const rare = layout.rarity === 'rare' || layout.rarity === 'boss';
+  ctx.save();
+  roundRectPath(ctx, 1, 1, width - 2, height - 2, 10);
+  ctx.clip();
+  // Fixed diagonal glare band (leaded-glass catch of the light).
+  const glare = ctx.createLinearGradient(0, 0, width, height);
+  glare.addColorStop(0.30, 'rgba(255,255,255,0)');
+  glare.addColorStop(0.46, 'rgba(255,255,255,0.05)');
+  glare.addColorStop(0.52, 'rgba(255,255,255,0.07)');
+  glare.addColorStop(0.66, 'rgba(255,255,255,0)');
+  ctx.fillStyle = glare;
+  ctx.fillRect(0, 0, width, height);
+  if (rare) {
+    // Holographic foil — pink → cyan → green, faint.
+    const holo = ctx.createLinearGradient(0, height, width, 0);
+    holo.addColorStop(0.26, 'rgba(255,95,180,0)');
+    holo.addColorStop(0.40, 'rgba(255,95,180,0.10)');
+    holo.addColorStop(0.50, 'rgba(90,220,255,0.12)');
+    holo.addColorStop(0.60, 'rgba(140,255,170,0.10)');
+    holo.addColorStop(0.74, 'rgba(140,255,170,0)');
+    ctx.fillStyle = holo;
+    ctx.fillRect(0, 0, width, height);
+  }
+  ctx.restore();
+}
 
 /** Flat hex vertices matching `.card-cost` clip-path polygon (stage-local). */
 function hexGemPoints(cx, cy, size) {
@@ -380,6 +544,9 @@ export function createCardFaceComposer({
       up: fields.up,
       effectiveCost: fields.cost,
       effectiveText: fields.text,
+      // Line-breaking stays on the Node-pure heuristic so line count/positions
+      // are identical across Node/Chromium/WebKit; the paint loop below re-flows
+      // each line's centering + keyword underlines with real ctx.measureText.
       measure: approximateMeasure,
     });
     if (layout.body.diagnostic) diagnostics.push(layout.body.diagnostic);
@@ -389,19 +556,32 @@ export function createCardFaceComposer({
   /**
    * Production-parity face bake. Canvas2d is the sole paint authority so combat
    * textures and shop/deck exportImage share one raster that mirrors styles.css.
+   *
+   * @param {object} layout          pure layout model
+   * @param {number} [scale=1]       device-scale of the backing store (dpr ×
+   *   stage-scale, capped) — logical drawing stays in 152×216 stage px, so a
+   *   hand/grid texture stays crisp when the stage upscales on HiDPI.
+   * @param {HTMLCanvasElement} [targetCanvas]  reuse for in-place re-bake.
+   * @param {Array<{value,state}>|null} [values]  optional preview-resolved
+   *   value-marker overrides (SPINE consumer) — boosted=green, reduced=red.
    */
-  function paintFaceCanvas2d(layout) {
+  function paintFaceCanvas2d(layout, scale = 1, targetCanvas = null, values = null) {
     if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
       return null;
     }
-    const canvas = document.createElement('canvas');
-    canvas.width = CARD_FACE_WIDTH;
-    canvas.height = CARD_FACE_HEIGHT;
+    const s = Math.max(1, Number(scale) || 1);
+    const canvas = targetCanvas || document.createElement('canvas');
+    canvas.width = Math.round(CARD_FACE_WIDTH * s);
+    canvas.height = Math.round(CARD_FACE_HEIGHT * s);
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
+    // Logical coords stay 152×216; the backing store is `s`× denser.
+    ctx.setTransform(s, 0, 0, s, 0, 0);
     const { width, height, regions } = layout;
     const tint = typeTintCss(layout.type);
     const lead = PROD.lead;
+    const rare = layout.rarity === 'rare' || layout.rarity === 'boss';
+    const uncommon = layout.rarity === 'uncommon';
 
     // `.card-inner` pane — radius 11, lead border, type-tinted glass gradient.
     ctx.save();
@@ -412,16 +592,24 @@ export function createCardFaceComposer({
     pane.addColorStop(0.58, '#090b14');
     ctx.fillStyle = pane;
     ctx.fillRect(0, 0, width, height);
-    // Inset tint rim (approx inset box-shadow).
-    ctx.strokeStyle = mixCss(tint, 'rgba(0,0,0,0)', 0.4);
-    ctx.globalAlpha = 0.4;
+    // Light falling from the top (golden inset 0 16px 30px -14px tint/gold).
+    const topGlow = ctx.createLinearGradient(0, 0, 0, height * 0.34);
+    const glowCss = rare ? COLOUR.gold : uncommon ? '#a8d8ee' : tint;
+    topGlow.addColorStop(0, mixCss(glowCss, 'rgba(0,0,0,0)', rare ? 0.42 : 0.34));
+    topGlow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = topGlow;
+    ctx.fillRect(0, 0, width, height * 0.34);
+    // Lit inner rim — gilt on rares, silvered on uncommons, else type-tint.
+    const rimCss = rare ? COLOUR.gold : uncommon ? '#a8d8ee' : tint;
+    ctx.strokeStyle = mixCss(rimCss, 'rgba(0,0,0,0)', rare ? 0.8 : uncommon ? 0.6 : 0.4);
+    ctx.globalAlpha = rare ? 0.8 : uncommon ? 0.6 : 0.4;
     ctx.lineWidth = 1;
     roundRectPath(ctx, 1, 1, width - 2, height - 2, 10);
     ctx.stroke();
     ctx.globalAlpha = 1;
     ctx.restore();
 
-    ctx.strokeStyle = layout.rarity === 'rare' || layout.rarity === 'boss' ? '#1a1408' : lead;
+    ctx.strokeStyle = rare ? '#1a1408' : lead;
     ctx.lineWidth = 2;
     roundRectPath(ctx, 1, 1, width - 2, height - 2, 11);
     ctx.stroke();
@@ -431,28 +619,38 @@ export function createCardFaceComposer({
     ctx.beginPath();
     ctx.rect(regions.art.x, regions.art.y, regions.art.w, regions.art.h);
     ctx.clip();
-    const artWash = ctx.createRadialGradient(
-      regions.art.x + regions.art.w / 2,
-      regions.art.y + regions.art.h * 0.45,
-      4,
-      regions.art.x + regions.art.w / 2,
-      regions.art.y + regions.art.h * 0.45,
-      regions.art.w * 0.55,
-    );
-    artWash.addColorStop(0, mixCss(tint, 'rgba(0,0,0,0)', 0.14));
-    artWash.addColorStop(0.75, 'rgba(0,0,0,0)');
-    ctx.fillStyle = artWash;
-    ctx.fillRect(regions.art.x, regions.art.y, regions.art.w, regions.art.h);
-
     const artImg = assets?.cardArtImage?.(layout.id) || null;
     if (artImg && artImg.complete && artImg.naturalWidth > 0) {
+      const artWash = ctx.createRadialGradient(
+        regions.art.x + regions.art.w / 2,
+        regions.art.y + regions.art.h * 0.45,
+        4,
+        regions.art.x + regions.art.w / 2,
+        regions.art.y + regions.art.h * 0.45,
+        regions.art.w * 0.55,
+      );
+      artWash.addColorStop(0, mixCss(tint, 'rgba(0,0,0,0)', 0.14));
+      artWash.addColorStop(0.75, 'rgba(0,0,0,0)');
+      ctx.fillStyle = artWash;
+      ctx.fillRect(regions.art.x, regions.art.y, regions.art.w, regions.art.h);
       try {
         ctx.drawImage(
           artImg,
           regions.art.x, regions.art.y, regions.art.w, regions.art.h,
         );
-      } catch { /* tainted / stub */ }
+      } catch { /* tainted / stub → procedural fallback */ }
+    } else {
+      // No raster ready (cold cache) or none exists (unreadablePage curse):
+      // never a blank band — paint procedural art; re-bake upgrades to raster.
+      drawProceduralArt(ctx, regions.art, layout.id, layout.type);
     }
+    // `.card-art::after` — top light line, bottom score, inner vignette.
+    ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(regions.art.x, regions.art.y + 0.5);
+    ctx.lineTo(regions.art.x + regions.art.w, regions.art.y + 0.5);
+    ctx.stroke();
     ctx.restore();
     ctx.strokeStyle = lead;
     ctx.lineWidth = 1;
@@ -491,57 +689,76 @@ export function createCardFaceComposer({
     ctx.letterSpacing = '0px';
     ctx.globalAlpha = 1;
 
-    // Body — production keyword tint + parchment values (no inline icons).
+    // Body — real-metrics centering; keyword tint + parchment/preview values.
     const body = layout.body;
     const lineHeight = body.fontSize * 1.32;
     const bodyTop = regions.body.y
       + Math.max(0, (regions.body.h - body.lines.length * lineHeight) / 2);
     ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
+    let valueSeq = 0;
     body.lines.forEach((line, index) => {
       const y = bodyTop + index * lineHeight;
-      const advances = line.map((tok) => {
-        if (tok.kind === 'value') return approximateMeasure(String(tok.value), body.fontSize, 'body') * 1.05;
-        if (tok.kind === 'ellipsis') return approximateMeasure('…', body.fontSize, 'body');
-        return approximateMeasure(tok.text || '', body.fontSize, 'body');
+      // Resolve display text, colour and real advance per token in one pass so
+      // the preview value index stays aligned with the centering maths.
+      const items = line.map((tok) => {
+        if (tok.kind === 'value') {
+          const ov = values ? values[valueSeq] : null;
+          valueSeq += 1;
+          const text = ov && ov.value != null ? String(ov.value) : String(tok.value);
+          const colour = ov?.state === 'boosted' ? PROD.valBoosted
+            : ov?.state === 'reduced' ? PROD.valReduced : PROD.parchment;
+          return {
+            kind: 'value', text, colour, advance: browserMeasure(text, body.fontSize, 'body') * 1.05,
+          };
+        }
+        if (tok.kind === 'ellipsis') {
+          return {
+            kind: 'ellipsis', text: '…', colour: PROD.body, advance: browserMeasure('…', body.fontSize, 'body'),
+          };
+        }
+        const text = tok.text || '';
+        return {
+          kind: tok.kind,
+          text,
+          colour: tok.kind === 'keyword' ? tint : PROD.body,
+          advance: browserMeasure(text, body.fontSize, 'body'),
+        };
       });
-      const total = advances.reduce((a, b) => a + b, 0);
+      const total = items.reduce((a, b) => a + b.advance, 0);
       let x = regions.body.x + (regions.body.w - total) / 2;
-      line.forEach((tok, ti) => {
-        const text = tok.kind === 'value' ? String(tok.value)
-          : tok.kind === 'ellipsis' ? '…'
-            : (tok.text || '');
-        if (!text) return;
-        if (tok.kind === 'keyword') {
-          ctx.fillStyle = tint;
-          ctx.font = `${body.fontSize}px Alegreya, serif`;
-          ctx.fillText(text, x, y);
+      for (const it of items) {
+        if (!it.text) { x += it.advance; continue; }
+        ctx.fillStyle = it.colour;
+        ctx.font = it.kind === 'value'
+          ? `700 ${body.fontSize}px Alegreya, serif`
+          : `${body.fontSize}px Alegreya, serif`;
+        ctx.fillText(it.text, x, y);
+        if (it.kind === 'keyword') {
           ctx.strokeStyle = mixCss(tint, 'rgba(0,0,0,0)', 0.6);
           ctx.globalAlpha = 0.6;
+          ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(x, y + body.fontSize + 1);
-          ctx.lineTo(x + advances[ti], y + body.fontSize + 1);
+          ctx.lineTo(x + it.advance, y + body.fontSize + 1);
           ctx.stroke();
           ctx.globalAlpha = 1;
-        } else if (tok.kind === 'value') {
-          ctx.fillStyle = PROD.parchment;
-          ctx.font = `700 ${body.fontSize}px Alegreya, serif`;
-          ctx.fillText(text, x, y);
-        } else {
-          ctx.fillStyle = PROD.body;
-          ctx.font = `${body.fontSize}px Alegreya, serif`;
-          ctx.fillText(text, x, y);
         }
-        x += advances[ti];
-      });
+        x += it.advance;
+      }
     });
 
     drawRarityChipCanvas(ctx, regions.rarityRail, rarityRailColour(layout.rarity), layout.rarity);
 
-    // Cost gem last so it sits above the art (production z-index 4).
+    // Static rarity foil / glare over the pane (under the corner gem).
+    paintFoilOverlay(ctx, layout, tint);
+
+    // Cost gem last so it sits above the art (production z-index 4). Clamp the
+    // centre inward so the -8,-8 hex + bevel is never clipped by the face edge.
     if (layout.cost != null) {
-      const cx = regions.cost.x + regions.cost.size / 2;
-      const cy = regions.cost.y + regions.cost.size / 2;
+      const half = regions.cost.size / 2;
+      const cx = Math.max(half, regions.cost.x + half);
+      const cy = Math.max(half, regions.cost.y + half);
       drawHexGemCanvas(ctx, cx, cy, regions.cost.size, { free: layout.cost === 0 });
       ctx.fillStyle = PROD.costInk;
       ctx.font = '800 17px Cinzel, serif';
@@ -587,8 +804,9 @@ export function createCardFaceComposer({
 
     if (layout.cost != null) {
       const gem = new Graphics();
-      const cx = regions.cost.x + regions.cost.size / 2;
-      const cy = regions.cost.y + regions.cost.size / 2;
+      const half = regions.cost.size / 2;
+      const cx = Math.max(half, regions.cost.x + half);
+      const cy = Math.max(half, regions.cost.y + half);
       const gemFill = layout.cost === 0 ? 0x37d67a : gold;
       drawHexGemPixi(gem, cx, cy, regions.cost.size, gemFill, hexToInt(PROD.lead, ink));
       root.addChild(gem);
@@ -679,26 +897,33 @@ export function createCardFaceComposer({
     return root;
   }
 
-  function bakeTexture(layout) {
+  function bakeTexture(layout, values) {
     if (typeof bakeFace === 'function') {
-      return bakeFace(layout);
+      return { texture: bakeFace(layout), canvas: null, scale: 1 };
     }
-    // Prefer the production-parity canvas bake so combat == shop/deck.
-    const canvas = paintFaceCanvas2d(layout);
+    // Prefer the production-parity canvas bake so combat == shop/deck. The
+    // backing store is `scale`× denser (dpr × stage-scale) so hand/grid text
+    // stays crisp when the stage upscales — logical coords remain 152×216.
+    const scale = resolution();
+    const canvas = paintFaceCanvas2d(layout, scale, null, values);
     if (canvas && typeof Texture.from === 'function') {
       try {
-        return Texture.from(canvas);
+        return { texture: Texture.from(canvas), canvas, scale };
       } catch { /* fall through to Pixi generateTexture */ }
     }
     const canGenerate = typeof renderer.generateTexture === 'function'
       || typeof renderer.textureGenerator?.generateTexture === 'function';
     if (!canGenerate) {
       return {
-        width: CARD_FACE_WIDTH,
-        height: CARD_FACE_HEIGHT,
-        destroy() {},
-        __stub: true,
-        key: layout.key,
+        texture: {
+          width: CARD_FACE_WIDTH,
+          height: CARD_FACE_HEIGHT,
+          destroy() {},
+          __stub: true,
+          key: layout.key,
+        },
+        canvas: null,
+        scale,
       };
     }
     const display = paintFace(layout);
@@ -707,7 +932,7 @@ export function createCardFaceComposer({
       if (typeof renderer.generateTexture === 'function') {
         texture = renderer.generateTexture({
           target: display,
-          resolution: resolution(),
+          resolution: scale,
         });
       } else {
         texture = renderer.textureGenerator.generateTexture(display);
@@ -715,14 +940,47 @@ export function createCardFaceComposer({
     } finally {
       try { display.destroy({ children: true, context: true }); } catch { /* ignore */ }
     }
-    return texture;
+    return { texture, canvas: null, scale };
+  }
+
+  /**
+   * Re-paint a cached face in place once its art image finishes decoding —
+   * upgrades the procedural fallback to the real raster with no key churn and
+   * no new Texture object (combat holds the same reference), then drops the
+   * export URL so the next exportImage re-encodes with real art.
+   */
+  function redrawEntry(entry) {
+    if (destroyed || entries.get(entry.key) !== entry || !entry.canvas) return;
+    paintFaceCanvas2d(entry.layout, entry.scale || 1, entry.canvas, entry.values || null);
+    try { entry.texture?.source?.update?.(); } catch { /* best-effort refresh */ }
+    revokeEntryUrl(entry);
+    entry.artBaked = true;
+  }
+
+  /** Watch a fresh entry's card art; re-bake when the raster decodes. */
+  function watchArt(entry) {
+    if (typeof Image === 'undefined' || !entry.canvas) { entry.artBaked = true; return; }
+    const raster = assets?.cardArtImage?.(entry.layout.id) || null;
+    const ready = !!(raster && raster.complete && raster.naturalWidth > 0);
+    if (ready || !raster) { entry.artBaked = true; return; }
+    // Raster still decoding — procedural art shows now; upgrade on decode.
+    const done = () => redrawEntry(entry);
+    if (typeof raster.decode === 'function') {
+      raster.decode().then(done).catch(() => {});
+    } else if (typeof raster.addEventListener === 'function') {
+      raster.addEventListener('load', done, { once: true });
+    }
+    entry.artBaked = false;
   }
 
   function ensureEntry(cardDescriptor, displayState) {
     if (destroyed) throw new Error('card-face composer destroyed');
     const card = resolveCard(registries, cardDescriptor);
     const { layout, dpr } = buildDisplay(card, displayState);
-    const key = layout.key;
+    const values = normalizeValues(displayState?.values);
+    // Additive: value overrides split the cache so previews never collide with
+    // the default (no-override) face combat-gl bakes.
+    const key = values ? `${layout.key}${valuesSignature(values)}` : layout.key;
     let entry = entries.get(key);
     if (entry) {
       touch(key);
@@ -730,10 +988,13 @@ export function createCardFaceComposer({
     }
     const bytes = estimateFaceBytes(CARD_FACE_WIDTH, CARD_FACE_HEIGHT, dpr);
     evictIfNeeded(bytes);
-    const texture = bakeTexture(layout);
+    const { texture, canvas, scale } = bakeTexture(layout, values);
     entry = {
       key,
       texture,
+      canvas,
+      scale,
+      values,
       bytes,
       refs: 0,
       layout,
@@ -742,6 +1003,7 @@ export function createCardFaceComposer({
     entries.set(key, entry);
     touch(key);
     bytesUsed += bytes;
+    watchArt(entry);
     return entry;
   }
 
@@ -779,7 +1041,9 @@ export function createCardFaceComposer({
       let blob = null;
       // Prefer canvas2d when the art loader is warm so shop/reward exports
       // include real card art even before Pixi textures finish decoding.
-      const canvas2d = paintFaceCanvas2d(entry.layout);
+      // Exports stay 1× (152×216 natural) — the DOM `<img>` box and the
+      // fixed-coordinate export readers both assume the canonical face size.
+      const canvas2d = paintFaceCanvas2d(entry.layout, 1, null, entry.values || null);
       if (canvas2d) blob = canvasToPngBlob(canvas2d);
       if (!blob && typeof renderer.extract?.canvas === 'function') {
         const display = paintFace(entry.layout);
@@ -876,6 +1140,15 @@ export function createCardFaceComposer({
     bytesUsed = 0;
   }
 
+  // measureText is only correct once the web fonts (Cinzel/Alegreya) load; a
+  // face baked before then uses fallback-font metrics. Re-bake once fonts are
+  // ready so centering/underlines land right (no-op if already loaded).
+  if (typeof document !== 'undefined' && document.fonts && document.fonts.status !== 'loaded') {
+    document.fonts.ready.then(() => {
+      if (!destroyed && entries.size) invalidate({ all: true });
+    }).catch(() => {});
+  }
+
   return Object.freeze({
     acquire,
     exportImage,
@@ -886,7 +1159,8 @@ export function createCardFaceComposer({
     faceCacheKeyFor(cardDescriptor, displayState = {}) {
       const card = resolveCard(registries, cardDescriptor);
       const { layout } = buildDisplay(card, displayState);
-      return layout.key;
+      const values = normalizeValues(displayState?.values);
+      return values ? `${layout.key}${valuesSignature(values)}` : layout.key;
     },
     paintFace,
   });
