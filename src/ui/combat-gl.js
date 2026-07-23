@@ -389,6 +389,38 @@ export async function createCombatRenderer({
   let handTicker = null;
   let handTickHandler = null;
 
+  // --- Incremental repaint (aim/drag de-thrash) ------------------------------
+  // combat.js always calls sync() with the FULL presentation model, even when a
+  // single pointermove only nudged the aim arc or a dragged card. Repainting
+  // every region per move destroys+recreates dozens of Pixi Text/Graphics (GPU +
+  // layout thrash). The DOM-free regions (bottom chrome, hand, aim) paint as a
+  // pure function of their model slice plus stage shape/resolution, so we memoise
+  // a per-region signature and repaint only the slices that actually changed.
+  // Shape + resolution ride in every signature, so a resize (which also arrives
+  // through sync via refitCombat) forces a full repaint. HUD and plates mirror
+  // live DOM anchors that settle asynchronously and can move without a model
+  // change, so they always repaint. layout()/mount()/the context-rebuild reset
+  // the cache to force a full repaint.
+  const paintSig = { bottom: null, hand: null, aim: null };
+  const resetPaintSigs = () => {
+    paintSig.bottom = null; paintSig.hand = null; paintSig.aim = null;
+  };
+  const repaintRegions = (force = false) => {
+    const m = presentationModel;
+    const base = `${m?.stage?.shape ?? ''}|${paintResolution(pixiLayer)}`;
+    const sig = (slice) => `${base}|${JSON.stringify(slice ?? null)}`;
+    const bottomSig = sig([m?.bottomChrome, m?.hero?.energy, m?.hero?.energyMax, m?.embers, m?.piles]);
+    if (force || bottomSig !== paintSig.bottom) { paintBottomChrome(); paintSig.bottom = bottomSig; }
+    // HUD + plates read live DOM geometry — always repaint (cheap relative to a
+    // stale-geometry bug; still coalesced to one call per frame by pointer.js).
+    paintHudChrome();
+    paintPlatesChrome();
+    const handSig = sig(m?.hand);
+    if (force || handSig !== paintSig.hand) { paintHand(); paintSig.hand = handSig; }
+    const aimSig = sig(m?.aim);
+    if (force || aimSig !== paintSig.aim) { paintAim(); paintSig.aim = aimSig; }
+  };
+
   const isLite = () => (pixiLayer.policy?.tier === 'lite');
   // REDUCED wins over LITE — snap transforms, no tilt/glare/holo.
   const reducedMotion = () => {
@@ -526,15 +558,12 @@ export async function createCombatRenderer({
       clearHandPaint();
       clearAimPaint();
       clearPulses();
+      resetPaintSigs();
       bump();
       return null;
     }
     presentationModel = cloneImmutable(model);
-    paintBottomChrome();
-    paintHudChrome();
-    paintPlatesChrome();
-    paintHand();
-    paintAim();
+    repaintRegions(false);
     bump();
     return presentationModel;
   };
@@ -542,11 +571,7 @@ export async function createCombatRenderer({
   const mount = (model) => {
     if (model !== undefined) sync(model);
     else {
-      paintBottomChrome();
-      paintHudChrome();
-      paintPlatesChrome();
-      paintHand();
-      paintAim();
+      repaintRegions(true);
       bump();
     }
     trace?.emit?.('renderer.mount', {
@@ -557,11 +582,7 @@ export async function createCombatRenderer({
   };
 
   const layout = () => {
-    paintBottomChrome();
-    paintHudChrome();
-    paintPlatesChrome();
-    paintHand();
-    paintAim();
+    repaintRegions(true);
     bump();
     return readUI();
   };
@@ -2682,11 +2703,11 @@ export async function createCombatRenderer({
     return result;
   };
 
-  const rebuildAfterLossForTest = async () => {
-    if (typeof pixiLayer.rebuild !== 'function') {
-      throw new Error('pixiLayer does not expose rebuild');
-    }
-    const result = await pixiLayer.rebuild();
+  // Re-attach the combat container to the freshly rebuilt Pixi layer and force a
+  // full resync. Shared by the test rebuild seam AND the production
+  // webglcontextrestored path (pixiLayer.setOnContextRestored below), so a real
+  // GPU context loss recovers the same way the probe drives it.
+  const reattachAfterRebuild = () => {
     const nextRoot = pixiLayer.root?.();
     if (nextRoot && typeof nextRoot.addChild === 'function' && container.parent !== nextRoot) {
       nextRoot.addChild(container);
@@ -2695,17 +2716,32 @@ export async function createCombatRenderer({
     if (nextRenderer) {
       try { cardFace.rebuild(nextRenderer); } catch { /* best-effort */ }
     }
-    // Force a full hand reacquire against the new renderer.
+    // GPU resources died with the old context — clear reused hand/aim nodes and
+    // reset the region cache so the resync repaints every chrome/HUD/plate slice
+    // (otherwise reused sprites/text would show with dead textures).
     clearHandPaint();
     clearAimPaint();
+    resetPaintSigs();
     // New Application → new ticker; re-attach the living-card frame loop.
     attachHandTicker();
     if (presentationModel) {
       try { sync(presentationModel); } catch { /* remount best-effort */ }
     }
     bump();
+  };
+
+  const rebuildAfterLossForTest = async () => {
+    if (typeof pixiLayer.rebuild !== 'function') {
+      throw new Error('pixiLayer does not expose rebuild');
+    }
+    const result = await pixiLayer.rebuild();
+    reattachAfterRebuild();
     return result;
   };
+
+  // Production context-loss recovery: pixiLayer rebuilds the renderer on a real
+  // webglcontextrestored, then calls back here to re-attach + resync combat.
+  pixiLayer.setOnContextRestored?.(reattachAfterRebuild);
 
   /** Full lose → rebuild → remount recovery seam used by Probe / P4 gates. */
   const recoverContextForTest = async () => {
