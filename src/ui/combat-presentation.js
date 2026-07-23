@@ -7,8 +7,26 @@ import { iconSvg } from '../art.js';
 import {
   CEREMONY_BUDGET_MS, flightSchedule,
 } from '../pile-chrome.js';
+import { stageRect, stageW, stageH } from '../stage.js';
+import { shatterCells, resolveShatterRect } from '../vfx.js';
 import { COLOUR, DURATION_MS, isReducedTier } from './tokens.js';
 import { tween } from './tween.js';
+
+/** Pre-pixi throw-into-enemy ease-in: accelerates into the body as a streak. */
+const THROW_EASE_IN = Object.freeze([0.45, 0, 0.9, 0.5]);
+
+/** Parse CSS cubic-bezier() / named token / 4-tuple for tween(). */
+function resolveFlightEasing(easing, fallback = 'outSoft') {
+  if (Array.isArray(easing) && easing.length === 4) return easing;
+  if (typeof easing === 'string') {
+    if (easing === 'outSoft' || easing === 'spring') return easing;
+    const m = easing.match(
+      /cubic-bezier\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/i,
+    );
+    if (m) return [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
+  }
+  return fallback;
+}
 
 const TIER_STYLE = Object.freeze({
   normal: { size: 34, fill: COLOUR.text, dur: 450, rise: 34, easing: 'outSoft' },
@@ -276,7 +294,8 @@ export function createCombatPresentation({
 
   async function banner(text, opts = {}) {
     if (destroyed) return { outcome: 'skipped' };
-    const kind = opts.kind || 'turn';
+    // Additive: opts.bannerKind aliases opts.kind (drain still passes kind=).
+    const kind = opts.kind || opts.bannerKind || 'turn';
     const plain = String(text).replace(/<[^>]+>/g, '');
     // Probe/e2e transient capture — never put dialogue body into the behaviour trace.
     try {
@@ -292,28 +311,124 @@ export function createCombatPresentation({
     const bg = new Graphics();
     const lines = plain.split(/\n/).filter(Boolean);
     const longest = lines.reduce((n, line) => Math.max(n, line.length), plain.length);
-    const w = Math.min(640, Math.max(280, longest * 18));
-    const h = kind === 'boss' || lines.length > 1 ? 72 : 56;
-    bg.roundRect(-w / 2, -h / 2, w, h, 6)
-      .fill({ color: 0x0b0e1a, alpha: 0.88 });
-    const railColor = kind === 'boss' || kind === 'defeat' || kind === 'guard-shattered'
-      ? hexToNum(COLOUR.danger)
-      : kind === 'victory' || kind === 'perfect' ? hexToNum(COLOUR.gold)
-        : hexToNum(COLOUR.gold);
+    const isBoss = kind === 'boss';
+    const isPerfect = kind === 'perfect';
+    const isVariant = kind === 'variant';
+    const isGuard = kind === 'guard-shattered';
+    const isVictory = kind === 'victory' || isPerfect;
+    const isDefeat = kind === 'defeat';
+
+    // Per-kind plate geometry — boss / perfect / variant must not share turn chrome.
+    let w = Math.min(640, Math.max(280, longest * 18));
+    let h = 56;
+    let radius = 6;
+    let bgColor = 0x0b0e1a;
+    let bgAlpha = 0.88;
+    let railColor = hexToNum(COLOUR.gold);
+    let railH = 2;
+    let labelSize = 28;
+    let labelFill = COLOUR.parchment;
+    let startScale = 1;
+    let slideFrom = -24;
+    let easing = 'outSoft';
+    let yFrac = 0.38;
+
+    if (isBoss) {
+      w = Math.min(720, Math.max(340, longest * 22));
+      h = lines.length > 1 ? 96 : 78;
+      radius = 2;
+      bgColor = 0x1a0810;
+      bgAlpha = 0.94;
+      railColor = hexToNum(COLOUR.danger);
+      railH = 3;
+      labelSize = 36;
+      labelFill = COLOUR.parchment;
+      startScale = 0.78;
+      slideFrom = 0;
+      easing = 'spring';
+      yFrac = 0.34;
+    } else if (isPerfect) {
+      w = Math.min(680, Math.max(320, longest * 20));
+      h = 70;
+      radius = 8;
+      bgColor = 0x141008;
+      bgAlpha = 0.92;
+      railColor = hexToNum(COLOUR.gold);
+      railH = 3;
+      labelSize = 38;
+      labelFill = COLOUR.gold;
+      startScale = 0.72;
+      slideFrom = -12;
+      easing = 'spring';
+      yFrac = 0.36;
+    } else if (isVariant) {
+      // Dialogue plate — quieter than "Your Turn", body-weight copy.
+      w = Math.min(560, Math.max(260, longest * 14));
+      h = Math.max(52, 28 + lines.length * 26);
+      radius = 10;
+      bgColor = 0x12161f;
+      bgAlpha = 0.82;
+      railColor = hexToNum(COLOUR.ward);
+      railH = 1;
+      labelSize = 22;
+      labelFill = COLOUR.text;
+      startScale = 0.94;
+      slideFrom = -16;
+      easing = 'outSoft';
+      yFrac = 0.42;
+    } else if (isGuard) {
+      railColor = hexToNum(COLOUR.danger);
+      labelSize = 30;
+      labelFill = COLOUR.ember;
+      easing = 'spring';
+    } else if (isVictory || isDefeat) {
+      h = 64;
+      railColor = isDefeat ? hexToNum(COLOUR.danger) : hexToNum(COLOUR.gold);
+      labelSize = 34;
+      easing = 'spring';
+    } else if (lines.length > 1) {
+      h = 72;
+    }
+
+    bg.roundRect(-w / 2, -h / 2, w, h, radius)
+      .fill({ color: bgColor, alpha: bgAlpha });
+    if (isBoss) {
+      // Inner ember wash — boss intro reads as a threat plate, not a turn chip.
+      bg.roundRect(-w / 2 + 4, -h / 2 + 4, w - 8, h - 8, Math.max(0, radius - 1))
+        .stroke({ color: hexToNum(COLOUR.danger), width: 1, alpha: 0.45 });
+    } else if (isPerfect) {
+      bg.roundRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6, radius - 2)
+        .stroke({ color: hexToNum(COLOUR.gold), width: 1.5, alpha: 0.55 });
+    } else if (isVariant) {
+      bg.roundRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4, radius - 2)
+        .fill({ color: 0x1a2233, alpha: 0.35 });
+    }
     const rail = new Graphics();
-    rail.rect(-w / 2, h / 2 - 3, w, 2).fill({ color: railColor, alpha: 1 });
-    rail.rect(-w / 2, -h / 2 + 1, w, 2).fill({ color: railColor, alpha: 1 });
+    rail.rect(-w / 2, h / 2 - railH - 1, w, railH).fill({ color: railColor, alpha: 1 });
+    rail.rect(-w / 2, -h / 2 + 1, w, railH).fill({ color: railColor, alpha: 1 });
     const label = makeLabel(plain, {
-      size: kind === 'boss' ? 32 : kind === 'victory' || kind === 'defeat' || kind === 'perfect' ? 34 : 28,
-      fill: COLOUR.parchment,
+      size: labelSize,
+      fill: labelFill,
+      maxWidth: isVariant ? w - 36 : 0,
     });
+    // Variant dialogue: lighter stroke so it doesn't shout like a turn banner.
+    if (isVariant && label.style) {
+      label.style.stroke = { color: 0x0b0e1a, width: 1.5, join: 'round' };
+      label.style.fontWeight = '600';
+      label.style.fontFamily = 'Alegreya, Cinzel, serif';
+    } else if (isBoss && label.style) {
+      label.style.letterSpacing = 4;
+    } else if (isPerfect && label.style) {
+      label.style.letterSpacing = 6;
+      label.style.stroke = { color: 0x3a2808, width: 4, join: 'round' };
+    }
     plate.addChild(bg, rail, label);
-    const stageWidth = typeof opts.stageW === 'number' ? opts.stageW : 800;
-    const stageHeight = typeof opts.stageH === 'number' ? opts.stageH : 600;
+    const stageWidth = typeof opts.stageW === 'number' ? opts.stageW : (stageW() || 800);
+    const stageHeight = typeof opts.stageH === 'number' ? opts.stageH : (stageH() || 600);
     plate.x = typeof opts.x === 'number' ? opts.x : stageWidth / 2;
-    plate.y = typeof opts.y === 'number' ? opts.y : stageHeight * 0.38;
+    plate.y = typeof opts.y === 'number' ? opts.y : stageHeight * yFrac;
     plate.alpha = 1;
-    plate.scale.set(kind === 'boss' ? 0.92 : 1);
+    plate.scale.set(startScale);
     bannerLayer.addChild(plate);
 
     if (opts.holdForSample) {
@@ -325,18 +440,24 @@ export function createCombatPresentation({
     }
 
     const pol = policy();
-    const endState = { x: plate.x, alpha: 1, scale: 1, rail: 1 };
+    const endState = { x: plate.x, y: plate.y, alpha: 1, scale: 1, rail: 1 };
+    const fromY = isBoss ? plate.y + 18 : plate.y;
     try {
       const runner = tween({
-        from: { x: plate.x - 24, alpha: 0, scale: plate.scale.x, rail: 0 },
-        to: { x: plate.x, alpha: 1, scale: 1, rail: 1 },
-        duration: DURATION_MS.ceremony,
-        easing: kind === 'boss' || kind === 'victory' || kind === 'perfect' || kind === 'guard-shattered' ? 'spring' : 'outSoft',
+        from: {
+          x: plate.x + slideFrom, y: fromY, alpha: 0, scale: startScale, rail: 0,
+        },
+        to: {
+          x: plate.x, y: plate.y, alpha: 1, scale: 1, rail: 1,
+        },
+        duration: isBoss || isPerfect ? DURATION_MS.ceremony + 80 : DURATION_MS.ceremony,
+        easing,
         endState,
         policy: pol,
         onUpdate(v) {
           if (!plate || plate.destroyed) return;
           plate.x = v.x;
+          plate.y = v.y;
           plate.alpha = v.alpha;
           if (plate.scale) plate.scale.set(v.scale);
           if (rail && !rail.destroyed && rail.scale) rail.scale.set(Math.max(0.01, v.rail), 1);
@@ -559,29 +680,57 @@ export function createCombatPresentation({
         sprites.push(sprite);
 
         const land = src.dest || dest;
-        const alt = (i % 2 === 0 ? 1 : -1) * (ceremony === 'reshuffle' ? 32 : 18);
+        const isThrow = Number.isFinite(src?.dest?.x) && Number.isFinite(src?.dest?.y)
+          && opts.toSize == null && !opts.sizePile;
+        const smooth = opts.arc === 'smooth' || (!isThrow && ceremony !== 'reshuffle');
+        const alt = (i % 2 === 0 ? 1 : -1) * (ceremony === 'reshuffle' ? 32 : (isThrow ? 6 : 18));
         const delay = i * sched.stagger;
+        const flightEasing = resolveFlightEasing(
+          opts.easing,
+          isThrow ? THROW_EASE_IN : 'outSoft',
+        );
         // Delay tween *start*; parent awaits last child settle (honest wall-clock).
         childJobs.push(new Promise((resolve) => {
           setTimeout(() => {
             const landPt = src.dest
               ? { x: src.dest.x, y: src.dest.y }
               : land;
-            const mx2 = src.x + (landPt.x - src.x) * 0.45 + alt;
-            const my2 = Math.min(src.y, landPt.y) - (ceremony === 'reshuffle' ? 28 : 24);
+            let mx2;
+            let my2;
+            if (isThrow) {
+              // Straight streak (pre-pixi): optional arc only when caller asks.
+              if (opts.arc === 'smooth') {
+                mx2 = src.x + (landPt.x - src.x) * 0.45 + alt;
+                my2 = Math.min(src.y, landPt.y) - 18;
+              } else {
+                mx2 = src.x + (landPt.x - src.x) * 0.5 + alt * 0.25;
+                my2 = src.y + (landPt.y - src.y) * 0.5;
+              }
+            } else {
+              mx2 = src.x + (landPt.x - src.x) * 0.45 + alt;
+              my2 = Math.min(src.y, landPt.y) - (ceremony === 'reshuffle' ? 28 : (smooth ? 24 : 40));
+            }
             tween({
               from: { t: 0 },
               to: { t: 1 },
               duration: sched.flightDur,
-              easing: 'outSoft',
+              easing: flightEasing,
               policy: pol,
               onUpdate(v) {
                 if (!sprite || sprite.destroyed) return;
                 const t = v.t;
                 sprite.x = (1 - t) * (1 - t) * src.x + 2 * (1 - t) * t * mx2 + t * t * landPt.x;
                 sprite.y = (1 - t) * (1 - t) * src.y + 2 * (1 - t) * t * my2 + t * t * landPt.y;
-                sprite.alpha = 1 - t * 0.08;
-                if (sprite.scale) sprite.scale.set(1 - t * 0.25);
+                if (isThrow) {
+                  // Projectile streak: shrink to ~0.22, spin, fade out.
+                  const scale = 1 - t * 0.78;
+                  sprite.alpha = 1 - t;
+                  if (sprite.scale) sprite.scale.set(scale);
+                  sprite.rotation = (14 * Math.PI / 180) * t;
+                } else {
+                  sprite.alpha = 1 - t * 0.08;
+                  if (sprite.scale) sprite.scale.set(1 - t * 0.25);
+                }
               },
             }).done.then(() => {
               try { if (sprite && !sprite.destroyed) sprite.destroy(); } catch { /* */ }
@@ -719,7 +868,10 @@ export function createCombatPresentation({
 
   /**
    * Consume a mesh handoff canvas (or image URL) as a temporary texture,
-   * animate radial shards, destroy on settle.
+   * break into Voronoi / radial shard cells, ballistic fly + ground bounce.
+   * opts.sites (uv) optional — current drain/mesh callers may omit; defaults
+   * from body bounds via shatterCells(). opts.rect optional — derived from
+   * the dying enemy's stage rect so shards never spawn at (0,0).
    */
   async function shatter(source, opts = {}) {
     if (destroyed) return;
@@ -728,67 +880,149 @@ export function createCombatPresentation({
       return;
     }
     const token = beginBarrier('shatter');
-    const r = opts.rect || { left: 0, top: 0, width: 120, height: 120 };
+    const r = resolveShatterRect(source, opts);
     let texture = null;
-    let url = null;
+    let ownTexture = false;
+    const shards = [];
     try {
       if (opts.capture) {
-        url = opts.capture;
-        texture = Texture.from(url);
+        texture = Texture.from(opts.capture);
+        ownTexture = true;
       } else if (source?.tagName === 'CANVAS') {
         texture = Texture.from(source);
-      }
-      const shards = [];
-      const cx = r.left + r.width / 2;
-      const cy = r.top + r.height / 2;
-      for (let i = 0; i < 12; i += 1) {
-        const g = new Graphics();
-        const ang = (i / 12) * Math.PI * 2;
-        g.moveTo(0, 0)
-          .lineTo(Math.cos(ang) * 40, Math.sin(ang) * 40)
-          .lineTo(Math.cos(ang + 0.4) * 40, Math.sin(ang + 0.4) * 40)
-          .closePath()
-          .fill({ color: 0x9fd4ff, alpha: 0.85 });
-        if (texture) {
-          const spr = new Sprite(texture);
-          spr.anchor.set(0.5);
-          spr.width = r.width * 0.35;
-          spr.height = r.height * 0.35;
-          spr.x = cx;
-          spr.y = cy;
-          shatterLayer.addChild(spr);
-          shards.push({ node: spr, ang, speed: 120 + Math.random() * 180 });
-        } else {
-          g.x = cx;
-          g.y = cy;
-          shatterLayer.addChild(g);
-          shards.push({ node: g, ang, speed: 120 + Math.random() * 180 });
+        ownTexture = true;
+      } else if (source) {
+        const img = source.querySelector?.('img.raster-art')
+          || source.querySelector?.('img');
+        if (img?.src) {
+          texture = Texture.from(img.src);
+          ownTexture = true;
         }
       }
-      if (source?.style) source.style.visibility = 'hidden';
-      await tween({
-        from: { t: 0 },
-        to: { t: 1 },
-        duration: 640,
-        easing: 'spring',
-        policy: policy(),
-        onUpdate(v) {
-          for (const s of shards) {
-            s.node.x = cx + Math.cos(s.ang) * s.speed * v.t;
-            s.node.y = cy + Math.sin(s.ang) * s.speed * v.t + v.t * v.t * 180;
-            s.node.alpha = 1 - v.t;
-            s.node.scale?.set?.(0.82 + v.t * 0.24);
+
+      const { parts: cells, ix, iy } = shatterCells(opts.sites);
+      const G = 2400; // px/s² — matches pre-pixi glass weight
+
+      for (const c of cells) {
+        const cell = new Container();
+        cell.x = r.left;
+        cell.y = r.top;
+        const polyPx = c.poly.map(([px, py]) => [
+          (px / 100) * r.width,
+          (py / 100) * r.height,
+        ]);
+        const mask = new Graphics();
+        if (polyPx.length >= 3) {
+          mask.moveTo(polyPx[0][0], polyPx[0][1]);
+          for (let k = 1; k < polyPx.length; k += 1) {
+            mask.lineTo(polyPx[k][0], polyPx[k][1]);
           }
-        },
-      }).done;
-      for (const s of shards) {
-        try { s.node.destroy(); } catch { /* */ }
+          mask.closePath();
+          mask.fill({ color: 0xffffff, alpha: 1 });
+        }
+
+        let body;
+        if (texture) {
+          const spr = new Sprite(texture);
+          spr.width = r.width;
+          spr.height = r.height;
+          spr.x = 0;
+          spr.y = 0;
+          body = spr;
+        } else {
+          // No capture (LITE / mesh-off): frosted glass wedge, still cell-clipped.
+          const g = new Graphics();
+          g.rect(0, 0, r.width, r.height)
+            .fill({ color: 0xb8d4f0, alpha: 0.72 });
+          g.rect(0, 0, r.width, r.height)
+            .stroke({ color: 0xdfeaff, width: 1.2, alpha: 0.9 });
+          body = g;
+        }
+        cell.addChild(body);
+        if (mask && !mask.destroyed) {
+          cell.addChild(mask);
+          cell.mask = mask;
+        }
+        shatterLayer.addChild(cell);
+
+        let dx = c.cx - ix;
+        let dy = c.cy - iy;
+        const len = Math.hypot(dx, dy) || 1;
+        const near = Math.max(0, 1 - len / 75);
+        const speed = (120 + Math.random() * 240) * (0.85 + near * 0.75);
+        shards.push({
+          node: cell,
+          x: 0,
+          y: 0,
+          rot: 0,
+          bounced: 0,
+          vx: (dx / len) * speed,
+          vy: (dy / len) * speed * 0.65 - (60 + Math.random() * 150),
+          vr: (Math.random() - 0.5) * 260 * (Math.PI / 180),
+          maxY: Math.max(...c.poly.map((p) => p[1])),
+        });
       }
-      if (texture && texture !== Texture.WHITE) {
+
+      if (source?.style) source.style.visibility = 'hidden';
+
+      await new Promise((resolve) => {
+        let last = performance.now();
+        const T0 = last;
+        const step = (now) => {
+          if (destroyed) {
+            resolve();
+            return;
+          }
+          const dt = Math.min(0.032, (now - last) / 1000);
+          last = now;
+          const t = now - T0;
+          let live = 0;
+          for (const s of shards) {
+            if (!s.node || s.node.destroyed) continue;
+            s.vy += G * dt;
+            s.x += s.vx * dt;
+            s.y += s.vy * dt;
+            s.rot += s.vr * dt;
+            // Personal floor: lowest cell edge vs body feet (rect bottom).
+            const floor = r.height * (1 - s.maxY / 100) + 2;
+            if (s.y > floor && s.vy > 0 && s.bounced < 2) {
+              s.y = floor;
+              s.vy *= -(0.34 - s.bounced * 0.12);
+              s.vx *= 0.6;
+              s.vr *= 0.5;
+              s.bounced += 1;
+            }
+            const fade = t < 650 ? 1 : Math.max(0, 1 - (t - 650) / 380);
+            s.node.x = r.left + s.x;
+            s.node.y = r.top + s.y;
+            s.node.rotation = s.rot;
+            s.node.alpha = fade;
+            if (fade <= 0 || s.y > r.height * 1.5) {
+              try { s.node.destroy({ children: true }); } catch { /* */ }
+              s.node = null;
+            } else {
+              live += 1;
+            }
+          }
+          if (live) requestAnimationFrame(step);
+          else resolve();
+        };
+        requestAnimationFrame(step);
+      });
+
+      for (const s of shards) {
+        if (s.node && !s.node.destroyed) {
+          try { s.node.destroy({ children: true }); } catch { /* */ }
+        }
+      }
+      if (ownTexture && texture && texture !== Texture.WHITE && opts.capture) {
         try { texture.destroy(true); } catch { /* */ }
       }
       token.finish?.();
     } catch (error) {
+      for (const s of shards) {
+        try { s.node?.destroy?.({ children: true }); } catch { /* */ }
+      }
       token.cancel?.();
       throw error;
     }

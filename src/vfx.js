@@ -300,31 +300,76 @@ function _radialParts() {
   return { parts, ix: cx, iy: cy };
 }
 
+/**
+ * Partition the death body into shatter cells. Optional `sites` (uv, v-up) from
+ * the crack mesh; without them, radial wedges from the body centre are used so
+ * current callers that pass no sites still get a readable glass break.
+ */
+export function shatterCells(sites) {
+  return _voronoiParts(sites) || _radialParts();
+}
+
+/**
+ * Resolve the dying body's stage rect. Never returns a 0×0 / missing box at the
+ * origin — that used to pin shards to stage top-left on LITE (no mesh handoff).
+ */
+export function resolveShatterRect(el, opts = {}) {
+  const cand = opts.rect;
+  if (cand
+    && Number.isFinite(cand.left) && Number.isFinite(cand.top)
+    && Number.isFinite(cand.width) && Number.isFinite(cand.height)
+    && cand.width > 2 && cand.height > 2) {
+    return {
+      left: cand.left, top: cand.top, width: cand.width, height: cand.height,
+    };
+  }
+  if (el) {
+    try {
+      const r = stageRect(el);
+      if (r && Number.isFinite(r.left) && Number.isFinite(r.top)
+        && r.width > 2 && r.height > 2) {
+        return {
+          left: r.left, top: r.top, width: r.width, height: r.height,
+        };
+      }
+    } catch { /* stage may be mid-teardown */ }
+  }
+  // last resort: a nominal enemy body mid-right of the stage — never (0,0)
+  const sw = stageW() || 800;
+  const sh = stageH() || 600;
+  return {
+    left: sw * 0.52, top: sh * 0.26, width: Math.max(96, sw * 0.16), height: Math.max(120, sh * 0.28),
+  };
+}
+
 // glass death: the body breaks into the Voronoi cells its cracks defined and the
 // pieces fly out from the impact cluster. opts.capture carries the refracted frame.
+// opts.sites (optional) steers the Voronoi; omitted → radial defaults from bounds.
 export function shatter(el, opts = {}) {
-  const vis = el.querySelector('svg:not(.cracks-overlay)') || el.querySelector('img.raster-art');
-  const r = opts.rect || stageRect(el);
+  const vis = el?.querySelector?.('svg:not(.cracks-overlay)') || el?.querySelector?.('img.raster-art') || el?.querySelector?.('img');
+  const r = resolveShatterRect(el, opts);
   if ((!vis && !opts.capture) || !r.width) return;
-  if (REDUCED) { el.style.visibility = 'hidden'; return; }
+  if (REDUCED) { if (el?.style) el.style.visibility = 'hidden'; return; }
   const html = opts.capture
     ? `<img src="${opts.capture}" alt="" style="width:100%;height:100%;object-fit:contain;display:block">`
     : vis.tagName === 'svg'
       ? vis.outerHTML
       : `<img src="${vis.src}" alt="" style="width:100%;height:100%;object-fit:contain;display:block">`;
 
-  const { parts: cells, ix, iy } = _voronoiParts(opts.sites) || _radialParts();
+  const { parts: cells, ix, iy } = shatterCells(opts.sites);
   // ballistic shards: launched off the blow, pulled by gravity, tumbling, with a
   // damped bounce where each shard's own lowest edge meets the ground line (the
   // body art is bottom-anchored, so the rect's bottom IS the creature's feet)
   const G = 2400; // px/s² — glass is heavy; the fall should read fast
   const shards = [];
+  const layer = floatLayer || document.getElementById('floaties');
+  if (!layer) return;
   for (const c of cells) {
     const pts = c.poly.map((p) => `${p[0].toFixed(2)}% ${p[1].toFixed(2)}%`).join(',');
     const w = document.createElement('div');
     w.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;pointer-events:none;z-index:57;clip-path:polygon(${pts});will-change:transform,opacity;`;
     w.innerHTML = html;
-    floatLayer.appendChild(w);
+    layer.appendChild(w);
     let dx = c.cx - ix, dy = c.cy - iy;
     const len = Math.hypot(dx, dy) || 1;
     const near = Math.max(0, 1 - len / 75); // closer to the blow = more energy
@@ -361,7 +406,7 @@ export function shatter(el, opts = {}) {
     if (live) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
-  el.style.visibility = 'hidden';
+  if (el?.style) el.style.visibility = 'hidden';
 }
 
 // centre of an element in STAGE px — the coordinate every effect layer speaks
