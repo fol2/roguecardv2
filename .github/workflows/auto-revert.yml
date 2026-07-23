@@ -36,21 +36,34 @@ jobs:
     if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # Serialize per failing commit: duplicate at-least-once `workflow_run` events
+    # (and the extra events from our own self-heal re-runs) must not double-revert.
+    concurrency:
+      group: auto-revert-${{ github.event.workflow_run.head_sha }}
+      cancel-in-progress: false
     steps:
-      # De-fang: two lane families are browser-infra-flaky on this CI and were
-      # repeatedly false-reverting good work — `e2e aux` (bfeditor-disk is
-      # retries:0 and races a Vite HMR restart on slow CI) and the mobile-WebKit
-      # lanes (WebKit headless process crashes: "internal error", probe-undefined
-      # after reload, screens hang). When EVERY failed leaf lane is in that known
-      # set, stand down and open an issue instead of reverting. Any failure on a
-      # solid lane (unit / e2e pool / visual / leak / random) still reverts.
-      - name: Stand down when only known-flaky lanes failed
-        id: aux_guard
+      # Hybrid classifier for a red main. Two lane families are browser-infra-
+      # flaky here and were false-reverting good work — `e2e aux` (bfeditor-disk
+      # is retries:0 and races a Vite HMR restart on slow CI) and the mobile-
+      # WebKit lanes (renderer crashes: "internal error", probe-undefined after
+      # reload, screens hang). The classifier reduces the failure to its LEAF
+      # lanes and decides three ways:
+      #   * a SOLID lane failed      -> revert immediately, on ANY attempt (no
+      #                                 re-run, no added latency — it's a real red).
+      #   * ONLY known-flaky lanes   -> RE-RUN the failed jobs to let the flake
+      #                                 self-heal; if it still only-flakes after
+      #                                 two re-runs, open an issue (never a silent
+      #                                 revert — a runner-correlated infra flake is
+      #                                 not a "fails N times = real bug" signal).
+      #   * no failed leaves surfaced -> open an issue (unknown red; never revert).
+      - name: Classify the red — revert / rerun / hold
+        id: classify
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_ID: ${{ github.event.workflow_run.id }}
           FAILED_RUN_URL: ${{ github.event.workflow_run.html_url }}
           REPO: ${{ github.repository }}
+          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
         run: |
           set -euo pipefail
           # Aggregate/gate jobs (unit, e2e, e2e nonvisual, p2-base) fail only as a
@@ -60,17 +73,42 @@ jobs:
           # The lanes that are known browser-infra-flaky here (see comment above).
           NON_FLAKY="$(printf '%s' "${FAILED_LEAVES}" | jq -c '. - ["e2e aux","e2e webkit core-ipad","e2e webkit core-iphone","e2e webkit screens","e2e webkit lab"]')"
           echo "failed leaf lanes: ${FAILED_LEAVES} ; non-flaky among them: ${NON_FLAKY}"
-          if [ "${FAILED_LEAVES}" != "[]" ] && [ "${NON_FLAKY}" = "[]" ]; then
+          if [ "${NON_FLAKY}" != "[]" ]; then
+            # A solid lane failed → real regression. Revert now, any attempt.
+            echo "action=revert" >> "${GITHUB_OUTPUT}"
+          elif [ "${FAILED_LEAVES}" = "[]" ]; then
+            # No named leaf failed — the jobs API didn't surface the cause. Never
+            # read an empty leaf list as "all-flaky"; a human must look.
             gh issue create --repo "${REPO}" \
-              --title "main CI red — only known-flaky lanes failed (no auto-revert)" \
-              --body "The \`ci\` run failed on main but every failed leaf lane was a known browser-infra flake (\`${FAILED_LEAVES}\` — bfeditor disk-write / mobile-WebKit crashes). Auto-revert stood down to avoid false-reverting good work. Assess manually: ${FAILED_RUN_URL}"
-            echo "skip=true" >> "${GITHUB_OUTPUT}"
+              --title "main CI red — no failed leaf lanes surfaced (no auto-revert)" \
+              --body "The \`ci\` run failed on main but no failed leaf lane was surfaced by the jobs API, so auto-revert cannot classify it. A human should assess: ${FAILED_RUN_URL}"
+            echo "action=hold" >> "${GITHUB_OUTPUT}"
+          elif [ "${RUN_ATTEMPT}" -le 2 ]; then
+            # Only known-flaky lanes failed → let it self-heal by re-running the
+            # failed jobs (attempt 1 → 2, or 2 → 3). Re-evaluated on the next attempt.
+            echo "action=rerun" >> "${GITHUB_OUTPUT}"
           else
-            echo "skip=false" >> "${GITHUB_OUTPUT}"
+            # Still only-flaky after two re-runs (attempt ≥ 3) → escalate to a
+            # human, never revert (correlated infra flake, not a real bug).
+            gh issue create --repo "${REPO}" \
+              --title "main CI red — only known-flaky lanes failed after 2 re-runs (no auto-revert)" \
+              --body "Every failed leaf lane was a known browser-infra flake (\`${FAILED_LEAVES}\`) and it did not clear after two re-runs. Auto-revert stood down to avoid false-reverting good work; a human should assess: ${FAILED_RUN_URL}"
+            echo "action=hold" >> "${GITHUB_OUTPUT}"
           fi
 
+      - name: Re-run failed jobs to let a flaky-only red self-heal
+        if: steps.classify.outputs.action == 'rerun'
+        env:
+          GH_TOKEN: ${{ secrets.AUTO_REVERT_PAT }}   # PAT, not GITHUB_TOKEN — GITHUB_TOKEN would suppress the downstream workflow_run
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          # Duplicate at-least-once events can fire this twice; a second rerun call on an already-running attempt is a harmless no-op.
+          gh run rerun "${RUN_ID}" --failed || true
+          echo "Re-ran failed jobs of ${RUN_ID}; auto-revert re-evaluates on the next attempt."
+
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        if: steps.aux_guard.outputs.skip != 'true'
+        if: steps.classify.outputs.action == 'revert'
         with:
           ref: main
           fetch-depth: 0
@@ -80,7 +118,7 @@ jobs:
           persist-credentials: true
 
       - name: Revert the failed commit straight to main
-        if: steps.aux_guard.outputs.skip != 'true'
+        if: steps.classify.outputs.action == 'revert'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FAILED_SHA: ${{ github.event.workflow_run.head_sha }}

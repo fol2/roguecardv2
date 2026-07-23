@@ -38,14 +38,16 @@ WebKit Playwright runs against this WebGL-heavy game (full three.js scene + Pixi
 Bound how many WebGL page-boots any single WebKit browser process serves, by splitting the run into multiple *separate Playwright invocations* — a separate invocation is a fresh browser process. Applied incrementally as the family recurred:
 
 1. Webkit lane split into core/lab/screens invocations, then core split per device (`iphone` / `ipad` CI matrix segments).
-2. `trace` runs as two invocations per device (`--shard=1/2`, `--shard=2/2`).
-3. After the 4th occurrence hit `stage.spec.js`, stage got the same split (PR #52). Current shape in `package.json:40`:
+2. `trace` runs as three invocations per device (`--shard=1/3`, `--shard=2/3`, `--shard=3/3`).
+3. After the 4th occurrence hit `stage.spec.js`, stage got the same split (PR #52). Current shape in `package.json`, `test:e2e:webkit-core-iphone`:
 
 ```json
-"test:e2e:webkit-core-iphone": "npm run test:e2e:webkit-stage -- --project=iphone-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-stage -- --project=iphone-webkit --shard=2/2 && ... (trace 1/2, trace 2/2)"
+"test:e2e:webkit-core-iphone": "npm run test:e2e:webkit-stage -- --project=iphone-webkit --shard=1/2 && node tools/run-with-strict-e2e-port.mjs -- npm run test:e2e:webkit-stage -- --project=iphone-webkit --shard=2/2 && ... (trace 1/3, trace 2/3, trace 3/3)"
 ```
 
-with `test:e2e:webkit-stage` = `playwright test stage --workers=1 --no-deps` (`package.json:42`). Verified: the first post-merge full run on main after PR #52 was green.
+with `test:e2e:webkit-stage` = `playwright test stage --workers=1 --no-deps`. Verified: the first post-merge full run on main after PR #52 was green.
+
+**The split reduces the crash rate but does not eliminate it.** On 2026-07-23 the family recurred on main even on already-sharded segments: `trace.spec.js:1004` crashed on both `iphone-webkit` and `ipad-webkit` (the *core* segment, which is sharded), and the unsplit `screens` segment hung (~20 min) — exactly the prediction below. Sharding caps accumulation below the crash threshold *on average*, but a heavy shard can still tip over on a slow runner. That residual flake is what the companion `docs/solutions/workflow-issues/auto-revert-false-revert-on-flaky-lanes.md` learning handles at the revert-policy layer — it re-runs a flaky-only red to self-heal, then opens an issue if it persists, rather than reverting. This doc shrinks the flake at its source; that one keeps a stray crash from false-reverting good work.
 
 ## Why This Works
 
@@ -61,3 +63,4 @@ Playwright reuses one browser process per invocation. This app's pages are unusu
 
 - PR #47 (webkit lane/device splits, fresh-page-per-boot fix), PR #52 (stage shards, this doc's trigger)
 - `AGENTS.md` § CI documents the lane layout; `test/test_ci_contract.mjs` carries the family's history in the `webkit-core` pin comments
+- `docs/solutions/workflow-issues/auto-revert-false-revert-on-flaky-lanes.md` — the companion "re-run to self-heal, then hold" learning: when this family (or the bfeditor disk-write flake) still slips through and reddens main, the auto-revert classifier re-runs the flaky-only red to self-heal, then opens an issue if it persists, instead of false-reverting the good commit.

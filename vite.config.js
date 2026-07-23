@@ -617,6 +617,15 @@ export default defineConfig(({ command }) => {
       host: "0.0.0.0",
       port: BF_SAVE_PORT,
       allowedHosts: DEV_ALLOWED_HOSTS,
+      // Under the strict-port e2e server (SPIREBOUND_E2E_PORT set), don't HMR-restart
+      // on the editor-written source files the bfeditor/bfuieditor disk tests Save —
+      // the tests reload the page and only need the on-disk change, and the HMR
+      // restart was racing their 90s timeout on slow CI runners (aux-lane flake).
+      // Normal `npm run dev` (no SPIREBOUND_E2E_PORT) keeps full HMR for the editors.
+      // Vite merges server.watch.ignored with its defaults (node_modules/.git stay ignored).
+      ...(process.env.SPIREBOUND_E2E_PORT ? {
+        watch: { ignored: [/src[\\/]battlefield-layout\.js$/, /src[\\/]char-meta\.js$/, /src[\\/]ui-chrome-layout\.js$/] },
+      } : {}),
     },
   };
 });

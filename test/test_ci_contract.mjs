@@ -571,5 +571,12 @@ assert.match(autoRevert, /git push origin HEAD:main/);
 // Loop guard: a red main whose head is already a revert becomes an issue,
 // never an infinite revert loop.
 assert.match(autoRevert, /"auto-revert:"\* \| "Revert "\*/);
+// Hybrid classifier: a flaky-only red self-heals via a PAT-initiated re-run
+// (gated on run_attempt), and the concurrency guard stops duplicate
+// workflow_run events from double-reverting the same commit.
+assert.match(autoRevert, /gh run rerun .*--failed/);
+assert.match(autoRevert, /run_attempt/);
+assert.match(autoRevert, /concurrency:/);
+assert.match(autoRevert, /group: auto-revert-/);
 
 console.log('ci contract checks passed');
