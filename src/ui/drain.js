@@ -8,7 +8,7 @@ import { ownerFor } from './presentation-owners.js';
 export const COMBAT_TERMINAL_EVENT_TYPES = Object.freeze(['victory', 'defeat']);
 
 export function createDrain({
-  E, contentViewFor, QUESTS, cardEl, iconSvg, assetUrl, drawBatchSchedule,
+  E, a11y, contentViewFor, QUESTS, cardEl, iconSvg, assetUrl, drawBatchSchedule,
   V, sfx, kick, meshDeath, meshEnabled, meshHandoff, meshRelease,
   $, $$, S, el, escHtml, presentationBarrier, screenEl, sleep, trace,
   REDUCED, combatantView, stageW, stageH, stageRect, tr, presentation,
@@ -167,6 +167,8 @@ async function playReshuffleCeremony(ev) {
 async function handleDrawWave(q, queueCauseSeq = null) {
   const cb = S.cb, ce = S.ce;
   const segments = takeDrawWaveSegments(q);
+  // One aria-live summary per wave instead of per-card announcement spam.
+  a11y?.drew(segments.flatMap((s) => (s.t === 'draws' ? s.draws.map((d) => d.id) : [])));
   const eventSpans = new Map();
   const openEvents = new Set();
   try {
@@ -291,6 +293,7 @@ async function handleDrawWave(q, queueCauseSeq = null) {
 let emberFrom = null; // where the last fire spilled from (shatter/death/kindle)
 async function handleEvent(ev, targetIdx) {
   const cb = S.cb, ce = S.ce;
+  a11y?.note(ev); // offscreen aria-live announcement — best-effort, never gates playback
   switch (ev.t) {
     case 'bossIntro': {
       // Name plate only — rose-window behind it read as a second overlapping intro.

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createDrain, COMBAT_TERMINAL_EVENT_TYPES } from '../src/ui/drain.js';
+import { createA11yLog } from '../src/ui/a11y-log.js';
 
 globalThis.document = {
   body: {
@@ -170,8 +171,13 @@ const mockTrace = {
   emit: () => {},
 };
 
+// a11y is a plain injected dependency (not a drainHandlers key) — drain forwards
+// each raw event so the offscreen aria-live announcer can phrase it.
+const a11ySpy = { note: makeSpy('note'), drew: makeSpy('drew') };
+
 const drainApi = createDrain({
   E: {},
+  a11y: a11ySpy,
   contentViewFor: mockContentViewFor,
   QUESTS: {},
   cardEl: mockCardEl,
@@ -210,6 +216,8 @@ await (async () => {
   mockS.cb.queue.push({ t: 'turn', n: 1 });
   await drainApi.drain();
   assert.ok(presentation.syncCombat.calls.length > 0, 'turn handler (n=1) calls syncCombat');
+  assert.ok(a11ySpy.note.calls.some((c) => c[0]?.t === 'turn'),
+    'drain forwards each played event to the a11y announcer');
 
   presentation.banner.calls.length = 0;
   presentation.syncCombat.calls.length = 0;
@@ -273,5 +281,47 @@ await (async () => {
   assert.ok(maxHpFloat, 'maxHp handler floats +n MAX HP');
   assert.ok(mockSfx.buff.calls.length > 0, 'maxHp handler plays sfx.buff');
 })();
+
+// --- a11y-log: the offscreen aria-live announcer itself (fully injected) ---
+{
+  const created = [];
+  const fakeDoc = {
+    body: { appendChild(node) { created.push(node); } },
+    createElement() {
+      return {
+        id: '', style: {}, textContent: '',
+        setAttribute(key, value) { this[`attr:${key}`] = value; },
+      };
+    },
+  };
+  const a11y = createA11yLog({
+    document: fakeDoc,
+    S: { run: {}, cb: { enemies: [{ name: 'Bonefiend' }] } },
+    contentViewFor: () => ({
+      cards: { strike: { name: 'Strike' } },
+      statuses: { poison: { name: 'Smolder' } },
+    }),
+  });
+  a11y.note({ t: 'hitPlayer', amount: 7 });
+  assert.equal(created.length, 1, 'a11y-log lazily creates exactly one offscreen region');
+  assert.equal(created[0]['attr:aria-live'], 'polite', 'the region is a polite live region');
+  assert.equal(a11y.regionEl().textContent, 'You take 7 damage.', 'damage taken is announced');
+  a11y.note({ t: 'play', id: 'strike' });
+  assert.equal(a11y.regionEl().textContent, 'Played Strike.', 'card play announces the card name');
+  a11y.note({ t: 'hitEnemy', idx: 0, amount: 5 });
+  assert.equal(a11y.regionEl().textContent, 'Bonefiend takes 5 damage.', 'enemy damage names the foe');
+  a11y.drew(['strike', 'strike']);
+  assert.equal(a11y.regionEl().textContent, 'Drew 2 cards: Strike, Strike.', 'a draw wave announces one summary');
+  a11y.note({ t: 'chip', idx: 0 });
+  assert.equal(a11y.regionEl().textContent, 'Drew 2 cards: Strike, Strike.', 'noise events stay silent');
+  // Repeated identical lines (multi-hit) must still each land: consecutive
+  // writes always differ so a polite region never dedupes them away.
+  a11y.note({ t: 'hitEnemy', idx: 0, amount: 5 });
+  const firstHit = a11y.regionEl().textContent;
+  a11y.note({ t: 'hitEnemy', idx: 0, amount: 5 });
+  assert.notEqual(a11y.regionEl().textContent, firstHit, 'a repeated identical line still changes the region text');
+  a11y.note({ t: 'hitEnemy', idx: 0, amount: 5 });
+  assert.equal(a11y.regionEl().textContent.trim(), 'Bonefiend takes 5 damage.', 'the toggle keeps the readable text intact');
+}
 
 console.log('playback tests: ok');

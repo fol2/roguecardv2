@@ -65,6 +65,7 @@ import { uiCommands } from './commands.js';
 import { createNavigator } from './navigation.js';
 import { createCombat } from './combat.js';
 import { createDrain } from './drain.js';
+import { createA11yLog } from './a11y-log.js';
 import { installProbe } from './probe.js';
 import { createTitleScreen } from './screens/title.js';
 import { createEmbarkScreen } from './screens/embark.js';
@@ -147,8 +148,13 @@ combatApi = createCombat({
   drain: (...args) => drainApi.drain(...args),
   late: combatLateCallbacks,
 });
+// Offscreen aria-live announcer — combat's Pixi migration emptied the a11y
+// tree; this observes the same cb.queue beats drain plays back. Plain injected
+// dependency (not a drainHandlers key), so drain's contract surface is unchanged.
+const a11yLog = createA11yLog({ document, S, contentViewFor });
 drainApi = createDrain({
   E,
+  a11y: a11yLog,
   contentViewFor,
   QUESTS,
   cardEl,
