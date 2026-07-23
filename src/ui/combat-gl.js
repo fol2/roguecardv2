@@ -55,6 +55,10 @@ import {
 } from './tokens.js';
 import { createCombatPresentation } from './combat-presentation.js';
 import { presentationBarrier } from './context.js';
+import {
+  faceDescriptor, faceDisplayState, measurePlateWidgets, rectOf,
+  seatCenter, unionBounds,
+} from './combat-gl-paint.js';
 
 /** Task 21 formula: min(max(dpr * stage.scale, 0.5), tierCap). Prefer the
  *  live Pixi renderer resolution when the layer is already booted. */
@@ -157,14 +161,6 @@ function deepFreeze(value, seen = new WeakSet()) {
 function cloneImmutable(value) {
   if (value === undefined) return null;
   return deepFreeze(JSON.parse(JSON.stringify(value)));
-}
-
-function rectOf(r) {
-  if (!r) return null;
-  return Object.freeze({
-    left: r.left, top: r.top, right: r.right, bottom: r.bottom,
-    width: r.width, height: r.height,
-  });
 }
 
 function centerOf(r) {
@@ -1010,30 +1006,6 @@ export async function createCombatRenderer({
     pulses.length = 0;
   }
 
-  function faceDescriptor(card) {
-    return {
-      id: card.id,
-      name: card.name,
-      text: card.text,
-      cost: card.cost,
-      rarity: card.rarity,
-      type: card.type,
-      up: card.up,
-    };
-  }
-
-  function faceDisplayState(card) {
-    return {
-      up: !!card.upgraded,
-      effectiveCost: card.effectiveCost,
-      effectiveText: card.effectiveText,
-      // Preview-resolved @n@/#n# body values (boosted=green/reduced=red),
-      // computed in combat.js buildHandModel via engine previewPlay. Folded into
-      // the face cache key by faceCacheKeyFor so the bake splits per value set.
-      values: card.values || null,
-    };
-  }
-
   function ensureHandFace(entry, card, faceW, faceH) {
     const nextKey = typeof cardFace.faceCacheKeyFor === 'function'
       ? cardFace.faceCacheKeyFor(faceDescriptor(card), faceDisplayState(card))
@@ -1694,12 +1666,6 @@ export async function createCombatRenderer({
     return g;
   }
 
-  /** Centre of a measured stageRect, or null when the host is missing. */
-  function seatCenter(r) {
-    if (!r || !(r.width > 0) || !(r.height > 0)) return null;
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
-  }
-
   /**
    * Paint HUD chrome from live DOM seats / uicResolve fallbacks — same dual-read
    * pattern as plates — so paint and hit proxies share stage-px coordinates.
@@ -2167,48 +2133,6 @@ export async function createCombatRenderer({
     }
 
     return painted;
-  }
-
-  /** Measure per-widget plate chrome seats that still exist as layout hosts. */
-  function measurePlateWidgets(plateEl, topEl) {
-    if (!plateEl) {
-      return {
-        wrapBounds: null, blockBounds: null, iconBounds: null,
-        vialBounds: null, labelBounds: null, intentBounds: null,
-        wrapClientWidth: 0, wrapScrollWidth: 0,
-      };
-    }
-    const wrap = plateEl.querySelector('.hpbar-wrap');
-    const block = plateEl.querySelector('.block-chip');
-    const icon = block?.querySelector('.ui-icon,.gicon');
-    const vial = plateEl.querySelector('.hp-vial');
-    const label = plateEl.querySelector('.hp-label');
-    const intent = topEl?.querySelector('.intent');
-    const nodeRect = (node) => {
-      if (!node) return null;
-      const r = stageRect(node);
-      return r.width > 0 && r.height > 0 ? rectOf(r) : null;
-    };
-    return {
-      wrapBounds: nodeRect(wrap),
-      blockBounds: nodeRect(block),
-      iconBounds: nodeRect(icon),
-      vialBounds: nodeRect(vial),
-      labelBounds: nodeRect(label),
-      intentBounds: nodeRect(intent),
-      wrapClientWidth: wrap ? wrap.clientWidth : 0,
-      wrapScrollWidth: wrap ? wrap.scrollWidth : 0,
-    };
-  }
-
-  function unionBounds(...parts) {
-    const rs = parts.filter((b) => b && b.right > b.left && b.bottom > b.top);
-    if (!rs.length) return null;
-    const left = Math.min(...rs.map((r) => r.left));
-    const right = Math.max(...rs.map((r) => r.right));
-    const top = Math.min(...rs.map((r) => r.top));
-    const bottom = Math.max(...rs.map((r) => r.bottom));
-    return rectOf({ left, right, top, bottom, width: right - left, height: bottom - top });
   }
 
   function paintPlatesChrome() {

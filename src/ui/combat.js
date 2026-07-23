@@ -19,7 +19,7 @@ import {
 } from '../scene3d.js';
 import {
   meshAim, meshAimClear, meshBind, meshClear, meshCrack, meshDeath,
-  meshEnabled, meshFlash, meshLift, meshRelease, meshWard,
+  meshEnabled, meshLift, meshRelease, meshWard,
 } from '../mesh.js';
 import { charAim, charCssFloat, charShadowLive } from '../char-meta.js';
 import {
@@ -47,6 +47,8 @@ import {
   handSeatCenter as pureHandSeatCenter, handZoneWidth as pureHandZoneWidth,
 } from './hand-layout.js';
 import { resolveCombatPlates } from './shipfront-assets.js';
+import { handCardDisplayValues, previewTargetIdx } from './combat-preview.js';
+import { choreoAttack, choreoHit, choreoStagger } from './combat-choreo.js';
 
 const runCatalogues = () => contentViewFor(S.run);
 const stageAssetAvailable = (id) => !!assetUrl('stage', id);
@@ -215,55 +217,6 @@ export function createCombat({
         };
       }),
     };
-  }
-  /** Which foe the hand preview resolves against (drives vulnerable). Explicit
-   *  targeting selection wins; otherwise auto-lock a lone survivor; else null
-   *  (str/weak still apply, vulnerable does not). */
-  function previewTargetIdx(cb) {
-    const sel = S.selectedEnemyIndex;
-    if (Number.isInteger(sel) && cb.enemies[sel]?.hp > 0) return sel;
-    const alive = [];
-    cb.enemies.forEach((e, i) => { if (e.hp > 0) alive.push(i); });
-    return alive.length === 1 ? alive[0] : null;
-  }
-
-  const VALUE_MARKER_RE = /([@#])(\d+)\1/g;
-  /**
-   * Preview-resolve each @n@ (damage) / #n# (ward) body marker for a hand card
-   * so the face shows Strength/Weak/relic-adjusted numbers, tinted green/red —
-   * the same treatment the cost already gets. Returns a `{value,state}` list in
-   * body-marker order (null entries = neutral/base), or null when nothing
-   * differs from the authored base (keeps the authored face + cache key stable).
-   */
-  function handCardDisplayValues(cb, inst, text, targetIdx) {
-    const src = String(text ?? '');
-    const markers = [];
-    VALUE_MARKER_RE.lastIndex = 0;
-    let m;
-    while ((m = VALUE_MARKER_RE.exec(src))) markers.push({ marker: m[1], base: Number(m[2]) });
-    if (!markers.length) return null;
-    let preview = null;
-    try { preview = E.previewPlay(S.run, cb, inst, targetIdx); } catch { preview = null; }
-    if (!preview) return null;
-    const hits = Array.isArray(preview.hits) ? preview.hits : [];
-    let hitIdx = 0;
-    let blockUsed = false;
-    let overrode = false;
-    // '@' markers walk the damage hits in effect order; '#' markers take the
-    // (single) resolved ward. Unmatched markers stay neutral on the base value.
-    const values = markers.map(({ marker, base }) => {
-      let resolved = null;
-      if (marker === '@') {
-        if (hitIdx < hits.length) { resolved = hits[hitIdx].dmg; hitIdx += 1; }
-      } else if (!blockUsed && preview.block > 0) {
-        resolved = preview.block;
-        blockUsed = true;
-      }
-      if (resolved == null || resolved === base) return null;
-      overrode = true;
-      return { value: resolved, state: resolved > base ? 'boosted' : 'reduced' };
-    });
-    return overrode ? values : null;
   }
 
   function buildHandModel() {
@@ -2681,53 +2634,8 @@ function rigTick(t) {
 }
 
 // --------- the playback loop: engine queue -> animations
-const HEAVY_KINDS = new Set(['golem', 'treeboss', 'leviathan', 'crab']);
-const FLOATY_KINDS = new Set(['wisp', 'shade', 'siren', 'eye', 'cultist']);
-function choreoAttack(el, dir = 1, kind = 'humanoid') {
-  if (REDUCED || !el) return Promise.resolve();
-  const heavy = HEAVY_KINDS.has(kind), floaty = FLOATY_KINDS.has(kind);
-  const kf = heavy ? [
-    { transform: 'translateX(0) scale(1,1)' },
-    { transform: 'translateX(0) scale(1.08,0.86)', offset: 0.35 },
-    { transform: 'translateX(0) scale(1,1)' },
-  ] : floaty ? [
-    { transform: 'translateX(0) translateY(0) scale(1,1)' },
-    { transform: `translateX(${6 * dir}px) translateY(-5px) scale(0.98,1.02)`, offset: 0.4 },
-    { transform: `translateX(${10 * dir}px) translateY(-2px) scale(1,1)`, offset: 0.7 },
-    { transform: 'translateX(0) translateY(0) scale(1,1)' },
-  ] : [
-    { transform: 'translateX(0) scale(1,1)' },
-    { transform: `translateX(${-8 * dir}px) scale(0.97,1.02)`, offset: 0.3 },
-    { transform: `translateX(${34 * dir}px) scale(1.02,0.99)`, offset: 0.62 },
-    { transform: 'translateX(0) scale(1,1)' },
-  ];
-  el.dataset.choreo = 'attack';
-  return el.animate(kf, { duration: heavy ? 420 : floaty ? 380 : 330, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }).finished
-    .finally(() => { delete el.dataset.choreo; })
-    .catch(() => {});
-}
-function choreoHit(el, dir = 1) {
-  if (REDUCED || !el) return;
-  meshFlash(el);
-  el.animate(
-    [
-      { transform: 'translateX(0) scale(1,1)', filter: 'brightness(1)' },
-      { transform: `translateX(${9 * dir}px) scale(0.97,1.03)`, filter: 'brightness(1.9)', offset: 0.25 },
-      { transform: 'translateX(0) scale(1,1)', filter: 'brightness(1)' },
-    ],
-    { duration: 300, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
-  );
-}
-function choreoStagger(el) {
-  if (REDUCED || !el) return Promise.resolve();
-  return el.animate(
-    [
-      { transform: 'translateY(0) rotate(0deg)', filter: 'brightness(1)' },
-      { transform: 'translateY(5px) rotate(-2.5deg)', filter: 'brightness(0.6)' },
-    ],
-    { duration: 360, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
-  ).finished.catch(() => {});
-}
+// Enemy/hero attack choreography lives in ./combat-choreo.js (choreoAttack /
+// choreoHit / choreoStagger), imported above and re-exposed via drainHandlers.
 // glass damage language: every landed hit scores a crack into the body
 // TEMP (2026-07-07): combat cracks off while glass tuning continues — death
 // rite still cracks via igniteVessel → meshCrack (not this helper).
