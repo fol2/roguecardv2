@@ -134,6 +134,25 @@ export function createTooltip({
     return formatted;
   }
 
+  // Task 3 — the baked export image has no DOM `.kw` spans to hover, so a grid
+  // face would otherwise lose the per-keyword tooltips the live DOM face gives.
+  // Fold the glossary of keywords the card mentions into the card tip's `sub`
+  // line so hovering an export face still explains them.
+  function keywordLegend(renderedText) {
+    const glossary = KEYWORDS();
+    const seen = new Set();
+    const lines = [];
+    const re = /<span class="kw">([^<]+)<\/span>/g;
+    let match;
+    while ((match = re.exec(renderedText))) {
+      const name = match[1];
+      if (seen.has(name) || !glossary[name]) continue;
+      seen.add(name);
+      lines.push(`<b>${name}</b> — ${glossary[name]}`);
+    }
+    return lines.join('<br>');
+  }
+
   function wireCardFoil(card) {
     if (FINE) {
       card.addEventListener('mousemove', (event) => {
@@ -179,8 +198,15 @@ export function createTooltip({
     }
     card._tip = { title: data.name, body: text };
 
-    // Live DOM face — identical structure to golden public-preview cardEl.
-    if (domFace) {
+    const composer = typeof getCardFaceComposer === 'function' ? getCardFaceComposer() : null;
+    const composerReady = !!composer && typeof composer.exportImage === 'function';
+
+    // Live DOM face — the shop golden path (`domFace`) AND the degraded-boot
+    // fallback (composer not booted). Identical structure to the golden
+    // public-preview cardEl: art (raster or SVG), tint rim, fmtText body and
+    // per-keyword tooltips — so an out-of-combat grid is NEVER a blank export
+    // shell when fonts/WebGL failed to boot the Pixi composer.
+    if (domFace || !composerReady) {
       const costHtml = effectiveCost != null
         ? `<div class="card-cost${effectiveCost === 0 ? ' free' : ''}">${effectiveCost}</div>`
         : '';
@@ -195,18 +221,6 @@ export function createTooltip({
       $$('.kw', card).forEach((keyword) => {
         keyword._tip = { title: keyword.textContent, body: keywords[keyword.textContent] || '' };
       });
-      wireCardFoil(card);
-      return card;
-    }
-
-    const composer = typeof getCardFaceComposer === 'function' ? getCardFaceComposer() : null;
-    if (!composer || typeof composer.exportImage !== 'function') {
-      // Composer not booted — empty shell only (never a second DOM face bake).
-      card.innerHTML = '<div class="card-lift"><div class="card-inner card-inner-export"></div></div>';
-      if (costOverlay && effectiveCost != null) {
-        const lift = $('.card-lift', card);
-        lift?.insertBefore(el('div', `card-cost${effectiveCost === 0 ? ' free' : ''}`, String(effectiveCost)), lift.firstChild);
-      }
       wireCardFoil(card);
       return card;
     }
@@ -226,6 +240,10 @@ export function createTooltip({
     );
     card.dataset.cardFaceKey = exported.key;
     card._cardFaceRelease = exported.release;
+    // Task 3 — the baked <img> has no hoverable `.kw` spans; surface the keyword
+    // glossary through the card tip so grid faces still explain their keywords.
+    const legend = keywordLegend(text);
+    if (legend) card._tip.sub = legend;
     const costHtml = (costOverlay && effectiveCost != null)
       ? `<div class="card-cost${effectiveCost === 0 ? ' free' : ''}">${effectiveCost}</div>`
       : '';
