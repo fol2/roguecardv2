@@ -429,39 +429,6 @@ export function chestSvg(open = false) {
   </svg>`;
 }
 
-// A leaded-glass reliquary plinth — a faceted pedestal of backlit panes bound
-// in dark lead came, with a cap disc where a boss relic is set to rest. `tone`
-// tints the glass and the halo behind it. Drawn in a 0..176 viewBox so the
-// ceremony can scale it freely. Lead lines are authored directly (not via the
-// leadGlass regex) so the came reads crisp against the tone-lit fills.
-export function plinthSvg(tone = '#f2c14e') {
-  const id = uid();
-  return `<svg viewBox="0 0 200 176" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="${id}p" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="${tone}" stop-opacity=".92"/>
-        <stop offset=".5" stop-color="${tone}" stop-opacity=".4"/>
-        <stop offset="1" stop-color="${tone}" stop-opacity=".14"/>
-      </linearGradient>
-      <linearGradient id="${id}s" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#1b2338"/><stop offset="1" stop-color="#080b16"/>
-      </linearGradient>
-      <radialGradient id="${id}h" cx=".5" cy=".5" r=".5">
-        <stop offset="0" stop-color="${tone}" stop-opacity=".85"/><stop offset="1" stop-color="${tone}" stop-opacity="0"/>
-      </radialGradient>
-    </defs>
-    <ellipse cx="100" cy="62" rx="82" ry="62" fill="url(#${id}h)"/>
-    <path d="M32 170 L46 142 H154 L168 170 Z" fill="url(#${id}s)" stroke="#05070e" stroke-width="3.6" stroke-linejoin="round"/>
-    <path d="M46 142 H154" stroke="${tone}" stroke-opacity=".5" stroke-width="1.6"/>
-    <path d="M60 142 L67 82 H133 L140 142 Z" fill="url(#${id}p)" stroke="#05070e" stroke-width="3.6" stroke-linejoin="round"/>
-    <path d="M100 82 V142" stroke="#05070e" stroke-width="2.6"/>
-    <path d="M83 82 L79 142 M117 82 L121 142" stroke="#05070e" stroke-width="1.9" stroke-opacity=".82"/>
-    <path d="M52 82 Q100 60 148 82 Q100 96 52 82 Z" fill="url(#${id}p)" stroke="#05070e" stroke-width="3.6" stroke-linejoin="round"/>
-    <ellipse cx="100" cy="78" rx="40" ry="8.5" fill="${tone}" fill-opacity=".24"/>
-    <path d="M73 98 L78 134 M127 98 L122 134" stroke="#fff" stroke-opacity=".18" stroke-width="1.4"/>
-  </svg>`;
-}
-
 export function campfireSvg() {
   const id = uid();
   return `<svg viewBox="0 0 200 160" xmlns="http://www.w3.org/2000/svg">

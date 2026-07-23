@@ -12,7 +12,7 @@ export function createRewardScreen(deps) {
     contentViewFor, S, E, tr, sceneBg, $, el, iconSvg, uiIcon, stageW, stageH, V,
     flyTo, tweenNum, sfx, rasterOr, potionSvg, relicArt, requireRunSave, renderHud, show,
     showCardGrid, openOverlay, closeOverlay, runEffects, setTheme, setAltitude, transition,
-    assetUrl, omenIconName, screenEl, themeForRun, ceremony, REDUCED, COARSE, presentationBarrier, trace,
+    assetUrl, omenIconName, screenEl, themeForRun, REDUCED, COARSE, presentationBarrier, trace,
   } = deps;
   const runCatalogues = () => contentViewFor(S.run);
 
@@ -173,15 +173,8 @@ function renderReward() {
           sfx.upgrade();
           V.floatText(stageW() / 2, stageH() / 2, tr('ui.reward.cardAdded', { name: E.cardData(inst, S.run).name }), 'notice');
         });
-        const commit = () => { if (!requireRunSave(run, finish)) return; finish(); };
-        // A rare/boss-tier pull earns a reveal ceremony before it settles into
-        // the deck; commons/uncommons keep the instant claim.
-        const rarity = inst ? E.cardData(inst, S.run).rarity : null;
-        if (inst && (rarity === 'rare' || rarity === 'boss')) {
-          void ceremony.playCardPull(inst).then(commit, commit);
-        } else {
-          commit();
-        }
+        if (!requireRunSave(run, finish)) return;
+        finish();
       },
       canSkip: true,
     });
@@ -197,11 +190,10 @@ function renderBossRelic() {
   const profile = compositionProfile(compositionGrownFrom(vigil, run));
   const endState = R5_SCREEN_END_STATES.bossRelicReady;
   const picks = E.rollBossRelics(run);
-  const bossTitle = tr('ui.reward.bossRelicTitle');
   const sc = screenEl();
   // Golden 9f10ef2 uses 94vw (not 94cqw) on this inline width — match exactly.
   sc.innerHTML = `<div class="center-panel screen-enter r5-scene-panel r5-rewards r5-rewards--boss" ${rootAttrs(profile, 'rest')}><div class="panel" style="width:min(620px,94vw)">
-    <div class="ov-title r5-scene-header">${bossTitle}</div>
+    <div class="ov-title r5-scene-header">${tr('ui.reward.bossRelicTitle')}</div>
     <div class="ov-sub">${tr('ui.reward.bossRelicSub')}</div>
     <div class="big-choices" style="flex-direction:column"></div>
   </div></div>`;
@@ -218,15 +210,10 @@ function renderBossRelic() {
     lock();
     const result = E.claimBossRelic(run, id);
     if (result.already) { advanceAct(); return; }
-    const proceed = () => { if (!requireRunSave(run, advanceAct)) return; advanceAct(); };
-    // A claimed boss relic rises on its leaded-glass plinth before the act turns;
-    // taking none simply moves on.
-    if (id) {
-      void ceremony.playBossRelic(id, { kicker: bossTitle }).then(proceed, proceed);
-    } else {
-      sfx.click();
-      proceed();
-    }
+    if (id) sfx.relic();
+    else sfx.click();
+    if (!requireRunSave(run, advanceAct)) return;
+    advanceAct();
   };
   for (const id of picks) {
     const r = runCatalogues().relics[id];
