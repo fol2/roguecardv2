@@ -27,7 +27,8 @@
 // `#aim` and `.hand-zone` remain empty structural hosts for geometry/tests.
 
 import {
-  Assets, ColorMatrixFilter, Container, Graphics, Sprite, Text, Texture,
+  Assets, ColorMatrixFilter, Container, FillGradient, Graphics, Sprite, Text,
+  Texture,
 } from 'pixi.js';
 
 import { assetUrl } from '../art.js';
@@ -49,7 +50,9 @@ import {
 } from './hand-layout.js';
 import { CARDS } from '../data.js';
 import { getLocale } from '../i18n/index.js';
-import { ROUND5_TOKENS, isReducedTier } from './tokens.js';
+import {
+  DURATION_MS, EASING, ROUND5_TOKENS, isReducedTier,
+} from './tokens.js';
 import { createCombatPresentation } from './combat-presentation.js';
 import { presentationBarrier } from './context.js';
 
@@ -369,14 +372,61 @@ export async function createCombatRenderer({
   let platesReady = false;
   let platesPainted = 0;
   let platesCache = null;
-  /** @type {Map<string, { root:Container, face:object|null, sprite:object|null, sheen:object|null, foilFilter:object|null, release:Function|null, seatBounds:object|null, faceKey:string|null }>} */
+  /** @type {Map<string, { root:Container, face:object|null, sprite:object|null, desatFilter:object|null, fx:object|null, anim:object|null, target:object|null, hovered:boolean, dragging:boolean, foil:boolean, playable:boolean, faceW:number, faceH:number, phase:number, release:Function|null, seatBounds:object|null, faceKey:string|null }>} */
   const handNodes = new Map();
   let handCache = null;
   let handReady = false;
   let handPainted = 0;
   let aimPathCache = null;
+  // Living-card animation clock — drives the always-on holographic sweep.
+  let holoClock = 0;
+  // Pixi Application ticker handle for the per-frame hand animation.
+  let handTicker = null;
+  let handTickHandler = null;
 
   const isLite = () => (pixiLayer.policy?.tier === 'lite');
+  // REDUCED wins over LITE — snap transforms, no tilt/glare/holo.
+  const reducedMotion = () => {
+    const p = pixiLayer.policy || {};
+    return !!(p.reducedMotion || isReducedTier(p));
+  };
+
+  // --- Living-card motion tuning (calibration knobs — feel, not correctness) --
+  // Lift is a damped spring whose overshoot embodies EASING.spring (the
+  // 1.56 control point) and whose rate comes from DURATION_MS.quick; tilt/glare
+  // track the cursor with a faster, critically-damped spring (no wobble).
+  const LIFT_OMEGA = (2 * Math.PI) / (DURATION_MS.quick / 1000);
+  const LIFT_ZETA = 1 / EASING.spring[1]; // 1.56 overshoot → ζ≈0.64
+  const TILT_OMEGA = (2 * Math.PI) / (DURATION_MS.micro / 1000);
+  const TILT_ZETA = 1;
+  const TILT_MAX = 0.14; // radians of fake-3D skew at the card edge
+  const GLARE_MAX = 1; // multiplier on the additive specular hotspot
+  const HOLO_ALPHA = 0.1; // resting holo-sweep peak (subtle, premium)
+  const HOLO_ANGLE = -0.36; // diagonal streak tilt
+  const HOLO_SPEED = 1 / 2600; // sweep cycles per ms (~2.6s per pass)
+  const FACE_CORNER = 10; // baked face outer radius in 152-px face space
+
+  // Frame-rate-independent damped-spring step (semi-implicit Euler).
+  const springTo = (s, target, dt, omega, zeta) => {
+    const k = omega * omega;
+    const c = 2 * zeta * omega;
+    s.v += (-k * (s.p - target) - c * s.v) * dt;
+    s.p += s.v * dt;
+    return s.p;
+  };
+  const chan = (p) => ({ p, v: 0 });
+  const clamp1 = (v) => (v < -1 ? -1 : (v > 1 ? 1 : v));
+
+  // Small HSL→int for the iridescent holo tint cycle.
+  const hslInt = (h, s, l) => {
+    const a = s * Math.min(l, 1 - l);
+    const f = (n) => {
+      const kk = (n + h / 30) % 12;
+      const col = l - a * Math.max(-1, Math.min(kk - 3, 9 - kk, 1));
+      return Math.round(255 * col);
+    };
+    return (f(0) << 16) | (f(8) << 8) | f(4);
+  };
 
   const setState = (next) => {
     state = next;
@@ -545,20 +595,49 @@ export async function createCombatRenderer({
     platesPainted = 0;
   }
 
-  function clearHandPaint() {
-    for (const entry of handNodes.values()) {
-      try {
-        const filters = entry.sprite?.filters;
-        if (filters?.length) {
-          for (const f of filters) {
-            try { f.destroy?.(); } catch { /* ignore */ }
-          }
-          entry.sprite.filters = null;
-        }
-      } catch { /* ignore */ }
-      try { entry.release?.(); } catch { /* ignore */ }
-      try { entry.root?.destroy?.({ children: true, context: true }); } catch { /* ignore */ }
+  function makeHandEntry(root, uid) {
+    // Deterministic phase offset per uid so rare cards never sweep in lockstep.
+    let hash = 0;
+    const s = String(uid);
+    for (let i = 0; i < s.length; i += 1) hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
+    return {
+      root,
+      face: null,
+      sprite: null,
+      desatFilter: null,
+      fx: null,
+      anim: null,
+      target: null,
+      hovered: false,
+      dragging: false,
+      foil: false,
+      playable: true,
+      faceW: CARD_FACE_WIDTH,
+      faceH: CARD_FACE_HEIGHT,
+      phase: (hash % 1000) / 1000,
+      release: null,
+      seatBounds: null,
+      faceKey: null,
+    };
+  }
+
+  // Tear down one hand seat's GPU resources (fx graphics/masks, the desaturate
+  // filter, the composer ref, and the container). Filters/masks must never
+  // outlive their GL context, so every disposal path routes through here.
+  function disposeHandEntry(entry) {
+    if (!entry) return;
+    destroyCardFx(entry);
+    if (entry.desatFilter) {
+      if (entry.face) { try { entry.face.filters = null; } catch { /* ignore */ } }
+      try { entry.desatFilter.destroy?.(); } catch { /* ignore */ }
+      entry.desatFilter = null;
     }
+    try { entry.release?.(); } catch { /* ignore */ }
+    try { entry.root?.destroy?.({ children: true, context: true }); } catch { /* ignore */ }
+  }
+
+  function clearHandPaint() {
+    for (const entry of handNodes.values()) disposeHandEntry(entry);
     handNodes.clear();
     destroyLayerChildren(handLayer);
     handPainted = 0;
@@ -571,18 +650,253 @@ export async function createCombatRenderer({
     aimPathCache = null;
   }
 
-  function makeFlatSheen(w, h) {
+  // Opaque unplayable desaturation — mirrors the pre-pixi CSS
+  // `saturate(.35) brightness(.7)` (alpha stays 1 so the battlefield never
+  // bleeds through). One reused matrix per seat; toggled, never rebuilt.
+  function makeDesatFilter() {
+    const f = new ColorMatrixFilter();
+    f.saturate(-0.975, false); // → ~35% saturation
+    f.brightness(0.7, true); // ×0.7 luminance
+    return f;
+  }
+
+  // Face-clipped FX layer: a rounded-rect mask matching the baked card
+  // silhouette, plus a container that holds the holo band + specular glare so
+  // both share a single mask. Rebuilt only when the face size changes.
+  function ensureCardFx(entry) {
+    const w = entry.faceW;
+    const h = entry.faceH;
+    const fx = entry.fx;
+    if (fx && fx.layer && fx.w === w && fx.h === h) return fx;
+    destroyCardFx(entry);
+    const r = FACE_CORNER * (w / CARD_FACE_WIDTH);
+    const mask = new Graphics();
+    mask.roundRect(-w / 2, -h / 2, w, h, r).fill(0xffffff);
+    mask.eventMode = 'none';
+    const layer = new Container();
+    layer.eventMode = 'none';
+    layer.mask = mask;
+    entry.root.addChild(mask, layer);
+    entry.fx = {
+      layer, mask, holo: null, glare: null, w, h,
+    };
+    return entry.fx;
+  }
+
+  function destroyCardFx(entry) {
+    const fx = entry?.fx;
+    if (!fx) return;
+    // Detach masks first so Pixi does not try to reap them twice; layer
+    // destroy(children) reaps holo + glare with it.
+    for (const o of [fx.glare, fx.holo, fx.layer, fx.mask]) {
+      if (!o) continue;
+      try { o.mask = null; } catch { /* ignore */ }
+      try { o.destroy?.({ children: true, context: true }); } catch { /* ignore */ }
+    }
+    entry.fx = null;
+  }
+
+  // Soft additive specular hotspot that follows the cursor over a hovered card.
+  function ensureGlare(entry) {
+    const fx = ensureCardFx(entry);
+    if (fx.glare) return fx.glare;
+    const R = Math.min(entry.faceW, entry.faceH) * 0.55;
     const g = new Graphics();
-    g.rect(0, 0, w, h).fill({ color: 0xffffff, alpha: 0.12 });
+    g.circle(0, 0, R).fill({ color: 0xfff6dc, alpha: 0.1 });
+    g.circle(0, 0, R * 0.62).fill({ color: 0xfff9ea, alpha: 0.16 });
+    g.circle(0, 0, R * 0.3).fill({ color: 0xffffff, alpha: 0.26 });
+    g.blendMode = 'add';
     g.eventMode = 'none';
+    g.visible = false;
+    fx.layer.addChild(g);
+    fx.glare = g;
     return g;
   }
 
-  function makeFoilFilter() {
-    const foil = new ColorMatrixFilter();
-    foil.hue(18, false);
-    foil.brightness(1.08, true);
-    return foil;
+  // Diagonal iridescent band that sweeps across rare/boss faces on a time loop.
+  function ensureHolo(entry) {
+    const fx = ensureCardFx(entry);
+    if (fx.holo) return fx.holo;
+    const w = entry.faceW;
+    const h = entry.faceH;
+    const grad = new FillGradient({
+      type: 'linear',
+      start: { x: 0, y: 0 },
+      end: { x: 1, y: 0 },
+      textureSpace: 'local',
+      colorStops: [
+        { offset: 0, color: 'rgba(255,255,255,0)' },
+        { offset: 0.5, color: 'rgba(255,255,255,1)' },
+        { offset: 1, color: 'rgba(255,255,255,0)' },
+      ],
+    });
+    const band = new Graphics();
+    band.rect(-w * 0.21, -h * 0.85, w * 0.42, h * 1.7).fill(grad);
+    band.rotation = HOLO_ANGLE;
+    band.blendMode = 'add';
+    band.eventMode = 'none';
+    band.visible = false;
+    fx.layer.addChild(band);
+    fx.holo = band;
+    return band;
+  }
+
+  const applyEntryTransform = (entry) => {
+    const a = entry.anim;
+    if (!a) return;
+    const root = entry.root;
+    root.position.set(a.x.p, a.y.p);
+    root.rotation = a.rot.p;
+    root.scale.set(a.scale.p);
+    if (root.skew) root.skew.set(a.skewX.p, a.skewY.p);
+  };
+
+  // Store the resting/target transform for a seat and snap-initialise the
+  // animated channels. Dragging + REDUCED bypass the spring (1:1 with input).
+  const setEntryTarget = (entry, target, snap) => {
+    entry.target = target;
+    if (!entry.anim) {
+      entry.anim = {
+        x: chan(target.x),
+        y: chan(target.y),
+        rot: chan(target.rot),
+        scale: chan(target.scale),
+        skewX: chan(0),
+        skewY: chan(0),
+        glare: chan(0),
+      };
+      return;
+    }
+    if (snap) {
+      const a = entry.anim;
+      a.x.p = target.x; a.x.v = 0;
+      a.y.p = target.y; a.y.v = 0;
+      a.rot.p = target.rot; a.rot.v = 0;
+      a.scale.p = target.scale; a.scale.v = 0;
+      a.skewX.p = 0; a.skewX.v = 0;
+      a.skewY.p = 0; a.skewY.v = 0;
+      a.glare.p = 0; a.glare.v = 0;
+    }
+  };
+
+  function applyPlayableFilter(entry, playable) {
+    const face = entry.face;
+    if (!face) return;
+    if (playable) {
+      if (face.filters) face.filters = null;
+      return;
+    }
+    if (!entry.desatFilter) entry.desatFilter = makeDesatFilter();
+    face.filters = [entry.desatFilter];
+  }
+
+  // Per-frame juice: spring the lift, cursor-track the tilt + glare, and sweep
+  // the holo band. Runs off the Pixi Application ticker (see attachHandTicker).
+  function tickHand(ticker) {
+    if (destroyed) return;
+    if (reducedMotion()) return; // transforms already snapped in paintHand
+    const ms = Math.min(ticker?.deltaMS ?? 16.7, 40);
+    const dt = ms / 1000;
+    holoClock += ms;
+    const lite = isLite();
+    const bias = hitTestBias;
+    for (const entry of handNodes.values()) {
+      const t = entry.target;
+      const a = entry.anim;
+      if (!t || !a || !entry.root?.visible) continue;
+
+      if (entry.dragging) {
+        // Drag must stay glued to the finger — no spring lag, no fx.
+        a.x.p = t.x; a.x.v = 0;
+        a.y.p = t.y; a.y.v = 0;
+        a.rot.p = t.rot; a.rot.v = 0;
+        a.scale.p = t.scale; a.scale.v = 0;
+        springTo(a.skewX, 0, dt, TILT_OMEGA, TILT_ZETA);
+        springTo(a.skewY, 0, dt, TILT_OMEGA, TILT_ZETA);
+        springTo(a.glare, 0, dt, TILT_OMEGA, TILT_ZETA);
+        applyEntryTransform(entry);
+        updateEntryFx(entry, 0, 0, lite);
+        continue;
+      }
+
+      // Cursor-tracked 3D tilt + glare on the hovered, playable card (full tier).
+      let skewX = 0;
+      let skewY = 0;
+      let glare = 0;
+      let gx = 0;
+      let gy = 0;
+      if (!lite && entry.hovered && entry.playable && bias) {
+        const halfW = (entry.faceW * t.scale) / 2 || 1;
+        const halfH = (entry.faceH * t.scale) / 2 || 1;
+        const dx = clamp1((bias.x - a.x.p) / halfW);
+        const dy = clamp1((bias.y - a.y.p) / halfH);
+        skewX = dy * TILT_MAX;
+        skewY = -dx * TILT_MAX;
+        glare = GLARE_MAX;
+        gx = dx * entry.faceW * 0.42;
+        gy = dy * entry.faceH * 0.42;
+      }
+      springTo(a.x, t.x, dt, LIFT_OMEGA, LIFT_ZETA);
+      springTo(a.y, t.y, dt, LIFT_OMEGA, LIFT_ZETA);
+      springTo(a.rot, t.rot, dt, LIFT_OMEGA, LIFT_ZETA);
+      springTo(a.scale, t.scale, dt, LIFT_OMEGA, LIFT_ZETA);
+      springTo(a.skewX, skewX, dt, TILT_OMEGA, TILT_ZETA);
+      springTo(a.skewY, skewY, dt, TILT_OMEGA, TILT_ZETA);
+      springTo(a.glare, glare, dt, TILT_OMEGA, TILT_ZETA);
+      applyEntryTransform(entry);
+      updateEntryFx(entry, gx, gy, lite);
+    }
+  }
+
+  function updateEntryFx(entry, gx, gy, lite) {
+    const a = entry.anim;
+    // Specular glare — any playable card, faded in on hover.
+    if (a.glare.p > 0.003) {
+      const g = ensureGlare(entry);
+      g.visible = true;
+      g.alpha = a.glare.p;
+      g.position.set(gx, gy);
+    } else if (entry.fx?.glare) {
+      entry.fx.glare.visible = false;
+    }
+    // Holo sweep — rare/boss only. Always-on at full tier; hover-only on LITE.
+    const wantHolo = entry.foil && (!lite || entry.hovered);
+    if (wantHolo) {
+      const band = ensureHolo(entry);
+      band.visible = true;
+      const range = entry.faceW * 1.15;
+      const phase = (holoClock * HOLO_SPEED + entry.phase) % 1;
+      band.x = -range / 2 + phase * range;
+      band.alpha = HOLO_ALPHA * (entry.hovered ? 1.7 : 1);
+      band.tint = hslInt((holoClock * 0.018 + entry.phase * 140) % 360, 0.5, 0.85);
+    } else if (entry.fx?.holo) {
+      entry.fx.holo.visible = false;
+    }
+  }
+
+  // The Pixi Application owns the frame loop; a rebuild (context loss) mints a
+  // fresh Application + ticker, so attach is idempotent and re-run on rebuild.
+  function attachHandTicker() {
+    const ticker = pixiLayer.application?.()?.ticker;
+    if (!ticker) return;
+    if (handTicker === ticker && handTickHandler) return;
+    detachHandTicker();
+    handTickHandler = (tk) => tickHand(tk);
+    try {
+      ticker.add(handTickHandler);
+      handTicker = ticker;
+    } catch {
+      handTicker = null;
+      handTickHandler = null;
+    }
+  }
+
+  function detachHandTicker() {
+    if (handTicker && handTickHandler) {
+      try { handTicker.remove(handTickHandler); } catch { /* ignore */ }
+    }
+    handTicker = null;
+    handTickHandler = null;
   }
 
   function faceDescriptor(card) {
@@ -623,6 +937,14 @@ export async function createCombatRenderer({
 
     let texture = null;
     try {
+      // TODO(value-tint): pass `displayState.values` (preview-resolved
+      // damage/block per `@n@`/`#n#` body marker, boosted=green/reduced=red)
+      // into acquire() so hand numbers read Strength/Weak/relic-adjusted like
+      // the cost already does. The values array must be computed via the
+      // engine's `previewPlay` path against the live target — data this pure
+      // presenter does not hold. The correct home is `buildHandModel()` in
+      // src/ui/combat.js (add `values` to each card, then thread it through
+      // faceDisplayState here and into faceCacheKeyFor so the cache splits).
       const acquired = cardFace.acquire(faceDescriptor(card), faceDisplayState(card));
       entry.release = acquired.release;
       entry.faceKey = acquired.key;
@@ -653,44 +975,6 @@ export async function createCombatRenderer({
     }
   }
 
-  function syncHandOverlays(entry, card, faceW, faceH, { hovered, selected, dragging }) {
-    const lite = isLite();
-    const foilActive = !lite
-      && (card.rarity === 'rare' || card.rarity === 'boss')
-      && (hovered || selected || dragging);
-
-    if (entry.sprite) {
-      const prevFilters = entry.sprite.filters;
-      if (foilActive) {
-        // Fresh filter each arm — ColorMatrixFilter must not outlive a GL context.
-        try {
-          entry.sprite.filters = [makeFoilFilter()];
-        } catch {
-          entry.sprite.filters = null;
-        }
-      } else {
-        entry.sprite.filters = null;
-      }
-      if (prevFilters?.length) {
-        for (const f of prevFilters) {
-          try { f.destroy?.(); } catch { /* ignore */ }
-        }
-      }
-    }
-
-    if (lite) {
-      if (!entry.sheen) {
-        const sheen = makeFlatSheen(faceW, faceH);
-        sheen.position.set(-faceW / 2, -faceH / 2);
-        entry.root.addChild(sheen);
-        entry.sheen = sheen;
-      }
-      entry.sheen.visible = true;
-    } else if (entry.sheen) {
-      entry.sheen.visible = false;
-    }
-  }
-
   function paintHand() {
     const model = presentationModel?.hand;
     if (!model || !Array.isArray(model.cards)) {
@@ -711,8 +995,7 @@ export async function createCombatRenderer({
     // Membership change only — release departed seats; keep survivors.
     for (const [uid, entry] of [...handNodes.entries()]) {
       if (!want.has(uid)) {
-        try { entry.release?.(); } catch { /* ignore */ }
-        try { entry.root?.destroy?.({ children: true }); } catch { /* ignore */ }
+        disposeHandEntry(entry);
         handNodes.delete(uid);
       }
     }
@@ -763,29 +1046,31 @@ export async function createCombatRenderer({
         root.label = `hand-card:${uid}`;
         root.eventMode = 'none';
         handLayer.addChild(root);
-        entry = {
-          root,
-          face: null,
-          sprite: null,
-          sheen: null,
-          foilFilter: null,
-          release: null,
-          seatBounds: null,
-          faceKey: null,
-        };
+        entry = makeHandEntry(root, uid);
         handNodes.set(uid, entry);
       }
 
+      entry.faceW = faceW;
+      entry.faceH = faceH;
+      entry.hovered = !!(hovered || selected);
+      entry.dragging = !!dragging;
+      entry.foil = card.rarity === 'rare' || card.rarity === 'boss';
+      entry.playable = !!card.playable;
+
       ensureHandFace(entry, card, faceW, faceH);
-      syncHandOverlays(entry, card, faceW, faceH, { hovered, selected, dragging });
+      applyPlayableFilter(entry, card.playable);
 
       const root = entry.root;
-      root.alpha = card.playable ? 1 : 0.42;
+      // Opaque desaturation (not alpha) now conveys unplayable — Task 2.
+      root.alpha = 1;
       const sx = snapStage(x, resolution);
       const sy = snapStage(y, resolution);
-      root.position.set(sx, sy);
-      root.rotation = (rot * Math.PI) / 180;
-      root.scale.set(scale);
+      // Visual transform springs toward this target on the ticker (Task 1);
+      // hit-test geometry below stays snapped to the resting/lifted seat.
+      setEntryTarget(entry, {
+        x, y, rot: (rot * Math.PI) / 180, scale,
+      }, dragging || reducedMotion());
+      applyEntryTransform(entry);
       root.zIndex = (hovered || armed || selected || dragging) ? 40 : 20 + fanIndex;
       root.visible = true;
 
@@ -836,16 +1121,7 @@ export async function createCombatRenderer({
         root.eventMode = 'none';
         root.visible = false;
         handLayer.addChild(root);
-        entry = {
-          root,
-          face: null,
-          sprite: null,
-          sheen: null,
-          foilFilter: null,
-          release: null,
-          seatBounds: null,
-          faceKey: null,
-        };
+        entry = makeHandEntry(root, uid);
         handNodes.set(uid, entry);
       } else {
         entry.root.visible = false;
@@ -2281,6 +2557,7 @@ export async function createCombatRenderer({
     }
     // Drop hand display objects before the Application reaps GPU resources —
     // reused seats must not keep ColorMatrixFilter/Sprite textures across loss.
+    detachHandTicker();
     clearHandPaint();
     clearAimPaint();
     // Detach before teardown so Application.destroy does not reap combat chrome.
@@ -2309,6 +2586,8 @@ export async function createCombatRenderer({
     // Force a full hand reacquire against the new renderer.
     clearHandPaint();
     clearAimPaint();
+    // New Application → new ticker; re-attach the living-card frame loop.
+    attachHandTicker();
     if (presentationModel) {
       try { sync(presentationModel); } catch { /* remount best-effort */ }
     }
@@ -2340,6 +2619,7 @@ export async function createCombatRenderer({
   const destroy = () => {
     if (destroyed) return;
     destroyed = true;
+    detachHandTicker();
     clearHandPaint();
     clearAimPaint();
     try { presentation.destroy(); } catch { /* already gone */ }
@@ -2351,6 +2631,7 @@ export async function createCombatRenderer({
   };
 
   setState('ready');
+  attachHandTicker();
 
   return Object.freeze({
     // presentation seam
