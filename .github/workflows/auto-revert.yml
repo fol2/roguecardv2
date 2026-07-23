@@ -37,11 +37,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      # De-fang: a red main whose ONLY failed leaf lane is `e2e aux` is the known
-      # bfeditor disk-write flake (bfeditor-disk runs retries:0 and races a Vite
-      # HMR restart on slow CI). Standing down here stops that flake from
-      # false-reverting good work; a human is pulled in via an issue instead.
-      - name: Stand down when only the known-flaky aux lane failed
+      # De-fang: two lane families are browser-infra-flaky on this CI and were
+      # repeatedly false-reverting good work — `e2e aux` (bfeditor-disk is
+      # retries:0 and races a Vite HMR restart on slow CI) and the mobile-WebKit
+      # lanes (WebKit headless process crashes: "internal error", probe-undefined
+      # after reload, screens hang). When EVERY failed leaf lane is in that known
+      # set, stand down and open an issue instead of reverting. Any failure on a
+      # solid lane (unit / e2e pool / visual / leak / random) still reverts.
+      - name: Stand down when only known-flaky lanes failed
         id: aux_guard
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -54,11 +57,13 @@ jobs:
           # CONSEQUENCE of a leaf lane — subtract them so we compare real lanes.
           FAILED_LEAVES="$(gh api --paginate "repos/${REPO}/actions/runs/${RUN_ID}/jobs" \
             --jq '[.jobs[] | select(.conclusion=="failure") | .name] - ["unit","e2e","e2e nonvisual","p2-base"] | unique')"
-          echo "failed leaf lanes: ${FAILED_LEAVES}"
-          if [ "${FAILED_LEAVES}" = '["e2e aux"]' ]; then
+          # The lanes that are known browser-infra-flaky here (see comment above).
+          NON_FLAKY="$(printf '%s' "${FAILED_LEAVES}" | jq -c '. - ["e2e aux","e2e webkit core-ipad","e2e webkit core-iphone","e2e webkit screens","e2e webkit lab"]')"
+          echo "failed leaf lanes: ${FAILED_LEAVES} ; non-flaky among them: ${NON_FLAKY}"
+          if [ "${FAILED_LEAVES}" != "[]" ] && [ "${NON_FLAKY}" = "[]" ]; then
             gh issue create --repo "${REPO}" \
-              --title "main CI red — only the flaky e2e aux lane failed (no auto-revert)" \
-              --body "The \`ci\` run failed on main but the ONLY failed leaf lane was \`e2e aux\` (the known bfeditor disk-write flake). Auto-revert stood down to avoid false-reverting good work. Assess manually: ${FAILED_RUN_URL}"
+              --title "main CI red — only known-flaky lanes failed (no auto-revert)" \
+              --body "The \`ci\` run failed on main but every failed leaf lane was a known browser-infra flake (\`${FAILED_LEAVES}\` — bfeditor disk-write / mobile-WebKit crashes). Auto-revert stood down to avoid false-reverting good work. Assess manually: ${FAILED_RUN_URL}"
             echo "skip=true" >> "${GITHUB_OUTPUT}"
           else
             echo "skip=false" >> "${GITHUB_OUTPUT}"
