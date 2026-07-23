@@ -51,6 +51,37 @@ export function createCombatPointerRouter({
   let longPress = null;
   let capturedPointerId = null;
 
+  // Aim/drag repaint de-thrash: pointermove can fire several times per animation
+  // frame, and each aimMove/moveCardDrag triggers a full Pixi resync (combat.js).
+  // Coalesce them so the expensive move dispatch runs at most once per rAF with
+  // the latest position — the router's own state machine (arming, capture,
+  // trace spans) stays synchronous so router-state assertions are unaffected.
+  let moveRaf = 0;
+  let pendingMove = null;
+  function flushPendingMove() {
+    moveRaf = 0;
+    const p = pendingMove;
+    pendingMove = null;
+    if (!p || !enabled || destroyed) return;
+    if (p.type === 'drag') {
+      // Only if the same card gesture is still live (a pointerup/cancel may have
+      // landed between the queued move and this frame).
+      if (gesture && gesture === p.st && gesture.live) actions.moveCardDrag?.(p.st, p.event);
+    } else if (!gesture) {
+      actions.aimMove?.(p.event);
+    }
+  }
+  function scheduleMove(entry) {
+    pendingMove = entry;
+    if (typeof requestAnimationFrame !== 'function') { flushPendingMove(); return; }
+    if (!moveRaf) moveRaf = requestAnimationFrame(flushPendingMove);
+  }
+  function cancelPendingMove() {
+    if (moveRaf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(moveRaf);
+    moveRaf = 0;
+    pendingMove = null;
+  }
+
   const stageNode = () => (typeof stage === 'function' ? stage() : stage);
 
   function recordDispatch(event, claim) {
@@ -94,6 +125,7 @@ export function createCombatPointerRouter({
 
   function cleanupGesture(reason, { emitCancel = true } = {}) {
     const prior = gesture;
+    cancelPendingMove();
     clearLongPress();
     releaseCapture();
     gesture = null;
@@ -237,8 +269,9 @@ export function createCombatPointerRouter({
     tooltip?.longPressMove?.(event);
 
     // Targeting aim arc follows stage pointer when no card drag is live.
+    // Coalesced to one repaint per animation frame (see scheduleMove).
     if (!gesture && actions.aimMove) {
-      actions.aimMove(event);
+      scheduleMove({ type: 'aim', event });
     }
 
     const st = gesture;
@@ -287,7 +320,8 @@ export function createCombatPointerRouter({
         // cancel before any moveCardDrag restores the exact captured seat.
         return;
       }
-      actions.moveCardDrag?.(st, event);
+      // Coalesced to one repaint per animation frame (see scheduleMove).
+      scheduleMove({ type: 'drag', st, event });
       return;
     }
 
@@ -341,6 +375,8 @@ export function createCombatPointerRouter({
     if (!enabled || destroyed) return;
     const st = gesture;
     if (!st || event.pointerId !== st.id) return;
+    // Drop any queued drag/aim move so a stale flush can't run after finish.
+    cancelPendingMove();
     recordDispatch(event, { source: st.kind, kind: st.kind, cancelled: !!cancelled });
 
     if (st.kind === 'card') {
