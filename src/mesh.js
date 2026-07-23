@@ -161,9 +161,22 @@ export const PROFILE = {
 };
 
 let renderer, scene, camera, planes = [], raf = 0, W = 1, H = 1;
-let envReady = false; // PMREM environment + lights, added lazily with the first glass shell
+let envReady = false; // PMREM environment, added lazily with the first glass shell
+let envLightsReady = false; // directional + ambient — once per scene lifetime
+let contextLost = false; // parked after webglcontextlost until restored
 const texCache = new Map();
 const loader = new THREE.TextureLoader();
+
+/** True when the mesh WebGL context is gone — no GL calls until restored. */
+function isContextLost() {
+  if (contextLost || !renderer) return !!contextLost;
+  try {
+    const gl = renderer.getContext?.();
+    return !!(gl && typeof gl.isContextLost === 'function' && gl.isContextLost());
+  } catch {
+    return true;
+  }
+}
 
 function loadTex(url, onLoad) {
   if (texCache.has(url)) {
@@ -745,15 +758,92 @@ function buildWard(p) {
 
 // ---- the glass stack ----
 function ensureEnv() {
-  if (envReady || !renderer) return;
-  envReady = true;
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  scene.environmentIntensity = 0.45; // dim: the glass should refract the body, not the room
-  const dir = new THREE.DirectionalLight(0xdfeaff, 1.8);
-  dir.position.set(-1.4, 1.8, 2);
-  scene.add(dir);
-  scene.add(new THREE.AmbientLight(0x2a3446, 0.6));
+  if (!renderer || isContextLost()) return;
+  if (!envReady) {
+    envReady = true;
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose(); // generator RTs only — envTex stays owned by scene.environment
+    if (scene.environment) scene.environment.dispose();
+    scene.environment = envTex;
+    scene.environmentIntensity = 0.45; // dim: the glass should refract the body, not the room
+  }
+  if (!envLightsReady) {
+    envLightsReady = true;
+    const dir = new THREE.DirectionalLight(0xdfeaff, 1.8);
+    dir.position.set(-1.4, 1.8, 2);
+    scene.add(dir);
+    scene.add(new THREE.AmbientLight(0x2a3446, 0.6));
+  }
+}
+
+/** Drop owned GPU resources (tex cache + PMREM env) — combat teardown / leak guard. */
+function releaseOwnedGpu() {
+  for (const t of texCache.values()) t.dispose();
+  texCache.clear();
+  if (scene?.environment) {
+    scene.environment.dispose();
+    scene.environment = null;
+  }
+  envReady = false;
+}
+
+/** After webglcontextrestored: re-upload textures and rebuild PMREM if glass needs it. */
+function restoreGlResources() {
+  if (!renderer || !scene) return;
+  for (const t of texCache.values()) t.needsUpdate = true;
+  let needEnv = false;
+  for (const p of planes) {
+    if (p.tex) p.tex.needsUpdate = true;
+    if (p.mat) p.mat.needsUpdate = true;
+    if (p.aimMat) p.aimMat.needsUpdate = true;
+    for (const key of ['glass', 'fire', 'beams', 'ward']) {
+      const m = p[key];
+      if (!m?.material) continue;
+      needEnv = needEnv || key === 'glass' || key === 'ward';
+      m.material.needsUpdate = true;
+      for (const mk of ['map', 'alphaMap', 'normalMap']) {
+        if (m.material[mk]) m.material[mk].needsUpdate = true;
+      }
+    }
+  }
+  if (scene.environment) {
+    scene.environment.dispose();
+    scene.environment = null;
+  }
+  envReady = false;
+  if (needEnv) ensureEnv();
+}
+
+function parkRendering() {
+  cancelAnimationFrame(raf);
+  raf = 0;
+}
+
+function startLoop() {
+  if (raf || !planes.length || isContextLost()) return;
+  const loop = (t) => {
+    raf = 0;
+    if (!planes.length || isContextLost()) return;
+    raf = requestAnimationFrame(loop);
+    tick(t);
+  };
+  raf = requestAnimationFrame(loop);
+}
+
+function onContextLost(event) {
+  event.preventDefault();
+  contextLost = true;
+  parkRendering();
+}
+
+function onContextRestored() {
+  contextLost = false;
+  restoreGlResources();
+  if (renderer && scene && camera) {
+    try { resize(); } catch { /* size APIs may still be settling */ }
+  }
+  startLoop();
 }
 
 const canvasTex = (c, srgb = false) => {
@@ -909,6 +999,7 @@ function layoutPlane(p, t = 0, off = { left: 0, top: 0 }) {
 }
 
 function resize() {
+  if (!renderer || isContextLost()) return;
   W = stageW(); H = stageH();
   renderer.setPixelRatio(Math.min(devicePixelRatio * stageScale(), 2));
   renderer.setSize(W, H, false); // CSS stays 100% of the stage
@@ -918,7 +1009,7 @@ function resize() {
 }
 
 function tick(t) {
-  if (!planes.length) return;
+  if (!planes.length || isContextLost()) return;
   const sec = t * 0.001;
   const off = canvasOffset();
   for (const p of planes) {
@@ -984,6 +1075,9 @@ export function initMesh() {
   scene = new THREE.Scene();
   camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
   camera.position.z = 10;
+  // Match pixi-app: preventDefault so the browser can restore; park RAF until then.
+  canvas.addEventListener('webglcontextlost', onContextLost, false);
+  canvas.addEventListener('webglcontextrestored', onContextRestored, false);
   resize();
   addEventListener('resize', resize);
 }
@@ -1006,12 +1100,12 @@ function disposePlane(p) {
 }
 
 export function meshClear() {
-  cancelAnimationFrame(raf);
-  raf = 0;
+  parkRendering();
   for (const p of planes) disposePlane(p);
   planes = [];
+  releaseOwnedGpu();
   document.documentElement.classList.remove('mesh-on');
-  renderer?.render(scene, camera);
+  if (renderer && scene && camera && !isContextLost()) renderer.render(scene, camera);
 }
 
 /** Remove the plane bound to el (or any descendant of el) — the DOM <img> becomes visible again the same frame. */
@@ -1020,8 +1114,11 @@ export function meshRelease(el) {
   if (i < 0) return;
   disposePlane(planes[i]);
   planes.splice(i, 1);
-  if (!planes.length) document.documentElement.classList.remove('mesh-on');
-  renderer?.render(scene, camera);
+  if (!planes.length) {
+    document.documentElement.classList.remove('mesh-on');
+    parkRendering();
+  }
+  if (renderer && scene && camera && !isContextLost()) renderer.render(scene, camera);
 }
 
 /** Brightness beat for hits — CSS filters don't reach WebGL planes. */
@@ -1079,7 +1176,7 @@ export function meshCrackSites(el) {
  *  with the shatter), harvest sites, then release the plane — one beat for V.shatter. */
 export function meshHandoff(el) {
   const p = findPlane(el);
-  if (!p || !renderer || LITE) return null;
+  if (!p || !renderer || LITE || isContextLost()) return null;
   const sec = performance.now() * 0.001;
   const off = canvasOffset();
   const mine = new Set(layerMeshes(p));
@@ -1118,11 +1215,11 @@ export function meshHandoff(el) {
       if (t < 1) {
         // the released plane may have been the last one — the main loop stops
         // rendering then, so the fade must drive its own frames
-        if (!planes.length) renderer?.render(scene, camera);
+        if (!planes.length && !isContextLost()) renderer?.render(scene, camera);
         requestAnimationFrame(fade);
       } else {
         scene.remove(beams); beams.material.map?.dispose(); beams.material.dispose();
-        renderer?.render(scene, camera);
+        if (!isContextLost()) renderer?.render(scene, camera);
       }
     };
     requestAnimationFrame(fade);
@@ -1163,8 +1260,7 @@ export function meshBind(entries) {
   }
   if (!planes.length) return;
   document.documentElement.classList.add('mesh-on');
-  const loop = (t) => { raf = requestAnimationFrame(loop); tick(t); };
-  raf = requestAnimationFrame(loop);
+  startLoop();
 }
 
 /** Mesh-only float lift in stage px (0 = feet on ground). CSS idle bob is separate. */
@@ -1269,7 +1365,7 @@ export function meshAimClear() {
 // Debug-only rendered-colour probe: exercise the shipped body fragment shader
 // through the live WebGL renderer without coupling tests to a painted asset.
 function debugProbeBodyColour({ rgb = [0.5, 0.5, 0.5], hue = 0, saturation = 1, brightness = 1 } = {}) {
-  if (!renderer) return null;
+  if (!renderer || isContextLost()) return null;
   const bytes = new Uint8Array([
     ...rgb.map((channel) => Math.round(Math.max(0, Math.min(1, channel)) * 255)),
     255,
