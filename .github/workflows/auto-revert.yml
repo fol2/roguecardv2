@@ -37,7 +37,35 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
+      # De-fang: a red main whose ONLY failed leaf lane is `e2e aux` is the known
+      # bfeditor disk-write flake (bfeditor-disk runs retries:0 and races a Vite
+      # HMR restart on slow CI). Standing down here stops that flake from
+      # false-reverting good work; a human is pulled in via an issue instead.
+      - name: Stand down when only the known-flaky aux lane failed
+        id: aux_guard
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          FAILED_RUN_URL: ${{ github.event.workflow_run.html_url }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Aggregate/gate jobs (unit, e2e, e2e nonvisual, p2-base) fail only as a
+          # CONSEQUENCE of a leaf lane — subtract them so we compare real lanes.
+          FAILED_LEAVES="$(gh api --paginate "repos/${REPO}/actions/runs/${RUN_ID}/jobs" \
+            --jq '[.jobs[] | select(.conclusion=="failure") | .name] - ["unit","e2e","e2e nonvisual","p2-base"] | unique')"
+          echo "failed leaf lanes: ${FAILED_LEAVES}"
+          if [ "${FAILED_LEAVES}" = '["e2e aux"]' ]; then
+            gh issue create --repo "${REPO}" \
+              --title "main CI red — only the flaky e2e aux lane failed (no auto-revert)" \
+              --body "The \`ci\` run failed on main but the ONLY failed leaf lane was \`e2e aux\` (the known bfeditor disk-write flake). Auto-revert stood down to avoid false-reverting good work. Assess manually: ${FAILED_RUN_URL}"
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+          fi
+
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        if: steps.aux_guard.outputs.skip != 'true'
         with:
           ref: main
           fetch-depth: 0
@@ -47,6 +75,7 @@ jobs:
           persist-credentials: true
 
       - name: Revert the failed commit straight to main
+        if: steps.aux_guard.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
