@@ -322,11 +322,14 @@ export async function createCombatRenderer({
   // Task 27 — hand above chrome so seats paint over piles; aim above hand.
   const handLayer = new Container(); handLayer.label = 'combat-gl-hand';
   const aimLayer = new Container(); aimLayer.label = 'combat-gl-aim';
+  // Transient chrome micro-feedback beats (energy/lantern/piles/block/facet).
+  const pulseLayer = new Container(); pulseLayer.label = 'combat-gl-pulse';
+  pulseLayer.eventMode = 'none';
   const ceremonyLayer = new Container(); ceremonyLayer.label = 'combat-gl-ceremony';
   container.addChild(
     candlesLayer, energyNumLayer, lanternLayer, endTurnLayer,
     pileLayers.draw, pileLayers.discard, pileLayers.ashes,
-    platesLayer, hudLayer, handLayer, aimLayer, ceremonyLayer,
+    platesLayer, hudLayer, handLayer, aimLayer, pulseLayer, ceremonyLayer,
   );
 
   // Task 28 — floaters / banners / pile flights / shatter live above chrome.
@@ -378,6 +381,8 @@ export async function createCombatRenderer({
   let handReady = false;
   let handPainted = 0;
   let aimPathCache = null;
+  // Live chrome micro-feedback beats — { g, t, dur }, ticked + reaped in place.
+  const pulses = [];
   // Living-card animation clock — drives the always-on holographic sweep.
   let holoClock = 0;
   // Pixi Application ticker handle for the per-frame hand animation.
@@ -520,6 +525,7 @@ export async function createCombatRenderer({
       clearPlatesPaint();
       clearHandPaint();
       clearAimPaint();
+      clearPulses();
       bump();
       return null;
     }
@@ -881,7 +887,7 @@ export async function createCombatRenderer({
     if (!ticker) return;
     if (handTicker === ticker && handTickHandler) return;
     detachHandTicker();
-    handTickHandler = (tk) => tickHand(tk);
+    handTickHandler = (tk) => { tickHand(tk); tickPulses(tk); };
     try {
       ticker.add(handTickHandler);
       handTicker = ticker;
@@ -897,6 +903,90 @@ export async function createCombatRenderer({
     }
     handTicker = null;
     handTickHandler = null;
+  }
+
+  // --- Chrome micro-feedback pulse (Task: dead pops) --------------------------
+  // A brief additive glow beat that blooms + fades out from a chrome widget's
+  // centre when its value ticks. Decoupled from the painted chrome (which is
+  // rebuilt each sync), so it never fights the widget's own repaint.
+  const PULSE_MS = DURATION_MS.quick || 360;
+  const PULSE_MAX = 24; // hard cap so a rapid event storm can't pile up GPU objects
+
+  /** Resolve a pulse target keyword / plate descriptor / raw rect → bounds. */
+  function resolvePulseBounds(target) {
+    if (!target) return null;
+    if (typeof target === 'string') {
+      switch (target) {
+        case 'energy': return candleFrameCache?.bounds || null;
+        case 'lantern': return lanternBoundsCache;
+        case 'end-turn': return endTurnBoundsCache;
+        case 'draw': case 'discard': case 'ashes':
+          return pileBoundsCache?.[target] || null;
+        default: return null;
+      }
+    }
+    if (typeof target === 'object') {
+      if (target.width != null && (target.left != null || target.x != null)) return target;
+      const isPlayer = target.who === 'player' || target.enemy == null;
+      const plate = isPlayer ? platesCache?.hero : platesCache?.enemies?.[target.enemy];
+      if (!plate) return null;
+      if (target.kind === 'block') return plate.blockBounds || plate.plateBounds || null;
+      return plate.plateBounds || null; // facet / generic plate beat
+    }
+    return null;
+  }
+
+  function spawnPulse(bounds, opts = {}) {
+    if (destroyed || reducedMotion() || !bounds) return false;
+    const width = bounds.width ?? ((bounds.right ?? 0) - (bounds.left ?? 0));
+    const height = bounds.height ?? ((bounds.bottom ?? 0) - (bounds.top ?? 0));
+    if (!(width > 0) || !(height > 0)) return false;
+    const resolution = paintResolution(pixiLayer);
+    const cx = (bounds.left ?? bounds.x ?? 0) + width / 2;
+    const cy = (bounds.top ?? bounds.y ?? 0) + height / 2;
+    const tone = Number.isFinite(opts.tone) ? opts.tone : 0xffd8a0;
+    const R = Math.max(12, Math.min(width, height) * 0.62);
+    const g = new Graphics();
+    g.circle(0, 0, R * 0.72).fill({ color: tone, alpha: 0.14 });
+    g.circle(0, 0, R * 0.42).fill({ color: tone, alpha: 0.20 });
+    g.circle(0, 0, R).stroke({ width: 3, color: tone, alpha: 0.85 });
+    g.blendMode = 'add';
+    g.eventMode = 'none';
+    g.position.set(snapStage(cx, resolution), snapStage(cy, resolution));
+    g.scale.set(0.5);
+    pulseLayer.addChild(g);
+    if (pulses.length >= PULSE_MAX) {
+      const old = pulses.shift();
+      try { old.g.destroy({ children: true, context: true }); } catch { /* ignore */ }
+    }
+    pulses.push({ g, t: 0, dur: Math.max(160, opts.dur || PULSE_MS) });
+    attachHandTicker();
+    return true;
+  }
+
+  function tickPulses(ticker) {
+    if (destroyed || !pulses.length) return;
+    const ms = Math.min(ticker?.deltaMS ?? 16.7, 40);
+    for (let i = pulses.length - 1; i >= 0; i -= 1) {
+      const pz = pulses[i];
+      pz.t += ms;
+      const k = pz.t / pz.dur;
+      if (k >= 1) {
+        try { pz.g.destroy({ children: true, context: true }); } catch { /* ignore */ }
+        pulses.splice(i, 1);
+        continue;
+      }
+      const inv = 1 - k;
+      pz.g.scale.set(0.5 + (1 - inv * inv * inv) * 0.85); // easeOutCubic bloom
+      pz.g.alpha = inv * inv; // easeOut fade
+    }
+  }
+
+  function clearPulses() {
+    for (const pz of pulses) {
+      try { pz.g.destroy({ children: true, context: true }); } catch { /* ignore */ }
+    }
+    pulses.length = 0;
   }
 
   function faceDescriptor(card) {
@@ -916,6 +1006,10 @@ export async function createCombatRenderer({
       up: !!card.upgraded,
       effectiveCost: card.effectiveCost,
       effectiveText: card.effectiveText,
+      // Preview-resolved @n@/#n# body values (boosted=green/reduced=red),
+      // computed in combat.js buildHandModel via engine previewPlay. Folded into
+      // the face cache key by faceCacheKeyFor so the bake splits per value set.
+      values: card.values || null,
     };
   }
 
@@ -937,14 +1031,9 @@ export async function createCombatRenderer({
 
     let texture = null;
     try {
-      // TODO(value-tint): pass `displayState.values` (preview-resolved
-      // damage/block per `@n@`/`#n#` body marker, boosted=green/reduced=red)
-      // into acquire() so hand numbers read Strength/Weak/relic-adjusted like
-      // the cost already does. The values array must be computed via the
-      // engine's `previewPlay` path against the live target — data this pure
-      // presenter does not hold. The correct home is `buildHandModel()` in
-      // src/ui/combat.js (add `values` to each card, then thread it through
-      // faceDisplayState here and into faceCacheKeyFor so the cache splits).
+      // Preview-resolved value tint rides on faceDisplayState().values (set in
+      // combat.js buildHandModel) — acquire() bakes it, faceCacheKeyFor() above
+      // folds it into nextKey so a value change re-bakes.
       const acquired = cardFace.acquire(faceDescriptor(card), faceDisplayState(card));
       entry.release = acquired.release;
       entry.faceKey = acquired.key;
@@ -1180,17 +1269,39 @@ export async function createCombatRenderer({
     const to = aim.to;
     const cx = (from.x + to.x) / 2;
     const cy = Math.min(from.y, to.y) - 120;
+    // Quadratic control points (P0 = card, C = apex, P1 = reticle).
+    const p0x = from.x;
+    const p0y = from.y - 80;
+    const bez = (t) => {
+      const u = 1 - t;
+      return {
+        x: u * u * p0x + 2 * u * t * cx + t * t * to.x,
+        y: u * u * p0y + 2 * u * t * cy + t * t * to.y,
+      };
+    };
     const g = new Graphics();
-    g.moveTo(from.x, from.y - 80);
-    g.quadraticCurveTo(cx, cy, to.x, to.y);
+    // Sample the curve into ~10 round-capped dashes (62% ink / 38% gap per cell)
+    // for the targeting-reticle look. Two passes: a soft wide glow under crisp ink.
+    const DASHES = 10;
+    const INK = 0.62;
+    const drawDashes = () => {
+      for (let i = 0; i < DASHES; i += 1) {
+        const a = bez(i / DASHES);
+        const b = bez((i + INK) / DASHES);
+        g.moveTo(a.x, a.y).lineTo(b.x, b.y);
+      }
+    };
+    drawDashes();
     g.stroke({
-      width: 4,
-      color: 0xff5964,
-      alpha: 0.85,
-      pixelLine: false,
+      width: 9, color: 0xff5964, alpha: 0.16, cap: 'round', pixelLine: false,
     });
-    // Dashed look approximated with short segments along the quadratic.
-    g.circle(to.x, to.y, 9).stroke({ width: 3, color: 0xff5964, alpha: 0.95 });
+    drawDashes();
+    g.stroke({
+      width: 4, color: 0xff8a92, alpha: 0.92, cap: 'round', pixelLine: false,
+    });
+    // Reticle: a ringed crosshair at the aim point.
+    g.circle(to.x, to.y, 11).stroke({ width: 2.5, color: 0xff5964, alpha: 0.95 });
+    g.circle(to.x, to.y, 3).fill({ color: 0xff8a92, alpha: 0.9 });
     g.eventMode = 'none';
     aimLayer.addChild(g);
     aimPathCache = Object.freeze({
@@ -2560,6 +2671,7 @@ export async function createCombatRenderer({
     detachHandTicker();
     clearHandPaint();
     clearAimPaint();
+    clearPulses();
     // Detach before teardown so Application.destroy does not reap combat chrome.
     const layerRoot = pixiLayer.root?.();
     if (layerRoot && container.parent === layerRoot) {
@@ -2622,6 +2734,7 @@ export async function createCombatRenderer({
     detachHandTicker();
     clearHandPaint();
     clearAimPaint();
+    clearPulses();
     try { presentation.destroy(); } catch { /* already gone */ }
     try { cardFace.destroy(); } catch { /* already gone */ }
     try { container.destroy({ children: true, context: true }); } catch { /* container already reaped */ }
@@ -2637,6 +2750,8 @@ export async function createCombatRenderer({
     // presentation seam
     mount, sync, layout, hitTest, setInteraction, readUI, stats,
     sampleLiveChromeContrast,
+    // chrome micro-feedback beat (energy/lantern/piles/block/facet)
+    pulse: (target, opts) => spawnPulse(resolvePulseBounds(target), opts || {}),
     // lifecycle bridge (Task 21 pixiLayer)
     loseContextForTest, rebuildAfterLossForTest, recoverContextForTest,
     freezeForTest, unfreezeForTest, destroy,
