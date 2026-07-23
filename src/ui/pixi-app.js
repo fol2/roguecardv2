@@ -188,6 +188,7 @@ export async function createPixiLayer({
   // and re-syncs state after a real GPU loss (the test path reuses the same seam).
   let onContextRestoredHandler = null;
   let recovering = false;
+  let destroyed = false;
   let resizeHandler = null;
   let resizeRaf = 0;
   let recoveryOverlay = null;
@@ -583,6 +584,7 @@ export async function createPixiLayer({
     snapshot: readSnapshot,
     writeSnapshot,
     destroy() {
+      destroyed = true;
       if (resizeHandler && typeof window !== 'undefined') {
         window.removeEventListener('resize', resizeHandler);
         window.removeEventListener('orientationchange', resizeHandler);
