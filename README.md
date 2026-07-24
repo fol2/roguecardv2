@@ -2,6 +2,8 @@
 
 A complete roguelite deckbuilder for the browser: a tower of glass creatures with fire inside, climbed by lantern light. Three acts, three bosses, 60 cards, 31 relics, 27 enemy species, 2 playable aspects, and a meta-progression vigil that remembers every fall — combat art, card faces, relics, enemies, events, and stage plates are painted raster PNGs (with procedural SVG fallbacks); structural UI icons and status chips stay hand-drawn SVG in `src/art.js`; SFX are sample-backed with WebAudio synth fallback, and BGM is a versioned Music Cue layer. No UI framework.
 
+> **Frozen (2026-07-24):** this web version is the reference implementation for the Godot port ([fol2/glassvow](https://github.com/fol2/glassvow)); tag `web-reference-v1`. Only port-fixture exporters and critical player-blocking fixes land here.
+
 **Naming layers:**
 - **Glassvow** (Chinese: **琉璃誓言**) — official display / brand title. Tagline "The Vigil Remembers"; store flavor "Climb beneath a vow of glass and flame." The title's *Vow* is thematic; the in-game five-step **Vows** difficulty ladder still unlocks after the first dawn (deliberate title payoff).
 - **Spirebound** — internal engineering name only: repo, `package.json` `"name"`, `spirebound_*` localStorage keys, `window.spirebound`, `SPIREBOUND_E2E_PORT`, and file-header comments. Saves and test anchors depend on these; do not rename.
